@@ -9,9 +9,8 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert)
 
 import           Test.Hspec as H
 
-import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.Data.Prim.Pinned.Unicode.Array as IUA
@@ -79,7 +78,7 @@ testLinesArray =
             xs <- run
                     $ S.toList
                     $ S.map A.toList
-                    $ AS.splitOnSuffix 10
+                    $ S.splitInnerBySuffix (A.breakOn 10) A.spliceTwo
                     $ S.yield (A.fromList list)
             assert (xs == map (map (fromIntegral . ord))
                               (lines (map (chr .  fromIntegral) list)))

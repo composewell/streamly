@@ -98,10 +98,9 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | @'handleWithM' socket act@ runs the monadic computation @act@ passing the
@@ -412,7 +411,7 @@ readWithBufferOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, PrimMonad m, MonadIO m) => Socket -> t m Word8
-toBytes = AS.concat . toChunks
+toBytes = A.concat . toChunks
 
 -- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
 -- to the socket are performed using buffers of @bufsize@.
@@ -489,7 +488,7 @@ writeStrings encode h =
 -- @since 0.7.0
 {-# INLINE fromBytesWithBufferOf #-}
 fromBytesWithBufferOf :: (PrimMonad m, MonadIO m) => Int -> Socket -> SerialT m Word8 -> m ()
-fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.

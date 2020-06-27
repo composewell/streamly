@@ -157,3 +157,29 @@ readIndex arr i =
 {-# INLINE last #-}
 last :: Prim a => Array a -> Maybe a
 last arr = readIndex arr (length arr - 1)
+
+-------------------------------------------------------------------------------
+-- Array stream operations
+-------------------------------------------------------------------------------
+
+-- | Convert a stream of arrays into a stream of their elements.
+--
+-- Same as the following but more efficient:
+--
+-- > concat = S.concatMap A.read
+--
+-- @since 0.7.0
+{-# INLINE concat #-}
+concat :: (IsStream t, PrimMonad m, Prim a) => t m (Array a) -> t m a
+-- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
+-- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
+concat m = D.fromStreamD $ D.concatMapU read (D.toStreamD m)
+
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size in bytes.
+--
+-- @since 0.7.0
+{-# INLINE compact #-}
+compact :: (PrimMonad m, Prim a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+compact n xs = D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)

@@ -121,10 +121,8 @@ import Control.Monad.Primitive (PrimMonad(..))
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Prim.Pinned.Array as IA
-import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as IA
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -158,7 +156,7 @@ readArrayUpto size h = do
     MA.withArrayAsPtr arr $ \p -> do
         n <- hGetBufSome h p size
         MA.shrinkArray arr n
-        IA.unsafeFreeze arr
+        A.unsafeFreeze arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -283,7 +281,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 -- /Internal/
 {-# INLINE toBytesWithBufferOf #-}
 toBytesWithBufferOf :: (IsStream t, MonadIO m, PrimMonad m) => Int -> Handle -> t m Word8
-toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
+toBytesWithBufferOf chunkSize h = A.concat $ toChunksWithBufferOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -303,7 +301,7 @@ read = UF.supplyFirst readWithBufferOf defaultChunkSize
 -- /Internal/
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadIO m, PrimMonad m) => Handle -> t m Word8
-toBytes = AS.concat . toChunks
+toBytes = A.concat . toChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -319,9 +317,9 @@ toBytes = AS.concat . toChunks
 {-# INLINABLE writeArray #-}
 writeArray :: Prim a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray h arr = IA.withArrayAsPtr arr $ \p -> hPutBuf h p aLen
+writeArray h arr = A.withArrayAsPtr arr $ \p -> hPutBuf h p aLen
     where
-    aLen = IA.byteLength arr
+    aLen = A.byteLength arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -357,7 +355,7 @@ putChunks = fromChunks stdout
 {-# INLINE putStrings #-}
 putStrings :: (MonadAsync m, PrimMonad m)
     => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
-putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
+putStrings encode = putChunks . S.mapM (A.fromStream . encode . S.fromList)
 
 -- XXX use an unfold so that we can put lines from any object
 -- | Write a stream of strings as separate lines to standard output using the
@@ -370,7 +368,7 @@ putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
 putLines :: (MonadAsync m, PrimMonad m)
     => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
 putLines encode = putChunks . S.mapM
-    (\xs -> IA.fromStream $ encode (S.fromList (xs ++ "\n")))
+    (\xs -> A.fromStream $ encode (S.fromList (xs ++ "\n")))
 
 -- | Write a stream of bytes from standard output.
 --
@@ -391,7 +389,7 @@ putBytes = fromBytes stdout
 {-# INLINE fromChunksWithBufferOf #-}
 fromChunksWithBufferOf :: (MonadIO m, PrimMonad m, Prim a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
+fromChunksWithBufferOf n h xs = fromChunks h $ A.compact n xs
 
 -- | @fromBytesWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
@@ -401,7 +399,7 @@ fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 {-# INLINE fromBytesWithBufferOf #-}
 fromBytesWithBufferOf :: (MonadIO m, PrimMonad m) => Int -> Handle -> SerialT m Word8 -> m ()
 fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
--- fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+-- fromBytesWithBufferOf n h m = fromChunks h $ A.arraysOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

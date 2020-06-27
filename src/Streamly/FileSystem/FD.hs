@@ -144,9 +144,9 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -------------------------------------------------------------------------------
@@ -317,7 +317,7 @@ readArrays = readArraysOfUpto defaultChunkSize
 --
 {-# INLINE readInChunksOf #-}
 readInChunksOf :: (IsStream t, MonadIO m, PrimMonad m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
+readInChunksOf chunkSize h = A.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Prim a) => Handle -> t m a
@@ -329,7 +329,7 @@ readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m, PrimMonad m) => Handle -> t m Word8
-read = AS.concat . readArrays
+read = A.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -351,7 +351,7 @@ writeArrays h = S.mapM_ (liftIO . writeArray h)
 {-# INLINE writeArraysPackedUpto #-}
 writeArraysPackedUpto :: (PrimMonad m, Prim a, MonadIO m)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
+writeArraysPackedUpto n h xs = writeArrays h $ A.compact n xs
 
 {-
 #if !defined(mingw32_HOST_OS)
@@ -394,7 +394,7 @@ _writevArraysPackedUpto n h xs =
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: (PrimMonad m, MonadIO m) => Int -> Handle -> SerialT m Word8 -> m ()
-writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
+writeInChunksOf n h m = writeArrays h $ S.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

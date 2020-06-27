@@ -110,9 +110,8 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Prelude as S
 
 -------------------------------------------------------------------------------
 -- References
@@ -260,7 +259,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ toChunksWithBufferOf chunkSize h
 --
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadCatch m, MonadIO m, PrimMonad m) => FilePath -> t m Word8
-toBytes file = AS.concat $ withFile file ReadMode FH.toChunks
+toBytes file = A.concat $ withFile file ReadMode FH.toChunks
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -316,7 +315,7 @@ fromChunks = fromChunksMode WriteMode
 {-# INLINE fromBytesWithBufferOf #-}
 fromBytesWithBufferOf :: (MonadAsync m, MonadCatch m, PrimMonad m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-fromBytesWithBufferOf n file xs = fromChunks file $ AS.arraysOf n xs
+fromBytesWithBufferOf n file xs = fromChunks file $ S.arraysOf n xs
 
 -- > write = 'writeWithBufferOf' defaultChunkSize
 --
@@ -396,7 +395,7 @@ appendChunks = fromChunksMode AppendMode
 {-# INLINE appendWithBufferOf #-}
 appendWithBufferOf :: (MonadAsync m, MonadCatch m, PrimMonad m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-appendWithBufferOf n file xs = appendChunks file $ AS.arraysOf n xs
+appendWithBufferOf n file xs = appendChunks file $ S.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data

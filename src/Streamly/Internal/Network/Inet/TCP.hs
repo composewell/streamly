@@ -119,9 +119,8 @@ import qualified Network.Socket as Net
 
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Network.Socket as SK
 import qualified Streamly.Internal.Network.Socket as ISK
 
@@ -323,7 +322,7 @@ read = UF.concat (usingConnection ISK.readChunks) A.read
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadCatch m, MonadIO m, PrimMonad m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
+toBytes addr port = A.concat $ withConnection addr port ISK.toChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -379,7 +378,7 @@ fromBytesWithBufferOf
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-fromBytesWithBufferOf n addr port m = fromChunks addr port $ AS.arraysOf n m
+fromBytesWithBufferOf n addr port m = fromChunks addr port $ S.arraysOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of

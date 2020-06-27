@@ -95,6 +95,12 @@ module Streamly.Internal.Data.Prim.Array
 
     -- * Folds with Array as the container
 --    , D.lastN
+
+    -- * Streaming array operations
+
+    , concat
+    , compact
+
     )
 where
 

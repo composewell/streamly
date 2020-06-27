@@ -150,7 +150,6 @@ extra-source-files:
     src/prim-array.hs
     src/prim-array-types.hs
     src/mutable-prim-array-types.hs
-    src/prim-array-stream.hs
     configure.ac
     configure
     src/Streamly/Internal/Data/Time/config.h.in
@@ -391,8 +390,6 @@ library
                      , Streamly.Internal.Data.Prim.Array.Types
                      , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.Prim.Mutable.Array.Types
-                     , Streamly.Internal.Data.Prim.ArrayStream
-                     , Streamly.Internal.Data.Prim.Pinned.ArrayStream
                      , Streamly.Internal.Data.Prim.Pinned.Array.Types
                      , Streamly.Internal.Data.Prim.Pinned.Array
                      , Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
