@@ -53,7 +53,7 @@ bench_rts_opts_specific () {
     Prelude.Serial/o-n-space/Functor/*) echo -n "-K4M -M64M" ;;
     Prelude.Serial/o-n-space/Applicative/*) echo -n "-K8M -M128M" ;;
     Prelude.Serial/o-n-space/Monad/*) echo -n "-K8M -M64M" ;;
-    Prelude.Serial/o-n-heap/transformer/*) echo -n "-M64M" ;;
+    Prelude.Serial/o-n-heap/transformer/*) echo -n "-K8M -M64M" ;;
     Prelude.Serial/o-n-space/grouping/*) echo -n "" ;;
     Prelude.Serial/o-n-space/*) echo -n "-K4M" ;;
 
