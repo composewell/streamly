@@ -10,6 +10,9 @@
   * New combinators have time and space complexity annotations
   * New combinators have `since` annotation
 * Changelog entry is added for exposed combinators.
+* Identify breaking changes, or changes that may require depndency
+  version bound changes. See https://pvp.haskell.org/. Also see the
+  "Breaking changes section below".
 * Optionally, look at hlint output if anything in that is worth fixing.
 * Merge the PR by rebasing. Note that github always creates new commits when
   merged with rebase, it records the committer as well as the author in the
@@ -99,6 +102,37 @@
         * Check https://matrix.hackage.haskell.org/package/streamly
         * Check haddocks on Hackage, upload if not built
         * Announce to haskell-cafe@haskell.org
+
+## Breaking Changes
+
+This section lists what constitutes breaking changes.  See
+https://pvp.haskell.org/ breaking changes that can be determined by the
+API alone. We specify some additional recommendations here:
+
+Behavior changes, this kind of changes are nasty and should be avoided. If such
+changes are made they should be emphasized adequately in the changelog:
+
+* Silent changes in the behavior of an API without any changes to the
+  signature.
+* Even fixing a bug could break things as users may have employed workarounds
+  for the bug.
+* Changes in the behavior of a dependency may also cause a change in behavior.
+
+Be cautious about the following:
+
+* Change in version bounds of dependencies may cause compilation failure for
+  some programs because they may not be able to find a build plan.
+* Ideally, new warnings should not be considered breaking, dependencies
+  should never be compiled with -Werror. But packages may not be following
+  it perfectly.
+* Deprecating an API may issue new warnings, however the code can still be
+  compiled if warnings are not treated as errors.
+
+Internal APIs:
+
+* Internal APIs can change without having to change the major version. However,
+  we should try to align the Internal API changes with a major release as long
+  as possible.
 
 ## Managing Issues
 
