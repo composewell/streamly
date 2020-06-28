@@ -381,6 +381,9 @@ satisfy = D.toParserK . D.satisfy
 -- >>> S.parse (PR.take 1 FL.toList) $ S.fromList [1]
 -- [1]
 --
+-- >>> S.parse (PR.take (-1) FL.toList) $ S.fromList [1]
+-- []
+--
 -- @
 -- S.chunksOf n f = S.splitParse (FL.take n f)
 -- @
@@ -514,6 +517,13 @@ sliceBeginWith = undefined
 -- | Split using a condition or a count whichever occurs first. This is a
 -- hybrid of 'splitOn' and 'take'. The element on which the condition succeeds
 -- is dropped.
+--
+-- >>> even n = n `mod` 2 == 0
+-- >>> S.parse (PR.many FL.toList (PR.sliceSepByMax (==1) 5 FL.toList)) $ S.fromList [1..10]
+-- > [[],[2,3,4,5,6],[7,8,9,10]]
+--
+-- >>> S.parse (PR.many FL.toList (PR.sliceSepByMax even 10 FL.toList)) $ S.fromList [0..10]
+-- > [[],[1],[3],[5],[7],[9],[]]
 --
 -- /Internal/
 --
