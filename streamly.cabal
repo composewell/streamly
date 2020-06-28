@@ -143,6 +143,7 @@ extra-source-files:
     docs/transformers.md
     examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs
+    src/Streamly/Internal/Data/Time/config-clock.h
     src/Streamly/Internal/Data/Time/config.h.in
     src/inline.hs
     stack.yaml
