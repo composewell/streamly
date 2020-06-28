@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 #include "inline.hs"
 
 -- |

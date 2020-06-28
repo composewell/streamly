@@ -1,8 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 #include "inline.hs"
 
 -- |

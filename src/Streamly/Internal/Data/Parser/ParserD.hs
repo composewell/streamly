@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 #include "inline.hs"
 
 -- |
