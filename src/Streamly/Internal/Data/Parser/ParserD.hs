@@ -346,9 +346,11 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
+takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     where
+
+    n = max cnt 0
 
     initial = Tuple' 0 <$> finitial
 
