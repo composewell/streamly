@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-
 -- |
 -- Module      : Streamly.Internal.BaseCompat
 -- License     : BSD3

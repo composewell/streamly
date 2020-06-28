@@ -1,7 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE CPP           #-}
-
 #include "inline.hs"
 
 -- |

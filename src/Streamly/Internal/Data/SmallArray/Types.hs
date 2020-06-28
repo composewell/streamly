@@ -1,12 +1,5 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE BangPatterns #-}
 
 -- |
 -- Module : Data.Primitive.SmallArray
