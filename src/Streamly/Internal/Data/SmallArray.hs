@@ -8,6 +8,7 @@
 -- Portability : GHC
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 #include "inline.hs"
 

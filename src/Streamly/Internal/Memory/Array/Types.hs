@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
+
 #include "inline.hs"
 
 -- |

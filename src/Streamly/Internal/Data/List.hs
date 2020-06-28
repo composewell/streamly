@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.List
 -- Copyright   : (c) 2018 Composewell Technologies

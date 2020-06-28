@@ -51,7 +51,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
-fromStreamVar :: forall m a . MonadAsync m => SVar Stream m a -> Stream m a
+fromStreamVar :: MonadAsync m => SVar Stream m a -> Stream m a
 fromStreamVar sv = MkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -60,7 +60,7 @@ fromStreamVar sv = MkStream $ \st yld sng stp -> do
     foldStream st yld sng stp $ processEvents $ reverse list
 
     where
-    allDone :: m r -> m r
+
     allDone stp = do
         when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic
@@ -69,7 +69,6 @@ fromStreamVar sv = MkStream $ \st yld sng stp -> do
         stp
 
     {-# INLINE processEvents #-}
-    processEvents :: [ChildEvent a] -> Stream m a
     processEvents [] = MkStream $ \st yld sng stp -> do
         done <- postProcess sv
         if done
@@ -93,7 +92,6 @@ fromStreamVar sv = MkStream $ \st yld sng stp -> do
                             Just ThreadAbort ->
                                 foldStream st yld sng stp rest
                             Nothing -> liftIO (cleanupSVar sv) >> throwM ex
-
     shouldStop tid =
         case svarStopStyle sv of
             StopNone -> return False

@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Serial
 -- Copyright   : (c) 2017 Harendra Kumar

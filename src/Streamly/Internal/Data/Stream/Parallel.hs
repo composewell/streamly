@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 #include "inline.hs"
 
 -- |

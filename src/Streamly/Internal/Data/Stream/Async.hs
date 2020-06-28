@@ -1,3 +1,7 @@
+{-# LANGUAGE UndecidableInstances #-}
+
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Async
 -- Copyright   : (c) 2017 Harendra Kumar
