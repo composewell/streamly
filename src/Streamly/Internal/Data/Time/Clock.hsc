@@ -5,13 +5,14 @@
 
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-identities          #-}
-{-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 #endif
 
 #ifndef __GHCJS__
 #include "config.h"
 #endif
+
+#include "config-clock.h"
 
 -- |
 -- Module      : Streamly.Internal.Data.Time.Clock
@@ -24,18 +25,6 @@
 -- Portability : GHC
 
 -- A majority of the code below has been stolen from the "clock" package.
-
-#if __GHCJS__
-#define HS_CLOCK_GHCJS 1
-#elif defined(_WIN32)
-#define HS_CLOCK_WINDOWS 1
-#elif (defined (HAVE_TIME_H) && defined(HAVE_CLOCK_GETTIME))
-#define HS_CLOCK_POSIX 1
-#elif __APPLE__
-#define HS_CLOCK_OSX 1
-#else
-#error "Time/Clock functionality not implemented for this system"
-#endif
 
 module Streamly.Internal.Data.Time.Clock
     (
@@ -214,48 +203,6 @@ clockToJSClockId Realtime       = 0
 -------------------------------------------------------------------------------
 -- Clock time
 -------------------------------------------------------------------------------
-
-#if __GLASGOW_HASKELL__ < 800
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
-#endif
-
-#ifdef HS_CLOCK_GHCJS
-instance Storable TimeSpec where
-  sizeOf _ = 8
-  alignment _ = 4
-  peek p = do
-    CTime  s <- peekByteOff p 0
-    CLong ns <- peekByteOff p 4
-    return (TimeSpec (fromIntegral s) (fromIntegral ns))
-  poke p (TimeSpec s ns) = do
-    pokeByteOff p 0 ((fromIntegral s) :: CTime)
-    pokeByteOff p 4 ((fromIntegral ns) :: CLong)
-
-#elif HS_CLOCK_WINDOWS
-instance Storable TimeSpec where
-  sizeOf _ = sizeOf (undefined :: Int64) * 2
-  alignment _ = alignment (undefined :: Int64)
-  peek ptr = do
-    s <- peekByteOff ptr 0
-    ns <- peekByteOff ptr (sizeOf (undefined :: Int64))
-    return (TimeSpec s ns)
-  poke ptr ts = do
-      pokeByteOff ptr 0 (sec ts)
-      pokeByteOff ptr (sizeOf (undefined :: Int64)) (nsec ts)
-#else
-instance Storable TimeSpec where
-  sizeOf _ = #{size struct timespec}
-  alignment _ = #{alignment struct timespec}
-  peek ptr = do
-      s :: #{type time_t} <- #{peek struct timespec, tv_sec} ptr
-      ns :: #{type long} <- #{peek struct timespec, tv_nsec} ptr
-      return $ TimeSpec (fromIntegral s) (fromIntegral ns)
-  poke ptr ts = do
-      let s :: #{type time_t} = fromIntegral $ sec ts
-          ns :: #{type long} = fromIntegral $ nsec ts
-      #{poke struct timespec, tv_sec} ptr (s)
-      #{poke struct timespec, tv_nsec} ptr (ns)
-#endif
 
 {-# INLINE getTimeWith #-}
 getTimeWith :: (Ptr TimeSpec -> IO ()) -> IO AbsTime

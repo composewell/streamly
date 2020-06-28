@@ -328,6 +328,7 @@ library
                      , Streamly.Internal.Data.Strict
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.Time
+                     , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar

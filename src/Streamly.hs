@@ -55,10 +55,6 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 
-#if __GLASGOW_HASKELL__ >= 800
-{-# OPTIONS_GHC -Wno-orphans #-}
-#endif
-
 #include "inline.hs"
 
 module Streamly
