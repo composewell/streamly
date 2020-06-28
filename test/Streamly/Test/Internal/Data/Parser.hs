@@ -6,15 +6,20 @@ import qualified Streamly.Internal.Data.Fold as FL
 
 -- import Data.List (partition)
 
-import Test.Hspec(hspec, describe)
+import Test.Hspec(Spec, hspec, describe)
+import qualified Test.Hspec as H
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, choose, Property, property, listOf, vectorOf, counterexample, Gen)
+import Test.QuickCheck (arbitrary, forAll, choose, elements, Property,
+                        property, listOf, vectorOf, counterexample, Gen)
 
 import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor)
 import Control.Exception (SomeException(..), displayException)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.List ((\\))
+
+maxTestCount :: Int
+maxTestCount = 100
 
 min_value :: Int
 min_value = 0
@@ -227,6 +232,30 @@ takeGE =
                             property False
                     Left _ -> property (n > list_length)
 
+nLessThanEqual0 ::
+       (  Int
+       -> FL.Fold (Either SomeException) Int [Int]
+       -> P.Parser (Either SomeException) Int [Int]
+       )
+    -> (Int -> [Int] -> [Int])
+    -> Property
+nLessThanEqual0 tk ltk =
+    forAll (elements [0, (-1)]) $ \n ->
+        forAll (listOf arbitrary) $ \ls ->
+            case S.parse (tk n FL.toList) (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list (ltk n ls)
+                Left _ -> property False
+
+takeProperties :: Spec
+takeProperties =
+    describe "take combinators when n <= 0/" $ do
+        prop "take n FL.toList = []" $
+            nLessThanEqual0 P.take (\_ -> const [])
+        prop "takeEQ n FL.toList = []" $
+            nLessThanEqual0 P.takeEQ (\_ -> const [])
+        prop "takeGE n FL.toList xs = xs" $
+            nLessThanEqual0 P.takeGE (\_ -> id)
+
 -- lookAheadPass :: Property
 -- lookAheadPass =
 --     forAll (chooseInt (min_value + 1, max_value)) $ \n ->
@@ -422,7 +451,10 @@ sliceSepBy =
 --         Left _ -> True)
 
 main :: IO ()
-main = hspec $ do
+main =
+    hspec $
+    H.parallel $
+    modifyMaxSuccess (const maxTestCount) $ do
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
         prop "P.any = Prelude.any" Main.any
@@ -467,3 +499,4 @@ main = hspec $ do
         -- prop "left fail test for shortest function" shortestFailLeft
         -- prop "right fail test for shortest function" shortestFailRight
         -- prop "both fail test for shortest function" shortestFailBoth
+    takeProperties
