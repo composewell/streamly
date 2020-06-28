@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Ahead
 -- Copyright   : (c) 2017 Harendra Kumar

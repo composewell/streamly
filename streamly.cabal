@@ -310,10 +310,12 @@ library
         RecordWildCards
         ScopedTypeVariables
         TupleSections
-        TypeFamilies
-        UnboxedTuples
-        UndecidableInstances
         ViewPatterns
+
+        -- UndecidableInstances -- Does not show any perf impact
+        -- TypeFamilies         -- Causes large regressions and improvements
+        -- UnboxedTuples        -- interferes with (#.)
+
     if impl(ghc >= 8.1)
       default-extensions: TypeApplications
     if impl(ghc >= 8.6)

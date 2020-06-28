@@ -1,3 +1,5 @@
+{-# LANGUAGE UnboxedTuples #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.SVar
 -- Copyright   : (c) 2017 Harendra Kumar

@@ -1,3 +1,5 @@
+{-# LANGUAGE UnboxedTuples #-}
+
 #include "inline.hs"
 
 -- |
