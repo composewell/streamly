@@ -69,26 +69,6 @@ that interface.
 Polymorphic operations utilizing the abstract interface can go in the
 parent module `Streamly.Data.Stream`.
 
-Concrete/monomorphic pure stream modules would be placed in:
-
-* `Streamly.Data.Stream.Serial`
-* `Streamly.Data.Stream.WSerial`
-* `Streamly.Data.Stream.ZipSerial`
-* ...
-
-Monadic/effectful streams could go in:
-
-* `Streamly.Data.StreamM.Serial`
-* `Streamly.Data.StreamM.WSerial`
-* `Streamly.Data.StreamM.Async`
-* ...
-
-Pure streams are just a special case of monadic streams.
-
-We could possibly use the same type named `Stream` for all stream types, as we
-also have all the operation names also same and we distinguish only by the
-module name.
-
 ## Constrained Modules
 
 Some modules represent operations on a type which constrain a type using a type
@@ -110,25 +90,7 @@ rather than putting the `PrimArray` under a `Prim` hierarchy.
 Streamly.Internal.Data.Array.Boxed
 Streamly.Internal.Data.Array.Prim
 Streamly.Internal.Data.Array.Prim.Pinned
-
-Streamly.Internal.Data.ArrayM.Boxed
-Streamly.Internal.Data.ArrayM.Prim
-Streamly.Internal.Data.ArrayM.Prim.Pinned
 ```
-
-Pure arrays are just a special case of mutable arrays.
-
-We use the name `ArrayM` insted of `MArray` consistent with the naming
-of monadic operations like `mapM` and also because `Array` and `ArrayM`
-are listed together in alphabetical listing, plus camel case naming of the
-latter is clearer to read.
-
-We could use an `IsArray` type class, like `IsStream`, but it will
-require the `Prim` constraint on all polymorphic operations, rendering
-it of little use. So the `Array` module, unlike in streams, is just a
-name space placeholder here. We could assign the `Array` module to the
-Boxed array module but, having an explicit `Boxed` module along with
-other types of arrays keeps naming explicit and clearer.
 
 ## Common Modules
 
@@ -193,3 +155,76 @@ We have the following module hierarchy under Streamly:
 
 * Network: This name space is for APIs that access data from remote computers
   over the network.
+
+## Stream modules
+
+By default the streaming modules are effectful. The basic effectful
+stream types are:
+
+* `Streamly.Data.Stream`
+* `Streamly.Data.Stream.Async`
+* `Streamly.Data.Stream.Ahead`
+* `Streamly.Data.Stream.Parallel`
+* `Streamly.Data.Stream.IsStream` -- polymorphic operations
+* `Streamly.Data.Stream.Using`    -- e.g. mapMUsing consMAsync
+
+The above streams have an append-like multi-stream combining behavior
+i.e. `concatMap` and `bind` would by default evaluate the streams one
+after another. Alternative implementations of `concatMap` and `bind` are
+possible. We can either use rebindable syntax to use a different bind or
+define newtypes with a different bind behavior, all other operations for
+these remain the same as the base type:
+
+* `Streamly.Data.Stream.Zip`
+* `Streamly.Data.Stream.Interleaved`
+* `Streamly.Data.Stream.RoundRobin`
+* `Streamly.Data.Stream.Async.Zip`
+* `Streamly.Data.Stream.Async.Interleaved`
+* `Streamly.Data.Stream.Async.RoundRobin`
+* ...
+
+Pure streams are a special case of effectful streams and go in
+specialized modules suffixed with `Pure`:
+
+* `Streamly.Data.Stream.Pure`
+* `Streamly.Data.Stream.Zip.Pure`
+* `Streamly.Data.Stream.Interleaved.Pure`
+* `Streamly.Data.Stream.RoundRobin.Pure`
+* ...
+
+We could possibly use the same type named `Stream` for all stream
+types, as the names of all stream operation are also the same and we
+distinguish only by the module name.
+
+## Array modules
+
+Similarly, the Array modules would go in:
+
+* `Streamly.Data.Array`
+* `Streamly.Data.Array.Prim`
+* `Streamly.Data.Array.Prim.Pinned`
+* ...
+
+Pure arrays are just a special case of mutable arrays:
+
+* `Streamly.Data.Array.Pure`
+* `Streamly.Data.Array.Prim.Pure`
+* `Streamly.Data.Array.Prim.Pinned.Pure`
+* ...
+
+## Stream and Fold Channels (SVar)
+
+* `Streamly.Data.Stream.Channel`
+* `Streamly.Data.Stream.Channel.Prim`
+* `Streamly.Data.Fold.Channel`
+* `Streamly.Data.Fold.Channel.Prim`
+
+## Mutable variables
+
+* `Streamly.Data.MutVar.Prim`
+
+## Strict Data
+
+* `Streamly.Data.Tuple.Strict`
+* `Streamly.Data.Maybe.Strict`
+* `Streamly.Data.Either.Strict`
