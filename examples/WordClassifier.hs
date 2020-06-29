@@ -61,7 +61,7 @@ main = do
          & S.map toLower          -- SerialT IO Char
          & S.words FL.toList      -- SerialT IO String
          & S.filter (all isAlpha) -- SerialT IO String
-         & S.foldlM' (flip (Map.alterF alter)) Map.empty -- IO (Map String (IORef Int))
+         & S.foldlM' (flip (Map.alterF alter)) (return Map.empty) -- IO (Map String (IORef Int))
 
     -- Print the top hashmap entries
     counts <-

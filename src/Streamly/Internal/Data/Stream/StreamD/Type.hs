@@ -480,8 +480,10 @@ foldlx' fstep begin done m =
 
 -- XXX implement in terms of foldlMx'?
 {-# INLINE_NORMAL foldlM' #-}
-foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
-foldlM' fstep begin (Stream step state) = go SPEC begin state
+foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
+foldlM' fstep mbegin (Stream step state) = do
+    begin <- mbegin
+    go SPEC begin state
   where
     {-# INLINE_LATE go #-}
     go !_ acc st = acc `seq` do
@@ -495,7 +497,7 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
 
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
-foldl' fstep = foldlM' (\b a -> return (fstep b a))
+foldl' fstep begin = foldlM' (\b a -> return (fstep b a)) (return begin)
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}

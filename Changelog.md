@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Breaking changes
+
+* Change the signature of `foldlM'` to ensure that the accumulator is
+  monadic.
+
 ### Bug Fixes
 
 * `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`

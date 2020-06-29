@@ -433,7 +433,7 @@ inspect $ 'chunksOf `hasNoType` ''GroupState
 {-# INLINE chunksOfD #-}
 chunksOfD :: Int -> Handle -> IO Int
 chunksOfD n inh =
-    D.foldlM' (\i _ -> return $ i + 1) 0
+    D.foldlM' (\i _ -> return $ i + 1) (return 0)
         $ D.groupsOf n (AT.writeNUnsafe n)
         $ D.fromStreamK (S.unfold FH.read inh)
 

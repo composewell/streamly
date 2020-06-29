@@ -706,7 +706,7 @@ fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
     arr <- liftIO $ newArray limit
-    end <- D.foldlM' fwrite (aEnd arr) $ D.take limit str
+    end <- D.foldlM' fwrite (return $ aEnd arr) $ D.take limit str
     return $ arr {aEnd = end}
 
     where

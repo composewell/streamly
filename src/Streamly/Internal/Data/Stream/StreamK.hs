@@ -433,8 +433,8 @@ foldlMx' step begin done m = go begin m
 
 -- | Like 'foldl'' but with a monadic step function.
 {-# INLINE foldlM' #-}
-foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
-foldlM' step begin = foldlMx' step (return begin) return
+foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> m b
+foldlM' step begin = foldlMx' step begin return
 
 -- | Lazy left fold to a stream.
 {-# INLINE foldlS #-}

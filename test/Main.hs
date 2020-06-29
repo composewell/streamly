@@ -706,7 +706,7 @@ checkScanl'Strictness = do
         `shouldReturn` "success"
 
 foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
-foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) ()
+foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) (return ())
 
 #ifdef DEVBUILD
 foldxMStrictCheck :: IORef Int -> SerialT IO Int -> IO ()

@@ -603,7 +603,7 @@ countArray src = do
 {-# INLINE wc_mwl_parallel #-}
 wc_mwl_parallel :: Handle -> Int -> IO (V.IOVector Int)
 wc_mwl_parallel src n = do
-    counts <- newCounts
+    let counts = newCounts
     S.foldlM' addCounts counts
         $ S.aheadly
         $ S.maxThreads numCapabilities

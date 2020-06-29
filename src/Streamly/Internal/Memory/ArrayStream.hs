@@ -158,12 +158,12 @@ spliceArraysLenUnsafe :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> m (Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ A.newArray len
-    end <- S.foldlM' writeArr (aEnd arr) buffered
+    end <- S.foldlM' writeArr (return $ aEnd arr) buffered
     return $ arr {aEnd = end}
 
     where
 
-    writeArr dst Array{..} =
+    writeArr dst Array{..} = do
         liftIO $ withForeignPtr aStart $ \src -> do
                         let count = aEnd `minusPtr` src
                         A.memcpy (castPtr dst) (castPtr src) count
@@ -181,7 +181,7 @@ _spliceArraysBuffered s = do
 spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    idst <- liftIO $ A.newArray (A.bytesToElemCount (undefined :: a)
+    let idst = liftIO $ A.newArray (A.bytesToElemCount (undefined :: a)
                                 (A.mkChunkSizeKB 4))
 
     arr <- S.foldlM' A.spliceWithDoubling idst s

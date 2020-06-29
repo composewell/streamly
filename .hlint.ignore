@@ -15,7 +15,6 @@ src/Streamly/Internal/Data/Stream/StreamDK/Type.hs
 src/Streamly/Internal/Data/Stream/StreamD.hs
 src/Streamly/Internal/Data/Pipe/Types.hs
 src/Streamly/Internal/Data/Sink.hs
-src/Streamly/Internal/Data/Zipper/Array.hs
 src/Streamly/Internal/Data/Parser/ParserD/Types.hs
 src/Streamly/Internal/Data/Parser/ParserD.hs
 src/Streamly/Internal/Data/Prim/Array/Types.hs

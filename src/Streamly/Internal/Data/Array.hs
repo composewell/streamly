@@ -143,7 +143,7 @@ fromStreamDN limit str = do
     i <-
         D.foldlM'
             (\i x -> i `seq` liftIO $ writeArray marr i x >> return (i + 1))
-            0 $
+            (return 0) $
         D.take limit str
     liftIO $ freezeArray marr 0 i
 

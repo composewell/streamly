@@ -173,13 +173,13 @@ toRevList = S.toRevList
 
 foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
 foldl'Build = S.foldl' (flip (:)) []
-foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
+foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) (return [])
 
 foldrMReduce = S.foldrM (\x xs -> xs >>= return . (x +)) (return 0)
 foldl'Reduce = S.foldl' (+) 0
 foldl'ReduceMap = P.fmap (+1) . S.foldl' (+) 0
 foldl1'Reduce = S.foldl1' (+)
-foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
+foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) (return 0)
 
 last   = S.last
 null   = S.null

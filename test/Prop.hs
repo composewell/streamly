@@ -374,7 +374,7 @@ concurrentFoldlApplication n =
         -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $
-            sourceUnfoldrM1 n |&. S.foldlM' (\xs x -> return (x : xs)) []
+            sourceUnfoldrM1 n |&. S.foldlM' (\xs x -> return (x : xs)) (return [])
         listEquals (==) (reverse stream) list
 
 concurrentFoldrApplication :: Word8 -> Property

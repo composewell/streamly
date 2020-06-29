@@ -1325,7 +1325,7 @@ foldxM = P.foldlMx'
 --
 -- @since 0.2.0
 {-# INLINE foldlM' #-}
-foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
+foldlM' :: Monad m => (b -> a -> m b) -> m b -> SerialT m a -> m b
 foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
 ------------------------------------------------------------------------------

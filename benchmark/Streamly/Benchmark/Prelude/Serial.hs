@@ -383,7 +383,7 @@ foldl1'Reduce = S.foldl1' (+)
 
 {-# INLINE foldlM'Reduce #-}
 foldlM'Reduce :: Monad m => SerialT m Int -> m Int
-foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
+foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) (return 0)
 
 {-# INLINE last #-}
 last :: Monad m => SerialT m Int -> m (Maybe Int)
@@ -539,7 +539,7 @@ foldl'Build = S.foldl' (flip (:)) []
 
 {-# INLINE foldlM'Build #-}
 foldlM'Build :: Monad m => SerialT m Int -> m [Int]
-foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
+foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) (return [])
 
 o_n_heap_elimination_foldl :: Int -> [Benchmark]
 o_n_heap_elimination_foldl value =
