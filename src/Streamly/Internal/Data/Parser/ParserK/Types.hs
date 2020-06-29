@@ -31,6 +31,10 @@ import Control.Applicative (Alternative(..))
 import Streamly.Internal.Data.Zipper (Zipper)
 import qualified Streamly.Internal.Data.Zipper as Z
 
+#if MIN_VERSION_base(4,9,0)
+import qualified Control.Monad.Fail as Fail
+#endif
+
 newtype Parser m a b =
     MkParser { runParser :: forall r.
         Zipper m a -> ((Zipper m a, Either String b) -> m r) -> m r }
@@ -139,6 +143,19 @@ instance Monad m => Monad (Parser m a) where
                 Right x -> runParser (k x) z yieldk
                 Left err -> runParser (die err) z yieldk
         in runParser m inp yield1
+
+#if !(MIN_VERSION_base(4,13,0))
+    -- This is redefined instead of just being Fail.fail to be
+    -- compatible with base 4.8.
+    {-# INLINE fail #-}
+    fail = die
+#endif
+
+#if MIN_VERSION_base(4,9,0)
+instance Monad m => Fail.MonadFail (Parser m a) where
+    {-# INLINE fail #-}
+    fail = die
+#endif
 
 -- | 'Alternative' form of 'Streamly.Internal.Data.Parser.alt'. Backtrack and
 -- run the second parser if the first one fails.
