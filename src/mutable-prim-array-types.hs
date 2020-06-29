@@ -5,7 +5,7 @@ import Control.Monad.Primitive
 import Data.Primitive.Types
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
-import Streamly.Internal.Data.Strict (Tuple'(..))
+import Streamly.Internal.Data.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -124,20 +124,20 @@ write = Fold step initial extract
 
     initial = do
         marr <- newArray 0
-        return (marr, 0, 0)
+        return $ Tuple3' marr 0 0
 
     -- XXX use Tuple3'?
-    step (marr, i, capacity) x
+    step (Tuple3' marr i capacity) x
         | i == capacity = do
             let newCapacity = max (capacity * 2) 1
             newMarr <- resizeArray marr newCapacity
             writeArray newMarr i x
-            return (newMarr, i + 1, newCapacity)
+            return $ Tuple3' newMarr (i + 1) newCapacity
         | otherwise = do
             writeArray marr i x
-            return (marr, i + 1, capacity)
+            return $ Tuple3' marr (i + 1) capacity
 
-    extract (marr, len, _) = shrinkArray marr len >> return marr
+    extract (Tuple3' marr len _) = shrinkArray marr len >> return marr
 
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
@@ -154,16 +154,15 @@ writeN limit = Fold step initial extract
 
     initial = do
         marr <- newArray limit
-        return (marr, 0)
+        return $ Tuple' marr 0
 
-    -- XXX use Tuple'?
-    step (marr, i) x
-        | i == limit = return (marr, i)
+    step (Tuple' marr i) x
+        | i == limit = return $ Tuple' marr i
         | otherwise = do
             writeArray marr i x
-            return (marr, i + 1)
+            return $ Tuple' marr (i + 1)
 
-    extract (marr, len) = shrinkArray marr len >> return marr
+    extract (Tuple' marr len) = shrinkArray marr len >> return marr
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN ::
