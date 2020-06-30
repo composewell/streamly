@@ -83,6 +83,8 @@ where
 import Foreign.C.Types (CSize(..), CInt(..))
 import Control.Monad (void)
 import GHC.IO (IO(..))
+import Foreign.Ptr (minusPtr, nullPtr)
+import Control.Monad.Primitive (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
@@ -91,6 +93,9 @@ import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 -------------------------------------------------------------------------------
 -- Utility functions
 -------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h memchr" c_memchr
+    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
 
 -- XXX It seems these are not being used anymore, should be removed, or moved
 -- to the module where they are being used.
@@ -131,3 +136,29 @@ withArrayAsPtr arr f = do
     r <- f (toPtr arr)
     touchArray arr
     return r
+
+-- Drops the separator byte
+-- Inefficient compared to Memory Array
+{-# INLINE breakOn #-}
+breakOn ::
+       PrimMonad m
+    => Word8
+    -> Array Word8
+    -> m (Array Word8, Maybe (Array Word8))
+breakOn sep arr = do
+    let p = toPtr arr
+        loc = unsafePerformIO $ c_memchr p sep (fromIntegral (byteLength arr))
+        byteIndex = loc `minusPtr` p
+        nLen = len - byteIndex - 1
+    if loc == nullPtr
+    then return (arr, Nothing)
+    else do
+        nArr <- MA.newArray nLen
+        mArr <- unsafeThaw arr
+        MA.unsafeCopy nArr 0 mArr (byteIndex + 1) nLen
+        MA.shrinkArray mArr byteIndex
+        arr1 <- unsafeFreeze mArr
+        arr2 <- unsafeFreeze nArr
+        return (arr1, Just arr2)
+  where
+    len = length arr

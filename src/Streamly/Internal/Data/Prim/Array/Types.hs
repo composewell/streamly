@@ -67,3 +67,34 @@ where
 import qualified Streamly.Internal.Data.Prim.Mutable.Array.Types as MA
 
 #include "prim-array-types.hs"
+
+-- Drops the separator byte
+-- Inefficient compared to Memory Array
+{-# INLINE breakOn #-}
+breakOn ::
+       PrimMonad m
+    => Word8
+    -> Array Word8
+    -> m (Array Word8, Maybe (Array Word8))
+breakOn sep arr =
+    case loc of
+        Left _ -> return (arr, Nothing)
+        Right i -> do
+            let nLen = len - i - 1
+            nArr <- MA.newArray nLen
+            mArr <- unsafeThaw arr
+            MA.unsafeCopy nArr 0 mArr (i + 1) nLen
+            MA.shrinkArray mArr i
+            arr1 <- unsafeFreeze mArr
+            arr2 <- unsafeFreeze nArr
+            return (arr1, Just arr2)
+
+    where
+
+    loc = foldl' chk (Left 0) arr
+    len = length arr
+    chk (Left i) a =
+        if a == sep
+            then Right i
+            else Left (i + 1)
+    chk r _ = r

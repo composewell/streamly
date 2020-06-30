@@ -1,6 +1,6 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Primitive
-   (PrimMonad(primitive), PrimState, unsafeInlineIO)
+   (PrimMonad(primitive), PrimState)
 import Control.Monad.ST (ST, runST)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -9,6 +9,8 @@ import Data.Word (Word8)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
+
+import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.Primitive.ByteArray as PB
 import qualified GHC.Exts as Exts
@@ -251,7 +253,7 @@ instance (Ord a, Prim a) => Ord (Array a) where
 
 instance Prim a => Semigroup (Array a) where
     -- XXX can't we use runST instead of inlineIO?
-    a <> b = unsafeInlineIO (spliceTwo a b :: IO (Array a))
+    a <> b = unsafePerformIO (spliceTwo a b :: IO (Array a))
 
 instance Prim a => Monoid (Array a) where
     mempty = nil
@@ -543,44 +545,6 @@ lpackArraysChunksOf ::
     -> Fold m (Array a) ()
 lpackArraysChunksOf n fld =
     FL.lmapM unsafeThaw $ MA.lpackArraysChunksOf n (FL.lmapM unsafeFreeze fld)
-
--- Drops the separator byte
--- Inefficient compared to Memory Array
-{-# INLINE breakOn #-}
-breakOn ::
-       PrimMonad m
-    => Word8
-    -> Array Word8
-    -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr =
-    case loc of
-        Left _ -> return (arr, Nothing)
-        Right (Left _) -> do
-            mArr <- unsafeThaw arr
-            MA.shrinkArray mArr (len - 1)
-            arr' <- unsafeFreeze mArr
-            return (arr', Just nil)
-        Right (Right i) -> do
-            let nLen = len - i - 1
-            nArr <- MA.newArray nLen
-            mArr <- unsafeThaw arr
-            MA.unsafeCopy nArr 0 mArr (i + 1) nLen
-            MA.shrinkArray mArr i
-            arr1 <- unsafeFreeze mArr
-            arr2 <- unsafeFreeze nArr
-            return (arr1, Just arr2)
-
-    where
-
-    loc = foldl' chk (Left 0) arr
-    len = length arr
-    chk (Left i) a =
-        if a == sep
-            then if i /= len - 1
-                     then Right (Right i)
-                     else Right (Left i)
-            else Left (i + 1)
-    chk r _ = r
 
 data SplitState s arr
     = Initial s
