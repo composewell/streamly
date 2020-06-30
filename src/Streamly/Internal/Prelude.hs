@@ -64,6 +64,7 @@ module Streamly.Internal.Prelude
     , unfoldr
     , unfoldrM
     , unfold
+    , unfold0
     , iterate
     , iterateM
     , fromIndices
@@ -543,6 +544,7 @@ import Data.Kind (Type)
 #endif
 import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
+import Data.Void (Void)
 import Foreign.Storable (Storable)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -712,6 +714,11 @@ unfoldrMZipSerial = Serial.unfoldrM
 {-# INLINE unfold #-}
 unfold :: (IsStream t, Monad m) => Unfold m a b -> a -> t m b
 unfold unf x = fromStreamD $ D.unfold unf x
+
+-- | Convert an 'Unfold' with a closed input end into a stream.
+{-# INLINE unfold0 #-}
+unfold0 :: (IsStream t, Monad m) => Unfold m Void b -> t m b
+unfold0 unf = fromStreamD $ D.unfold unf (error "unfold0: unexpected void evaluation")
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
