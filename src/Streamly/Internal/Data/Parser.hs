@@ -385,7 +385,7 @@ satisfy = D.toParserK . D.satisfy
 -- []
 --
 -- @
--- S.chunksOf n f = S.splitParse (FL.take n f)
+-- S.chunksOf n f = S.parseMany (FL.take n f)
 -- @
 --
 -- /Internal/
@@ -457,23 +457,51 @@ takeWhile cond = D.toParserK . D.takeWhile cond
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 
--- | Collect stream elements until an element succeeds the predicate. Drop the
--- element on which the predicate succeeded. The succeeding element is treated
--- as an infix separator which is dropped from the output.
+-- Note: Keep this consistent with S.splitOn. In fact we should eliminate
+-- S.splitOn in favor of the parser.
+--
+-- | Split on an infixed separator element, dropping the separator. Splits the
+-- stream on separator elements determined by the supplied predicate, separator
+-- is considered as infixed between two segments, if one side of the separator
+-- is missing then it is parsed as an empty stream.  The supplied 'Fold' is
+-- applied on the split segments. With '-' representing non-separator elements
+-- and '.' as separator, 'splitOn' splits as follows:
+--
+-- @
+-- "--.--" => "--" "--"
+-- "--."   => "--" ""
+-- ".--"   => ""   "--"
+-- @
+--
+-- @PR.sliceSepBy (== x)@ is an inverse of @S.intercalate (S.yield x)@
+--
+-- Let's use the following definition for illustration:
+--
+-- > splitOn p = PR.many FL.toList $ PR.sliceSepBy p (FL.toList)
+-- > splitOn' p = S.parse (splitOn p) . S.fromList
+--
+-- >>> splitOn' (== '.') ""
+-- [""]
+--
+-- >>> splitOn' (== '.') "."
+-- ["",""]
+--
+-- >>> splitOn' (== '.') ".a"
+-- > ["","a"]
+--
+-- >>> splitOn' (== '.') "a."
+-- > ["a",""]
+--
+-- >>> splitOn' (== '.') "a.b"
+-- > ["a","b"]
+--
+-- >>> splitOn' (== '.') "a..b"
+-- > ["a","","b"]
 --
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- >>> S.parse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [0,0]
---
--- S.splitOn pred f = S.splitParse (PR.sliceSepBy pred f)
---
--- >>> S.toList $ S.splitParse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [[0,0],[0],[]]
---
 -- /Internal/
---
 {-# INLINABLE sliceSepBy #-}
 sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepBy cond = D.toParserK . D.sliceSepBy cond
@@ -485,7 +513,7 @@ sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)
+-- S.splitWithSuffix pred f = S.parseMany (PR.sliceEndWith pred f)
 --
 -- /Unimplemented/
 --
@@ -504,7 +532,7 @@ sliceEndWith = undefined
 -- * Stops - when the predicate succeeds in non-leading position.
 -- * Fails - never.
 --
--- S.splitWithPrefix pred f = S.splitParse (PR.sliceBeginWith pred f)
+-- S.splitWithPrefix pred f = S.parseMany (PR.sliceBeginWith pred f)
 --
 -- /Unimplemented/
 --
@@ -514,19 +542,39 @@ sliceBeginWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
 
--- | Split using a condition or a count whichever occurs first. This is a
--- hybrid of 'splitOn' and 'take'. The element on which the condition succeeds
--- is dropped.
+-- | Like 'sliceSepBy' but terminates a parse even before the separator
+-- is encountered if its size exceeds the specified maximum limit.
 --
--- >>> even n = n `mod` 2 == 0
--- >>> S.parse (PR.many FL.toList (PR.sliceSepByMax (==1) 5 FL.toList)) $ S.fromList [1..10]
--- > [[],[2,3,4,5,6],[7,8,9,10]]
+-- > take n = PR.sliceSepByMax (const True) n
+-- > sliceSepBy p = PR.sliceSepByMax p maxBound
 --
--- >>> S.parse (PR.many FL.toList (PR.sliceSepByMax even 10 FL.toList)) $ S.fromList [0..10]
--- > [[],[1],[3],[5],[7],[9],[]]
+-- Let's use the following definitions for illustration:
+--
+-- > splitOn p n = PR.many FL.toList $ PR.sliceSepByMax p n (FL.toList)
+-- > splitOn' p n = S.parse (splitOn p n) . S.fromList
+--
+-- >>> splitOn' (== '.') 0 ""
+-- [""]
+--
+-- >>> splitOn' (== '.') 0 "a"
+-- infinite list of empty strings
+--
+-- >>> splitOn' (== '.') 3 "hello.world"
+-- ["hel","lo","wor","ld"]
+--
+-- If the separator is found and the limit is reached at the same time then it
+-- behaves just like 'sliceSepBy' i.e. the separator is dropped.
+--
+-- >>> splitOn' (== '.') 0 "."
+-- ["",""]
+--
+-- >>> splitOn' (== '.') 0 ".."
+-- ["","",""]
+--
+-- * Stops - when the predicate succeeds or the limit is reached.
+-- * Fails - never.
 --
 -- /Internal/
---
 {-# INLINABLE sliceSepByMax #-}
 sliceSepByMax :: MonadCatch m
     => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
@@ -541,7 +589,7 @@ sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 -- * Fails - never.
 --
 -- @
--- S.wordsBy pred f = S.splitParse (PR.wordBy pred f)
+-- S.wordsBy pred f = S.parseMany (PR.wordBy pred f)
 -- @
 --
 -- /Unimplemented/
@@ -563,7 +611,7 @@ wordBy = undefined
 -- * Fails - never.
 --
 -- @
--- S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)
+-- S.groupsBy cmp f = S.parseMany (PR.groupBy cmp f)
 -- @
 --
 -- /Unimplemented/
