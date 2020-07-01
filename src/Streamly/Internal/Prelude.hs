@@ -716,6 +716,8 @@ unfold :: (IsStream t, Monad m) => Unfold m a b -> a -> t m b
 unfold unf x = fromStreamD $ D.unfold unf x
 
 -- | Convert an 'Unfold' with a closed input end into a stream.
+--
+-- /Internal/
 {-# INLINE unfold0 #-}
 unfold0 :: (IsStream t, Monad m) => Unfold m Void b -> t m b
 unfold0 unf = fromStreamD $ D.unfold unf (error "unfold0: unexpected void evaluation")
