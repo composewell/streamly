@@ -107,10 +107,10 @@ import Streamly.Internal.Data.SVar
 -- it as a separate case to optimize composition operations for streams with
 -- single element.  We build singleton streams in the implementation of 'pure'
 -- for Applicative and Monad, and in 'lift' for MonadTrans.
---
+
 -- XXX remove the Stream type parameter from State as it is always constant.
 -- We can remove it from SVar as well
---
+
 newtype Stream m a =
     MkStream (forall r.
                State Stream m a         -- state
