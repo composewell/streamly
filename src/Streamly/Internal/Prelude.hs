@@ -720,7 +720,7 @@ unfold unf x = fromStreamD $ D.unfold unf x
 -- /Internal/
 {-# INLINE unfold0 #-}
 unfold0 :: (IsStream t, Monad m) => Unfold m Void b -> t m b
-unfold0 unf = fromStreamD $ D.unfold unf (error "unfold0: unexpected void evaluation")
+unfold0 unf = unfold unf (error "unfold0: unexpected void evaluation")
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
