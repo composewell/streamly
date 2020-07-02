@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-
 #include "inline.hs"
 
 -- |

@@ -266,10 +266,15 @@ common default-extensions
         RecordWildCards
         ScopedTypeVariables
         TupleSections
+        TypeFamilies
         ViewPatterns
 
+        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
+        -- regressions. Disable it. This must come after TypeFamilies,
+        -- otherwise TypeFamilies will enable it again.
+        NoMonoLocalBinds
+
         -- UndecidableInstances -- Does not show any perf impact
-        -- TypeFamilies         -- Causes large regressions and improvements
         -- UnboxedTuples        -- interferes with (#.)
 
 common optimization-options

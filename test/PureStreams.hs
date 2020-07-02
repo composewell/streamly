@@ -1,5 +1,4 @@
 {-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 

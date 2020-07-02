@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Main (main) where
 
