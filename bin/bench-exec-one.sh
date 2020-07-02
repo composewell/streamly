@@ -44,6 +44,8 @@ bench_rts_opts_default () {
 # Overrides for specific benchmarks
 bench_rts_opts_specific () {
   case "$1" in
+    Data.Stream.StreamK/o-n-space/elimination/toList) echo -n "-K2M" ;;
+
     Prelude.Parallel/o-n-heap/mapping/mapM) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
