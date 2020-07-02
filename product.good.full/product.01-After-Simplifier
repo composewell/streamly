@@ -1,0 +1,262 @@
+
+==================== [1] After Simplifier ====================
+2020-07-01 20:53:32.574084 UTC
+  
+
+-- RHS size: {terms: 125, types: 165, coercions: 42, joins: 0/2}
+main_skdb :: [Benchmark]
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=False, ConLike=False,
+         WorkFree=False, Expandable=False, Guidance=IF_ARGS [] 724 40}]
+main_skdb
+  = GHC.Base.build
+      @ Benchmark
+      (\ (@ a_djRq)
+         (c_djRr [OS=OneShot] :: Benchmark -> a_djRq -> a_djRq)
+         (n_djRs [OS=OneShot] :: a_djRq) ->
+         c_djRr
+           (let {
+              $d(%,,%)_ajJz :: S.MonadAsync IO
+              [LclId,
+               Unf=Unf{Src=<vanilla>, TopLvl=False, Value=True, ConLike=True,
+                       WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 40}]
+              $d(%,,%)_ajJz
+                = (Control.Monad.IO.Class.$fMonadIOIO,
+                   Control.Monad.Trans.Control.$fMonadBaseControlIOIO,
+                   Control.Monad.Catch.$fMonadThrowIO) } in
+            Gauge.Benchmark.Benchmark
+              (GHC.Base.build
+                 @ Char
+                 (\ (@ b_ak2M) ->
+                    GHC.CString.unpackFoldrCString# @ b_ak2M "product"#))
+              (letrec {
+                 go_skkK [Occ=LoopBreaker]
+                   :: GHC.Int.Int64
+                      -> GHC.Prim.State# GHC.Prim.RealWorld
+                      -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+                 [LclId,
+                  Arity=2,
+                  Unf=Unf{Src=<vanilla>, TopLvl=False, Value=True, ConLike=True,
+                          WorkFree=True, Expandable=True, Guidance=IF_ARGS [20 0] 484 30}]
+                 go_skkK
+                   = \ (n_ajQ5 :: GHC.Int.Int64)
+                       (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                       case GHC.Int.leInt64 n_ajQ5 (GHC.Int.I64# 0#) of {
+                         False ->
+                           case case System.Random.$fRandomInt3
+                                       (GHC.Types.I# 1#, GHC.Types.I# 1#) eta_B1
+                                of
+                                { (# ipv_ajT5, ipv1_ajT6 #) ->
+                                ((Streamly.Internal.Data.Stream.StreamD.Type.foldlM'
+                                    @ IO
+                                    @ Int
+                                    @ Int
+                                    GHC.Base.$fMonadIO
+                                    ((\ (b1_ajYu :: Int)
+                                        (a1_ajYv [OS=OneShot] :: Int)
+                                        (s_ajUB :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                                        (# s_ajUB, GHC.Num.$fNumInt_$c* b1_ajYu a1_ajYv #))
+                                     `cast` (<Int>_R
+                                             ->_R <Int>_R
+                                             ->_R Sym (GHC.Types.N:IO[0] <Int>_R)
+                                             :: (Int
+                                                 -> Int
+                                                 -> GHC.Prim.State# GHC.Prim.RealWorld
+                                                 -> (# GHC.Prim.State# GHC.Prim.RealWorld, Int #))
+                                                ~R# (Int -> Int -> IO Int)))
+                                    (GHC.Types.I# 1#)
+                                    (Streamly.Internal.Data.Stream.StreamD.Type.fromStreamK
+                                       @ IO
+                                       @ Int
+                                       GHC.Base.$fMonadIO
+                                       ((Streamly.Internal.Prelude.unfoldrMSerial
+                                           @ IO
+                                           @ Int
+                                           @ Int
+                                           $d(%,,%)_ajJz
+                                           ((\ (cnt_adu7 :: Int)
+                                               (eta_X9 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                                               case GHC.Classes.gtInt
+                                                      cnt_adu7
+                                                      (case ipv1_ajT6 of { GHC.Types.I# x_ajSA ->
+                                                       GHC.Types.I# (GHC.Prim.+# x_ajSA 100000#)
+                                                       })
+                                               of {
+                                                 False ->
+                                                   (# eta_X9,
+                                                      GHC.Maybe.Just
+                                                        @ (Int, Int)
+                                                        (cnt_adu7,
+                                                         case cnt_adu7 of { GHC.Types.I# x_ajSA ->
+                                                         GHC.Types.I# (GHC.Prim.+# x_ajSA 1#)
+                                                         }) #);
+                                                 True ->
+                                                   (# eta_X9, GHC.Maybe.Nothing @ (Int, Int) #)
+                                               })
+                                            `cast` (<Int>_R
+                                                    ->_R Sym (GHC.Types.N:IO[0]
+                                                                  <Maybe (Int, Int)>_R)
+                                                    :: (Int
+                                                        -> GHC.Prim.State# GHC.Prim.RealWorld
+                                                        -> (# GHC.Prim.State# GHC.Prim.RealWorld,
+                                                              Maybe (Int, Int) #))
+                                                       ~R# (Int -> IO (Maybe (Int, Int)))))
+                                           ipv1_ajT6)
+                                        `cast` (Streamly.Internal.Data.Stream.Serial.N:SerialT[0] <IO>_N <Int>_N
+                                                :: S.SerialT IO Int
+                                                   ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                         IO Int))))
+                                 `cast` (GHC.Types.N:IO[0] <Int>_R
+                                         :: IO Int
+                                            ~R# (GHC.Prim.State# GHC.Prim.RealWorld
+                                                 -> (# GHC.Prim.State# GHC.Prim.RealWorld, Int #))))
+                                  ipv_ajT5
+                                }
+                           of
+                           { (# ipv_ajQf, ipv1_ajQg #) ->
+                           case GHC.Prim.seq#
+                                  @ ()
+                                  @ GHC.Prim.RealWorld
+                                  (case ipv1_ajQg of { GHC.Types.I# ipv_ak2H -> GHC.Tuple.() })
+                                  ipv_ajQf
+                           of
+                           { (# ipv2_ajQk, ipv3_ajQl #) ->
+                           go_skkK
+                             (case n_ajQ5 of { GHC.Int.I64# x#_ajQp ->
+                              GHC.Int.I64# (GHC.Prim.-# x#_ajQp 1#)
+                              })
+                             ipv2_ajQk
+                           }
+                           };
+                         True -> (# eta_B1, GHC.Tuple.() #)
+                       }; } in
+               Gauge.Benchmark.Benchmarkable
+                 @ ()
+                 ((\ (ds_ajQv :: ()) -> ds_ajQv)
+                  `cast` (Sym (Control.DeepSeq.N:NFData[0] <()>_N)
+                          :: (() -> ()) ~R# NFData ()))
+                 ((\ _ [Occ=Dead] (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     (# eta_B1, GHC.Tuple.() #))
+                  `cast` (<GHC.Int.Int64>_R ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (GHC.Int.Int64
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (GHC.Int.Int64 -> IO ())))
+                 ((\ _ [Occ=Dead]
+                     _ [Occ=Dead]
+                     (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     (# eta_B1, GHC.Tuple.() #))
+                  `cast` (<GHC.Int.Int64>_R
+                          ->_R <()>_R
+                          ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (GHC.Int.Int64
+                              -> ()
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (GHC.Int.Int64 -> () -> IO ())))
+                 ((\ _ [Occ=Dead]
+                     (eta_B2 :: GHC.Int.Int64)
+                     (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     go_skkK eta_B2 eta_B1)
+                  `cast` (<()>_R
+                          ->_R <GHC.Int.Int64>_R
+                          ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (()
+                              -> GHC.Int.Int64
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (() -> GHC.Int.Int64 -> IO ())))
+                 GHC.Types.False))
+           n_djRs)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_skdc
+  :: GHC.Prim.State# GHC.Prim.RealWorld
+     -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 60}]
+main_skdc = Gauge.Main.defaultMain2 defaultConfig main_skdb
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main :: IO ()
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=True,boring_ok=True)}]
+main
+  = main_skdc
+    `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+            :: (GHC.Prim.State# GHC.Prim.RealWorld
+                -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+               ~R# IO ())
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main_skkn
+  :: GHC.Prim.State# GHC.Prim.RealWorld
+     -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 60}]
+main_skkn
+  = GHC.TopHandler.runMainIO1
+      @ ()
+      (main_skdc
+       `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+               :: (GHC.Prim.State# GHC.Prim.RealWorld
+                   -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                  ~R# IO ()))
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=True,boring_ok=True)}]
+:Main.main
+  = main_skkn
+    `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+            :: (GHC.Prim.State# GHC.Prim.RealWorld
+                -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+               ~R# IO ())
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skko :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+$trModule_skko = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkp :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+$trModule_skkp = GHC.Types.TrNameS $trModule_skko
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkq :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+$trModule_skkq = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkr :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+$trModule_skkr = GHC.Types.TrNameS $trModule_skkq
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Main.$trModule :: GHC.Types.Module
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+Main.$trModule = GHC.Types.Module $trModule_skkp $trModule_skkr
+
+

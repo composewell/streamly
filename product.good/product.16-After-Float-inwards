@@ -1,0 +1,335 @@
+
+==================== [16] After Float inwards ====================
+  
+
+-- RHS size: {terms: 9, types: 12, coercions: 0, joins: 0/0}
+lvl_sln3
+  = \ @ a_Xk2R ->
+      State
+        Nothing
+        Nothing
+        defaultMaxThreads
+        defaultMaxThreads
+        Nothing
+        Nothing
+        False
+
+-- RHS size: {terms: 55, types: 89, coercions: 6, joins: 1/1}
+$sfoldlM'_sl7d
+  = \ @ b_Xk2P @ a_Xk2R fstep_ak2P begin_ak2Q ds_ak2R eta_B1 ->
+      case ds_ak2R of wild_ak2Y
+      { UnStream @ s_ak32 step1_ak3h state_ak3z ->
+      joinrec {
+        go_slge ds1_al4W acc_al4X st_al4Y eta_XU
+          = case ds1_al4W of ds2_al4Z { __DEFAULT ->
+            case acc_al4X of acc1_al50 { __DEFAULT ->
+            case ((step1_ak3h lvl_sln3 st_al4Y) `cast` <Co:4>) eta_XU
+            of ds1_ajST
+            { (# ipv_ajSV, ipv1_ajSW #) ->
+            case ipv1_ajSW of wild1_al52 {
+              Yield x_al54 s1_al55 ->
+                case ((fstep_ak2P acc_al4X x_al54) `cast` <Co:2>) ipv_ajSV
+                of ds1_XjUe
+                { (# ipv_XjUi, ipv1_XjUk #) ->
+                jump go_slge SPEC ipv1_XjUk s1_al55 ipv_XjUi
+                };
+              Skip s1_al59 -> jump go_slge SPEC acc_al4X s1_al59 ipv_ajSV;
+              Stop -> (# ipv_ajSV, acc_al4X #)
+            }
+            }
+            }
+            }; } in
+      jump go_slge SPEC begin_ak2Q state_ak3z eta_B1
+      }
+
+-- RHS size: {terms: 1, types: 0, coercions: 20, joins: 0/0}
+$sfoldlM'_sl5f = $sfoldlM'_sl7d `cast` <Co:20>
+
+-- RHS size: {terms: 5, types: 19, coercions: 0, joins: 0/0}
+lvl_sl6k = \ @ a_Xkcx s_XjVe -> (# s_XjVe, Stop #)
+
+-- RHS size: {terms: 7, types: 19, coercions: 0, joins: 0/0}
+lvl_sl5r = \ @ a_Xkcx @ r_akcC _ _ _ stp_akcG -> stp_akcG
+
+-- RHS size: {terms: 8, types: 21, coercions: 4, joins: 0/0}
+lvl_sl6l
+  = \ @ a_Xkcx a1_akcB s_ajUr ->
+      (# s_ajUr, Yield a1_akcB (lvl_sl5r `cast` <Co:4>) #)
+
+-- RHS size: {terms: 9, types: 23, coercions: 0, joins: 0/0}
+lvl_sl6m
+  = \ @ a_Xkdo a1_akcz x_akcA s_ajUr ->
+      (# s_ajUr, Yield a1_akcz x_akcA #)
+
+-- RHS size: {terms: 8, types: 17, coercions: 32, joins: 0/0}
+lvl_sl5u
+  = \ @ a_Xkdt gst_akcx m1_akcy ->
+      (m1_akcy `cast` <Co:3>)
+        gst_akcx
+        (lvl_sl6m `cast` <Co:13>)
+        (lvl_sl6l `cast` <Co:9>)
+        (lvl_sl6k `cast` <Co:7>)
+
+-- RHS size: {terms: 3, types: 8, coercions: 0, joins: 0/0}
+$sfromStreamK_sl5k = \ @ a_Xkdu -> UnStream lvl_sl5u
+
+-- RHS size: {terms: 84, types: 192, coercions: 38, joins: 3/5}
+$w$stoStreamK_slkD
+  = \ @ a_slkv w_slkw @ r_slkx w_slky w_slkz w_slkB w_slkC ->
+      case w_slkw of wild_akJ7
+      { UnStream @ s_akJa step1_akJk state_akJl ->
+      letrec {
+        $wgo_slku
+          = \ w_slkn @ r_slko w_slkp w_slkq w_slks w_slkt ->
+              join {
+                exit_X17 ipv_ajSV x_akJV s1_akJW
+                  = ((w_slkq
+                        x_akJV
+                        ((\ @ r_XllR w_XllT w_XllV _ w_XllZ w_Xlm1 ->
+                            $wgo_slku s1_akJW w_XllT w_XllV w_XllZ w_Xlm1)
+                         `cast` <Co:30>))
+                     `cast` <Co:2>)
+                      ipv_ajSV } in
+              join { exit_X16 ipv_ajSV = (w_slks `cast` <Co:2>) ipv_ajSV } in
+              let {
+                lvl_sl5v
+                  = case w_slkp of wild1_akJn
+                    { State ds2_akJp ds3_akJw ds4_akJA ds5_akJH ds6_akJI ds7_akJM
+                            ds8_akJQ ->
+                    State Nothing Nothing ds4_akJA ds5_akJH ds6_akJI ds7_akJM ds8_akJQ
+                    } } in
+              joinrec {
+                go'_sl6r ss_akJj s_ajSS
+                  = case ((step1_akJk lvl_sl5v ss_akJj) `cast` <Co:4>) s_ajSS
+                    of ds1_ajST
+                    { (# ipv_ajSV, ipv1_ajSW #) ->
+                    case ipv1_ajSW of wild1_akJT {
+                      Yield x_akJV s1_akJW -> jump exit_X17 ipv_ajSV x_akJV s1_akJW;
+                      Skip s1_akJZ -> jump go'_sl6r s1_akJZ ipv_ajSV;
+                      Stop -> jump exit_X16 ipv_ajSV
+                    }
+                    }; } in
+              jump go'_sl6r w_slkn w_slkt; } in
+      $wgo_slku state_akJl w_slky w_slkz w_slkB w_slkC
+      }
+
+-- RHS size: {terms: 14, types: 26, coercions: 0, joins: 0/0}
+$stoStreamK_sl7s
+  = \ @ a_slkv w_slkw @ r_slkx w_slky w_slkz _ w_slkB w_slkC ->
+      $w$stoStreamK_slkD w_slkw w_slky w_slkz w_slkB w_slkC
+
+-- RHS size: {terms: 1, types: 0, coercions: 37, joins: 0/0}
+$stoStreamK_sl4v = $stoStreamK_sl7s `cast` <Co:37>
+
+-- RHS size: {terms: 32, types: 90, coercions: 17, joins: 0/2}
+$sunfoldrM_sl4S
+  = \ @ s_XkJQ @ a_XkJT next_akIK state_akIL ->
+      let {
+        step_sl6B
+          = \ @ p_akIP _ eta1_akIR s_ajSS ->
+              case ((next_akIK eta1_akIR) `cast` <Co:5>) s_ajSS of ds1_ajST
+              { (# ipv_ajSV, ipv1_ajSW #) ->
+              (# ipv_ajSV,
+                 case ipv1_ajSW of wild_akIT {
+                   __DEFAULT -> Stop;
+                   Just ds_akIW ->
+                     case ds_akIW of wild1_akIY { (x_akJ0, s1_akJ1) ->
+                     Yield x_akJ0 s1_akJ1
+                     }
+                 } #)
+              } } in
+      let { step_sl4U = step_sl6B `cast` <Co:12> } in
+      UnStream step_sl4U state_akIL
+
+-- RHS size: {terms: 47, types: 107, coercions: 39, joins: 0/1}
+$w$sunfoldrM_slkW
+  = \ @ b_slkM
+      @ a_slkN
+      w_slkO
+      w_slkP
+      @ r_slkQ
+      w_slkS
+      w_slkU
+      w_slkV ->
+      letrec {
+        $wgo_slkL
+          = \ w_slkE @ r_slkF w_slkH w_slkJ w_slkK ->
+              case ((w_slkO w_slkE) `cast` <Co:5>) w_slkK of ds1_ajST
+              { (# ipv_ajSV, ipv1_ajSW #) ->
+              case ipv1_ajSW of wild_al4E {
+                __DEFAULT -> (w_slkJ `cast` <Co:2>) ipv_ajSV;
+                Just ds1_al4H ->
+                  case ds1_al4H of wild1_al4J { (x_al4L, s1_al4M) ->
+                  ((w_slkH
+                      x_al4L
+                      ((\ @ r_Xlm4 _ w_Xlm8 _ w_Xlmc w_Xlme ->
+                          $wgo_slkL s1_al4M w_Xlm8 w_Xlmc w_Xlme)
+                       `cast` <Co:30>))
+                   `cast` <Co:2>)
+                    ipv_ajSV
+                  }
+              }
+              }; } in
+      $wgo_slkL w_slkP w_slkS w_slkU w_slkV
+
+-- RHS size: {terms: 16, types: 33, coercions: 0, joins: 0/0}
+$sunfoldrM_slgM
+  = \ @ b_slkM
+      @ a_slkN
+      w_slkO
+      w_slkP
+      @ r_slkQ
+      _
+      w_slkS
+      _
+      w_slkU
+      w_slkV ->
+      $w$sunfoldrM_slkW w_slkO w_slkP w_slkS w_slkU w_slkV
+
+-- RHS size: {terms: 1, types: 0, coercions: 50, joins: 0/0}
+$sunfoldrM_sl5l = $sunfoldrM_slgM `cast` <Co:50>
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$sunfoldrMSerial_sl5m = $sunfoldrM_sl5l
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5K = I# 1#
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5J = lvl_sl5K
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+lvl_sl5L = (lvl_sl5K, lvl_sl5K)
+
+Rec {
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sln4 = I# 0#
+
+-- RHS size: {terms: 70, types: 85, coercions: 0, joins: 3/3}
+$wgo_slli
+  = \ ww_sllg w_slld ->
+      case <=# ww_sllg 0# of lwild_slb4 {
+        __DEFAULT ->
+          case $fRandomInt3 lvl_sl5L w_slld of ds1_ajST
+          { (# ipv_ajSV, ipv1_ajSW #) ->
+          case ipv1_ajSW of ww_sll8 { I# ww_sll9 ->
+          join {
+            exit_XU w_sll2
+              = join {
+                  $j_slji ipv_ajQ5 ipv1_ajQ6
+                    = case seq#
+                             (case ipv1_ajQ6 of ds1_ak2v { I# ipv_ak2x -> () }) ipv_ajQ5
+                      of ds2_ajQ8
+                      { (# ipv2_ajQa, ipv3_ajQb #) ->
+                      $wgo_slli (-# ww_sllg 1#) ipv2_ajQa
+                      } } in
+                jump $j_slji w_sll2 lvl_sln4 } in
+          joinrec {
+            $wgo_sllb w_slkZ ww_sll9 w_sll2
+              = case w_slkZ of ds2_al4Z { __DEFAULT ->
+                case ipv1_ajSW of wild_ajSo { I# x_ajSq ->
+                case ># ww_sll9 (+# x_ajSq 100000#) of lwild_slai {
+                  __DEFAULT -> jump $wgo_sllb SPEC (+# ww_sll9 1#) w_sll2;
+                  1# -> jump exit_XU w_sll2
+                }
+                }
+                }; } in
+          jump $wgo_sllb SPEC ww_sll9 ipv_ajSV
+          }
+          };
+        1# -> (# w_slld, () #)
+      }
+end Rec }
+
+-- RHS size: {terms: 8, types: 5, coercions: 0, joins: 0/0}
+go_sl5H
+  = \ w_sllc w_slld ->
+      case w_sllc of ww_sllf { I64# ww_sllg -> $wgo_slli ww_sllg w_slld }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+main_slb5 = "product"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+main_slb6 = unpackCString# main_slb5
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main_slb7 = \ ds_ajQl -> ds_ajQl
+
+-- RHS size: {terms: 5, types: 10, coercions: 0, joins: 0/0}
+main_slb8 = \ _ eta_X1a -> (# eta_X1a, () #)
+
+-- RHS size: {terms: 6, types: 11, coercions: 0, joins: 0/0}
+main_slb9 = \ _ _ eta_X2n -> (# eta_X2n, () #)
+
+-- RHS size: {terms: 6, types: 4, coercions: 0, joins: 0/0}
+main_slba = \ _ eta_X1d eta_X2p -> go_sl5H eta_X1d eta_X2p
+
+-- RHS size: {terms: 6, types: 1, coercions: 22, joins: 0/0}
+main_slbb
+  = Benchmarkable
+      (main_slb7 `cast` <Co:3>)
+      (main_slb8 `cast` <Co:5>)
+      (main_slb9 `cast` <Co:7>)
+      (main_slba `cast` <Co:7>)
+      False
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_slbc = Benchmark main_slb6 main_slbb
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+main_skd1 = : main_slbc []
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_skd2 = defaultMain2 defaultConfig main_skd1
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skd2 `cast` <Co:3>
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main_skkd = runMainIO1 main
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skkd `cast` <Co:3>
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skke = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkf = TrNameS $trModule_skke
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkg = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkh = TrNameS $trModule_skkg
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$trModule = Module $trModule_skkf $trModule_skkh
+
+
+------ Local rules for imported ids --------
+"SPEC/Main fromStreamK @ IO _" [0]
+    forall @ a_akcv $dMonad_skl1.
+      fromStreamK $dMonad_skl1
+      = $sfromStreamK_sl5k
+"SPEC/Main toStreamK @ IO _" [0]
+    forall @ a_akJ4 $dMonad_skK9.
+      toStreamK $dMonad_skK9
+      = $stoStreamK_sl4v
+"SPEC/Main unfoldrM @ IO _ _" [1]
+    forall @ s_akIH @ a_akII $dMonad_sl4R.
+      unfoldrM $dMonad_sl4R
+      = $sunfoldrM_sl4S
+"SPEC/Main unfoldrM @ SerialT @ IO _ _"
+    forall @ b_akl6 @ a_akl7 $dMonad_XkKd $dIsStream_skIE.
+      unfoldrM $dIsStream_skIE $dMonad_XkKd
+      = $sunfoldrM_sl5l
+"SPEC/Main unfoldrMSerial @ IO _ _" [2]
+    forall @ b_akcM @ a_akcN $d(%,,%)_skl3.
+      unfoldrMSerial $d(%,,%)_skl3
+      = $sunfoldrMSerial_sl5m
+"SPEC/Main foldlM' @ IO _ _" [1]
+    forall @ b_ak2M @ a_ak2N $dMonad_sl5e.
+      foldlM' $dMonad_sl5e
+      = $sfoldlM'_sl5f
+

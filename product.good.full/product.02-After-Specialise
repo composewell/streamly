@@ -1,0 +1,1237 @@
+
+==================== [2] After Specialise ====================
+2020-07-01 20:53:32.591367 UTC
+  
+
+Rec {
+-- RHS size: {terms: 4, types: 7, coercions: 0, joins: 0/0}
+$d(%,,%)_skl9 :: S.MonadAsync IO
+[LclId]
+$d(%,,%)_skl9
+  = (Control.Monad.IO.Class.$fMonadIOIO,
+     Control.Monad.Trans.Control.$fMonadBaseControlIOIO,
+     Control.Monad.Catch.$fMonadThrowIO)
+
+-- RHS size: {terms: 27, types: 71, coercions: 7, joins: 0/0}
+$sfromStreamK_sl5u [InlPrag=INLINE[0] (sat-args=0)]
+  :: forall a.
+     Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a
+     -> Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ a_akcF) ->
+                 Streamly.Internal.Data.Stream.StreamD.Type.UnStream
+                   @ IO
+                   @ a_akcF
+                   @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                   (\ (gst_akcH [Occ=Once]
+                         :: Streamly.Internal.Data.SVar.State
+                              Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                      (m1_akcI [Occ=Once]
+                         :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF) ->
+                      (m1_akcI
+                       `cast` (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                   <IO>_N <a_akcF>_N
+                               :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF
+                                  ~R# (forall r.
+                                       Streamly.Internal.Data.SVar.State
+                                         Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF
+                                       -> (a_akcF
+                                           -> Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                IO a_akcF
+                                           -> IO r)
+                                       -> (a_akcF -> IO r)
+                                       -> IO r
+                                       -> IO r)))
+                        @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                             (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                             a_akcF)
+                        gst_akcH
+                        (\ (a1_akcJ [Occ=Once] :: a_akcF)
+                           (x_akcK [Occ=Once]
+                              :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF) ->
+                           return
+                             @ IO
+                             GHC.Base.$fMonadIO
+                             @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                  (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                                  a_akcF)
+                             (Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                                @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                                @ a_akcF
+                                a1_akcJ
+                                x_akcK))
+                        (\ (a1_akcL [Occ=Once] :: a_akcF) ->
+                           return
+                             @ IO
+                             GHC.Base.$fMonadIO
+                             @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                  (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                                  a_akcF)
+                             (Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                                @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                                @ a_akcF
+                                a1_akcL
+                                ((\ (@ r_akcM)
+                                    _ [Occ=Dead]
+                                    _ [Occ=Dead]
+                                    _ [Occ=Dead]
+                                    (stp_akcQ [Occ=Once] :: IO r_akcM) ->
+                                    stp_akcQ)
+                                 `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                                  <IO>_N <a_akcF>_N)
+                                         :: (forall r.
+                                             Streamly.Internal.Data.SVar.State
+                                               Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                               IO
+                                               a_akcF
+                                             -> (a_akcF
+                                                 -> Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                      IO a_akcF
+                                                 -> IO r)
+                                             -> (a_akcF -> IO r)
+                                             -> IO r
+                                             -> IO r)
+                                            ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                  IO a_akcF))))
+                        (return
+                           @ IO
+                           GHC.Base.$fMonadIO
+                           @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                                a_akcF)
+                           (Streamly.Internal.Data.Stream.StreamD.Type.Stop
+                              @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akcF)
+                              @ a_akcF)))}]
+$sfromStreamK_sl5u
+  = \ (@ a_XkcH) ->
+      Streamly.Internal.Data.Stream.StreamD.Type.UnStream
+        @ IO
+        @ a_XkcH
+        @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+        (\ (gst_akcH [Occ=Once]
+              :: Streamly.Internal.Data.SVar.State
+                   Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+           (m1_akcI [Occ=Once]
+              :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH) ->
+           (m1_akcI
+            `cast` (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                        <IO>_N <a_XkcH>_N
+                    :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH
+                       ~R# (forall r.
+                            Streamly.Internal.Data.SVar.State
+                              Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH
+                            -> (a_XkcH
+                                -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH
+                                -> IO r)
+                            -> (a_XkcH -> IO r)
+                            -> IO r
+                            -> IO r)))
+             @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                  (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                  a_XkcH)
+             gst_akcH
+             (\ (a1_akcJ [Occ=Once] :: a_XkcH)
+                (x_akcK [Occ=Once]
+                   :: Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH) ->
+                return
+                  @ IO
+                  GHC.Base.$fMonadIO
+                  @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                       (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                       a_XkcH)
+                  (Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                     @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                     @ a_XkcH
+                     a1_akcJ
+                     x_akcK))
+             (\ (a1_akcL [Occ=Once] :: a_XkcH) ->
+                return
+                  @ IO
+                  GHC.Base.$fMonadIO
+                  @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                       (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                       a_XkcH)
+                  (Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                     @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                     @ a_XkcH
+                     a1_akcL
+                     ((\ (@ r_akcM)
+                         _ [Occ=Dead]
+                         _ [Occ=Dead]
+                         _ [Occ=Dead]
+                         (stp_akcQ [Occ=Once] :: IO r_akcM) ->
+                         stp_akcQ)
+                      `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                       <IO>_N <a_XkcH>_N)
+                              :: (forall r.
+                                  Streamly.Internal.Data.SVar.State
+                                    Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH
+                                  -> (a_XkcH
+                                      -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH
+                                      -> IO r)
+                                  -> (a_XkcH -> IO r)
+                                  -> IO r
+                                  -> IO r)
+                                 ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH))))
+             (return
+                @ IO
+                GHC.Base.$fMonadIO
+                @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                     (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                     a_XkcH)
+                (Streamly.Internal.Data.Stream.StreamD.Type.Stop
+                   @ (Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkcH)
+                   @ a_XkcH)))
+
+-- RHS size: {terms: 3, types: 8, coercions: 0, joins: 0/0}
+$dMonad_skIP :: Monad IO
+[LclId]
+$dMonad_skIP
+  = Control.Monad.IO.Class.$p1MonadIO
+      @ IO
+      (GHC.Classes.$p1(%,,%)
+         @ (Control.Monad.IO.Class.MonadIO IO)
+         @ (Control.Monad.Trans.Control.MonadBaseControl IO IO)
+         @ (Control.Monad.Catch.MonadThrow IO)
+         $d(%,,%)_skl9)
+
+-- RHS size: {terms: 46, types: 102, coercions: 8, joins: 0/2}
+$stoStreamK_sl4F [InlPrag=INLINE[0] (sat-args=1)]
+  :: forall a.
+     Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a
+     -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a
+[LclId,
+ Arity=5,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ a_akJe)
+                 (ds_akJg [Occ=Once!]
+                    :: Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a_akJe) ->
+                 case ds_akJg of
+                 { Streamly.Internal.Data.Stream.StreamD.Type.UnStream @ s_akJk
+                                                                       step1_akJu [Occ=OnceL!]
+                                                                       state_akJv [Occ=Once] ->
+                 letrec {
+                   go_akJj [Occ=LoopBreaker]
+                     :: s_akJk
+                        -> forall r.
+                           Streamly.Internal.Data.SVar.State
+                             Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe
+                           -> (a_akJe
+                               -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe
+                               -> IO r)
+                           -> (a_akJe -> IO r)
+                           -> IO r
+                           -> IO r
+                   [LclId, Arity=5]
+                   go_akJj
+                     = \ (st_akJm [Occ=Once] :: s_akJk)
+                         (@ r_akJn)
+                         (st1_akJo [Occ=OnceL!]
+                            :: Streamly.Internal.Data.SVar.State
+                                 Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe)
+                         (yld_akJp [Occ=OnceL!]
+                            :: a_akJe
+                               -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe
+                               -> IO r_akJn)
+                         _ [Occ=Dead]
+                         (stp_akJr [Occ=OnceL] :: IO r_akJn) ->
+                         letrec {
+                           go'_akJs [Occ=LoopBreaker] :: s_akJk -> IO r_akJn
+                           [LclId, Arity=1]
+                           go'_akJs
+                             = \ (ss_akJt [Occ=Once] :: s_akJk) ->
+                                 >>=
+                                   @ IO
+                                   $dMonad_skIP
+                                   @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_akJk a_akJe)
+                                   @ r_akJn
+                                   (step1_akJu
+                                      (case st1_akJo of
+                                       { Streamly.Internal.Data.SVar.State _ [Occ=Dead] _ [Occ=Dead]
+                                                                           ds4_akJK [Occ=Once]
+                                                                           ds5_akJR [Occ=Once]
+                                                                           ds6_akJS [Occ=Once]
+                                                                           ds7_akJW [Occ=Once]
+                                                                           ds8_akK0 [Occ=Once] ->
+                                       Streamly.Internal.Data.SVar.State
+                                         @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                         @ IO
+                                         @ a_akJe
+                                         (GHC.Maybe.Nothing
+                                            @ (Streamly.Internal.Data.SVar.SVar
+                                                 Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                 IO
+                                                 a_akJe))
+                                         (GHC.Maybe.Nothing @ Streamly.Internal.Data.SVar.Count)
+                                         ds4_akJK
+                                         ds5_akJR
+                                         ds6_akJS
+                                         ds7_akJW
+                                         ds8_akK0
+                                       })
+                                      ss_akJt)
+                                   (\ (r1_akK2 [Occ=Once!]
+                                         :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                              s_akJk a_akJe) ->
+                                      case r1_akK2 of {
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Yield x_akK5 [Occ=Once]
+                                                                                         s1_akK6 [Occ=Once] ->
+                                          yld_akJp
+                                            x_akK5
+                                            ((go_akJj s1_akK6)
+                                             `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                                              <IO>_N <a_akJe>_N)
+                                                     :: (forall r.
+                                                         Streamly.Internal.Data.SVar.State
+                                                           Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                           IO
+                                                           a_akJe
+                                                         -> (a_akJe
+                                                             -> Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                                  IO a_akJe
+                                                             -> IO r)
+                                                         -> (a_akJe -> IO r)
+                                                         -> IO r
+                                                         -> IO r)
+                                                        ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                              IO a_akJe));
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_akK9 [Occ=Once] ->
+                                          go'_akJs s1_akK9;
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Stop -> stp_akJr
+                                      }); } in
+                         go'_akJs st_akJm; } in
+                 (go_akJj state_akJv)
+                 `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                  <IO>_N <a_akJe>_N)
+                         :: (forall r.
+                             Streamly.Internal.Data.SVar.State
+                               Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe
+                             -> (a_akJe
+                                 -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe
+                                 -> IO r)
+                             -> (a_akJe -> IO r)
+                             -> IO r
+                             -> IO r)
+                            ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akJe)
+                 }}]
+$stoStreamK_sl4F
+  = \ (@ a_XkJg)
+      (ds_akJg [Occ=Once!]
+         :: Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a_XkJg) ->
+      case ds_akJg of
+      { Streamly.Internal.Data.Stream.StreamD.Type.UnStream @ s_akJk
+                                                            step1_akJu [Occ=OnceL!]
+                                                            state_akJv [Occ=Once] ->
+      letrec {
+        go_sl4H [Occ=LoopBreaker]
+          :: s_akJk
+             -> forall r.
+                Streamly.Internal.Data.SVar.State
+                  Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg
+                -> (a_XkJg
+                    -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg
+                    -> IO r)
+                -> (a_XkJg -> IO r)
+                -> IO r
+                -> IO r
+        [LclId, Arity=5]
+        go_sl4H
+          = \ (st_akJm [Occ=Once] :: s_akJk)
+              (@ r_akJn)
+              (st1_akJo [Occ=OnceL!]
+                 :: Streamly.Internal.Data.SVar.State
+                      Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg)
+              (yld_akJp [Occ=OnceL!]
+                 :: a_XkJg
+                    -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg
+                    -> IO r_akJn)
+              _ [Occ=Dead]
+              (stp_akJr [Occ=OnceL] :: IO r_akJn) ->
+              letrec {
+                go'_sl4J [Occ=LoopBreaker] :: s_akJk -> IO r_akJn
+                [LclId, Arity=1]
+                go'_sl4J
+                  = \ (ss_akJt [Occ=Once] :: s_akJk) ->
+                      >>=
+                        @ IO
+                        $dMonad_skIP
+                        @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_akJk a_XkJg)
+                        @ r_akJn
+                        (step1_akJu
+                           (case st1_akJo of
+                            { Streamly.Internal.Data.SVar.State _ [Occ=Dead] _ [Occ=Dead]
+                                                                ds4_akJK [Occ=Once]
+                                                                ds5_akJR [Occ=Once]
+                                                                ds6_akJS [Occ=Once]
+                                                                ds7_akJW [Occ=Once]
+                                                                ds8_akK0 [Occ=Once] ->
+                            Streamly.Internal.Data.SVar.State
+                              @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                              @ IO
+                              @ a_XkJg
+                              (GHC.Maybe.Nothing
+                                 @ (Streamly.Internal.Data.SVar.SVar
+                                      Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg))
+                              (GHC.Maybe.Nothing @ Streamly.Internal.Data.SVar.Count)
+                              ds4_akJK
+                              ds5_akJR
+                              ds6_akJS
+                              ds7_akJW
+                              ds8_akK0
+                            })
+                           ss_akJt)
+                        (\ (r1_akK2 [Occ=Once!]
+                              :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                   s_akJk a_XkJg) ->
+                           case r1_akK2 of {
+                             Streamly.Internal.Data.Stream.StreamD.Type.Yield x_akK5 [Occ=Once]
+                                                                              s1_akK6 [Occ=Once] ->
+                               yld_akJp
+                                 x_akK5
+                                 ((go_sl4H s1_akK6)
+                                  `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                                                   <IO>_N <a_XkJg>_N)
+                                          :: (forall r.
+                                              Streamly.Internal.Data.SVar.State
+                                                Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                IO
+                                                a_XkJg
+                                              -> (a_XkJg
+                                                  -> Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                       IO a_XkJg
+                                                  -> IO r)
+                                              -> (a_XkJg -> IO r)
+                                              -> IO r
+                                              -> IO r)
+                                             ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                   IO a_XkJg));
+                             Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_akK9 [Occ=Once] ->
+                               go'_sl4J s1_akK9;
+                             Streamly.Internal.Data.Stream.StreamD.Type.Stop -> stp_akJr
+                           }); } in
+              go'_sl4J st_akJm; } in
+      (go_sl4H state_akJv)
+      `cast` (Sym (Streamly.Internal.Data.Stream.StreamK.Type.N:Stream[0]
+                       <IO>_N <a_XkJg>_N)
+              :: (forall r.
+                  Streamly.Internal.Data.SVar.State
+                    Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg
+                  -> (a_XkJg
+                      -> Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg
+                      -> IO r)
+                  -> (a_XkJg -> IO r)
+                  -> IO r
+                  -> IO r)
+                 ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkJg)
+      }
+
+-- RHS size: {terms: 29, types: 62, coercions: 0, joins: 0/1}
+$sunfoldrM_sl52 [InlPrag=INLINE[1] (sat-args=2)]
+  :: forall s a.
+     (s -> IO (Maybe (a, s)))
+     -> s -> Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a
+[LclId,
+ Arity=2,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=2,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ s_akIR)
+                 (@ a_akIS)
+                 (next_akIU :: s_akIR -> IO (Maybe (a_akIS, s_akIR)))
+                 (state_akIV [Occ=Once] :: s_akIR) ->
+                 let {
+                   step_akIW [InlPrag=INLINE[0] (sat-args=2), Occ=Once]
+                     :: forall p.
+                        p
+                        -> s_akIR
+                        -> IO
+                             (Streamly.Internal.Data.Stream.StreamD.Type.Step s_akIR a_akIS)
+                   [LclId,
+                    Arity=2,
+                    Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+                            WorkFree=True, Expandable=True,
+                            Guidance=ALWAYS_IF(arity=2,unsat_ok=False,boring_ok=False)
+                            Tmpl= \ (@ p_al4K) _ [Occ=Dead] (st_al4M [Occ=Once] :: s_akIR) ->
+                                    >>=
+                                      @ IO
+                                      $dMonad_skIP
+                                      @ (Maybe (a_akIS, s_akIR))
+                                      @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                           s_akIR a_akIS)
+                                      (next_akIU st_al4M)
+                                      (\ (r_al4N [Occ=Once!] :: Maybe (a_akIS, s_akIR)) ->
+                                         return
+                                           @ IO
+                                           $dMonad_skIP
+                                           @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                                s_akIR a_akIS)
+                                           (case r_al4N of {
+                                              Nothing ->
+                                                Streamly.Internal.Data.Stream.StreamD.Type.Stop
+                                                  @ s_akIR @ a_akIS;
+                                              Just ds1_al4R [Occ=Once!] ->
+                                                case ds1_al4R of
+                                                { (x_al4V [Occ=Once], s1_al4W [Occ=Once]) ->
+                                                Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                                                  @ s_akIR @ a_akIS x_al4V s1_al4W
+                                                }
+                                            }))}]
+                   step_akIW
+                     = \ (@ p_akIZ) _ [Occ=Dead] (eta1_akJ1 [Occ=Once] :: s_akIR) ->
+                         >>=
+                           @ IO
+                           $dMonad_skIP
+                           @ (Maybe (a_akIS, s_akIR))
+                           @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_akIR a_akIS)
+                           (next_akIU eta1_akJ1)
+                           (\ (r_akJ2 [Occ=Once!] :: Maybe (a_akIS, s_akIR)) ->
+                              return
+                                @ IO
+                                $dMonad_skIP
+                                @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_akIR a_akIS)
+                                (case r_akJ2 of {
+                                   Nothing ->
+                                     Streamly.Internal.Data.Stream.StreamD.Type.Stop
+                                       @ s_akIR @ a_akIS;
+                                   Just ds_akJ6 [Occ=Once!] ->
+                                     case ds_akJ6 of { (x_akJa [Occ=Once], s1_akJb [Occ=Once]) ->
+                                     Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                                       @ s_akIR @ a_akIS x_akJa s1_akJb
+                                     }
+                                 })) } in
+                 Streamly.Internal.Data.Stream.StreamD.Type.UnStream
+                   @ IO
+                   @ a_akIS
+                   @ s_akIR
+                   (step_akIW
+                      @ (Streamly.Internal.Data.SVar.State
+                           Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_akIS))
+                   state_akIV}]
+$sunfoldrM_sl52
+  = \ (@ s_XkIU)
+      (@ a_XkIW)
+      (next_akIU :: s_XkIU -> IO (Maybe (a_XkIW, s_XkIU)))
+      (state_akIV [Occ=Once] :: s_XkIU) ->
+      let {
+        step_sl54 [InlPrag=INLINE[0] (sat-args=2), Occ=Once]
+          :: forall p.
+             p
+             -> s_XkIU
+             -> IO
+                  (Streamly.Internal.Data.Stream.StreamD.Type.Step s_XkIU a_XkIW)
+        [LclId,
+         Arity=2,
+         Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+                 WorkFree=True, Expandable=True,
+                 Guidance=ALWAYS_IF(arity=2,unsat_ok=False,boring_ok=False)
+                 Tmpl= \ (@ p_al4K) _ [Occ=Dead] (st_al4M [Occ=Once] :: s_XkIU) ->
+                         >>=
+                           @ IO
+                           $dMonad_skIP
+                           @ (Maybe (a_XkIW, s_XkIU))
+                           @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_XkIU a_XkIW)
+                           (next_akIU st_al4M)
+                           (\ (r_al4N [Occ=Once!] :: Maybe (a_XkIW, s_XkIU)) ->
+                              return
+                                @ IO
+                                $dMonad_skIP
+                                @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_XkIU a_XkIW)
+                                (case r_al4N of {
+                                   Nothing ->
+                                     Streamly.Internal.Data.Stream.StreamD.Type.Stop
+                                       @ s_XkIU @ a_XkIW;
+                                   Just ds1_al4R [Occ=Once!] ->
+                                     case ds1_al4R of { (x_al4V [Occ=Once], s1_al4W [Occ=Once]) ->
+                                     Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                                       @ s_XkIU @ a_XkIW x_al4V s1_al4W
+                                     }
+                                 }))}]
+        step_sl54
+          = \ (@ p_akIZ) _ [Occ=Dead] (eta1_akJ1 [Occ=Once] :: s_XkIU) ->
+              >>=
+                @ IO
+                $dMonad_skIP
+                @ (Maybe (a_XkIW, s_XkIU))
+                @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_XkIU a_XkIW)
+                (next_akIU eta1_akJ1)
+                (\ (r_akJ2 [Occ=Once!] :: Maybe (a_XkIW, s_XkIU)) ->
+                   return
+                     @ IO
+                     $dMonad_skIP
+                     @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_XkIU a_XkIW)
+                     (case r_akJ2 of {
+                        Nothing ->
+                          Streamly.Internal.Data.Stream.StreamD.Type.Stop @ s_XkIU @ a_XkIW;
+                        Just ds_akJ6 [Occ=Once!] ->
+                          case ds_akJ6 of { (x_akJa [Occ=Once], s1_akJb [Occ=Once]) ->
+                          Streamly.Internal.Data.Stream.StreamD.Type.Yield
+                            @ s_XkIU @ a_XkIW x_akJa s1_akJb
+                          }
+                      })) } in
+      Streamly.Internal.Data.Stream.StreamD.Type.UnStream
+        @ IO
+        @ a_XkIW
+        @ s_XkIU
+        (step_sl54
+           @ (Streamly.Internal.Data.SVar.State
+                Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_XkIW))
+        state_akIV
+
+-- RHS size: {terms: 12, types: 19, coercions: 0, joins: 0/0}
+$sunfoldrM_sl5x [InlPrag=INLINE (sat-args=2)]
+  :: forall b a. (b -> IO (Maybe (a, b))) -> b -> S.SerialT IO a
+[LclId,
+ Arity=2,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=2,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ b_aklg)
+                 (@ a_aklh)
+                 (step_aklk [Occ=Once] :: b_aklg -> IO (Maybe (a_aklh, b_aklg)))
+                 (seed_akll [Occ=Once] :: b_aklg) ->
+                 Streamly.Internal.Data.Stream.StreamK.Type.fromStream
+                   @ S.SerialT
+                   Streamly.Internal.Data.Stream.Serial.$fIsStreamSerialT
+                   @ IO
+                   @ a_aklh
+                   (Streamly.Internal.Data.Stream.StreamD.Type.toStreamK
+                      @ IO
+                      @ a_aklh
+                      $dMonad_skIP
+                      (Streamly.Internal.Data.Stream.StreamD.unfoldrM
+                         @ IO @ b_aklg @ a_aklh $dMonad_skIP step_aklk seed_akll))}]
+$sunfoldrM_sl5x
+  = \ (@ b_Xklk)
+      (@ a_Xklm)
+      (step_aklk [Occ=Once] :: b_Xklk -> IO (Maybe (a_Xklm, b_Xklk)))
+      (seed_akll [Occ=Once] :: b_Xklk) ->
+      Streamly.Internal.Data.Stream.StreamK.Type.fromStream
+        @ S.SerialT
+        Streamly.Internal.Data.Stream.Serial.$fIsStreamSerialT
+        @ IO
+        @ a_Xklm
+        (Streamly.Internal.Data.Stream.StreamD.Type.toStreamK
+           @ IO
+           @ a_Xklm
+           $dMonad_skIP
+           (Streamly.Internal.Data.Stream.StreamD.unfoldrM
+              @ IO @ b_Xklk @ a_Xklm $dMonad_skIP step_aklk seed_akll))
+
+-- RHS size: {terms: 7, types: 16, coercions: 0, joins: 0/0}
+$sunfoldrMSerial_sl5y [InlPrag=INLINE[2] (sat-args=0)]
+  :: forall b a. (b -> IO (Maybe (a, b))) -> b -> S.SerialT IO a
+[LclId,
+ Arity=6,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=False, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ b_akcW) (@ a_akcX) ->
+                 Streamly.Internal.Data.Stream.Serial.unfoldrM
+                   @ S.SerialT
+                   @ IO
+                   @ b_akcW
+                   @ a_akcX
+                   Streamly.Internal.Data.Stream.Serial.$fIsStreamSerialT
+                   (Control.Monad.IO.Class.$p1MonadIO
+                      @ IO
+                      (GHC.Classes.$p1(%,,%)
+                         @ (Control.Monad.IO.Class.MonadIO IO)
+                         @ (Control.Monad.Trans.Control.MonadBaseControl IO IO)
+                         @ (Control.Monad.Catch.MonadThrow IO)
+                         $d(%,,%)_skl9))}]
+$sunfoldrMSerial_sl5y
+  = \ (@ b_XkcZ) (@ a_Xkd1) ->
+      Streamly.Internal.Data.Stream.Serial.unfoldrM
+        @ S.SerialT
+        @ IO
+        @ b_XkcZ
+        @ a_Xkd1
+        Streamly.Internal.Data.Stream.Serial.$fIsStreamSerialT
+        (Control.Monad.IO.Class.$p1MonadIO
+           @ IO
+           (GHC.Classes.$p1(%,,%)
+              @ (Control.Monad.IO.Class.MonadIO IO)
+              @ (Control.Monad.Trans.Control.MonadBaseControl IO IO)
+              @ (Control.Monad.Catch.MonadThrow IO)
+              $d(%,,%)_skl9))
+
+-- RHS size: {terms: 65, types: 75, coercions: 0, joins: 0/2}
+$sfoldlM'_sl5p [InlPrag=INLINE[1] (sat-args=3)]
+  :: forall b a.
+     (b -> a -> IO b)
+     -> b
+     -> Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a
+     -> IO b
+[LclId,
+ Arity=3,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=3,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ b_ak2W)
+                 (@ a_ak2X)
+                 (fstep_ak2Z :: b_ak2W -> a_ak2X -> IO b_ak2W)
+                 (begin_ak30 [Occ=Once] :: b_ak2W)
+                 (ds_ak31 [Occ=Once!]
+                    :: Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a_ak2X) ->
+                 case ds_ak31 of
+                 { Streamly.Internal.Data.Stream.StreamD.Type.UnStream @ s_ak3c
+                                                                       step1_ak3r
+                                                                       state_ak3J [Occ=Once] ->
+                 let {
+                   go_ak3b [InlPrag=INLINE[0] (sat-args=3), Occ=Once!]
+                     :: GHC.Types.SPEC -> b_ak2W -> s_ak3c -> IO b_ak2W
+                   [LclId,
+                    Arity=3,
+                    Unf=Unf{Src=InlineStable, TopLvl=True, Value=False, ConLike=False,
+                            WorkFree=True, Expandable=False,
+                            Guidance=ALWAYS_IF(arity=3,unsat_ok=False,boring_ok=False)
+                            Tmpl= letrec {
+                                    go_al55 [Occ=LoopBreaker]
+                                      :: GHC.Types.SPEC -> b_ak2W -> s_ak3c -> IO b_ak2W
+                                    [LclId, Arity=3]
+                                    go_al55
+                                      = \ (ds1_al56 [Occ=Once] :: GHC.Types.SPEC)
+                                          (acc_al57 [Occ=Once] :: b_ak2W)
+                                          (st_al58 [Occ=Once] :: s_ak3c) ->
+                                          case ds1_al56 of { __DEFAULT ->
+                                          case acc_al57 of acc1_al5a [Occ=OnceL*] { __DEFAULT ->
+                                          >>=
+                                            @ IO
+                                            GHC.Base.$fMonadIO
+                                            @ (Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                                 s_ak3c a_ak2X)
+                                            @ b_ak2W
+                                            (step1_ak3r
+                                               (Streamly.Internal.Data.SVar.State
+                                                  @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                  @ IO
+                                                  @ a_ak2X
+                                                  (GHC.Maybe.Nothing
+                                                     @ (Streamly.Internal.Data.SVar.SVar
+                                                          Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                          IO
+                                                          a_ak2X))
+                                                  (GHC.Maybe.Nothing
+                                                     @ Streamly.Internal.Data.SVar.Count)
+                                                  Streamly.Internal.Data.SVar.defaultMaxThreads
+                                                  Streamly.Internal.Data.SVar.defaultMaxThreads
+                                                  (GHC.Maybe.Nothing
+                                                     @ Streamly.Internal.Data.Time.Units.NanoSecond64)
+                                                  (GHC.Maybe.Nothing @ S.Rate)
+                                                  GHC.Types.False)
+                                               st_al58)
+                                            (\ (r_al5b [Occ=Once!]
+                                                  :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                                       s_ak3c a_ak2X) ->
+                                               case r_al5b of {
+                                                 Streamly.Internal.Data.Stream.StreamD.Type.Yield x_al5e [Occ=Once]
+                                                                                                  s1_al5f [Occ=OnceL] ->
+                                                   >>=
+                                                     @ IO
+                                                     GHC.Base.$fMonadIO
+                                                     @ b_ak2W
+                                                     @ b_ak2W
+                                                     (fstep_ak2Z acc1_al5a x_al5e)
+                                                     (\ (acc'_al5h [Occ=Once] :: b_ak2W) ->
+                                                        go_al55 GHC.Types.SPEC acc'_al5h s1_al5f);
+                                                 Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_al5j [Occ=Once] ->
+                                                   go_al55 GHC.Types.SPEC acc1_al5a s1_al5j;
+                                                 Streamly.Internal.Data.Stream.StreamD.Type.Stop ->
+                                                   return @ IO GHC.Base.$fMonadIO @ b_ak2W acc1_al5a
+                                               })
+                                          }
+                                          }; } in
+                                  go_al55}]
+                   go_ak3b
+                     = \ (eta_ak3e [Occ=Once] :: GHC.Types.SPEC)
+                         (eta1_ak3f [Occ=Once] :: b_ak2W)
+                         (eta2_ak3g [Occ=Once] :: s_ak3c) ->
+                         letrec {
+                           go1_ak3h [Occ=LoopBreaker]
+                             :: GHC.Types.SPEC -> b_ak2W -> s_ak3c -> IO b_ak2W
+                           [LclId, Arity=3]
+                           go1_ak3h
+                             = \ (ds1_ak3i [Occ=Once] :: GHC.Types.SPEC)
+                                 (acc_ak3j [Occ=Once] :: b_ak2W)
+                                 (st_ak3k [Occ=Once] :: s_ak3c) ->
+                                 case ds1_ak3i of { __DEFAULT ->
+                                 case acc_ak3j of acc1_ak3M [Occ=OnceL*] { __DEFAULT ->
+                                 >>=
+                                   @ IO
+                                   GHC.Base.$fMonadIO
+                                   @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_ak3c a_ak2X)
+                                   @ b_ak2W
+                                   (step1_ak3r
+                                      (Streamly.Internal.Data.SVar.State
+                                         @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                         @ IO
+                                         @ a_ak2X
+                                         (GHC.Maybe.Nothing
+                                            @ (Streamly.Internal.Data.SVar.SVar
+                                                 Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                 IO
+                                                 a_ak2X))
+                                         (GHC.Maybe.Nothing @ Streamly.Internal.Data.SVar.Count)
+                                         Streamly.Internal.Data.SVar.defaultMaxThreads
+                                         Streamly.Internal.Data.SVar.defaultMaxThreads
+                                         (GHC.Maybe.Nothing
+                                            @ Streamly.Internal.Data.Time.Units.NanoSecond64)
+                                         (GHC.Maybe.Nothing @ S.Rate)
+                                         GHC.Types.False)
+                                      st_ak3k)
+                                   (\ (r_akcn [Occ=Once!]
+                                         :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                              s_ak3c a_ak2X) ->
+                                      case r_akcn of {
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Yield x_akct [Occ=Once]
+                                                                                         s1_akcu [Occ=OnceL] ->
+                                          >>=
+                                            @ IO
+                                            GHC.Base.$fMonadIO
+                                            @ b_ak2W
+                                            @ b_ak2W
+                                            (fstep_ak2Z acc1_ak3M x_akct)
+                                            (\ (acc'_akcw [Occ=Once] :: b_ak2W) ->
+                                               go1_ak3h GHC.Types.SPEC acc'_akcw s1_akcu);
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_akcA [Occ=Once] ->
+                                          go1_ak3h GHC.Types.SPEC acc1_ak3M s1_akcA;
+                                        Streamly.Internal.Data.Stream.StreamD.Type.Stop ->
+                                          return @ IO GHC.Base.$fMonadIO @ b_ak2W acc1_ak3M
+                                      })
+                                 }
+                                 }; } in
+                         go1_ak3h eta_ak3e eta1_ak3f eta2_ak3g } in
+                 go_ak3b GHC.Types.SPEC begin_ak30 state_ak3J
+                 }}]
+$sfoldlM'_sl5p
+  = \ (@ b_Xk2Z)
+      (@ a_Xk31)
+      (fstep_ak2Z :: b_Xk2Z -> a_Xk31 -> IO b_Xk2Z)
+      (begin_ak30 [Occ=Once] :: b_Xk2Z)
+      (ds_ak31 [Occ=Once!]
+         :: Streamly.Internal.Data.Stream.StreamD.Type.Stream IO a_Xk31) ->
+      case ds_ak31 of
+      { Streamly.Internal.Data.Stream.StreamD.Type.UnStream @ s_ak3c
+                                                            step1_ak3r state_ak3J [Occ=Once] ->
+      let {
+        go_sl5t [InlPrag=INLINE[0] (sat-args=3), Occ=Once!]
+          :: GHC.Types.SPEC -> b_Xk2Z -> s_ak3c -> IO b_Xk2Z
+        [LclId,
+         Arity=3,
+         Unf=Unf{Src=InlineStable, TopLvl=True, Value=False, ConLike=False,
+                 WorkFree=True, Expandable=False,
+                 Guidance=ALWAYS_IF(arity=3,unsat_ok=False,boring_ok=False)
+                 Tmpl= letrec {
+                         go_al55 [Occ=LoopBreaker]
+                           :: GHC.Types.SPEC -> b_Xk2Z -> s_ak3c -> IO b_Xk2Z
+                         [LclId, Arity=3]
+                         go_al55
+                           = \ (ds1_al56 [Occ=Once] :: GHC.Types.SPEC)
+                               (acc_al57 [Occ=Once] :: b_Xk2Z)
+                               (st_al58 [Occ=Once] :: s_ak3c) ->
+                               case ds1_al56 of { __DEFAULT ->
+                               case acc_al57 of acc1_al5a [Occ=OnceL*] { __DEFAULT ->
+                               >>=
+                                 @ IO
+                                 GHC.Base.$fMonadIO
+                                 @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_ak3c a_Xk31)
+                                 @ b_Xk2Z
+                                 (step1_ak3r
+                                    (Streamly.Internal.Data.SVar.State
+                                       @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                       @ IO
+                                       @ a_Xk31
+                                       (GHC.Maybe.Nothing
+                                          @ (Streamly.Internal.Data.SVar.SVar
+                                               Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                               IO
+                                               a_Xk31))
+                                       (GHC.Maybe.Nothing @ Streamly.Internal.Data.SVar.Count)
+                                       Streamly.Internal.Data.SVar.defaultMaxThreads
+                                       Streamly.Internal.Data.SVar.defaultMaxThreads
+                                       (GHC.Maybe.Nothing
+                                          @ Streamly.Internal.Data.Time.Units.NanoSecond64)
+                                       (GHC.Maybe.Nothing @ S.Rate)
+                                       GHC.Types.False)
+                                    st_al58)
+                                 (\ (r_al5b [Occ=Once!]
+                                       :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                            s_ak3c a_Xk31) ->
+                                    case r_al5b of {
+                                      Streamly.Internal.Data.Stream.StreamD.Type.Yield x_al5e [Occ=Once]
+                                                                                       s1_al5f [Occ=OnceL] ->
+                                        >>=
+                                          @ IO
+                                          GHC.Base.$fMonadIO
+                                          @ b_Xk2Z
+                                          @ b_Xk2Z
+                                          (fstep_ak2Z acc1_al5a x_al5e)
+                                          (\ (acc'_al5h [Occ=Once] :: b_Xk2Z) ->
+                                             go_al55 GHC.Types.SPEC acc'_al5h s1_al5f);
+                                      Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_al5j [Occ=Once] ->
+                                        go_al55 GHC.Types.SPEC acc1_al5a s1_al5j;
+                                      Streamly.Internal.Data.Stream.StreamD.Type.Stop ->
+                                        return @ IO GHC.Base.$fMonadIO @ b_Xk2Z acc1_al5a
+                                    })
+                               }
+                               }; } in
+                       go_al55}]
+        go_sl5t
+          = \ (eta_ak3e [Occ=Once] :: GHC.Types.SPEC)
+              (eta1_ak3f [Occ=Once] :: b_Xk2Z)
+              (eta2_ak3g [Occ=Once] :: s_ak3c) ->
+              letrec {
+                go1_sl5s [Occ=LoopBreaker]
+                  :: GHC.Types.SPEC -> b_Xk2Z -> s_ak3c -> IO b_Xk2Z
+                [LclId, Arity=3]
+                go1_sl5s
+                  = \ (ds1_ak3i [Occ=Once] :: GHC.Types.SPEC)
+                      (acc_ak3j [Occ=Once] :: b_Xk2Z)
+                      (st_ak3k [Occ=Once] :: s_ak3c) ->
+                      case ds1_ak3i of { __DEFAULT ->
+                      case acc_ak3j of acc1_ak3M [Occ=OnceL*] { __DEFAULT ->
+                      >>=
+                        @ IO
+                        GHC.Base.$fMonadIO
+                        @ (Streamly.Internal.Data.Stream.StreamD.Type.Step s_ak3c a_Xk31)
+                        @ b_Xk2Z
+                        (step1_ak3r
+                           (Streamly.Internal.Data.SVar.State
+                              @ Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                              @ IO
+                              @ a_Xk31
+                              (GHC.Maybe.Nothing
+                                 @ (Streamly.Internal.Data.SVar.SVar
+                                      Streamly.Internal.Data.Stream.StreamK.Type.Stream IO a_Xk31))
+                              (GHC.Maybe.Nothing @ Streamly.Internal.Data.SVar.Count)
+                              Streamly.Internal.Data.SVar.defaultMaxThreads
+                              Streamly.Internal.Data.SVar.defaultMaxThreads
+                              (GHC.Maybe.Nothing
+                                 @ Streamly.Internal.Data.Time.Units.NanoSecond64)
+                              (GHC.Maybe.Nothing @ S.Rate)
+                              GHC.Types.False)
+                           st_ak3k)
+                        (\ (r_akcn [Occ=Once!]
+                              :: Streamly.Internal.Data.Stream.StreamD.Type.Step
+                                   s_ak3c a_Xk31) ->
+                           case r_akcn of {
+                             Streamly.Internal.Data.Stream.StreamD.Type.Yield x_akct [Occ=Once]
+                                                                              s1_akcu [Occ=OnceL] ->
+                               >>=
+                                 @ IO
+                                 GHC.Base.$fMonadIO
+                                 @ b_Xk2Z
+                                 @ b_Xk2Z
+                                 (fstep_ak2Z acc1_ak3M x_akct)
+                                 (\ (acc'_akcw [Occ=Once] :: b_Xk2Z) ->
+                                    go1_sl5s GHC.Types.SPEC acc'_akcw s1_akcu);
+                             Streamly.Internal.Data.Stream.StreamD.Type.Skip s1_akcA [Occ=Once] ->
+                               go1_sl5s GHC.Types.SPEC acc1_ak3M s1_akcA;
+                             Streamly.Internal.Data.Stream.StreamD.Type.Stop ->
+                               return @ IO GHC.Base.$fMonadIO @ b_Xk2Z acc1_ak3M
+                           })
+                      }
+                      }; } in
+              go1_sl5s eta_ak3e eta1_ak3f eta2_ak3g } in
+      go_sl5t GHC.Types.SPEC begin_ak30 state_ak3J
+      }
+end Rec }
+
+-- RHS size: {terms: 120, types: 156, coercions: 42, joins: 0/1}
+main_skdb :: [Benchmark]
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=False, ConLike=False,
+         WorkFree=False, Expandable=False, Guidance=IF_ARGS [] 724 40}]
+main_skdb
+  = GHC.Base.build
+      @ Benchmark
+      (\ (@ a_djRq)
+         (c_djRr [OS=OneShot] :: Benchmark -> a_djRq -> a_djRq)
+         (n_djRs [OS=OneShot] :: a_djRq) ->
+         c_djRr
+           (Gauge.Benchmark.Benchmark
+              (GHC.Base.build
+                 @ Char
+                 (\ (@ b_ak2M) ->
+                    GHC.CString.unpackFoldrCString# @ b_ak2M "product"#))
+              (letrec {
+                 go_skl8 [Occ=LoopBreaker]
+                   :: GHC.Int.Int64
+                      -> GHC.Prim.State# GHC.Prim.RealWorld
+                      -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+                 [LclId, Arity=2]
+                 go_skl8
+                   = \ (n_ajQ5 :: GHC.Int.Int64)
+                       (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                       case GHC.Int.leInt64 n_ajQ5 (GHC.Int.I64# 0#) of {
+                         False ->
+                           case case System.Random.$fRandomInt3
+                                       (GHC.Types.I# 1#, GHC.Types.I# 1#) eta_B1
+                                of
+                                { (# ipv_ajT5, ipv1_ajT6 #) ->
+                                ((Streamly.Internal.Data.Stream.StreamD.Type.foldlM'
+                                    @ IO
+                                    @ Int
+                                    @ Int
+                                    GHC.Base.$fMonadIO
+                                    ((\ (b1_ajYu :: Int)
+                                        (a1_ajYv [OS=OneShot] :: Int)
+                                        (s_ajUB :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                                        (# s_ajUB, GHC.Num.$fNumInt_$c* b1_ajYu a1_ajYv #))
+                                     `cast` (<Int>_R
+                                             ->_R <Int>_R
+                                             ->_R Sym (GHC.Types.N:IO[0] <Int>_R)
+                                             :: (Int
+                                                 -> Int
+                                                 -> GHC.Prim.State# GHC.Prim.RealWorld
+                                                 -> (# GHC.Prim.State# GHC.Prim.RealWorld, Int #))
+                                                ~R# (Int -> Int -> IO Int)))
+                                    (GHC.Types.I# 1#)
+                                    (Streamly.Internal.Data.Stream.StreamD.Type.fromStreamK
+                                       @ IO
+                                       @ Int
+                                       GHC.Base.$fMonadIO
+                                       ((Streamly.Internal.Prelude.unfoldrMSerial
+                                           @ IO
+                                           @ Int
+                                           @ Int
+                                           $d(%,,%)_skl9
+                                           ((\ (cnt_adu7 :: Int)
+                                               (eta_X9 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                                               case GHC.Classes.gtInt
+                                                      cnt_adu7
+                                                      (case ipv1_ajT6 of { GHC.Types.I# x_ajSA ->
+                                                       GHC.Types.I# (GHC.Prim.+# x_ajSA 100000#)
+                                                       })
+                                               of {
+                                                 False ->
+                                                   (# eta_X9,
+                                                      GHC.Maybe.Just
+                                                        @ (Int, Int)
+                                                        (cnt_adu7,
+                                                         case cnt_adu7 of { GHC.Types.I# x_ajSA ->
+                                                         GHC.Types.I# (GHC.Prim.+# x_ajSA 1#)
+                                                         }) #);
+                                                 True ->
+                                                   (# eta_X9, GHC.Maybe.Nothing @ (Int, Int) #)
+                                               })
+                                            `cast` (<Int>_R
+                                                    ->_R Sym (GHC.Types.N:IO[0]
+                                                                  <Maybe (Int, Int)>_R)
+                                                    :: (Int
+                                                        -> GHC.Prim.State# GHC.Prim.RealWorld
+                                                        -> (# GHC.Prim.State# GHC.Prim.RealWorld,
+                                                              Maybe (Int, Int) #))
+                                                       ~R# (Int -> IO (Maybe (Int, Int)))))
+                                           ipv1_ajT6)
+                                        `cast` (Streamly.Internal.Data.Stream.Serial.N:SerialT[0] <IO>_N <Int>_N
+                                                :: S.SerialT IO Int
+                                                   ~R# Streamly.Internal.Data.Stream.StreamK.Type.Stream
+                                                         IO Int))))
+                                 `cast` (GHC.Types.N:IO[0] <Int>_R
+                                         :: IO Int
+                                            ~R# (GHC.Prim.State# GHC.Prim.RealWorld
+                                                 -> (# GHC.Prim.State# GHC.Prim.RealWorld, Int #))))
+                                  ipv_ajT5
+                                }
+                           of
+                           { (# ipv_ajQf, ipv1_ajQg #) ->
+                           case GHC.Prim.seq#
+                                  @ ()
+                                  @ GHC.Prim.RealWorld
+                                  (case ipv1_ajQg of { GHC.Types.I# ipv_ak2H -> GHC.Tuple.() })
+                                  ipv_ajQf
+                           of
+                           { (# ipv2_ajQk, ipv3_ajQl #) ->
+                           go_skl8
+                             (case n_ajQ5 of { GHC.Int.I64# x#_ajQp ->
+                              GHC.Int.I64# (GHC.Prim.-# x#_ajQp 1#)
+                              })
+                             ipv2_ajQk
+                           }
+                           };
+                         True -> (# eta_B1, GHC.Tuple.() #)
+                       }; } in
+               Gauge.Benchmark.Benchmarkable
+                 @ ()
+                 ((\ (ds_ajQv :: ()) -> ds_ajQv)
+                  `cast` (Sym (Control.DeepSeq.N:NFData[0] <()>_N)
+                          :: (() -> ()) ~R# NFData ()))
+                 ((\ _ [Occ=Dead] (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     (# eta_B1, GHC.Tuple.() #))
+                  `cast` (<GHC.Int.Int64>_R ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (GHC.Int.Int64
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (GHC.Int.Int64 -> IO ())))
+                 ((\ _ [Occ=Dead]
+                     _ [Occ=Dead]
+                     (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     (# eta_B1, GHC.Tuple.() #))
+                  `cast` (<GHC.Int.Int64>_R
+                          ->_R <()>_R
+                          ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (GHC.Int.Int64
+                              -> ()
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (GHC.Int.Int64 -> () -> IO ())))
+                 ((\ _ [Occ=Dead]
+                     (eta_B2 :: GHC.Int.Int64)
+                     (eta_B1 :: GHC.Prim.State# GHC.Prim.RealWorld) ->
+                     go_skl8 eta_B2 eta_B1)
+                  `cast` (<()>_R
+                          ->_R <GHC.Int.Int64>_R
+                          ->_R Sym (GHC.Types.N:IO[0] <()>_R)
+                          :: (()
+                              -> GHC.Int.Int64
+                              -> GHC.Prim.State# GHC.Prim.RealWorld
+                              -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                             ~R# (() -> GHC.Int.Int64 -> IO ())))
+                 GHC.Types.False))
+           n_djRs)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_skdc
+  :: GHC.Prim.State# GHC.Prim.RealWorld
+     -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 60}]
+main_skdc = Gauge.Main.defaultMain2 defaultConfig main_skdb
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main :: IO ()
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=True,boring_ok=True)}]
+main
+  = main_skdc
+    `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+            :: (GHC.Prim.State# GHC.Prim.RealWorld
+                -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+               ~R# IO ())
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main_skkn
+  :: GHC.Prim.State# GHC.Prim.RealWorld
+     -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #)
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 60}]
+main_skkn
+  = GHC.TopHandler.runMainIO1
+      @ ()
+      (main_skdc
+       `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+               :: (GHC.Prim.State# GHC.Prim.RealWorld
+                   -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+                  ~R# IO ()))
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=True,boring_ok=True)}]
+:Main.main
+  = main_skkn
+    `cast` (Sym (GHC.Types.N:IO[0] <()>_R)
+            :: (GHC.Prim.State# GHC.Prim.RealWorld
+                -> (# GHC.Prim.State# GHC.Prim.RealWorld, () #))
+               ~R# IO ())
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skko :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+$trModule_skko = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkp :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+$trModule_skkp = GHC.Types.TrNameS $trModule_skko
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkq :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+$trModule_skkq = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkr :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+$trModule_skkr = GHC.Types.TrNameS $trModule_skkq
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Main.$trModule :: GHC.Types.Module
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+Main.$trModule = GHC.Types.Module $trModule_skkp $trModule_skkr
+
+
+------ Local rules for imported ids --------
+"SPEC/Main fromStreamK @ IO _" [0]
+    forall (@ a_akcF) ($dMonad_sklb :: Monad IO).
+      Streamly.Internal.Data.Stream.StreamD.Type.fromStreamK @ IO
+                                                             @ a_akcF
+                                                             $dMonad_sklb
+      = $sfromStreamK_sl5u @ a_akcF
+"SPEC/Main toStreamK @ IO _" [0]
+    forall (@ a_akJe) ($dMonad_skKj :: Monad IO).
+      Streamly.Internal.Data.Stream.StreamD.Type.toStreamK @ IO
+                                                           @ a_akJe
+                                                           $dMonad_skKj
+      = $stoStreamK_sl4F @ a_akJe
+"SPEC/Main unfoldrM @ IO _ _" [1]
+    forall (@ s_akIR) (@ a_akIS) ($dMonad_sl51 :: Monad IO).
+      Streamly.Internal.Data.Stream.StreamD.unfoldrM @ IO
+                                                     @ s_akIR
+                                                     @ a_akIS
+                                                     $dMonad_sl51
+      = $sunfoldrM_sl52 @ s_akIR @ a_akIS
+"SPEC/Main unfoldrM @ SerialT @ IO _ _"
+    forall (@ b_aklg)
+           (@ a_aklh)
+           ($dMonad_skIP :: Monad IO)
+           ($dIsStream_skIO :: S.IsStream S.SerialT).
+      Streamly.Internal.Data.Stream.Serial.unfoldrM @ S.SerialT
+                                                    @ IO
+                                                    @ b_aklg
+                                                    @ a_aklh
+                                                    $dIsStream_skIO
+                                                    $dMonad_skIP
+      = $sunfoldrM_sl5x @ b_aklg @ a_aklh
+"SPEC/Main unfoldrMSerial @ IO _ _" [2]
+    forall (@ b_akcW) (@ a_akcX) ($d(%,,%)_skld :: S.MonadAsync IO).
+      Streamly.Internal.Prelude.unfoldrMSerial @ IO
+                                               @ b_akcW
+                                               @ a_akcX
+                                               $d(%,,%)_skld
+      = $sunfoldrMSerial_sl5y @ b_akcW @ a_akcX
+"SPEC/Main foldlM' @ IO _ _" [1]
+    forall (@ b_ak2W) (@ a_ak2X) ($dMonad_sl5o :: Monad IO).
+      Streamly.Internal.Data.Stream.StreamD.Type.foldlM' @ IO
+                                                         @ b_ak2W
+                                                         @ a_ak2X
+                                                         $dMonad_sl5o
+      = $sfoldlM'_sl5p @ b_ak2W @ a_ak2X
+

@@ -1,0 +1,68 @@
+
+==================== [0] Initial  ====================
+  
+
+-- RHS size: {terms: 38, types: 55, coercions: 0, joins: 0/1}
+sourceUnfoldrM
+  = \ @ t_ajpP
+      @ m_ajpQ
+      $dIsStream_ajpS
+      $d(%,,%)_ajpT
+      eta_B2
+      eta_B1 ->
+      unfoldrM
+        $dIsStream_ajpS
+        $d(%,,%)_ajpT
+        (let { $dMonad_ajqi = $p1MonadIO ($p1(%,,%) $d(%,,%)_ajpT) } in
+         \ cnt_adtX ->
+           case > $fOrdInt cnt_adtX (+ $fNumInt eta_B1 eta_B2) of {
+             False ->
+               return $dMonad_ajqi (Just (cnt_adtX, + $fNumInt cnt_adtX (I# 1#)));
+             True -> return $dMonad_ajqi Nothing
+           })
+        eta_B1
+
+-- RHS size: {terms: 31, types: 50, coercions: 0, joins: 0/0}
+benchIOSink
+  = \ @ t_ajIx
+      @ b_ajIy
+      $dIsStream_ajIA
+      $dNFData_ajIB
+      eta_B3
+      eta_B2
+      eta_B1 ->
+      $ (bench eta_B2)
+        ($ (nfIO $dNFData_ajIB)
+           (>>=
+              $fMonadIO
+              (randomRIO $fRandomInt (I# 1#, I# 1#))
+              (. eta_B1
+                 (sourceUnfoldrM
+                    $dIsStream_ajIA
+                    ($fMonadIOIO, $fMonadBaseControlIOIO, $fMonadThrowIO)
+                    eta_B3))))
+
+-- RHS size: {terms: 5, types: 8, coercions: 0, joins: 0/0}
+product = \ @ m_ajpu $dMonad_ajpw -> product $dMonad_ajpw $fNumInt
+
+-- RHS size: {terms: 18, types: 15, coercions: 0, joins: 0/0}
+main
+  = $ (defaultMainWith defaultConfig)
+      (build
+         (\ @ a_djRg c_djRh n_djRi ->
+            c_djRh
+              (benchIOSink
+                 $fIsStreamSerialT
+                 $fNFDataInt
+                 (I# 100000#)
+                 (unpackCString# "product"#)
+                 (product $fMonadIO))
+              n_djRi))
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main = runMainIO main
+
+-- RHS size: {terms: 5, types: 0, coercions: 0, joins: 0/0}
+$trModule = Module (TrNameS "main"#) (TrNameS "Main"#)
+
+

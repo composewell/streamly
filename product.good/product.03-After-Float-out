@@ -1,0 +1,306 @@
+
+==================== [3] After Float out(FOS {Lam = Just 0,
+                         Consts = True,
+                         OverSatApps = False}) ====================
+  
+
+Rec {
+-- RHS size: {terms: 4, types: 7, coercions: 0, joins: 0/0}
+$d(%,,%)_skkZ
+  = ($fMonadIOIO, $fMonadBaseControlIOIO, $fMonadThrowIO)
+
+-- RHS size: {terms: 8, types: 16, coercions: 0, joins: 0/0}
+lvl_sl5q
+  = \ @ a_Xkcx a1_akcz x_akcA ->
+      return $fMonadIO (Yield a1_akcz x_akcA)
+
+-- RHS size: {terms: 7, types: 19, coercions: 0, joins: 0/0}
+lvl_sl5r = \ @ a_Xkcx @ r_akcC _ _ _ stp_akcG -> stp_akcG
+
+-- RHS size: {terms: 7, types: 14, coercions: 4, joins: 0/0}
+lvl_sl5s
+  = \ @ a_Xkcx a1_akcB ->
+      return $fMonadIO (Yield a1_akcB (lvl_sl5r `cast` <Co:4>))
+
+-- RHS size: {terms: 4, types: 12, coercions: 0, joins: 0/0}
+lvl_sl5t = \ @ a_Xkcx -> return $fMonadIO Stop
+
+-- RHS size: {terms: 8, types: 17, coercions: 3, joins: 0/0}
+lvl_sl5u
+  = \ @ a_Xkcx gst_akcx m1_akcy ->
+      (m1_akcy `cast` <Co:3>) gst_akcx lvl_sl5q lvl_sl5s lvl_sl5t
+
+-- RHS size: {terms: 3, types: 8, coercions: 0, joins: 0/0}
+$sfromStreamK_sl5k = \ @ a_Xkcx -> UnStream lvl_sl5u
+
+-- RHS size: {terms: 3, types: 8, coercions: 0, joins: 0/0}
+$dMonad_skIF = $p1MonadIO ($p1(%,,%) $d(%,,%)_skkZ)
+
+-- RHS size: {terms: 50, types: 111, coercions: 8, joins: 0/4}
+$stoStreamK_sl4v
+  = \ @ a_XkJ6 ds_akJ6 ->
+      case ds_akJ6 of { UnStream @ s_akJa step1_akJk state_akJl ->
+      letrec {
+        go_sl4x
+          = \ st_akJc @ r_akJd st1_akJe yld_akJf _ stp_akJh ->
+              let {
+                lvl_sl5v
+                  = case st1_akJe of
+                    { State _ _ ds4_akJA ds5_akJH ds6_akJI ds7_akJM ds8_akJQ ->
+                    State Nothing Nothing ds4_akJA ds5_akJH ds6_akJI ds7_akJM ds8_akJQ
+                    } } in
+              letrec {
+                go'_sl4z
+                  = \ ss_akJj ->
+                      >>= $dMonad_skIF (step1_akJk lvl_sl5v ss_akJj) lvl_sl5w;
+                lvl_sl5w
+                  = \ r1_akJS ->
+                      case r1_akJS of {
+                        Yield x_akJV s1_akJW ->
+                          yld_akJf x_akJV ((go_sl4x s1_akJW) `cast` <Co:4>);
+                        Skip s1_akJZ -> go'_sl4z s1_akJZ;
+                        Stop -> stp_akJh
+                      }; } in
+              go'_sl4z st_akJc; } in
+      (go_sl4x state_akJl) `cast` <Co:4>
+      }
+
+-- RHS size: {terms: 16, types: 28, coercions: 0, joins: 0/0}
+lvl_sl5x
+  = \ @ s_XkIK @ a_XkIM r_akIS ->
+      return
+        $dMonad_skIF
+        (case r_akIS of {
+           Nothing -> Stop;
+           Just ds_akIW ->
+             case ds_akIW of { (x_akJ0, s1_akJ1) -> Yield x_akJ0 s1_akJ1 }
+         })
+
+-- RHS size: {terms: 16, types: 40, coercions: 0, joins: 0/1}
+$sunfoldrM_sl4S
+  = \ @ s_XkIK @ a_XkIM next_akIK state_akIL ->
+      let {
+        step_sl4U
+          = \ @ p_akIP _ eta1_akIR ->
+              >>= $dMonad_skIF (next_akIK eta1_akIR) lvl_sl5x } in
+      UnStream step_sl4U state_akIL
+
+-- RHS size: {terms: 12, types: 19, coercions: 0, joins: 0/0}
+$sunfoldrM_sl5l
+  = \ @ b_Xkla @ a_Xklc step_akla seed_aklb ->
+      fromStream
+        $fIsStreamSerialT
+        (toStreamK
+           $dMonad_skIF (unfoldrM $dMonad_skIF step_akla seed_aklb))
+
+-- RHS size: {terms: 3, types: 8, coercions: 0, joins: 0/0}
+lvl_sl5y = $p1MonadIO ($p1(%,,%) $d(%,,%)_skkZ)
+
+-- RHS size: {terms: 5, types: 8, coercions: 0, joins: 0/0}
+$sunfoldrMSerial_sl5m
+  = \ @ b_XkcP @ a_XkcR -> unfoldrM $fIsStreamSerialT lvl_sl5y
+
+-- RHS size: {terms: 9, types: 12, coercions: 0, joins: 0/0}
+lvl_sl5B
+  = \ @ a_Xk2R ->
+      State
+        Nothing
+        Nothing
+        defaultMaxThreads
+        defaultMaxThreads
+        Nothing
+        Nothing
+        False
+
+-- RHS size: {terms: 60, types: 68, coercions: 0, joins: 0/3}
+$sfoldlM'_sl5f
+  = \ @ b_Xk2P @ a_Xk2R fstep_ak2P begin_ak2Q ds_ak2R ->
+      case ds_ak2R of { UnStream @ s_ak32 step1_ak3h state_ak3z ->
+      letrec {
+        go1_sl5A
+          = \ ds1_ak38 acc_ak39 st_ak3a ->
+              let { lvl_sl5C = return $fMonadIO acc_ak39 } in
+              case ds1_ak38 of { __DEFAULT ->
+              case acc_ak39 of acc1_ak3C { __DEFAULT ->
+              >>=
+                $fMonadIO
+                (step1_ak3h lvl_sl5B st_ak3a)
+                (\ r_akcd ->
+                   case r_akcd of {
+                     Yield x_akcj s1_akck ->
+                       >>=
+                         $fMonadIO
+                         (fstep_ak2P acc_ak39 x_akcj)
+                         (\ acc'_akcm -> go1_sl5A SPEC acc'_akcm s1_akck);
+                     Skip s1_akcq -> go1_sl5A SPEC acc_ak39 s1_akcq;
+                     Stop -> lvl_sl5C
+                   })
+              }
+              }; } in
+      let {
+        go_sl5j
+          = \ eta_ak34 eta1_ak35 eta2_ak36 ->
+              go1_sl5A eta_ak34 eta1_ak35 eta2_ak36 } in
+      go_sl5j SPEC begin_ak2Q state_ak3z
+      }
+end Rec }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5D = "product"#
+
+-- RHS size: {terms: 3, types: 3, coercions: 0, joins: 0/0}
+lvl_sl5E = \ @ b_ak2C -> unpackFoldrCString# lvl_sl5D
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+lvl_sl5F = build lvl_sl5E
+
+Rec {
+-- RHS size: {terms: 8, types: 11, coercions: 0, joins: 0/0}
+lvl_sl5M
+  = \ b1_ajYk a1_ajYl s_ajUr ->
+      (# s_ajUr, $fNumInt_$c* b1_ajYk a1_ajYl #)
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5N = I# 1#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5J = I# 1#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5K = I# 1#
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+lvl_sl5L = (lvl_sl5J, lvl_sl5K)
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5I = I64# 0#
+
+-- RHS size: {terms: 74, types: 94, coercions: 20, joins: 0/0}
+go_sl5H
+  = \ n_ajPV eta_B1 ->
+      case leInt64 n_ajPV lvl_sl5I of {
+        False ->
+          case case $fRandomInt3 lvl_sl5L eta_B1 of
+               { (# ipv_ajSV, ipv1_ajSW #) ->
+               ((foldlM'
+                   $fMonadIO
+                   (lvl_sl5M `cast` <Co:7>)
+                   lvl_sl5N
+                   (fromStreamK
+                      $fMonadIO
+                      ((unfoldrMSerial
+                          $d(%,,%)_skkZ
+                          ((\ cnt_adtX eta_X9 ->
+                              case gtInt
+                                     cnt_adtX
+                                     (case ipv1_ajSW of { I# x_ajSq -> I# (+# x_ajSq 100000#) })
+                              of {
+                                False ->
+                                  (# eta_X9,
+                                     Just
+                                       (cnt_adtX,
+                                        case cnt_adtX of { I# x_ajSq -> I# (+# x_ajSq 1#) }) #);
+                                True -> (# eta_X9, Nothing #)
+                              })
+                           `cast` <Co:8>)
+                          ipv1_ajSW)
+                       `cast` <Co:3>)))
+                `cast` <Co:2>)
+                 ipv_ajSV
+               }
+          of
+          { (# ipv_ajQ5, ipv1_ajQ6 #) ->
+          case seq# (case ipv1_ajQ6 of { I# ipv_ak2x -> () }) ipv_ajQ5 of
+          { (# ipv2_ajQa, ipv3_ajQb #) ->
+          go_sl5H
+            (case n_ajPV of { I64# x#_ajQf -> I64# (-# x#_ajQf 1#) }) ipv2_ajQa
+          }
+          };
+        True -> (# eta_B1, () #)
+      }
+end Rec }
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+lvl_sl5O = \ ds_ajQl -> ds_ajQl
+
+-- RHS size: {terms: 5, types: 10, coercions: 0, joins: 0/0}
+lvl_sl5P = \ _ eta_B1 -> (# eta_B1, () #)
+
+-- RHS size: {terms: 6, types: 11, coercions: 0, joins: 0/0}
+lvl_sl5Q = \ _ _ eta_B1 -> (# eta_B1, () #)
+
+-- RHS size: {terms: 6, types: 4, coercions: 0, joins: 0/0}
+lvl_sl5R = \ _ eta_B2 eta_B1 -> go_sl5H eta_B2 eta_B1
+
+-- RHS size: {terms: 6, types: 1, coercions: 22, joins: 0/0}
+lvl_sl5S
+  = Benchmarkable
+      (lvl_sl5O `cast` <Co:3>)
+      (lvl_sl5P `cast` <Co:5>)
+      (lvl_sl5Q `cast` <Co:7>)
+      (lvl_sl5R `cast` <Co:7>)
+      False
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+lvl_sl5T = Benchmark lvl_sl5F lvl_sl5S
+
+-- RHS size: {terms: 6, types: 6, coercions: 0, joins: 0/0}
+lvl_sl5U = \ @ a_djRg c_djRh n_djRi -> c_djRh lvl_sl5T n_djRi
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main_skd1 = build lvl_sl5U
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_skd2 = defaultMain2 defaultConfig main_skd1
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skd2 `cast` <Co:3>
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main_skkd = runMainIO1 (main_skd2 `cast` <Co:3>)
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skkd `cast` <Co:3>
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skke = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkf = TrNameS $trModule_skke
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkg = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkh = TrNameS $trModule_skkg
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$trModule = Module $trModule_skkf $trModule_skkh
+
+
+------ Local rules for imported ids --------
+"SPEC/Main fromStreamK @ IO _" [0]
+    forall @ a_akcv $dMonad_skl1.
+      fromStreamK $dMonad_skl1
+      = $sfromStreamK_sl5k
+"SPEC/Main toStreamK @ IO _" [0]
+    forall @ a_akJ4 $dMonad_skK9.
+      toStreamK $dMonad_skK9
+      = $stoStreamK_sl4v
+"SPEC/Main unfoldrM @ IO _ _" [1]
+    forall @ s_akIH @ a_akII $dMonad_sl4R.
+      unfoldrM $dMonad_sl4R
+      = $sunfoldrM_sl4S
+"SPEC/Main unfoldrM @ SerialT @ IO _ _"
+    forall @ b_akl6 @ a_akl7 $dMonad_skIF $dIsStream_skIE.
+      unfoldrM $dIsStream_skIE $dMonad_skIF
+      = $sunfoldrM_sl5l
+"SPEC/Main unfoldrMSerial @ IO _ _" [2]
+    forall @ b_akcM @ a_akcN $d(%,,%)_skl3.
+      unfoldrMSerial $d(%,,%)_skl3
+      = $sunfoldrMSerial_sl5m
+"SPEC/Main foldlM' @ IO _ _" [1]
+    forall @ b_ak2M @ a_ak2N $dMonad_sl5e.
+      foldlM' $dMonad_sl5e
+      = $sfoldlM'_sl5f
+

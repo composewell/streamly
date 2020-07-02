@@ -1,0 +1,99 @@
+
+==================== [1] After Simplifier ====================
+  
+
+-- RHS size: {terms: 125, types: 165, coercions: 42, joins: 0/2}
+main_skd1
+  = build
+      (\ @ a_djRg c_djRh n_djRi ->
+         c_djRh
+           (let {
+              $d(%,,%)_ajJp
+                = ($fMonadIOIO, $fMonadBaseControlIOIO, $fMonadThrowIO) } in
+            Benchmark
+              (build (\ @ b_ak2C -> unpackFoldrCString# "product"#))
+              (letrec {
+                 go_skkA
+                   = \ n_ajPV eta_B1 ->
+                       case leInt64 n_ajPV (I64# 0#) of {
+                         False ->
+                           case case $fRandomInt3 (I# 1#, I# 1#) eta_B1 of
+                                { (# ipv_ajSV, ipv1_ajSW #) ->
+                                ((foldlM'
+                                    $fMonadIO
+                                    ((\ b1_ajYk a1_ajYl s_ajUr ->
+                                        (# s_ajUr, $fNumInt_$c* b1_ajYk a1_ajYl #))
+                                     `cast` <Co:7>)
+                                    (I# 1#)
+                                    (fromStreamK
+                                       $fMonadIO
+                                       ((unfoldrMSerial
+                                           $d(%,,%)_ajJp
+                                           ((\ cnt_adtX eta_X9 ->
+                                               case gtInt
+                                                      cnt_adtX
+                                                      (case ipv1_ajSW of { I# x_ajSq ->
+                                                       I# (+# x_ajSq 100000#)
+                                                       })
+                                               of {
+                                                 False ->
+                                                   (# eta_X9,
+                                                      Just
+                                                        (cnt_adtX,
+                                                         case cnt_adtX of { I# x_ajSq ->
+                                                         I# (+# x_ajSq 1#)
+                                                         }) #);
+                                                 True -> (# eta_X9, Nothing #)
+                                               })
+                                            `cast` <Co:8>)
+                                           ipv1_ajSW)
+                                        `cast` <Co:3>)))
+                                 `cast` <Co:2>)
+                                  ipv_ajSV
+                                }
+                           of
+                           { (# ipv_ajQ5, ipv1_ajQ6 #) ->
+                           case seq# (case ipv1_ajQ6 of { I# ipv_ak2x -> () }) ipv_ajQ5 of
+                           { (# ipv2_ajQa, ipv3_ajQb #) ->
+                           go_skkA
+                             (case n_ajPV of { I64# x#_ajQf -> I64# (-# x#_ajQf 1#) }) ipv2_ajQa
+                           }
+                           };
+                         True -> (# eta_B1, () #)
+                       }; } in
+               Benchmarkable
+                 ((\ ds_ajQl -> ds_ajQl) `cast` <Co:3>)
+                 ((\ _ eta_B1 -> (# eta_B1, () #)) `cast` <Co:5>)
+                 ((\ _ _ eta_B1 -> (# eta_B1, () #)) `cast` <Co:7>)
+                 ((\ _ eta_B2 eta_B1 -> go_skkA eta_B2 eta_B1) `cast` <Co:7>)
+                 False))
+           n_djRi)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main_skd2 = defaultMain2 defaultConfig main_skd1
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skd2 `cast` <Co:3>
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main_skkd = runMainIO1 (main_skd2 `cast` <Co:3>)
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main_skkd `cast` <Co:3>
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skke = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkf = TrNameS $trModule_skke
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkg = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_skkh = TrNameS $trModule_skkg
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$trModule = Module $trModule_skkf $trModule_skkh
+
+

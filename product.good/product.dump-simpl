@@ -1,0 +1,105 @@
+
+==================== Tidy Core ====================
+
+Result size of Tidy Core
+  = {terms: 144, types: 188, coercions: 31, joins: 2/2}
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+lvl6_rlrB = I# 1#
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+lvl7_rlrC = (lvl6_rlrB, lvl6_rlrB)
+
+Rec {
+-- RHS size: {terms: 59, types: 52, coercions: 0, joins: 2/2}
+$wgo
+  = \ ww_sllg w_slld ->
+      case <=# ww_sllg 0# of {
+        __DEFAULT ->
+          case $fRandomInt3 lvl7_rlrC w_slld of
+          { (# ipv_ajSV, ipv1_ajSW #) ->
+          case ipv1_ajSW of { I# ww2_sll9 ->
+          join { exit_XU w1_sll2 = $wgo (-# ww_sllg 1#) w1_sll2 } in
+          case ># ww2_sll9 (+# ww2_sll9 100000#) of {
+            __DEFAULT ->
+              joinrec {
+                $s$wgo_sloM sc_sloL sc1_sloK
+                  = case ># sc1_sloK (+# ww2_sll9 100000#) of {
+                      __DEFAULT -> jump $s$wgo_sloM sc_sloL (+# sc1_sloK 1#);
+                      1# -> jump exit_XU sc_sloL
+                    }; } in
+              jump $s$wgo_sloM ipv_ajSV (+# ww2_sll9 1#);
+            1# -> jump exit_XU ipv_ajSV
+          }
+          }
+          };
+        1# -> (# w_slld, () #)
+      }
+end Rec }
+
+-- RHS size: {terms: 8, types: 5, coercions: 0, joins: 0/0}
+main6
+  = \ w_sllc w1_slld ->
+      case w_sllc of { I64# ww1_sllg -> $wgo ww1_sllg w1_slld }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+main11 = "product"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+main10 = unpackCString# main11
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main9 = \ ds_ajQl -> ds_ajQl
+
+-- RHS size: {terms: 5, types: 10, coercions: 0, joins: 0/0}
+main8 = \ _ eta_X1a -> (# eta_X1a, () #)
+
+-- RHS size: {terms: 6, types: 11, coercions: 0, joins: 0/0}
+main7 = \ _ _ eta1_X2n -> (# eta1_X2n, () #)
+
+-- RHS size: {terms: 6, types: 4, coercions: 0, joins: 0/0}
+main5 = \ _ eta_X1d eta1_X2p -> main6 eta_X1d eta1_X2p
+
+-- RHS size: {terms: 6, types: 1, coercions: 22, joins: 0/0}
+main4
+  = Benchmarkable
+      (main9 `cast` <Co:3>)
+      (main8 `cast` <Co:5>)
+      (main7 `cast` <Co:7>)
+      (main5 `cast` <Co:7>)
+      False
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main3 = Benchmark main10 main4
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+main2 = : main3 []
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+main1 = defaultMain2 defaultConfig main2
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main1 `cast` <Co:3>
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main12 = runMainIO1 (main1 `cast` <Co:3>)
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main = main12 `cast` <Co:3>
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule4 = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule3 = TrNameS $trModule4
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule2 = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule1 = TrNameS $trModule2
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$trModule = Module $trModule3 $trModule1
+
+

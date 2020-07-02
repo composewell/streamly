@@ -1,0 +1,238 @@
+
+==================== [0] Initial  ====================
+2020-07-01 20:51:00.083767 UTC
+  
+
+-- RHS size: {terms: 38, types: 55, coercions: 0, joins: 0/1}
+sourceUnfoldrM [InlPrag=INLINE (sat-args=2)]
+  :: forall (t :: (* -> *) -> * -> *) (m :: * -> *).
+     (S.IsStream t, S.MonadAsync m) =>
+     Int -> Int -> t m Int
+[LclId,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=4,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ (t_ajpZ :: (* -> *) -> * -> *))
+                 (@ (m_ajq0 :: * -> *))
+                 ($dIsStream_ajq2 [Occ=OnceL] :: S.IsStream t_ajpZ)
+                 ($d(%,,%)_ajq3 :: S.MonadAsync m_ajq0) ->
+                 let {
+                   $dMonad_ajIF [Occ=OnceL*] :: Monad m_ajq0
+                   [LclId]
+                   $dMonad_ajIF
+                     = Control.Monad.IO.Class.$p1MonadIO
+                         @ m_ajq0
+                         (GHC.Classes.$p1(%,,%)
+                            @ (Control.Monad.IO.Class.MonadIO m_ajq0)
+                            @ (Control.Monad.Trans.Control.MonadBaseControl IO m_ajq0)
+                            @ (Control.Monad.Catch.MonadThrow m_ajq0)
+                            $d(%,,%)_ajq3) } in
+                 \ (count_adu3 [Occ=OnceL] :: Int) (start_adu4 :: Int) ->
+                   S.unfoldrM
+                     @ t_ajpZ
+                     @ m_ajq0
+                     @ Int
+                     @ Int
+                     $dIsStream_ajq2
+                     $d(%,,%)_ajq3
+                     (\ (cnt_adu6 :: Int) ->
+                        case > @ Int
+                               GHC.Classes.$fOrdInt
+                               cnt_adu6
+                               (+ @ Int GHC.Num.$fNumInt start_adu4 count_adu3)
+                        of {
+                          False ->
+                            return
+                              @ m_ajq0
+                              $dMonad_ajIF
+                              @ (Maybe (Int, Int))
+                              (GHC.Maybe.Just
+                                 @ (Int, Int)
+                                 (cnt_adu6, + @ Int GHC.Num.$fNumInt cnt_adu6 (GHC.Types.I# 1#)));
+                          True ->
+                            return
+                              @ m_ajq0
+                              $dMonad_ajIF
+                              @ (Maybe (Int, Int))
+                              (GHC.Maybe.Nothing @ (Int, Int))
+                        })
+                     start_adu4}]
+sourceUnfoldrM
+  = \ (@ (t_ajpZ :: (* -> *) -> * -> *))
+      (@ (m_ajq0 :: * -> *))
+      ($dIsStream_ajq2 :: S.IsStream t_ajpZ)
+      ($d(%,,%)_ajq3 :: S.MonadAsync m_ajq0)
+      (eta_B2 :: Int)
+      (eta_B1 :: Int) ->
+      S.unfoldrM
+        @ t_ajpZ
+        @ m_ajq0
+        @ Int
+        @ Int
+        $dIsStream_ajq2
+        $d(%,,%)_ajq3
+        (let {
+           $dMonad_ajqs :: Monad m_ajq0
+           [LclId]
+           $dMonad_ajqs
+             = Control.Monad.IO.Class.$p1MonadIO
+                 @ m_ajq0
+                 (GHC.Classes.$p1(%,,%)
+                    @ (Control.Monad.IO.Class.MonadIO m_ajq0)
+                    @ (Control.Monad.Trans.Control.MonadBaseControl IO m_ajq0)
+                    @ (Control.Monad.Catch.MonadThrow m_ajq0)
+                    $d(%,,%)_ajq3) } in
+         \ (cnt_adu6 :: Int) ->
+           case > @ Int
+                  GHC.Classes.$fOrdInt
+                  cnt_adu6
+                  (+ @ Int GHC.Num.$fNumInt eta_B1 eta_B2)
+           of {
+             False ->
+               return
+                 @ m_ajq0
+                 $dMonad_ajqs
+                 @ (Maybe (Int, Int))
+                 (GHC.Maybe.Just
+                    @ (Int, Int)
+                    (cnt_adu6, + @ Int GHC.Num.$fNumInt cnt_adu6 (GHC.Types.I# 1#)));
+             True ->
+               return
+                 @ m_ajq0
+                 $dMonad_ajqs
+                 @ (Maybe (Int, Int))
+                 (GHC.Maybe.Nothing @ (Int, Int))
+           })
+        eta_B1
+
+-- RHS size: {terms: 31, types: 50, coercions: 0, joins: 0/0}
+benchIOSink [InlPrag=INLINE (sat-args=3), Occ=Once!]
+  :: forall (t :: (* -> *) -> * -> *) b.
+     (S.IsStream t, NFData b) =>
+     Int -> String -> (t IO Int -> IO b) -> Benchmark
+[LclId,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=5,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ (t_ajIH :: (* -> *) -> * -> *))
+                 (@ b_ajII)
+                 ($dIsStream_ajIK [Occ=OnceL] :: S.IsStream t_ajIH)
+                 ($dNFData_ajIL [Occ=OnceL] :: NFData b_ajII) ->
+                 let {
+                   $d(%,,%)_ajJz [Occ=OnceL] :: S.MonadAsync IO
+                   [LclId]
+                   $d(%,,%)_ajJz
+                     = (Control.Monad.IO.Class.$fMonadIOIO,
+                        Control.Monad.Trans.Control.$fMonadBaseControlIOIO,
+                        Control.Monad.Catch.$fMonadThrowIO) } in
+                 \ (value_adu0 [Occ=Once] :: Int)
+                   (name_adu1 [Occ=Once] :: String)
+                   (f_adu2 [Occ=Once] :: t_ajIH IO Int -> IO b_ajII) ->
+                   $ @ 'GHC.Types.LiftedRep
+                     @ Benchmarkable
+                     @ Benchmark
+                     (bench name_adu1)
+                     ($ @ 'GHC.Types.LiftedRep
+                        @ (IO b_ajII)
+                        @ Benchmarkable
+                        (nfIO @ b_ajII $dNFData_ajIL)
+                        (>>=
+                           @ IO
+                           GHC.Base.$fMonadIO
+                           @ Int
+                           @ b_ajII
+                           (randomRIO
+                              @ Int System.Random.$fRandomInt (GHC.Types.I# 1#, GHC.Types.I# 1#))
+                           (. @ (t_ajIH IO Int)
+                              @ (IO b_ajII)
+                              @ Int
+                              f_adu2
+                              (sourceUnfoldrM
+                                 @ t_ajIH @ IO $dIsStream_ajIK $d(%,,%)_ajJz value_adu0))))}]
+benchIOSink
+  = \ (@ (t_ajIH :: (* -> *) -> * -> *))
+      (@ b_ajII)
+      ($dIsStream_ajIK :: S.IsStream t_ajIH)
+      ($dNFData_ajIL :: NFData b_ajII)
+      (eta_B3 :: Int)
+      (eta_B2 :: String)
+      (eta_B1 :: t_ajIH IO Int -> IO b_ajII) ->
+      $ @ 'GHC.Types.LiftedRep
+        @ Benchmarkable
+        @ Benchmark
+        (bench eta_B2)
+        ($ @ 'GHC.Types.LiftedRep
+           @ (IO b_ajII)
+           @ Benchmarkable
+           (nfIO @ b_ajII $dNFData_ajIL)
+           (>>=
+              @ IO
+              GHC.Base.$fMonadIO
+              @ Int
+              @ b_ajII
+              (randomRIO
+                 @ Int System.Random.$fRandomInt (GHC.Types.I# 1#, GHC.Types.I# 1#))
+              (. @ (t_ajIH IO Int)
+                 @ (IO b_ajII)
+                 @ Int
+                 eta_B1
+                 (sourceUnfoldrM
+                    @ t_ajIH
+                    @ IO
+                    $dIsStream_ajIK
+                    (Control.Monad.IO.Class.$fMonadIOIO,
+                     Control.Monad.Trans.Control.$fMonadBaseControlIOIO,
+                     Control.Monad.Catch.$fMonadThrowIO)
+                    eta_B3))))
+
+-- RHS size: {terms: 5, types: 8, coercions: 0, joins: 0/0}
+product [InlPrag=INLINE (sat-args=0), Occ=Once!]
+  :: forall (m :: * -> *). Monad m => S.SerialT m Int -> m Int
+[LclId,
+ Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+         WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=False,boring_ok=False)
+         Tmpl= \ (@ (m_ajpE :: * -> *))
+                 ($dMonad_ajpG [Occ=Once] :: Monad m_ajpE) ->
+                 S.product @ m_ajpE @ Int $dMonad_ajpG GHC.Num.$fNumInt}]
+product
+  = \ (@ (m_ajpE :: * -> *)) ($dMonad_ajpG :: Monad m_ajpE) ->
+      S.product @ m_ajpE @ Int $dMonad_ajpG GHC.Num.$fNumInt
+
+-- RHS size: {terms: 18, types: 15, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main
+  = $ @ 'GHC.Types.LiftedRep
+      @ [Benchmark]
+      @ (IO ())
+      (defaultMainWith defaultConfig)
+      (GHC.Base.build
+         @ Benchmark
+         (\ (@ a_djRq)
+            (c_djRr [OS=OneShot] :: Benchmark -> a_djRq -> a_djRq)
+            (n_djRs [OS=OneShot] :: a_djRq) ->
+            c_djRr
+              (benchIOSink
+                 @ S.SerialT
+                 @ Int
+                 Streamly.Internal.Data.Stream.Serial.$fIsStreamSerialT
+                 Control.DeepSeq.$fNFDataInt
+                 (GHC.Types.I# 100000#)
+                 (GHC.CString.unpackCString# "product"#)
+                 (product @ IO GHC.Base.$fMonadIO))
+              n_djRs))
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX]
+:Main.main = GHC.TopHandler.runMainIO @ () main
+
+-- RHS size: {terms: 5, types: 0, coercions: 0, joins: 0/0}
+Main.$trModule :: GHC.Types.Module
+[LclIdX]
+Main.$trModule
+  = GHC.Types.Module
+      (GHC.Types.TrNameS "main"#) (GHC.Types.TrNameS "Main"#)
+
+
