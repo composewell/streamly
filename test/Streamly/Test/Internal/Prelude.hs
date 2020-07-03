@@ -15,15 +15,22 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 
 import Test.Hspec as H
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Property, choose)
+import Test.QuickCheck.Monadic (monadicIO, pick)
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Prelude as SI
 
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
 import Data.Int (Int64)
+
+max_length :: Int
+max_length = 1000
 
 tenPow8 :: Int64
 tenPow8 = 10^(8 :: Int)
@@ -70,9 +77,28 @@ testDropByTime = do
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
 
+unfold :: Property
+unfold = monadicIO $ do
+    a <- pick $ choose (0, max_length `div` 2)
+    b <- pick $ choose (0, max_length)
+    let unf = UF.enumerateFromToIntegral b
+    ls <- S.toList $ S.unfold unf a
+    return $ ls == [a..b]
+
+unfold0 :: Property
+unfold0 = monadicIO $ do
+    a <- pick $ choose (0, max_length `div` 2)
+    b <- pick $ choose (0, max_length)
+    let unf = UF.supply (UF.enumerateFromToIntegral b) a
+    ls <- S.toList $ SI.unfold0 unf
+    return $ ls == [a..b]
+
 main :: IO ()
 main =
-    hspec $
-    describe "Filtering" $ do
-        it "takeByTime" (testTakeByTime `shouldReturn` True)
-        it "dropByTime" (testDropByTime `shouldReturn` True)
+    hspec $ do
+        describe "Filtering" $ do
+            it "takeByTime" (testTakeByTime `shouldReturn` True)
+            it "dropByTime" (testDropByTime `shouldReturn` True)
+        describe "From Generators" $ do
+            prop "unfold" unfold
+            prop "unfold0" unfold0
