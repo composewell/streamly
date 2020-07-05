@@ -399,15 +399,14 @@ benchmark Memory.Array
 -- FileIO Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark fileio
+benchmark FileSystem.Handle
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  main-is: FileIO.hs
-  other-modules: Streamly.Benchmark.FileIO.Array
-               , Streamly.Benchmark.FileIO.Stream
+  hs-source-dirs: Streamly/Benchmark/FileSystem
+  main-is: Handle.hs
   build-depends:
-                 typed-process       >= 0.2.3 && < 0.3
+      typed-process     >= 0.2.3 && < 0.3
+    , directory         >= 1.2.2 && < 1.4
 
 -------------------------------------------------------------------------------
 -- benchmark comparison and presentation
