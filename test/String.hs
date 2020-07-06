@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 module Main (main) where
 
 import Data.Char (ord, chr)

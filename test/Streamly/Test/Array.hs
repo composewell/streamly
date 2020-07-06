@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2019 Composewell Technologies

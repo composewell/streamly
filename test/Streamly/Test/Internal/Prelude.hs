@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2019 Composewell Technologies

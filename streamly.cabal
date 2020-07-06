@@ -242,53 +242,7 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
 
-common optimization-options
-  ghc-options: -O2
-               -fdicts-strict
-               -fspec-constr-recursive=16
-               -fmax-worker-args=16
-
-common threading-options
-  ghc-options:  -threaded
-                -with-rtsopts=-N
-
--- We need optimization options here to optimize internal (non-inlined)
--- versions of functions. Also, we have some benchmarking inspection tests
--- part of the library when built with --benchmarks flag. Thos tests fail
--- if we do not use optimization options here. It was observed that due to
--- -O2 here some concurrent/nested benchmarks improved and others regressed.
--- We can investigate a bit more here why the regression occurred.
-common lib-options
-  import: compile-options, optimization-options
-
--- Compilation for coverage builds on CI machines takes too long without -O0
--- XXX we should use coverage flag for that, -O0 may take too long to run tests
--- in general.
-common test-options
-  import: compile-options, threading-options
-
-  ghc-options:  -O0
-                -fno-ignore-asserts
-  -- XXX we need -O for plugin to work
-  -- if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
-  --   ghc-options: -fplugin Fusion.Plugin
-  --   build-depends:
-  --       fusion-plugin     >= 0.2   && < 0.3
-
--- Used by maxrate test, benchmarks and executables
-common exe-options
-  import: compile-options, optimization-options, threading-options
-  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
-    ghc-options: -fplugin Fusion.Plugin
-    build-depends:
-        fusion-plugin     >= 0.2   && < 0.3
-
--------------------------------------------------------------------------------
--- Library
--------------------------------------------------------------------------------
-
-library
-    import: lib-options
+common default-extensions
     default-extensions:
         BangPatterns
         CApiFFI
@@ -316,6 +270,54 @@ library
         -- UndecidableInstances -- Does not show any perf impact
         -- TypeFamilies         -- Causes large regressions and improvements
         -- UnboxedTuples        -- interferes with (#.)
+
+common optimization-options
+  ghc-options: -O2
+               -fdicts-strict
+               -fspec-constr-recursive=16
+               -fmax-worker-args=16
+
+common threading-options
+  ghc-options:  -threaded
+                -with-rtsopts=-N
+
+-- We need optimization options here to optimize internal (non-inlined)
+-- versions of functions. Also, we have some benchmarking inspection tests
+-- part of the library when built with --benchmarks flag. Thos tests fail
+-- if we do not use optimization options here. It was observed that due to
+-- -O2 here some concurrent/nested benchmarks improved and others regressed.
+-- We can investigate a bit more here why the regression occurred.
+common lib-options
+  import: compile-options, optimization-options, default-extensions
+
+-- Compilation for coverage builds on CI machines takes too long without -O0
+-- XXX we should use coverage flag for that, -O0 may take too long to run tests
+-- in general.
+common test-options
+  import: compile-options, threading-options, default-extensions
+
+  ghc-options:  -O0
+                -fno-ignore-asserts
+  -- XXX we need -O for plugin to work
+  -- if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+  --   ghc-options: -fplugin Fusion.Plugin
+  --   build-depends:
+  --       fusion-plugin     >= 0.2   && < 0.3
+
+-- Used by maxrate test, benchmarks and executables
+common exe-options
+  import: compile-options, optimization-options, threading-options
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    ghc-options: -fplugin Fusion.Plugin
+    build-depends:
+        fusion-plugin     >= 0.2   && < 0.3
+
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
+library
+    import: lib-options
 
     if impl(ghc >= 8.1)
       default-extensions: TypeApplications

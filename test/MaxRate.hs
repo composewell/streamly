@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 import Streamly
 import qualified Streamly.Prelude as S
 import Streamly.Internal.Data.Time.Clock (getTime, Clock(..))
