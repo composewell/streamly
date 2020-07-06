@@ -205,8 +205,47 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
 consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
 consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
--- Merges two streams concurrently.
+-- | Execute two streams concurrently and merge their outputs.  For example, if
+-- stream @a@ is a serial stream consisting of @a1, a2, a3@ and stream @b@ is a
+-- serial stream consisting of @b1, b2, b3@ then stream @a `parallel` b@ may
+-- produce @a1, b1, a2, b2, a3, b3@ or @a1, a2, b1, a3, b2, b3@ or some other
+-- combination depending on the rate at which the two streams produce elements.
+-- However, the relative order of outputs from a single stream e.g. @a1, a2,
+-- a3@ would remain the same in the resulting stream. The effects in the two
+-- streams may occur concurrently.
+--
+-- To run single actions (instead of streams) in parallel wrap them into
+-- singleton streams.  The following trivial example is semantically equivalent
+-- to running the action @putStrLn "hello"@ in the current thread:
+--
+-- >>> S.toList $ S.yieldM (putStrLn "hello") `parallel` S.nil
+-- > hello
+-- > [()]
+--
+-- Run two actions concurrently:
+--
+-- >>> S.toList $ S.yieldM (putStrLn "hello") `parallel` S.yieldM (putStrLn "world")
+-- > hello
+-- > world
+-- > [(),()]
+--
+-- Run effects concurrently, disregarding their outputs:
+--
+-- >>> S.toList $ S.nilM (putStrLn "hello") `parallel` S.nilM (putStrLn "world")
+-- > hello
+-- > world
+-- > []
+--
+-- Run an effectful action, and a pure effect without any output, concurrently:
+--
+-- >>> S.toList $ S.yieldM (return 1) `parallel` S.nilM (putStrLn "world")
+-- world
+-- [1]
+--
+-- Note that 'parallel' is a polymorphic version of the @Semigroup@ operation
+-- @<>@ of 'ParallelT'.
+--
+-- `nilM` is currently @Internal@.
 --
 -- @since 0.2.0
 {-# INLINE parallel #-}
