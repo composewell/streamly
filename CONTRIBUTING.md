@@ -108,6 +108,29 @@ by the programmers to deem it usable.
 See the [README](benchmark/README) file in the `benchmark` directory for more
 details on how to run the benchmarks.
 
+The first level of check is the regression in "allocations", this is
+the most stable measure of regression. "bytesCopied" is another stable
+measure, it gives an idea of the amount of long lived data being copied
+across generations of GC. 
+
+The next measure to look at is "cpuTime" this may have some variance
+from run to run because of factors like cpu frequency scaling, load on
+the system or the number of context switches etc. However, the variance
+would usually be within 5-10%, anything more than that is likely to be a
+red flag.
+
+Quite often an increase in "cpuTime" would correspond to an increase
+in "allocations". Increase in "allocations" indicates an inefficiency
+in computing due to too much GC activity e.g. due to lack of
+fusion. However, it is also possible for the cpu time to go up without
+the allocations going up, this indicates an inefficiency in processing
+in general or more CPU being used for the same task. It could be because
+of inefficient code generation, branch mis-predictions or lack of cache
+locality etc.
+
+For concurrent benchmarks we can compare "cpuTime" and "time" to check
+the degree of concurrency and total efficiency.
+
 ### Changelog
 
 Any new changes that affect the user of the library in some way must be
