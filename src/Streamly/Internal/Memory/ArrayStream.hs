@@ -163,7 +163,7 @@ spliceArraysLenUnsafe len buffered = do
 
     where
 
-    writeArr dst Array{..} = do
+    writeArr dst Array{..} =
         liftIO $ withForeignPtr aStart $ \src -> do
                         let count = aEnd `minusPtr` src
                         A.memcpy (castPtr dst) (castPtr src) count

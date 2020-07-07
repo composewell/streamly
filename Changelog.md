@@ -2,8 +2,8 @@
 
 ### Breaking changes
 
-* Change the signature of `foldlM'` to ensure that the accumulator is
-  monadic.
+* Change the signature of `foldlM'` to make the initial value of the
+  accumulator monadic.
 
 ### Bug Fixes
 
