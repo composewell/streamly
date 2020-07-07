@@ -151,8 +151,12 @@ main = do
             { presentation = Groups PercentDiff
             , selectBenchmarks = selectBench
             , selectFields = filter
-                ( flip elem ["time" , "mean"
-                            , "maxrss", "cputime"
+                ( flip elem [ "time"
+                            , "mean"
+                            , "cputime"
+                            , "allocated"
+                            , "bytescopied"
+                            , "maxrss"
                             ]
                 . fmap toLower
                 )
