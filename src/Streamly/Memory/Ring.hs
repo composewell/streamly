@@ -27,7 +27,6 @@ module Streamly.Memory.Ring
     ) where
 
 import Control.Exception (assert)
-import Data.Primitive.Types (Prim(..))
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
@@ -97,7 +96,7 @@ unsafeInsert rb ringHead newVal = do
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: Prim a => Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh arr n =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
@@ -124,7 +123,7 @@ unsafeEqArrayN Ring{..} rh arr n =
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
-unsafeEqArray :: Prim a => Ring a -> Ptr a -> A.Array a -> Bool
+unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh arr =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart

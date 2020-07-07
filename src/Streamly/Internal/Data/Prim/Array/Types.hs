@@ -15,7 +15,8 @@ module Streamly.Internal.Data.Prim.Array.Types
     (
       Array (..)
     , unsafeFreeze
-    , unsafeThaw
+    , unsafeFreezeWithShrink
+--    , unsafeThaw
     , defaultChunkSize
     , nil
 
@@ -76,23 +77,17 @@ breakOn ::
     => Word8
     -> Array Word8
     -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr =
+breakOn sep arr@(Array arr# off len) =
     case loc of
         Left _ -> return (arr, Nothing)
-        Right i -> do
-            let nLen = len - i - 1
-            nArr <- MA.newArray nLen
-            mArr <- unsafeThaw arr
-            MA.unsafeCopy nArr 0 mArr (i + 1) nLen
-            MA.shrinkArray mArr i
-            arr1 <- unsafeFreeze mArr
-            arr2 <- unsafeFreeze nArr
-            return (arr1, Just arr2)
+        Right len1 -> do
+            let len2 = len - len1 - 1
+            return (Array arr# off len1, Just $ Array arr# (off + len1 + 1) len2)
 
     where
 
     loc = foldl' chk (Left 0) arr
-    len = length arr
+
     chk (Left i) a =
         if a == sep
             then Right i

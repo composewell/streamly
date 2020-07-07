@@ -23,7 +23,8 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     (
       Array (..)
     , unsafeFreeze
-    , unsafeThaw
+    , unsafeFreezeWithShrink
+--    , unsafeThaw
     , defaultChunkSize
     , nil
 
@@ -83,7 +84,7 @@ where
 import Foreign.C.Types (CSize(..), CInt(..))
 import Control.Monad (void)
 import GHC.IO (IO(..))
-import Foreign.Ptr (minusPtr, nullPtr)
+import Foreign.Ptr (minusPtr, nullPtr, plusPtr)
 import Control.Monad.Primitive (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
@@ -124,11 +125,11 @@ memcmp p1 p2 len = do
 -- Change name later.
 {-# INLINE toPtr #-}
 toPtr :: Array a -> Ptr a
-toPtr (Array arr#) = Ptr (byteArrayContents# arr#)
+toPtr (Array arr# off _) = Ptr (byteArrayContents# arr#) `plusPtr` off
 
 {-# INLINE touchArray #-}
 touchArray :: Array a -> IO ()
-touchArray arr = IO $ \s -> case touch# arr s of s1 -> (# s1, () #)
+touchArray (Array arr# _ _) = IO $ \s -> case touch# arr# s of s1 -> (# s1, () #)
 
 {-# INLINE withArrayAsPtr #-}
 withArrayAsPtr :: Array a -> (Ptr a -> IO b) -> IO b
@@ -138,27 +139,19 @@ withArrayAsPtr arr f = do
     return r
 
 -- Drops the separator byte
--- Inefficient compared to Memory Array
 {-# INLINE breakOn #-}
 breakOn ::
        PrimMonad m
     => Word8
     -> Array Word8
     -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr = do
+breakOn sep arr@(Array arr# off len) = do
     let p = toPtr arr
         loc = unsafePerformIO $ c_memchr p sep (fromIntegral (byteLength arr))
-        byteIndex = loc `minusPtr` p
-        nLen = len - byteIndex - 1
-    if loc == nullPtr
-    then return (arr, Nothing)
-    else do
-        nArr <- MA.newArray nLen
-        mArr <- unsafeThaw arr
-        MA.unsafeCopy nArr 0 mArr (byteIndex + 1) nLen
-        MA.shrinkArray mArr byteIndex
-        arr1 <- unsafeFreeze mArr
-        arr2 <- unsafeFreeze nArr
-        return (arr1, Just arr2)
-  where
-    len = length arr
+        len1 = loc `minusPtr` p
+        len2 = len - len1 - 1
+    return $
+        if loc == nullPtr
+        then (arr, Nothing)
+        else ( Array arr# off len1
+             , Just $ Array arr# (off + len1 + 1) len2)

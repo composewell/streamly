@@ -67,11 +67,6 @@ toStreamRev = D.fromStreamD . A.toStreamDRev
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
-data ReadUState a = ReadUState
-    {-# UNPACK #-} !(Array a)   -- array itself
-    {-# UNPACK #-} !Int         -- length
-    {-# UNPACK #-} !Int         -- current index
-
 -- | Unfold an array into a stream.
 --
 -- @since 0.7.0
@@ -80,20 +75,20 @@ read :: forall m a. (PrimMonad m, Prim a) => Unfold m (Array a) a
 read = Unfold step inject
     where
 
-    inject arr =
-        return $ ReadUState arr (length arr) 0
+    inject = return
 
     {-# INLINE_LATE step #-}
-    step (ReadUState _ len i) | i == len = return D.Stop
-    step (ReadUState arr len i) = do
-            let !x = A.unsafeIndex arr i
-            return $ D.Yield x (ReadUState arr len (i + 1))
+    step (Array _ _ len) | len == 0 = return D.Stop
+    step arr@(Array arr# off len) =
+            let !x = A.unsafeIndex arr 0
+            in return $ D.Yield x (Array arr# (off + 1) (len - 1))
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
 -- high performance application where the end condition can be determined by
 -- a terminating fold.
 --
+-- The following might not be true, not that the representation changed.
 -- Written in the hope that it may be faster than "read", however, in the case
 -- for which this was written, "read" proves to be faster even though the core
 -- generated with unsafeRead looks simpler.
@@ -105,18 +100,18 @@ unsafeRead :: forall m a. (PrimMonad m, Prim a) => Unfold m (Array a) a
 unsafeRead = Unfold step inject
     where
 
-    inject arr = return (arr, 0)
+    inject = return
 
     {-# INLINE_LATE step #-}
-    step (arr, i) = do
-            let !x = A.unsafeIndex arr i
-            return $ D.Yield x (arr, i + 1)
+    step arr@(Array arr# off len) =
+            let !x = A.unsafeIndex arr 0
+            in return $ D.Yield x (Array arr# (off + 1) (len - 1))
 
 -- | > null arr = length arr == 0
 --
 -- /Internal/
 {-# INLINE null #-}
-null :: Prim a => Array a -> Bool
+null :: Array a -> Bool
 null arr = length arr == 0
 
 -------------------------------------------------------------------------------

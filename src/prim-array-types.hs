@@ -1,18 +1,19 @@
 import Control.DeepSeq (NFData(..))
+import Control.Monad (when)
 import Control.Monad.Primitive
-   (PrimMonad(primitive), PrimState)
+   (PrimMonad(primitive), PrimState, primitive_)
 import Control.Monad.ST (ST, runST)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
+import Streamly.Internal.Data.Strict (Tuple3'(..), Maybe'(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Data.Primitive.ByteArray as PB
 import qualified GHC.Exts as Exts
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
@@ -27,28 +28,81 @@ import Prelude hiding (length, unlines, foldr)
 -- Array Data Type
 -------------------------------------------------------------------------------
 
-data Array a = Array ByteArray#
+data Array a = Array ByteArray# Int Int
+
+-------------------------------------------------------------------------------
+-- Utilities
+-------------------------------------------------------------------------------
+
+-- | Both arrays must fully contain the specified ranges, but this is not
+-- checked. The two arrays must not be the same array in different states, but
+-- this is not checked either.
+{-# INLINE unsafeCopy #-}
+unsafeCopy ::
+       forall m a. (PrimMonad m, Prim a)
+    => MA.Array (PrimState m) a -- ^ destination array
+    -> Int -- ^ offset into destination array
+    -> Array a -- ^ source array
+    -> Int -- ^ offset into source array
+    -> Int -- ^ number of elements to copy
+    -> m ()
+unsafeCopy (MA.Array dst#) (I# doff#) (Array src# (I# off#) _) (I# soff#) (I# n#) =
+    let toBytes cnt# = cnt# *# (sizeOf# (undefined :: a))
+     in primitive_ $
+        copyByteArray# src# (toBytes (off# +# soff#)) dst# (toBytes doff#) (toBytes n#)
 
 -------------------------------------------------------------------------------
 -- Basic Byte Array Operations
 -------------------------------------------------------------------------------
 
 {-# INLINE unsafeFreeze #-}
-unsafeFreeze :: PrimMonad m => MA.Array (PrimState m) a -> m (Array a)
+unsafeFreeze ::
+       forall a m. (Prim a, PrimMonad m)
+    => MA.Array (PrimState m) a
+    -> m (Array a)
 unsafeFreeze (MA.Array arr#) =
     primitive $ \s# ->
         case unsafeFreezeByteArray# arr# s# of
-            (# s1#, arr1# #) -> (# s1#, Array arr1# #)
+            (# s1#, arr1# #) ->
+                (# s1#
+                 , Array
+                       arr1#
+                       0
+                       (I# (quotInt#
+                                (sizeofByteArray# arr1#)
+                                (sizeOf# (undefined :: a))))#)
 
+{-# INLINE unsafeFreezeWithShrink #-}
+unsafeFreezeWithShrink ::
+       forall a m. (Prim a, PrimMonad m)
+    => MA.Array (PrimState m) a
+    -> Int
+    -> m (Array a)
+unsafeFreezeWithShrink arr@(MA.Array arr#) n = do
+    MA.shrinkArray arr n
+    primitive $ \s# ->
+        case unsafeFreezeByteArray# arr# s# of
+            (# s1#, arr1# #) ->
+                (# s1#
+                 , Array
+                       arr1#
+                       0
+                       (I# (quotInt#
+                                (sizeofByteArray# arr1#)
+                                (sizeOf# (undefined :: a))))#)
+
+{-
+-- Should never be used in general
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: PrimMonad m => Array a -> m (MA.Array (PrimState m) a)
 unsafeThaw (Array arr#) =
     primitive $ \s# -> (# s#, MA.Array (unsafeCoerce# arr#) #)
+-}
 
 -- Unsafe because the index bounds are not checked
 {-# INLINE unsafeIndex #-}
 unsafeIndex :: Prim a => Array a -> Int -> a
-unsafeIndex (Array arr#) (I# i#) = indexByteArray# arr# i#
+unsafeIndex (Array arr# (I# off#) _) (I# i#) = indexByteArray# arr# (off# +# i#)
 
 -- unsafe
 sameByteArray :: ByteArray# -> ByteArray# -> Bool
@@ -79,20 +133,24 @@ defaultChunkSize = mkChunkSizeKB 32
 
 -- XXX rename to byteCount?
 {-# INLINE byteLength #-}
-byteLength :: Array a -> Int
-byteLength (Array arr#) = I# (sizeofByteArray# arr#)
+byteLength :: forall a. Prim a => Array a -> Int
+byteLength (Array _ _ len) = len * sizeOf (undefined :: a)
 
 -- XXX we can use shift when the size is power of 2
 -- XXX Also, rename to elemCount
 -- XXX Also, re-export sizeOf from Primitive
 {-# INLINE length #-}
-length :: forall a. Prim a => Array a -> Int
-length (Array arr#) =
-    I# (quotInt# (sizeofByteArray# arr#) (sizeOf# (undefined :: a)))
+length :: Array a -> Int
+length (Array _ _ len) = len
 
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
+
+-- | Use a slice of an array as another array. Note that this is unsafe and does
+-- not check the bounds
+slice :: Array a -> Int -> Int -> Array a
+slice (Array arr# off _) off1 len1 = Array arr# (off + off1) len1
 
 -- XXX the name "empty" is used by alternative, should we use nil instead? It
 -- will also be consistent with streams.
@@ -185,9 +243,12 @@ fromList xs = fromListN (P.length xs) xs
 {-# INLINE spliceTwo #-}
 spliceTwo :: (PrimMonad m, Prim a) => Array a -> Array a -> m (Array a)
 spliceTwo a1 a2 = do
-    a1' <- unsafeThaw a1
-    a2' <- unsafeThaw a2
-    MA.spliceTwo a1' a2' >>= unsafeFreeze
+    let l1 = length a1
+        l2 = length a2
+    a3 <- MA.newArray (l1 + l2)
+    unsafeCopy a3 0 a1 0 l1
+    unsafeCopy a3 l1 a2 0 l2
+    unsafeFreeze a3 -- Use `unsafeFreezeWith off len`?
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -216,19 +277,14 @@ toList s = build (\c n -> toListFB c n s)
 
 instance (Eq a, Prim a) => Eq (Array a) where
     {-# INLINE (==) #-}
-    a1@(Array ba1#) == a2@(Array ba2#)
+    a1@(Array ba1# _ len1) == a2@(Array ba2# _ len2)
         | sameByteArray ba1# ba2# = True
-        | sz1 /= sz2 = False
+        | len1 /= len2 = False
         -- XXX shift can be used when elem size is power of 2
-        | otherwise = loop (quot sz1 (sizeOf (undefined :: a)) - 1)
+        | otherwise = loop (len1 - 1)
 
         where
 
-        -- Here, we take the size in bytes, not in elements. We do this
-        -- since it allows us to defer performing the division to
-        -- calculate the size in elements.
-        sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
-        sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
         loop !i
             | i < 0 = True
             | otherwise = unsafeIndex a1 i == unsafeIndex a2 i && loop (i - 1)
@@ -236,23 +292,22 @@ instance (Eq a, Prim a) => Eq (Array a) where
 -- | Lexicographic ordering. Subject to change between major versions.
 instance (Ord a, Prim a) => Ord (Array a) where
     {-# INLINE compare #-}
-    compare a1@(Array ba1#) a2@(Array ba2#)
+    compare a1@(Array ba1# _ len1) a2@(Array ba2# _ len2)
         | sameByteArray ba1# ba2# = EQ
         | otherwise = loop 0
 
         where
 
-        sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
-        sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
-        sz = quot (min sz1 sz2) (sizeOf (undefined :: a))
+        sz = min len1 len2
 
         loop !i
             | i < sz =
                 compare (unsafeIndex a1 i) (unsafeIndex a2 i) <> loop (i + 1)
-            | otherwise = compare sz1 sz2
+            | otherwise = compare len1 len2
 
 instance Prim a => Semigroup (Array a) where
     -- XXX can't we use runST instead of inlineIO?
+    -- XXX I plan to remove PrimMonad and replace it with IO
     a <> b = unsafePerformIO (spliceTwo a b :: IO (Array a))
 
 instance Prim a => Monoid (Array a) where
@@ -261,7 +316,6 @@ instance Prim a => Monoid (Array a) where
 
 instance NFData (Array a) where
     {-# INLINE rnf #-}
-    -- XXX bytearray is guaranteed to be in normal form
     rnf _ = ()
 
 
@@ -521,6 +575,25 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- Stream of Arrays (mutable)
 -------------------------------------------------------------------------------
 
+-- Splice an array into a pre-reserved mutable array.  The user must ensure
+-- that there is enough space in the mutable array.
+{-# INLINE spliceInto #-}
+spliceInto ::
+       forall m a. (PrimMonad m, Prim a)
+    => MA.Array (PrimState m) a
+    -> Int
+    -> Array a
+    -> m Int
+spliceInto dst doff src@(Array _ _ len) = do
+    unsafeCopy dst doff src 0 len
+    return $ doff + len
+
+data SpliceState s arr1 arr2
+    = SpliceInitial s
+    | SpliceBuffering s arr2
+    | SpliceYielding arr1 (SpliceState s arr1 arr2)
+    | SpliceFinish
+
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes. Note that if a single array is bigger than
 -- the specified size we do not split it to fit. When we coalesce multiple
@@ -530,21 +603,106 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- @since VERSION
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
-       (PrimMonad m, Prim a)
+       forall m a. (PrimMonad m, Prim a)
     => Int
     -> D.Stream m (Array a)
     -> D.Stream m (Array a)
-packArraysChunksOf n str =
-    D.mapM unsafeFreeze $ MA.packArraysChunksOf n (D.mapM unsafeThaw str)
+packArraysChunksOf n (D.Stream step state) =
+    D.Stream step' (SpliceInitial state)
+
+    where
+
+    nElem = n `quot` sizeOf (undefined :: a)
+
+    {-# INLINE_LATE step' #-}
+    step' gst (SpliceInitial st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
+                 ++ "arrays [" ++ show n ++ "] must be a natural number"
+        r <- step gst st
+        case r of
+            D.Yield arr s ->
+                if length arr >= nElem
+                then return $ D.Skip (SpliceYielding arr (SpliceInitial s))
+                else do
+                    buf <- MA.newArray nElem
+                    noff <- spliceInto buf 0 arr
+                    return $ D.Skip (SpliceBuffering s (buf, noff))
+            D.Skip s -> return $ D.Skip (SpliceInitial s)
+            D.Stop -> return $ D.Stop
+
+    step' gst (SpliceBuffering st arr2@(buf, boff)) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> do
+                if boff + length arr > nElem
+                then do
+                    nArr <- unsafeFreeze buf
+                    return $ D.Skip (SpliceYielding (slice nArr 0 boff) (SpliceBuffering s arr2))
+                else do
+                    noff <- spliceInto buf boff arr
+                    return $ D.Skip (SpliceBuffering s (buf, noff))
+            D.Skip s -> return $ D.Skip (SpliceBuffering s arr2)
+            D.Stop -> do
+                nArr <- unsafeFreeze buf
+                return $ D.Skip (SpliceYielding (slice nArr 0 boff) SpliceFinish)
+
+    step' _ SpliceFinish = return D.Stop
+
+    step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf ::
-       (PrimMonad m, Prim a)
+       forall m a. (PrimMonad m, Prim a)
     => Int
     -> Fold m (Array a) ()
     -> Fold m (Array a) ()
-lpackArraysChunksOf n fld =
-    FL.lmapM unsafeThaw $ MA.lpackArraysChunksOf n (FL.lmapM unsafeFreeze fld)
+lpackArraysChunksOf n (Fold step1 initial1 extract1) =
+    Fold step initial extract
+
+    where
+
+    nElem = n `quot` sizeOf (undefined :: a)
+
+    initial = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
+                 ++ "arrays [" ++ show n ++ "] must be a natural number"
+        r1 <- initial1
+        return (Tuple3' Nothing' 0 r1)
+
+    extract (Tuple3' Nothing' _ r1) = extract1 r1
+    extract (Tuple3' (Just' buf) boff r1) = do
+        nArr <- unsafeFreeze buf
+        r <- step1 r1 (slice nArr 0 boff)
+        extract1 r
+
+    step (Tuple3' Nothing' _ r1) arr =
+
+            if length arr >= nElem
+            then do
+                r <- step1 r1 arr
+                extract1 r
+                r1' <- initial1
+                return (Tuple3' Nothing' 0 r1')
+            else do
+                buf <- MA.newArray nElem
+                noff <- spliceInto buf 0 arr
+                return (Tuple3' (Just' buf) noff r1)
+
+    step (Tuple3' (Just' buf) boff r1) arr = do
+            noff <- spliceInto buf boff arr
+
+            if noff >= nElem
+            then do
+                nArr <- unsafeFreeze buf
+                r <- step1 r1 (slice nArr 0 noff)
+                extract1 r
+                r1' <- initial1
+                return (Tuple3' Nothing' 0 r1')
+            else return (Tuple3' (Just' buf) noff r1)
 
 data SplitState s arr
     = Initial s
