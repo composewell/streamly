@@ -19,12 +19,14 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(rnf))
 import Control.Exception (SomeException)
 import Data.Char (ord, chr)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
+#if __GLASGOW_HASKELL__ >= 800
 import System.Directory (getFileSize)
+#endif
 import System.Environment (lookupEnv)
 import System.IO (openFile, IOMode(..), Handle, hClose)
 import System.Process.Typed (shell, runProcess_)
@@ -92,25 +94,81 @@ blockSize = 32768
 blockCount :: Int -> Int
 blockCount size = (size + blockSize - 1) `div` blockSize
 
-data Handles = Handles Handle Handle
+data RefHandles = RefHandles
+    { smallInH :: Handle
+    , bigInH :: Handle
+    , outputH :: Handle
+    }
 
-mkBench :: NFData b => String -> IORef Handles -> IO b -> Benchmark
-mkBench name href action =
+data Handles = Handles !Handle !Handle
+
+instance NFData Handles where
+    rnf _ = ()
+
+data BenchEnv = BenchEnv
+    { href :: IORef RefHandles
+    , smallSize :: Int
+    , bigSize :: Int
+    , nullH :: Handle
+    }
+
+withScaling :: BenchEnv -> String -> String
+withScaling env str =
+    let factor = round (fromIntegral (bigSize env)
+                    / (fromIntegral (smallSize env) :: Double)) :: Int
+    in if factor == 1
+       then str
+       else str ++ " (1/" ++ show factor ++ ")"
+
+mkBenchCommon ::
+       NFData b
+    => (RefHandles -> Handles)
+    -> String
+    -> BenchEnv
+    -> (Handle -> Handle -> IO b)
+    -> Benchmark
+mkBenchCommon mkHandles name env action =
     bench name $ perRunEnv (do
-            Handles inH outH <- readIORef href
+            r <- readIORef $ href env
 
             -- close old handles
-            hClose inH
-            hClose outH
+            hClose $ smallInH r
+            hClose $ bigInH r
+            hClose $ outputH r
 
             -- reopen
-            inh <- openFile inFileBig ReadMode
-            outh <- openFile outfile WriteMode
+            smallInHandle <- openFile inFileSmall ReadMode
+            bigInHandle <- openFile inFileBig ReadMode
+            outHandle <- openFile outfile WriteMode
+
+            let refHandles = RefHandles
+                    { smallInH = smallInHandle
+                    , bigInH = bigInHandle
+                    , outputH = outHandle
+                    }
 
             -- update
-            writeIORef href $ Handles inh outh
+            writeIORef (href env) $ refHandles
+            return $ mkHandles refHandles
         )
-        (\_ -> action)
+        (\(Handles h1 h2) -> action h1 h2)
+
+mkBench ::
+    NFData b => String -> BenchEnv -> (Handle -> Handle -> IO b) -> Benchmark
+mkBench name env action = mkBenchCommon useBigH name env action
+
+    where
+
+    useBigH (RefHandles {bigInH = inh, outputH = outh}) = Handles inh outh
+
+mkBenchSmall ::
+    NFData b => String -> BenchEnv -> (Handle -> Handle -> IO b) -> Benchmark
+mkBenchSmall name env action =
+    mkBenchCommon useSmallH (withScaling env name) env action
+
+    where
+
+    useSmallH (RefHandles {smallInH = inh, outputH = outh}) = Handles inh outh
 
 -------------------------------------------------------------------------------
 -- read chunked using toChunks
@@ -191,31 +249,25 @@ inspect $ hasNoTypeClasses 'decodeUtf8Lenient
 -- inspect $ 'decodeUtf8Lenient `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_read_chunked :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_read_chunked href _ _ =
+o_1_space_read_chunked :: BenchEnv -> [Benchmark]
+o_1_space_read_chunked env =
     -- read using toChunks instead of read
     [ bgroup "reduce/toChunks"
-        [ mkBench "S.last (32K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksLast inh
+        [ mkBench "S.last (32K)" env $ \inH _ ->
+            toChunksLast inH
         -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
         -- wc uses lseek to just determine the file size rather than reading
         -- and counting characters.
-        , mkBench "S.sum . S.map A.length (32K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksSumLengths inh
-        , mkBench "AS.splitOnSuffix (32K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksSplitOnSuffix inh
-        , mkBench "AS.splitOn (32K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksSplitOn inh
-        , mkBench "countBytes (32K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksCountBytes inh
-        , mkBench "US.decodeUtf8ArraysLenient (1MB)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksWithBufferOfDecodeUtf8ArraysLenient inh
+        , mkBench "S.sum . S.map A.length (32K)" env $ \inH _ ->
+            toChunksSumLengths inH
+        , mkBench "AS.splitOnSuffix (32K)" env $ \inH _ ->
+            toChunksSplitOnSuffix inH
+        , mkBench "AS.splitOn (32K)" env $ \inH _ ->
+            toChunksSplitOn inH
+        , mkBench "countBytes (32K)" env $ \inH _ ->
+            toChunksCountBytes inH
+        , mkBenchSmall "US.decodeUtf8ArraysLenient (1MB)" env $ \inH _ ->
+            toChunksWithBufferOfDecodeUtf8ArraysLenient inH
         ]
     ]
 
@@ -228,7 +280,7 @@ o_1_space_read_chunked href _ _ =
 -- | Send the file contents to /dev/null
 {-# INLINE toChunksWithBufferOf #-}
 toChunksWithBufferOf :: Handle -> Handle -> IO ()
-toChunksWithBufferOf devNull inh =
+toChunksWithBufferOf inh devNull =
     S.fold (IFH.writeChunks devNull) $ IFH.toChunksWithBufferOf (256*1024) inh
 
 #ifdef INSPECTION
@@ -264,18 +316,15 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 -- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_copy_chunked :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_chunked href devNull _ =
+o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
+o_1_space_copy_chunked env =
     [ bgroup "copy/toChunks"
-        [ mkBench "toNull (256K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksWithBufferOf devNull inh
-        , mkBench "raw" href $ do
-            Handles inh outh <- readIORef href
-            copyChunks inh outh
-        , mkBench "decodeEncodeUtf8Lenient" href $ do
-            Handles inh outh <- readIORef href
-            copyCodecUtf8ArraysLenient inh outh
+        [ mkBench "toNull (256K)" env $ \inH _ ->
+            toChunksWithBufferOf inH (nullH env)
+        , mkBench "raw" env $ \inH outH ->
+            copyChunks inH outH
+        , mkBenchSmall "decodeEncodeUtf8Lenient" env $ \inH outH ->
+            copyCodecUtf8ArraysLenient inH outH
         ]
     ]
 
@@ -288,7 +337,7 @@ o_1_space_copy_chunked href devNull _ =
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readChunksWithBufferOfOnExceptionUnfold #-}
 readChunksWithBufferOfOnExceptionUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfOnExceptionUnfold devNull inh =
+readChunksWithBufferOfOnExceptionUnfold inh devNull =
     let readEx = IUF.onException (\_ -> hClose inh)
                     (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
     in IUF.fold readEx (IFH.writeChunks devNull) inh
@@ -301,7 +350,7 @@ inspect $ hasNoTypeClasses 'readChunksWithBufferOfOnExceptionUnfold
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readChunksWithBufferOfBracketUnfold #-}
 readChunksWithBufferOfBracketUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfBracketUnfold devNull inh =
+readChunksWithBufferOfBracketUnfold inh devNull =
     let readEx = IUF.bracket return (\_ -> hClose inh)
                     (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
     in IUF.fold readEx (IFH.writeChunks devNull) inh
@@ -313,23 +362,20 @@ inspect $ hasNoTypeClasses 'readChunksWithBufferOfBracketUnfold
 
 {-# INLINE readChunksWithBufferOfBracketIOUnfold #-}
 readChunksWithBufferOfBracketIOUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfBracketIOUnfold devNull inh =
+readChunksWithBufferOfBracketIOUnfold inh devNull =
     let readEx = IUF.bracketIO return (\_ -> hClose inh)
                     (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
-o_1_space_copy_exceptions_readChunks :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_exceptions_readChunks href devNull _ =
+o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
+o_1_space_copy_exceptions_readChunks env =
     [ bgroup "copy/exceptions/unfold/readChunks"
-        [ mkBench "onException (256K)" href $ do
-            Handles inh _ <- readIORef href
-            readChunksWithBufferOfOnExceptionUnfold devNull inh
-        , mkBench "bracket (256K)" href $ do
-            Handles inh _ <- readIORef href
-            readChunksWithBufferOfBracketUnfold devNull inh
-        , mkBench "bracketIO (256K)" href $ do
-            Handles inh _ <- readIORef href
-            readChunksWithBufferOfBracketIOUnfold devNull inh
+        [ mkBench "onException (256K)" env $ \inH _ ->
+            readChunksWithBufferOfOnExceptionUnfold inH (nullH env)
+        , mkBench "bracket (256K)" env $ \inH _ ->
+            readChunksWithBufferOfBracketUnfold inH (nullH env)
+        , mkBench "bracketIO (256K)" env $ \inH _ ->
+            readChunksWithBufferOfBracketIOUnfold inH (nullH env)
         ]
     ]
 
@@ -340,7 +386,7 @@ o_1_space_copy_exceptions_readChunks href devNull _ =
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE toChunksWithBufferOfBracketStream #-}
 toChunksWithBufferOfBracketStream :: Handle -> Handle -> IO ()
-toChunksWithBufferOfBracketStream devNull inh =
+toChunksWithBufferOfBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toChunksWithBufferOf (256*1024) inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
@@ -352,20 +398,18 @@ inspect $ hasNoTypeClasses 'toChunksWithBufferOfBracketStream
 
 {-# INLINE toChunksWithBufferOfBracketIOStream #-}
 toChunksWithBufferOfBracketIOStream :: Handle -> Handle -> IO ()
-toChunksWithBufferOfBracketIOStream devNull inh =
+toChunksWithBufferOfBracketIOStream inh devNull =
     let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toChunksWithBufferOf (256*1024) inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
-o_1_space_copy_exceptions_toChunks :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_exceptions_toChunks href devNull _ =
+o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
+o_1_space_copy_exceptions_toChunks env =
     [ bgroup "copy/exceptions/stream/toChunks"
-        [ mkBench "bracket (256K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksWithBufferOfBracketStream devNull inh
-        , mkBench "bracketIO (256K)" href $ do
-            Handles inh _ <- readIORef href
-            toChunksWithBufferOfBracketIOStream devNull inh
+        [ mkBench "bracket (256K)" env $ \inH _ ->
+            toChunksWithBufferOfBracketStream inH (nullH env)
+        , mkBench "bracketIO (256K)" env $ \inH _ ->
+            toChunksWithBufferOfBracketIOStream inH (nullH env)
         ]
     ]
 
@@ -466,37 +510,29 @@ inspect $ hasNoTypeClasses 'readDecodeUtf8Lax
 -- inspect $ 'readDecodeUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_reduce_read :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_reduce_read href _ _ =
+o_1_space_reduce_read :: BenchEnv -> [Benchmark]
+o_1_space_reduce_read env =
     [ bgroup "reduce/read"
         [ -- read raw bytes without any decoding
-          mkBench "S.drain" href $ do
-            Handles inh _ <- readIORef href
+          mkBench "S.drain" env $ \inh _ ->
             readDrain inh
-        , mkBench "S.last" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.last" env $ \inh _ ->
             readLast inh
-        , mkBench "S.sum" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.sum" env $ \inh _ ->
             readSumBytes inh
 
         -- read with Latin1 decoding
-        , mkBench "SS.decodeLatin1" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "SS.decodeLatin1" env $ \inh _ ->
             readDecodeLatin1 inh
-        , mkBench "S.length" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.length" env $ \inh _ ->
             readCountBytes inh
-        , mkBench "US.lines . SS.decodeLatin1" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
             readCountLines inh
-        , mkBench "US.words . SS.decodeLatin1" href $ do
-            Handles inh _ <- readIORef href
+        , mkBenchSmall "US.words . SS.decodeLatin1" env $ \inh _ ->
             readCountWords inh
 
         -- read with utf8 decoding
-        , mkBench "SS.decodeUtf8Lax" href $ do
-            Handles inh _ <- readIORef href
+        , mkBenchSmall "SS.decodeUtf8Lax" env $ \inh _ ->
             readDecodeUtf8Lax inh
         ]
     ]
@@ -521,11 +557,10 @@ inspect $ 'countLinesU `hasNoType` ''Step
 inspect $ 'countLinesU `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_reduce_toBytes :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_reduce_toBytes href _ _ =
+o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]
+o_1_space_reduce_toBytes env =
     [ bgroup "reduce/toBytes"
-        [ mkBench "US.lines . SS.decodeLatin1" href $ do
-            Handles inh _ <- readIORef href
+        [ mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
             toChunksConcatUnfoldCountLines inh
         ]
     ]
@@ -578,34 +613,28 @@ inspect $ '_chunksOfD `hasNoType` ''AT.FlattenState
 inspect $ '_chunksOfD `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_reduce_read_grouped :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_reduce_read_grouped href _ value =
+o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
+o_1_space_reduce_read_grouped env =
     [ bgroup "reduce/read/chunks"
-        [ mkBench ("S.chunksOf " ++ show value ++  " FL.sum") href $ do
-            Handles inh _ <- readIORef href
-            chunksOfSum value inh
-        , mkBench "S.chunksOf 1 FL.sum" href $ do
-            Handles inh _ <- readIORef href
+        [ mkBench ("S.chunksOf " ++ show (bigSize env) ++  " FL.sum") env $
+            \inh _ ->
+                chunksOfSum (bigSize env) inh
+        , mkBench "S.chunksOf 1 FL.sum" env $ \inh _ ->
             chunksOfSum 1 inh
 
         -- Chunk using parsers
-        , mkBench ("S.parseMany (PR.take " ++ show value ++ " FL.sum)")
-            href $ do
-                Handles inh _ <- readIORef href
-                parseManyChunksOfSum value inh
-        , mkBench "S.parseMany (PR.take 1 FL.sum)" href $ do
-                Handles inh _ <- readIORef href
+        , mkBenchSmall ("S.parseMany (PR.take " ++ show (bigSize env) ++ " FL.sum)")
+            env $ \inh _ ->
+                parseManyChunksOfSum (bigSize env) inh
+        , mkBench "S.parseMany (PR.take 1 FL.sum)" env $ \inh _ ->
                 parseManyChunksOfSum 1 inh
 
         -- folding chunks to arrays
-        , mkBench "S.arraysOf 1" href $ do
-            Handles inh _ <- readIORef href
+        , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
             chunksOf 1 inh
-        , mkBench "S.arraysOf 10" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.arraysOf 10" env $ \inh _ ->
             chunksOf 10 inh
-        , mkBench "S.arraysOf 1000" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.arraysOf 1000" env $ \inh _ ->
             chunksOf 1000 inh
         ]
     ]
@@ -617,7 +646,7 @@ o_1_space_reduce_read_grouped href _ value =
 -- | Send the file contents to /dev/null
 {-# INLINE readWriteNull #-}
 readWriteNull :: Handle -> Handle -> IO ()
-readWriteNull devNull inh = S.fold (FH.write devNull) $ S.unfold FH.read inh
+readWriteNull inh devNull = S.fold (FH.write devNull) $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteNull
@@ -686,26 +715,21 @@ inspect $ hasNoTypeClasses 'copyStreamUtf8Lax
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_copy_read :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_read href devNull _ =
+o_1_space_copy_read :: BenchEnv -> [Benchmark]
+o_1_space_copy_read env =
     [ bgroup "copy/read"
-        [ mkBench "rawToNull" href $ do
-            Handles inh _ <- readIORef href
-            readWriteNull devNull inh
-        , mkBench "rawToFile" href $ do
-            Handles inh outh <- readIORef href
+        [ mkBench "rawToNull" env $ \inh _ ->
+            readWriteNull inh (nullH env)
+        , mkBench "rawToFile" env $ \inh outh ->
             copyStream inh outh
         -- This needs an ascii file, as decode just errors out.
-        , mkBench "SS.encodeLatin1 . SS.decodeLatin1" href $ do
-            Handles inh outh <- readIORef href
+        , mkBench "SS.encodeLatin1 . SS.decodeLatin1" env $ \inh outh ->
             copyStreamLatin1 inh outh
 #ifdef DEVBUILD
-        , mkBench "copyUtf8" href $ do
-            Handles inh outh <- readIORef href
+        , mkBench "copyUtf8" env $ \inh outh ->
             _copyStreamUtf8 inh outh
 #endif
-        , mkBench "SS.encodeUtf8 . SS.decodeUtf8Lax" href $ do
-            Handles inh outh <- readIORef href
+        , mkBenchSmall "SS.encodeUtf8 . SS.decodeUtf8Lax" env $ \inh outh ->
             copyStreamUtf8Lax inh outh
         ]
     ]
@@ -717,7 +741,7 @@ o_1_space_copy_read href devNull _ =
 -- | Send the file contents to /dev/null
 {-# INLINE readFromBytesNull #-}
 readFromBytesNull :: Handle -> Handle -> IO ()
-readFromBytesNull devNull inh = IFH.fromBytes devNull $ S.unfold FH.read inh
+readFromBytesNull inh devNull = IFH.fromBytes devNull $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catStreamWrite
@@ -726,12 +750,11 @@ inspect $ 'catStreamWrite `hasNoType` ''AT.FlattenState
 inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_copy_fromBytes :: IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_fromBytes href devNull _ =
+o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
+o_1_space_copy_fromBytes env =
     [ bgroup "copy/fromBytes"
-        [ mkBench "rawToNull" href $ do
-            Handles inh _ <- readIORef href
-            readFromBytesNull devNull inh
+        [ mkBench "rawToNull" env $ \inh _ ->
+            readFromBytesNull inh (nullH env)
         ]
     ]
 
@@ -742,7 +765,7 @@ o_1_space_copy_fromBytes href devNull _ =
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteOnExceptionUnfold #-}
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteOnExceptionUnfold devNull inh =
+readWriteOnExceptionUnfold inh devNull =
     let readEx = IUF.onException (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
@@ -756,7 +779,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteHandleExceptionUnfold #-}
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteHandleExceptionUnfold devNull inh =
+readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
         readEx = IUF.handle (IUF.singletonM handler) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
@@ -771,7 +794,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteFinallyUnfold #-}
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
-readWriteFinallyUnfold devNull inh =
+readWriteFinallyUnfold inh devNull =
     let readEx = IUF.finally (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
@@ -784,14 +807,14 @@ inspect $ hasNoTypeClasses 'readWriteFinallyUnfold
 
 {-# INLINE readWriteFinallyIOUnfold #-}
 readWriteFinallyIOUnfold :: Handle -> Handle -> IO ()
-readWriteFinallyIOUnfold devNull inh =
+readWriteFinallyIOUnfold inh devNull =
     let readEx = IUF.finallyIO (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteBracketUnfold #-}
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
-readWriteBracketUnfold devNull inh =
+readWriteBracketUnfold inh devNull =
     let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
@@ -804,32 +827,25 @@ inspect $ hasNoTypeClasses 'readWriteBracketUnfold
 
 {-# INLINE readWriteBracketIOUnfold #-}
 readWriteBracketIOUnfold :: Handle -> Handle -> IO ()
-readWriteBracketIOUnfold devNull inh =
+readWriteBracketIOUnfold inh devNull =
     let readEx = IUF.bracketIO return (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
-o_1_space_copy_read_exceptions ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_read_exceptions href devNull _ =
+o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
+o_1_space_copy_read_exceptions env =
     [ bgroup "copy/read/exceptions"
-       [ mkBench "UF.onException" href $ do
-           Handles inh _ <- readIORef href
-           readWriteOnExceptionUnfold devNull inh
-       , mkBench "UF.handle" href $ do
-           Handles inh _ <- readIORef href
-           readWriteHandleExceptionUnfold devNull inh
-       , mkBench "UF.finally" href $ do
-           Handles inh _ <- readIORef href
-           readWriteFinallyUnfold devNull inh
-       , mkBench "UF.finallyIO" href $ do
-           Handles inh _ <- readIORef href
-           readWriteFinallyIOUnfold devNull inh
-       , mkBench "UF.bracket" href $ do
-           Handles inh _ <- readIORef href
-           readWriteBracketUnfold devNull inh
-       , mkBench "UF.bracketIO" href $ do
-           Handles inh _ <- readIORef href
-           readWriteBracketIOUnfold devNull inh
+       [ mkBenchSmall "UF.onException" env $ \inh _ ->
+           readWriteOnExceptionUnfold inh (nullH env)
+       , mkBenchSmall "UF.handle" env $ \inh _ ->
+           readWriteHandleExceptionUnfold inh (nullH env)
+       , mkBenchSmall "UF.finally" env $ \inh _ ->
+           readWriteFinallyUnfold inh (nullH env)
+       , mkBenchSmall "UF.finallyIO" env $ \inh _ ->
+           readWriteFinallyIOUnfold inh (nullH env)
+       , mkBenchSmall "UF.bracket" env $ \inh _ ->
+           readWriteBracketUnfold inh (nullH env)
+       , mkBenchSmall "UF.bracketIO" env $ \inh _ ->
+           readWriteBracketIOUnfold inh (nullH env)
         ]
     ]
 
@@ -840,14 +856,14 @@ o_1_space_copy_read_exceptions href devNull _ =
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteOnExceptionStream #-}
 readWriteOnExceptionStream :: Handle -> Handle -> IO ()
-readWriteOnExceptionStream devNull inh =
+readWriteOnExceptionStream inh devNull =
     let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteHandleExceptionStream #-}
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
-readWriteHandleExceptionStream devNull inh =
+readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) = S.yieldM (hClose inh >> return 10)
         readEx = S.handle handler (S.unfold FH.read inh)
     in S.fold (FH.write devNull) $ readEx
@@ -855,20 +871,20 @@ readWriteHandleExceptionStream devNull inh =
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE readWriteFinallyStream #-}
 readWriteFinallyStream :: Handle -> Handle -> IO ()
-readWriteFinallyStream devNull inh =
+readWriteFinallyStream inh devNull =
     let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
 {-# INLINE readWriteFinallyIOStream #-}
 readWriteFinallyIOStream :: Handle -> Handle -> IO ()
-readWriteFinallyIOStream devNull inh =
+readWriteFinallyIOStream inh devNull =
     let readEx = IP.finallyIO (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE fromToBytesBracketStream #-}
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
-fromToBytesBracketStream devNull inh =
+fromToBytesBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
@@ -880,35 +896,28 @@ inspect $ hasNoTypeClasses 'readWriteBracketStream
 
 {-# INLINE fromToBytesBracketIOStream #-}
 fromToBytesBracketIOStream :: Handle -> Handle -> IO ()
-fromToBytesBracketIOStream devNull inh =
+fromToBytesBracketIOStream inh devNull =
     let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
 
-o_1_space_copy_stream_exceptions ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_stream_exceptions href devNull _ =
+o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
+o_1_space_copy_stream_exceptions env =
     [ bgroup "copy/read/exceptions"
-       [ mkBench "S.onException" href $ do
-           Handles inh _ <- readIORef href
-           readWriteOnExceptionStream devNull inh
-       , mkBench "S.handle" href $ do
-           Handles inh _ <- readIORef href
-           readWriteHandleExceptionStream devNull inh
-       , mkBench "S.finally" href $ do
-           Handles inh _ <- readIORef href
-           readWriteFinallyStream devNull inh
-       , mkBench "S.finallyIO" href $ do
-           Handles inh _ <- readIORef href
-           readWriteFinallyIOStream devNull inh
+       [ mkBenchSmall "S.onException" env $ \inh _ ->
+           readWriteOnExceptionStream inh (nullH env)
+       , mkBenchSmall "S.handle" env $ \inh _ ->
+           readWriteHandleExceptionStream inh (nullH env)
+       , mkBenchSmall "S.finally" env $ \inh _ ->
+           readWriteFinallyStream inh (nullH env)
+       , mkBenchSmall "S.finallyIO" env $ \inh _ ->
+           readWriteFinallyIOStream inh (nullH env)
        ]
     , bgroup "copy/fromToBytes/exceptions"
-       [ mkBench "S.bracket" href $ do
-           Handles inh _ <- readIORef href
-           fromToBytesBracketStream devNull inh
-       , mkBench "S.bracketIO" href $ do
-           Handles inh _ <- readIORef href
-           fromToBytesBracketIOStream devNull inh
+       [ mkBenchSmall "S.bracket" env $ \inh _ ->
+           fromToBytesBracketStream inh (nullH env)
+       , mkBenchSmall "S.bracketIO" env $ \inh _ ->
+           fromToBytesBracketIOStream inh (nullH env)
         ]
     ]
 
@@ -945,15 +954,12 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Storable]
 -- inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 #endif
 
-o_1_space_copy_toChunks_group_ungroup ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_toChunks_group_ungroup href _ _ =
+o_1_space_copy_toChunks_group_ungroup :: BenchEnv -> [Benchmark]
+o_1_space_copy_toChunks_group_ungroup env =
     [ bgroup "copy/toChunks/group-ungroup"
-        [ mkBench "AS.interposeSuffix . AS.splitOnSuffix" href $ do
-            Handles inh outh <- readIORef href
+        [ mkBench "AS.interposeSuffix . AS.splitOnSuffix" env $ \inh outh ->
             copyChunksSplitInterposeSuffix inh outh
-        , mkBench "AS.interpose . AS.splitOn" href $ do
-            Handles inh outh <- readIORef href
+        , mkBenchSmall "AS.interpose . AS.splitOn" env $ \inh outh ->
             copyChunksSplitInterpose inh outh
         ]
     ]
@@ -1086,29 +1092,22 @@ wordsUnwordsCharArrayCopy inh outh =
       $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
-o_1_space_copy_read_group_ungroup ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_copy_read_group_ungroup href _ _ =
+o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
+o_1_space_copy_read_group_ungroup env =
     [ bgroup "copy/read/group-ungroup"
-        [ mkBench "US.unlines . S.splitOnSuffix ([Word8])" href $ do
-            Handles inh outh <- readIORef href
-            linesUnlinesCopy inh outh
-        , mkBench "S.interposeSuffix . S.splitOnSuffix(Array Word8)" href $ do
-            Handles inh outh <- readIORef href
-            linesUnlinesArrayWord8Copy inh outh
-        , mkBench "UA.unlines . UA.lines (Array Char)" href $ do
-            Handles inh outh <- readIORef href
-            linesUnlinesArrayCharCopy inh outh
+        [ mkBenchSmall "US.unlines . S.splitOnSuffix ([Word8])" env
+            $ \inh outh -> linesUnlinesCopy inh outh
+        , mkBenchSmall "S.interposeSuffix . S.splitOnSuffix(Array Word8)" env
+            $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
+        , mkBenchSmall "UA.unlines . UA.lines (Array Char)" env
+            $ \inh outh -> linesUnlinesArrayCharCopy inh outh
 
-        , mkBench "S.interposeSuffix . S.wordsBy ([Word8])" href $ do
-            Handles inh outh <- readIORef href
-            wordsUnwordsCopyWord8 inh outh
-        , mkBench "US.unwords . S.wordsBy ([Char])" href $ do
-            Handles inh outh <- readIORef href
-            wordsUnwordsCopy inh outh
-        , mkBench "UA.unwords . UA.words (Array Char)" href $ do
-            Handles inh outh <- readIORef href
-            wordsUnwordsCharArrayCopy inh outh
+        , mkBenchSmall "S.interposeSuffix . S.wordsBy ([Word8])" env
+            $ \inh outh -> wordsUnwordsCopyWord8 inh outh
+        , mkBenchSmall "US.unwords . S.wordsBy ([Char])" env
+            $ \inh outh -> wordsUnwordsCopy inh outh
+        , mkBenchSmall "UA.unwords . UA.words (Array Char)" env
+            $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
         ]
     ]
 
@@ -1199,66 +1198,45 @@ splitOnSuffixSeq str inh =
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_reduce_read_split ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_reduce_read_split href _ _ =
+o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_read_split env =
     [ bgroup "reduce/read"
-        [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" href $ do
-            Handles inh _ <- readIORef href
-            parseManySepBy inh
-        , mkBench "S.wordsBy isSpace FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
+            $ \inh _ -> parseManySepBy inh
+        , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
             wordsBy inh
-        , mkBench "S.splitOn (== lf) FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOn (== lf) FL.drain" env $ \inh _ ->
             splitOn inh
-        , mkBench "S.splitOnSuffix (== lf) FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSuffix (== lf) FL.drain" env $ \inh _ ->
             splitOnSuffix inh
-        , mkBench "S.splitOnSeq \"\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"\" FL.drain" env $ \inh _ ->
             splitOnSeq "" inh
-        , mkBench "S.splitOnSuffixSeq \"\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSuffixSeq \"\" FL.drain" env $ \inh _ ->
             splitOnSuffixSeq "" inh
-        , mkBench "S.splitOnSeq \"\\n\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"\\n\" FL.drain" env $ \inh _ ->
             splitOnSeq "\n" inh
-        , mkBench "S.splitOnSuffixSeq \"\\n\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSuffixSeq \"\\n\" FL.drain" env $ \inh _ ->
             splitOnSuffixSeq "\n" inh
-        , mkBench "S.splitOnSeq \"a\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"a\" FL.drain" env $ \inh _ ->
             splitOnSeq "a" inh
-        , mkBench "S.splitOnSeq \"\\r\\n\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"\\r\\n\" FL.drain" env $ \inh _ ->
             splitOnSeq "\r\n" inh
-        , mkBench "S.splitOnSuffixSeq \"\\r\\n\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSuffixSeq \"\\r\\n\" FL.drain" env $ \inh _ ->
             splitOnSuffixSeq "\r\n" inh
-        , mkBench "S.splitOnSeq \"aa\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"aa\" FL.drain" env $ \inh _ ->
             splitOnSeq "aa" inh
-        , mkBench "S.splitOnSeq \"aaaa\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"aaaa\" FL.drain" env $ \inh _ ->
             splitOnSeq "aaaa" inh
-        , mkBench "S.splitOnSeq \"abcdefgh\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"abcdefgh\" FL.drain" env $ \inh _ ->
             splitOnSeq "abcdefgh" inh
-        , mkBench "S.splitOnSeq \"abcdefghi\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"abcdefghi\" FL.drain" env $ \inh _ ->
             splitOnSeq "abcdefghi" inh
-        , mkBench "S.splitOnSeq \"catcatcatcatcat\" FL.drain" href $ do
-            Handles inh _ <- readIORef href
+        , mkBench "S.splitOnSeq \"catcatcatcatcat\" FL.drain" env $ \inh _ ->
             splitOnSeq "catcatcatcatcat" inh
         , mkBench "S.splitOnSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
-            href $ do
-                Handles inh _ <- readIORef href
-                splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "S.splitOnSuffixSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
-            href $ do
-                Handles inh _ <- readIORef href
-                splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+            env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBenchSmall "S.splitOnSuffixSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
+            env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
 
@@ -1270,18 +1248,14 @@ splitOnSeqUtf8 str inh =
         $ IUS.decodeUtf8ArraysLenient
         $ IFH.toChunks inh) -- >>= print
 
-o_1_space_reduce_toChunks_split ::
-    IORef Handles -> Handle -> Int -> [Benchmark]
-o_1_space_reduce_toChunks_split href _ _ =
+o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_toChunks_split env =
     [ bgroup "reduce/toChunks"
-        [ mkBench ("S.splitOnSeqUtf8 \"abcdefgh\" FL.drain "
-            ++ ". US.decodeUtf8ArraysLenient") href $ do
-                Handles inh _ <- readIORef href
+        [ mkBenchSmall ("S.splitOnSeqUtf8 \"abcdefgh\" FL.drain "
+            ++ ". US.decodeUtf8ArraysLenient") env $ \inh _ ->
                 splitOnSeqUtf8 "abcdefgh" inh
-        , mkBench "S.splitOnSeqUtf8 \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
-            href $ do
-                Handles inh _ <- readIORef href
-                splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBenchSmall "S.splitOnSeqUtf8 \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
 
@@ -1292,13 +1266,8 @@ o_1_space_reduce_toChunks_split href _ _ =
 main :: IO ()
 main = do
     (_, cfg, benches) <- parseCLIOpts defaultStreamSize
-
-    -- XXX The file is cached, so if the older file was a different size it
-    -- will not be correct
-    --     fileSize = blockSize * blockCount
-
     r <- lookupEnv "Benchmark.FileSystem.Handle.InputFile"
-    (_, big) <-
+    (small, big) <-
         case r of
             Just inFileName -> return (inFileName, inFileName)
             Nothing -> do
@@ -1315,37 +1284,54 @@ main = do
                 runProcess_ (shell (cmd inFileBig bigFileSize))
                 return (inFileSmall, inFileBig)
 
-    -- smallHandle <- openFile small ReadMode
+    smallHandle <- openFile small ReadMode
     bigHandle <- openFile big ReadMode
     outHandle <- openFile outfile WriteMode
     devNull <- openFile "/dev/null" WriteMode
 
-    -- ssize <- getFileSize small
-    bsize <- getFileSize big
+#if __GLASGOW_HASKELL__ >= 800
+    ssize <- fromIntegral <$> getFileSize small
+    bsize <- fromIntegral <$> getFileSize big
+#else
+    let ssize = smallFileSize
+    let bsize = bigFileSize
+#endif
 
-    ref <- newIORef $ Handles bigHandle outHandle
-    runMode (mode cfg) cfg benches (allBenchmarks ref devNull (fromIntegral bsize))
+    ref <- newIORef $ RefHandles
+        { smallInH = smallHandle
+        , bigInH = bigHandle
+        , outputH = outHandle
+        }
+
+    let env = BenchEnv
+            { href = ref
+            , smallSize = ssize
+            , bigSize = bsize
+            , nullH = devNull
+            }
+
+    runMode (mode cfg) cfg benches (allBenchmarks env)
 
     where
 
-    allBenchmarks env devNull bsize =
+    allBenchmarks env =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
-            [ o_1_space_read_chunked env devNull bsize
-            , o_1_space_copy_chunked env devNull bsize
-            , o_1_space_copy_exceptions_readChunks env devNull bsize
-            , o_1_space_copy_exceptions_toChunks env devNull bsize
+            [ o_1_space_read_chunked env
+            , o_1_space_copy_chunked env
+            , o_1_space_copy_exceptions_readChunks env
+            , o_1_space_copy_exceptions_toChunks env
 
-            , o_1_space_reduce_read env devNull bsize
-            , o_1_space_reduce_toBytes env devNull bsize
-            , o_1_space_reduce_read_grouped env devNull bsize
-            , o_1_space_reduce_read_split env devNull bsize
-            , o_1_space_reduce_toChunks_split env devNull bsize
+            , o_1_space_reduce_read env
+            , o_1_space_reduce_toBytes env
+            , o_1_space_reduce_read_grouped env
+            , o_1_space_reduce_read_split env
+            , o_1_space_reduce_toChunks_split env
 
-            , o_1_space_copy_read env devNull bsize
-            , o_1_space_copy_fromBytes env devNull bsize
-            , o_1_space_copy_read_exceptions env devNull bsize
-            , o_1_space_copy_stream_exceptions env devNull bsize
-            , o_1_space_copy_read_group_ungroup env devNull bsize
-            , o_1_space_copy_toChunks_group_ungroup env devNull bsize
+            , o_1_space_copy_read env
+            , o_1_space_copy_fromBytes env
+            , o_1_space_copy_read_exceptions env
+            , o_1_space_copy_stream_exceptions env
+            , o_1_space_copy_toChunks_group_ungroup env
+            , o_1_space_copy_read_group_ungroup env
             ]
         ]
