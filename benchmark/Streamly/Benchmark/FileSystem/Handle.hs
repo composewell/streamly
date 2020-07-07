@@ -485,18 +485,25 @@ inspect $ 'readSumBytes `hasNoType` ''AT.FlattenState
 inspect $ 'readSumBytes `hasNoType` ''D.ConcatMapUState
 #endif
 
-{-# INLINE readDrain #-}
+-- XXX If we have two benchmarks using S.drain in one benchmark group then
+-- somehow GHC ends up delaying the inlining of readDrain. since S.drain has an
+-- INLINE[2] for proper rule firing, that does not work well because of delyaed
+-- inlining and the code does not fuse. We need some way of propagating the
+-- inline phase information up so that we can expedite inlining of the callers
+-- too automatically. The minimal example for the problem can be created by
+-- using just two benchmarks in a bench group both using "readDrain".
+{-# INLINE[2] readDrain #-}
 readDrain :: Handle -> IO ()
 readDrain inh = S.drain $ S.unfold FH.read inh
 
-{-# INLINE readDecodeLatin1 #-}
+{-# INLINE[2] readDecodeLatin1 #-}
 readDecodeLatin1 :: Handle -> IO ()
 readDecodeLatin1 inh =
    S.drain
      $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
-{-# INLINE readDecodeUtf8Lax #-}
+{-# INLINE[2] readDecodeUtf8Lax #-}
 readDecodeUtf8Lax :: Handle -> IO ()
 readDecodeUtf8Lax inh =
    S.drain
