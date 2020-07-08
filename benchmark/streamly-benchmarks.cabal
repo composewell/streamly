@@ -404,9 +404,14 @@ benchmark FileSystem.Handle
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/FileSystem
   main-is: Handle.hs
+  other-modules:
+      Handle.Read
+    , Handle.ReadWrite
+    , Handle.Common
   build-depends:
       typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
+    , ghc-prim          >= 0.4   && < 0.7
 
 -------------------------------------------------------------------------------
 -- benchmark comparison and presentation
