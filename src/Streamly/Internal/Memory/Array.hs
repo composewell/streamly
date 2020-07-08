@@ -61,6 +61,7 @@ module Streamly.Internal.Memory.Array
     , toStream
     , toStreamRev
     , read
+    , ReadUState (..)
     , unsafeRead
     -- , readChunksOf
 

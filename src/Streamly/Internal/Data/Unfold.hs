@@ -102,6 +102,7 @@ module Streamly.Internal.Data.Unfold
     , teeZipWith
 
     -- * Nesting
+    , ConcatState (..)
     , concat
     , concatMapM
     , outerProduct

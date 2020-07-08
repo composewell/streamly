@@ -44,7 +44,13 @@ import Handle.Common
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Strict as Strict
+import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array.Types as AT
+
 import Test.Inspection
 #endif
 
@@ -52,25 +58,13 @@ import Test.Inspection
 -- copy chunked
 -------------------------------------------------------------------------------
 
--- | Send the file contents to /dev/null
-toChunksWithBufferOf :: Handle -> Handle -> IO ()
-toChunksWithBufferOf inh devNull =
-    S.fold (IFH.writeChunks devNull) $ IFH.toChunksWithBufferOf (256*1024) inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksWithBufferOf
-inspect $ 'toChunksWithBufferOf `hasNoType` ''Step
-#endif
-
 -- | Copy file
 copyChunks :: Handle -> Handle -> IO ()
-copyChunks inh outh =
-    let s = IFH.toChunks inh
-    in S.fold (IFH.writeChunks outh) s
+copyChunks inh outh = S.fold (IFH.writeChunks outh) $ IFH.toChunks inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksWriteChunks
-inspect $ 'toChunksWriteChunks `hasNoType` ''Step
+inspect $ hasNoTypeClasses 'copyChunks
+inspect $ 'copyChunks `hasNoType` ''Step
 #endif
 
 -- | Copy file
@@ -79,20 +73,18 @@ copyCodecUtf8ArraysLenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ IUS.decodeUtf8ArraysLenient
-     $ IFH.toChunksWithBufferOf (1024*1024) inh
+     $ IFH.toChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 -- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''Step
--- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''AT.FlattenState
--- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''D.ConcatMapUState
 #endif
 
 o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
 o_1_space_copy_chunked env =
     [ bgroup "copy/toChunks"
-        [ mkBench "toNull (256K)" env $ \inH _ ->
-            toChunksWithBufferOf inH (nullH env)
+        [ mkBench "toNull" env $ \inH _ ->
+            copyChunks inH (nullH env)
         , mkBench "raw" env $ \inH outH ->
             copyChunks inH outH
         , mkBenchSmall "decodeEncodeUtf8Lenient" env $ \inH outH ->
@@ -107,44 +99,41 @@ o_1_space_copy_chunked env =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
-readChunksWithBufferOfOnExceptionUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfOnExceptionUnfold inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh)
-                    (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
+readChunksOnException :: Handle -> Handle -> IO ()
+readChunksOnException inh devNull =
+    let readEx = IUF.onException (\_ -> hClose inh) FH.readChunks
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readChunksWithBufferOfOnExceptionUnfold
--- inspect $ 'readChunksWithBufferOfOnExceptionUnfold `hasNoType` ''Step
+inspect $ hasNoTypeClasses 'readChunksOnException
+-- inspect $ 'readChunksOnException `hasNoType` ''Step
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
-readChunksWithBufferOfBracketUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfBracketUnfold inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh)
-                    (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
+readChunksBracket :: Handle -> Handle -> IO ()
+readChunksBracket inh devNull =
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readChunksWithBufferOfBracketUnfold
--- inspect $ 'readChunksWithBufferOfBracketUnfold `hasNoType` ''Step
+inspect $ hasNoTypeClasses 'readChunksBracket
+-- inspect $ 'readChunksBracket `hasNoType` ''Step
 #endif
 
-readChunksWithBufferOfBracketIOUnfold :: Handle -> Handle -> IO ()
-readChunksWithBufferOfBracketIOUnfold inh devNull =
-    let readEx = IUF.bracketIO return (\_ -> hClose inh)
-                    (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
+readChunksBracketIO :: Handle -> Handle -> IO ()
+readChunksBracketIO inh devNull =
+    let readEx = IUF.bracketIO return (\_ -> hClose inh) FH.readChunks
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
-    [ bgroup "copy/exceptions/unfold/readChunks"
-        [ mkBench "onException (256K)" env $ \inH _ ->
-            readChunksWithBufferOfOnExceptionUnfold inH (nullH env)
-        , mkBench "bracket (256K)" env $ \inH _ ->
-            readChunksWithBufferOfBracketUnfold inH (nullH env)
-        , mkBench "bracketIO (256K)" env $ \inH _ ->
-            readChunksWithBufferOfBracketIOUnfold inH (nullH env)
+    [ bgroup "copy/readChunks/exceptions"
+        [ mkBench "UF.onException" env $ \inH _ ->
+            readChunksOnException inH (nullH env)
+        , mkBench "UF.bracket" env $ \inH _ ->
+            readChunksBracket inH (nullH env)
+        , mkBench "UF.bracketIO" env $ \inH _ ->
+            readChunksBracketIO inH (nullH env)
         ]
     ]
 
@@ -153,30 +142,34 @@ o_1_space_copy_exceptions_readChunks env =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
-toChunksWithBufferOfBracketStream :: Handle -> Handle -> IO ()
-toChunksWithBufferOfBracketStream inh devNull =
-    let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toChunksWithBufferOf (256*1024) inh)
+toChunksBracket :: Handle -> Handle -> IO ()
+toChunksBracket inh devNull =
+    let readEx = S.bracket
+            (return ())
+            (\_ -> hClose inh)
+            (\_ -> IFH.toChunks inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksWithBufferOfBracketStream
--- inspect $ 'toChunksWithBufferOfBracketStream `hasNoType` ''Step
+inspect $ hasNoTypeClasses 'toChunksBracket
+-- inspect $ 'toChunksBracket `hasNoType` ''Step
 #endif
 
-toChunksWithBufferOfBracketIOStream :: Handle -> Handle -> IO ()
-toChunksWithBufferOfBracketIOStream inh devNull =
-    let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toChunksWithBufferOf (256*1024) inh)
+toChunksBracketIO :: Handle -> Handle -> IO ()
+toChunksBracketIO inh devNull =
+    let readEx = IP.bracketIO
+            (return ())
+            (\_ -> hClose inh)
+            (\_ -> IFH.toChunks inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "copy/exceptions/stream/toChunks"
-        [ mkBench "bracket (256K)" env $ \inH _ ->
-            toChunksWithBufferOfBracketStream inH (nullH env)
-        , mkBench "bracketIO (256K)" env $ \inH _ ->
-            toChunksWithBufferOfBracketIOStream inH (nullH env)
+    [ bgroup "copy/toChunks/exceptions"
+        [ mkBench "S.bracket" env $ \inH _ ->
+            toChunksBracket inH (nullH env)
+        , mkBench "S.bracketIO" env $ \inH _ ->
+            toChunksBracketIO inH (nullH env)
         ]
     ]
 
@@ -184,26 +177,17 @@ o_1_space_copy_exceptions_toChunks env =
 -- copy unfold
 -------------------------------------------------------------------------------
 
--- | Send the file contents to /dev/null
-readWriteNull :: Handle -> Handle -> IO ()
-readWriteNull inh devNull = S.fold (FH.write devNull) $ S.unfold FH.read inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteNull
-inspect $ 'readWriteNull `hasNoType` ''Step
-inspect $ 'readWriteNull `hasNoType` ''AT.FlattenState
-inspect $ 'readWriteNull `hasNoType` ''D.ConcatMapUState
-#endif
-
 -- | Copy file
 copyStream :: Handle -> Handle -> IO ()
 copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStream
-inspect $ 'copyStream `hasNoType` ''Step
-inspect $ 'copyStream `hasNoType` ''AT.FlattenState
-inspect $ 'copyStream `hasNoType` ''D.ConcatMapUState
+inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
+inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStream `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
 -- | Copy file
@@ -217,8 +201,10 @@ copyStreamLatin1 inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
-inspect $ 'copyStreamLatin1 `hasNoType` ''AT.FlattenState
-inspect $ 'copyStreamLatin1 `hasNoType` ''D.ConcatMapUState
+inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'copyStreamLatin1 `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
 -- | Copy file
@@ -255,7 +241,7 @@ o_1_space_copy_read :: BenchEnv -> [Benchmark]
 o_1_space_copy_read env =
     [ bgroup "copy/read"
         [ mkBench "rawToNull" env $ \inh _ ->
-            readWriteNull inh (nullH env)
+            copyStream inh (nullH env)
         , mkBench "rawToFile" env $ \inh outh ->
             copyStream inh outh
         -- This needs an ascii file, as decode just errors out.
@@ -279,10 +265,11 @@ readFromBytesNull :: Handle -> Handle -> IO ()
 readFromBytesNull inh devNull = IFH.fromBytes devNull $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'catStreamWrite
-inspect $ 'catStreamWrite `hasNoType` ''Step
-inspect $ 'catStreamWrite `hasNoType` ''AT.FlattenState
-inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'readFromBytesNull
+inspect $ 'readFromBytesNull `hasNoType` ''Step
+inspect $ 'readFromBytesNull `hasNoType` ''AT.SpliceState
+inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readFromBytesNull `hasNoType` ''D.GroupState
 #endif
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
@@ -306,8 +293,6 @@ readWriteOnExceptionUnfold inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 -- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''Step
--- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''AT.FlattenState
--- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
@@ -320,8 +305,6 @@ readWriteHandleExceptionUnfold inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 -- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''Step
--- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''AT.FlattenState
--- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
@@ -333,8 +316,6 @@ readWriteFinallyUnfold inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteFinallyUnfold
 -- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
--- inspect $ 'readWriteFinallyUnfold `hasNoType` ''AT.FlattenState
--- inspect $ 'readWriteFinallyUnfold `hasNoType` ''D.ConcatMapUState
 #endif
 
 readWriteFinallyIOUnfold :: Handle -> Handle -> IO ()
@@ -351,8 +332,6 @@ readWriteBracketUnfold inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteBracketUnfold
 -- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
--- inspect $ 'readWriteBracketUnfold `hasNoType` ''AT.FlattenState
--- inspect $ 'readWriteBracketUnfold `hasNoType` ''D.ConcatMapUState
 #endif
 
 readWriteBracketIOUnfold :: Handle -> Handle -> IO ()
@@ -414,8 +393,8 @@ fromToBytesBracketStream inh devNull =
     in IFH.fromBytes devNull $ readEx
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteBracketStream
--- inspect $ 'readWriteBracketStream `hasNoType` ''Step
+inspect $ hasNoTypeClasses 'fromToBytesBracketStream
+-- inspect $ 'fromToBytesBracketStream `hasNoType` ''Step
 #endif
 
 fromToBytesBracketIOStream :: Handle -> Handle -> IO ()
@@ -451,10 +430,10 @@ o_1_space_copy_stream_exceptions env =
 -- | Lines and unlines
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
 copyChunksSplitInterposeSuffix inh outh =
-    S.fold (IFH.writeWithBufferOf (1024*1024) outh)
+    S.fold (IFH.write outh)
         $ AS.interposeSuffix 10
         $ AS.splitOnSuffix 10
-        $ IFH.toChunksWithBufferOf (1024*1024) inh
+        $ IFH.toChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Storable]
@@ -464,11 +443,11 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Storable]
 -- | Words and unwords
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
-    S.fold (IFH.writeWithBufferOf (1024*1024) outh)
+    S.fold (IFH.write outh)
         $ AS.interpose 32
         -- XXX this is not correct word splitting combinator
         $ AS.splitOn 32
-        $ IFH.toChunksWithBufferOf (1024*1024) inh
+        $ IFH.toChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Storable]
@@ -519,8 +498,6 @@ linesUnlinesArrayCharCopy inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Storable]
 -- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''Step
--- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''AT.FlattenState
--- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- XXX to write this we need to be able to map decodeUtf8 on the A.read fold.
@@ -548,7 +525,6 @@ wordsUnwordsCopyWord8 inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
 -- inspect $ 'wordsUnwordsCopyWord8 `hasNoType` ''Step
--- inspect $ 'wordsUnwordsCopyWord8 `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Word, unwords and copy
@@ -572,8 +548,6 @@ wordsUnwordsCopy inh outh =
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'wordsUnwordsCopy
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
--- inspect $ 'wordsUnwordsCopy `hasNoType` ''AT.FlattenState
--- inspect $ 'wordsUnwordsCopy `hasNoType` ''D.ConcatMapUState
 #endif
 
 wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()

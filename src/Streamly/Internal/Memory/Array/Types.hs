@@ -37,6 +37,7 @@ module Streamly.Internal.Memory.Array.Types
     , flattenArrays
     , flattenArraysRev
     , packArraysChunksOf
+    , SpliceState (..)
     , lpackArraysChunksOf
 #if !defined(mingw32_HOST_OS)
     , groupIOVecsOf
@@ -62,6 +63,7 @@ module Streamly.Internal.Memory.Array.Types
     , toArrayMinChunk
     , writeN
     , writeNUnsafe
+    , ArrayUnsafe (..)
     , writeNAligned
     , writeNAlignedUnmanaged
     , write

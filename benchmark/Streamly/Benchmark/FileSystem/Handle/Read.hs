@@ -43,19 +43,20 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.Array as IA
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as IP
-import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
 import Handle.Common
 
 #ifdef INSPECTION
-import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
+
+import qualified Streamly.Internal.Data.Unfold as IUF
+
 import Test.Inspection
 #endif
 
@@ -70,7 +71,7 @@ toChunksLast inh = do
     larr <- S.last s
     return $ case larr of
         Nothing -> Nothing
-        Just arr -> IA.readIndex arr (A.length arr - 1)
+        Just arr -> A.readIndex arr (A.length arr - 1)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksLast
@@ -110,7 +111,7 @@ inspect $ 'toChunksSplitOn `hasNoType` ''Step
 -- | Sum the bytes in a file.
 toChunksCountBytes :: Handle -> IO Word8
 toChunksCountBytes inh = do
-    let foldlArr' f z = runIdentity . S.foldl' f z . IA.toStream
+    let foldlArr' f z = runIdentity . S.foldl' f z . A.toStream
     let s = IFH.toChunks inh
     S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
@@ -119,38 +120,34 @@ inspect $ hasNoTypeClasses 'toChunksCountBytes
 inspect $ 'toChunksCountBytes `hasNoType` ''Step
 #endif
 
-toChunksWithBufferOfDecodeUtf8ArraysLenient :: Handle -> IO ()
-toChunksWithBufferOfDecodeUtf8ArraysLenient inh =
-   S.drain
-     $ IUS.decodeUtf8ArraysLenient
-     $ IFH.toChunksWithBufferOf (1024*1024) inh
+toChunksDecodeUtf8ArraysLenient :: Handle -> IO ()
+toChunksDecodeUtf8ArraysLenient =
+   S.drain . IUS.decodeUtf8ArraysLenient . IFH.toChunks
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'decodeUtf8Lenient
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''Step
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''AT.FlattenState
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'toChunksDecodeUtf8ArraysLenient
+-- inspect $ 'toChunksDecodeUtf8ArraysLenient `hasNoType` ''Step
 #endif
 
 o_1_space_read_chunked :: BenchEnv -> [Benchmark]
 o_1_space_read_chunked env =
     -- read using toChunks instead of read
     [ bgroup "reduce/toChunks"
-        [ mkBench "S.last (32K)" env $ \inH _ ->
+        [ mkBench "S.last" env $ \inH _ ->
             toChunksLast inH
         -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
         -- wc uses lseek to just determine the file size rather than reading
         -- and counting characters.
-        , mkBench "S.sum . S.map A.length (32K)" env $ \inH _ ->
+        , mkBench "S.sum . S.map A.length" env $ \inH _ ->
             toChunksSumLengths inH
-        , mkBench "AS.splitOnSuffix (32K)" env $ \inH _ ->
+        , mkBench "AS.splitOnSuffix" env $ \inH _ ->
             toChunksSplitOnSuffix inH
-        , mkBench "AS.splitOn (32K)" env $ \inH _ ->
+        , mkBench "AS.splitOn" env $ \inH _ ->
             toChunksSplitOn inH
-        , mkBench "countBytes (32K)" env $ \inH _ ->
+        , mkBench "countBytes" env $ \inH _ ->
             toChunksCountBytes inH
-        , mkBenchSmall "US.decodeUtf8ArraysLenient (1MB)" env $ \inH _ ->
-            toChunksWithBufferOfDecodeUtf8ArraysLenient inH
+        , mkBenchSmall "US.decodeUtf8ArraysLenient" env $ \inH _ ->
+            toChunksDecodeUtf8ArraysLenient inH
         ]
     ]
 
@@ -166,9 +163,9 @@ readLast = S.last . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
-inspect $ 'readLast `hasNoType` ''Step
-inspect $ 'readLast `hasNoType` ''AT.FlattenState
-inspect $ 'readLast `hasNoType` ''D.ConcatMapUState
+inspect $ 'readLast `hasNoType` ''Step -- S.unfold
+inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readLast `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- assert that flattenArrays constructors are not present
@@ -177,10 +174,10 @@ readCountBytes :: Handle -> IO Int
 readCountBytes = S.length . S.unfold FH.read
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'countBytes
-inspect $ 'countBytes `hasNoType` ''Step
-inspect $ 'countBytes `hasNoType` ''AT.FlattenState
-inspect $ 'countBytes `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'readCountBytes
+inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
+inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readCountBytes `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Count the number of lines in a file.
@@ -194,8 +191,8 @@ readCountLines =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
-inspect $ 'readCountLines `hasNoType` ''AT.FlattenState
-inspect $ 'readCountLines `hasNoType` ''D.ConcatMapUState
+inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readCountLines `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Count the number of words in a file.
@@ -209,7 +206,6 @@ readCountWords =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountWords
 -- inspect $ 'readCountWords `hasNoType` ''Step
--- inspect $ 'readCountWords `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Sum the bytes in a file.
@@ -219,8 +215,8 @@ readSumBytes = S.sum . S.unfold FH.read
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
-inspect $ 'readSumBytes `hasNoType` ''AT.FlattenState
-inspect $ 'readSumBytes `hasNoType` ''D.ConcatMapUState
+inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readSumBytes `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- XXX When we mark this with INLINE and we have two benchmarks using S.drain
@@ -253,8 +249,6 @@ readDecodeUtf8Lax inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readDecodeUtf8Lax
 -- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
--- inspect $ 'readDecodeUtf8Lax `hasNoType` ''AT.FlattenState
--- inspect $ 'readDecodeUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
 o_1_space_reduce_read :: BenchEnv -> [Benchmark]
@@ -298,9 +292,9 @@ toChunksConcatUnfoldCountLines inh =
         $ S.concatUnfold A.read (IFH.toChunks inh)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'countLinesU
-inspect $ 'countLinesU `hasNoType` ''Step
-inspect $ 'countLinesU `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'toChunksConcatUnfoldCountLines
+inspect $ 'toChunksConcatUnfoldCountLines `hasNoType` ''Step
+inspect $ 'toChunksConcatUnfoldCountLines `hasNoType` ''D.ConcatMapUState
 #endif
 
 o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]
@@ -336,9 +330,10 @@ chunksOf n inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
-inspect $ 'chunksOf `hasNoType` ''AT.FlattenState
-inspect $ 'chunksOf `hasNoType` ''D.ConcatMapUState
 inspect $ 'chunksOf `hasNoType` ''GroupState
+inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
+inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'chunksOf `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- This is to make sure that the concatMap in FH.read, groupsOf and foldlM'
@@ -355,8 +350,9 @@ _chunksOfD n inh =
 inspect $ hasNoTypeClasses '_chunksOfD
 inspect $ '_chunksOfD `hasNoType` ''Step
 inspect $ '_chunksOfD `hasNoType` ''GroupState
-inspect $ '_chunksOfD `hasNoType` ''AT.FlattenState
-inspect $ '_chunksOfD `hasNoType` ''D.ConcatMapUState
+inspect $ '_chunksOfD `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
+inspect $ '_chunksOfD `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ '_chunksOfD `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
@@ -405,8 +401,8 @@ splitOn inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
 inspect $ 'splitOn `hasNoType` ''Step
-inspect $ 'splitOn `hasNoType` ''AT.FlattenState
-inspect $ 'splitOn `hasNoType` ''D.ConcatMapUState
+inspect $ 'splitOn `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitOn `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split suffix on line feed.
@@ -418,8 +414,8 @@ splitOnSuffix inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSuffix
 inspect $ 'splitOnSuffix `hasNoType` ''Step
-inspect $ 'splitOnSuffix `hasNoType` ''AT.FlattenState
-inspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
+inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitOnSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split on line feed.
@@ -437,8 +433,8 @@ wordsBy inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
 inspect $ 'wordsBy `hasNoType` ''Step
-inspect $ 'wordsBy `hasNoType` ''AT.FlattenState
-inspect $ 'wordsBy `hasNoType` ''D.ConcatMapUState
+inspect $ 'wordsBy `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'wordsBy `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split on a word8 sequence.
@@ -450,8 +446,6 @@ splitOnSeq str inh =
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'splitOnSeq
 -- inspect $ 'splitOnSeq `hasNoType` ''Step
--- inspect $ 'splitOnSeq `hasNoType` ''AT.FlattenState
--- inspect $ 'splitOnSeq `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Split on suffix sequence.
@@ -463,8 +457,6 @@ splitOnSuffixSeq str inh =
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
--- inspect $ 'splitOnSuffixSeq `hasNoType` ''AT.FlattenState
--- inspect $ 'splitOnSuffixSeq `hasNoType` ''D.ConcatMapUState
 #endif
 
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]

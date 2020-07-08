@@ -35,12 +35,6 @@ import Gauge hiding (env)
 import Streamly.Benchmark.Common
 import Handle.Common
 
-#ifdef INSPECTION
-import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
-import Test.Inspection
-#endif
-
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
