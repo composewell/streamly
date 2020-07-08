@@ -6,7 +6,8 @@ import Control.Monad (void)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.Error.Class (throwError, MonadError)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.State (MonadState, get, modify, runStateT, StateT)
+import Control.Monad.State (MonadState, get, modify, runStateT
+                           , StateT(..), evalStateT)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_, fold)
 import Data.Function ((&))
@@ -437,6 +438,21 @@ parallelTests = H.parallel $ do
     it "foldrM is lazy enough" checkFoldrLaziness
 
     ---------------------------------------------------------------------------
+    -- Monadic state transfer in concurrent tasks
+    ---------------------------------------------------------------------------
+
+    -- XXX Can we write better test cases to hit every case?
+
+    it "async: state is saved and used if the work is partially enqueued"
+        (checkMonadicStateTransfer async)
+
+    it "wAsync: state is saved and used if the work is partially enqueued"
+        (checkMonadicStateTransfer wAsync)
+
+    it "ahead: state is saved and used if the work is partially enqueued"
+        (checkMonadicStateTransfer ahead)
+
+    ---------------------------------------------------------------------------
     -- Monadic state snapshot in concurrent tasks
     ---------------------------------------------------------------------------
 
@@ -560,6 +576,27 @@ takeCombined n t = do
     r <- (S.toList . t) $
             S.take n (constr ([] :: [Int]) <> constr ([] :: [Int]))
     r `shouldBe` []
+
+checkMonadicStateTransfer
+    :: (IsStream t1, IsStream t2)
+    => (    t1 (StateT Int IO) ()
+        ->  t2 (StateT Int IO) ()
+        ->  SerialT (StateT Int IO) a3 )
+    -> IO ()
+checkMonadicStateTransfer op = evalStateT str (0 :: Int)
+  where
+    str =
+        S.drain $
+        maxBuffer 1 $
+        (serially $ S.mapM snapshoti $ S.fromList [1..10]) `op`
+        (serially $ S.mapM snapshoti $ S.fromList [1..10])
+    snapshoti y = do
+        modify (+ 1)
+        x <- get
+        lift1 $ x `shouldBe` y
+    lift1 m = StateT $ \s -> do
+        a <- m
+        return (a, s)
 
 checkFoldrLaziness :: IO ()
 checkFoldrLaziness = do
