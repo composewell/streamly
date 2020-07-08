@@ -442,7 +442,7 @@ data SVar t m a = SVar
     , yieldRateInfo  :: Maybe YieldRateInfo
 
     -- Used only by bounded SVar types
-    , enqueue        :: t m a -> IO ()
+    , enqueue        :: (RunInIO m, t m a) -> IO ()
     , isWorkDone     :: IO Bool
     , isQueueDone    :: IO Bool
     , needDoorBell   :: IORef Bool
@@ -1258,7 +1258,8 @@ ringDoorBell sv = do
 -- expressions. Large left associated compositions can grow this to a
 -- large size
 {-# INLINE enqueueLIFO #-}
-enqueueLIFO :: SVar t m a -> IORef [t m a] -> t m a -> IO ()
+enqueueLIFO ::
+       SVar t m a -> IORef [(RunInIO m, t m a)] -> (RunInIO m, t m a) -> IO ()
 enqueueLIFO sv q m = do
     atomicModifyIORefCAS_ q $ \ms -> m : ms
     ringDoorBell sv
@@ -1272,7 +1273,11 @@ enqueueLIFO sv q m = do
 -- first as long as possible.
 
 {-# INLINE enqueueFIFO #-}
-enqueueFIFO :: SVar t m a -> LinkedQueue (t m a) -> t m a -> IO ()
+enqueueFIFO ::
+       SVar t m a
+    -> LinkedQueue (RunInIO m, t m a)
+    -> (RunInIO m, t m a)
+    -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
     ringDoorBell sv
@@ -1342,10 +1347,10 @@ enqueueFIFO sv q m = do
 -- we can even run the already queued items but they will have to be sorted in
 -- layers in the heap. We can use a list of heaps for that.
 {-# INLINE enqueueAhead #-}
-enqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> t m a -> IO ()
+enqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> StreamWR t m a -> IO ()
 enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
-        ([], n) -> ([m], n + 1)  -- increment sequence
+        ([], n) -> ([snd m], n + 1)  -- increment sequence
         _ -> error "enqueueAhead: queue is not empty"
     ringDoorBell sv
 
@@ -2399,7 +2404,8 @@ sendFirstWorker sv m = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    liftIO $ enqueue sv m
+    runIn <- captureMonadState
+    liftIO $ enqueue sv (runIn, m)
     case yieldRateInfo sv of
         Nothing -> pushWorker 0 sv
         Just yinfo  ->
@@ -2440,7 +2446,8 @@ newParallelVar ss st = do
 -- be read back from the SVar using 'fromSVar'.
 toStreamVar :: MonadAsync m => SVar t m a -> t m a -> m ()
 toStreamVar sv m = do
-    liftIO $ enqueue sv m
+    runIn <- captureMonadState
+    liftIO $ enqueue sv (runIn, m)
     done <- allThreadsDone sv
     -- XXX This is safe only when called from the consumer thread or when no
     -- consumer is present.  There may be a race if we are not running in the
