@@ -579,7 +579,8 @@ forkSVarAhead m1 m2 = mkStream $ \st yld sng stp -> do
         foldStream st yld sng stp (fromSVar sv)
     where
     concurrently ma mb = mkStream $ \st yld sng stp -> do
-        liftIO $ enqueue (fromJust $ streamVar st) mb
+        runInIO <- captureMonadState
+        liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
         foldStream st yld sng stp ma
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AheadT'.
@@ -591,7 +592,8 @@ ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 ahead m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
-            liftIO $ enqueue sv (toStream m2)
+            runInIO <- captureMonadState
+            liftIO $ enqueue sv (runInIO, toStream m2)
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.

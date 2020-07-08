@@ -146,7 +146,7 @@ fromSVar sv =
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 toSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> m ()
-toSVar sv m = toStreamVar sv (toStream m)
+toSVar sv m = toStreamVar sv $ toStream m
 
 -------------------------------------------------------------------------------
 -- Process events received by a fold consumer from a stream producer

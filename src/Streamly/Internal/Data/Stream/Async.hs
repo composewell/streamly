@@ -68,7 +68,7 @@ data WorkerStatus = Continue | Suspend
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
     :: (MonadIO m, MonadBaseControl IO m)
-    => IORef [Stream m a]
+    => IORef [(RunInIO m, Stream m a)]
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -77,13 +77,12 @@ workLoopLIFO q st sv winfo = run
 
     where
 
-    mrun = runInIO $ svarMrun sv
+    stop = liftIO $ sendStop sv winfo
     run = do
         work <- dequeue
-        let stop = liftIO $ sendStop sv winfo
         case work of
             Nothing -> stop
-            Just m -> do
+            Just (RunInIO runin, m) -> do
                 -- XXX when we finish we need to send the monadic state back to
                 -- the parent so that the state can be merged back. We capture
                 -- and return the state in the stop continuation.
@@ -91,7 +90,7 @@ workLoopLIFO q st sv winfo = run
                 -- Instead of using the run function we can just restore the
                 -- monad state here. That way it can work easily for
                 -- distributed case as well.
-                r <- liftIO $ mrun $
+                r <- liftIO $ runin $
                         foldStreamShared st yieldk single (return Continue) m
                 res <- restoreM r
                 case res of
@@ -106,9 +105,9 @@ workLoopLIFO q st sv winfo = run
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
         then foldStreamShared st yieldk single (return Continue) r
-        else liftIO $ do
-            -- XXX we also need to save the monadic state here
-            enqueueLIFO sv q r
+        else do
+            runInIO <- captureMonadState
+            liftIO $ enqueueLIFO sv q (runInIO, r)
             return Suspend
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
@@ -122,8 +121,8 @@ workLoopLIFO q st sv winfo = run
 -- make a check every time.
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
-    :: (MonadIO m, MonadBaseControl IO m)
-    => IORef [Stream m a]
+    :: forall m a. (MonadIO m, MonadBaseControl IO m)
+    => IORef [(RunInIO m, Stream m a)]
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -132,14 +131,13 @@ workLoopLIFOLimited q st sv winfo = run
 
     where
 
-    mrun = runInIO $ svarMrun sv
     incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
+    stop = liftIO $ sendStop sv winfo
     run = do
         work <- dequeue
-        let stop = liftIO $ sendStop sv winfo
         case work of
             Nothing -> stop
-            Just m -> do
+            Just (RunInIO runin, m) -> do
                 -- XXX This is just a best effort minimization of concurrency
                 -- to the yield limit. If the stream is made of concurrent
                 -- streams we do not reserve the yield limit in the constituent
@@ -149,7 +147,7 @@ workLoopLIFOLimited q st sv winfo = run
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then do
-                    r <- liftIO $ mrun $
+                    r <- liftIO $ runin $
                             foldStreamShared st yieldk single incrContinue m
                     res <- restoreM r
                     case res of
@@ -158,7 +156,7 @@ workLoopLIFOLimited q st sv winfo = run
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
-                    enqueueLIFO sv q m
+                    enqueueLIFO sv q (RunInIO runin, m)
                     incrementYieldLimit sv
                     sendStop sv winfo
 
@@ -173,9 +171,10 @@ workLoopLIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if res && yieldLimitOk
         then foldStreamShared st yieldk single incrContinue r
-        else liftIO $ do
-            incrementYieldLimit sv
-            enqueueLIFO sv q r
+        else do
+            runInIO <- captureMonadState
+            liftIO $ incrementYieldLimit sv
+            liftIO $ enqueueLIFO sv q (runInIO, r)
             return Suspend
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
@@ -191,7 +190,7 @@ workLoopLIFOLimited q st sv winfo = run
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
     :: (MonadIO m, MonadBaseControl IO m)
-    => LinkedQueue (Stream m a)
+    => LinkedQueue (RunInIO m, Stream m a)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -200,14 +199,13 @@ workLoopFIFO q st sv winfo = run
 
     where
 
-    mrun = runInIO $ svarMrun sv
+    stop = liftIO $ sendStop sv winfo
     run = do
         work <- liftIO $ tryPopR q
-        let stop = liftIO $ sendStop sv winfo
         case work of
             Nothing -> stop
-            Just m -> do
-                r <- liftIO $ mrun $
+            Just (RunInIO runin, m) -> do
+                r <- liftIO $ runin $
                         foldStreamShared st yieldk single (return Continue) m
                 res <- restoreM r
                 case res of
@@ -224,13 +222,14 @@ workLoopFIFO q st sv winfo = run
     -- yielding.
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        liftIO $ enqueueFIFO sv q r
+        runInIO <- captureMonadState
+        liftIO $ enqueueFIFO sv q (runInIO, r)
         return $ if res then Continue else Suspend
 
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
-    :: (MonadIO m, MonadBaseControl IO m)
-    => LinkedQueue (Stream m a)
+    :: forall m a. (MonadIO m, MonadBaseControl IO m)
+    => LinkedQueue (RunInIO m, Stream m a)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -239,25 +238,24 @@ workLoopFIFOLimited q st sv winfo = run
 
     where
 
-    mrun = runInIO $ svarMrun sv
+    stop = liftIO $ sendStop sv winfo
     incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
     run = do
         work <- liftIO $ tryPopR q
-        let stop = liftIO $ sendStop sv winfo
         case work of
             Nothing -> stop
-            Just m -> do
+            Just (RunInIO runin, m) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then do
-                    r <- liftIO $ mrun $
+                    r <- liftIO $ runin $
                             foldStreamShared st yieldk single incrContinue m
                     res <- restoreM r
                     case res of
                         Continue -> run
                         Suspend -> stop
                 else liftIO $ do
-                    enqueueFIFO sv q m
+                    enqueueFIFO sv q (RunInIO runin, m)
                     incrementYieldLimit sv
                     sendStop sv winfo
 
@@ -267,7 +265,8 @@ workLoopFIFOLimited q st sv winfo = run
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        liftIO $ enqueueFIFO sv q r
+        runInIO <- captureMonadState
+        liftIO $ enqueueFIFO sv q (runInIO, r)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if res && yieldLimitOk
         then return Continue
@@ -292,7 +291,7 @@ getLifoSVar st mrun = do
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
-    q       <- newIORef []
+    q       <- newIORef ([] :: [(RunInIO m, Stream m a)])
     yl      <- case getYieldLimit st of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
@@ -317,7 +316,7 @@ getLifoSVar st mrun = do
             -> (SVar Stream m a -> m [ChildEvent a])
             -> (SVar Stream m a -> m Bool)
             -> (SVar Stream m a -> IO Bool)
-            -> (IORef [Stream m a]
+            -> (IORef [(RunInIO m, Stream m a)]
                 -> State Stream m a
                 -> SVar Stream m a
                 -> Maybe WorkerInfo
@@ -414,7 +413,7 @@ getFifoSVar st mrun = do
             -> (SVar Stream m a -> m [ChildEvent a])
             -> (SVar Stream m a -> m Bool)
             -> (SVar Stream m a -> IO Bool)
-            -> (LinkedQueue (Stream m a)
+            -> (LinkedQueue (RunInIO m, Stream m a)
                 -> State Stream m a
                 -> SVar Stream m a
                 -> Maybe WorkerInfo
@@ -611,7 +610,8 @@ forkSVarAsync style m1 m2 = mkStream $ \st yld sng stp -> do
     foldStream st yld sng stp $ fromSVar sv
     where
     concurrently ma mb = mkStream $ \st yld sng stp -> do
-        liftIO $ enqueue (fromJust $ streamVar st) mb
+        runInIO <- captureMonadState
+        liftIO $ enqueue (fromJust $ streamVar st) $ (runInIO, mb)
         foldStreamShared st yld sng stp ma
 
 {-# INLINE joinStreamVarAsync #-}
@@ -620,7 +620,8 @@ joinStreamVarAsync :: (IsStream t, MonadAsync m)
 joinStreamVarAsync style m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
-            liftIO $ enqueue sv (toStream m2)
+            runInIO <- captureMonadState
+            liftIO $ enqueue sv $ (runInIO, toStream m2)
             foldStreamShared st yld sng stp m1
         _ -> foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)
 
