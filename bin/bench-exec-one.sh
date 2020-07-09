@@ -80,21 +80,26 @@ bench_rts_opts_specific () {
 # Speed options
 #------------------------------------------------------------------------------
 
-if test -n "$QUICK_MODE"
-then
-  if test "$QUICK_MODE" -eq 0
+SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0 --include-first-iter"
+QUICKER_OPTIONS="--min-samples 3 --time-limit 1"
+
+# For certain long benchmarks if the user has not requested super quick
+# mode we anyway use a slightly quicker mode.
+use_quicker_mode () {
+  if test -n "$QUICK_MODE"
   then
-    QUICK_OPTIONS="--min-samples 3"
+    if test "$QUICK_MODE" -eq 0
+    then
+      echo $QUICKER_OPTIONS
+    fi
   fi
-fi
-SUPER_QUICK_OPTIONS="--min-samples 1 --include-first-iter"
+}
 
 bench_exe_quick_opts () {
   case "$1" in
     Prelude.Concurrent) echo -n "$SUPER_QUICK_OPTIONS" ;;
     Prelude.Rate) echo -n "$SUPER_QUICK_OPTIONS" ;;
     Prelude.Adaptive) echo -n "$SUPER_QUICK_OPTIONS" ;;
-    fileio) echo -n "$SUPER_QUICK_OPTIONS" ;;
     *) echo -n "" ;;
   esac
 }
@@ -108,18 +113,20 @@ bench_quick_opts () {
         echo -n "$SUPER_QUICK_OPTIONS" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*)
         echo -n "$SUPER_QUICK_OPTIONS" ;;
-    Prelude.Parallel/o-n-heap/generation/*) echo -n "$QUICK_OPTIONS" ;;
-    Prelude.Parallel/o-n-heap/mapping/*) echo -n "$QUICK_OPTIONS" ;;
-    Prelude.Parallel/o-n-heap/concat-foldable/*) echo -n "$QUICK_OPTIONS" ;;
+    Prelude.Parallel/o-n-heap/generation/*) use_quicker_mode ;;
+    Prelude.Parallel/o-n-heap/mapping/*) use_quicker_mode ;;
+    Prelude.Parallel/o-n-heap/concat-foldable/*) use_quicker_mode ;;
 
-    Prelude.Async/o-1-space/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
-    Prelude.Async/o-n-space/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
+    Prelude.Async/o-1-space/monad-outer-product/*) use_quicker_mode ;;
+    Prelude.Async/o-n-space/monad-outer-product/*) use_quicker_mode ;;
 
-    Prelude.Ahead/o-1-space/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
-    Prelude.Ahead/o-n-space/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
+    Prelude.Ahead/o-1-space/monad-outer-product/*) use_quicker_mode ;;
+    Prelude.Ahead/o-n-space/monad-outer-product/*) use_quicker_mode ;;
 
-    Prelude.WAsync/o-n-heap/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
-    Prelude.WAsync/o-n-space/monad-outer-product/*) echo -n "$QUICK_OPTIONS" ;;
+    Prelude.WAsync/o-n-heap/monad-outer-product/*) use_quicker_mode ;;
+    Prelude.WAsync/o-n-space/monad-outer-product/*) use_quicker_mode ;;
+
+    FileSystem.Handle/*) use_quicker_mode ;;
     *) echo -n "" ;;
   esac
 }

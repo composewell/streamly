@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# Note "_grp" and "_cmp" suffixes are special, do not rename them to something
-# else.
-
 #------------------------------------------------------------------------------
 # Benchmark groups
 #------------------------------------------------------------------------------
+
+# IMPORTANT NOTE: the names "_grp" and "_cmp" suffixes are special, do
+# not rename them to something else.
+
 base_stream_grp="\
     Data.Stream.StreamD \
     Data.Stream.StreamK \
@@ -72,7 +73,8 @@ all_grp="\
     $prelude_concurrent_grp \
     $array_grp \
     $parser_grp \
-    Data.Unfold"
+    Data.Unfold \
+    FileSystem.Handle"
 
 ALL_BENCH_GROUPS="\
     all_grp \
@@ -287,7 +289,7 @@ run_bench () {
 
   echo "Running benchmark $bench_name ..."
 
-  local QUICK_OPTS="--quick --time-limit 1 --min-duration 0"
+  local QUICK_OPTS="--quick --min-duration 0"
   local SPEED_OPTIONS
   if test "$LONG" -eq 0
   then
@@ -297,10 +299,10 @@ run_bench () {
         if test "$QUICK_MODE" -eq 0
         then
           # default mode, not super quick, not slow
-          SPEED_OPTIONS="$QUICK_OPTS --min-samples 10"
+          SPEED_OPTIONS="$QUICK_OPTS --min-samples 10 --time-limit 1"
         else
           # super quick but less accurate
-          SPEED_OPTIONS="$QUICK_OPTS --include-first-iter"
+          SPEED_OPTIONS="$QUICK_OPTS --time-limit 0 --include-first-iter"
         fi
     else
       # Slow but more accurate mode
