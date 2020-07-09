@@ -33,23 +33,22 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.Memory.Unicode.Array as IUA
+import qualified Streamly.Internal.Data.Prim.Pinned.Unicode.Array as IUA
 import qualified Streamly.Internal.Prelude as IP
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
 import Handle.Common
 
 #ifdef INSPECTION
+-- XXX Is this required anymore?
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Strict as Strict
-import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array.Types as AT
 
 import Test.Inspection
 #endif
@@ -185,8 +184,8 @@ copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
 inspect $ hasNoTypeClasses 'copyStream
 inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
 inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'copyStream `hasNoType` ''A.ReadUState  -- FH.read/A.read
-inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+-- inspect $ 'copyStream `hasNoType` ''A.ReadUState  -- FH.read/A.read
+-- inspect $ 'copyStream `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
@@ -202,8 +201,8 @@ copyStreamLatin1 inh outh =
 inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
-inspect $ 'copyStreamLatin1 `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+-- inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
+-- inspect $ 'copyStreamLatin1 `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
@@ -218,7 +217,7 @@ _copyStreamUtf8 inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses '_copyStreamUtf8
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''Step
--- inspect $ '_copyStreamUtf8 `hasNoType` ''AT.FlattenState
+-- inspect $ '_copyStreamUtf8 `hasNoType` ''A.FlattenState
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''D.ConcatMapUState
 #endif
 
@@ -233,7 +232,7 @@ copyStreamUtf8Lax inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamUtf8Lax
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''Step
--- inspect $ 'copyStreamUtf8Lax `hasNoType` ''AT.FlattenState
+-- inspect $ 'copyStreamUtf8Lax `hasNoType` ''A.FlattenState
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
@@ -267,8 +266,8 @@ readFromBytesNull inh devNull = IFH.fromBytes devNull $ S.unfold FH.read inh
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readFromBytesNull
 inspect $ 'readFromBytesNull `hasNoType` ''Step
-inspect $ 'readFromBytesNull `hasNoType` ''AT.SpliceState
-inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readFromBytesNull `hasNoType` ''A.SpliceState
+-- inspect $ 'readFromBytesNull `hasNoType` ''A.ArrayUnsafe -- FH.fromBytes/S.arraysOf
 inspect $ 'readFromBytesNull `hasNoType` ''D.GroupState
 #endif
 
@@ -431,8 +430,8 @@ o_1_space_copy_stream_exceptions env =
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
 copyChunksSplitInterposeSuffix inh outh =
     S.fold (IFH.write outh)
-        $ AS.interposeSuffix 10
-        $ AS.splitOnSuffix 10
+        $ IP.interposeSuffix 10 A.read
+        $ IP.splitInnerBySuffix (A.breakOn 10) A.spliceTwo
         $ IFH.toChunks inh
 
 #ifdef INSPECTION
@@ -444,9 +443,9 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Storable]
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
     S.fold (IFH.write outh)
-        $ AS.interpose 32
+        $ IP.interpose 32 A.read
         -- XXX this is not correct word splitting combinator
-        $ AS.splitOn 32
+        $ IP.splitInnerBy (A.breakOn 32) A.spliceTwo
         $ IFH.toChunks inh
 
 #ifdef INSPECTION
@@ -457,9 +456,9 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Storable]
 o_1_space_copy_toChunks_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_toChunks_group_ungroup env =
     [ bgroup "copy/toChunks/group-ungroup"
-        [ mkBench "AS.interposeSuffix . AS.splitOnSuffix" env $ \inh outh ->
+        [ mkBench "IP.interposeSuffix . IP.splitInnerBySuffix (A.breakOn 10) A.spliceTwo" env $ \inh outh ->
             copyChunksSplitInterposeSuffix inh outh
-        , mkBenchSmall "AS.interpose . AS.splitOn" env $ \inh outh ->
+        , mkBenchSmall "IP.interpose . IP.splitInnerBy (A.breakOn 32) A.spliceTwo" env $ \inh outh ->
             copyChunksSplitInterpose inh outh
         ]
     ]

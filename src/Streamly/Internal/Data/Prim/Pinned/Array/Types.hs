@@ -41,6 +41,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , FlattenState (..) -- for inspection testing
     , flattenArrays
     , flattenArraysRev
+    , SpliceState (..) -- for inspection testing
     , packArraysChunksOf
     , lpackArraysChunksOf
 #if !defined(mingw32_HOST_OS)
