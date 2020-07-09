@@ -125,6 +125,7 @@ list_comparisons ()  {
 print_help () {
   echo "Usage: $0 "
   echo "       [--benchmarks <"bench1 bench2 ..." | help>]"
+  echo "       [--fields <"field1 field2 ..." | help>]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
   echo "       [--append]"
@@ -136,6 +137,7 @@ print_help () {
   echo "       -- <gauge options or benchmarks>"
   echo
   echo "--benchmarks: benchmarks to run, use 'help' for list of benchmarks"
+  echo "--fields: measurement fields to report, use 'help' for a list"
   echo "--graphs: Generate graphical reports"
   echo "--no-measure: Don't run benchmarks, run reports from previous results"
   echo "--append: Don't overwrite previous results, append for comparison"
@@ -394,7 +396,7 @@ run_reports() {
     do
         echo "Generating reports for ${i}..."
         $prog $(test "$GRAPH" = 1 && echo "--graphs") \
-              --benchmark $i
+              --benchmark $i --fields "$FIELDS"
     done
 }
 
@@ -403,6 +405,9 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="$all_grp"
+DEFAULT_FIELDS="allocated bytescopied cputime"
+ALL_FIELDS="$FIELDS time cycles utime stime minflt majflt nvcsw nivcsw"
+FIELDS=$DEFAULT_FIELDS
 
 COMPARE=0
 BASE=
@@ -438,6 +443,7 @@ do
     -h|--help|help) print_help ;;
     # options with arguments
     --benchmarks) shift; BENCHMARKS=$1; shift ;;
+    --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
     --cabal-build-flags) shift; CABAL_BUILD_FLAGS=$1; shift ;;
@@ -476,10 +482,10 @@ only_real_benchmarks () {
   done
 }
 
-has_benchmark () {
-  for i in $BENCHMARKS_ORIG
+has_item () {
+  for i in $1
   do
-    if test "$i" = "$1"
+    if test "$i" = "$2"
     then
       echo "$i"
       break
@@ -488,11 +494,18 @@ has_benchmark () {
 }
 
 BENCHMARKS_ORIG=$BENCHMARKS
-if test "$(has_benchmark help)" = "help"
+if test "$(has_item "$BENCHMARKS_ORIG" help)" = "help"
 then
   list_bench_groups
   list_comparisons
   list_benches
+  exit
+fi
+
+if test "$(has_item "$FIELDS" help)" = "help"
+then
+  echo "Supported fields: $ALL_FIELDS"
+  echo "Default fields: $DEFAULT_FIELDS"
   exit
 fi
 
@@ -559,7 +572,7 @@ fi
 COMPARISON_REPORTS=""
 for i in $COMPARISONS
 do
-  if test "$(has_benchmark $i)" = $i
+  if test "$(has_item "$BENCHMARKS_ORIG" $i)" = $i
   then
     COMPARISON_REPORTS="$COMPARISON_REPORTS $i"
     mkdir -p "charts/$i"

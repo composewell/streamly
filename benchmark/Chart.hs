@@ -26,10 +26,11 @@ data BenchType
 data Options = Options
     { genGraphs :: Bool
     , benchType :: Maybe BenchType
+    , fields :: [String]
     } deriving Show
 
 defaultOptions :: Options
-defaultOptions = Options False Nothing
+defaultOptions = Options False Nothing ["time"]
 
 setGenGraphs :: Monad m => Bool -> StateT (a, Options) m ()
 setGenGraphs val = do
@@ -40,6 +41,11 @@ setBenchType :: Monad m => BenchType -> StateT (a, Options) m ()
 setBenchType val = do
     (args, opts) <- get
     put (args, opts { benchType = Just val })
+
+setFields :: Monad m => [String] -> StateT (a, Options) m ()
+setFields val = do
+    (args, opts) <- get
+    put (args, opts { fields = val })
 
 -- Like the shell "shift" to shift the command line arguments
 shift :: StateT ([String], Options) (MaybeT IO) (Maybe String)
@@ -59,6 +65,16 @@ parseBench = do
                 liftIO $ putStrLn "please provide a benchmark type "
                 mzero
 
+parseFields :: StateT ([String], Options) (MaybeT IO) ()
+parseFields = do
+    x <- shift
+    case x of
+        Just str -> setFields (words str)
+        Nothing -> do
+                liftIO $ putStrLn
+                    "please provide a list of fields after --fields"
+                mzero
+
 -- totally imperative style option parsing
 parseOptions :: IO (Maybe Options)
 parseOptions = do
@@ -71,8 +87,9 @@ parseOptions = do
 
     parseOpt opt =
         case opt of
-            "--graphs"     -> setGenGraphs True
-            "--benchmark"  -> parseBench
+            "--graphs"    -> setGenGraphs True
+            "--benchmark" -> parseBench
+            "--fields"    -> parseFields
             str -> do
                 liftIO $ putStrLn $ "Unrecognized option " <> str
                 mzero
@@ -147,28 +164,21 @@ benchShow Options{..} cfg func inp out =
 
 main :: IO ()
 main = do
-    let cfg = defaultConfig
-            { presentation = Groups PercentDiff
-            , selectBenchmarks = selectBench
-            , selectFields = filter
-                ( flip elem [ "time"
-                            , "mean"
-                            , "cputime"
-                            , "allocated"
-                            , "bytescopied"
-                            , "maxrss"
-                            ]
-                . fmap toLower
-                )
-            }
     res <- parseOptions
-
     case res of
         Nothing -> do
             putStrLn "cannot parse options"
             return ()
-        Just opts@Options{..} ->
-            case benchType of
+        Just opts@Options{fields = fs, benchType = btype} ->
+            let cfg = defaultConfig
+                    { presentation = Groups PercentDiff
+                    , selectBenchmarks = selectBench
+                    , selectFields = filter
+                        ( flip elem fs
+                        . fmap toLower
+                        )
+                    }
+            in case btype of
                 Just (Compare str) ->
                     showComparisons opts cfg
                         { title = Just str }
