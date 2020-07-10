@@ -558,7 +558,7 @@ import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enu
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array, writeN)
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
@@ -3631,13 +3631,13 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- Same as the following but may be more efficient:
 --
--- > arraysOf n = S.chunksOf n (A.writeN n)
+-- > arraysOf n = S.chunksOf n (A.writeNUnsafe n)
 --
 -- /Internal/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, PrimMonad m, Prim a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = chunksOf n (writeN n)
+arraysOf n = chunksOf n (writeNUnsafe n)
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

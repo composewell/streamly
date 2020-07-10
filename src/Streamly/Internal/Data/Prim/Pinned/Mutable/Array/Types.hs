@@ -52,6 +52,8 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
     , byteLength
 
     , writeN
+    , ArrayUnsafe(..)
+    , writeNUnsafe
     , writeNAligned
     , write
 

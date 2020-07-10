@@ -50,6 +50,8 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
     , byteLength
 
     , writeN
+    , ArrayUnsafe(..)
+    , writeNUnsafe
     , write
 
     -- * Utilities

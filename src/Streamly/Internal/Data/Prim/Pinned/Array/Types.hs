@@ -68,6 +68,8 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , toList
 --    , toArrayMinChunk
     , writeN
+    , MA.ArrayUnsafe(..)
+    , writeNUnsafe
     , write
 
     , unlines

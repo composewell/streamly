@@ -185,7 +185,7 @@ inspect $ hasNoTypeClasses 'copyStream
 inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
 inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 -- inspect $ 'copyStream `hasNoType` ''A.ReadUState  -- FH.read/A.read
--- inspect $ 'copyStream `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStream `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
@@ -202,7 +202,7 @@ inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 -- inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
--- inspect $ 'copyStreamLatin1 `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStreamLatin1 `hasNoType` ''A.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
@@ -267,7 +267,7 @@ readFromBytesNull inh devNull = IFH.fromBytes devNull $ S.unfold FH.read inh
 inspect $ hasNoTypeClasses 'readFromBytesNull
 inspect $ 'readFromBytesNull `hasNoType` ''Step
 inspect $ 'readFromBytesNull `hasNoType` ''A.SpliceState
--- inspect $ 'readFromBytesNull `hasNoType` ''A.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readFromBytesNull `hasNoType` ''A.ArrayUnsafe -- FH.fromBytes/S.arraysOf
 inspect $ 'readFromBytesNull `hasNoType` ''D.GroupState
 #endif
 

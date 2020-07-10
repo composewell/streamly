@@ -164,6 +164,35 @@ writeN limit = Fold step initial extract
 
     extract (Tuple' marr len) = shrinkArray marr len >> return marr
 
+-- Use Tuple' instead?
+data ArrayUnsafe s a = ArrayUnsafe
+    {-# UNPACK #-} !(Array s a)
+    {-# UNPACK #-} !Int
+
+-- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- driver must not call the step function more than 'n' times otherwise it will
+-- corrupt the memory and crash. This function exists mainly because any
+-- conditional in the step function blocks fusion causing 10x performance
+-- slowdown.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL writeNUnsafe #-}
+writeNUnsafe ::
+       forall m a. (PrimMonad m, Prim a)
+    => Int
+    -> Fold m a (Array (PrimState m) a)
+writeNUnsafe n = Fold step initial extract
+
+    where
+
+    initial = do
+        arr <- newArray (max n 0)
+        return $ ArrayUnsafe arr 0
+    step (ArrayUnsafe marr i) x = do
+        writeArray marr i x
+        return $ ArrayUnsafe marr (i + 1)
+    extract (ArrayUnsafe marr i) = shrinkArray marr i >> return marr
+
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN ::
        forall m a. (PrimMonad m, Prim a)

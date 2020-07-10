@@ -326,13 +326,13 @@ chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
     -- XXX replace with S.arraysOf
-    S.length $ S.chunksOf n (A.writeN n) (S.unfold FH.read inh)
+    S.length $ S.chunksOf n (A.writeNUnsafe n) (S.unfold FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
 inspect $ 'chunksOf `hasNoType` ''GroupState
--- inspect $ 'chunksOf `hasNoType` ''A.ArrayUnsafe -- A.writeNUnsafe
+inspect $ 'chunksOf `hasNoType` ''A.ArrayUnsafe -- A.writeNUnsafe
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 -- inspect $ 'chunksOf `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
@@ -351,7 +351,7 @@ _chunksOfD n inh =
 inspect $ hasNoTypeClasses '_chunksOfD
 inspect $ '_chunksOfD `hasNoType` ''Step
 inspect $ '_chunksOfD `hasNoType` ''GroupState
--- inspect $ '_chunksOfD `hasNoType` ''A.ArrayUnsafe -- A.writeNUnsafe
+inspect $ '_chunksOfD `hasNoType` ''A.ArrayUnsafe -- A.writeNUnsafe
 inspect $ '_chunksOfD `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 -- inspect $ '_chunksOfD `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
