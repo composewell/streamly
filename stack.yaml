@@ -1,6 +1,7 @@
 resolver: lts-14.25
 packages:
 - '.'
+- './benchmark'
 extra-deps:
     - SDL-0.6.6.0
     - Chart-1.9.1
