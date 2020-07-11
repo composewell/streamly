@@ -472,7 +472,7 @@ some =
         let
             ls = 0 : genLs
             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
-            prsr = D.some concatFold $ D.sliceSepBy (== 1) FL.toList
+            prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
         in
             case S.parseD prsr (S.fromList ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls
@@ -480,7 +480,7 @@ some =
 
 someFail :: Property
 someFail = 
-    property (case S.parseD (D.some FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
