@@ -466,22 +466,23 @@ many_empty =
         Right res_list -> checkListEqual res_list ([] :: [Int])
         Left _ -> property False)
 
--- some :: Property
--- some =
---     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         let
---             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
---             prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
---         in
---             case S.parseD prsr (S.fromList ls) of
---                 Right res_list -> res_list == Prelude.filter (== 0) ls
---                 Left _ -> False
+some :: Property
+some = 
+    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
+        let
+            ls = 0 : genLs
+            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+            prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
+        in
+            case S.parseD prsr (S.fromList ls) of
+                Right res_list -> res_list == Prelude.filter (== 0) ls
+                Left _ -> False
 
--- someFail :: Property
--- someFail =
---     property (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
---         Right _ -> False
---         Left _ -> True)
+someFail :: Property
+someFail = 
+    property (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
 
 main :: IO ()
 main =
@@ -535,6 +536,6 @@ main =
         prop "fail due to die as both parsers" longestFailBoth
         prop "P.many concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" many
         prop "[] due to parser being die" many_empty
-        -- prop "" some
-        -- prop "fail due to parser being die" someFail
+        prop "P.some concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" some
+        prop "fail due to parser being die" someFail
     takeProperties

@@ -340,15 +340,15 @@ sliceSepBy =
         where
             predicate = (== 1)
 
--- sliceSepByMax :: Property
--- sliceSepByMax =
---     forAll (chooseInt (min_value, max_value)) $ \n ->
---         forAll (listOf (chooseInt (0, 1))) $ \ls ->
---             case S.parse (P.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
---                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
---                 Left _ -> property False
---             where
---                 predicate = (== 1)
+sliceSepByMax :: Property
+sliceSepByMax =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            case S.parse (P.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
+                Left _ -> property False
+            where
+                predicate = (== 1)
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -450,6 +450,41 @@ sliceSepBy =
 --         Right _ -> False
 --         Left _ -> True)
 
+many :: Property
+many = 
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let
+            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+            prsr = P.many concatFold $ P.sliceSepBy (== 1) FL.toList
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right res_list -> checkListEqual res_list (Prelude.filter (== 0) ls)
+                Left _ -> property False
+
+-- many_empty :: Property
+-- many_empty = 
+--     property (case S.parse (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right res_list -> checkListEqual res_list ([] :: [Int])
+--         Left _ -> property False)
+
+some :: Property
+some = 
+    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
+        let
+            ls = 0 : genLs
+            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+            prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right res_list -> res_list == Prelude.filter (== 0) ls
+                Left _ -> False
+
+-- someFail :: Property
+-- someFail = 
+--     property (case S.parse (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
 main :: IO ()
 main =
     hspec $
@@ -485,18 +520,22 @@ main =
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
-        -- prop "test for sliceSepByMax function" sliceSepByMax
-        -- prop "pass test for splitWith function" splitWithPass
-        -- prop "left fail test for splitWith function" splitWithFailLeft
-        -- prop "right fail test for splitWith function" splitWithFailRight
-        -- prop "both fail test for splitWith function" splitWithFailBoth
-        -- prop "pass test for teeWith function" teeWithPass
-        -- prop "left fail test for teeWith function" teeWithFailLeft
-        -- prop "right fail test for teeWith function" teeWithFailRight
-        -- prop "both fail test for teeWith function" teeWithFailBoth
-        -- prop "test for deintercalate function" deintercalate
-        -- prop "pass test for shortest function" shortestPass
-        -- prop "left fail test for shortest function" shortestFailLeft
-        -- prop "right fail test for shortest function" shortestFailRight
-        -- prop "both fail test for shortest function" shortestFailBoth
+        prop "P.sliceSepByMax n predicate = Prelude.take n (Prelude.takeWhile (not . predicate))" sliceSepByMax
+        -- prop "" splitWithPass
+        -- prop "" splitWithFailLeft
+        -- prop "" splitWithFailRight
+        -- prop "" splitWithFailBoth
+        -- prop "" teeWithPass
+        -- prop "" teeWithFailLeft
+        -- prop "" teeWithFailRight
+        -- prop "" teeWithFailBoth
+        -- prop "" deintercalate
+        -- prop "" shortestPass
+        -- prop "" shortestFailLeft
+        -- prop "" shortestFailRight
+        -- prop "" shortestFailBoth
+        prop "P.many concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" many
+        -- prop "[] due to parser being die" many_empty
+        prop "P.some concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" some
+        -- prop "fail due to parser being die" someFail
     takeProperties
