@@ -184,7 +184,6 @@ set_benchmarks() {
   fi
 }
 
-# $1: benchmark name (linear, nested, base)
 find_report_prog() {
     local prog_name="chart"
     hash -r # XXX Why is this required?
@@ -208,7 +207,7 @@ find_report_prog() {
 # The path is dependent on the architecture and cabal version.
 # Use this command to find the exe if this script fails with an error:
 # find .stack-work/ -type f -name "benchmarks"
-
+# $1: benchmark name (Prelude.Serial, Prelude.WSerial)
 stack_bench_prog () {
   local bench_name=$1
   local bench_prog=`stack path --dist-dir`/build/$bench_name/$bench_name
@@ -220,6 +219,7 @@ stack_bench_prog () {
   fi
 }
 
+# $1: benchmark name (Prelude.Serial, Prelude.WSerial)
 cabal_bench_prog () {
   local bench_name=$1
   local bench_prog=`$WHICH_COMMAND $1`
@@ -231,6 +231,7 @@ cabal_bench_prog () {
   fi
 }
 
+# $1: benchmark name (Prelude.Serial, Prelude.WSerial)
 bench_output_file() {
     local bench_name=$1
     echo "charts/$bench_name/results.csv"
@@ -254,7 +255,7 @@ function run_verbose() {
 #
 # We can pass --min-samples value from the command line as second argument
 # after the benchmark name in case we want to use more than one sample.
-
+# $1: benchmark name (Prelude.Serial, Prelude.WSerial)
 run_bench () {
   local bench_name=$1
   local bench_exe=$bench_name
@@ -301,6 +302,7 @@ run_bench () {
     $GAUGE_ARGS || die "Benchmarking failed"
 }
 
+# $1: multiple benchmark names "Prelude.Serial Prelude.Rate"
 run_benches() {
     for i in $1
     do
@@ -308,6 +310,7 @@ run_benches() {
     done
 }
 
+# $1: multiple benchmark names "Prelude.Serial Prelude.Rate"
 run_benches_comparing() {
     local bench_list=$1
 
@@ -336,6 +339,7 @@ run_benches_comparing() {
     # XXX reset back to the original commit
 }
 
+# $1: benchmark name (Prelude.Serial, Prelude.WSerial)
 backup_output_file() {
   local bench_name=$1
   local output_file=$(bench_output_file $bench_name)
@@ -346,6 +350,7 @@ backup_output_file() {
   fi
 }
 
+# $1: multiple benchmark names "Prelude.Serial Prelude.Rate"
 run_measurements() {
   local bench_list=$1
 
@@ -480,6 +485,8 @@ only_real_benchmarks () {
   done
 }
 
+# $1: multiple names "apple mango"
+# $2: single name "mango"
 has_item () {
   for i in $1
   do
