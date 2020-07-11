@@ -67,7 +67,7 @@ import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
 import Control.Exception (onException)
 import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (when)
+import Control.Monad (forM_, when)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -164,7 +164,7 @@ listenTuples = Unfold step inject
         liftIO $ initListener listenQLen spec addr
 
     step listener = do
-        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
+        r <- liftIO (Net.accept listener `onException` Net.close listener)
         return $ D.Yield r listener
 
 -- | Unfold a three tuple @(listenQLen, spec, addr)@ into a stream of connected
@@ -189,9 +189,7 @@ connectCommon SockSpec{..} local remote = withSocketsDo $ do
 
     use sock = do
         mapM_ (\(opt, val) -> setSocketOption sock opt val) sockOpts
-        case local of
-            Nothing -> return ()
-            Just addr -> bind sock addr
+        forM_ local (bind sock)
         Net.connect sock remote
 
 -- | Connect to a remote host using the given socket specification and remote
@@ -201,7 +199,7 @@ connectCommon SockSpec{..} local remote = withSocketsDo $ do
 --
 {-# INLINE connect #-}
 connect :: SockSpec -> SockAddr -> IO Socket
-connect spec remote = connectCommon spec Nothing remote
+connect spec = connectCommon spec Nothing
 
 -- | Connect to a remote host using the given socket specification, a local
 -- address to bind to and a remote address to connect to. Returns a connected
@@ -211,7 +209,7 @@ connect spec remote = connectCommon spec Nothing remote
 --
 {-# INLINE connectFrom #-}
 connectFrom :: SockSpec -> SockAddr -> SockAddr -> IO Socket
-connectFrom spec local remote = connectCommon spec (Just local) remote
+connectFrom spec local = connectCommon spec (Just local)
 
 -------------------------------------------------------------------------------
 -- Listen (Streams)
@@ -224,11 +222,11 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
     where
     step Nothing = do
         listener <- liftIO $ initListener tcpListenQ spec addr
-        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
+        r <- liftIO (Net.accept listener `onException` Net.close listener)
         return $ Just (r, Just listener)
 
     step (Just listener) = do
-        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
+        r <- liftIO (Net.accept listener `onException` Net.close listener)
         return $ Just (r, Just listener)
 
 -- | Start a TCP stream server that listens for connections on the supplied

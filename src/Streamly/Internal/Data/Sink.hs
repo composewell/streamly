@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Sink
     )
 where
 
-import Control.Monad (when, void)
+import Control.Monad ((>=>), when, void)
 import Data.Map.Strict (Map)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -197,7 +197,7 @@ demux kv = Sink step
 {-# INLINE unzipM #-}
 unzipM :: Monad m => (a -> m (b,c)) -> Sink m b -> Sink m c -> Sink m a
 unzipM f (Sink stepB) (Sink stepC) =
-    Sink (\a -> f a >>= \(b,c) -> stepB b >> stepC c)
+    Sink (f >=> (\(b, c) -> stepB b >> stepC c))
 
 -- | Same as 'unzipM' but with a pure unzip function.
 {-# INLINE unzip #-}
@@ -216,7 +216,7 @@ lmap f (Sink step) = Sink (step . f)
 -- | Map a monadic function on the input of a 'Sink'.
 {-# INLINABLE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Sink m b -> Sink m a
-lmapM f (Sink step) = Sink (\x -> f x >>= step)
+lmapM f (Sink step) = Sink (f >=> step)
 
 -- | Filter the input of a 'Sink' using a pure predicate function.
 {-# INLINABLE lfilter #-}

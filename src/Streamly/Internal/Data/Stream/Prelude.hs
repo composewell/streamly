@@ -148,7 +148,7 @@ foldrMx step final project m = D.foldrMx step final project $ D.toStreamD m
 
 {-# INLINE foldr #-}
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b
-foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
+foldr f z = foldrM (\a b -> f a <$> b) (return z)
 
 -- | Like 'foldlx'', but with a monadic step function.
 --

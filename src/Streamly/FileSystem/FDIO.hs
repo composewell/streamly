@@ -22,9 +22,9 @@ module Streamly.FileSystem.FDIO
     )
 where
 
+import Control.Monad (when)
 #if !defined(mingw32_HOST_OS)
 import Control.Concurrent (threadWaitWrite)
-import Control.Monad (when)
 import Data.Int (Int64)
 import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
 #if __GLASGOW_HASKELL__ >= 802
@@ -193,9 +193,8 @@ writeAll :: FD -> Ptr Word8 -> Int -> IO ()
 writeAll fd ptr bytes = do
     res <- write fd ptr 0 (fromIntegral bytes)
     let res' = fromIntegral res
-    if res' < bytes
-    then writeAll fd (ptr `plusPtr` res') (bytes - res')
-    else return ()
+    when (res' < bytes) $
+      writeAll fd (ptr `plusPtr` res') (bytes - res')
 
 -------------------------------------------------------------------------------
 -- Vector IO

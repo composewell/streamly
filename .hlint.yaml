@@ -18,6 +18,9 @@
 - ignore: {name: "Use <>"}
 - ignore: {name: "Use fewer imports"}
 - ignore: {name: "Use camelCase"}
+- ignore: {name: "Use <$>"}
+- ignore: {name: "Use uncurry"}
+- ignore: {name: "Redundant $!"}
 
 
 # Specify additional command line arguments

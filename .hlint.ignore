@@ -1,5 +1,3 @@
-src/Streamly/Internal/BaseCompat.hs
-src/Streamly/Internal/Control/Monad.hs
 src/Streamly/Internal/Data/Stream/SVar.hs
 src/Streamly/Internal/Data/Stream/Serial.hs
 src/Streamly/Internal/Data/Stream/Zip.hs
@@ -14,16 +12,7 @@ src/Streamly/Internal/Data/Stream/StreamD/Type.hs
 src/Streamly/Internal/Data/Stream/StreamDK/Type.hs
 src/Streamly/Internal/Data/Stream/StreamD.hs
 src/Streamly/Internal/Data/Pipe/Types.hs
-src/Streamly/Internal/Data/Sink.hs
-src/Streamly/Internal/Data/Parser/ParserD/Types.hs
-src/Streamly/Internal/Data/Parser/ParserD.hs
 src/Streamly/Internal/Data/Prim/Array/Types.hs
 src/Streamly/Internal/Data/SmallArray/Types.hs
-src/Streamly/Internal/Data/Unfold.hs
 src/Streamly/Internal/Data/Unicode/Stream.hs
-src/Streamly/Internal/Memory/Array/Types.hs
 src/Streamly/Internal/Mutable/Prim/Var.hs
-src/Streamly/Internal/Network/Socket.hs
-src/Streamly/Internal/Data/Stream/Prelude.hs
-src/Streamly/FileSystem/FDIO.hs
-src/Streamly/Data/Unfold.hs
