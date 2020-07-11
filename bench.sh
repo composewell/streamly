@@ -429,8 +429,14 @@ CABAL_BUILD_FLAGS=""
 
 GHC_VERSION=$(ghc --numeric-version)
 
+CABAL_BUILD_DIR="dist-newstyle"
+
 cabal_which() {
-  find dist-newstyle -type f -path "*${GHC_VERSION}*/$1"
+  if test -z "$CABAL_BUILD_DIR"
+  then
+    CABAL_BUILD_DIR="dist-newstyle"
+  fi
+  find "$CABAL_BUILD_DIR/build" -type f -path "*${GHC_VERSION}*/$1"
 }
 
 #-----------------------------------------------------------------------------
@@ -463,6 +469,17 @@ do
   esac
 done
 GAUGE_ARGS=$*
+
+# Parse cabal build flags for any quirks
+# Dont specify the "build" directory of another build.
+# Legal: dist-newstyle, dist-newstyle/commit-hash
+# Illegal: dist-newstyle/build
+for option in "$CABAL_BUILD_FLAGS"
+do
+  case $option in
+    --builddir=*) CABAL_BUILD_DIR=${option:11}; break ;;
+  esac
+done
 
 only_real_benchmarks () {
   for i in $BENCHMARKS
@@ -536,7 +553,7 @@ else
   # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
   #WHICH_COMMAND="cabal v2-exec which"
   WHICH_COMMAND=cabal_which
-  BUILD_CHART_EXE="cabal v2-build --flags dev chart"
+  BUILD_CHART_EXE="cabal v2-build --builddir=$CABAL_BUILD_DIR --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
   BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
 fi
