@@ -126,6 +126,7 @@ module Streamly.Internal.Data.Unfold
 where
 
 import Control.Exception (Exception, mask_)
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Void (Void)
@@ -173,7 +174,7 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 -- /Internal/
 {-# INLINE_NORMAL lmapM #-}
 lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
-lmapM f (Unfold ustep uinject) = Unfold ustep (\x -> f x >>= uinject)
+lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
 
 -- XXX change the signature to the following?
 -- supply :: a -> Unfold m a b -> Unfold m Void b
@@ -289,7 +290,7 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
         case r of
             Yield x s -> f x >>= \a -> return $ Yield a s
             Skip s    -> return $ Skip s
-            Stop      -> return $ Stop
+            Stop      -> return Stop
 
 {-# INLINE_NORMAL mapMWithInput #-}
 mapMWithInput :: Monad m => (a -> b -> m c) -> Unfold m a b -> Unfold m a c
@@ -305,7 +306,7 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
         case r of
             Yield x s -> f inp x >>= \a -> return $ Yield a (inp, s)
             Skip s    -> return $ Skip (inp, s)
-            Stop      -> return $ Stop
+            Stop      -> return Stop
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
@@ -437,7 +438,7 @@ replicateM n = Unfold step inject
     step (x, i) = return $
         if i <= 0
         then Stop
-        else Yield x (x, (i - 1))
+        else Yield x (x, i - 1)
 
 -- | Generates an infinite stream repeating the seed.
 --
@@ -536,7 +537,7 @@ enumerateFromStepIntegral = Unfold step inject
     where
     inject (from, stride) = from `seq` stride `seq` return (from, stride)
     {-# INLINE_LATE step #-}
-    step !(x, stride) = return $ Yield x $! (x + stride, stride)
+    step (x, stride) = return $ Yield x $! (x + stride, stride)
 
 -- We are assuming that "to" is constrained by the type to be within
 -- max/min bounds.
@@ -850,8 +851,8 @@ gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 --
 {-# INLINE_NORMAL _before #-}
 _before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_before action unf = gbracket (\x -> action x >> return x) (fmap Right)
-                             (\_ -> return ()) undefined unf
+_before action = gbracket (\x -> action x >> return x) (fmap Right)
+                             (\_ -> return ()) undefined
 
 -- | Run a side effect before the unfold yields its first element.
 --
@@ -864,8 +865,7 @@ before action (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         _ <- action x
-        st <- inject1 x
-        return st
+        inject1 x
 
     {-# INLINE_LATE step #-}
     step st = do
@@ -932,10 +932,10 @@ afterIO action (Unfold step1 inject1) = Unfold step inject
 
 {-# INLINE_NORMAL _onException #-}
 _onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_onException action unf =
+_onException action =
     gbracket return MC.try
         (\_ -> return ())
-        (nilM (\(a, (e :: MC.SomeException)) -> action a >> MC.throwM e)) unf
+        (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
 -- | Run a side effect whenever the unfold aborts due to an exception.
 --
@@ -960,9 +960,9 @@ onException action (Unfold step1 inject1) = Unfold step inject
 
 {-# INLINE_NORMAL _finally #-}
 _finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_finally action unf =
+_finally action =
     gbracket return MC.try action
-        (nilM (\(a, (e :: MC.SomeException)) -> action a >> MC.throwM e)) unf
+        (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
 -- | Run a side effect whenever the unfold stops normally or aborts due to an
 -- exception.
@@ -1019,9 +1019,9 @@ finallyIO action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL _bracket #-}
 _bracket :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-_bracket bef aft unf =
-    gbracket bef MC.try aft (nilM (\(a, (e :: MC.SomeException)) -> aft a >>
-    MC.throwM e)) unf
+_bracket bef aft =
+    gbracket bef MC.try aft (nilM (\(a, e :: MC.SomeException) -> aft a >>
+    MC.throwM e))
 
 -- | @bracket before after between@ runs the @before@ action and then unfolds
 -- its output using the @between@ unfold. When the @between@ unfold is done or
@@ -1094,5 +1094,5 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e)
     => Unfold m e b -> Unfold m a b -> Unfold m a b
-handle exc unf =
-    gbracket return MC.try (\_ -> return ()) (discardFirst exc) unf
+handle exc =
+    gbracket return MC.try (\_ -> return ()) (discardFirst exc)

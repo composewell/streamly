@@ -235,13 +235,7 @@ any predicate = Parser step initial return
 
     initial = return False
 
-    step s a = return $
-        if s
-        then Done 0 True
-        else
-            if predicate a
-            then Done 0 True
-            else Partial 0 False
+    step s a = return (if s || predicate a then Done 0 True else Partial 0 False)
 
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parser m a Bool
@@ -251,13 +245,7 @@ all predicate = Parser step initial return
 
     initial = return True
 
-    step s a = return $
-        if s
-        then
-            if predicate a
-            then Partial 0 True
-            else Done 0 False
-        else Done 0 False
+    step s a = return (if s && predicate a then Partial 0 True else Done 0 False)
 
 -------------------------------------------------------------------------------
 -- Failing Parsers

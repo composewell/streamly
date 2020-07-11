@@ -157,6 +157,7 @@ decodeTable = [
   12,36,12,12,12,12,12,12,12,12,12,12
   ]
 
+{-# NOINLINE utf8d #-}
 utf8d :: A.Array Word8
 utf8d =
       unsafePerformIO
@@ -180,7 +181,7 @@ unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
 decode0 :: Ptr Word8 -> Word8 -> Tuple' DecodeState CodePoint
 decode0 table byte =
     let !t = table `unsafePeekElemOff` fromIntegral byte
-        !codep' = (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
+        !codep' = (0xff `shiftR` fromIntegral t) .&. fromIntegral byte
         !state' = table `unsafePeekElemOff` (256 + fromIntegral t)
      in assert ((byte > 0x7f || error showByte)
                 && (state' /= 0 || error (showByte ++ showTable)))
@@ -246,7 +247,7 @@ data FreshPoint s a
 decodeUtf8WithD :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
     let A.Array p _ _ = utf8d
-        !ptr = (unsafeForeignPtrToPtr p)
+        !ptr = unsafeForeignPtrToPtr p
     in Stream (step' ptr) (FreshPointDecodeInit state)
   where
     {-# INLINE transliterateOrError #-}
@@ -337,7 +338,7 @@ resumeDecodeUtf8EitherD
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
     let A.Array p _ _ = utf8d
-        !ptr = (unsafeForeignPtrToPtr p)
+        !ptr = unsafeForeignPtrToPtr p
         stt =
             if dst == 0
             then FreshPointDecodeInit state
@@ -431,7 +432,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
     let A.Array p _ _ = utf8d
-        !ptr = (unsafeForeignPtrToPtr p)
+        !ptr = unsafeForeignPtrToPtr p
     in Stream (step' ptr) (OuterLoop state Nothing)
   where
     {-# INLINE transliterateOrError #-}

@@ -263,7 +263,7 @@ yield b = Parser (\_ _ -> pure $ Done 1 b)  -- step
 yieldM :: Monad m => m b -> Parser m a b
 yieldM b = Parser (\_ _ -> Done 1 <$> b) -- step
                   (pure ())              -- initial
-                  (\_ -> b)              -- extract
+                  (const b)              -- extract
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -353,7 +353,7 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             Error err -> Error err) <$> stepL st a <*> initialR
 
     step (SeqAR st) a = do
-        (\r -> case r of
+        (\case
             Partial n s -> Partial n (SeqAR s)
             Continue n s -> Continue n (SeqAR s)
             Done n b -> Done n b

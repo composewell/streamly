@@ -679,7 +679,8 @@ instance MonadPlus SmallArray where
   mplus = (<|>)
 
 zipW :: String -> (a -> b -> c) -> SmallArray a -> SmallArray b -> SmallArray c
-zipW nm = \f sa sb -> let mn = length sa `min` length sb in
+zipW nm f sa sb =
+  let mn = length sa `min` length sb in
   createSmallArray mn (die nm "impossible") $ \mc ->
     fix ? 0 $ \go i -> when (i < mn) $ do
       x <- indexSmallArrayM sa i

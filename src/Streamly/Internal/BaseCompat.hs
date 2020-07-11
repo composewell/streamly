@@ -22,6 +22,6 @@ import Data.Coerce (Coercible, coerce)
 
 #if !(MIN_VERSION_base(4,9,0))
 {-# NOINLINE errorWithoutStackTrace #-}
-errorWithoutStackTrace :: [Char] -> a
-errorWithoutStackTrace s = error s
+errorWithoutStackTrace :: String -> a
+errorWithoutStackTrace = error
 #endif
