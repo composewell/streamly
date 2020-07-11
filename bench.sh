@@ -133,6 +133,7 @@ print_help () {
   echo "       [--slow]"
   echo "       [--quick]"
   echo "       [--cabal-build-flags <flag>]"
+  echo "       [--with-chart-exe <path>]"
   echo "       [--compare] [--base <commit>] [--candidate <commit>]"
   echo "       -- <gauge options or benchmarks>"
   echo
@@ -144,6 +145,7 @@ print_help () {
   echo "--long: Use much longer stream size for infinite stream benchmarks"
   echo "--slow: Slightly more accurate results at the expense of speed"
   echo "--quick: Faster results, useful for longer benchmarks"
+  echo "--with-chart-exe: Provide a custom path for the chart executable"
   echo "--cabal-build-flags: Pass any cabal builds flags to be used for build"
   echo
   echo "When specific space complexity group is chosen then (and only then) "
@@ -185,43 +187,17 @@ set_benchmarks() {
 # $1: benchmark name (linear, nested, base)
 find_report_prog() {
     local prog_name="chart"
-    hash -r
-    local prog_path=$($WHICH_COMMAND $prog_name)
-    if test -x "$prog_path"
+    hash -r # XXX Why is this required?
+    if test -z "$CHART_EXE"
     then
-      echo $prog_path
+      CHART_EXE=$(which $prog_name)
+    fi
+    if test -x "$CHART_EXE"
+    then
+      echo $CHART_EXE
     else
       return 1
     fi
-}
-
-# $1: benchmark name (linear, nested, base)
-build_report_prog() {
-    local prog_name="chart"
-    local prog_path=$($WHICH_COMMAND $prog_name)
-
-    hash -r
-    if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
-    then
-      echo "Building bench-graph executables"
-      BUILD_ONCE=1
-      $BUILD_CHART_EXE || die "build failed"
-    elif test ! -x "$prog_path"
-    then
-      return 1
-    fi
-    return 0
-}
-
-build_report_progs() {
-  if test "$RAW" = "0"
-  then
-      build_report_prog || exit 1
-      local prog
-      prog=$(find_report_prog) || \
-          die "Cannot find bench-graph executable"
-      echo "Using bench-graph executable [$prog]"
-  fi
 }
 
 # We run the benchmarks in isolation in a separate process so that different
@@ -389,7 +365,9 @@ run_measurements() {
 run_reports() {
     local prog
     prog=$(find_report_prog) || \
-      die "Cannot find bench-graph executable"
+      die "Cannot find bench-graph executable \n\
+You can install it via \"cabal install chart -f dev\" \
+or provide the path of the executable using --with-chart-exe"
     echo
 
     for i in $1
@@ -427,6 +405,8 @@ BUILD_ONCE=0
 USE_STACK=0
 CABAL_BUILD_FLAGS=""
 
+CHART_EXE=""
+
 GHC_VERSION=$(ghc --numeric-version)
 
 CABAL_BUILD_DIR="dist-newstyle"
@@ -463,6 +443,7 @@ do
     --long) LONG=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
+    --with-chart-exe) CHART_EXE=$1; shift ;;
     --) shift; break ;;
     -*|--*) print_help ;;
     *) break ;;
@@ -546,25 +527,15 @@ echo "Using benchmark suites [$BENCHMARKS]"
 if test "$USE_STACK" = "1"
 then
   WHICH_COMMAND="stack exec which"
-  BUILD_CHART_EXE="stack build --flag streamly:dev"
   GET_BENCH_PROG=stack_bench_prog
   BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
 else
   # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
   #WHICH_COMMAND="cabal v2-exec which"
   WHICH_COMMAND=cabal_which
-  BUILD_CHART_EXE="cabal v2-build --builddir=$CABAL_BUILD_DIR --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
   BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
 fi
-
-#-----------------------------------------------------------------------------
-# Build stuff
-#-----------------------------------------------------------------------------
-
-# We need to build the report progs first at the current (latest) commit before
-# checking out any other commit for benchmarking.
-build_report_progs "$BENCHMARKS"
 
 #-----------------------------------------------------------------------------
 # Run benchmarks
