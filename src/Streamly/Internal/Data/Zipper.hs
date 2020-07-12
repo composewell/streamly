@@ -52,25 +52,24 @@ module Streamly.Internal.Data.Zipper
     , fromStream
     , fromList
 
+    -- * Updating
+    , append
+
     -- * Checkpointing
     , checkpoint
     , release
     , restore
-
-    -- * Parsing
-    , parse
     )
 where
 
-import Control.Exception (assert, Exception(..))
-import Control.Monad.Catch (MonadCatch, try)
--- import GHC.Types (SPEC(..))
+import Control.Exception (assert)
+#if !(MIN_VERSION_base(4,13,0))
+import Data.Semigroup ((<>))
+#endif
 import Prelude hiding (splitAt)
 
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream(..))
-import Streamly.Internal.Data.SVar (defState)
 
-import qualified Streamly.Internal.Data.Parser.ParserD.Types as PR
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -------------------------------------------------------------------------------
@@ -95,7 +94,11 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 --
 -- /Internal/
 --
-data Zipper m a = Zipper [Int] [a] [a] (Stream m a)
+data Zipper m a = Zipper
+    [Int]        -- checkpoints
+    [a]          -- past buffered inputs (for backtracking)
+    [a]          -- future buffered inputs (created by backtracking)
+    (Stream m a) -- stream input to use after buffer is over
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -125,6 +128,23 @@ fromStream = Zipper [] [] []
 fromList :: [a] -> Zipper m a
 fromList xs = Zipper [] [] xs K.nil
 
+-------------------------------------------------------------------------------
+-- Updating
+-------------------------------------------------------------------------------
+
+-- | Add an element at the tail of the Zipper.
+--
+-- /Internal/
+--
+{-# INLINE append #-}
+append :: a -> Zipper m a -> Zipper m a
+append x (Zipper checkpoints backward forward stream) =
+    Zipper checkpoints backward forward (stream <> K.yield x)
+
+-------------------------------------------------------------------------------
+-- Checkpointing
+-------------------------------------------------------------------------------
+
 -- | Add a checkpoint to the Zipper so that we do not release the buffer beyond
 -- the checkpoint.
 --
@@ -149,23 +169,8 @@ release (Zipper (n:cps) xs ys stream) =
                 [] -> assert (n == length xs) $ Zipper [] [] ys stream
                 cp:rest -> Zipper ((cp + n) : rest) xs ys stream
 
--- | Rewind to restore the cursor to the latest checkpoint.
+-- XXX recheck this, and unify with the definition in StreamD and ParserK
 --
--- /Internal/
---
-{-# INLINE restore #-}
-restore :: Zipper m a -> Zipper m a
-restore (Zipper [] _ _ _) = error "Bug: restore, no checkpoint exists!"
-restore (Zipper (n:cps) xs ys stream) =
-    assert (n <= length xs) $
-        let (src0, buf1) = splitAt n xs
-            src  = Prelude.reverse src0
-         in Zipper cps buf1 (src ++ ys) stream
-
--------------------------------------------------------------------------------
--- Parse driver for a Zipper
--------------------------------------------------------------------------------
-
 -- Inlined definition. Without the inline "serially/parser/take" benchmark
 -- degrades and splitParse does not fuse. Even using "inline" at the callsite
 -- does not help.
@@ -182,162 +187,15 @@ splitAt n ls
           where
             (xs', xs'') = splitAt' (m - 1) xs
 
--- | Parse a stream zipper using a parser's @step@, @initial@ and @extract@
--- functions.
+-- | Rewind to restore the cursor to the latest checkpoint.
 --
-{-# INLINE_NORMAL parse #-}
-parse
-    :: MonadCatch m
-    => (s -> a -> m (PR.Step s b))
-    -> m s
-    -> (s -> m b)
-    -> Zipper m a
-    -> m (Zipper m a, Either String b)
-
--- The case when no checkpoints exist
-parse pstep initial extract (Zipper [] ls rs stream) =
-    case rs of
-        [] -> go stream ls initial
-        _ -> gobuf stream ls rs initial
-
-    where
-
-    {-# INLINE go #-}
-    go st buf !acc =
-        let stop = do
-                pst <- acc
-                r <- try $ extract pst
-                return $ case r of
-                    Left (e :: PR.ParseError) ->
-                        (nil, Left (displayException e))
-                    Right b -> (nil, Right b)
-            single x = yieldk x K.nil
-            yieldk x r = do
-                acc1 <- acc >>= \b -> pstep b x
-                case acc1 of
-                    PR.Partial 0 pst1 -> go r [] (return pst1)
-                    PR.Partial n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let src0 = Prelude.take n (x:buf)
-                            src  = Prelude.reverse src0
-                        gobuf r [] src (return pst1)
-                    PR.Continue 0 pst1 -> go r (x:buf) (return pst1)
-                    PR.Continue n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        gobuf r buf1 src (return pst1)
-                    PR.Done n b -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        return (Zipper [] buf1 src r, Right b)
-                    PR.Error err ->
-                        return (Zipper [] (x:buf) [] r, Left err)
-         in K.foldStream defState yieldk single stop st
-
-    gobuf s buf [] !pst = go s buf pst
-    gobuf s buf (x:xs) !pst = do
-        r <- pst
-        pRes <- pstep r x
-        case pRes of
-            PR.Partial 0 pst1 ->
-                gobuf s [] xs (return pst1)
-            PR.Partial n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
-                gobuf s [] (src ++ xs) (return pst1)
-            PR.Continue 0 pst1 -> gobuf s (x:buf) xs (return pst1)
-            PR.Continue n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                gobuf s buf1 src (return pst1)
-            PR.Done n b -> do
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return (Zipper [] buf1 src s, Right b)
-            PR.Error err ->
-                return (Zipper [] (x:buf) xs s, Left err)
-
--- The case when checkpoints exist
--- XXX code duplication alert!
-parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
-    case rs of
-        [] -> go 0 stream ls initial
-        _ -> gobuf 0 stream ls rs initial
-
-    where
-
-    {-# INLINE go #-}
-    go cnt st buf !acc =
-        let stop = do
-                pst <- acc
-                r <- try $ extract pst
-                return $ case r of
-                    Left (e :: PR.ParseError) ->
-                        (nil, Left (displayException e))
-                    Right b -> (nil, Right b)
-            single x = yieldk x K.nil
-            yieldk x r = do
-                acc1 <- acc >>= \b -> pstep b x
-                let cnt1 = cnt + 1
-                case acc1 of
-                    PR.Partial 0 pst1 ->
-                        go cnt1 r [] (return pst1)
-                    PR.Partial n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let src0 = Prelude.take n (x:buf)
-                            src  = Prelude.reverse src0
-                        gobuf (cnt1 - n) r [] src (return pst1)
-                    PR.Continue 0 pst1 -> go cnt1 r (x:buf) (return pst1)
-                    PR.Continue n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        assert (cnt1 - n >= 0) (return ())
-                        gobuf (cnt1 - n) r buf1 src (return pst1)
-                    PR.Done n b -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        assert (cp + cnt1 - n >= 0) (return ())
-                        return ( Zipper (cp + cnt1 - n : cps) buf1 src r
-                               , Right b
-                               )
-                    PR.Error err ->
-                        return ( Zipper (cp + cnt1 : cps) (x:buf) [] r
-                               , Left err
-                               )
-         in K.foldStream defState yieldk single stop st
-
-    gobuf cnt s buf [] !pst = go cnt s buf pst
-    gobuf cnt s buf (x:xs) !pst = do
-        r <- pst
-        pRes <- pstep r x
-        let cnt1 = cnt + 1
-        case pRes of
-            PR.Partial 0 pst1 ->
-                gobuf cnt1 s [] xs (return pst1)
-            PR.Partial n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
-                gobuf (cnt1 - n) s [] (src ++ xs) (return pst1)
-            PR.Continue 0 pst1 -> gobuf cnt1 s (x:buf) xs (return pst1)
-            PR.Continue n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                assert (cnt1 - n >= 0) (return ())
-                gobuf (cnt1 - n) s buf1 src (return pst1)
-            PR.Done n b -> do
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                assert (cp + cnt1 - n >= 0) (return ())
-                return (Zipper (cp + cnt1 - n : cps) buf1 src s, Right b)
-            PR.Error err ->
-                return (Zipper (cp + cnt1 : cps) (x:buf) xs s, Left err)
+-- /Internal/
+--
+{-# INLINE restore #-}
+restore :: Zipper m a -> Zipper m a
+restore (Zipper [] _ _ _) = error "Bug: restore, no checkpoint exists!"
+restore (Zipper (n:cps) xs ys stream) =
+    assert (n <= length xs) $
+        let (src0, buf1) = splitAt n xs
+            src  = Prelude.reverse src0
+         in Zipper cps buf1 (src ++ ys) stream

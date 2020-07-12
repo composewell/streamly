@@ -199,22 +199,52 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
 {-# INLINE_LATE toParserK #-}
 toParserK :: MonadCatch m => Parser m a b -> K.Parser m a b
 toParserK (Parser step initial extract) =
-    K.MkParser $ \inp yieldk ->
-        Z.parse step initial extract inp >>= yieldk
+    K.MkParser $ K.parse step initial extract
 
+-- XXX The CPS style parsers use a zipper buffering the data, if a parserD is
+-- driving the parserK then it would also be buffering the same data.  For
+-- ParserD, instead of maintaining the buffer in the common driver, each parser
+-- can have its own buffering and we can return the unconsumed buffer in the
+-- end.  That way the zipper is maintained by the parser. If the parser fails
+-- then it has to return all of the input. It is anyway maintained by
+-- intermediate level parsers in a composition, so the only difference would be
+-- that even the leaf levels parsers would do it. If we abstract the zipper
+-- maintainance then it may not be too unwieldy.
+--
 -- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
 --
 -- /Unimplemented/
 --
-{-# NOINLINE fromParserK #-}
-fromParserK :: Monad m => K.Parser m a b -> Parser m a b
-fromParserK _ = Parser step initial extract
+{-# INLINE_LATE fromParserK #-}
+fromParserK :: MonadThrow m => K.Parser m a b -> Parser m a b
+fromParserK parser = Parser step initial extract
 
     where
 
-    initial = return ()
-    step () _ = error "fromParserK: unimplemented"
-    extract () = error "fromParserK: unimplemented"
+    initial = return Nothing
+
+    step Nothing a = do
+        let yieldk _ (K.Done b) =
+                -- let leftover = 0 -- XXX get it from the zipper
+                return $ K.Stop b
+            yieldk _ K.Continue = error "Bug: fromParserK: got Continue"
+            yieldk _ (K.Error e) = return $ K.Failed e
+        r <- K.runParser parser (Z.append a Z.nil) yieldk
+        case r of
+            K.Stop b -> return $ Done 0 b
+            K.Failed e -> return $ Error e
+            -- XXX we can use the zipper state here to pare down the driver
+            -- buffer
+            K.Pause cont -> return $ Partial 0 $ Just cont
+    step (Just cont) a = do
+        r <- cont (Just a)
+        case r of
+            K.Stop b -> return $ Done 0 b
+            K.Failed e -> return $ Error e
+            K.Pause cont1 -> return $ Partial 0 $ Just cont1
+
+    extract Nothing = throwM $ ParseError "end of input"
+    extract (Just cont) = K.extractParse cont
 
 #ifndef DISABLE_FUSION
 {-# RULES "fromParserK/toParserK fusion" [2]

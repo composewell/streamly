@@ -1368,11 +1368,14 @@ parseD (PRD.Parser step initial extract) = P.parselMx' step initial extract
 {-# INLINE parseK #-}
 parseK :: MonadThrow m => PRK.Parser m a b -> SerialT m a -> m b
 parseK parser xs = do
-    r <- PRK.runParser parser (ZR.fromStream $ K.toStream xs)
-                              (\(_, b) -> return b)
+    let yieldk _ (PRK.Done b) = return $ PRK.Stop b
+        yieldk _ PRK.Continue = error "Bug: fromParserK: got Continue"
+        yieldk _ (PRK.Error e) = return $ PRK.Failed e
+    r <- PRK.runParser parser (ZR.fromStream $ K.toStream xs) yieldk
     case r of
-        Left err -> throwM (PRD.ParseError err)
-        Right b -> return b
+        PRK.Stop b -> return b
+        PRK.Failed err -> throwM (PRD.ParseError err)
+        PRK.Pause cont -> PRK.extractParse cont
 
 -- | Parse a stream using the supplied 'Parser'.
 --
