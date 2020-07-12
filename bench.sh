@@ -182,7 +182,6 @@ set_benchmarks() {
   fi
 }
 
-# $1: benchmark name (linear, nested, base)
 find_report_prog() {
     local prog_name="chart"
     hash -r
@@ -195,7 +194,6 @@ find_report_prog() {
     fi
 }
 
-# $1: benchmark name (linear, nested, base)
 build_report_prog() {
     local prog_name="chart"
     local prog_path=$($WHICH_COMMAND $prog_name)
@@ -458,7 +456,7 @@ do
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;
-    -*|--*) print_help ;;
+    -*|--*) echo "Unknown flags: $*"; echo; print_help ;;
     *) break ;;
   esac
 done

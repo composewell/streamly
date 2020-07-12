@@ -135,10 +135,6 @@ library
 -- Benchmarks
 -------------------------------------------------------------------------------
 
--- Whatever stack size below 32K we use GHC seems to report the stack size as
--- 32K at crash. Even K0K works. Therefore it probably does not make sense to
--- set it to lower than 32K.
-
 common bench-options
   import: compile-options, optimization-options, bench-depends
   ghc-options: -rtsopts

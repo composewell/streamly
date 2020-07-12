@@ -171,7 +171,7 @@ import Streamly.Internal.Data.Strict (Tuple3'(..))
 {-# ANN type Step Fuse #-}
 data Step s b =
         Partial Int s
-    -- ^ Partial result with an optional backtrack.
+    -- ^ Partial result with an optional backtrack request.
     --
     -- @Partial count state@ means a partial result is available which
     -- can be extracted successfully, @state@ is the opaque state of the
@@ -180,7 +180,7 @@ data Step s b =
     -- input before that is dropped from the backtrack buffer.
 
     | Continue Int s
-    -- ^ Need more input with an optional backtrack.
+    -- ^ Need more input with an optional backtrack request.
     --
     -- @Continue count state@ means the parser has consumed the current input
     -- but no new result is generated, @state@ is the next state of the parser.
