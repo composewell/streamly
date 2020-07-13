@@ -52,7 +52,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE yield #-}
 yield :: b -> Parser m a b
-yield b = MkParser (\_ yieldk -> yieldk (Z.nil, Right b))
+yield b = MkParser (\inp yieldk -> yieldk (inp, Right b))
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
