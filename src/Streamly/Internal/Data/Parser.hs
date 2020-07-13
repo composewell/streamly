@@ -669,8 +669,11 @@ escapedFrameBy _begin _end _escape _p = undefined
 -- element after this which fails the predicate until another
 -- element which passes the predicate is found, put this second
 -- succeeding element back into the input.
+--
 -- Examples: -
--- parseWord = S.parse (PR.wordBy (=='.') FL.toList)
+--
+-- parseWord = S.parse (PR.wordBy (==\'.\') FL.toList)
+--
 -- 1. parseWord ...a...b...
 -- gives [a], while b... is unread
 -- 2. parseWord ....b....
@@ -705,7 +708,7 @@ wordBy cond = D.toParserK . D.wordBy cond
 -- S.groupsBy cmp f = S.parseMany (PR.groupBy cmp f)
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
