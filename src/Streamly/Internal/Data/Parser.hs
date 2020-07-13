@@ -561,13 +561,11 @@ sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
 --
 -- S.splitWithSuffix pred f = S.parseMany (PR.sliceEndWith pred f)
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE sliceEndWith #-}
-sliceEndWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceEndWith = undefined
+sliceEndWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 
 -- | Collect stream elements until an elements passes the predicate, return the
 -- last element on which the predicate succeeded back to the input stream.  If
