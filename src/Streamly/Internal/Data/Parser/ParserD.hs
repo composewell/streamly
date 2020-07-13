@@ -540,20 +540,23 @@ wordBy predicate (Fold fstep finitial fextract) =
 
     where
     
-    initial = (\initS -> (initS, False)) <$> finitial
+    initial = (\initS -> (initS, False, False)) <$> finitial
 
-    step (s, sawElement) a =
+    step (s, sawElement, sawSepAfterElement) a =
         if sawElement
         then
             if not (predicate a)
-            then Done 1 <$> fextract s
-            else return $ Partial 0 (s, sawElement)
+            then
+                if sawSepAfterElement 
+                then Done 1 <$> fextract s
+                else (\st -> Partial 0 (st, True, False)) <$> fstep s a
+            else return $ Partial 0 (s, True, True)
         else
             if not (predicate a)
-            then (\st -> Partial 0 (st, True)) <$> fstep s a
-            else return $ Partial 0 (s, sawElement)
+            then (\st -> Partial 0 (st, True, sawSepAfterElement)) <$> fstep s a
+            else return $ Partial 0 (s, False, sawSepAfterElement)
 
-    extract (s, _) = fextract s
+    extract (s, _, _) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --

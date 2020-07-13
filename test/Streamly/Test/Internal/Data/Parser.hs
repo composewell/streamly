@@ -408,6 +408,26 @@ sliceBeginWith =
             takeWhileOrFirst prd (x : xs) = x : Prelude.takeWhile prd xs
             takeWhileOrFirst _ [] = []
 
+wordBy1 :: Property
+wordBy1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.wordBy predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (takeFirstFails predicate ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeFirstFails prd list =
+                Prelude.takeWhile (not . prd) (removePass prd list)
+
+                where
+
+                removePass prd1 (x : xs) =
+                    if prd1 x
+                    then removePass prd1 xs
+                    else (x : xs)
+                removePass _ [] = []
+
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -546,7 +566,8 @@ main =
         -- prop "test for sliceSepByMax function" sliceSepByMax
         prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
-        prop "P.sliceEndWith = takeWhileOrFirst (not . predicate)" sliceBeginWith
+        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
+        prop "P.wordBy1 = takeFirstFails" wordBy1
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
         -- prop "right fail test for splitWith function" splitWithFailRight
