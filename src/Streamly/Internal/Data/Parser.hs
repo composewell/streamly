@@ -664,19 +664,32 @@ escapedFrameBy _begin _end _escape _p = undefined
 -- separated text.
 --
 -- * Stops - when it finds a word separator after a non-word element
+-- | Ignore every element on which the predicate succeeds before
+-- an element where predicate fails is found, then ignore every
+-- element after this which fails the predicate until another
+-- element which passes the predicate is found, put this second
+-- succeeding element back into the input.
+-- Examples: -
+-- parseWord = S.parse (PR.wordBy (=='.') FL.toList)
+-- 1. parseWord ...a...b...
+-- gives [a], while b... is unread
+-- 2. parseWord ....b....
+-- gives [b], while nothing is unread
+-- 3. parseWord .....
+-- gives [], while nothing is unread
+--
+-- * Stops - when it finds a non-word after a non-word element
 -- * Fails - never.
 --
 -- @
 -- S.wordsBy pred f = S.parseMany (PR.wordBy pred f)
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE wordBy #-}
-wordBy ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-wordBy = undefined
+wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+wordBy cond = D.toParserK . D.wordBy cond
 
 -- | @groupBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
 -- first group, then if @a \`cmp` b@ is 'True' @b@ is also assigned to the same

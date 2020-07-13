@@ -531,13 +531,29 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE wordBy #-}
-wordBy ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-wordBy = undefined
+wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+wordBy predicate (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+    
+    initial = (\initS -> (initS, False)) <$> finitial
+
+    step (s, sawElement) a =
+        if sawElement
+        then
+            if not (predicate a)
+            then Done 1 <$> fextract s
+            else return $ Partial 0 (s, sawElement)
+        else
+            if not (predicate a)
+            then (\st -> Partial 0 (st, True)) <$> fstep s a
+            else return $ Partial 0 (s, sawElement)
+
+    extract (s, _) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
