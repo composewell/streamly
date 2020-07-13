@@ -578,13 +578,11 @@ sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 --
 -- S.splitWithPrefix pred f = S.parseMany (PR.sliceBeginWith pred f)
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE sliceBeginWith #-}
-sliceBeginWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith = undefined
+sliceBeginWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceBeginWith cond = D.toParserK . D.sliceBeginWith cond
 
 -- | Like 'sliceSepBy' but terminates a parse even before the separator
 -- is encountered if its size exceeds the specified maximum limit.

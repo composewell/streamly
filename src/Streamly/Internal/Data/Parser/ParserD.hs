@@ -484,13 +484,23 @@ sliceEndWith predicate (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE sliceBeginWith #-}
-sliceBeginWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith = undefined
+sliceBeginWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceBeginWith predicate (Fold fstep finitial fextract) = 
+    Parser step initial extract
+
+    where
+    
+    initial = (\initS-> (initS, True)) <$> finitial
+
+    step (s, isFirstElement) a =
+        if not (predicate a) || isFirstElement
+        then (\st -> Partial 0 (st, False)) <$> fstep s a
+        else Done 1 <$> fextract s
+
+    extract (s, _) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepByMax'.
 --
