@@ -557,13 +557,26 @@ wordBy predicate (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE groupBy #-}
-groupBy ::
-    -- Monad m =>
-    (a -> a -> Bool) -> Fold m a b -> Parser m a b
-groupBy = undefined
+groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupBy cmp (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+        initial = (\initS -> (initS, Nothing)) <$> finitial
+
+        step (s, maybePrevElement) a =
+            case maybePrevElement of
+                Nothing -> (\st -> Partial 0 (st, Just a)) <$> fstep s a
+                Just prevElement ->
+                    if cmp prevElement a
+                    then (\st -> Partial 0 (st, Just a)) <$> fstep s a
+                    else Done 1 <$> fextract s
+
+        extract (s, _) = fextract s
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
