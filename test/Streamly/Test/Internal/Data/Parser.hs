@@ -384,7 +384,7 @@ sliceEndWith2 =
                         if last ls == 0
                         then S.toList $ S.append strm1 (S.fromList [[]])
                         else S.toList strm1
-                        
+
                         where 
 
                         strm1 = S.splitWithSuffix predicate FL.toList strm
@@ -395,6 +395,18 @@ sliceEndWith2 =
                     case eitherSplitList of
                         Left _ -> property False
                         Right splitList -> checkListEqual parsedList splitList
+
+sliceBeginWith :: Property
+sliceBeginWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.sliceBeginWith predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (takeWhileOrFirst (not . predicate) ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeWhileOrFirst prd (x : xs) = x : Prelude.takeWhile prd xs
+            takeWhileOrFirst _ [] = []
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -534,6 +546,7 @@ main =
         -- prop "test for sliceSepByMax function" sliceSepByMax
         prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
+        prop "P.sliceEndWith = takeWhileOrFirst (not . predicate)" sliceBeginWith
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
         -- prop "right fail test for splitWith function" splitWithFailRight
