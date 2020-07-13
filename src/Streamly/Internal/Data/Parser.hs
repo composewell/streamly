@@ -895,11 +895,19 @@ lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
 --
 {-# INLINE deintercalate #-}
 deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
+    MonadCatch m
+    => Fold m a y 
+    -> Parser m x a
+    -> Fold m b z 
+    -> Parser m x b
     -> Parser m x (y, z)
-deintercalate = undefined
+deintercalate fld1 prsr1 fld2 prsr2 =
+    D.toParserK $
+        D.deintercalate 
+        fld1 
+        (D.fromParserK prsr1) 
+        fld2 
+        (D.fromParserK prsr2)
 
 -------------------------------------------------------------------------------
 -- Sequential Collection

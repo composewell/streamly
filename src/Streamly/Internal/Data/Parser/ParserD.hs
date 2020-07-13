@@ -642,18 +642,136 @@ lookAhead (Parser step1 initial1 _) =
 -------------------------------------------------------------------------------
 -- Interleaving
 -------------------------------------------------------------------------------
+
+data ParserTurn = Parser1 | Parser2
+
 --
 -- | See 'Streamly.Internal.Data.Parser.deintercalate'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE deintercalate #-}
 deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
+    Monad m
+    => Fold m a y 
+    -> Parser m x a
+    -> Fold m b z 
+    -> Parser m x b
     -> Parser m x (y, z)
-deintercalate = undefined
+deintercalate
+    (Fold fstep1 finitial1 fextract1)
+    (Parser pstep1 pinitial1 pextract1)
+    (Fold fstep2 finitial2 fextract2)
+    (Parser pstep2 pinitial2 pextract2) =
+
+    Parser step initial extract
+
+    where
+    
+    initial = do
+        finit1 <- finitial1
+        pinit1 <- pinitial1
+        finit2 <- finitial2
+        pinit2 <- pinitial2
+        return (finit1, pinit1, finit2, pinit2, Parser1, 0)
+    
+    step (fs1, ps1, fs2, ps2, currentParser, numBuffered) a =
+        case currentParser of
+            Parser1 -> do
+                st <- pstep1 ps1 a
+                case st of
+                    
+                    Partial n ps1new ->
+                        return $ 
+                            Partial n (fs1, ps1new, fs2, ps2, currentParser, 0)
+
+                    Continue n ps1new -> do
+                        let 
+                            newNumBuffered =
+                                if n == 0 
+                                then numBuffered + 1
+                                else numBuffered - n
+
+                        return $ 
+                            Continue 
+                            n 
+                            (fs1, ps1new, fs2, ps2, currentParser, newNumBuffered)
+
+                    Done n result -> do
+                        fs1new <- fstep1 fs1 result
+                        pinit1 <- pinitial1
+                        pinit2 <- pinitial2
+                        return $ 
+                            Partial 
+                            n 
+                            ( fs1new
+                            , pinit1
+                            , fs2
+                            , pinit2
+                            , Parser2
+                            , numBuffered
+                            )
+                    
+                    Error _ -> do
+                        result1 <- fextract1 fs1
+                        result2 <- fextract2 fs2
+                        return $ Done numBuffered (result1, result2)
+
+            Parser2 -> do
+                st <- pstep2 ps2 a
+                case st of
+                    
+                    Partial n ps2new ->
+                        return $ 
+                            Partial n (fs1, ps1, fs2, ps2new, currentParser, 0)
+
+                    Continue n ps2new -> do
+                        let 
+                            newNumBuffered =
+                                if n == 0 
+                                then numBuffered + 1
+                                else numBuffered - n
+
+                        return $ 
+                            Continue 
+                            n 
+                            (fs1, ps1, fs2, ps2new, currentParser, newNumBuffered)
+
+                    Done n result -> do
+                        fs2new <- fstep2 fs2 result
+                        pinit1 <- pinitial1
+                        pinit2 <- pinitial2
+                        return $ 
+                            Partial 
+                            n
+                            ( fs1
+                            , pinit1
+                            , fs2new
+                            , pinit2
+                            , Parser1
+                            , numBuffered
+                            )
+
+                    Error _ -> do
+                        result1 <- fextract1 fs1
+                        result2 <- fextract2 fs2
+                        return $ Done numBuffered (result1, result2)
+        
+    extract (fs1, ps1, fs2, ps2, currentParser, _) =
+        case currentParser of
+            Parser1 -> do
+                res <- pextract1 ps1
+                fs1new <- fstep1 fs1 res
+                result1 <- fextract1 fs1new
+                result2 <- fextract2 fs2
+                return (result1, result2)
+            
+            Parser2 -> do
+                res <- pextract2 ps2
+                fs2new <- fstep2 fs2 res
+                result1 <- fextract1 fs1
+                result2 <- fextract2 fs2new
+                return (result1, result2)
 
 -------------------------------------------------------------------------------
 -- Sequential Collection
