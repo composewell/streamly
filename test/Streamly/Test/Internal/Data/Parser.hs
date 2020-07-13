@@ -350,6 +350,52 @@ sliceSepBy =
 --             where
 --                 predicate = (== 1)
 
+sliceEndWith1 :: Property
+sliceEndWith1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.sliceEndWith predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (takeWhileAndFirstFail (not . predicate) ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeWhileAndFirstFail prd (x : xs) =
+                if prd x 
+                then x : takeWhileAndFirstFail prd xs
+                else [x]
+            takeWhileAndFirstFail _ [] = []
+
+sliceEndWith2 :: Property
+sliceEndWith2 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let
+            strm = S.fromList ls
+
+            predicate = (==0)
+
+            eitherParsedList = 
+                S.toList $ 
+                    S.parseMany (P.sliceEndWith predicate FL.toList) strm
+
+            eitherSplitList =
+                case ls of
+                    [] -> return [[]]
+                    _ ->
+                        if last ls == 0
+                        then S.toList $ S.append strm1 (S.fromList [[]])
+                        else S.toList strm1
+                        
+                        where 
+
+                        strm1 = S.splitWithSuffix predicate FL.toList strm
+        in
+            case eitherParsedList of
+                Left _ -> property False
+                Right parsedList ->
+                    case eitherSplitList of
+                        Left _ -> property False
+                        Right splitList -> checkListEqual parsedList splitList
+
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -486,6 +532,8 @@ main =
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
+        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
+        prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
         -- prop "right fail test for splitWith function" splitWithFailRight
