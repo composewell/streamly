@@ -62,7 +62,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="c022dc444757aa89dd85eba4b1ad3714897d6ea2"
+  - PACKCHECK_GITHUB_COMMIT="c322bad3c3809d4961243234eeb3d166efa9bf2d"
 
 notifications:
   email:
@@ -146,15 +146,10 @@ matrix:
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" SDIST_OPTIONS="--ignore-check"
     addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
     os: linux
     arch: amd64
-
-  - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
-    os: linux
-    arch: x86
 
   #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4
   #  addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
