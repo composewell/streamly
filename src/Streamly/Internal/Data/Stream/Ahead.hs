@@ -239,10 +239,13 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                 -- transferring available results from heap to outputQueue.
                 void $ liftIO $ send sv (ChildYield a)
                 nextHeap seqNo
-            AheadEntryStream r ->
+            AheadEntryStream (RunInIO runin, r) ->
                 if stopping
                 then stopIfNeeded ent seqNo r
-                else runStreamWithYieldLimit True seqNo r
+                else do
+                    res <- liftIO $ runin (runStreamWithYieldLimit True seqNo r)
+                    restoreM res
+
 
     nextHeap prevSeqNo = do
         res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
@@ -299,11 +302,13 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                           (singleStreamFromHeap seqNo)
                           stop
                           r
-        else liftIO $ do
-            let ent = Entry seqNo (AheadEntryStream r)
-            liftIO $ requeueOnHeapTop heap ent seqNo
-            incrementYieldLimit sv
-            sendStop sv winfo
+        else do
+            runIn <- captureMonadState
+            let ent = Entry seqNo (AheadEntryStream (runIn, r))
+            liftIO $ do
+                requeueOnHeapTop heap ent seqNo
+                incrementYieldLimit sv
+                sendStop sv winfo
 
     yieldStreamFromHeap seqNo a r = do
         continue <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -352,7 +357,9 @@ processWithoutToken q heap st sv winfo m seqNo = do
 
     r <- liftIO $ mrun $
             foldStreamShared st
-                (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
+                (\a r -> do
+                    runIn <- captureMonadState
+                    toHeap $ AheadEntryStream (runIn, K.cons a r))
                 (toHeap . AheadEntryPure)
                 stop
                 m
@@ -454,7 +461,8 @@ processWithToken q heap st sv winfo action sno = do
                           stop
                           r
         else do
-            let ent = Entry seqNo (AheadEntryStream r)
+            runIn <- captureMonadState
+            let ent = Entry seqNo (AheadEntryStream (runIn, r))
             liftIO $ requeueOnHeapTop heap ent seqNo
             liftIO $ incrementYieldLimit sv
             return TokenSuspend
