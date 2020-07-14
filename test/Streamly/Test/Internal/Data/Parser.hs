@@ -453,6 +453,45 @@ wordBy2 =
                         Left _ -> property False
                         Right splitList -> checkListEqual parsedList splitList
 
+groupBy1 :: Property
+groupBy1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.groupBy cmp FL.toList) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (takeWhileCmpFirst cmp ls)
+            Left _ -> property False
+        where
+            cmp = (==)
+
+            takeWhileCmpFirst comp list =
+                case list of
+                    [] -> []
+                    (x : xs) -> 
+                        x : Prelude.takeWhile (\curr -> curr `comp` x) xs
+
+groupBy2 :: Property
+groupBy2 =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let
+            strm = S.fromList ls
+
+            cmp = (>)
+
+            eitherParsedList = 
+                S.toList $ 
+                    S.parseMany (P.groupBy cmp FL.toList) strm
+
+            eitherGroupList =
+                case ls of
+                    [] -> return [[]]
+                    _ -> S.toList $ S.groupsBy cmp (FL.toList) strm
+        in
+            case eitherParsedList of
+                Left _ -> property False
+                Right parsedList ->
+                    case eitherGroupList of
+                        Left _ -> property False
+                        Right groupList -> checkListEqual parsedList groupList
+
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -593,7 +632,9 @@ main =
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
         prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
         prop "P.wordBy1 = takeFirstFails" wordBy1
-        prop "S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
+        prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
+        prop "P.wordBy1 = takeWhileCmpFirst" groupBy1
+        prop "S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)" groupBy2
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
         -- prop "right fail test for splitWith function" splitWithFailRight

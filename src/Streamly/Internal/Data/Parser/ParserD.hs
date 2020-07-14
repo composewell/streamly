@@ -571,12 +571,12 @@ groupBy cmp (Fold fstep finitial fextract) =
 
         initial = (\initS -> (initS, Nothing)) <$> finitial
 
-        step (s, maybePrevElement) a =
-            case maybePrevElement of
+        step (s, maybeInitElement) a =
+            case maybeInitElement of
                 Nothing -> (\st -> Partial 0 (st, Just a)) <$> fstep s a
-                Just prevElement ->
-                    if cmp prevElement a
-                    then (\st -> Partial 0 (st, Just a)) <$> fstep s a
+                Just initElement ->
+                    if cmp a initElement
+                    then (\st -> Partial 0 (st, Just initElement)) <$> fstep s a
                     else Done 1 <$> fextract s
 
         extract (s, _) = fextract s
