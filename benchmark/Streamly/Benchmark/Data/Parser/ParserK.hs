@@ -23,6 +23,7 @@ import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Prelude as IP
@@ -69,6 +70,30 @@ any = PRD.toParserK . PRD.any
 {-# INLINE anyK #-}
 anyK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
 anyK value = IP.parseK (any (> value))
+
+{-# INLINE all #-}
+all :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
+all = PRD.toParserK . PRD.all
+
+{-# INLINE allK #-}
+allK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
+allK value = IP.parseK (all (<= value))
+
+{-# INLINE take #-}
+take :: MonadCatch m => Int -> PR.Parser m a ()
+take value = PRD.toParserK $ PRD.take value FL.drain
+
+{-# INLINE takeK #-}
+takeK :: MonadCatch m => Int -> SerialT m a -> m ()
+takeK value = IP.parseK (take value)
+
+{-# INLINE takeWhile #-}
+takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
+takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
+
+{-# INLINE takeWhileK #-}
+takeWhileK :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeWhileK value = IP.parseK (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
 splitApp :: MonadCatch m
@@ -127,6 +152,9 @@ moduleName = "Data.Parser.ParserK"
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "any" $ anyK value
+    , benchIOSink value "all" $ allK value
+    , benchIOSink value "take" $ takeK value
+    , benchIOSink value "takeWhile" $ takeWhileK value
     , benchIOSink value "splitApp" $ splitApp value
     ]
 
