@@ -428,6 +428,31 @@ wordBy1 =
                     else (x : xs)
                 removePass _ [] = []
 
+wordBy2 :: Property
+wordBy2 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let
+            strm = S.fromList ls
+
+            predicate = (==0)
+
+            eitherParsedList = 
+                S.toList $ 
+                    S.parseMany (P.wordBy predicate FL.toList) strm
+
+            eitherSplitList =
+                if Prelude.takeWhile predicate ls == ls
+                then return [[]]
+                else S.toList $
+                    S.wordsBy predicate (FL.toList) strm
+        in
+            case eitherParsedList of
+                Left _ -> property False
+                Right parsedList ->
+                    case eitherSplitList of
+                        Left _ -> property False
+                        Right splitList -> checkListEqual parsedList splitList
+
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -568,6 +593,7 @@ main =
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
         prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
         prop "P.wordBy1 = takeFirstFails" wordBy1
+        prop "S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
         -- prop "right fail test for splitWith function" splitWithFailRight
