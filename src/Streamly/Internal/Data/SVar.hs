@@ -182,7 +182,7 @@ data ChildEvent a =
 data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
       AheadEntryNull
     | AheadEntryPure a
-    | AheadEntryStream (t m a)
+    | AheadEntryStream (RunInIO m, t m a)
 #undef Type
 
 ------------------------------------------------------------------------------
@@ -1352,7 +1352,7 @@ enqueueFIFO sv q m = do
 -- we can even run the already queued items but they will have to be sorted in
 -- layers in the heap. We can use a list of heaps for that.
 {-# INLINE enqueueAhead #-}
-enqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> StreamWR t m a -> IO ()
+enqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> (RunInIO m, t m a) -> IO ()
 enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([snd m], n + 1)  -- increment sequence
