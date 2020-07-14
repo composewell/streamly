@@ -122,7 +122,8 @@ parserFail =
 peekPass :: Property
 peekPass =
     forAll (chooseInt (1, max_length)) $ \list_length ->
-        forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+        forAll 
+            (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse P.peek (S.fromList ls) of
                 Right head_value -> case ls of
                     head_ls : _ -> head_value == head_ls
@@ -144,7 +145,8 @@ eofPass =
 eofFail :: Property
 eofFail =
     forAll (chooseInt (1, max_length)) $ \list_length ->
-        forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+        forAll 
+            (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse P.eof (S.fromList ls) of
                 Right _ -> False
                 Left _ -> True
@@ -181,16 +183,18 @@ take =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse (P.take n FL.toList) (S.fromList ls) of
-                Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
+                Right parsed_list -> 
+                    checkListEqual parsed_list (Prelude.take n ls)
                 Left _ -> property False
 
 takeEQPass :: Property
 takeEQPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
-        forAll (chooseInt (n, max_value)) $ \list_length ->
-            forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+        forAll (chooseInt (n, max_value)) $ \len ->
+            forAll (vectorOf len (chooseInt (min_value, max_value))) $ \ls ->
                 case S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
-                    Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
+                    Right parsed_list -> 
+                        checkListEqual parsed_list (Prelude.take n ls)
                     Left _ -> property False
 
 takeEQ :: Property
@@ -211,8 +215,8 @@ takeEQ =
 takeGEPass :: Property
 takeGEPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
-        forAll (chooseInt (n, max_value)) $ \list_length ->
-            forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+        forAll (chooseInt (n, max_value)) $ \len ->
+            forAll (vectorOf len (chooseInt (min_value, max_value))) $ \ls ->
                 case S.parse (P.takeGE n FL.toList) (S.fromList ls) of
                     Right parsed_list -> checkListEqual parsed_list ls
                     Left _ -> property False
@@ -309,7 +313,8 @@ takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
         case S.parse (P.takeWhile predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile predicate ls)
+            Right parsed_list -> 
+                checkListEqual parsed_list (Prelude.takeWhile predicate ls)
             Left _ -> property False
         where
             predicate = (== 0)
@@ -322,7 +327,9 @@ takeWhile1 =
                 [] -> property False
                 (x : _) ->
                     if predicate x then
-                        checkListEqual parsed_list (Prelude.takeWhile predicate ls)
+                        checkListEqual 
+                        parsed_list 
+                        (Prelude.takeWhile predicate ls)
                     else
                         property False
             Left _ -> case ls of
@@ -335,7 +342,10 @@ sliceSepBy :: Property
 sliceSepBy =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.sliceSepBy predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile (not . predicate) ls)
+            Right parsed_list -> 
+                checkListEqual 
+                parsed_list 
+                (Prelude.takeWhile (not . predicate) ls)
             Left _ -> property False
         where
             predicate = (== 1)
@@ -354,7 +364,10 @@ sliceEndWith1 :: Property
 sliceEndWith1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.sliceEndWith predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (takeWhileAndFirstFail (not . predicate) ls)
+            Right parsed_list -> 
+                checkListEqual 
+                parsed_list 
+                (takeWhileAndFirstFail (not . predicate) ls)
             Left _ -> property False
         where
             predicate = (== 1)
@@ -400,7 +413,8 @@ sliceBeginWith :: Property
 sliceBeginWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.sliceBeginWith predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (takeWhileOrFirst (not . predicate) ls)
+            Right parsed_list -> 
+                checkListEqual parsed_list (takeWhileOrFirst (not . predicate) ls)
             Left _ -> property False
         where
             predicate = (== 1)
@@ -412,7 +426,8 @@ wordBy1 :: Property
 wordBy1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.wordBy predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (takeFirstFails predicate ls)
+            Right parsed_list ->
+                checkListEqual parsed_list (takeFirstFails predicate ls)
             Left _ -> property False
         where
             predicate = (== 1)
@@ -457,7 +472,8 @@ groupBy1 :: Property
 groupBy1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.groupBy cmp FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (takeWhileCmpFirst cmp ls)
+            Right parsed_list -> 
+                checkListEqual parsed_list (takeWhileCmpFirst cmp ls)
             Left _ -> property False
         where
             cmp = (==)
@@ -618,21 +634,29 @@ main =
     describe "test for sequence parser" $ do
         prop "P.take = Prelude.take" Main.take
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
-        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
+        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" 
+            Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
         prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
-        prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop 
+            "P.takeWhile = Prelude.takeWhile if taken something, else check why failed"
+            takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
-        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
-        prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
-        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
+        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)"
+            sliceEndWith1
+        prop 
+            "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)"
+            sliceEndWith2
+        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)"
+            sliceBeginWith
         prop "P.wordBy1 = takeFirstFails" wordBy1
-        prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
+        prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)"
+            wordBy2
         prop "P.wordBy1 = takeWhileCmpFirst" groupBy1
         prop "S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)" groupBy2
         -- prop "pass test for splitWith function" splitWithPass
