@@ -695,8 +695,8 @@ wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy cond = D.toParserK . D.wordBy cond
 
 -- | @groupBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
--- first group, then if @a \`cmp` b@ is 'True' @b@ is also assigned to the same
--- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
+-- first group, then if @b \`cmp` a@ is 'True' @b@ is also assigned to the same
+-- group.  If @c \`cmp` a@ is 'True' then @c@ is also assigned to the same
 -- group and so on. When the comparison fails a new group is started. Each
 -- group is folded using the 'Fold' @f@ and the result of the fold is emitted
 -- in the output stream.
