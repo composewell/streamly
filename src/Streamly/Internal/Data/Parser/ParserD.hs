@@ -469,7 +469,7 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
 --
 -- /Internal/
 --
-{-# INLINABLE sliceEndWith #-}
+{-# INLINE sliceEndWith #-}
 sliceEndWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceEndWith predicate (Fold fstep finitial fextract) =
     Parser step initial fextract
@@ -486,7 +486,7 @@ sliceEndWith predicate (Fold fstep finitial fextract) =
 --
 -- /Internal/
 --
-{-# INLINABLE sliceBeginWith #-}
+{-# INLINE sliceBeginWith #-}
 sliceBeginWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith predicate (Fold fstep finitial fextract) = 
     Parser step initial extract
@@ -533,7 +533,7 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
 --
 -- /Internal/
 --
-{-# INLINABLE wordBy #-}
+{-# INLINE wordBy #-}
 wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy predicate (Fold fstep finitial fextract) =
     Parser step initial extract
@@ -562,7 +562,7 @@ wordBy predicate (Fold fstep finitial fextract) =
 --
 -- /Internal/
 --
-{-# INLINABLE groupBy #-}
+{-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy cmp (Fold fstep finitial fextract) =
     Parser step initial extract

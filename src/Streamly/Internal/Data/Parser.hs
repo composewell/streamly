@@ -563,7 +563,7 @@ sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
 --
 -- /Internal/
 --
-{-# INLINABLE sliceEndWith #-}
+{-# INLINE sliceEndWith #-}
 sliceEndWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 
@@ -580,7 +580,7 @@ sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 --
 -- /Internal/
 --
-{-# INLINABLE sliceBeginWith #-}
+{-# INLINE sliceBeginWith #-}
 sliceBeginWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith cond = D.toParserK . D.sliceBeginWith cond
 
@@ -690,7 +690,7 @@ escapedFrameBy _begin _end _escape _p = undefined
 --
 -- /Internal/
 --
-{-# INLINABLE wordBy #-}
+{-# INLINE wordBy #-}
 wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy cond = D.toParserK . D.wordBy cond
 
@@ -710,7 +710,7 @@ wordBy cond = D.toParserK . D.wordBy cond
 --
 -- /Internal/
 --
-{-# INLINABLE groupBy #-}
+{-# INLINE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy cmp = D.toParserK . D.groupBy cmp
 

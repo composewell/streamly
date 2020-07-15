@@ -424,6 +424,33 @@ parseManySepBy inh =
     (S.length $ IP.parseMany (PR.sliceSepBy (== lf) FL.drain)
                              (S.unfold FH.read inh)) -- >>= print
 
+-- | Split on line feed (as a suffix)
+parseManyEndWith :: Handle -> IO Int
+parseManyEndWith inh =
+    (S.length $ IP.parseMany (PR.sliceEndWith (== lf) FL.drain)
+                             (S.unfold FH.read inh))
+
+-- | Split on line feed (as a prefix)
+parseManyBeginWith :: Handle -> IO Int
+parseManyBeginWith inh =
+    (S.length $ IP.parseMany (PR.sliceBeginWith (== lf) FL.drain)
+                             (S.unfold FH.read inh))
+
+-- | Group based on (>) as comp function to compare
+-- between starting element and current element
+parseManyGroupBy :: Handle -> IO Int
+parseManyGroupBy inh =
+    (S.length $ IP.parseMany (PR.groupBy (>) FL.drain)
+                             (S.unfold FH.read inh))
+
+-- | Words by space but using wordBy parser
+parseManyWordBy :: Handle -> IO Int
+parseManyWordBy inh =
+    (S.length $ wordsBy1 isSp FL.drain
+        $ S.unfold FH.read inh)
+
+    where wordsBy1 prd f = IP.parseMany (PR.wordBy prd f)
+
 -- | Words by space
 wordsBy :: Handle -> IO Int
 wordsBy inh =
@@ -464,6 +491,14 @@ o_1_space_reduce_read_split env =
     [ bgroup "reduce/read"
         [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
+        , mkBench "S.parseMany (PR.sliceEndWith (== lf) FL.drain)" env
+            $ \inh _ -> parseManyEndWith inh
+        , mkBench "S.parseMany (PR.sliceBeginWith (== lf) FL.drain)" env
+            $ \inh _ -> parseManyBeginWith inh
+            , mkBench "S.parseMany (PR.groupBy (>) FL.drain)" env
+            $ \inh _ -> parseManyGroupBy inh
+        , mkBench "IP.parseMany PR.wordBy" env $ \inh _ ->
+            parseManyWordBy inh
         , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
             wordsBy inh
         , mkBench "S.splitOn (== lf) FL.drain" env $ \inh _ ->
