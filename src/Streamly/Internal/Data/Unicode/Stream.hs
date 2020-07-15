@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Unicode.Stream
     , resumeDecodeUtf8Either
     , decodeUtf8Arrays
     , decodeUtf8ArraysLenient
+    , decodeUtf8ArraysAccelerated
 
     -- * Elimination (Encoding)
     , encodeLatin1
@@ -57,13 +58,14 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (ord)
 import Data.Word (Word8)
+import Foreign.C.Types (CInt(..), CSize(..))
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (assert, unsafeChr)
 import GHC.ForeignPtr (ForeignPtr (..))
 import GHC.IO.Encoding.Failure (isSurrogate)
-import GHC.Ptr (Ptr (..), plusPtr)
+import GHC.Ptr (Ptr (..), plusPtr, minusPtr)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -736,3 +738,124 @@ unlines = S.interposeSuffix '\n'
 {-# INLINE unwords #-}
 unwords :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
 unwords = S.interpose ' '
+
+data FState s a
+    = OL s !(Maybe (DecodeState, CodePoint))
+    | ILDI s (ForeignPtr a) !(Ptr a) !(Ptr a)
+    | YACTill s (ForeignPtr a) !(Ptr a) !(Ptr a) !CInt
+    | ILDF s (ForeignPtr a) !(Ptr a) !(Ptr a) Word8
+    | ILD s (ForeignPtr a) !(Ptr a) !(Ptr a)
+        !DecodeState !CodePoint
+    | YAC !Char (FState s a)
+    | Don
+
+
+{-# INLINE_NORMAL decodeUtf8ArraysWithDAccelerated #-}
+decodeUtf8ArraysWithDAccelerated ::
+       MonadIO m
+    => CodingFailureMode
+    -> Stream m (A.Array Word8)
+    -> Stream m Char
+decodeUtf8ArraysWithDAccelerated cfm (Stream step state) =
+    let A.Array p _ _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+     in Stream (step' ptr) (OL state Nothing)
+  where
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e s =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> YAC replacementChar s
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow =
+        case cfm of
+            ErrorOnCodingFailure ->
+                error
+                    "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Input Underflow"
+            TransliterateCodingFailure -> YAC replacementChar Don
+    {-# INLINE_LATE step' #-}
+    step' _ gst (OL st Nothing) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield arr@A.Array {..} s -> do
+                let p = unsafeForeignPtrToPtr aStart
+                    aS = fromIntegral $ A.byteLength arr
+                till <- liftIO $ c_mvmask_fail_at_word8X32 p aS
+                liftIO $ touchForeignPtr aStart
+                return $ Skip (YACTill s aStart p aEnd till)
+            Skip s -> return $ Skip (OL s Nothing)
+            Stop -> return $ Skip Don
+    step' _ gst (OL st dst@(Just (ds, cp))) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield A.Array {..} s ->
+                    let p = unsafeForeignPtrToPtr aStart
+                     in Skip (ILD s aStart p aEnd ds cp)
+                Skip s -> Skip (OL s dst)
+                Stop -> Skip inputUnderflow
+    step' _ _ (ILDI st startf p end)
+        | p == end = do
+            liftIO $ touchForeignPtr startf
+            return $ Skip $ OL st Nothing
+    step' _ _ (ILDI st startf p end) = do
+        x <- liftIO $ peek p
+        case x > 0x7f of
+            False ->
+                return $
+                Skip $
+                YAC
+                    (unsafeChr (fromIntegral x))
+                    (ILDI st startf (p `plusPtr` 1) end)
+            True -> return $ Skip $ ILDF st startf p end x
+    step' table _ (ILDF st startf p end x) = do
+        let (Tuple' sv cp) = decode0 table x
+        return $
+            case sv of
+                12 ->
+                    Skip $
+                    transliterateOrError
+                        "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                        (ILDI st startf (p `plusPtr` 1) end)
+                0 -> error "unreachable state"
+                _ -> Skip (ILD st startf (p `plusPtr` 1) end sv cp)
+    step' _ _ (ILD st startf p end sv cp)
+        | p == end = do
+            liftIO $ touchForeignPtr startf
+            return $ Skip $ OL st (Just (sv, cp))
+    step' table _ (ILD st startf p end statePtr codepointPtr) = do
+        x <- liftIO $ peek p
+        let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+        case sv of
+            0 ->
+                return $
+                    Skip $ YAC (unsafeChr cp) (ILDI st startf (p `plusPtr` 1) end)
+            12 ->
+                return $
+                Skip $
+                transliterateOrError
+                    "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                    (ILDI st startf (p `plusPtr` 1) end)
+            _ -> return $ Skip (ILD st startf (p `plusPtr` 1) end sv cp)
+    step' _ _ (YACTill st startf p end till)
+        | till == 0 = return $ Skip $ ILDI st startf p end
+    step' _ _ (YACTill st startf p end till) = do
+        x <- liftIO $ peek p
+        liftIO $ touchForeignPtr startf
+        return $
+            Skip $
+            YAC
+                (unsafeChr (fromIntegral x))
+                (YACTill st startf (p `plusPtr` 1) end (till - 1))
+    step' _ _ (YAC c s) = return $ Yield c s
+    step' _ _ Don = return Stop
+
+{-# INLINE decodeUtf8ArraysAccelerated #-}
+decodeUtf8ArraysAccelerated ::
+       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8ArraysAccelerated =
+    D.fromStreamD .
+    decodeUtf8ArraysWithDAccelerated ErrorOnCodingFailure . D.toStreamD
+
+foreign import ccall "simd.h movemask_fail_at_word8X32" c_mvmask_fail_at_word8X32
+    :: Ptr Word8 -> CSize -> IO CInt
