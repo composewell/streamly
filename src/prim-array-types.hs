@@ -136,8 +136,8 @@ defaultChunkSize = mkChunkSizeKB 32
 byteLength :: forall a. Prim a => Array a -> Int
 byteLength (Array _ _ len) = len * sizeOf (undefined :: a)
 
--- XXX we can use shift when the size is power of 2
 -- XXX Also, rename to elemCount
+-- XXX I would prefer length to keep the API consistent
 -- XXX Also, re-export sizeOf from Primitive
 {-# INLINE length #-}
 length :: Array a -> Int
@@ -152,8 +152,6 @@ length (Array _ _ len) = len
 slice :: Array a -> Int -> Int -> Array a
 slice (Array arr# off _) off1 len1 = Array arr# (off + off1) len1
 
--- XXX the name "empty" is used by alternative, should we use nil instead? It
--- will also be consistent with streams.
 nil :: forall a. Prim a => Array a
 nil = runST run
   where
@@ -219,26 +217,7 @@ fromStreamDArraysOf n str = D.mapM unsafeFreeze (MA.fromStreamDArraysOf n str)
 -- XXX derive from MA.fromListN?
 {-# INLINE fromListN #-}
 fromListN :: forall a. Prim a => Int -> [a] -> Array a
-fromListN len xs = runST run
-
-    where
-
-    run :: forall s. ST s (Array a)
-    run = do
-        arr <- MA.newArray len
-        let go :: [a] -> Int -> ST s ()
-            go [] !ix =
-                if ix == len
-                then return ()
-                else error "fromListN" "list length less than specified size"
-            go (a : as) !ix =
-                if ix < len
-                then do
-                    MA.writeArray arr ix a
-                    go as (ix + 1)
-                else error "fromListN" "list length greater than specified size"
-         in go xs 0
-        unsafeFreeze arr
+fromListN len xs = unsafePerformIO $ MA.fromListNM len xs >>= unsafeFreeze
 
 -- XXX derive from MA.fromList?
 {-# INLINE fromList #-}
@@ -249,10 +228,6 @@ fromList xs = fromListN (P.length xs) xs
 -- Combining
 -------------------------------------------------------------------------------
 
--- XXX XXX it can mutate the first array which is not correct
---
--- XXX we should not be thawing the original arrays here. We should just copy
--- to a new array.
 -- | Splice two immutable arrays creating a new immutable array.
 {-# INLINE spliceTwo #-}
 spliceTwo :: (PrimMonad m, Prim a) => Array a -> Array a -> m (Array a)
@@ -294,7 +269,6 @@ instance (Eq a, Prim a) => Eq (Array a) where
     a1@(Array ba1# _ len1) == a2@(Array ba2# _ len2)
         | sameByteArray ba1# ba2# = True
         | len1 /= len2 = False
-        -- XXX shift can be used when elem size is power of 2
         | otherwise = loop (len1 - 1)
 
         where
@@ -334,6 +308,8 @@ instance NFData (Array a) where
 
 
 -- XXX check if this is compatible with Memory.Array?
+-- XXX It isn't. I might prefer this Show instance though
+-- XXX Memory.Array: showsPrec _ = shows . toList
 instance (Show a, Prim a) => Show (Array a) where
     showsPrec p a =
         showParen (p > 10) $
@@ -495,7 +471,7 @@ toStreamKRev arr = go (length arr - 1)
         in x `K.cons` go (p - 1)
 
 -------------------------------------------------------------------------------
--- Stream of Arrays (immutable)
+-- Stream of Arrays
 -------------------------------------------------------------------------------
 
 data FlattenState s a =
@@ -581,13 +557,6 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
     step' _ (InnerLoop st arr len i) = do
         let x = unsafeIndex arr i
         return $ D.Yield x (InnerLoop st arr len (i + 1))
-
--- XXX XXX these are all mutable routines, we should not have these in this
--- module. These can mutate the immutable array.
---
--------------------------------------------------------------------------------
--- Stream of Arrays (mutable)
--------------------------------------------------------------------------------
 
 -- Splice an array into a pre-reserved mutable array.  The user must ensure
 -- that there is enough space in the mutable array.

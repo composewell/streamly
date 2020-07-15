@@ -63,6 +63,7 @@ import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..))
 import Prelude hiding (String, lines, words, unlines, unwords)
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad.Primitive (unsafeInlineIO)
 
 import Streamly (IsStream)
 import Streamly.Data.Fold (Fold)
@@ -169,7 +170,7 @@ utf8d =
 -- and without touching the foreign ptr.
 {-# INLINE_NORMAL _unsafePeekElemOff #-}
 _unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
-_unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
+_unsafePeekElemOff p i = let !x = unsafeInlineIO $ peekElemOff p i in x
 
 -- decode is split into two separate cases to avoid branching instructions.
 -- From the higher level flow we already know which case we are in so we can

@@ -26,7 +26,7 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
     -- * Construction
     , newArray
     , newAlignedArray
-    , writeArray
+    , unsafeWriteIndex
 
     , spliceTwo
     , unsafeCopy
@@ -47,7 +47,7 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
 #endif
 
     -- * Elimination
-    , unsafeIndexM
+    , unsafeReadIndex
     , length
     , byteLength
 
@@ -61,14 +61,11 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
     , resizeArray
     , shrinkArray
 
-    , fPlainPtrToW8Array
     , touchArray
     , withArrayAsPtr
     )
 where
 
-import Data.Word (Word8)
-import GHC.ForeignPtr
 import GHC.IO (IO(..))
 
 #include "mutable-prim-array-types.hs"
@@ -160,7 +157,7 @@ writeNAligned align limit = Fold step initial extract
     step (marr, i) x
         | i == limit = return (marr, i)
         | otherwise = do
-            writeArray marr i x
+            unsafeWriteIndex marr i x
             return (marr, i + 1)
 
     extract (marr, len) = shrinkArray marr len >> return marr
@@ -175,12 +172,6 @@ writeNAligned align limit = Fold step initial extract
 {-# INLINE toPtr #-}
 toPtr :: Array s a -> Ptr a
 toPtr (Array arr#) = Ptr (byteArrayContents# (unsafeCoerce# arr#))
-
--- XXX remove this?
-fPlainPtrToW8Array :: ForeignPtr a -> Array RealWorld Word8
-fPlainPtrToW8Array (ForeignPtr _ (PlainPtr mb)) = Array mb
-fPlainPtrToW8Array _ =
-    error "fPlainPtrToW8Array can only be used when the ForeignPtr does not have finalizers."
 
 {-# INLINE touchArray #-}
 touchArray :: Array s a -> IO ()

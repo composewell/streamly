@@ -75,20 +75,15 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , unlines
 
     , toPtr
-    , memcmp
-    , memcpy
-    , unsafeInlineIO
 
     , touchArray
     , withArrayAsPtr
     )
 where
 
-import Foreign.C.Types (CSize(..), CInt(..))
-import Control.Monad (void)
+import Foreign.C.Types (CSize(..))
 import GHC.IO (IO(..))
 import Foreign.Ptr (minusPtr, nullPtr, plusPtr)
-import Control.Monad.Primitive (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
@@ -100,26 +95,6 @@ import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
 foreign import ccall unsafe "string.h memchr" c_memchr
     :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
-
--- XXX It seems these are not being used anymore, should be removed, or moved
--- to the module where they are being used.
-
-foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
--- XXX we are converting Int to CSize
-memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
-
--- Check if this is safe
-foreign import ccall unsafe "string.h memcmp" c_memcmp
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
-
-{-# INLINE memcmp #-}
-memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
-memcmp p1 p2 len = do
-    r <- c_memcmp p1 p2 (fromIntegral len)
-    return $ r == 0
 
 -------------------------------------------------------------------------------
 -- Using as a Pointer

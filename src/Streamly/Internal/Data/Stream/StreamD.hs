@@ -4527,7 +4527,7 @@ lastN n
     initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
         arr <- MA.newArray n
-        let insertFunc b a = MA.writeArray arr b a >> return (b + 1)
+        let insertFunc b a = MA.unsafeWriteIndex arr b a >> return (b + 1)
         n' <- foldFunc i rh insertFunc 0 rb
         when (n' < n) $ MA.shrinkArray arr n'
         A.unsafeFreeze arr

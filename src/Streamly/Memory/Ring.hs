@@ -36,6 +36,10 @@ import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, concat)
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Primitive (unsafeInlineIO)
+
+import Data.Word (Word8)
+import Foreign.C.Types (CSize(..), CInt(..))
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 
@@ -55,6 +59,22 @@ data Ring a = Ring
     { ringStart :: !(ForeignPtr a) -- first address
     , ringBound :: !(Ptr a)        -- first address beyond allocated memory
     }
+
+-------------------------------------------------------------------------------
+-- Utility functions
+-------------------------------------------------------------------------------
+
+-- Check if this is safe
+foreign import ccall unsafe "string.h memcmp" c_memcmp
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
+
+{-# INLINE memcmp #-}
+memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
+memcmp p1 p2 len = do
+    r <- c_memcmp p1 p2 (fromIntegral len)
+    return $ r == 0
+
+-------------------------------------------------------------------------------
 
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
@@ -90,7 +110,7 @@ unsafeInsert rb ringHead newVal = do
     -- touchForeignPtr (ringStart rb)
     return $ advance rb ringHead
 
--- XXX remove all usage of A.unsafeInlineIO
+-- XXX remove all usage of unsafeInlineIO
 --
 -- | Like 'unsafeEqArray' but compares only N bytes instead of entire length of
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
@@ -98,15 +118,15 @@ unsafeInsert rb ringHead newVal = do
 {-# INLINE unsafeEqArrayN #-}
 unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh arr n =
-    let !res = A.unsafeInlineIO $ do
+    let !res = unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
                 aLen = A.length arr
                 as = A.toPtr arr
             assert (aLen >= ringBound `minusPtr` rs) (return ())
             let len = ringBound `minusPtr` rh
-            r1 <- A.memcmp (castPtr rh) (castPtr as) (min len n)
+            r1 <- memcmp (castPtr rh) (castPtr as) (min len n)
             r2 <- if n > len
-                then A.memcmp (castPtr rs) (castPtr (as `plusPtr` len))
+                then memcmp (castPtr rs) (castPtr (as `plusPtr` len))
                               (min (rh `minusPtr` rs) (n - len))
                 else return True
             -- XXX enable these, check perf impact
@@ -125,15 +145,15 @@ unsafeEqArrayN Ring{..} rh arr n =
 {-# INLINE unsafeEqArray #-}
 unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh arr =
-    let !res = A.unsafeInlineIO $ do
+    let !res = unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
                 aLen = A.length arr
                 as = A.toPtr arr
             assert (aLen >= ringBound `minusPtr` rs)
                    (return ())
             let len = ringBound `minusPtr` rh
-            r1 <- A.memcmp (castPtr rh) (castPtr as) len
-            r2 <- A.memcmp (castPtr rs) (castPtr (as `plusPtr` len))
+            r1 <- memcmp (castPtr rh) (castPtr as) len
+            r2 <- memcmp (castPtr rs) (castPtr (as `plusPtr` len))
                            (rh `minusPtr` rs)
             -- XXX enable these, check perf impact
             -- touchForeignPtr ringStart
@@ -152,7 +172,7 @@ unsafeEqArray Ring{..} rh arr =
 unsafeFoldRing :: forall a b. Storable a
     => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
 unsafeFoldRing ptr f z Ring{..} =
-    let !res = A.unsafeInlineIO $ withForeignPtr ringStart $ \p ->
+    let !res = unsafeInlineIO $ withForeignPtr ringStart $ \p ->
                     go z p ptr
     in res
     where
@@ -179,7 +199,7 @@ unsafeFoldRingM ptr f z Ring {..} =
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
-            let !x = A.unsafeInlineIO $ peek start
+            let !x = unsafeInlineIO $ peek start
             acc' <- f acc x
             go acc' (start `plusPtr` sizeOf (undefined :: a)) end
 
@@ -194,7 +214,7 @@ unsafeFoldRingFullM rh f z rb@Ring {..} =
     withForeignPtrM ringStart $ \_ -> go z rh
   where
     go !acc !start = do
-        let !x = A.unsafeInlineIO $ peek start
+        let !x = unsafeInlineIO $ peek start
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh

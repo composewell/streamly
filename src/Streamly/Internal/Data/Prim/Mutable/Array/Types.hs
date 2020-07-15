@@ -24,7 +24,7 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
 
     -- * Construction
     , newArray
-    , writeArray
+    , unsafeWriteIndex
 
     , spliceTwo
     , unsafeCopy
@@ -45,7 +45,7 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
 #endif
 
     -- * Elimination
-    , unsafeIndexM
+    , unsafeReadIndex
     , length
     , byteLength
 

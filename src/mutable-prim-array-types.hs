@@ -65,24 +65,22 @@ length arr = byteLength arr `quot` (sizeOf (undefined :: a))
 -- Random Access
 -------------------------------------------------------------------------------
 
--- XXX Rename to unsafeReadIndex
-{-# INLINE unsafeIndexM #-}
-unsafeIndexM ::
+{-# INLINE unsafeReadIndex #-}
+unsafeReadIndex ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a
     -> Int
     -> m a
-unsafeIndexM (Array arr#) (I# i#) = primitive (readByteArray# arr# i#)
+unsafeReadIndex (Array arr#) (I# i#) = primitive (readByteArray# arr# i#)
 
--- XXX rename to unsafeWriteIndex?
-{-# INLINE writeArray #-}
-writeArray ::
+{-# INLINE unsafeWriteIndex #-}
+unsafeWriteIndex ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a -- ^ array
     -> Int -- ^ index
     -> a -- ^ element
     -> m ()
-writeArray (Array arr#) (I# i#) x = primitive_ (writeByteArray# arr# i# x)
+unsafeWriteIndex (Array arr#) (I# i#) x = primitive_ (writeByteArray# arr# i# x)
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -126,15 +124,14 @@ write = Fold step initial extract
         marr <- newArray 0
         return $ Tuple3' marr 0 0
 
-    -- XXX use Tuple3'?
     step (Tuple3' marr i capacity) x
         | i == capacity = do
             let newCapacity = max (capacity * 2) 1
             newMarr <- resizeArray marr newCapacity
-            writeArray newMarr i x
+            unsafeWriteIndex newMarr i x
             return $ Tuple3' newMarr (i + 1) newCapacity
         | otherwise = do
-            writeArray marr i x
+            unsafeWriteIndex marr i x
             return $ Tuple3' marr (i + 1) capacity
 
     extract (Tuple3' marr len _) = shrinkArray marr len >> return marr
@@ -159,7 +156,7 @@ writeN limit = Fold step initial extract
     step (Tuple' marr i) x
         | i == limit = return $ Tuple' marr i
         | otherwise = do
-            writeArray marr i x
+            unsafeWriteIndex marr i x
             return $ Tuple' marr (i + 1)
 
     extract (Tuple' marr len) = shrinkArray marr len >> return marr
@@ -189,7 +186,7 @@ writeNUnsafe n = Fold step initial extract
         arr <- newArray (max n 0)
         return $ ArrayUnsafe arr 0
     step (ArrayUnsafe marr i) x = do
-        writeArray marr i x
+        unsafeWriteIndex marr i x
         return $ ArrayUnsafe marr (i + 1)
     extract (ArrayUnsafe marr i) = shrinkArray marr i >> return marr
 
@@ -201,7 +198,7 @@ fromStreamDN ::
     -> m (Array (PrimState m) a)
 fromStreamDN limit str = do
     marr <- newArray (max limit 0)
-    let step i x = i `seq` (writeArray marr i x) >> return (i + 1)
+    let step i x = i `seq` (unsafeWriteIndex marr i x) >> return (i + 1)
     n <- D.foldlM' step (return 0) $ D.take limit str
     shrinkArray marr n
     return marr
@@ -291,7 +288,7 @@ fromStreamDArraysOf n (D.Stream step state) = D.Stream step' (GroupStart state)
             r <- step (adaptState gst) st
             case r of
                 D.Yield x s -> do
-                    writeArray arr i x
+                    unsafeWriteIndex arr i x
                     return $ D.Skip (GroupBuffer s arr (i + 1))
                 D.Skip s -> return $ D.Skip (GroupBuffer s arr i)
                 D.Stop -> return $ D.Skip (GroupLastYield arr i)
