@@ -25,8 +25,10 @@ module Streamly.Internal.Data.Parser.ParserD
     , yieldM
     , die
     , dieM
+    , scan
 
     -- * Element parsers
+    , peekMaybe
     , peek
     , eof
     , satisfy
@@ -211,6 +213,22 @@ all predicate = Parser step initial return
     initial = return True
 
     step s a = return (if s && predicate a then Partial 0 True else Done 0 False)
+
+-- | See 'Streamly.Internal.Data.Parser.peekMaybe'.
+--
+-- /Internal/
+--
+{-# INLINABLE peekMaybe #-}
+peekMaybe :: MonadThrow m => Parser m a (Maybe a)
+peekMaybe = Parser step initial extract
+
+    where
+
+    initial = return ()
+
+    step () a = return $ Done 1 (Just a)
+
+    extract () = return Nothing
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -450,6 +468,23 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
+
+{-# INLINE scan #-}
+scan :: Monad m => s -> (s -> a -> Maybe s) -> Fold m a b -> Parser m a b
+scan begin sstep (Fold fstep finitial fextract) = Parser step initial extract
+
+  where
+
+    initial = Tuple' begin <$> finitial
+
+    step (Tuple' s fs) a =
+        case sstep s a of
+            Just s' -> do
+              fs' <- fstep fs a
+              return $ Partial 0 (Tuple' s' fs')
+            Nothing -> Done 1 <$> fextract fs
+
+    extract (Tuple' _ fs) = fextract fs
 
 {-# ANN type SepParseState Fuse #-}
 data SepParseState seps sa fs = SepParseA !Int fs sa | SepParseSep !Int fs seps

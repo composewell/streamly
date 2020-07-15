@@ -60,8 +60,10 @@ module Streamly.Internal.Data.Parser
     , yieldM
     , die
     , dieM
+    , scan
 
     -- * Element parsers
+    , peekMaybe
     , peek
     , eof
     , satisfy
@@ -289,6 +291,10 @@ die = K.toParserK . D.die
 dieM :: MonadCatch m => m String -> Parser m a b
 dieM = K.toParserK . D.dieM
 
+{-# INLINE peekMaybe #-}
+peekMaybe :: MonadCatch m => Parser m a (Maybe a)
+peekMaybe = D.toParserK D.peekMaybe
+
 -------------------------------------------------------------------------------
 -- Failing Parsers
 -------------------------------------------------------------------------------
@@ -509,6 +515,12 @@ takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 sliceSepByP :: -- MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
 sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
+
+-- /Internal/
+--
+{-# INLINE scan #-}
+scan :: MonadCatch m => s -> (s -> a -> Maybe s) -> Fold m a b -> Parser m a b
+scan s f fl = D.toParserK $ D.scan s f fl
 
 -- | @sepBy fl p sep@ collects zero or more stream elements separated by @sep@.
 --

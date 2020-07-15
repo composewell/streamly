@@ -7,17 +7,16 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE OverloadedLists #-}
-
-module Streamly.Internal.Data.Json.Stream 
-    ( parseJson )
+module Streamly.Internal.Data.Json.Stream
+    ( parseJson
+    , parseJsonEOF
+    )
 where
 
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch)
-import Data.Bits (testBit)
 import Data.Char (chr, ord)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
@@ -30,6 +29,7 @@ import qualified Data.Scientific as Sci
 import Streamly.Internal.Data.Parser.ParserD (Parser)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Array as A
@@ -56,26 +56,11 @@ import qualified Streamly.Data.Fold as FL
 #define C_n 110
 #define C_t 116
 
+backslash, zero, minus, plus :: Word8
 backslash = 92 :: Word8
-close_curly = 125 :: Word8
-close_square = 93 :: Word8
-comma = 44 :: Word8
-double_quote = 34 :: Word8
-open_curly = 123 :: Word8
-open_square = 91 :: Word8
-colon = 58 :: Word8
-c_0 = 48 :: Word8
-c_9 = 57 :: Word8
-c_A = 65 :: Word8
-c_F = 70 :: Word8
-c_a = 97 :: Word8
-c_f = 102 :: Word8
-c_n = 110 :: Word8
-c_t = 116 :: Word8
 zero = 48 :: Word8
 minus = 45 :: Word8
 plus = 43 :: Word8
-
 
 instance Enum a => Hashable (A.Array a) where
     hash arr = fromIntegral $ runIdentity $ IUF.fold A.read IFL.rollingHash arr
@@ -99,14 +84,6 @@ data Value
     | Null
     deriving (Eq, Show)
 
-{-# INLINE pushToFold #-}
-pushToFold :: Monad m => Fold m a b -> a -> Fold m a b
-pushToFold (Fold step initial extract) a = Fold step initial' extract
-    where
-    initial' = do
-        s <- initial
-        step s a
-
 {-# INLINE skipSpace #-}
 skipSpace :: MonadCatch m => Parser m Word8 ()
 skipSpace =
@@ -114,19 +91,12 @@ skipSpace =
         (\w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09)
         FL.drain
 
-{-# INLINE spaceAround #-}
-spaceAround :: MonadCatch m => Parser m Word8 b -> Parser m Word8 b
-spaceAround parseInBetween = do
-    skipSpace
-    between <- parseInBetween
-    skipSpace
-    return between
-
 {-# INLINE skip #-}
 skip :: MonadCatch m => Int -> Parser m a ()
 skip n = P.take n FL.drain
 
 {-# INLINE string #-}
+
 string :: MonadCatch m => String -> Parser m Word8 ()
 string = P.eqBy (==) . map (fromIntegral . ord)
 
@@ -134,11 +104,13 @@ string = P.eqBy (==) . map (fromIntegral . ord)
 match :: MonadCatch m => Word8 -> Parser m Word8 ()
 match w = P.eqBy (==) [w]
 
+{-# SPECIALISE foldToInteger :: Monad m => Int -> Fold m Word8 Int #-}
+{-# SPECIALISE foldToInteger :: Monad m => Integer -> Fold m Word8 Integer #-}
 {-# INLINE foldToInteger #-}
-foldToInteger :: Monad m => Fold m Word8 Integer
-foldToInteger = Fold step initial extract
+foldToInteger :: (Num a, Monad m) => a -> Fold m Word8 a
+foldToInteger begin = Fold step initial extract
   where
-    initial = return 0
+    initial = return begin
 
     step s a = return $ s * 10 + fromIntegral (a - 48)
 
@@ -147,10 +119,20 @@ foldToInteger = Fold step initial extract
 {-# INLINE parseDecimal0 #-}
 parseDecimal0 :: MonadCatch m => Parser m Word8 Integer
 parseDecimal0 = do
-    h <- P.peek
-    n <- P.peek
-    when (h == zero && n - 48 > 9) $ P.die "Leading zero in a number is not accepted in JSON."
-    P.takeWhile1 (\w -> w - 48 <= 9) foldToInteger
+    z <- P.peek
+    n <- P.takeWhile1 (\w -> w - 48 <= 9) (foldToInteger 0)
+    when (z == zero && n /= 0) $ do
+        P.die $ " Leading zero in a number is not accepted in JSON."
+    return n
+
+{-# INLINE parseDecimal #-}
+parseDecimal :: MonadCatch m => Parser m Word8 Int
+parseDecimal = do
+  sign <- P.peek
+  let positive = sign == plus || sign /= minus
+      pr = P.takeWhile1 (\w -> w - 48 <= 9) (foldToInteger 0)
+  when (sign == plus || sign == minus) (skip 1)
+  if positive then pr else negate <$> pr
 
 {-# INLINE parseJsonNumber #-}
 parseJsonNumber :: MonadCatch m => Parser m Word8 Scientific
@@ -159,8 +141,24 @@ parseJsonNumber = do
     let positive = sign == plus || sign /= minus
     when (sign == plus || sign == minus) (skip 1)
     n <- parseDecimal0
-    let signedCoeff = if positive then n else (-n)
-    return (Sci.scientific signedCoeff 0)
+    dot <- P.peekMaybe
+    Tuple' c e <-
+        case dot of
+            Just 46 -> do
+                skip 1
+                P.takeWhile1
+                    (\w -> w - 48 <= 9)
+                    (Tuple' <$> foldToInteger n <*> FL.length)
+            _ -> return $ Tuple' n 0
+
+    let signedCoeff = if positive then c else (-c)
+    mex <- P.peekMaybe
+    case mex of
+        Just ex
+            | ex == 101 || ex == 69 -> do
+                skip 1
+                Sci.scientific signedCoeff . (e +) <$> parseDecimal
+        _ -> return (Sci.scientific signedCoeff e)
 
 {-# INLINE parseJsonString #-}
 parseJsonString :: MonadCatch m => Parser m Word8 JsonString
@@ -170,19 +168,24 @@ parseJsonString = do
     w <- P.peek
     case w of
         DOUBLE_QUOTE -> skip 1 >> return s
+        BACKSLASH -> (fmap (s <>) escapeParseJsonString) <* skip 1
         _ -> do
-            P.die $ [(chr . fromIntegral) w] ++ " Not yet implemented to handle escape sequences in String."
+            P.die $ [(chr . fromIntegral) w] ++ " : String without end."
+
+{-# INLINE escapeParseJsonString #-}
+escapeParseJsonString :: MonadCatch m => Parser m Word8 JsonString
+escapeParseJsonString = P.scan startState go (Uni.foldUtf8With A.unsafeWrite)
+  where
+    startState = False
+    go s a
+        | s = Just False
+        | a == DOUBLE_QUOTE = Nothing
+        | otherwise =
+            let a' = a == backslash
+             in Just a'
 
 {-# INLINE parseJsonValue #-}
 parseJsonValue :: MonadCatch m => Parser m Word8 Value
-{- parseJsonValue = skipSpace >>
-            (Object <$> parseJsonObject)
-    `P.alt` (Array  <$> parseJsonArray)
-    `P.alt` (String <$> parseJsonString)
-    `P.alt` (Number <$> parseJsonNumber)
-    `P.alt` (Bool True <$ string "true")
-    `P.alt` (Bool False <$ string "false")
-    `P.alt` (Null <$ string "null") -}
 parseJsonValue = do
     skipSpace
     w <- P.peek
@@ -230,13 +233,55 @@ parseJsonArray = do
     match CLOSE_SQUARE
     return jsonValues
 
+{-# INLINE parseJsonEOF #-}
+parseJsonEOF :: MonadCatch m => PR.Parser m Word8 Value
+parseJsonEOF =
+    P.toParserK $ do
+        v <- parseJsonValue
+        skipSpace
+        P.eof
+        return v
+
 {-# INLINE parseJson #-}
 parseJson :: MonadCatch m => PR.Parser m Word8 Value
--- parseJson = P.toParserK (spaceAround $ (Object <$> parseJsonObject) `P.alt` (Array <$> parseJsonArray))
-parseJson = P.toParserK $ do
-    skipSpace
-    w <- P.peek
-    case w of
-        OPEN_CURLY  -> Object <$> parseJsonObject
-        OPEN_SQUARE -> Array <$> parseJsonArray
-        _           -> P.die $ "Encountered " ++ [chr . fromIntegral $ w] ++ " when expection [ or {."
+parseJson = P.toParserK $ parseJsonValue
+
+{-
+
+{-# INLINE pushToFold #-}
+pushToFold :: Monad m => Fold m a b -> a -> Fold m a b
+pushToFold (Fold step initial extract) a = Fold step initial' extract
+    where
+    initial' = do
+        s <- initial
+        step s a
+
+sepBy1 ::
+       MonadCatch m
+    => Fold m a c
+    -> Parser m Word8 a
+    -> Parser m Word8 sep
+    -> Parser m Word8 c
+sepBy1 fl p sep = do
+    a <- p
+    P.many (pushToFold fl a) (sep >> p)
+
+sepBy ::
+       MonadCatch m
+    => Fold m a c
+    -> Parser m Word8 a
+    -> Parser m Word8 sep
+    -> Parser m Word8 c
+sepBy fl@(Fold _ initial extract) p sep =
+    sepBy1 fl p sep `P.alt` P.yieldM (initial >>= extract)
+
+parseJsonValue = skipSpace >>
+            (Object <$> parseJsonObject)
+    `P.alt` (Array  <$> parseJsonArray)
+    `P.alt` (String <$> parseJsonString)
+    `P.alt` (Number <$> parseJsonNumber)
+    `P.alt` (Bool True <$ string "true")
+    `P.alt` (Bool False <$ string "false")
+    `P.alt` (Null <$ string "null")
+
+-}
