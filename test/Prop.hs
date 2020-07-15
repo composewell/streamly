@@ -22,7 +22,7 @@ import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (counterexample, Property, withMaxSuccess, forAll, choose, Gen,
-       arbitrary, elements, frequency, listOf) --, listOf1, vectorOf, suchThat)
+       arbitrary, elements, frequency, listOf, vectorOf) --, listOf1, suchThat)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
 import Test.Hspec as H
@@ -33,6 +33,9 @@ import Streamly as S
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as FL
+
+maxStreamLen :: Int
+maxStreamLen = 1000
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -990,6 +993,56 @@ monadBind constr eq t (a, b) = withMaxSuccess maxTestCount $
         let list = a >>= \x -> (+ x) <$> b
         listEquals eq stream list
 
+-------------------------------------------------------------------------------
+-- Tests for S.groupsBy
+-------------------------------------------------------------------------------
+
+-- |
+-- If the list is empty, returns Nothing,
+-- else wraps the minimum value of the list in Just.
+maybeMinimum :: [Int] -> Maybe Int
+maybeMinimum [] = Nothing
+maybeMinimum ls = Just $ minimum ls
+
+
+-- |
+-- After grouping (and folding) Int stream using @>@ operation,
+-- the first @Int@ of every @[Int]@ in the @[Int]@ stream should be the minimum.
+testGroupsBy :: Property
+testGroupsBy =
+    forAll (choose (0, maxStreamLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
+            r <- run $ S.all (\ls ->
+                case ls of
+                    [] -> True
+                    (x:_) -> x == minimum ls)
+                $ S.groupsBy (>) FL.toList
+                $ S.fromList vec
+            assert $ r == True
+
+-- |
+-- Checks if the @[Int]@ is non-increasing.
+decreasing :: [Maybe Int] -> Bool
+decreasing [] = True
+decreasing xs = all (== True) $ zipWith (<=) (tail xs) xs
+
+
+-- |
+-- To check if the minimum elements (after grouping on @>@)
+-- are non-increasing (either decrease or remain the same).
+-- Had an element been strictly greater, it would have been grouped
+-- with that element only.
+testGroupsBySep :: Property
+testGroupsBySep =
+    forAll (choose (0, maxStreamLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
+            a <- run $ S.toList
+                $ S.map maybeMinimum
+                $ S.groupsBy (>) FL.toList
+                $ S.fromList vec
+            assert $ decreasing a == True
+
+
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -1347,3 +1400,7 @@ main = hspec
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
         zipSerialOps $ eliminationOpsOrdered folded "zipSerially folded"
         zipAsyncOps  $ eliminationOpsOrdered folded "zipAsyncly folded"
+
+    describe "Tests for S.groupsBy" $ do
+        prop "testGroupsBy" testGroupsBy
+        prop "testGroupsBySep" testGroupsBySep
