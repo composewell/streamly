@@ -3659,8 +3659,8 @@ intervalsOf n f xs =
 ------------------------------------------------------------------------------
 --
 -- | @groupsBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
--- first group, if @a \`cmp` b@ is 'True' then @b@ is also assigned to the same
--- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
+-- first group, if @b \`cmp` a@ is 'True' then @b@ is also assigned to the same
+-- group.  If @c \`cmp` a@ is 'True' then @c@ is also assigned to the same
 -- group and so on. When the comparison fails a new group is started. Each
 -- group is folded using the fold @f@ and the result of the fold is emitted in
 -- the output stream.
