@@ -5,7 +5,9 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -fspec-constr-recursive=4 #-}
 
 module Main
   (
@@ -59,6 +61,12 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
+#ifdef FROM_PARSERK
+#define PARSE_OP (IP.parseD . PRD.fromParserK)
+#else
+#define PARSE_OP IP.parseK
+#endif
+
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> PR.Parser m a a
 satisfy = PRD.toParserK . PRD.satisfy
@@ -69,7 +77,7 @@ any = PRD.toParserK . PRD.any
 
 {-# INLINE anyK #-}
 anyK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
-anyK value = IP.parseK (any (> value))
+anyK value = PARSE_OP (any (> value))
 
 {-# INLINE all #-}
 all :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
@@ -77,7 +85,7 @@ all = PRD.toParserK . PRD.all
 
 {-# INLINE allK #-}
 allK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
-allK value = IP.parseK (all (<= value))
+allK value = PARSE_OP (all (<= value))
 
 {-# INLINE take #-}
 take :: MonadCatch m => Int -> PR.Parser m a ()
@@ -85,7 +93,7 @@ take value = PRD.toParserK $ PRD.take value FL.drain
 
 {-# INLINE takeK #-}
 takeK :: MonadCatch m => Int -> SerialT m a -> m ()
-takeK value = IP.parseK (take value)
+takeK value = PARSE_OP (take value)
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
@@ -93,20 +101,20 @@ takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadCatch m => Int -> SerialT m Int -> m ()
-takeWhileK value = IP.parseK (takeWhile (<= value))
+takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
 splitApp :: MonadCatch m
     => Int -> SerialT m Int -> m (Bool, Bool)
 splitApp value =
-    IP.parseK ((,) <$> any (>= (value `div` 2)) <*> any (> value))
+    PARSE_OP ((,) <$> any (>= (value `div` 2)) <*> any (> value))
 
 {-# INLINE sequenceA #-}
 sequenceA :: MonadCatch m => Int -> SerialT m Int -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- IP.parseK (TR.sequenceA list) xs
+    x <- PARSE_OP (TR.sequenceA list) xs
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
@@ -114,32 +122,32 @@ sequenceA_ :: MonadCatch m => Int -> SerialT m Int -> m ()
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    IP.parseK (F.sequenceA_ list) xs
+    PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
 sequence :: MonadCatch m => Int -> SerialT m Int -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- IP.parseK (TR.sequence list) xs
+    x <- PARSE_OP (TR.sequence list) xs
     return $ Prelude.length x
 
 {-# INLINE manyAlt #-}
 manyAlt :: MonadCatch m => SerialT m Int -> m Int
 manyAlt xs = do
-    x <- IP.parseK (AP.many (satisfy (> 0))) xs
+    x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
 someAlt :: MonadCatch m => SerialT m Int -> m Int
 someAlt xs = do
-    x <- IP.parseK (AP.some (satisfy (> 0))) xs
+    x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
 choice value =
-    IP.parseK (asum (replicate value (satisfy (< 0)))
+    PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 -------------------------------------------------------------------------------
