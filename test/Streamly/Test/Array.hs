@@ -25,13 +25,20 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
-import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Prelude as IP
+type Array = A.Array
+#elif defined(TEST_PRIM_PINNED_ARRAY)
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 import qualified Streamly.Internal.Prelude as IP
 type Array = A.Array
 #elif defined(TEST_PRIM_ARRAY)
 import qualified Streamly.Internal.Data.Prim.Array as A
-type Array = A.PrimArray
+import qualified Streamly.Internal.Data.Prim.Array.Types as A
+import qualified Streamly.Internal.Prelude as IP
+type Array = A.Array
 #else
 import qualified Streamly.Internal.Data.Array as A
 type Array = A.Array
@@ -122,17 +129,27 @@ testFoldUnfold :: Property
 testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
 #endif
 
-#ifdef TEST_ARRAY
+#if defined(TEST_ARRAY) ||\
+    defined(TEST_PRIM_ARRAY) ||\
+    defined(TEST_PRIM_PINNED_ARRAY)
+
 testArraysOf :: Property
 testArraysOf =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                xs <- S.toList
+                xs <- run
+                    $ S.toList
                     $ S.concatUnfold A.read
-                    $ IP.arraysOf 240
+                    $ arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
+  where
+    arraysOf n = IP.chunksOf n (A.writeNUnsafe n)
+
+#endif
+
+#ifdef TEST_ARRAY
 
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
@@ -143,7 +160,8 @@ testLastN =
         forAll (choose (0, len)) $ \n ->
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
-                    xs <- fmap A.toList
+                    xs <- run
+                        $ fmap A.toList
                         $ S.fold (A.lastN n)
                         $ S.fromList list
                     assert (xs == lastN n list)
@@ -174,9 +192,13 @@ main =
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
 #endif
-#ifdef TEST_ARRAY
+
+#if defined(TEST_ARRAY) ||\
+    defined(TEST_PRIM_ARRAY) ||\
+    defined(TEST_PRIM_PINNED_ARRAY)
             prop "arraysOf concats to original" testArraysOf
 #endif
+
 #ifdef TEST_ARRAY
         describe "Fold" $ do
             prop "lastN : 0 <= n <= len" $ testLastN

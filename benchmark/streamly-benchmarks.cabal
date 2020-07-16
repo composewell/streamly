@@ -376,6 +376,7 @@ benchmark Data.Prim.Array
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Prim/Array.hs
   other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
+  build-depends: primitive
 
 benchmark Data.SmallArray
   import: bench-options
@@ -383,6 +384,14 @@ benchmark Data.SmallArray
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/SmallArray.hs
   other-modules: Streamly.Benchmark.Data.SmallArrayOps
+
+benchmark Data.Prim.Pinned.Array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/Prim/Pinned/Array.hs
+  other-modules: Streamly.Benchmark.Data.Prim.Pinned.ArrayOps
+  build-depends: primitive
 
 benchmark Memory.Array
   import: bench-options

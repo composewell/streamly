@@ -113,6 +113,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
+    benchmark/Streamly/Benchmark/Data/Prim/Pinned/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
@@ -145,6 +146,9 @@ extra-source-files:
     examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/config-clock.h
+    src/prim-array.hs
+    src/prim-array-types.hs
+    src/mutable-prim-array-types.hs
     src/Streamly/Internal/Data/Time/config.h.in
     src/inline.hs
     stack.yaml
@@ -382,6 +386,10 @@ library
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Prim.Array.Types
                      , Streamly.Internal.Data.Prim.Array
+                     , Streamly.Internal.Data.Prim.Mutable.Array.Types
+                     , Streamly.Internal.Data.Prim.Pinned.Array.Types
+                     , Streamly.Internal.Data.Prim.Pinned.Array
+                     , Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
                      , Streamly.Internal.Data.SmallArray.Types
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
@@ -440,6 +448,7 @@ library
                      , Streamly.Internal.Data.Unicode.Stream
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
+                     , Streamly.Internal.Data.Prim.Pinned.Unicode.Array
 
     if !impl(ghcjs)
        exposed-modules:
@@ -662,6 +671,23 @@ test-suite primarray-test
   js-sources: jsbits/clock.js
   hs-source-dirs: test
   cpp-options: -DTEST_PRIM_ARRAY
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , QuickCheck        >= 2.10  && < 2.15
+    , hspec             >= 2.0   && < 3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  default-language: Haskell2010
+
+test-suite primpinnedarray-test
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Array.hs
+  js-sources: jsbits/clock.js
+  hs-source-dirs: test
+  cpp-options: -DTEST_PRIM_PINNED_ARRAY
   build-depends:
       streamly
     , base              >= 4.8   && < 5

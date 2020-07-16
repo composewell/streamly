@@ -1,9 +1,9 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Prim.Array
+-- Module      : Streamly.Internal.Data.Prim.Pinned.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Prim.Array
+module Streamly.Internal.Data.Prim.Pinned.Array
     (
       Array
 
@@ -94,7 +94,7 @@ module Streamly.Internal.Data.Prim.Array
     , fold
 
     -- * Folds with Array as the container
---    , D.lastN
+--  , D.lastN
 
     -- * Streaming array operations
 
@@ -104,7 +104,7 @@ module Streamly.Internal.Data.Prim.Array
     )
 where
 
-import Streamly.Internal.Data.Prim.Array.Types (Array(..), length)
-import qualified Streamly.Internal.Data.Prim.Array.Types as A
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..), length)
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 
 #include "prim-array.hs"

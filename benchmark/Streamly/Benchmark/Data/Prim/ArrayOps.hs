@@ -15,7 +15,7 @@
 
 module Streamly.Benchmark.Data.Prim.ArrayOps where
 
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Primitive (PrimMonad)
 import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
 import qualified Prelude as P
 #ifdef DEVBUILD
@@ -37,10 +37,10 @@ value = 100000
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream = A.PrimArray
+type Stream = A.Array
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: MonadIO m => Int -> m (Stream Int)
+sourceUnfoldr :: PrimMonad m => Int -> m (Stream Int)
 sourceUnfoldr n = S.fold (A.writeN value) $ S.unfoldr step n
     where
     step cnt =
@@ -49,19 +49,19 @@ sourceUnfoldr n = S.fold (A.writeN value) $ S.unfoldr step n
         else (Just (cnt, cnt + 1))
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromTo :: PrimMonad m => Int -> m (Stream Int)
 sourceIntFromTo n = S.fold (A.writeN value) $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromToFromStream :: PrimMonad m => Int -> m (Stream Int)
 sourceIntFromToFromStream n = S.fold A.write $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromToFromList :: PrimMonad m => Int -> m (Stream Int)
 sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: MonadIO m => Int -> m (Stream Int)
+sourceFromList :: PrimMonad m => Int -> m (Stream Int)
 sourceFromList n = S.fold (A.writeN value) $ S.fromList [n..n+value]
 {-
 {-# INLINE sourceIsList #-}
@@ -92,11 +92,11 @@ composeN n f x =
 {-# INLINE map #-}
 
 scanl', scanl1', map
-    :: MonadIO m => Int -> Stream Int -> m (Stream Int)
+    :: PrimMonad m => Int -> Stream Int -> m (Stream Int)
 
 {-# INLINE onArray #-}
 onArray
-    :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
+    :: PrimMonad m => (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
 onArray f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
@@ -136,7 +136,7 @@ readInstance str =
 -}
 
 {-# INLINE pureFoldl' #-}
-pureFoldl' :: MonadIO m => Stream Int -> m Int
+pureFoldl' :: PrimMonad m => Stream Int -> m Int
 pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
 #if 0
