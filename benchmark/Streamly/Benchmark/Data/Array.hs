@@ -1,6 +1,6 @@
 -- |
 -- Module      : Main
--- Copyright   : (c) 2019 Composewell Technologies
+-- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,25 +8,20 @@
 {-# LANGUAGE CPP #-}
 
 import Control.DeepSeq (NFData(..))
-
-#ifndef DATA_PRIM_ARRAY
-import Control.DeepSeq (deepseq)
-#endif
-
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
 
-import Streamly.Benchmark.Common hiding (benchPureSrc)
 import Gauge
+import Streamly.Benchmark.Common hiding (benchPureSrc)
 
 #ifdef MEMORY_ARRAY
 import qualified GHC.Exts as GHC
 import Foreign.Storable (Storable(..))
 #endif
 
-#ifdef DATA_PRIM_ARRAY
-import Data.Primitive.Types (Prim(..))
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
+import Control.DeepSeq (deepseq)
 #endif
 
 -------------------------------------------------------------------------------
@@ -49,13 +44,9 @@ benchIO name src f = bench name $ nfIO $
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
 benchIOSrc ::
-#ifndef DATA_PRIM_ARRAY
        NFData a =>
-#endif
 #ifdef MEMORY_ARRAY
        Storable a =>
-#elif defined(DATA_PRIM_ARRAY)
-       Prim a =>
 #endif
        String -> (Int -> IO (Ops.Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
@@ -92,7 +83,7 @@ o_1_space_generation value =
               "writeN . IsString.fromString"
               (Ops.sourceIsString value)
 #endif
-#ifndef DATA_PRIM_ARRAY
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DATA_SMALLARRAY
         , let testStr =
                   "fromListN " ++
@@ -122,7 +113,7 @@ o_1_space_elimination value =
         , benchIOSink value "foldl'" Ops.pureFoldl'
         , benchIOSink value "read" Ops.unfoldReadDrain
         , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
-#ifndef DATA_PRIM_ARRAY
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink value "foldable/sum" Ops.foldableSum
@@ -154,8 +145,10 @@ moduleName :: String
 moduleName = "Data.SmallArray"
 #elif defined(MEMORY_ARRAY)
 moduleName = "Memory.Array"
-#elif defined(DATA_PRIM_ARRAY)
-moduleName = "Data.Prim.Array"
+#elif defined(DATA_ARRAY_PRIM)
+moduleName = "Data.Array.Prim"
+#elif defined(DATA_ARRAY_PRIM_PINNED)
+moduleName = "Data.Array.Prim.Pinnned"
 #else
 moduleName = "Data.Array"
 #endif

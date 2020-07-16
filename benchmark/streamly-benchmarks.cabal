@@ -387,13 +387,13 @@ benchmark Data.Array
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY
 
-benchmark Data.Prim.Array
+benchmark Data.Array.Prim
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
-  cpp-options: -DDATA_PRIM_ARRAY
+  cpp-options: -DDATA_ARRAY_PRIM
   build-depends: primitive
 
 benchmark Data.SmallArray
@@ -403,6 +403,14 @@ benchmark Data.SmallArray
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_SMALLARRAY
+
+benchmark Data.Array.Prim.Pinned
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/Array.hs
+  other-modules: Streamly.Benchmark.Data.ArrayOps
+  cpp-options: -DDATA_ARRAY_PRIM_PINNED
 
 benchmark Memory.Array
   import: bench-options

@@ -8,8 +8,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- CPP:
 -- MEMORY_ARRAY
@@ -24,8 +22,7 @@ import Prelude (Bool, Int, Maybe(..), ($), (+), (.), (==), (>), undefined)
 
 import qualified Prelude as P
 import qualified Streamly as S hiding (foldMapWith, runStream)
-import qualified Streamly.Prelude   as S
-
+import qualified Streamly.Prelude as S
 
 #ifndef DATA_PRIM_ARRAY
 #ifdef DEVBUILD
@@ -33,14 +30,11 @@ import qualified Data.Foldable as F
 #endif
 #endif
 
-#ifdef MEMORY_ARRAY
-import qualified GHC.Exts as GHC
-#endif
-
 #ifdef DATA_SMALLARRAY
 import qualified Streamly.Internal.Data.SmallArray as A
 type Stream = A.SmallArray
 #elif defined(MEMORY_ARRAY)
+import qualified GHC.Exts as GHC
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array as A
 type Stream = A.Array
