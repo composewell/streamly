@@ -159,7 +159,7 @@ module Streamly.Internal.Data.Parser.ParserD
 where
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Control.Monad.Catch (MonadCatch, MonadThrow(..), catchAll)
 import Prelude
        hiding (any, all, take, takeWhile, sequence, concatMap)
 
@@ -655,7 +655,7 @@ data ParserTurn = Parser1 | Parser2
 --
 {-# INLINE deintercalate #-}
 deintercalate ::
-    Monad m
+    MonadCatch m
     => Fold m a y 
     -> Parser m x a
     -> Fold m b z 
@@ -763,15 +763,23 @@ deintercalate
     extract (fs1, ps1, fs2, ps2, currentParser, _) =
         case currentParser of
             Parser1 -> do
-                res <- pextract1 ps1
-                fs1new <- fstep1 fs1 res
+                maybeRes <- catchAll 
+                    (fmap Just $ pextract1 ps1) 
+                    (\_ -> return Nothing)
+                fs1new <- case maybeRes of
+                    Nothing -> return fs1
+                    Just res -> fstep1 fs1 res
                 result1 <- fextract1 fs1new
                 result2 <- fextract2 fs2
                 return (result1, result2)
             
             Parser2 -> do
-                res <- pextract2 ps2
-                fs2new <- fstep2 fs2 res
+                maybeRes <- catchAll 
+                    (fmap Just $ pextract2 ps2) 
+                    (\_ -> return Nothing)
+                fs2new <- case maybeRes of
+                    Nothing -> return fs2
+                    Just res -> fstep2 fs2 res
                 result1 <- fextract1 fs1
                 result2 <- fextract2 fs2new
                 return (result1, result2)
