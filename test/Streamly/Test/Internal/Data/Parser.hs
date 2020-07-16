@@ -10,7 +10,7 @@ import Test.Hspec(Spec, hspec, describe)
 import qualified Test.Hspec as H
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (arbitrary, forAll, choose, elements, Property,
-                        property, listOf, vectorOf, counterexample, Gen)
+                        property, listOf, vectorOf, counterexample, Gen, (.&&.))
 
 import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor)
 import Control.Exception (SomeException(..), displayException)
@@ -570,9 +570,15 @@ deintercalate1 :: Property
 deintercalate1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse prsr (S.fromList ls) of
-            Right parsed_list_tuple -> 
-                parsed_list_tuple == (partition (== 0) ls)
-            Left _ -> False
+            Right parsed_list_tuple ->
+                let
+                    (parsedList1, parsedList2) = parsed_list_tuple
+                    (list1, list2) = partition (== 0) ls
+                in
+                    checkListEqual parsedList1 list1
+                    .&&.
+                    checkListEqual parsedList2 list2
+            Left _ -> property False
 
         where
 
@@ -595,6 +601,42 @@ deintercalate1 =
 
             where (trueList, falseList) = partition prd xs
         partition _ [] = ([], [])
+
+deintercalate2 :: Property
+deintercalate2 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse prsr (S.fromList ls) of
+            Right parsed_list_tuple ->
+                let
+                    (parsedList1, parsedList2) = parsed_list_tuple
+                    (list1, list2) = partitionAlternate (== 0) ls
+                in
+                    checkListEqual parsedList1 list1
+                    .&&.
+                    checkListEqual parsedList2 list2
+            Left _ -> property False
+
+        where
+
+        prsr_1 = P.satisfy (== 0)
+
+        prsr_2 = P.satisfy (== 1)
+
+        prsr = P.deintercalate FL.toList prsr_1 FL.toList prsr_2
+
+        partitionAlternate prd list = helper list False
+            where
+
+            helper (x : xs) prevRes =
+                if prd x == prevRes
+                then ([], [])
+                else
+                    if prd x 
+                    then (x : trueList, falseList)
+                    else (trueList, x : falseList)
+
+                where (trueList, falseList) = helper xs (not prevRes)
+            helper [] _ = ([], [])
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -687,6 +729,9 @@ main =
         -- prop "both fail test for teeWith function" teeWithFailBoth
         prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition"
             deintercalate1
+        prop 
+            "P.deintercalate FL.toList prsr_1 FL.toList prsr_2 = partitionAlternate"
+            deintercalate2
         -- prop "pass test for shortest function" shortestPass
         -- prop "left fail test for shortest function" shortestFailLeft
         -- prop "right fail test for shortest function" shortestFailRight

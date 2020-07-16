@@ -455,13 +455,19 @@ teeWithFailBoth =
         Right _ -> False
         Left _ -> True)
 
-deintercalate :: Property
-deintercalate =
+deintercalate1 :: Property
+deintercalate1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parseD prsr (S.fromList ls) of
-            Right parsed_list_tuple -> 
-                parsed_list_tuple == (partition (== 0) ls)
-            Left _ -> False
+            Right parsed_list_tuple ->
+                let
+                    (parsedList1, parsedList2) = parsed_list_tuple
+                    (list1, list2) = partition (== 0) ls
+                in
+                    checkListEqual parsedList1 list1
+                    .&&.
+                    checkListEqual parsedList2 list2
+            Left _ -> property False
 
         where
 
@@ -484,6 +490,42 @@ deintercalate =
 
             where (trueList, falseList) = partition prd xs
         partition _ [] = ([], [])
+
+deintercalate2 :: Property
+deintercalate2 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD prsr (S.fromList ls) of
+            Right parsed_list_tuple ->
+                let
+                    (parsedList1, parsedList2) = parsed_list_tuple
+                    (list1, list2) = partitionAlternate (== 0) ls
+                in
+                    checkListEqual parsedList1 list1
+                    .&&.
+                    checkListEqual parsedList2 list2
+            Left _ -> property False
+
+        where
+
+        prsr_1 = P.satisfy (== 0)
+
+        prsr_2 = P.satisfy (== 1)
+
+        prsr = P.deintercalate FL.toList prsr_1 FL.toList prsr_2
+
+        partitionAlternate prd list = helper list False
+            where
+
+            helper (x : xs) prevRes =
+                if prd x == prevRes
+                then ([], [])
+                else
+                    if prd x 
+                    then (x : trueList, falseList)
+                    else (trueList, x : falseList)
+
+                where (trueList, falseList) = helper xs (not prevRes)
+            helper [] _ = ([], [])
 
 shortestPass :: Property
 shortestPass =
@@ -627,7 +669,8 @@ main =
         prop "fail due to die as left parser" teeWithFailLeft
         prop "fail due to die as right parser" teeWithFailRight
         prop "fail due to die as both parsers" teeWithFailBoth
-        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition" deintercalate
+        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition" deintercalate1
+        prop "P.deintercalate FL.toList prsr_1 FL.toList prsr_2 = partitionAlternate" deintercalate2
         prop "P.takeWhile (<= half_mid_value) = Prelude.takeWhile half_mid_value" shortestPass
         prop "pass even if die is left parser" shortestPassLeft
         prop "pass even if die is right parser" shortestPassRight
