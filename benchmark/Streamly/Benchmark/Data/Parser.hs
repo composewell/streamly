@@ -77,6 +77,18 @@ take value = IP.parse (PR.take value FL.drain)
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
+{-# INLINE deintercalate #-}
+deintercalate :: MonadCatch m => SerialT m Int -> m ((), ())
+deintercalate = IP.parse prsr
+
+    where
+    
+    prsr1 = PR.takeWhile (\x -> x `mod` 2 == 1) FL.drain
+
+    prsr2 = PR.takeWhile (\x -> x `mod` 2 == 0) FL.drain
+
+    prsr = PR.deintercalate FL.drain prsr1 FL.drain prsr2
+
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
 many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
@@ -230,6 +242,7 @@ o_1_space_serial value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "deintercalate" $ deintercalate
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
