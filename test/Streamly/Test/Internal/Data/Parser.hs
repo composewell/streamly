@@ -566,31 +566,32 @@ groupBy2 =
 --         Right _ -> False
 --         Left _ -> True)
 
-deintercalate :: Property
-deintercalate =
+deintercalate1 :: Property
+deintercalate1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
             Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
             Left _ -> False
 
         where
-            prsr_1 = (P.takeWhile (== 0) FL.toList)
 
-            prsr_2 = (P.takeWhile (== 1) FL.toList)
+        prsr_1 = (P.takeWhile (== 0) FL.toList)
 
-            concatFold = 
-                FL.Fold 
-                (\concatList curr_list -> return $ concatList ++ curr_list) 
-                (return []) 
-                return
+        prsr_2 = (P.takeWhile (== 1) FL.toList)
 
-            partition prd (x : xs) =
-                if prd x
-                then (x : trueList, falseList)
-                else (trueList, x : falseList)
+        concatFold = 
+            FL.Fold 
+            (\concatList curr_list -> return $ concatList ++ curr_list) 
+            (return []) 
+            return
 
-                where (trueList, falseList) = partition prd xs
-            partition _ [] = ([], [])
+        partition prd (x : xs) =
+            if prd x
+            then (x : trueList, falseList)
+            else (trueList, x : falseList)
+
+            where (trueList, falseList) = partition prd xs
+        partition _ [] = ([], [])
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -682,7 +683,7 @@ main =
         -- prop "right fail test for teeWith function" teeWithFailRight
         -- prop "both fail test for teeWith function" teeWithFailBoth
         prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition"
-            deintercalate
+            deintercalate1
         -- prop "pass test for shortest function" shortestPass
         -- prop "left fail test for shortest function" shortestFailLeft
         -- prop "right fail test for shortest function" shortestFailRight

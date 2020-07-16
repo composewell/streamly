@@ -463,23 +463,24 @@ deintercalate =
             Left _ -> False
 
         where
-            prsr_1 = (P.takeWhile (== 0) FL.toList)
+            
+        prsr_1 = (P.takeWhile (== 0) FL.toList)
 
-            prsr_2 = (P.takeWhile (== 1) FL.toList)
+        prsr_2 = (P.takeWhile (== 1) FL.toList)
 
-            concatFold = 
-                FL.Fold 
-                (\concatList curr_list -> return $ concatList ++ curr_list) 
-                (return []) 
-                return
+        concatFold = 
+            FL.Fold 
+            (\concatList curr_list -> return $ concatList ++ curr_list) 
+            (return []) 
+            return
 
-            partition prd (x : xs) =
-                if prd x
-                then (x : trueList, falseList)
-                else (trueList, x : falseList)
+        partition prd (x : xs) =
+            if prd x
+            then (x : trueList, falseList)
+            else (trueList, x : falseList)
 
-                where (trueList, falseList) = partition prd xs
-            partition _ [] = ([], [])
+            where (trueList, falseList) = partition prd xs
+        partition _ [] = ([], [])
 
 shortestPass :: Property
 shortestPass =
