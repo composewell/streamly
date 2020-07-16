@@ -654,10 +654,10 @@ main =
             sliceEndWith2
         prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)"
             sliceBeginWith
-        prop "P.wordBy1 = takeFirstFails" wordBy1
+        prop "P.wordBy = takeFirstFails" wordBy1
         prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)"
             wordBy2
-        prop "P.wordBy1 = takeWhileCmpFirst" groupBy1
+        prop "P.groupBy = takeWhileCmpFirst" groupBy1
         prop "S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)" groupBy2
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft

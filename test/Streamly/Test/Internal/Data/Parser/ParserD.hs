@@ -329,6 +329,74 @@ sliceSepByMax =
             where
                 predicate = (== 1)
 
+sliceEndWith :: Property
+sliceEndWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD (P.sliceEndWith predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> 
+                checkListEqual 
+                parsed_list 
+                (takeWhileAndFirstFail (not . predicate) ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeWhileAndFirstFail prd (x : xs) =
+                if prd x 
+                then x : takeWhileAndFirstFail prd xs
+                else [x]
+            takeWhileAndFirstFail _ [] = []
+
+sliceBeginWith :: Property
+sliceBeginWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD (P.sliceBeginWith predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> 
+                checkListEqual parsed_list (takeWhileOrFirst (not . predicate) ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeWhileOrFirst prd (x : xs) = x : Prelude.takeWhile prd xs
+            takeWhileOrFirst _ [] = []
+
+wordBy :: Property
+wordBy =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD (P.wordBy predicate FL.toList) (S.fromList ls) of
+            Right parsed_list ->
+                checkListEqual parsed_list (takeFirstFails predicate ls)
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeFirstFails prd list =
+                Prelude.takeWhile (not . prd) (removePass prd list)
+
+                where
+
+                removePass prd1 (x : xs) =
+                    if prd1 x
+                    then removePass prd1 xs
+                    else (x : xs)
+                removePass _ [] = []
+
+groupBy :: Property
+groupBy =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD (P.groupBy cmp FL.toList) (S.fromList ls) of
+            Right parsed_list -> 
+                checkListEqual parsed_list (takeWhileCmpFirst cmp ls)
+            Left _ -> property False
+        where
+            cmp = (==)
+
+            takeWhileCmpFirst comp list =
+                case list of
+                    [] -> []
+                    (x : xs) -> 
+                        x : Prelude.takeWhile (\curr -> curr `comp` x) xs
+
 splitWith :: Property
 splitWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -517,6 +585,10 @@ main =
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
+        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith
+        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
+        prop "P.wordBy = takeFirstFails" wordBy
+        prop "P.groupBy = takeWhileCmpFirst" groupBy
         prop "parse 0, then 1, else fail" splitWith
         prop "fail due to die as left parser" splitWithFailLeft
         prop "fail due to die as right parser" splitWithFailRight
