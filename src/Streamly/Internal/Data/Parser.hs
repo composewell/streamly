@@ -892,6 +892,17 @@ lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
 -- result is accumulated into the second fold. Finally, the finaly results
 -- are extracted from the two folds and returned when parsing is complete.
 --
+-- Please not the following: -
+--
+-- 1. This parser is run as follows: parser 1 is run on the stream, then
+-- parser2 is run, then again parser1, ..., until EOF or error.
+-- 2. The parser returns with the result extracted from accumulated states
+-- of the folds as soon as a parse fails.
+-- 2. Consider this - W.L.O.G if parser1 was running currently, then as soon
+-- as EOF is encountered, we use the state of this parser to update the fold's
+-- internal state, then use both the fold's internal states to produce the results
+-- which are finally outputted by the parse.
+--
 -- This undoes a "gintercalate" of two streams.
 --
 -- /Internal/
