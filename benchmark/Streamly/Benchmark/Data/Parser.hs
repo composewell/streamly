@@ -83,9 +83,9 @@ deintercalate = IP.parse prsr
 
     where
     
-    prsr1 = PR.takeWhile (\x -> x `mod` 2 == 1) FL.drain
+    prsr1 = PR.takeWhile odd FL.drain
 
-    prsr2 = PR.takeWhile (\x -> x `mod` 2 == 0) FL.drain
+    prsr2 = PR.takeWhile even FL.drain
 
     prsr = PR.deintercalate FL.drain prsr1 FL.drain prsr2
 
