@@ -458,15 +458,18 @@ teeWithFailBoth =
 deintercalate :: Property
 deintercalate =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parseD (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
-            Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
+        case S.parseD prsr (S.fromList ls) of
+            Right parsed_list_tuple -> 
+                parsed_list_tuple == (partition (== 0) ls)
             Left _ -> False
 
         where
-            
+
         prsr_1 = (P.takeWhile (== 0) FL.toList)
 
         prsr_2 = (P.takeWhile (== 1) FL.toList)
+
+        prsr = P.deintercalate concatFold prsr_1 concatFold prsr_2
 
         concatFold = 
             FL.Fold 
