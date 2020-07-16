@@ -566,17 +566,31 @@ groupBy2 =
 --         Right _ -> False
 --         Left _ -> True)
 
--- deintercalate :: Property
--- deintercalate =
---     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
---             Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
---             Left _ -> False
+deintercalate :: Property
+deintercalate =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
+            Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
+            Left _ -> False
 
---         where
---             prsr_1 = (P.takeWhile (== 0) FL.toList)
---             prsr_2 = (P.takeWhile (== 1) FL.toList)
---             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+        where
+            prsr_1 = (P.takeWhile (== 0) FL.toList)
+
+            prsr_2 = (P.takeWhile (== 1) FL.toList)
+
+            concatFold = 
+                FL.Fold 
+                (\concatList curr_list -> return $ concatList ++ curr_list) 
+                (return []) 
+                return
+
+            partition prd (x : xs) =
+                if prd x
+                then (x : trueList, falseList)
+                else (trueList, x : falseList)
+
+                where (trueList, falseList) = partition prd xs
+            partition _ [] = ([], [])
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -667,7 +681,8 @@ main =
         -- prop "left fail test for teeWith function" teeWithFailLeft
         -- prop "right fail test for teeWith function" teeWithFailRight
         -- prop "both fail test for teeWith function" teeWithFailBoth
-        -- prop "test for deintercalate function" deintercalate
+        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition"
+            deintercalate
         -- prop "pass test for shortest function" shortestPass
         -- prop "left fail test for shortest function" shortestFailLeft
         -- prop "right fail test for shortest function" shortestFailRight

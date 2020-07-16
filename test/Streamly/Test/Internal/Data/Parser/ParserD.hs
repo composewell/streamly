@@ -455,6 +455,32 @@ teeWithFailBoth =
         Right _ -> False
         Left _ -> True)
 
+deintercalate :: Property
+deintercalate =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parseD (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
+            Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
+            Left _ -> False
+
+        where
+            prsr_1 = (P.takeWhile (== 0) FL.toList)
+
+            prsr_2 = (P.takeWhile (== 1) FL.toList)
+
+            concatFold = 
+                FL.Fold 
+                (\concatList curr_list -> return $ concatList ++ curr_list) 
+                (return []) 
+                return
+
+            partition prd (x : xs) =
+                if prd x
+                then (x : trueList, falseList)
+                else (trueList, x : falseList)
+
+                where (trueList, falseList) = partition prd xs
+            partition _ [] = ([], [])
+
 shortestPass :: Property
 shortestPass =
     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
@@ -597,6 +623,7 @@ main =
         prop "fail due to die as left parser" teeWithFailLeft
         prop "fail due to die as right parser" teeWithFailRight
         prop "fail due to die as both parsers" teeWithFailBoth
+        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition" deintercalate
         prop "P.takeWhile (<= half_mid_value) = Prelude.takeWhile half_mid_value" shortestPass
         prop "pass even if die is left parser" shortestPassLeft
         prop "pass even if die is right parser" shortestPassRight
