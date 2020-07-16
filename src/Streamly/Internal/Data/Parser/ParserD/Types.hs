@@ -490,8 +490,8 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
     step (Tuple3' st _ (Left fs)) a = do
         r <- step1 st a
         case r of
-            Partial n s -> return $ Continue n (Tuple3' s undefined (Left fs))
-            Continue  n s -> return $ Continue n (Tuple3' s undefined (Left fs))
+            Partial n s -> return $ Continue n (Tuple3' s 0 (Left fs))
+            Continue  n s -> return $ Continue n (Tuple3' s 0 (Left fs))
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
