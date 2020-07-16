@@ -887,11 +887,14 @@ lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
 --
 -- | Apply two parsers alternately to an input stream. The input stream is
 -- considered an interleaving of two patterns. The two parsers represent the
--- two patterns.
+-- two patterns. Each time the first parser is run, the result is accumulated
+-- into the first fold, similarly each time the second parser is run, the
+-- result is accumulated into the second fold. Finally, the finaly results
+-- are extracted from the two folds and returned when parsing is complete.
 --
 -- This undoes a "gintercalate" of two streams.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE deintercalate #-}
 deintercalate ::
