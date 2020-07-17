@@ -54,6 +54,7 @@ module Streamly.Internal.Data.Parser.ParserD
 
     -- Grab a sequence of input elements by inspecting them
     , lookAhead
+    , takeWhileP
     , takeWhile
     , takeWhile1
     , sliceSepBy
@@ -437,6 +438,27 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
             if i >= n
             then return x
             else throwM $ ParseError err
+
+-- | See 'Streamly.Internal.Data.Parser.takeWhileP'.
+--
+-- /Internal/
+--
+{-# INLINE takeWhileP #-}
+takeWhileP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP predicate (Parser stepP initialP extractP) = 
+
+    Parser step initial extract
+
+    where
+    
+    initial = initialP
+
+    step s a =
+        if not $ predicate a
+        then Done 1 <$> extractP s
+        else stepP s a
+    
+    extract = extractP
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --

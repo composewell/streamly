@@ -426,7 +426,8 @@ takeGE n = D.toParserK . D.takeGE n
 
 -- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. The combinator stops when the condition fails or if the collecting
--- parser stops.
+-- parser stops. The element on which condition fails or parser stops is
+-- returned back to the 
 --
 -- This is a generalized version of takeWhile, for example 'takeWhile1' can be
 -- implemented in terms of this:
@@ -441,9 +442,9 @@ takeGE n = D.toParserK . D.takeGE n
 -- /Unimplemented/
 --
 {-# INLINE takeWhileP #-}
-takeWhileP :: -- MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
+takeWhileP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP predicate prsr = 
+    D.toParserK $ D.takeWhileP predicate (D.fromParserK prsr)
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
