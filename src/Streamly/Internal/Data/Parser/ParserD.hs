@@ -63,7 +63,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , sliceSepByBetween
     , sliceEndWith
     , sliceBeginWith
-    -- , sliceSepWith
+    , sliceSepWith
     --
     -- , frameSepBy -- parse frames escaped by an escape char/sequence
     -- , frameEndWith
@@ -548,6 +548,37 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
         if not (predicate a)
         then Partial 0 <$> fstep s a
         else Done 0 <$> fextract s
+
+-- | See 'Streamly.Internal.Data.Parser.sliceSepWith'.
+--
+-- /Internal/
+--
+{-# INLINE sliceSepWith #-}
+sliceSepWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceSepWith predicate (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+    
+    initial = Tuple' True <$> finitial
+
+    step (Tuple' isFirstElement s) a =
+        if not (predicate a)
+        then
+            if isFirstElement
+            then
+                do
+                    nextS <- fstep s a
+                    Done 0 <$> fextract nextS
+            else
+                Done 1 <$> fextract s
+        else
+            do
+                nextS <- fstep s a
+                return $ Partial 0 (Tuple' False nextS)
+
+    extract (Tuple' _ s) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --

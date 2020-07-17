@@ -545,14 +545,16 @@ sliceSepByP cond prsr = D.toParserK $ D.sliceSepByP cond (D.fromParserK prsr)
 sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 
--- | Like 'sliceSepBy' but does not drop the separator element, instead
+-- | takes until a seperator is found, gives it back to the input
+-- if the seperator is not the first element, else if it is the first
+-- element, then we only take the seperator and stop.
+-- Like 'sliceSepBy' but does not drop the separator element, instead
 -- separator is emitted as a separate element in the output.
 --
--- /Unimplemented/
+-- /Internal/
 {-# INLINABLE sliceSepWith #-}
-sliceSepWith :: -- MonadCatch m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
+sliceSepWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceSepWith cond = D.toParserK . D.sliceSepBy cond
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is
