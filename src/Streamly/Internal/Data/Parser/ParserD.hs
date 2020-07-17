@@ -328,6 +328,11 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
 
     extract (Tuple' _ r) = fextract r
 
+--
+-- | See 'Streamly.Internal.Data.Parser.takeBetween'.
+--
+-- /Internal/
+--
 {-# INLINE takeBetween #-}
 takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
 takeBetween low high (Fold fstep finitial fextract) = 

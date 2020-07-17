@@ -355,12 +355,11 @@ satisfy = D.toParserK . D.satisfy
 -- takeGE = takeBetween n maxBound
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE takeBetween #-}
-takeBetween :: -- MonadCatch m =>
-    Int -> Int -> Fold m a b -> Parser m a b
-takeBetween _m _n = undefined -- D.toParserK . D.takeBetween m n
+takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
+takeBetween low high f = D.toParserK $ D.takeBetween low high f
 
 --
 -- $take
