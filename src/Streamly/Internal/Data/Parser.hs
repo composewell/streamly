@@ -627,14 +627,18 @@ sliceSepByMax :: MonadCatch m
 sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
--- escape char determined by the second predicate.
+-- escape char determined by the second predicate. First predicate
+-- is for the seperator, the second one is for the escape elements.
+-- Element that just follows an escape element is taken (whether it is 
+-- a normal element, escape element or seperator element). On the first
+-- occurrance of a non-escaped (i.e. not escaped by preceding element)
+-- seperator, we stop parsing, and the seperator element is discarded
 --
--- /Unimplemented/
+-- /Internal/
 {-# INLINABLE escapedSliceSepBy #-}
-escapedSliceSepBy :: -- MonadCatch m =>
-    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-escapedSliceSepBy _cond _esc = undefined
-    -- D.toParserK . D.escapedSliceSepBy cond esc
+escapedSliceSepBy :: 
+    MonadCatch m => (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+escapedSliceSepBy cond esc = D.toParserK . D.escapedSliceSepBy cond esc
 
 -- | @escapedFrameBy begin end escape@ parses a string framed using @begin@ and
 -- @end@ as the frame begin and end marker elements and @escape@ as an escaping

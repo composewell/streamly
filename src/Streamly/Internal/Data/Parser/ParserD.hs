@@ -60,6 +60,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , sliceSepByP
     , sliceSepBy
     , sliceSepByMax
+    , escapedSliceSepBy
     -- , sliceSepByBetween
     , sliceEndWith
     , sliceBeginWith
@@ -643,6 +644,53 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
         | otherwise = Done 0 <$> fextract r
 
     extract (Tuple' _ r) = fextract r
+
+-- | See 'Streamly.Internal.Data.Parser.escapedSliceSepBy'.
+--
+-- /Internal/
+--
+{-# INLINE escapedSliceSepBy #-}
+escapedSliceSepBy :: 
+    MonadCatch m => (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+escapedSliceSepBy isSep isEsc (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+    
+    initial = Tuple' Nothing <$> finitial
+
+    step (Tuple' maybePrevEscape s) a =
+        case maybePrevEscape of
+            Nothing ->
+                if isEsc a
+                then return $ Partial 0 (Tuple' (Just a) s)
+                else
+                    if isSep a
+                    then Done 0 <$> fextract s
+                    else
+                        do
+                            nextS <- fstep s a
+                            return $ Partial 0 (Tuple' Nothing nextS)
+            Just prevEsc ->
+                if isEsc a || isSep a
+                then
+                    do
+                        nextS <- fstep s a
+                        return $ Partial 0 (Tuple' Nothing nextS)
+                else
+                    do
+                        s1 <- fstep s prevEsc
+                        s2 <- fstep s1 a
+                        return $ Partial 0 (Tuple' Nothing s2)
+
+    extract (Tuple' maybePrevEscape s) =
+        case maybePrevEscape of
+            Nothing -> fextract s
+            Just prevEsc ->
+                do
+                    nextS <- fstep s prevEsc
+                    fextract nextS
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
