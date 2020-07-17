@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Parser.ParserD
     --
     -- Grab a sequence of input elements without inspecting them
     , take
-    -- , takeBetween
+    , takeBetween
     -- , takeLE -- take   -- takeBetween 0 n
     -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
@@ -327,6 +327,41 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
         | otherwise = Done 1 <$> fextract r
 
     extract (Tuple' _ r) = fextract r
+
+{-# INLINE takeBetween #-}
+takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
+takeBetween low high (Fold fstep finitial fextract) = 
+    
+    Parser step initial extract
+
+    where
+    
+    initial = Tuple' 0 <$> finitial
+
+    step (Tuple' numTaken s) a =
+        if high == 0
+        then Done 1 <$> fextract s
+        else
+            do
+                nextS <- fstep s a
+                let nextTaken = numTaken + 1
+                if nextTaken < low 
+                then return $ Continue 0 (Tuple' nextTaken nextS)
+                else
+                    if nextTaken < high
+                    then return $ Partial 0 (Tuple' nextTaken nextS)
+                    else Done 0 <$> fextract nextS
+
+    extract (Tuple' numTaken s) =
+        if numTaken >= low
+        then fextract s
+        else throwM $ ParseError err
+
+        where
+        
+        err =
+               "takeBetween: Expecting alteast " ++ show low
+            ++ " elements, got " ++ show numTaken
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
