@@ -427,7 +427,8 @@ takeGE n = D.toParserK . D.takeGE n
 -- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. The combinator stops when the condition fails or if the collecting
 -- parser stops. The element on which condition fails or parser stops is
--- returned back to the 
+-- returned back to the input. Any error caused by the parser provided would
+-- be caused by takeWhileP also
 --
 -- This is a generalized version of takeWhile, for example 'takeWhile1' can be
 -- implemented in terms of this:
@@ -477,7 +478,9 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 
 -- | Like 'sliceSepBy' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. @sliceSepByP cond parser@ parses a slice of the input using @parser@
--- until @cond@ succeeds or the parser stops.
+-- until @cond@ succeeds or the parser stops. The element on which condition
+-- fails or parser stops is returned back to the input. Any error caused by the
+-- parser provided would be caused by sliceSepByP also
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
@@ -487,12 +490,11 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE sliceSepByP #-}
-sliceSepByP :: -- MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP _cond = undefined -- D.toParserK . D.sliceSepByP cond
+sliceSepByP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+sliceSepByP cond prsr = D.toParserK $ D.sliceSepByP cond (D.fromParserK prsr)
 
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.
