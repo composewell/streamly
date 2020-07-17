@@ -4,26 +4,42 @@
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
--- Portability : GHC
 
 {-# LANGUAGE CPP #-}
 
-module Main (main) where
+import Control.DeepSeq (NFData(..))
 
-import Control.DeepSeq (NFData(..), deepseq)
+#ifndef DATA_PRIM_ARRAY
+import Control.DeepSeq (deepseq)
+#endif
+
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
-import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Prelude as S
 
-import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common hiding (benchPureSrc)
 import Gauge
+
+#ifdef MEMORY_ARRAY
+import qualified GHC.Exts as GHC
+import Foreign.Storable (Storable(..))
+#endif
+
+#ifdef DATA_PRIM_ARRAY
+import Data.Primitive.Types (Prim(..))
+#endif
 
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
+
+#ifdef MEMORY_ARRAY
+-- Drain a source that generates a pure array
+{-# INLINE benchPureSrc #-}
+benchPureSrc ::
+       (NFData a, Storable a) => String -> (Int -> Ops.Stream a) -> Benchmark
+benchPureSrc name src = benchPure name src id
+#endif
 
 {-# INLINE benchIO #-}
 benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
@@ -32,13 +48,21 @@ benchIO name src f = bench name $ nfIO $
 
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
-benchIOSrc :: (NFData a)
-    => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
+benchIOSrc ::
+#ifndef DATA_PRIM_ARRAY
+       NFData a =>
+#endif
+#ifdef MEMORY_ARRAY
+       Storable a =>
+#elif defined(DATA_PRIM_ARRAY)
+       Prim a =>
+#endif
+       String -> (Int -> IO (Ops.Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
 
 {-# INLINE benchPureSink #-}
-benchPureSink :: NFData b => String -> (Ops.Stream Int -> b) -> Benchmark
-benchPureSink name f = benchIO name Ops.sourceIntFromTo f
+benchPureSink :: NFData b => Int -> String -> (Ops.Stream Int -> b) -> Benchmark
+benchPureSink value name f = benchIO name (Ops.sourceIntFromTo value) f
 
 {-# INLINE benchIO' #-}
 benchIO' :: NFData b => String -> (Int -> IO a) -> (a -> IO b) -> Benchmark
@@ -46,57 +70,116 @@ benchIO' name src f = bench name $ nfIO $
     randomRIO (1,1) >>= src >>= f
 
 {-# INLINE benchIOSink #-}
-benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
-benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
+benchIOSink :: NFData b => Int -> String -> (Ops.Stream Int -> IO b) -> Benchmark
+benchIOSink value name f = benchIO' name (Ops.sourceIntFromTo value) f
 
-testStr :: String
-testStr = mkListString Ops.value
-
-moduleName :: String
-moduleName = "Data.Array"
-
-o_1_space :: [Benchmark]
-o_1_space =
-    [ bgroup (o_1_space_prefix moduleName)
-     [  bgroup "generation"
-        [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
-        , benchIOSrc "write . intFromTo" Ops.sourceIntFromToFromStream
-       , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
-        , benchIOSrc "writeN . unfoldr" Ops.sourceUnfoldr
-        , benchIOSrc "writeN . fromList" Ops.sourceFromList
-        -- , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
-        -- , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
-        , testStr `deepseq` (bench "read" $ nf Ops.readInstance testStr)
-        , benchPureSink "show" Ops.showInstance
+o_1_space_generation :: Int -> [Benchmark]
+o_1_space_generation value =
+    [ bgroup
+        "generation"
+        [ benchIOSrc "writeN . intFromTo" (Ops.sourceIntFromTo value)
+#ifndef DATA_SMALLARRAY
+        , benchIOSrc "write . intFromTo" (Ops.sourceIntFromToFromStream value)
+#endif
+        , benchIOSrc
+              "fromList . intFromTo"
+              (Ops.sourceIntFromToFromList value)
+        , benchIOSrc "writeN . unfoldr" (Ops.sourceUnfoldr value)
+        , benchIOSrc "writeN . fromList" (Ops.sourceFromList value)
+#ifdef MEMORY_ARRAY
+        , benchPureSrc "writeN . IsList.fromList" (Ops.sourceIsList value)
+        , benchPureSrc
+              "writeN . IsString.fromString"
+              (Ops.sourceIsString value)
+#endif
+#ifndef DATA_PRIM_ARRAY
+#ifdef DATA_SMALLARRAY
+        , let testStr =
+                  "fromListN " ++
+                  show (value + 1) ++
+                  "[1" ++ concat (replicate value ",1") ++ "]"
+#else
+        , let testStr = mkListString value
+#endif
+           in testStr `deepseq` (bench "read" $ nf Ops.readInstance testStr)
+#endif
+        , benchPureSink value "show" Ops.showInstance
         ]
-      , bgroup "elimination"
-        [ benchPureSink "id" id
-        , benchPureSink "==" Ops.eqInstance
-        , benchPureSink "/=" Ops.eqInstanceNotEq
-        , benchPureSink "<" Ops.ordInstance
-        , benchPureSink "min" Ops.ordInstanceMin
+    ]
+
+o_1_space_elimination :: Int -> [Benchmark]
+o_1_space_elimination value =
+    [ bgroup "elimination"
+        [ benchPureSink value "id" id
+        , benchPureSink value "==" Ops.eqInstance
+        , benchPureSink value "/=" Ops.eqInstanceNotEq
+        , benchPureSink value "<" Ops.ordInstance
+        , benchPureSink value "min" Ops.ordInstanceMin
+#ifdef MEMORY_ARRAY
         -- length is used to check for foldr/build fusion
-        -- , benchPureSink "length . IsList.toList" (length . GHC.toList)
-        , benchIOSink "foldl'" Ops.pureFoldl'
-        , benchIOSink "read" (S.drain . S.unfold A.read)
-        , benchIOSink "toStreamRev" (S.drain . A.toStreamRev)
+        , benchPureSink value "length . IsList.toList" (length . GHC.toList)
+#endif
+        , benchIOSink value "foldl'" Ops.pureFoldl'
+        , benchIOSink value "read" Ops.unfoldReadDrain
+        , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
+#ifndef DATA_PRIM_ARRAY
 #ifdef DEVBUILD
-        , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
-        , benchPureSink "foldable/sum" Ops.foldableSum
+        , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
+        , benchPureSink value "foldable/sum" Ops.foldableSum
+#endif
 #endif
         ]
-      , bgroup "transformation"
-        [ benchIOSink "scanl'" (Ops.scanl' 1)
-        , benchIOSink "scanl1'" (Ops.scanl1' 1)
-        , benchIOSink "map" (Ops.map 1)
+      ]
+
+o_1_space_transformation :: Int -> [Benchmark]
+o_1_space_transformation value =
+   [ bgroup "transformation"
+        [ benchIOSink value "scanl'" (Ops.scanl' value 1)
+        , benchIOSink value "scanl1'" (Ops.scanl1' value 1)
+        , benchIOSink value "map" (Ops.map value 1)
         ]
-      , bgroup "transformationX4"
-        [ benchIOSink "scanl'" (Ops.scanl' 4)
-        , benchIOSink "scanl1'" (Ops.scanl1' 4)
-        , benchIOSink "map" (Ops.map 4)
+   ]
+
+o_1_space_transformationX4 :: Int -> [Benchmark]
+o_1_space_transformationX4 value =
+    [ bgroup "transformationX4"
+        [ benchIOSink value "scanl'" (Ops.scanl' value 4)
+        , benchIOSink value "scanl1'" (Ops.scanl1' value 4)
+        , benchIOSink value "map" (Ops.map value 4)
         ]
-    ]
-    ]
+      ]
+
+moduleName :: String
+#ifdef DATA_SMALLARRAY
+moduleName = "Data.SmallArray"
+#elif defined(MEMORY_ARRAY)
+moduleName = "Memory.Array"
+#elif defined(DATA_PRIM_ARRAY)
+moduleName = "Data.Prim.Array"
+#else
+moduleName = "Data.Array"
+#endif
+
+#ifdef DATA_SMALLARRAY
+defStreamSize :: Int
+defStreamSize = 128
+#else
+defStreamSize :: Int
+defStreamSize = defaultStreamSize
+#endif
 
 main :: IO ()
-main = defaultMain $ concat [o_1_space]
+main = do
+    (value, cfg, benches) <- parseCLIOpts defStreamSize
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+
+    where
+
+    allBenchmarks size =
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_generation size
+            , o_1_space_elimination size
+            , o_1_space_transformation size
+            , o_1_space_transformationX4 size
+            ]
+        ]
