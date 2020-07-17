@@ -140,11 +140,13 @@ module Streamly.Internal.Data.Parser
     -- ** Sequential Repetition
     , count
     , countBetween
-    -- , countBetweenTill
 
+    , manyP
     , many
     , some
+    , manyTillP
     , manyTill
+    , manyThen
 
     -- ** Special cases
     -- | TODO: traditional implmentations of these may be of limited use. For
@@ -177,10 +179,7 @@ module Streamly.Internal.Data.Parser
     --
     -- 1. Round robin
     -- 2. Priority based
-
-    -- ** Interleaved repetition
-    -- | repeat one parser and when it fails run an error recovery parser
-    -- e.g. to find a key frame in the stream after an error
+    , roundRobin
 
     -- ** Collection of Alternatives
     -- | Unimplemented
@@ -194,13 +193,9 @@ module Streamly.Internal.Data.Parser
     , choice   -- first successful in position
 
     -- ** Repeated Alternatives
-    -- |
-    --
-    -- @
-    -- , retryMax    -- try N times
-    -- , retryUntil  -- try until successful
-    -- , retryUntilN -- try until successful n times
-    -- @
+    , retryMaxTotal
+    , retryMaxSuccessive
+    , retry
     )
 where
 
@@ -898,6 +893,8 @@ deintercalate = undefined
 -- | @sequence f t@ collects sequential parses of parsers in the container @t@
 -- using the fold @f@. Fails if the input ends or any of the parsers fail.
 --
+-- This is same as 'Data.Traversable.sequence' but more efficient.
+--
 -- /Unimplemented/
 --
 {-# INLINE sequence #-}
@@ -927,6 +924,10 @@ concatMap f p = D.toParserK $ D.concatMap (D.fromParserK . f) (D.fromParserK p)
 -- | @choice parsers@ applies the @parsers@ in order and returns the first
 -- successful parse.
 --
+-- This is same as 'asum' but more efficient.
+--
+-- /Unimplemented/
+--
 {-# INLINE choice #-}
 choice ::
     -- Foldable t =>
@@ -941,6 +942,16 @@ choice _ps = undefined
 -- TODO "many" is essentially a Fold because it cannot fail. So it can be
 -- downgraded to a Fold. Or we can make the return type a Fold instead and
 -- upgrade that to a parser when needed.
+
+-- | Like 'many' but uses a 'Parser' instead of a 'Fold' to collect the
+-- results. Parsing stops or fails if the collecting parser stops or fails.
+--
+-- /Unimplemented/
+--
+{-# INLINE manyP #-}
+manyP :: -- MonadCatch m =>
+    Parser m b c -> Parser m a b -> Parser m a c
+manyP _f _p = undefined -- D.toParserK $ D.manyP f (D.fromParserK p)
 
 -- | Collect zero or more parses. Apply the parser repeatedly on the input
 -- stream, stop when the parser fails, accumulate zero or more parse results
@@ -968,7 +979,7 @@ many f p = D.toParserK $ D.many f (D.fromParserK p)
 {-# INLINE some #-}
 some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 some f p = D.toParserK $ D.some f (D.fromParserK p)
--- some f p = many (takeGE 1 f) p
+-- some f p = manyP (takeGE 1 f) p
 -- many = countBetween 1 maxBound
 
 -- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
@@ -982,7 +993,7 @@ countBetween ::
     -- MonadCatch m =>
     Int -> Int -> Fold m b c -> Parser m a b -> Parser m a c
 countBetween _m _n _f = undefined
--- countBetween m n f p = many (takeBetween m n f) p
+-- countBetween m n f p = manyP (takeBetween m n f) p
 
 -- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
 -- the fold @f@.  Fails if the input ends or the parser fails before @n@
@@ -995,7 +1006,24 @@ count ::
     -- MonadCatch m =>
     Int -> Fold m b c -> Parser m a b -> Parser m a c
 count n = countBetween n n
--- count n f p = many (takeEQ n f) p
+-- count n f p = manyP (takeEQ n f) p
+
+-- | Like 'manyTill' but uses a 'Parser' to collect the results instead of a
+-- 'Fold'.  Parsing stops or fails if the collecting parser stops or fails.
+--
+-- We can implemnent parsers like the following using 'manyTillP':
+--
+-- @
+-- countBetweenTill m n f p = manyTillP (takeBetween m n f) p
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINE manyTillP #-}
+manyTillP :: -- MonadCatch m =>
+    Parser m b c -> Parser m a b -> Parser m a x -> Parser m a c
+manyTillP _f _p1 _p2 = undefined
+    -- D.toParserK $ D.manyTillP f (D.fromParserK p1) (D.fromParserK p2)
 
 -- | @manyTill f collect test@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
@@ -1010,3 +1038,68 @@ manyTill :: MonadCatch m
     => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 manyTill f p1 p2 =
     D.toParserK $ D.manyTill f (D.fromParserK p1) (D.fromParserK p2)
+
+-- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
+-- collects the output in the supplied fold. If the the parser @collect@ fails,
+-- parser @recover@ is run until it stops and then we start repeating the
+-- parser @collect@ again. The parser fails if the recovery parser fails.
+--
+-- For example, this can be used to find a key frame in a video stream after an
+-- error.
+--
+-- /Unimplemented/
+--
+{-# INLINE manyThen #-}
+manyThen :: -- (Foldable t, MonadCatch m) =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+manyThen _f _parser _recover = undefined
+
+-------------------------------------------------------------------------------
+-- Interleaving a collection of parsers
+-------------------------------------------------------------------------------
+--
+-- | Apply a collection of parsers to an input stream in a round robin fashion.
+-- Each parser is applied until it stops and then we repeat starting with the
+-- the first parser again.
+--
+-- /Unimplemented/
+--
+{-# INLINE roundRobin #-}
+roundRobin :: -- (Foldable t, MonadCatch m) =>
+    Fold m b c -> t (Parser m a b) -> Parser m a c
+roundRobin _f _ps = undefined
+
+-------------------------------------------------------------------------------
+-- Repeated Alternatives
+-------------------------------------------------------------------------------
+
+-- | Keep trying a parser up to a maximum of @n@ failures.  When the parser
+-- fails the input consumed till now is dropped and the new instance is tried
+-- on the fresh input.
+--
+-- /Unimplemented/
+--
+{-# INLINE retryMaxTotal #-}
+retryMaxTotal :: -- (MonadCatch m) =>
+    Int -> Fold m b c -> Parser m a b -> Parser m a c
+retryMaxTotal _n _f _p = undefined
+
+-- | Like 'retryMaxTotal' but aborts after @n@ successive failures.
+--
+-- /Unimplemented/
+--
+{-# INLINE retryMaxSuccessive #-}
+retryMaxSuccessive :: -- (MonadCatch m) =>
+    Int -> Fold m b c -> Parser m a b -> Parser m a c
+retryMaxSuccessive _n _f _p = undefined
+
+-- | Keep trying a parser until it succeeds.  When the parser fails the input
+-- consumed till now is dropped and the new instance is tried on the fresh
+-- input.
+--
+-- /Unimplemented/
+--
+{-# INLINE retry #-}
+retry :: -- (MonadCatch m) =>
+    Parser m a b -> Parser m a b
+retry _p = undefined
