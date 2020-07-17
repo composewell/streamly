@@ -1,33 +1,56 @@
 -- |
 -- Module      : Streamly.Benchmark.Data.ArrayOps
--- Copyright   : (c) 2019 Composewell Technologies
+-- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
--- Portability : GHC
 
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
+-- CPP:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_PRIM_ARRAY
+-- DATA_SMALLARRAY
 
 module Streamly.Benchmark.Data.ArrayOps where
 
 import Control.Monad.IO.Class (MonadIO)
-import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
+import Prelude (Bool, Int, Maybe(..), ($), (+), (.), (==), (>), undefined)
+
 import qualified Prelude as P
+import qualified Streamly as S hiding (foldMapWith, runStream)
+import qualified Streamly.Prelude   as S
+
+
+#ifndef DATA_PRIM_ARRAY
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
+#endif
 
-import qualified Streamly           as S hiding (foldMapWith, runStream)
+#ifdef MEMORY_ARRAY
+import qualified GHC.Exts as GHC
+#endif
+
+#ifdef DATA_SMALLARRAY
+import qualified Streamly.Internal.Data.SmallArray as A
+type Stream = A.SmallArray
+#elif defined(MEMORY_ARRAY)
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array as A
+type Stream = A.Array
+#elif defined(DATA_PRIM_ARRAY)
+import qualified Streamly.Internal.Data.Prim.Array as A
+type Stream = A.PrimArray
+#else
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Prelude   as S
-
-value :: Int
-value = 100000
+type Stream = A.Array
+#endif
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -37,11 +60,17 @@ value = 100000
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream = A.Array
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_PRIM_ARRAY
+-- DATA_SMALLARRAY
+-------------------------------------------------------------------------------
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: MonadIO m => Int -> m (Stream Int)
-sourceUnfoldr n = S.fold (A.writeN value) $ S.unfoldr step n
+sourceUnfoldr :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceUnfoldr value n = S.fold (A.writeN value) $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -49,31 +78,63 @@ sourceUnfoldr n = S.fold (A.writeN value) $ S.unfoldr step n
         else (Just (cnt, cnt + 1))
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromTo n = S.fold (A.writeN value) $ S.enumerateFromTo n (n + value)
-
-{-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromStream n = S.fold A.write $ S.enumerateFromTo n (n + value)
-
-{-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
+sourceIntFromTo :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceIntFromTo value n = S.fold (A.writeN value) $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: MonadIO m => Int -> m (Stream Int)
-sourceFromList n = S.fold (A.writeN value) $ S.fromList [n..n+value]
-{-
+sourceFromList :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceFromList value n = S.fold (A.writeN value) $ S.fromList [n..n+value]
+
+-- Different defination of sourceIntFromToFromList for DATA_SMALLARRAY
+-- CPP:
+{-# INLINE sourceIntFromToFromList #-}
+sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
+#ifndef DATA_SMALLARRAY
+sourceIntFromToFromList value n = P.return $ A.fromList $ [n..n + value]
+#else
+sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
+#endif
+
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_PRIM_ARRAY
+-------------------------------------------------------------------------------
+
+-- CPP:
+#ifndef DATA_SMALLARRAY
+{-# INLINE sourceIntFromToFromStream #-}
+sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
+#endif
+
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-------------------------------------------------------------------------------
+
+-- CPP:
+#ifdef MEMORY_ARRAY
 {-# INLINE sourceIsList #-}
-sourceIsList :: Int -> Stream Int
-sourceIsList n = GHC.fromList [n..n+value]
+sourceIsList :: Int -> Int -> Stream Int
+sourceIsList value n = GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
-sourceIsString :: Int -> Stream P.Char
-sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
--}
+sourceIsString :: Int -> Int -> Stream P.Char
+sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
+#endif
+
 -------------------------------------------------------------------------------
 -- Transformation
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_PRIM_ARRAY
+-- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
 {-# INLINE composeN #-}
@@ -91,19 +152,21 @@ composeN n f x =
 {-# INLINE scanl1' #-}
 {-# INLINE map #-}
 
-scanl', scanl1', map
-    :: MonadIO m => Int -> Stream Int -> m (Stream Int)
+scanl' , scanl1', map
+    :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
+
 
 {-# INLINE onArray #-}
 onArray
-    :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
+    :: MonadIO m => Int -> (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
+onArray value f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
 
-scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
-scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
-map           n = composeN n $ onArray $ S.map (+1)
+scanl'  value n = composeN n $ onArray value $ S.scanl' (+) 0
+scanl1' value n = composeN n $ onArray value $ S.scanl1' (+)
+map     value n = composeN n $ onArray value $ S.map (+1)
+-- map           n = composeN n $ A.map (+1)
 
 {-# INLINE eqInstance #-}
 eqInstance :: Stream Int -> Bool
@@ -125,6 +188,19 @@ ordInstanceMin src = P.min src src
 showInstance :: Stream Int -> P.String
 showInstance src = P.show src
 
+{-# INLINE pureFoldl' #-}
+pureFoldl' :: MonadIO m => Stream Int -> m Int
+pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
+
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_SMALLARRAY
+-------------------------------------------------------------------------------
+
+-- CPP:
+#ifndef DATA_PRIM_ARRAY
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -132,10 +208,6 @@ readInstance str =
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
-
-{-# INLINE pureFoldl' #-}
-pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
 #ifdef DEVBUILD
 {-# INLINE foldableFoldl' #-}
@@ -146,3 +218,24 @@ foldableFoldl' = F.foldl' (+) 0
 foldableSum :: Stream Int -> Int
 foldableSum = P.sum
 #endif
+#endif
+
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- CPP Common to:
+-- MEMORY_ARRAY
+-- DATA_ARRAY
+-- DATA_PRIM_ARRAY
+-- DATA_SMALLARRAY
+-------------------------------------------------------------------------------
+
+{-# INLINE unfoldReadDrain #-}
+unfoldReadDrain :: MonadIO m => Stream Int -> m ()
+unfoldReadDrain = S.drain . S.unfold A.read
+
+{-# INLINE toStreamRevDrain #-}
+toStreamRevDrain :: MonadIO m => Stream Int -> m ()
+toStreamRevDrain = S.drain . A.toStreamRev
