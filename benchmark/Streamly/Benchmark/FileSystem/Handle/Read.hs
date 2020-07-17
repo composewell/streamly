@@ -418,6 +418,18 @@ inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'splitOnSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
+-- | Seperate newlines and other characters using deintercalate
+deintercalate :: Handle -> IO Int
+deintercalate inh = do
+    let
+        newline = 10
+        prsr1 = PR.takeWhile (/=newline) FL.drain
+        prsr2 = PR.takeWhile (==newline) FL.drain
+        prsr = PR.deintercalate FL.drain prsr1 FL.drain prsr2
+    
+    (_, _) <- IP.parse prsr (S.unfold FH.read inh)
+    return 1
+
 -- | Split on line feed.
 parseManySepBy :: Handle -> IO Int
 parseManySepBy inh =
@@ -489,7 +501,9 @@ splitOnSuffixSeq str inh =
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
     [ bgroup "reduce/read"
-        [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
+        [ mkBench "deintercalate" env
+            $ \inh _ -> deintercalate inh
+        , mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
         , mkBench "S.parseMany (PR.sliceEndWith (== lf) FL.drain)" env
             $ \inh _ -> parseManyEndWith inh
