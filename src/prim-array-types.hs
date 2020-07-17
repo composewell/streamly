@@ -1,7 +1,6 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
-import Control.Monad.Primitive
-   (PrimMonad(primitive), PrimState, primitive_)
+import Control.Monad.Primitive (PrimMonad(primitive), PrimState, primitive_)
 import Control.Monad.ST (ST, runST)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -10,9 +9,8 @@ import Data.Word (Word8)
 import Streamly.Internal.Data.Strict (Tuple3'(..), Maybe'(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
-import Text.Read (readPrec, readListPrec, readListPrecDefault)
-
 import System.IO.Unsafe (unsafePerformIO)
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import qualified GHC.Exts as Exts
 import qualified Prelude as P
@@ -102,7 +100,8 @@ unsafeThaw (Array arr#) =
 -- Unsafe because the index bounds are not checked
 {-# INLINE unsafeIndex #-}
 unsafeIndex :: Prim a => Array a -> Int -> a
-unsafeIndex (Array arr# (I# off#) _) (I# i#) = indexByteArray# arr# (off# +# i#)
+unsafeIndex (Array arr# (I# off#) _) (I# i#) =
+    indexByteArray# arr# (off# +# i#)
 
 -- unsafe
 sameByteArray :: ByteArray# -> ByteArray# -> Bool
@@ -131,14 +130,10 @@ defaultChunkSize = mkChunkSizeKB 32
 -- Length
 -------------------------------------------------------------------------------
 
--- XXX rename to byteCount?
 {-# INLINE byteLength #-}
 byteLength :: forall a. Prim a => Array a -> Int
 byteLength (Array _ _ len) = len * sizeOf (undefined :: a)
 
--- XXX Also, rename to elemCount
--- XXX I would prefer length to keep the API consistent
--- XXX Also, re-export sizeOf from Primitive
 {-# INLINE length #-}
 length :: Array a -> Int
 length (Array _ _ len) = len
@@ -147,8 +142,8 @@ length (Array _ _ len) = len
 -- Construction
 -------------------------------------------------------------------------------
 
--- | Use a slice of an array as another array. Note that this is unsafe and does
--- not check the bounds
+-- | Use a slice of an array as another array. Note that this is unsafe and
+-- does not check the bounds
 slice :: Array a -> Int -> Int -> Array a
 slice (Array arr# off _) off1 len1 = Array arr# (off + off1) len1
 
@@ -306,7 +301,6 @@ instance NFData (Array a) where
     {-# INLINE rnf #-}
     rnf _ = ()
 
-
 -- XXX check if this is compatible with Memory.Array?
 -- XXX It isn't. I might prefer this Show instance though
 -- XXX Memory.Array: showsPrec _ = shows . toList
@@ -348,12 +342,7 @@ instance (Prim a, Read a, Show a) => Read (Array a) where
 -------------------------------------------------------------------------------
 
 {-# INLINE foldr #-}
-foldr ::
-       forall a b. Prim a
-    => (a -> b -> b)
-    -> b
-    -> Array a
-    -> b
+foldr :: forall a b. Prim a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = go 0
 
     where
@@ -366,12 +355,7 @@ foldr f z arr = go 0
 
 -- | Strict right-associated fold over the elements of an 'Array'.
 {-# INLINE foldr' #-}
-foldr' ::
-       forall a b. Prim a
-    => (a -> b -> b)
-    -> b
-    -> Array a
-    -> b
+foldr' :: forall a b. Prim a => (a -> b -> b) -> b -> Array a -> b
 foldr' f z0 arr = go (length arr - 1) z0
 
     where
@@ -382,12 +366,7 @@ foldr' f z0 arr = go (length arr - 1) z0
 
 -- | Strict left-associated fold over the elements of an 'Array'.
 {-# INLINE foldl' #-}
-foldl' ::
-       forall a b. Prim a
-    => (b -> a -> b)
-    -> b
-    -> Array a
-    -> b
+foldl' :: forall a b. Prim a => (b -> a -> b) -> b -> Array a -> b
 foldl' f z0 arr = go 0 z0
 
     where
@@ -429,10 +408,7 @@ toStreamD arr = D.Stream step 0
     step _ i = return $ D.Yield (unsafeIndex arr i) (i + 1)
 
 {-# INLINE toStreamK #-}
-toStreamK ::
-       forall t m a. (K.IsStream t, Prim a)
-    => Array a
-    -> t m a
+toStreamK :: forall t m a. (K.IsStream t, Prim a) => Array a -> t m a
 toStreamK arr = go 0
 
     where
@@ -457,10 +433,7 @@ toStreamDRev arr = D.Stream step (length arr - 1)
     step _ i = return $ D.Yield (unsafeIndex arr i) (i - 1)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev ::
-       forall t m a. (K.IsStream t, Prim a)
-    => Array a
-    -> t m a
+toStreamKRev :: forall t m a. (K.IsStream t, Prim a) => Array a -> t m a
 toStreamKRev arr = go (length arr - 1)
 
     where
@@ -532,11 +505,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield x (InnerLoop st arr len (i - 1))
 
 {-# INLINE_NORMAL unlines #-}
-unlines ::
-       (PrimMonad m, Prim a)
-    => a
-    -> D.Stream m (Array a)
-    -> D.Stream m a
+unlines :: (PrimMonad m, Prim a) => a -> D.Stream m (Array a) -> D.Stream m a
 unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where

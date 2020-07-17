@@ -1,9 +1,4 @@
 import Control.Monad (when)
-import Control.Monad.Primitive
-import Data.Primitive.Types
-
-import Prelude hiding (length, null, last, map, (!!), read, concat)
-
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -13,6 +8,10 @@ import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+
+import Control.Monad.Primitive
+import Data.Primitive.Types
+import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 -------------------------------------------------------------------------------
 -- Construction

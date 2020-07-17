@@ -6,7 +6,7 @@
 -- Module      : Streamly.Internal.Data.Prim.Array.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC

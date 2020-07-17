@@ -681,7 +681,7 @@ test-suite primarray-test
         transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
-test-suite primpinnedarray-test
+test-suite prim-pinned-array-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs

@@ -1,23 +1,22 @@
 {-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
 import Control.DeepSeq (NFData(..), deepseq)
-import System.Random (randomRIO)
 import Data.Primitive.Types (Prim)
+import System.Random (randomRIO)
 
 import qualified GHC.Exts as GHC
-
 import qualified Streamly.Benchmark.Data.Prim.Pinned.ArrayOps as Ops
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Prelude as S
 
-import Streamly.Benchmark.Common hiding (benchPureSrc)
 import Gauge
+import Streamly.Benchmark.Common hiding (benchPureSrc)
 
 -------------------------------------------------------------------------------
 --

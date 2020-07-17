@@ -2,7 +2,7 @@
 -- Module      : Streamly.Internal.Data.Prim.Pinned.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC

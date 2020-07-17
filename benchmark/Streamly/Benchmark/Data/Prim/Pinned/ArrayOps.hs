@@ -1,8 +1,8 @@
 -- |
 -- Module      : ArrayOps
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technlogies
 --
--- License     : MIT
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE CPP #-}
@@ -13,21 +13,21 @@
 
 module Streamly.Benchmark.Data.Prim.Pinned.ArrayOps where
 
+-- import Control.DeepSeq (NFData)
 -- import Control.Monad (when)
 import Control.Monad.Primitive (PrimMonad)
 -- import Data.Maybe (fromJust)
+-- import GHC.Generics (Generic)
 import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
-import qualified Prelude as P
+
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
 import qualified GHC.Exts as GHC
--- import Control.DeepSeq (NFData)
--- import GHC.Generics (Generic)
-
-import qualified Streamly           as S hiding (foldMapWith, runStream)
+import qualified Prelude as P
+import qualified Streamly as S
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Prelude   as S
+import qualified Streamly.Prelude as S
 
 value, maxValue :: Int
 #ifdef LINEAR_ASYNC
