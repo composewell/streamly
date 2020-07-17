@@ -419,7 +419,7 @@ inspect $ 'splitOnSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Seperate newlines and other characters using deintercalate
-deintercalate :: Handle -> IO Int
+deintercalate :: Handle -> IO ()
 deintercalate inh = do
     let
         newline = 10
@@ -428,7 +428,7 @@ deintercalate inh = do
         prsr = PR.deintercalate FL.drain prsr1 FL.drain prsr2
     
     (_, _) <- IP.parse prsr (S.unfold FH.read inh)
-    return 1
+    return ()
 
 -- | Split on line feed.
 parseManySepBy :: Handle -> IO Int
