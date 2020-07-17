@@ -440,7 +440,7 @@ takeGE n = D.toParserK . D.takeGE n
 -- Stops: when the condition fails or the collecting parser stops.
 -- Fails: when the collecting parser fails.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE takeWhileP #-}
 takeWhileP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
@@ -492,7 +492,7 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 --
 -- /Internal/
 --
-{-# INLINABLE sliceSepByP #-}
+{-# INLINE sliceSepByP #-}
 sliceSepByP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
 sliceSepByP cond prsr = D.toParserK $ D.sliceSepByP cond (D.fromParserK prsr)
 
@@ -552,7 +552,7 @@ sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 -- separator is emitted as a separate element in the output.
 --
 -- /Internal/
-{-# INLINABLE sliceSepWith #-}
+{-# INLINE sliceSepWith #-}
 sliceSepWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepWith cond = D.toParserK . D.sliceSepBy cond
 
