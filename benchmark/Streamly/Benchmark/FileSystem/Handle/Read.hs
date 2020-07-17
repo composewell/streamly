@@ -23,6 +23,7 @@ module Handle.Read
     (allBenchmarks)
 where
 
+import Control.Monad (void)
 import Data.Char (ord)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
@@ -32,11 +33,12 @@ import GHC.Magic (noinline)
 #else
 #define noinline
 #endif
-import System.IO (Handle)
+import System.IO (Handle, hClose, openFile, IOMode(..))
 import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Unicode.Stream as SS
+import qualified Streamly.Internal.Data.Json.Stream as SJ
 import qualified Streamly.FileSystem.Handle as FH
 -- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Parser as PR
@@ -245,6 +247,24 @@ readDecodeUtf8 inh =
    S.drain
      $ SS.decodeUtf8
      $ S.unfold FH.read inh
+
+readJsonDrain :: Handle -> IO ()
+readJsonDrain inh =
+    void
+        $ IP.parse SJ.parseJson
+        $ S.unfold FH.read inh
+
+o_n_space_parse_json :: [Benchmark]
+o_n_space_parse_json =
+    [ bgroup
+          "parse/json"
+          [ bench "parseJson" $
+            nfIO $ do
+                inh <- openFile "twitter.json" ReadMode
+                readJsonDrain inh
+                hClose inh
+          ]
+    ]
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readDecodeUtf8
@@ -531,4 +551,5 @@ allBenchmarks env = Prelude.concat
     , o_1_space_reduce_read_grouped env
     , o_1_space_reduce_read_split env
     , o_1_space_reduce_toChunks_split env
+    , o_n_space_parse_json
     ]
