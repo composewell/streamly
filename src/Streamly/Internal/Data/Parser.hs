@@ -72,56 +72,29 @@ module Streamly.Internal.Data.Parser
     --
     -- | Parsers chained in series, if one parser terminates the composition
     -- terminates.
-    --
-    -- TODO: Currently we are using folds to collect the output of the parsers
-    -- but we can use Parsers instead of folds to make the composition more
-    -- powerful. For example, we can do:
-    --
-    -- @
-    -- sliceSepByMax cond n p = sliceBy cond (take n p)
-    -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
-    -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
-    -- @
-    --
-    -- TODO: Like toList fold we can have toNonEmpty Parser to fold to a
-    -- nonempty list. If we cannot collect even one element the parser will
-    -- fail.  toNonEmpty can be used in takeWhile to implement takeWhile1.
 
     -- | Grab a sequence of input elements without inspecting them
-    , take
+    , takeBetween
+    , take   -- takeBetween 0 n
     -- $take
-    -- | Unimplemented
-    --
-    -- @
-    -- , takeBetween
-    -- , takeLE -- take   -- takeBetween 0 n
-    -- , takeLE1 -- take1 -- takeBetween 1 n
-    -- @
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
 
     -- Grab a sequence of input elements by inspecting them
     , lookAhead
+    , takeWhileP
     , takeWhile
     -- $takeWhile
     , takeWhile1
+
+    , sliceSepByP
     , sliceSepBy
     , sliceSepByMax
-    -- | Unimplemented
-    --
-    -- @
-    -- , sliceSepByBetween
-    -- @
     , sliceEndWith
     , sliceBeginWith
-    -- | Unimplemented
-    --
-    -- @
-    -- , sliceSepWith
-    --
-    -- , frameSepBy -- parse frames escaped by an escape char/sequence
-    -- , frameEndWith
-    -- @
+    , sliceSepWith
+    , escapedSliceSepBy
+    , escapedFrameBy
     , wordBy
     , groupBy
     , eqBy
@@ -365,6 +338,30 @@ satisfy = D.toParserK . D.satisfy
 -------------------------------------------------------------------------------
 -- Taking elements
 -------------------------------------------------------------------------------
+
+-- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
+-- elements and folds them using the supplied fold.
+--
+-- Stops after @n@ elements.
+-- Fails if the stream ends before @m@ elements could be taken.
+--
+-- @takeBetween@ is the most general take operation, other take operations can
+-- be defined in terms of takeBetween. For example:
+--
+-- @
+-- take = takeBetween 0 n  -- equivalent of takeLE
+-- take1 = takeBetween 1 n -- equivalent of takeLE1
+-- takeEQ = takeBetween n n
+-- takeGE = takeBetween n maxBound
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINE takeBetween #-}
+takeBetween :: -- MonadCatch m =>
+    Int -> Int -> Fold m a b -> Parser m a b
+takeBetween _m _n = undefined -- D.toParserK . D.takeBetween m n
+
 --
 -- $take
 -- Note: this is called takeP in some parser libraries.
@@ -428,6 +425,27 @@ takeGE n = D.toParserK . D.takeGE n
 -- $takeWhile
 -- Note: This is called @takeWhileP@ and @munch@ in some parser libraries.
 
+-- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
+-- input. The combinator stops when the condition fails or if the collecting
+-- parser stops.
+--
+-- This is a generalized version of takeWhile, for example 'takeWhile1' can be
+-- implemented in terms of this:
+--
+-- @
+-- takeWhile1 cond p = takeWhile cond (takeBetween 1 maxBound p)
+-- @
+--
+-- Stops: when the condition fails or the collecting parser stops.
+-- Fails: when the collecting parser fails.
+--
+-- /Unimplemented/
+--
+{-# INLINE takeWhileP #-}
+takeWhileP :: -- MonadCatch m =>
+    (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
+
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
 --
@@ -456,6 +474,25 @@ takeWhile cond = D.toParserK . D.takeWhile cond
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 cond = D.toParserK . D.takeWhile1 cond
+
+-- | Like 'sliceSepBy' but uses a 'Parser' instead of a 'Fold' to collect the
+-- input. @sliceSepByP cond parser@ parses a slice of the input using @parser@
+-- until @cond@ succeeds or the parser stops.
+--
+-- This is a generalized slicing parser which can be used to implement other
+-- parsers e.g.:
+--
+-- @
+-- sliceSepByMax cond n p = sliceBy cond (take n p)
+-- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINABLE sliceSepByP #-}
+sliceSepByP :: -- MonadCatch m =>
+    (a -> Bool) -> Parser m a b -> Parser m a b
+sliceSepByP _cond = undefined -- D.toParserK . D.sliceSepByP cond
 
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.
@@ -505,6 +542,15 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 {-# INLINABLE sliceSepBy #-}
 sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepBy cond = D.toParserK . D.sliceSepBy cond
+
+-- | Like 'sliceSepBy' but does not drop the separator element, instead
+-- separator is emitted as a separate element in the output.
+--
+-- /Unimplemented/
+{-# INLINABLE sliceSepWith #-}
+sliceSepWith :: -- MonadCatch m =>
+    (a -> Bool) -> Fold m a b -> Parser m a b
+sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is
@@ -579,6 +625,42 @@ sliceBeginWith = undefined
 sliceSepByMax :: MonadCatch m
     => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
 sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
+
+-- | Like 'sliceSepBy' but the separator elements can be escaped using an
+-- escape char determined by the second predicate.
+--
+-- /Unimplemented/
+{-# INLINABLE escapedSliceSepBy #-}
+escapedSliceSepBy :: -- MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+escapedSliceSepBy _cond _esc = undefined
+    -- D.toParserK . D.escapedSliceSepBy cond esc
+
+-- | @escapedFrameBy begin end escape@ parses a string framed using @begin@ and
+-- @end@ as the frame begin and end marker elements and @escape@ as an escaping
+-- element to escape the occurrence of the framing elements within the frame.
+-- Nested frames are allowed, but nesting is removed when parsing.
+--
+-- For example,
+--
+-- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello}"
+-- > "hello"
+--
+-- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello {world}}"
+-- > "hello world"
+--
+-- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello \\{world\\}}"
+-- > "hello {world}"
+--
+-- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello {world}"
+-- > ParseError "Unterminated '{'"
+--
+-- /Unimplemented/
+{-# INLINABLE escapedFrameBy #-}
+escapedFrameBy :: -- MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+escapedFrameBy _begin _end _escape _p = undefined
+    -- D.toParserK . D.frameBy begin end escape p
 
 -- | Like 'splitOn' but strips leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ having '.' as the separator would be parsed as
