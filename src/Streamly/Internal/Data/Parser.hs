@@ -347,19 +347,25 @@ satisfy = D.toParserK . D.satisfy
 --
 -- Examples: -
 --
+-- @
 -- takeBetween' low high ls = S.parse prsr (S.fromList ls)
 --      where prsr = P.takeBetween low high FL.toList
+-- @
 --
--- 1. takeBetween' 2 4 [1, 2, 3, 4, 5]
--- >>> [1,2,3,4]
--- 2. takeBetween' 2 4 [1, 2]
--- >>> [1,2]
--- 3. takeBetween' 2 4 [1]
--- >>> ParseError "takeBetween: Expecting alteast 2 elements, got 1"
--- 4. takeBetween' 0 0 [1, 2]
--- >>> []
--- 5. takeBetween' 0 1 []
--- >>> []
+-- >>> takeBetween' 2 4 [1, 2, 3, 4, 5]
+-- > [1,2,3,4]
+--
+-- >>> takeBetween' 2 4 [1, 2]
+-- > [1,2]
+--
+-- >>> takeBetween' 2 4 [1]
+-- > ParseError "takeBetween: Expecting alteast 2 elements, got 1"
+--
+-- >>> takeBetween' 0 0 [1, 2]
+-- > []
+--
+-- >>> takeBetween' 0 1 []
+-- > []
 --
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
@@ -458,17 +464,22 @@ takeGE n = D.toParserK . D.takeGE n
 --
 -- Examples: -
 --
+-- @
 -- takeWhileEvenWithLen len ls = S.parse prsr (S.fromList ls)
 --      where prsr = P.takeWhileP (\x -> x `mod` 2 == 0) (P.take len FL.toList)
+-- @
 --
--- 1. takeWhileEvenWithLen 5 [2, 4, 6, 1, 2, 3]
--- >>> [2,4,6]
--- 2. takeWhileEvenWithLen 5 []
--- >>> []
--- 3. takeWhileEvenWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
--- >>> [2,4,6,8,10]
--- 4. takeWhileEvenWithLen 0 [2, 4]
--- >>> []
+-- >>> takeWhileEvenWithLen 5 [2, 4, 6, 1, 2, 3]
+-- > [2,4,6]
+--
+-- >>> takeWhileEvenWithLen 5 []
+-- > []
+--
+-- >>> takeWhileEvenWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
+-- > [2,4,6,8,10]
+--
+-- >>> takeWhileEvenWithLen 0 [2, 4]
+-- > []
 --
 -- /Internal/
 --
@@ -514,17 +525,22 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 --
 -- Examples: -
 --
+-- @
 -- sliceSepByOddWithLen len ls = S.parse prsr (S.fromList ls)
 --      where prsr = P.sliceSepByP odd (P.take len FL.toList)
+-- @
 --
--- 1. sliceSepByOddWithLen 5 [2, 4, 6, 1, 2, 3]
--- >>> [2,4,6]
--- 2. sliceSepByOddWithLen 5 []
--- >>> []
--- 3. sliceSepByOddWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
--- >>> [2,4,6,8,10]
--- 4. sliceSepByOddWithLen 0 [2, 4]
--- >>> []
+-- >>> sliceSepByOddWithLen 5 [2, 4, 6, 1, 2, 3]
+-- > [2,4,6]
+--
+-- >>> sliceSepByOddWithLen 5 []
+-- > []
+--
+-- >>> sliceSepByOddWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
+-- > [2,4,6,8,10]
+--
+-- >>> sliceSepByOddWithLen 0 [2, 4]
+-- > []
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
@@ -609,16 +625,19 @@ sliceSepWith cond = D.toParserK . D.sliceSepBy cond
 --
 -- Examples: -
 --
+-- @
 -- sliceEndWithOdd ls = S.parse prsr (S.fromList ls)
 --      where prsr = P.sliceEndWith odd FL.toList
+-- @
 --
--- 1. sliceEndWithOdd [2, 4, 6, 1, 2, 3]
--- >>> [2,4,6,1]
--- 2. sliceEndWithOdd [2, 4, 6]
--- >>> [2,4,6]
--- 3. sliceEndWithOdd [1, 3, 4]
--- >>> [1]
--- 4. []
+-- >>> sliceEndWithOdd [2, 4, 6, 1, 2, 3]
+-- > [2,4,6,1]
+-- 
+-- >>> sliceEndWithOdd [2, 4, 6]
+-- > [2,4,6]
+--
+-- >>> sliceEndWithOdd [1, 3, 4]
+-- > [1]
 --
 -- S.splitWithSuffix pred f = S.parseMany (PR.sliceEndWith pred f)
 --
@@ -641,17 +660,22 @@ sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 --
 -- Examples: -
 --
+-- @
 -- sliceBeginWithOdd ls = S.parse prsr (S.fromList ls)
 --      where prsr = P.sliceBeginWith odd FL.toList
+-- @
 --
--- 1. sliceBeginWithOdd [2, 4, 6, 3]
--- >>> [2,4,6]
--- 2. sliceBeginWithOdd [3, 5, 7, 4]
--- >>> [3]
--- 3. sliceBeginWithOdd [3, 4, 6, 8, 5]
--- >>> [3,4,6,8]
--- 4. sliceBeginWithOdd []
--- >>> []
+-- >>> sliceBeginWithOdd [2, 4, 6, 3]
+-- > [2,4,6]
+--
+-- >>> sliceBeginWithOdd [3, 5, 7, 4]
+-- > [3]
+--
+-- >>> sliceBeginWithOdd [3, 4, 6, 8, 5]
+-- > [3,4,6,8]
+--
+-- >>> sliceBeginWithOdd []
+-- > []
 --
 -- /Internal/
 --
@@ -706,9 +730,24 @@ sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 -- which is TREATED as an escape element (i.e. it is not escaped itself),
 -- then it is discarded
 --
--- Examples
+-- Examples: -
 --
--- 
+-- @
+-- escSlice ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.escapedSliceSepBy (== ',') (== '/') FL.toList
+-- @
+--
+-- >>> escSlice "abcdef,ghc"
+-- > "abcdef"
+--
+-- >>> escSlice "abcdef/,ghc,def"
+-- > "abcdef,ghc"
+--
+-- >>> escSlice "abc//def,ghc"
+-- > "abc/def"
+--
+-- >>> escSlice "abc///,def,ghc"
+-- > "abc/,def"
 --
 -- /Internal/
 {-# INLINABLE escapedSliceSepBy #-}
@@ -756,14 +795,22 @@ escapedFrameBy _begin _end _escape _p = undefined
 --
 -- Examples: -
 --
--- parseWord = S.parse (PR.wordBy (==\'.\') FL.toList)
+-- @
+-- parseWord ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.wordBy (== '\.') FL.toList
+-- @
 --
--- 1. parseWord ...a...b...
--- gives [a], while b... is unread
--- 2. parseWord ....b....
--- gives [b], while nothing is unread
--- 3. parseWord .....
--- gives [], while nothing is unread
+-- >>> parseWord "...a...b..."
+-- > "a"
+-- -- while "b..." is unread
+--
+-- >>> parseWord "....b...."
+-- > "b"
+-- -- while nothing is unread
+--
+-- >>> parseWord "....."
+-- > ""
+-- -- while nothing is unread
 --
 -- * Stops - when it finds the first word element after a contiguous sequence
 -- of separators which follow a contiguous sequence of word elements, where
