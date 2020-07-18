@@ -609,14 +609,17 @@ sliceBeginWith predicate (Fold fstep finitial fextract) =
 
     where
     
-    initial = (\initS-> (initS, True)) <$> finitial
+    initial = (Tuple' True) <$> finitial
 
-    step (s, isFirstElement) a =
+    step (Tuple' isFirstElement s) a =
         if not (predicate a) || isFirstElement
-        then (\st -> Partial 0 (st, False)) <$> fstep s a
+        then
+            do
+                nextS <- fstep s a
+                return $ Partial 0 (Tuple' False nextS)
         else Done 1 <$> fextract s
 
-    extract (s, _) = fextract s
+    extract (Tuple' _ s) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepByMax'.
 --
@@ -703,23 +706,29 @@ wordBy predicate (Fold fstep finitial fextract) =
 
     where
     
-    initial = (\initS -> (initS, False, False)) <$> finitial
+    initial = Tuple3' False False <$> finitial
 
-    step (s, sawElement, sawSepAfterElement) a =
+    step (Tuple3' sawElement sawSepAfterElement s) a =
         if sawElement
         then
             if not (predicate a)
             then
                 if sawSepAfterElement 
                 then Done 1 <$> fextract s
-                else (\st -> Partial 0 (st, True, False)) <$> fstep s a
-            else return $ Partial 0 (s, True, True)
+                else
+                    do
+                        nextS <- fstep s a
+                        return $ Partial 0 (Tuple3' True False nextS)
+            else return $ Partial 0 (Tuple3' True True s)
         else
             if not (predicate a)
-            then (\st -> Partial 0 (st, True, sawSepAfterElement)) <$> fstep s a
-            else return $ Partial 0 (s, False, sawSepAfterElement)
+            then 
+                do
+                    nextS <- fstep s a
+                    return $ Partial 0 (Tuple3' True sawSepAfterElement nextS)
+            else return $ Partial 0 (Tuple3' False sawSepAfterElement s)
 
-    extract (s, _, _) = fextract s
+    extract (Tuple3' _ _ s) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
@@ -732,17 +741,23 @@ groupBy cmp (Fold fstep finitial fextract) =
 
     where
 
-        initial = (\initS -> (initS, Nothing)) <$> finitial
+        initial = Tuple' Nothing <$> finitial
 
-        step (s, maybeInitElement) a =
+        step (Tuple' maybeInitElement s) a =
             case maybeInitElement of
-                Nothing -> (\st -> Partial 0 (st, Just a)) <$> fstep s a
+                Nothing ->
+                    do
+                        nextS <- fstep s a
+                        return $ Partial 0 (Tuple' (Just a) nextS)
                 Just initElement ->
                     if cmp a initElement
-                    then (\st -> Partial 0 (st, Just initElement)) <$> fstep s a
+                    then
+                        do
+                            nextS <- fstep s a
+                            return $ Partial 0 (Tuple' (Just initElement) nextS)
                     else Done 1 <$> fextract s
 
-        extract (s, _) = fextract s
+        extract (Tuple' _ s) = fextract s
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
