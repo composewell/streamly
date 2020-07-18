@@ -178,6 +178,28 @@ satisfy =
 
 -- Sequence Parsers Tests
 
+takeBetweenPass :: Property
+takeBetweenPass =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let len = Prelude.length ls
+        in
+        forAll (chooseInt (min_value, len)) $ \low ->
+            forAll (chooseInt (low, max_value)) $ \high ->
+                case S.parse (P.takeBetween low high FL.toList) (S.fromList ls) of
+                    Right parsed_list ->
+                        checkListEqual parsed_list (Prelude.take high ls)
+                    Left _ -> property False
+
+takeBetween :: Property
+takeBetween =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        forAll (chooseInt (min_value, max_value)) $ \low ->
+            forAll (chooseInt (low, max_value)) $ \high ->
+                case S.parse (P.takeBetween low high FL.toList) (S.fromList ls) of
+                    Right parsed_list ->
+                        checkListEqual parsed_list (Prelude.take high ls)
+                    Left _ -> property $ Prelude.length ls < low
+
 take :: Property
 take =
     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -692,31 +714,25 @@ main =
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
+        prop "P.takeBetween low high = Prelude.take high when low <= len" takeBetweenPass
+        prop "P.takeBetween low high = Prelude.take high when low <= len and fail otherwise" takeBetween
         prop "P.take = Prelude.take" Main.take
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
-        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" 
-            Main.takeEQ
+        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
         prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
-        prop 
-            "P.takeWhile = Prelude.takeWhile if taken something, else check why failed"
-            takeWhile1
+        prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
-        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)"
-            sliceEndWith1
-        prop 
-            "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)"
-            sliceEndWith2
-        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)"
-            sliceBeginWith
+        prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
+        prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
+        prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
         prop "P.wordBy = takeFirstFails" wordBy1
-        prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)"
-            wordBy2
+        prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
         prop "P.groupBy = takeWhileCmpFirst" groupBy1
         prop "S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)" groupBy2
         -- prop "pass test for splitWith function" splitWithPass
@@ -727,11 +743,8 @@ main =
         -- prop "left fail test for teeWith function" teeWithFailLeft
         -- prop "right fail test for teeWith function" teeWithFailRight
         -- prop "both fail test for teeWith function" teeWithFailBoth
-        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition"
-            deintercalate1
-        prop 
-            "P.deintercalate FL.toList prsr_1 FL.toList prsr_2 = partitionAlternate"
-            deintercalate2
+        prop "P.deintercalate concatFold prsr_1 concatFold prsr_2 = partition" deintercalate1
+        prop "P.deintercalate FL.toList prsr_1 FL.toList prsr_2 = partitionAlternate" deintercalate2
         -- prop "pass test for shortest function" shortestPass
         -- prop "left fail test for shortest function" shortestFailLeft
         -- prop "right fail test for shortest function" shortestFailRight

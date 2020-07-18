@@ -466,7 +466,7 @@ takeGE n = D.toParserK . D.takeGE n
 --
 -- @
 -- takeWhileEvenWithLen len ls = S.parse prsr (S.fromList ls)
---      where prsr = P.takeWhileP (\x -> x `mod` 2 == 0) (P.take len FL.toList)
+--      where prsr = P.takeWhileP even (P.take len FL.toList)
 -- @
 --
 -- >>> takeWhileEvenWithLen 5 [2, 4, 6, 1, 2, 3]
