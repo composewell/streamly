@@ -395,7 +395,7 @@ groupBy =
                 case list of
                     [] -> []
                     (x : xs) -> 
-                        x : Prelude.takeWhile (\curr -> curr `comp` x) xs
+                        x : Prelude.takeWhile (\curr -> x `comp` curr) xs
 
 splitWith :: Property
 splitWith =

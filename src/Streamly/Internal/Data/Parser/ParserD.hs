@@ -750,7 +750,7 @@ groupBy cmp (Fold fstep finitial fextract) =
                         nextS <- fstep s a
                         return $ Partial 0 (Tuple' (Just a) nextS)
                 Just initElement ->
-                    if cmp a initElement
+                    if cmp initElement a
                     then
                         do
                             nextS <- fstep s a

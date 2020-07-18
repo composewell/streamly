@@ -482,7 +482,7 @@ groupBy1 =
                 case list of
                     [] -> []
                     (x : xs) -> 
-                        x : Prelude.takeWhile (\curr -> curr `comp` x) xs
+                        x : Prelude.takeWhile (\curr -> x `comp` curr) xs
 
 groupBy2 :: Property
 groupBy2 =
@@ -494,7 +494,7 @@ groupBy2 =
 
             eitherParsedList = 
                 S.toList $ 
-                    S.parseMany (P.groupBy cmp FL.toList) strm
+                    S.parseMany (P.groupBy (\x y -> cmp y x) FL.toList) strm
 
             eitherGroupList =
                 case ls of
