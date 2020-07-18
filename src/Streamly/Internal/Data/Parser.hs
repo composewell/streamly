@@ -842,6 +842,36 @@ wordBy cond = D.toParserK . D.wordBy cond
 -- S.groupsBy cmp f = S.parseMany (PR.groupBy cmp f)
 -- @
 --
+-- Examples: -
+--
+-- @
+-- groupByParity ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.groupBy (\x y -> x `mod` 2 == y `mod` 2) FL.toList
+-- @
+-- 
+-- >>> groupByParity [1, 3, 5, 7, 2, 4, 6]
+-- > [1,3,5,7]
+--
+-- >>> groupByParity [4, 1, 2]
+-- > [4]
+--
+-- >>> groupByParity []
+-- > []
+--
+-- @
+-- groupByFirstGreater ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.groupBy (>) FL.toList
+-- @
+--
+-- >>> groupByFirstGreater [5, 3, 2, 4, 1, 5, 6]
+-- > [5,3,2,4,1]
+-- 
+-- >>> groupByFirstGreater [5, 2]
+-- > [5,2]
+--
+-- >>> groupByFirstGreater []
+-- > []
+--
 -- /Internal/
 --
 {-# INLINE groupBy #-}
