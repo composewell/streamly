@@ -339,11 +339,11 @@ satisfy = D.toParserK . D.satisfy
 -- Taking elements
 -------------------------------------------------------------------------------
 
--- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
--- elements and folds them using the supplied fold.
+-- | @takeBetween low high@ takes a minimum of @low@ and a maximum of @high@
+-- input elements and folds them using the supplied fold.
 --
--- Stops after @n@ elements.
--- Fails if the stream ends before @m@ elements could be taken.
+-- Stops after @high@ elements.
+-- Fails if the stream ends before @low@ elements could be taken.
 --
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
@@ -427,8 +427,8 @@ takeGE n = D.toParserK . D.takeGE n
 -- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. The combinator stops when the condition fails or if the collecting
 -- parser stops. The element on which condition fails or parser stops is
--- returned back to the input. Any error caused by the parser provided would
--- be caused by takeWhileP also
+-- dropped. Any error caused by the input parser would be propagated to
+-- takeWhileP.
 --
 -- This is a generalized version of takeWhile, for example 'takeWhile1' can be
 -- implemented in terms of this:
@@ -479,8 +479,8 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 -- | Like 'sliceSepBy' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. @sliceSepByP cond parser@ parses a slice of the input using @parser@
 -- until @cond@ succeeds or the parser stops. The element on which condition
--- fails or parser stops is returned back to the input. Any error caused by the
--- parser provided would be caused by sliceSepByP also
+-- fails or parser stops is dropped. Any error caused by the input parser
+-- would be propagated to sliceSepByP.
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
@@ -545,10 +545,10 @@ sliceSepByP cond prsr = D.toParserK $ D.sliceSepByP cond (D.fromParserK prsr)
 sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 
--- | takes until a seperator is found, gives it back to the input
--- if the seperator is not the first element, else if it is the first
--- element, then we only take the seperator and stop.
--- Like 'sliceSepBy' but does not drop the separator element, instead
+-- | Takes until a separator is found, drops it if the separator
+-- is not the first element, else if it is the first element, then
+-- we only take the separator and stop.
+-- Like 'sliceSepBy' but does not discard the separator element, instead
 -- separator is emitted as a separate element in the output.
 --
 -- /Internal/
@@ -628,11 +628,10 @@ sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
 -- escape char determined by the second predicate. First predicate
--- is for the seperator, the second one is for the escape elements.
--- Element that just follows an escape element is taken (whether it is 
--- a normal element, escape element or seperator element). On the first
--- occurrance of a non-escaped (i.e. not escaped by preceding element)
--- seperator, we stop parsing, and the seperator element is discarded
+-- is for the separator, the second one is for the escape elements.
+-- An element returns true on the escape predicate is treated as an
+-- escape element only if the next element is a separator or an
+-- element which satisfies the escape predicate.
 --
 -- /Internal/
 {-# INLINABLE escapedSliceSepBy #-}
