@@ -607,6 +607,19 @@ sliceSepWith cond = D.toParserK . D.sliceSepBy cond
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
+-- Examples: -
+--
+-- sliceEndWithOdd ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.sliceEndWith odd FL.toList
+--
+-- 1. sliceEndWithOdd [2, 4, 6, 1, 2, 3]
+-- >>> [2,4,6,1]
+-- 2. sliceEndWithOdd [2, 4, 6]
+-- >>> [2,4,6]
+-- 3. sliceEndWithOdd [1, 3, 4]
+-- >>> [1]
+-- 4. []
+--
 -- S.splitWithSuffix pred f = S.parseMany (PR.sliceEndWith pred f)
 --
 -- /Internal/
@@ -625,6 +638,20 @@ sliceEndWith cond = D.toParserK . D.sliceEndWith cond
 -- * Fails - never.
 --
 -- S.splitWithPrefix pred f = S.parseMany (PR.sliceBeginWith pred f)
+--
+-- Examples: -
+--
+-- sliceBeginWithOdd ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.sliceBeginWith odd FL.toList
+--
+-- 1. sliceBeginWithOdd [2, 4, 6, 3]
+-- >>> [2,4,6]
+-- 2. sliceBeginWithOdd [3, 5, 7, 4]
+-- >>> [3]
+-- 3. sliceBeginWithOdd [3, 4, 6, 8, 5]
+-- >>> [3,4,6,8]
+-- 4. sliceBeginWithOdd []
+-- >>> []
 --
 -- /Internal/
 --
