@@ -665,17 +665,17 @@ escapedFrameBy :: -- MonadCatch m =>
 escapedFrameBy _begin _end _escape _p = undefined
     -- D.toParserK . D.frameBy begin end escape p
 
--- | Like 'splitOn' but strips leading, trailing, and repeated separators.
--- Therefore, @".a..b."@ having '.' as the separator would be parsed as
--- @["a","b"]@.  In other words, its like parsing words from whitespace
--- separated text.
---
--- * Stops - when it finds a word separator after a non-word element
 -- | Ignore every element on which the predicate succeeds before
 -- an element where predicate fails is found, then ignore every
 -- element after this which fails the predicate until another
--- element which passes the predicate is found, put this second
--- succeeding element back into the input.
+-- element which passes the predicate is found, then ignore every
+-- element which passes the predicate until an element which fails
+-- the predicate is found, drop this last element.
+--
+-- Like 'splitOn' but strips leading, trailing, and repeated separators.
+-- Therefore, @".a..b."@ having '.' as the separator would be parsed as
+-- @["a","b"]@.  In other words, if used along with parseMany, its like
+-- parsing words from whitespace separated text.
 --
 -- Examples: -
 --
@@ -688,7 +688,10 @@ escapedFrameBy _begin _end _escape _p = undefined
 -- 3. parseWord .....
 -- gives [], while nothing is unread
 --
--- * Stops - when it finds a non-word after a non-word element
+-- * Stops - when it finds the first word element after a contiguous sequence
+-- of separators which follow a contiguous sequence of word elements, where
+-- a separator is an element which fails the predicate, and a word element is
+-- an element which passes the predicate.
 -- * Fails - never.
 --
 -- @
@@ -899,7 +902,7 @@ lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
 -- result is accumulated into the second fold. Finally, the finaly results
 -- are extracted from the two folds and returned when parsing is complete.
 --
--- Please not the following: -
+-- Please note the following: -
 --
 -- 1. This parser is run as follows: parser 1 is run on the stream, then
 -- parser2 is run, then again parser1, ..., until EOF or error.
