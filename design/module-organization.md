@@ -143,12 +143,25 @@ conflict with any other module on Hackage.
 We have the following module hierarchy under Streamly:
 
 * Data: This is a generic bucket for basic data structures a la the `base`
-  package's `Data` hierarchy.
+  package's `Data` hierarchy. 
+    * Streamly.Data.Array
+  
+  Streams can be classified under `Data` or `Control`.  Though they are
+  mostly used for processing, they can also be used to store data in
+  memory.
+    * Streamly.Data.Stream
+
+  The following modules could in fact be classified under `Control`
+  too as they are about processing of data rather than data itself:
+    * Streamly.Data.Unfold
+    * Streamly.Data.Fold
+    * Streamly.Data.Parser
 
 * Unicode: Unicode text processing:
-    * Streamly.Unicode.Char
-    * Streamly.Unicode.Stream
-    * Streamly.Unicode.Array
+    * Streamly.Unicode.Char       -- operations on individual chars
+    * Streamly.Unicode.Stream     -- operations on streams of Char
+    * Streamly.Unicode.Array.Char -- compact strings of UTF-32 chars
+    * Streamly.Unicode.Array.Utf8 -- compact strings of UTF-8 encoded chars
 
 * FileSystem: This name space is for data structures that reside in files
   provided by a file system interface on top of storage devices.
@@ -183,13 +196,13 @@ these remain the same as the base type:
 * `Streamly.Data.Stream.Async.RoundRobin`
 * ...
 
-Pure streams are a special case of effectful streams and go in
-specialized modules suffixed with `Pure`:
+Pure streams are a special case of effectful streams and have the same
+interface as lists, so we put them under `Streamly.Data.List`:
 
-* `Streamly.Data.Stream.Pure`
-* `Streamly.Data.Stream.Zip.Pure`
-* `Streamly.Data.Stream.Interleaved.Pure`
-* `Streamly.Data.Stream.RoundRobin.Pure`
+* `Streamly.Data.List`
+* `Streamly.Data.List.Zip`
+* `Streamly.Data.List.Interleaved`
+* `Streamly.Data.List.RoundRobin`
 * ...
 
 We could possibly use the same type named `Stream` for all stream
@@ -198,30 +211,37 @@ distinguish only by the module name.
 
 ## Array modules
 
-Similarly, the Array modules would go in:
+Similarly, the immutable Array modules would go in:
 
-* `Streamly.Data.Array`
+* `Streamly.Data.Array`                  -- unpinned, native memory arrays
+* `Streamly.Data.Array.Storable`         -- unpinned, unboxed, native memory arrays
+* `Streamly.Data.Array.Storable.Pinned`  -- pinned, unboxed, native memory arrays
+* `Streamly.Data.Array.Storable.Foreign` -- pinned, unboxed, foreign capable arrays
+
+Unboxed arrays, based on `Prim` type class:
+
 * `Streamly.Data.Array.Prim`
 * `Streamly.Data.Array.Prim.Pinned`
-* ...
 
-Pure arrays are just a special case of mutable arrays:
+Mutable arrays are a generalization of immutable arrays:
 
-* `Streamly.Data.Array.Pure`
-* `Streamly.Data.Array.Prim.Pure`
-* `Streamly.Data.Array.Prim.Pinned.Pure`
+* `Streamly.Data.Array.Mut`
+* `Streamly.Data.Array.Storable.Mut`
+* `Streamly.Data.Array.Storable.Pinned.Mut`
 * ...
 
 ## Stream and Fold Channels (SVar)
 
 * `Streamly.Data.Stream.Channel`
-* `Streamly.Data.Stream.Channel.Prim`
+* `Streamly.Data.Stream.Channel.Storable`
 * `Streamly.Data.Fold.Channel`
-* `Streamly.Data.Fold.Channel.Prim`
+* `Streamly.Data.Fold.Channel.Storable`
 
 ## Mutable variables
 
-* `Streamly.Data.MutVar.Prim`
+Unboxed IORef:
+
+* `Streamly.Data.IORef.Prim`
 
 ## Strict Data
 
