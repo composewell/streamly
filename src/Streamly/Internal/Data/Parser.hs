@@ -345,6 +345,22 @@ satisfy = D.toParserK . D.satisfy
 -- Stops after @high@ elements.
 -- Fails if the stream ends before @low@ elements could be taken.
 --
+-- Examples: -
+--
+-- takeBetween' low high ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.takeBetween low high FL.toList
+--
+-- 1. takeBetween' 2 4 [1, 2, 3, 4, 5]
+-- >>> [1,2,3,4]
+-- 2. takeBetween' 2 4 [1, 2]
+-- >>> [1,2]
+-- 3. takeBetween' 2 4 [1]
+-- >>> ParseError "takeBetween: Expecting alteast 2 elements, got 1"
+-- 4. takeBetween' 0 0 [1, 2]
+-- >>> []
+-- 5. takeBetween' 0 1 []
+-- >>> []
+--
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
 --
@@ -440,6 +456,20 @@ takeGE n = D.toParserK . D.takeGE n
 -- Stops: when the condition fails or the collecting parser stops.
 -- Fails: when the collecting parser fails.
 --
+-- Examples: -
+--
+-- takeWhileEvenWithLen len ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.takeWhileP (\x -> x `mod` 2 == 0) (P.take len FL.toList)
+--
+-- 1. takeWhileEvenWithLen 5 [2, 4, 6, 1, 2, 3]
+-- >>> [2,4,6]
+-- 2. takeWhileEvenWithLen 5 []
+-- >>> []
+-- 3. takeWhileEvenWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
+-- >>> [2,4,6,8,10]
+-- 4. takeWhileEvenWithLen 0 [2, 4]
+-- >>> []
+--
 -- /Internal/
 --
 {-# INLINE takeWhileP #-}
@@ -481,6 +511,20 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 -- until @cond@ succeeds or the parser stops. The element on which condition
 -- fails or parser stops is dropped. Any error caused by the input parser
 -- would be propagated to sliceSepByP.
+--
+-- Examples: -
+--
+-- sliceSepByOddWithLen len ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.sliceSepByP odd (P.take len FL.toList)
+--
+-- 1. sliceSepByOddWithLen 5 [2, 4, 6, 1, 2, 3]
+-- >>> [2,4,6]
+-- 2. sliceSepByOddWithLen 5 []
+-- >>> []
+-- 3. sliceSepByOddWithLen 5 [2, 4, 6, 8, 10, 12, 14, 16, 22, 5, 4]
+-- >>> [2,4,6,8,10]
+-- 4. sliceSepByOddWithLen 0 [2, 4]
+-- >>> []
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
@@ -631,7 +675,13 @@ sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 -- is for the separator, the second one is for the escape elements.
 -- An element returns true on the escape predicate is treated as an
 -- escape element only if the next element is a separator or an
--- element which satisfies the escape predicate.
+-- element which satisfies the escape predicate. The element
+-- which is TREATED as an escape element (i.e. it is not escaped itself),
+-- then it is discarded
+--
+-- Examples
+--
+-- 
 --
 -- /Internal/
 {-# INLINABLE escapedSliceSepBy #-}

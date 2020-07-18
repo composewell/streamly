@@ -527,7 +527,7 @@ sliceSepByP predicate (Parser stepP initialP extractP) =
     initial = initialP
 
     step s a =
-        if not $ predicate a
+        if predicate a
         then Done 0 <$> extractP s
         else stepP s a
     
@@ -565,7 +565,7 @@ sliceSepWith predicate (Fold fstep finitial fextract) =
     initial = Tuple' True <$> finitial
 
     step (Tuple' isFirstElement s) a =
-        if not (predicate a)
+        if predicate a
         then
             if isFirstElement
             then
