@@ -389,6 +389,9 @@ o_1_space_reduce_read_grouped env =
 lf :: Word8
 lf = fromIntegral (ord '\n')
 
+bs :: Word8
+bs = fromIntegral (ord '\\')
+
 toarr :: String -> A.Array Word8
 toarr = A.fromList . map (fromIntegral . ord)
 
@@ -430,11 +433,33 @@ deintercalate inh = do
     (_, _) <- IP.parse prsr (S.unfold FH.read inh)
     return ()
 
+-- | Split on line feed (but do not discard it - take it in next parse)
+parseManySepWith :: Handle -> IO Int
+parseManySepWith inh =
+    (S.length $ IP.parseMany (PR.sliceSepWith (== lf) FL.drain)
+                             (S.unfold FH.read inh)) -- >>= print
+
 -- | Split on line feed.
 parseManySepBy :: Handle -> IO Int
 parseManySepBy inh =
     (S.length $ IP.parseMany (PR.sliceSepBy (== lf) FL.drain)
                              (S.unfold FH.read inh)) -- >>= print
+
+-- | Split on line feed.
+parseManySepByP :: Handle -> IO Int
+parseManySepByP inh =
+    S.length $ 
+        IP.parseMany 
+        (PR.sliceSepByP (== lf) (PR.takeWhile (\_ -> True) FL.drain))
+        (S.unfold FH.read inh)
+
+-- | Split on line feed, and use backslash as escape character
+escapedSliceSepBy :: Handle -> IO Int
+escapedSliceSepBy inh =
+    S.length $ 
+        IP.parseMany 
+        (PR.escapedSliceSepBy (== lf) (== bs) FL.drain)
+        (S.unfold FH.read inh)
 
 -- | Split on line feed (as a suffix)
 parseManyEndWith :: Handle -> IO Int
@@ -503,8 +528,14 @@ o_1_space_reduce_read_split env =
     [ bgroup "reduce/read"
         [ mkBench "deintercalate" env
             $ \inh _ -> deintercalate inh
+        , mkBench "S.parseMany (PR.sliceSepWith (== lf) FL.drain)" env
+            $ \inh _ -> parseManySepWith inh
         , mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
+        , mkBench "S.parseMany (PR.sliceSepByP (== lf) (PR.takeWhile (\\_ -> True) FL.drain))" env
+            $ \inh _ -> parseManySepByP inh
+        , mkBench "S.parseMany (PR.escapedSliceSepBy (== lf) (== bs) FL.drain)" env
+            $ \inh _ -> escapedSliceSepBy inh
         , mkBench "S.parseMany (PR.sliceEndWith (== lf) FL.drain)" env
             $ \inh _ -> parseManyEndWith inh
         , mkBench "S.parseMany (PR.sliceBeginWith (== lf) FL.drain)" env

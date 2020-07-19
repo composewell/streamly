@@ -83,7 +83,7 @@ takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
 takeWhileP :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhileP value = 
-    IP.parse (PR.takeWhileP (<= value) (PR.take value FL.drain))
+    IP.parse (PR.takeWhileP (<= value) (PR.takeWhile (\_ -> True) FL.drain))
 
 {-# INLINE deintercalate #-}
 deintercalate :: MonadCatch m => SerialT m Int -> m ((), ())
