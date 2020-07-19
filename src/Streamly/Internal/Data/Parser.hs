@@ -611,6 +611,28 @@ sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 -- Like 'sliceSepBy' but does not discard the separator element, instead
 -- separator is emitted as a separate element in the output.
 --
+-- Examples: -
+--
+-- @
+-- sliceSepWith' ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.sliceSepWith (== '.') FL.toList
+-- @
+--
+-- >>> sliceSepWith' "abc....a"
+-- > "abc"
+--
+-- >>> sliceSepWith' ".abc..a"
+-- > "."
+--
+-- >>> sliceSepWith' "..."
+-- > "."
+--
+-- >>> sliceSepWith' ""
+-- > ""
+--
+-- >>> sliceSepWith' "abcdef"
+-- > "abcdef"
+--
 -- /Internal/
 {-# INLINE sliceSepWith #-}
 sliceSepWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
