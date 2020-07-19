@@ -614,7 +614,7 @@ sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 -- /Internal/
 {-# INLINE sliceSepWith #-}
 sliceSepWith :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepWith cond = D.toParserK . D.sliceSepBy cond
+sliceSepWith cond = D.toParserK . D.sliceSepWith cond
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is

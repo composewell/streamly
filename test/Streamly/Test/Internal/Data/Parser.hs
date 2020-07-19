@@ -372,6 +372,22 @@ sliceSepBy =
         where
             predicate = (== 1)
 
+sliceSepWith :: Property
+sliceSepWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.sliceSepWith predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> 
+                checkListEqual parsed_list $ takeFirstOrUntilSep predicate ls
+            Left _ -> property False
+        where
+            predicate = (== 1)
+
+            takeFirstOrUntilSep prd (x : xs) =
+                if prd x
+                then [x]
+                else x : Prelude.takeWhile (not . prd) xs
+            takeFirstOrUntilSep _ [] = []
+
 -- sliceSepByMax :: Property
 -- sliceSepByMax =
 --     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -443,6 +459,38 @@ sliceBeginWith =
 
             takeWhileOrFirst prd (x : xs) = x : Prelude.takeWhile prd xs
             takeWhileOrFirst _ [] = []
+
+escapedSliceSepBy :: Property
+escapedSliceSepBy =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let
+            isSep = even
+
+            isEsc x = x `mod` 6 == 0
+
+            prsr = P.escapedSliceSepBy isSep isEsc FL.toList
+
+            escapeSep maybePrevEsc [] =
+                case maybePrevEsc of
+                    Nothing -> []
+                    Just prevEsc -> [prevEsc]
+            escapeSep maybePrevEsc (x : xs) =
+                case maybePrevEsc of
+                    Nothing ->
+                        if isEsc x
+                        then escapeSep (Just x) xs
+                        else
+                            if isSep x
+                            then []
+                            else x : escapeSep Nothing xs
+                    Just prevEsc ->
+                        if isSep x || isEsc x
+                        then x : escapeSep Nothing xs
+                        else prevEsc : x : escapeSep Nothing xs
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
+                _ -> property False
 
 wordBy1 :: Property
 wordBy1 =
@@ -728,9 +776,11 @@ main =
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
+        prop "P.sliceSepWith = takeFirstOrUntilSep" sliceSepWith
         prop "P.sliceEndWith = takeWhileAndFirstFail (not . predicate)" sliceEndWith1
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
         prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
+        prop "P.escapedSliceSepBy = escapeSep Nothing" escapedSliceSepBy
         prop "P.wordBy = takeFirstFails" wordBy1
         prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
         prop "P.groupBy = takeWhileCmpFirst" groupBy1
