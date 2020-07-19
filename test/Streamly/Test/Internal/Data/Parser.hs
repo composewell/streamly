@@ -331,6 +331,25 @@ takeProperties =
 --                         where
 --                             list_length = Prelude.length ls
 
+takeWhileP1 :: Property
+takeWhileP1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        forAll (chooseInt (min_value, max_value)) $ \n ->
+            let
+                predicate = (== 1)
+
+                prsr = P.takeWhileP predicate $ P.take n FL.toList
+
+                takeWhileTillLen maxLen prd list = 
+                    Prelude.take maxLen $ Prelude.takeWhile prd list
+            in
+                case S.parse prsr (S.fromList ls) of
+                    Right parsed_list -> 
+                        checkListEqual 
+                        parsed_list
+                        (takeWhileTillLen n predicate ls)
+                    Left _ -> property False
+
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
@@ -359,6 +378,25 @@ takeWhile1 =
                 (x : _) -> property (not $ predicate x)
         where
             predicate = (== 0)
+
+sliceSepByP1 :: Property
+sliceSepByP1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        forAll (chooseInt (min_value, max_value)) $ \n ->
+            let
+                predicate = (== 1)
+
+                prsr = P.sliceSepByP predicate $ P.take n FL.toList
+
+                takeWhileTillLen maxLen prd list = 
+                    Prelude.take maxLen $ Prelude.takeWhile (not . prd) list
+            in
+                case S.parse prsr (S.fromList ls) of
+                    Right parsed_list -> 
+                        checkListEqual 
+                        parsed_list
+                        (takeWhileTillLen n predicate ls)
+                    Left _ -> property False
 
 sliceSepBy :: Property
 sliceSepBy =
@@ -772,8 +810,10 @@ main =
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
+        prop "P.takeWhileP prd P.take = takeWhileMaxLen prd" takeWhileP1
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "P.sliceSepByP prd P.take = takeWhileMaxLen (not . prd)" sliceSepByP1
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
         prop "P.sliceSepWith = takeFirstOrUntilSep" sliceSepWith
