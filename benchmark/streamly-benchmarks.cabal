@@ -395,6 +395,8 @@ benchmark Data.Array.Prim
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM
   build-depends: primitive
+  if impl(ghc < 8.0)
+    buildable: False
 
 benchmark Data.SmallArray
   import: bench-options
@@ -411,6 +413,8 @@ benchmark Data.Array.Prim.Pinned
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
+  if impl(ghc < 8.0)
+    buildable: False
 
 benchmark Memory.Array
   import: bench-options
