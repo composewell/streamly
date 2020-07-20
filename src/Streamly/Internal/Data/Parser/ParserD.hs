@@ -224,24 +224,28 @@ fromParserK parser = Parser step initial extract
     initial = return Nothing
 
     step Nothing a = do
-        let yieldk _ (K.Done b) =
-                -- let leftover = 0 -- XXX get it from the zipper
-                return $ K.Stop b
-            yieldk _ K.Continue = error "Bug: fromParserK: got Continue"
+        let yieldk _ (K.Done b) = return $ K.Stop b
             yieldk _ (K.Error e) = return $ K.Failed e
-        r <- K.runParser parser (Z.append a Z.nil) yieldk
+        r <- K.runParser parser (Z.Zipper [] [] [a]) yieldk
         case r of
+            -- XXX it should return the leftover count
             K.Stop b -> return $ Done 0 b
             K.Failed e -> return $ Error e
-            -- XXX we can use the zipper state here to pare down the driver
-            -- buffer
-            K.Pause cont -> return $ Partial 0 $ Just cont
+            -- XXX when it pauses it may not have the result available, so it
+            -- is not necessarily Partial. It could be Skip instead.
+            -- Always returning Skip may lead to buffer accumulation.
+            -- XXX In case of Partial the backtrack count is always 0 because
+            -- ParserK would never ask to backtrack. Even for Skip it would
+            -- always be zero. The only place where it may need the ParserD
+            -- buffer is the final "Done" event where it can say there is a
+            -- leftover.
+            K.Partial cont -> return $ Partial 0 $ Just cont
     step (Just cont) a = do
         r <- cont (Just a)
         case r of
             K.Stop b -> return $ Done 0 b
             K.Failed e -> return $ Error e
-            K.Pause cont1 -> return $ Partial 0 $ Just cont1
+            K.Partial cont1 -> return $ Partial 0 $ Just cont1
 
     extract Nothing = throwM $ ParseError "end of input"
     extract (Just cont) = K.extractParse cont

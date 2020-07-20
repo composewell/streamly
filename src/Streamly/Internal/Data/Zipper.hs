@@ -49,11 +49,7 @@ module Streamly.Internal.Data.Zipper
 
     -- * Construction
     , nil
-    , fromStream
     , fromList
-
-    -- * Updating
-    , append
 
     -- * Checkpointing
     , checkpoint
@@ -63,14 +59,7 @@ module Streamly.Internal.Data.Zipper
 where
 
 import Control.Exception (assert)
-#if !(MIN_VERSION_base(4,13,0))
-import Data.Semigroup ((<>))
-#endif
 import Prelude hiding (splitAt)
-
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream(..))
-
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -------------------------------------------------------------------------------
 -- Zipper type
@@ -79,8 +68,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- | @Zipper checkpoints lefts rights tail@.  The focus is on the first element
 -- of @rights@.  @lefts@ is buffered data on the right of the cursor. Note that
 -- @lefts@ is stored as a reversed list, this helps is adding more items to the
--- list quickly. @tail@ is a stream that is used to generate more data if the
--- cursor moves past @rights@.
+-- list quickly.
 --
 -- @checkpoints@ is a stack of checkpoints. A new checkpoint is created by a
 -- @checkpoint@ operation. A checkpoint consists of a count that tracks how
@@ -94,11 +82,10 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 --
 -- /Internal/
 --
-data Zipper m a = Zipper
+data Zipper a = Zipper
     [Int]        -- checkpoints
-    [a]          -- past buffered inputs (for backtracking)
+    [a]          -- past buffered inputs in reverse order (for backtracking)
     [a]          -- future buffered inputs (created by backtracking)
-    (Stream m a) -- stream input to use after buffer is over
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -109,37 +96,16 @@ data Zipper m a = Zipper
 -- /Internal/
 --
 {-# INLINE nil #-}
-nil :: Zipper m a
-nil = Zipper [] [] [] K.nil
-
--- | Create a zipper from a stream.
---
--- /Internal/
---
-{-# INLINE fromStream #-}
-fromStream :: Stream m a -> Zipper m a
-fromStream = Zipper [] [] []
+nil :: Zipper a
+nil = Zipper [] [] []
 
 -- | Create a zipper from a list.
 --
 -- /Internal/
 --
 {-# INLINE fromList #-}
-fromList :: [a] -> Zipper m a
-fromList xs = Zipper [] [] xs K.nil
-
--------------------------------------------------------------------------------
--- Updating
--------------------------------------------------------------------------------
-
--- | Add an element at the tail of the Zipper.
---
--- /Internal/
---
-{-# INLINE append #-}
-append :: a -> Zipper m a -> Zipper m a
-append x (Zipper checkpoints backward forward stream) =
-    Zipper checkpoints backward forward (stream <> K.yield x)
+fromList :: [a] -> Zipper a
+fromList xs = Zipper [] [] xs
 
 -------------------------------------------------------------------------------
 -- Checkpointing
@@ -151,8 +117,8 @@ append x (Zipper checkpoints backward forward stream) =
 -- /Internal/
 --
 {-# INLINE checkpoint #-}
-checkpoint :: Zipper m a -> Zipper m a
-checkpoint (Zipper cps xs ys stream) = Zipper (0:cps) xs ys stream
+checkpoint :: Zipper a -> Zipper a
+checkpoint (Zipper cps xs ys) = Zipper (0:cps) xs ys
 
 -- | Release the latest checkpoint, releases any values held by the checkpoint.
 -- Note that the values may still be held by other checkpoints in the stack of
@@ -161,13 +127,13 @@ checkpoint (Zipper cps xs ys stream) = Zipper (0:cps) xs ys stream
 -- /Internal/
 --
 {-# INLINE release #-}
-release :: Zipper m a -> Zipper m a
-release (Zipper [] _ _ _) = error "Bug: release, no checkpoint exists!"
-release (Zipper (n:cps) xs ys stream) =
+release :: Zipper a -> Zipper a
+release (Zipper [] _ _ ) = error "Bug: release, no checkpoint exists!"
+release (Zipper (n:cps) xs ys) =
     assert (n <= length xs) $
             case cps of
-                [] -> assert (n == length xs) $ Zipper [] [] ys stream
-                cp:rest -> Zipper ((cp + n) : rest) xs ys stream
+                [] -> assert (n == length xs) $ Zipper [] [] ys
+                cp:rest -> Zipper ((cp + n) : rest) xs ys
 
 -- XXX recheck this, and unify with the definition in StreamD and ParserK
 --
@@ -192,10 +158,10 @@ splitAt n ls
 -- /Internal/
 --
 {-# INLINE restore #-}
-restore :: Zipper m a -> Zipper m a
-restore (Zipper [] _ _ _) = error "Bug: restore, no checkpoint exists!"
-restore (Zipper (n:cps) xs ys stream) =
+restore :: Zipper a -> Zipper a
+restore (Zipper [] _ _) = error "Bug: restore, no checkpoint exists!"
+restore (Zipper (n:cps) xs ys) =
     assert (n <= length xs) $
         let (src0, buf1) = splitAt n xs
             src  = Prelude.reverse src0
-         in Zipper cps buf1 (src ++ ys) stream
+         in Zipper cps buf1 (src ++ ys)

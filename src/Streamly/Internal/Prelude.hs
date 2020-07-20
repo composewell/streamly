@@ -525,7 +525,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, assert)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
@@ -593,7 +593,6 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Zipper as ZR
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -1367,15 +1366,7 @@ parseD (PRD.Parser step initial extract) = P.parselMx' step initial extract
 
 {-# INLINE parseK #-}
 parseK :: MonadThrow m => PRK.Parser m a b -> SerialT m a -> m b
-parseK parser xs = do
-    let yieldk _ (PRK.Done b) = return $ PRK.Stop b
-        yieldk _ PRK.Continue = error "Bug: fromParserK: got Continue"
-        yieldk _ (PRK.Error e) = return $ PRK.Failed e
-    r <- PRK.runParser parser (ZR.fromStream $ K.toStream xs) yieldk
-    case r of
-        PRK.Stop b -> return b
-        PRK.Failed err -> throwM (PRD.ParseError err)
-        PRK.Pause cont -> PRK.extractParse cont
+parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -1384,8 +1375,6 @@ parseK parser xs = do
 {-# INLINE [3] parse #-}
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
 parse = parseD . PRD.fromParserK
-{-# RULES "parse fallback to CPS" [2]
-    forall a. parseD (PRD.fromParserK a) = parseK a #-}
 
 ------------------------------------------------------------------------------
 -- Specialized folds
