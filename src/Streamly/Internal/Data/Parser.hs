@@ -797,7 +797,7 @@ escapedSliceSepBy cond esc = D.toParserK . D.escapedSliceSepBy cond esc
 -- > ParseError "Unterminated '{'"
 --
 -- /Unimplemented/
-{-# INLINABLE escapedFrameBy #-}
+{-# INLINE escapedFrameBy #-}
 escapedFrameBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedFrameBy _begin _end _escape _p = undefined

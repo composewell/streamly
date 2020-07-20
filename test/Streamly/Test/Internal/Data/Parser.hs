@@ -524,7 +524,10 @@ escapedSliceSepBy =
                     Just prevEsc ->
                         if isSep x || isEsc x
                         then x : escapeSep Nothing xs
-                        else prevEsc : x : escapeSep Nothing xs
+                        else
+                            if isSep prevEsc
+                            then []
+                            else prevEsc : x : escapeSep Nothing xs
         in
             case S.parse prsr (S.fromList ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls

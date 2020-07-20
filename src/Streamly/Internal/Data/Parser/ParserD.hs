@@ -682,10 +682,13 @@ escapedSliceSepBy isSep isEsc (Fold fstep finitial fextract) =
                         nextS <- fstep s a
                         return $ Partial 0 (Tuple' Nothing nextS)
                 else
-                    do
-                        s1 <- fstep s prevEsc
-                        s2 <- fstep s1 a
-                        return $ Partial 0 (Tuple' Nothing s2)
+                    if isSep prevEsc
+                    then Done 1 <$> fextract s
+                    else 
+                        do
+                            s1 <- fstep s prevEsc
+                            s2 <- fstep s1 a
+                            return $ Partial 0 (Tuple' Nothing s2)
 
     extract (Tuple' maybePrevEscape s) =
         case maybePrevEscape of
@@ -694,6 +697,37 @@ escapedSliceSepBy isSep isEsc (Fold fstep finitial fextract) =
                 do
                     nextS <- fstep s prevEsc
                     fextract nextS
+
+-- {-# INLINE escapedFrameBy #-}
+-- escapedFrameBy ::
+--     MonadCatch m 
+--     => (a -> Bool)
+--     -> (a -> Bool)
+--     -> (a -> Bool)
+--     -> Fold m a b
+--     -> Parser m a b
+-- escapedFrameBy begin end escape (Fold fstep finitial fextract) =
+
+--     Parser step initial extract
+
+--     where
+    
+--     initial = Tuple3' Nothing 0 <$> finitial
+
+--     step (Tuple' maybePrevEsc openMinusClose s) a =
+--         case maybePrevEsc of
+--             Nothing ->
+--                 if begin a && end a
+--                 then Error "Element found to satisfy both begin and end"
+--                 else
+--                     if escape a
+--                     then
+--                         do
+--                             nextS <- fstep s a
+--                             return $ 
+--                             Continue 0 (Tuple' (Just a) openMinusClose nextS)
+--                     else
+
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
