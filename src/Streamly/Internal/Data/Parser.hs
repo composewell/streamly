@@ -796,12 +796,17 @@ escapedSliceSepBy cond esc = D.toParserK . D.escapedSliceSepBy cond esc
 -- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello {world}"
 -- > ParseError "Unterminated '{'"
 --
--- /Unimplemented/
+-- /Internal/
 {-# INLINE escapedFrameBy #-}
-escapedFrameBy :: -- MonadCatch m =>
-    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-escapedFrameBy _begin _end _escape _p = undefined
-    -- D.toParserK . D.frameBy begin end escape p
+escapedFrameBy ::
+    MonadCatch m 
+    => (a -> Bool)
+    -> (a -> Bool)
+    -> (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+escapedFrameBy begin end escape =
+    D.toParserK . D.escapedFrameBy begin end escape
 
 -- | Ignore every element on which the predicate succeeds before
 -- an element where predicate fails is found, then ignore every

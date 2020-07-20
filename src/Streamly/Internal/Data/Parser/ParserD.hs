@@ -61,6 +61,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , sliceSepBy
     , sliceSepByMax
     , escapedSliceSepBy
+    , escapedFrameBy
     -- , sliceSepByBetween
     , sliceEndWith
     , sliceBeginWith
@@ -698,35 +699,128 @@ escapedSliceSepBy isSep isEsc (Fold fstep finitial fextract) =
                     nextS <- fstep s prevEsc
                     fextract nextS
 
--- {-# INLINE escapedFrameBy #-}
--- escapedFrameBy ::
---     MonadCatch m 
---     => (a -> Bool)
---     -> (a -> Bool)
---     -> (a -> Bool)
---     -> Fold m a b
---     -> Parser m a b
--- escapedFrameBy begin end escape (Fold fstep finitial fextract) =
+-- | See 'Streamly.Internal.Data.Parser.escapedFrameBy'.
+--
+-- /Internal/
+--
+{-# INLINE escapedFrameBy #-}
+escapedFrameBy ::
+    MonadCatch m 
+    => (a -> Bool)
+    -> (a -> Bool)
+    -> (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+escapedFrameBy begin end escape (Fold fstep finitial fextract) =
 
---     Parser step initial extract
+    Parser step initial extract
 
---     where
+    where
     
---     initial = Tuple3' Nothing 0 <$> finitial
+    initial = Tuple3' Nothing (0 :: Int) <$> finitial
 
---     step (Tuple' maybePrevEsc openMinusClose s) a =
---         case maybePrevEsc of
---             Nothing ->
---                 if begin a && end a
---                 then Error "Element found to satisfy both begin and end"
---                 else
---                     if escape a
---                     then
---                         do
---                             nextS <- fstep s a
---                             return $ 
---                             Continue 0 (Tuple' (Just a) openMinusClose nextS)
---                     else
+    step (Tuple3' maybePrevEsc openMinusClose s) a =
+        if begin a && end a
+            then return $ Error "Element found to satisfy both begin and end"
+        else
+            case maybePrevEsc of
+                Nothing ->
+                    if escape a
+                    then
+                        do
+                            nextS <- fstep s a
+                            return $ 
+                                Continue 0 (Tuple3' (Just a) openMinusClose nextS)
+                    else
+                        if begin a
+                        then
+                            return $
+                                Continue
+                                0 
+                                (Tuple3' Nothing (openMinusClose + 1) s)
+                        else
+                            if end a
+                            then
+                                case openMinusClose of
+                                    0 -> return $ Error "Found end before any begin"
+                                    1 -> Done 0 <$> fextract s
+                                    _ ->
+                                        return $ 
+                                            Continue
+                                            0
+                                            (Tuple3'
+                                            Nothing
+                                            (openMinusClose - 1)
+                                            s)
+                            else
+                                do
+                                    nextS <- fstep s a
+                                    return $
+                                        Continue
+                                        0
+                                        (Tuple3' Nothing openMinusClose nextS)
+                (Just prevEsc) ->
+                    if escape a || begin a || end a
+                    then
+                        do
+                            nextS <- fstep s a
+                            return $
+                                Continue 0 (Tuple3' Nothing openMinusClose nextS)
+                    else
+                        if begin prevEsc
+                        then
+                            do
+                                nextS <- fstep s a
+                                return $
+                                    Continue 
+                                    0 
+                                    (Tuple3' Nothing (openMinusClose + 1) nextS)
+                        else
+                            if end prevEsc
+                            then
+                                case openMinusClose of
+                                    0 -> return $ Error "Found end before any begin"
+                                    1 -> Done 1 <$> fextract s
+                                    _ -> do
+                                            nextS <- fstep s a
+                                            return $
+                                                Continue
+                                                0
+                                                (Tuple3'
+                                                Nothing
+                                                (openMinusClose - 1)
+                                                nextS)
+                            else
+                                do
+                                    s1 <- fstep s prevEsc
+                                    s2 <- fstep s1 a
+                                    return $
+                                        Continue
+                                        0
+                                        (Tuple3' Nothing openMinusClose s2)
+
+    extract (Tuple3' maybePrevEsc openMinusClose s) = do
+        (nextS, nextOpenMinusClose) <- case maybePrevEsc of
+            Nothing -> return (s, openMinusClose)
+            Just prevEsc ->
+                if begin prevEsc
+                then return (s, openMinusClose + 1)
+                else
+                    if end prevEsc
+                    then return (s, openMinusClose - 1)
+                    else
+                        do
+                            nextS <- fstep s prevEsc
+                            return (nextS, openMinusClose)
+        
+        if nextOpenMinusClose == 0
+        then fextract nextS
+        else
+            if nextOpenMinusClose < 0
+            then throwM $ ParseError "Found end before any begin"
+            else throwM $ ParseError "Unterminated begin"
+
+
 
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
