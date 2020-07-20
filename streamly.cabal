@@ -342,7 +342,6 @@ library
     other-modules:
                        Streamly.Data.Array
                      , Streamly.Data.SmallArray
-                     , Streamly.Data.Prim.Array
 
                     -- Memory storage
                        Streamly.Memory.Malloc
@@ -381,12 +380,6 @@ library
 
                      -- Arrays
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Prim.Types
-                     , Streamly.Internal.Data.Array.Prim
-                     , Streamly.Internal.Data.Array.Prim.Mut.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
                      , Streamly.Internal.Data.SmallArray.Types
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
@@ -445,7 +438,23 @@ library
                      , Streamly.Internal.Data.Unicode.Stream
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
+
+    if impl(ghc >= 8.0)
+       other-modules:  Streamly.Data.Prim.Array
+
+    if impl(ghc >= 8.0)
+       exposed-modules:
+                     -- Arrays
+                       Streamly.Internal.Data.Array.Prim.Types
+                     , Streamly.Internal.Data.Array.Prim
+                     , Streamly.Internal.Data.Array.Prim.Mut.Types
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
+                     , Streamly.Internal.Data.Array.Prim.Pinned
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
+
+                     -- Text Processing
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
+
 
     if !impl(ghcjs)
        exposed-modules:
@@ -674,8 +683,7 @@ test-suite primarray-test
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
   if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
+    buildable: False
   default-language: Haskell2010
 
 test-suite prim-pinned-array-test
@@ -691,8 +699,7 @@ test-suite prim-pinned-array-test
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
   if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
+    buildable: False
   default-language: Haskell2010
 
 test-suite string-test
