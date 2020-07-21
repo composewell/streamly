@@ -782,6 +782,10 @@ escapedSliceSepBy cond esc = D.toParserK . D.escapedSliceSepBy cond esc
 -- element to escape the occurrence of the framing elements within the frame.
 -- Nested frames are allowed, but nesting is removed when parsing.
 --
+-- Important: An element cannot satisfy more than one predicate, i.e.
+-- an element cannot be a begin and end, end and escape or escape and begin
+-- element at the same time.
+--
 -- For example,
 --
 -- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello}"

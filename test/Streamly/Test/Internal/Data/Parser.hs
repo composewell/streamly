@@ -533,6 +533,191 @@ escapedSliceSepBy =
                 Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
                 _ -> property False
 
+escapedFrameBy :: Property
+escapedFrameBy =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let
+            isBegin = (== 0)
+
+            isEnd = (== 1)
+
+            isEsc = (== 2)
+
+            prsr = P.escapedFrameBy isBegin isEnd isEsc FL.toList
+
+            checkPass (x : xs) maybePrevEsc openMinusClose =
+                case maybePrevEsc of
+                    Nothing ->
+                        if isEsc x
+                        then checkPass xs (Just x) openMinusClose
+                        else
+                            if isBegin x
+                            then checkPass xs Nothing (openMinusClose + 1)
+                            else
+                                if isEnd x
+                                then
+                                    case openMinusClose of
+                                        0 -> False
+                                        1 -> True
+                                        _ -> 
+                                            checkPass 
+                                            xs 
+                                            Nothing
+                                            (openMinusClose - 1)
+                                else
+                                    checkPass xs Nothing openMinusClose
+                    Just _ -> checkPass xs Nothing openMinusClose
+            checkPass [] _ _ = False
+
+            escapeFrame begin end escape l =
+                let
+                    helper (x : xs) maybePrevEsc openMinusClose =
+                        case maybePrevEsc of
+                            Nothing ->
+                                if escape x
+                                then helper xs (Just x) openMinusClose
+                                else
+                                    if begin x
+                                    then helper xs Nothing (openMinusClose + 1)
+                                    else
+                                        if end x
+                                        then
+                                            if openMinusClose - 1 == 0
+                                            then []
+                                            else 
+                                                helper 
+                                                xs 
+                                                Nothing 
+                                                (openMinusClose - 1)
+                                        else
+                                            x : helper xs Nothing openMinusClose
+                            Just prevEsc ->
+                                if escape x || begin x || end x
+                                then x : helper xs Nothing openMinusClose
+                                else
+                                    prevEsc : x : helper xs Nothing openMinusClose
+                    helper [] _ _ = error "Cannot Reach Here"
+                in
+                    helper l Nothing (0 :: Int)           
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list ->
+                    if checkPass ls Nothing (0 :: Int)
+                    then checkListEqual parsed_list $
+                        escapeFrame isBegin isEnd isEsc ls
+                    else property False
+                Left _ ->
+                    if checkPass ls Nothing (0 :: Int)
+                    then property False
+                    else property True
+
+escapedFrameByPass :: Property
+escapedFrameByPass =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \list ->
+        let
+            ls = (0 : list) ++ (Prelude.replicate (Prelude.length list + 1) 1)
+
+            isBegin = (== 0)
+
+            isEnd = (== 1)
+
+            isEsc = (== 2)
+
+            prsr = P.escapedFrameBy isBegin isEnd isEsc FL.toList
+
+            escapeFrame begin end escape l =
+                let
+                    helper (x : xs) maybePrevEsc openMinusClose =
+                        case maybePrevEsc of
+                            Nothing ->
+                                if escape x
+                                then helper xs (Just x) openMinusClose
+                                else
+                                    if begin x
+                                    then helper xs Nothing (openMinusClose + 1)
+                                    else
+                                        if end x
+                                        then
+                                            if openMinusClose - 1 == 0
+                                            then []
+                                            else 
+                                                helper 
+                                                xs 
+                                                Nothing 
+                                                (openMinusClose - 1)
+                                        else
+                                            x : helper xs Nothing openMinusClose
+                            Just prevEsc ->
+                                if escape x || begin x || end x
+                                then x : helper xs Nothing openMinusClose
+                                else
+                                    prevEsc : x : helper xs Nothing openMinusClose
+                    helper [] _ _ = error "Cannot Reach Here"
+                in
+                    helper l Nothing (0 :: Int)           
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list -> 
+                    checkListEqual parsed_list $ escapeFrame isBegin isEnd isEsc ls
+                _ -> property False
+
+escapedFrameByFail1 :: Property
+escapedFrameByFail1 =
+    let
+        msg = "Element found to satisfy more than one predicate"
+
+        isBegin = (== 0)
+
+        isEnd = (== 0)
+
+        isEsc = (== 2)
+
+        prsr = P.escapedFrameBy isBegin isEnd isEsc FL.toList
+
+        ls = [0 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property $ (displayException err == msg)
+
+escapedFrameByFail2 :: Property
+escapedFrameByFail2 =
+    let
+        msg = "Element found to satisfy more than one predicate"
+
+        isBegin = (== 0)
+
+        isEnd = (== 1)
+
+        isEsc = (== 1)
+
+        prsr = P.escapedFrameBy isBegin isEnd isEsc FL.toList
+
+        ls = [1 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property $ (displayException err == msg)
+
+escapedFrameByFail3 :: Property
+escapedFrameByFail3 =
+    let
+        msg = "Element found to satisfy more than one predicate"
+
+        isBegin = (== 2)
+
+        isEnd = (== 1)
+
+        isEsc = (== 2)
+
+        prsr = P.escapedFrameBy isBegin isEnd isEsc FL.toList
+
+        ls = [2 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property $ (displayException err == msg)
+
 wordBy1 :: Property
 wordBy1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -824,6 +1009,11 @@ main =
         prop "similar to S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)" sliceEndWith2
         prop "P.sliceBeginWith predicate = takeWhileOrFirst (not . predicate)" sliceBeginWith
         prop "P.escapedSliceSepBy = escapeSep Nothing" escapedSliceSepBy
+        prop "P.escapedFrameBy = escapeFrame - when pass" escapedFrameBy
+        prop "P.escapedFrameBy = escapeFrame - always pass" escapedFrameByPass
+        prop "begin = end" escapedFrameByFail1
+        prop "end = escape" escapedFrameByFail2
+        prop "escape = begin" escapedFrameByFail3
         prop "P.wordBy = takeFirstFails" wordBy1
         prop "similar to S.wordsBy pred f = S.splitParse (PR.wordBy pred f)" wordBy2
         prop "P.groupBy = takeWhileCmpFirst" groupBy1
