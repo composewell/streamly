@@ -535,7 +535,7 @@ main =
         -- prop "" shortestFailRight
         -- prop "" shortestFailBoth
         prop "P.many concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" many
-        prop "[] due to parser being die" many_empty
+        -- prop "[] due to parser being die" many_empty
         prop "P.some concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" some
-        prop "fail due to parser being die" someFail
+        -- prop "fail due to parser being die" someFail
     takeProperties
