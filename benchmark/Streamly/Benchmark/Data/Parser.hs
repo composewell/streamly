@@ -15,6 +15,8 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch)
+import Data.Char (ord)
+import Data.Word (Word8)
 import Data.Foldable (asum)
 import Data.Monoid (Sum(..))
 import System.Random (randomRIO)
@@ -57,6 +59,42 @@ benchIOSink
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
 
+-- | Generates something like this: { { \{ \{ } }
+-- The stream has length 4 times value, the stream consists of three parts,
+-- the first part is contains `value` number of `{`. Then the second part
+-- contains value `\` and value `{` alternatively (the escaped part). The
+-- third (and final) part contains value number of `}`.
+{-# INLINE escFrameUnfold #-}
+escFrameUnfold :: 
+    (S.IsStream t, S.MonadAsync m)
+    => Int
+    -> Int
+    -> t m Word8
+escFrameUnfold value n = S.unfoldrM step n
+    where
+
+    bs = fromIntegral (ord '\\')
+    cbOpen = fromIntegral (ord '{')
+    cbClose = fromIntegral (ord '}')
+
+    step cnt | cnt > 4 * value = return Nothing
+        | cnt <= value = return $ Just (cbOpen, cnt + 1)
+        | cnt > 3 * value = return $ Just (cbClose, cnt + 1)
+        | otherwise = 
+            if (cnt - value) `mod` 2 == 1
+            then return $ Just (bs, cnt + 1)
+            else return $ Just (cbOpen, cnt + 1)
+
+{-# INLINE escFrameIOSink #-}
+escFrameIOSink :: 
+    (IsStream t, NFData b)
+    => Int
+    -> String
+    -> (t IO Word8 -> IO b)
+    -> Benchmark
+escFrameIOSink value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . escFrameUnfold value
+
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
@@ -96,6 +134,20 @@ deintercalate = IP.parse prsr
     prsr2 = PR.takeWhile even FL.drain
 
     prsr = PR.deintercalate FL.drain prsr1 FL.drain prsr2
+
+escapedFrameBy :: MonadCatch m => SerialT m Word8 -> m ()
+escapedFrameBy strm = IP.parse prsr strm
+
+    where
+
+    bs = fromIntegral (ord '\\')
+    isEsc = (== bs)
+    cbOpen = fromIntegral (ord '{')
+    isBegin = (== cbOpen)
+    cbClose = fromIntegral (ord '}')
+    isEnd = (== cbClose)
+    
+    prsr = PR.escapedFrameBy isBegin isEnd isEsc FL.drain
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
@@ -253,6 +305,7 @@ o_1_space_serial value =
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "deintercalate" $ deintercalate
+    , escFrameIOSink value "escapedFrameBy" $ escapedFrameBy
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
