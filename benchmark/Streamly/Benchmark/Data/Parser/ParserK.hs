@@ -62,18 +62,18 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 #ifdef FROM_PARSERK
-#define PARSE_OP (IP.parseD . PRD.fromParserK)
+#define PARSE_OP (IP.parseD . PR.fromParserK)
 #else
 #define PARSE_OP IP.parseK
 #endif
 
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> PR.Parser m a a
-satisfy = PRD.toParserK . PRD.satisfy
+satisfy = PR.toParserK . PRD.satisfy
 
 {-# INLINE any #-}
 any :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
-any = PRD.toParserK . PRD.any
+any = PR.toParserK . PRD.any
 
 {-# INLINE anyK #-}
 anyK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
@@ -81,7 +81,7 @@ anyK value = PARSE_OP (any (> value))
 
 {-# INLINE all #-}
 all :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
-all = PRD.toParserK . PRD.all
+all = PR.toParserK . PRD.all
 
 {-# INLINE allK #-}
 allK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
@@ -89,7 +89,7 @@ allK value = PARSE_OP (all (<= value))
 
 {-# INLINE take #-}
 take :: MonadCatch m => Int -> PR.Parser m a ()
-take value = PRD.toParserK $ PRD.take value FL.drain
+take value = PR.toParserK $ PRD.take value FL.drain
 
 {-# INLINE takeK #-}
 takeK :: MonadCatch m => Int -> SerialT m a -> m ()
@@ -97,7 +97,7 @@ takeK value = PARSE_OP (take value)
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
-takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
+takeWhile p = PR.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadCatch m => Int -> SerialT m Int -> m ()

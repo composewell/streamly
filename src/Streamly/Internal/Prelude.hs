@@ -1374,7 +1374,7 @@ parseK = parse
 --
 {-# INLINE [3] parse #-}
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
-parse = parseD . PRD.fromParserK
+parse = parseD . PRK.fromParserK
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -3494,7 +3494,7 @@ parseMany
     -> t m a
     -> t m b
 parseMany p m =
-    D.fromStreamD $ D.parseMany (PRD.fromParserK p) (D.toStreamD m)
+    D.fromStreamD $ D.parseMany (PRK.fromParserK p) (D.toStreamD m)
 
 -- | @parseManyTill collect test stream@ tries the parser @test@ on the input,
 -- if @test@ fails it backtracks and tries @collect@, after @collect@ succeeds
@@ -3533,7 +3533,7 @@ parseIterate
     -> t m a
     -> t m b
 parseIterate f i m = D.fromStreamD $
-    D.parseIterate (PRD.fromParserK . f) i (D.toStreamD m)
+    D.parseIterate (PRK.fromParserK . f) i (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

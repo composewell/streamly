@@ -219,7 +219,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 --
 {-# INLINE fromFold #-}
 fromFold :: MonadCatch m => Fold m a b -> Parser m a b
-fromFold = D.toParserK . D.fromFold
+fromFold = K.toParserK . D.fromFold
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
@@ -231,7 +231,7 @@ fromFold = D.toParserK . D.fromFold
 --
 {-# INLINE any #-}
 any :: MonadCatch m => (a -> Bool) -> Parser m a Bool
-any = D.toParserK . D.any
+any = K.toParserK . D.any
 
 -- |
 -- >>> S.parse (PR.all (== 0)) $ S.fromList [1,0,1]
@@ -239,7 +239,7 @@ any = D.toParserK . D.any
 --
 {-# INLINE all #-}
 all :: MonadCatch m => (a -> Bool) -> Parser m a Bool
-all = D.toParserK . D.all
+all = K.toParserK . D.all
 
 -- This is the dual of stream "yield".
 --
@@ -249,9 +249,9 @@ all = D.toParserK . D.all
 --
 {-# INLINE [3] yield #-}
 yield :: MonadCatch m => b -> Parser m a b
-yield = D.toParserK . D.yield
+yield = K.toParserK . D.yield
 {-# RULES "yield fallback to CPS" [2]
-    forall a. D.toParserK (D.yield a) = K.yield a #-}
+    forall a. K.toParserK (D.yield a) = K.yield a #-}
 
 -- This is the dual of stream "yieldM".
 --
@@ -262,7 +262,7 @@ yield = D.toParserK . D.yield
 --
 {-# INLINE yieldM #-}
 yieldM :: MonadCatch m => m b -> Parser m a b
-yieldM = D.toParserK . D.yieldM
+yieldM = K.toParserK . D.yieldM
 
 -- This is the dual of "nil".
 --
@@ -273,9 +273,9 @@ yieldM = D.toParserK . D.yieldM
 --
 {-# INLINE [3] die #-}
 die :: MonadCatch m => String -> Parser m a b
-die = D.toParserK . D.die
+die = K.toParserK . D.die
 {-# RULES "die fallback to CPS" [2]
-    forall a. D.toParserK (D.die a) = K.die a #-}
+    forall a. K.toParserK (D.die a) = K.die a #-}
 
 -- This is the dual of "nilM".
 --
@@ -286,7 +286,7 @@ die = D.toParserK . D.die
 --
 {-# INLINE dieM #-}
 dieM :: MonadCatch m => m String -> Parser m a b
-dieM = D.toParserK . D.dieM
+dieM = K.toParserK . D.dieM
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -306,7 +306,7 @@ dieM = D.toParserK . D.dieM
 --
 {-# INLINE peek #-}
 peek :: MonadCatch m => Parser m a a
-peek = D.toParserK D.peek
+peek = K.toParserK D.peek
 
 -- | Succeeds if we are at the end of input, fails otherwise.
 --
@@ -317,7 +317,7 @@ peek = D.toParserK D.peek
 --
 {-# INLINE eof #-}
 eof :: MonadCatch m => Parser m a ()
-eof = D.toParserK D.eof
+eof = K.toParserK D.eof
 
 -- | Returns the next element if it passes the predicate, fails otherwise.
 --
@@ -328,7 +328,7 @@ eof = D.toParserK D.eof
 --
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
-satisfy = D.toParserK . D.satisfy
+satisfy = K.toParserK . D.satisfy
 
 -------------------------------------------------------------------------------
 -- Taking elements
@@ -355,7 +355,7 @@ satisfy = D.toParserK . D.satisfy
 {-# INLINE takeBetween #-}
 takeBetween :: -- MonadCatch m =>
     Int -> Int -> Fold m a b -> Parser m a b
-takeBetween _m _n = undefined -- D.toParserK . D.takeBetween m n
+takeBetween _m _n = undefined -- K.toParserK . D.takeBetween m n
 
 --
 -- $take
@@ -384,7 +384,7 @@ takeBetween _m _n = undefined -- D.toParserK . D.takeBetween m n
 --
 {-# INLINE take #-}
 take :: MonadCatch m => Int -> Fold m a b -> Parser m a b
-take n = D.toParserK . D.take n
+take n = K.toParserK . D.take n
 
 -- | Stops after taking exactly @n@ input elements.
 --
@@ -398,7 +398,7 @@ take n = D.toParserK . D.take n
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadCatch m => Int -> Fold m a b -> Parser m a b
-takeEQ n = D.toParserK . D.takeEQ n
+takeEQ n = K.toParserK . D.takeEQ n
 
 -- | Take at least @n@ input elements, but can collect more.
 --
@@ -415,7 +415,7 @@ takeEQ n = D.toParserK . D.takeEQ n
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadCatch m => Int -> Fold m a b -> Parser m a b
-takeGE n = D.toParserK . D.takeGE n
+takeGE n = K.toParserK . D.takeGE n
 
 -- $takeWhile
 -- Note: This is called @takeWhileP@ and @munch@ in some parser libraries.
@@ -439,7 +439,7 @@ takeGE n = D.toParserK . D.takeGE n
 {-# INLINE takeWhileP #-}
 takeWhileP :: -- MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
+takeWhileP _cond = undefined -- K.toParserK . D.takeWhileP cond
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -460,7 +460,7 @@ takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
 --
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
-takeWhile cond = D.toParserK . D.takeWhile cond
+takeWhile cond = K.toParserK . D.takeWhile cond
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
 --
@@ -468,7 +468,7 @@ takeWhile cond = D.toParserK . D.takeWhile cond
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
-takeWhile1 cond = D.toParserK . D.takeWhile1 cond
+takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 
 -- | Like 'sliceSepBy' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. @sliceSepByP cond parser@ parses a slice of the input using @parser@
@@ -487,7 +487,7 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 {-# INLINABLE sliceSepByP #-}
 sliceSepByP :: -- MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP _cond = undefined -- D.toParserK . D.sliceSepByP cond
+sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
 
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.
@@ -536,7 +536,7 @@ sliceSepByP _cond = undefined -- D.toParserK . D.sliceSepByP cond
 -- /Internal/
 {-# INLINABLE sliceSepBy #-}
 sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepBy cond = D.toParserK . D.sliceSepBy cond
+sliceSepBy cond = K.toParserK . D.sliceSepBy cond
 
 -- | Like 'sliceSepBy' but does not drop the separator element, instead
 -- separator is emitted as a separate element in the output.
@@ -545,7 +545,7 @@ sliceSepBy cond = D.toParserK . D.sliceSepBy cond
 {-# INLINABLE sliceSepWith #-}
 sliceSepWith :: -- MonadCatch m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
+sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is
@@ -619,7 +619,7 @@ sliceBeginWith = undefined
 {-# INLINABLE sliceSepByMax #-}
 sliceSepByMax :: MonadCatch m
     => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
-sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
+sliceSepByMax cond cnt = K.toParserK . D.sliceSepByMax cond cnt
 
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
 -- escape char determined by the second predicate.
@@ -629,7 +629,7 @@ sliceSepByMax cond cnt = D.toParserK . D.sliceSepByMax cond cnt
 escapedSliceSepBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedSliceSepBy _cond _esc = undefined
-    -- D.toParserK . D.escapedSliceSepBy cond esc
+    -- K.toParserK . D.escapedSliceSepBy cond esc
 
 -- | @escapedFrameBy begin end escape@ parses a string framed using @begin@ and
 -- @end@ as the frame begin and end marker elements and @escape@ as an escaping
@@ -655,7 +655,7 @@ escapedSliceSepBy _cond _esc = undefined
 escapedFrameBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedFrameBy _begin _end _escape _p = undefined
-    -- D.toParserK . D.frameBy begin end escape p
+    -- K.toParserK . D.frameBy begin end escape p
 
 -- | Like 'splitOn' but strips leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ having '.' as the separator would be parsed as
@@ -710,7 +710,7 @@ groupBy = undefined
 --
 {-# INLINE eqBy #-}
 eqBy :: MonadCatch m => (a -> a -> Bool) -> [a] -> Parser m a ()
-eqBy cmp = D.toParserK . D.eqBy cmp
+eqBy cmp = K.toParserK . D.eqBy cmp
 
 -------------------------------------------------------------------------------
 -- nested parsers
@@ -742,7 +742,7 @@ eqBy cmp = D.toParserK . D.eqBy cmp
 splitWith :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 splitWith f p1 p2 =
-    D.toParserK $ D.splitWith f (D.fromParserK p1) (D.fromParserK p2)
+    K.toParserK $ D.splitWith f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Sequential parser application ignoring the output of the first parser.
 -- Apply two parsers sequentially to an input stream.  The input is provided to
@@ -764,7 +764,7 @@ splitWith f p1 p2 =
 --
 {-# INLINE split_ #-}
 split_ :: MonadCatch m => Parser m x a -> Parser m x b -> Parser m x b
-split_ p1 p2 = D.toParserK $ D.split_ (D.fromParserK p1) (D.fromParserK p2)
+split_ p1 p2 = K.toParserK $ D.split_ (K.fromParserK p1) (K.fromParserK p2)
 
 -- | @teeWith f p1 p2@ distributes its input to both @p1@ and @p2@ until both
 -- of them succeed or anyone of them fails and combines their output using @f@.
@@ -776,7 +776,7 @@ split_ p1 p2 = D.toParserK $ D.split_ (D.fromParserK p1) (D.fromParserK p2)
 teeWith :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 teeWith f p1 p2 =
-    D.toParserK $ D.teeWith f (D.fromParserK p1) (D.fromParserK p2)
+    K.toParserK $ D.teeWith f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Like 'teeWith' but ends parsing and zips the results, if available,
 -- whenever the first parser ends.
@@ -787,7 +787,7 @@ teeWith f p1 p2 =
 teeWithFst :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 teeWithFst f p1 p2 =
-    D.toParserK $ D.teeWithFst f (D.fromParserK p1) (D.fromParserK p2)
+    K.toParserK $ D.teeWithFst f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Like 'teeWith' but ends parsing and zips the results, if available,
 -- whenever any of the parsers ends or fails.
@@ -798,7 +798,7 @@ teeWithFst f p1 p2 =
 teeWithMin :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 teeWithMin f p1 p2 =
-    D.toParserK $ D.teeWithMin f (D.fromParserK p1) (D.fromParserK p2)
+    K.toParserK $ D.teeWithMin f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Sequential alternative. Apply the input to the first parser and return the
 -- result if the parser succeeds. If the first parser fails then backtrack and
@@ -818,7 +818,7 @@ teeWithMin f p1 p2 =
 --
 {-# INLINE alt #-}
 alt :: MonadCatch m => Parser m x a -> Parser m x a -> Parser m x a
-alt p1 p2 = D.toParserK $ D.alt (D.fromParserK p1) (D.fromParserK p2)
+alt p1 p2 = K.toParserK $ D.alt (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Shortest alternative. Apply both parsers in parallel but choose the result
 -- from the one which consumed least input i.e. take the shortest succeeding
@@ -829,7 +829,7 @@ alt p1 p2 = D.toParserK $ D.alt (D.fromParserK p1) (D.fromParserK p2)
 {-# INLINE shortest #-}
 shortest :: MonadCatch m
     => Parser m x a -> Parser m x a -> Parser m x a
-shortest p1 p2 = D.toParserK $ D.shortest (D.fromParserK p1) (D.fromParserK p2)
+shortest p1 p2 = K.toParserK $ D.shortest (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Longest alternative. Apply both parsers in parallel but choose the result
 -- from the one which consumed more input i.e. take the longest succeeding
@@ -840,7 +840,7 @@ shortest p1 p2 = D.toParserK $ D.shortest (D.fromParserK p1) (D.fromParserK p2)
 {-# INLINE longest #-}
 longest :: MonadCatch m
     => Parser m x a -> Parser m x a -> Parser m x a
-longest p1 p2 = D.toParserK $ D.longest (D.fromParserK p1) (D.fromParserK p2)
+longest p1 p2 = K.toParserK $ D.longest (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Run a parser without consuming the input.
 --
@@ -848,7 +848,7 @@ longest p1 p2 = D.toParserK $ D.longest (D.fromParserK p1) (D.fromParserK p2)
 --
 {-# INLINE lookAhead #-}
 lookAhead :: MonadCatch m => Parser m a b -> Parser m a b
-lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
+lookAhead p = K.toParserK $ D.lookAhead $ K.fromParserK p
 
 -------------------------------------------------------------------------------
 -- Interleaving
@@ -915,7 +915,7 @@ sequence _f _p = undefined
 {-# INLINE concatMap #-}
 concatMap :: MonadCatch m
     => (b -> Parser m a c) -> Parser m a b -> Parser m a c
-concatMap f p = D.toParserK $ D.concatMap (D.fromParserK . f) (D.fromParserK p)
+concatMap f p = K.toParserK $ D.concatMap (K.fromParserK . f) (K.fromParserK p)
 
 -------------------------------------------------------------------------------
 -- Alternative Collection
@@ -951,7 +951,7 @@ choice _ps = undefined
 {-# INLINE manyP #-}
 manyP :: -- MonadCatch m =>
     Parser m b c -> Parser m a b -> Parser m a c
-manyP _f _p = undefined -- D.toParserK $ D.manyP f (D.fromParserK p)
+manyP _f _p = undefined -- K.toParserK $ D.manyP f (K.fromParserK p)
 
 -- | Collect zero or more parses. Apply the parser repeatedly on the input
 -- stream, stop when the parser fails, accumulate zero or more parse results
@@ -964,7 +964,7 @@ manyP _f _p = undefined -- D.toParserK $ D.manyP f (D.fromParserK p)
 --
 {-# INLINE many #-}
 many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-many f p = D.toParserK $ D.many f (D.fromParserK p)
+many f p = K.toParserK $ D.many f (K.fromParserK p)
 -- many = countBetween 0 maxBound
 
 -- | Collect one or more parses. Apply the supplied parser repeatedly on the
@@ -978,7 +978,7 @@ many f p = D.toParserK $ D.many f (D.fromParserK p)
 --
 {-# INLINE some #-}
 some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-some f p = D.toParserK $ D.some f (D.fromParserK p)
+some f p = K.toParserK $ D.some f (K.fromParserK p)
 -- some f p = manyP (takeGE 1 f) p
 -- many = countBetween 1 maxBound
 
@@ -1023,7 +1023,7 @@ count n = countBetween n n
 manyTillP :: -- MonadCatch m =>
     Parser m b c -> Parser m a b -> Parser m a x -> Parser m a c
 manyTillP _f _p1 _p2 = undefined
-    -- D.toParserK $ D.manyTillP f (D.fromParserK p1) (D.fromParserK p2)
+    -- K.toParserK $ D.manyTillP f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | @manyTill f collect test@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
@@ -1037,7 +1037,7 @@ manyTillP _f _p1 _p2 = undefined
 manyTill :: MonadCatch m
     => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 manyTill f p1 p2 =
-    D.toParserK $ D.manyTill f (D.fromParserK p1) (D.fromParserK p2)
+    K.toParserK $ D.manyTill f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
 -- collects the output in the supplied fold. If the the parser @collect@ fails,

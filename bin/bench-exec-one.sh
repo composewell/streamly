@@ -70,6 +70,12 @@ bench_rts_opts_specific () {
     Data.Parser/o-1-space/some) echo -n "-K8M" ;;
     Data.Parser.ParserD/o-1-space/manyTill) echo -n "-K4M" ;;
     Data.Parser/o-1-space/manyTill) echo -n "-K4M" ;;
+    Data.Parser/o-n-heap/manyAlt) echo -n "-K4M -M128M" ;;
+    Data.Parser/o-n-heap/someAlt) echo -n "-K4M -M128M" ;;
+    Data.Parser.ParserK/o-n-heap/manyAlt) echo -n "-K4M -M128M" ;;
+    Data.Parser.ParserK/o-n-heap/someAlt) echo -n "-K4M -M128M" ;;
+    Data.Parser.ParserK/o-n-heap/sequence) echo -n "-M64M";;
+    Data.Parser.ParserK/o-n-heap/sequenceA) echo -n "-M64M";;
 
     Data.SmallArray/o-1-sp*) echo -n "-K128K" ;;
     *) echo -n "" ;;

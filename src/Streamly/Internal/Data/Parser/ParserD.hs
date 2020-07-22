@@ -19,8 +19,6 @@ module Streamly.Internal.Data.Parser.ParserD
     -- First order parsers
     -- * Accumulators
     , fromFold
-    , toParserK
-    , fromParserK
     , any
     , all
     , yield
@@ -160,13 +158,8 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
-import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap)
-
+import Prelude hiding (any, all, take, takeWhile, sequence, concatMap)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
-import qualified Streamly.Internal.Data.Zipper as Z
 
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
@@ -187,75 +180,6 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
     where
 
     step s a = Partial 0 <$> fstep s a
-
--------------------------------------------------------------------------------
--- Convert to and from CPS style parser representation
--------------------------------------------------------------------------------
-
--- | Convert a direct style 'Parser' to a CPS style 'K.Parser'.
---
--- /Internal/
---
-{-# INLINE_LATE toParserK #-}
-toParserK :: MonadCatch m => Parser m a b -> K.Parser m a b
-toParserK (Parser step initial extract) =
-    K.MkParser $ K.parse step initial extract
-
--- XXX The CPS style parsers use a zipper buffering the data, if a parserD is
--- driving the parserK then it would also be buffering the same data.  For
--- ParserD, instead of maintaining the buffer in the common driver, each parser
--- can have its own buffering and we can return the unconsumed buffer in the
--- end.  That way the zipper is maintained by the parser. If the parser fails
--- then it has to return all of the input. It is anyway maintained by
--- intermediate level parsers in a composition, so the only difference would be
--- that even the leaf levels parsers would do it. If we abstract the zipper
--- maintainance then it may not be too unwieldy.
---
--- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
---
--- /Unimplemented/
---
-{-# INLINE_LATE fromParserK #-}
-fromParserK :: MonadThrow m => K.Parser m a b -> Parser m a b
-fromParserK parser = Parser step initial extract
-
-    where
-
-    initial = return Nothing
-
-    step Nothing a = do
-        let yieldk _ (K.Done b) = return $ K.Stop b
-            yieldk _ (K.Error e) = return $ K.Failed e
-        r <- K.runParser parser (Z.Zipper [] [] [a]) yieldk
-        case r of
-            -- XXX it should return the leftover count
-            K.Stop b -> return $ Done 0 b
-            K.Failed e -> return $ Error e
-            -- XXX when it pauses it may not have the result available, so it
-            -- is not necessarily Partial. It could be Skip instead.
-            -- Always returning Skip may lead to buffer accumulation.
-            -- XXX In case of Partial the backtrack count is always 0 because
-            -- ParserK would never ask to backtrack. Even for Skip it would
-            -- always be zero. The only place where it may need the ParserD
-            -- buffer is the final "Done" event where it can say there is a
-            -- leftover.
-            K.Partial cont -> return $ Partial 0 $ Just cont
-    step (Just cont) a = do
-        r <- cont (Just a)
-        case r of
-            K.Stop b -> return $ Done 0 b
-            K.Failed e -> return $ Error e
-            K.Partial cont1 -> return $ Partial 0 $ Just cont1
-
-    extract Nothing = throwM $ ParseError "end of input"
-    extract (Just cont) = K.extractParse cont
-
-#ifndef DISABLE_FUSION
-{-# RULES "fromParserK/toParserK fusion" [2]
-    forall s. toParserK (fromParserK s) = s #-}
-{-# RULES "toParserK/fromParserK fusion" [2]
-    forall s. fromParserK (toParserK s) = s #-}
-#endif
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
