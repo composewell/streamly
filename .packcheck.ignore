@@ -1,2 +1,3 @@
 .packcheck.ignore
 cabal.project.coverage
+src/Streamly/Internal/Data/Prim/Array.hs
