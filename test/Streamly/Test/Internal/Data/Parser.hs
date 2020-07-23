@@ -461,11 +461,11 @@ many =
                 Right res_list -> checkListEqual res_list (Prelude.filter (== 0) ls)
                 Left _ -> property False
 
-many_empty :: Property
-many_empty = 
-    property (case S.parse (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
-        Right res_list -> checkListEqual res_list ([] :: [Int])
-        Left _ -> property False)
+-- many_empty :: Property
+-- many_empty = 
+--     property (case S.parse (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right res_list -> checkListEqual res_list ([] :: [Int])
+--         Left _ -> property False)
 
 some :: Property
 some = 
@@ -479,11 +479,11 @@ some =
                 Right res_list -> res_list == Prelude.filter (== 0) ls
                 Left _ -> False
 
-someFail :: Property
-someFail = 
-    property (case S.parse (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
+-- someFail :: Property
+-- someFail = 
+--     property (case S.parse (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
 
 main :: IO ()
 main =
