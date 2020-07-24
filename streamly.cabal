@@ -311,6 +311,20 @@ common test-options
   --   build-depends:
   --       fusion-plugin     >= 0.2   && < 0.3
 
+common prelude-test-options
+  js-sources: jsbits/clock.js
+  hs-source-dirs: test
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , QuickCheck        >= 2.10  && < 2.15
+    , hspec             >= 2.0   && < 3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4  && < 0.6
+      , semigroups    >= 0.18 && < 0.19
+  default-language: Haskell2010
+
 -- Used by maxrate test, benchmarks and executables
 common exe-options
   import: compile-options, optimization-options, threading-options
@@ -564,20 +578,19 @@ test-suite pure-streams-streamly
   default-language: Haskell2010
 
 test-suite properties
-  import: test-options
+  import: test-options, prelude-test-options
   type: exitcode-stdio-1.0
   main-is: Prop.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.8   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
-    , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-  default-language: Haskell2010
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
+
+test-suite Prelude.Serial
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Serial.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Serial.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
 
 test-suite array-test
   import: test-options
