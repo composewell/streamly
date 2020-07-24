@@ -216,23 +216,6 @@ concurrentFoldrApplication n =
 -- Zip operations
 -------------------------------------------------------------------------------
 
-zipApplicative
-    :: (IsStream t, Applicative (t IO))
-    => ([Int] -> t IO Int)
-    -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
-    -> ([Int], [Int])
-    -> Property
-zipApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
-    monadicIO $ do
-        stream1 <- run ((S.toList . t) ((,) <$> constr a <*> constr b))
-        stream2 <- run ((S.toList . t) (pure (,) <*> constr a <*> constr b))
-        stream3 <- run ((S.toList . t) (S.zipWith (,) (constr a) (constr b)))
-        let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-        listEquals eq stream1 list
-        listEquals eq stream2 list
-        listEquals eq stream3 list
-
 zipAsyncMonadic
     :: IsStream t
     => ([Int] -> t IO Int)
@@ -302,13 +285,6 @@ main = hspec
         parallelConcurrentAppOps spec =
             mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
 
-    let zipSerialOps :: IsStream t
-            => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
-        zipSerialOps spec = mapOps spec $ makeOps zipSerially
-#ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
-#endif
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
@@ -338,8 +314,6 @@ main = hspec
         wAsyncOps    $ functorOps folded "wAsyncly folded" sortEq
         parallelOps  $ functorOps S.fromFoldable "parallely" sortEq
         parallelOps  $ functorOps folded "parallely folded" sortEq
-        zipSerialOps $ functorOps S.fromFoldable "zipSerially" (==)
-        zipSerialOps $ functorOps folded "zipSerially folded" (==)
         zipAsyncOps  $ functorOps S.fromFoldable "zipAsyncly" (==)
         zipAsyncOps  $ functorOps folded "zipAsyncly folded" (==)
 
@@ -348,7 +322,6 @@ main = hspec
         asyncOps     $ semigroupOps "asyncly" sortEq
         wAsyncOps    $ semigroupOps "wAsyncly" sortEq
         parallelOps  $ semigroupOps "parallely" sortEq
-        zipSerialOps $ semigroupOps "zipSerially" (==)
         zipAsyncOps  $ semigroupOps "zipAsyncly" (==)
 
     describe "Applicative operations" $ do
@@ -362,8 +335,6 @@ main = hspec
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do
-        zipSerialOps $ prop "zipSerially applicative" . zipApplicative S.fromFoldable (==)
-        zipSerialOps $ prop "zipSerially applicative folded" . zipApplicative folded (==)
         zipAsyncOps  $ prop "zipAsyncly applicative" . zipApplicative S.fromFoldable (==)
         zipAsyncOps  $ prop "zipAsyncly applicative folded" . zipApplicative folded (==)
 
@@ -447,22 +418,18 @@ main = hspec
         asyncOps     $ transformCombineOpsCommon S.fromFoldable "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon S.fromFoldable "parallely" sortEq
-        zipSerialOps $ transformCombineOpsCommon S.fromFoldable "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsCommon S.fromFoldable "zipAsyncly" (==)
 
         aheadOps     $ transformCombineOpsCommon folded "aheadly" (==)
         asyncOps     $ transformCombineOpsCommon folded "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon folded "parallely" sortEq
-        zipSerialOps $ transformCombineOpsCommon folded "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsCommon folded "zipAsyncly" (==)
 
         aheadOps     $ transformCombineOpsOrdered S.fromFoldable "aheadly" (==)
-        zipSerialOps $ transformCombineOpsOrdered S.fromFoldable "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsOrdered S.fromFoldable "zipAsyncly" (==)
 
         aheadOps     $ transformCombineOpsOrdered folded "aheadly" (==)
-        zipSerialOps $ transformCombineOpsOrdered folded "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsOrdered folded "zipAsyncly" (==)
 
     describe "Stream elimination operations" $ do
@@ -470,37 +437,31 @@ main = hspec
         asyncOps     $ eliminationOps S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOps S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOps S.fromFoldable "parallely"
-        zipSerialOps $ eliminationOps S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOps S.fromFoldable "zipAsyncly"
 
         aheadOps     $ eliminationOps folded "aheadly folded"
         asyncOps     $ eliminationOps folded "asyncly folded"
         wAsyncOps    $ eliminationOps folded "wAsyncly folded"
         parallelOps  $ eliminationOps folded "parallely folded"
-        zipSerialOps $ eliminationOps folded "zipSerially folded"
         zipAsyncOps  $ eliminationOps folded "zipAsyncly folded"
 
         aheadOps     $ eliminationOpsWord8 S.fromFoldable "aheadly"
         asyncOps     $ eliminationOpsWord8 S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOpsWord8 S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOpsWord8 S.fromFoldable "parallely"
-        zipSerialOps $ eliminationOpsWord8 S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOpsWord8 S.fromFoldable "zipAsyncly"
 
         aheadOps     $ eliminationOpsWord8 folded "aheadly folded"
         asyncOps     $ eliminationOpsWord8 folded "asyncly folded"
         wAsyncOps    $ eliminationOpsWord8 folded "wAsyncly folded"
         parallelOps  $ eliminationOpsWord8 folded "parallely folded"
-        zipSerialOps $ eliminationOpsWord8 folded "zipSerially folded"
         zipAsyncOps  $ eliminationOpsWord8 folded "zipAsyncly folded"
 
     -- XXX Add a test where we chain all transformation APIs and make sure that
     -- the state is being passed through all of them.
     describe "Stream serial elimination operations" $ do
         aheadOps     $ eliminationOpsOrdered S.fromFoldable "aheadly"
-        zipSerialOps $ eliminationOpsOrdered S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOpsOrdered S.fromFoldable "zipAsyncly"
 
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
-        zipSerialOps $ eliminationOpsOrdered folded "zipSerially folded"
         zipAsyncOps  $ eliminationOpsOrdered folded "zipAsyncly folded"
