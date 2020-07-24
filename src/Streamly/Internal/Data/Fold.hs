@@ -442,7 +442,7 @@ drain :: Monad m => Fold m a ()
 drain = Fold step begin done
     where
     begin = return ()
-    step _ _ = FL.Partial <$> return ()
+    step _ _ = FL.partialM ()
     done = return
 
 -- |
@@ -971,7 +971,7 @@ splitAt
 splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
     where
-      initial  = Tuple3' <$> return n <*> liftInitialM initialL <*> liftInitialM initialR
+      initial  = Tuple3' n <$> liftInitialM initialL <*> liftInitialM initialR
 
       step (Tuple3' i xL xR) input =
         if i > 0
@@ -1261,9 +1261,7 @@ distribute_ fs = Fold step initial extract
         -- are equal to the number of Folds
         Prelude.mapM_ (\fld -> void $ runStep fld a) ss
         partialM ss
-    extract ss = do
-        Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
-        return ()
+    extract ss = Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
 
 ------------------------------------------------------------------------------
 -- Partitioning
@@ -1324,7 +1322,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         r <- f a
         case r of
             Left b -> fmap Partial $ Tuple' <$> liftStep stepL xL b <*> return xR
-            Right c -> fmap Partial $ Tuple' <$> return xL <*> liftStep stepR xR c
+            Right c -> fmap Partial $ Tuple' xL <$> liftStep stepR xR c
     done (Tuple' xL xR) = (,) <$> liftExtract doneL xL <*> liftExtract doneR xR
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
