@@ -41,6 +41,7 @@ module Streamly.Test.Prelude
     -- * ZipOperations
     , zipApplicative
     , zipMonadic
+    , zipAsyncMonadic
     -- * Default values
     , maxTestCount
     , maxStreamLen
@@ -745,6 +746,27 @@ zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
                      (S.zipWithM (curry return) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
+
+zipAsyncMonadic
+    :: IsStream t
+    => ([Int] -> t IO Int)
+    -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
+    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> ([Int], [Int])
+    -> Property
+zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream1 <-
+            run
+                ((S.toList . t)
+                     (S.zipWithM (curry return) (constr a) (constr b)))
+        stream2 <-
+            run
+                ((S.toList . t)
+                     (S.zipAsyncWithM (curry return) (constr a) (constr b)))
+        let list = getZipList $ (,) <$> ZipList a <*> ZipList b
+        listEquals eq stream1 list
+        listEquals eq stream2 list
 
 -------------------------------------------------------------------------------
 -- Helper operations

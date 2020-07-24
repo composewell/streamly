@@ -616,6 +616,14 @@ test-suite Prelude.ZipAsync
   other-modules:   Streamly.Test.Common
                  , Streamly.Test.Prelude
 
+test-suite Prelude.Ahead
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Ahead.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
+
 test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0
