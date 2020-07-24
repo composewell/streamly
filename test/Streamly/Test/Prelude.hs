@@ -43,12 +43,18 @@ module Streamly.Test.Prelude
     -- * Default values
     , maxTestCount
     , maxStreamLen
+    -- * Helper operations
+    , folded
+    , makeCommonOps
+    , makeOps
+    , mapOps
+    , sortEq
     ) where
 
 import Control.Applicative (ZipList(..), liftA2)
 import Control.Monad (replicateM)
 import Data.Function ((&))
-import Data.IORef (IORef, modifyIORef, modifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.List
     ( deleteBy
     , elemIndex
@@ -69,22 +75,14 @@ import Data.List
     , stripPrefix
     )
 import Data.Maybe (mapMaybe)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup ((<>))
+#endif
 import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
 import Test.Hspec
-import Test.QuickCheck
-    ( Gen
-    , Property
-    , arbitrary
-    , choose
-    , elements
-    , forAll
-    , frequency
-    , listOf
-    , vectorOf
-    , withMaxSuccess
-    )
-import Test.QuickCheck.Monadic (PropertyM, assert, monadicIO, run)
+import Test.QuickCheck (Property, choose, forAll, withMaxSuccess)
+import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import Streamly
 import Streamly.Prelude ((.:), nil)
@@ -729,3 +727,39 @@ zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
                      (S.zipWithM (curry return) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
+
+-------------------------------------------------------------------------------
+-- Helper operations
+-------------------------------------------------------------------------------
+
+folded :: IsStream t => [a] -> t IO a
+folded =
+    serially .
+    (\xs ->
+         case xs of
+             [x] -> return x -- singleton stream case
+             _ -> S.foldMapWith (<>) return xs)
+
+makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+makeCommonOps t =
+            [ ("default", t)
+#ifndef COVERAGE_BUILD
+            , ("rate AvgRate 10000", t . avgRate 10000)
+            , ("rate Nothing", t . rate Nothing)
+            , ("maxBuffer 0", t . maxBuffer 0)
+            , ("maxThreads 0", t . maxThreads 0)
+            , ("maxThreads 1", t . maxThreads 1)
+            , ("maxThreads -1", t . maxThreads (-1))
+#endif
+            ]
+
+makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+makeOps t = makeCommonOps t ++
+            [
+#ifndef COVERAGE_BUILD
+              ("maxBuffer 1", t . maxBuffer 1)
+#endif
+            ]
+
+mapOps :: (a -> Spec) -> [(String, a)] -> Spec
+mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)

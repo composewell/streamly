@@ -592,6 +592,14 @@ test-suite Prelude.Serial
   other-modules:   Streamly.Test.Common
                  , Streamly.Test.Prelude
 
+test-suite Prelude.WSerial
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/WSerial.hs
+  ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
+
 test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0

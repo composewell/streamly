@@ -10,6 +10,9 @@
 module Streamly.Test.Prelude.Serial where
 
 import Data.List (intercalate)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup ((<>))
+#endif
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
@@ -27,10 +30,8 @@ import Test.QuickCheck.Monadic (assert, monadicIO, run)
 import Test.Hspec as H
 
 import Streamly
-import Streamly as S
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold as FL
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude
@@ -151,35 +152,6 @@ main = hspec
     $ modifyMaxSuccess (const 10)
 #endif
     $ do
-    let folded :: IsStream t => [a] -> t IO a
-        folded = serially . (\xs ->
-            case xs of
-                [x] -> return x -- singleton stream case
-                _ -> S.foldMapWith (<>) return xs
-            )
-
-    let makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
-        makeCommonOps t =
-            [ ("default", t)
-#ifndef COVERAGE_BUILD
-            , ("rate AvgRate 10000", t . avgRate 10000)
-            , ("rate Nothing", t . rate Nothing)
-            , ("maxBuffer 0", t . maxBuffer 0)
-            , ("maxThreads 0", t . maxThreads 0)
-            , ("maxThreads 1", t . maxThreads 1)
-            , ("maxThreads -1", t . maxThreads (-1))
-#endif
-            ]
-
-    let makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
-        makeOps t = makeCommonOps t ++
-            [
-#ifndef COVERAGE_BUILD
-              ("maxBuffer 1", t . maxBuffer 1)
-#endif
-            ]
-
-    let mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps serially
 #ifndef COVERAGE_BUILD

@@ -9,7 +9,6 @@ import Control.Exception
         BlockedIndefinitelyOnSTM(..), Handler(..))
 import Control.Monad (when, forM_, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
-import Data.List (sort)
 import GHC.Word (Word8)
 
 import Test.Hspec.QuickCheck
@@ -20,14 +19,10 @@ import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import Streamly
-import Streamly as S
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude
-
-sortEq :: Ord a => [a] -> [a] -> Bool
-sortEq a b = sort a == sort b
 
 -------------------------------------------------------------------------------
 -- Concurrent generation
@@ -259,10 +254,6 @@ zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
         listEquals eq stream1 list
         listEquals eq stream2 list
 
--------------------------------------------------------------------------------
--- Tests for S.groupsBy
--------------------------------------------------------------------------------
-
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -270,34 +261,6 @@ main = hspec
     $ modifyMaxSuccess (const 10)
 #endif
     $ do
-    let folded :: IsStream t => [a] -> t IO a
-        folded = serially . (\xs ->
-            case xs of
-                [x] -> return x -- singleton stream case
-                _ -> S.foldMapWith (<>) return xs
-            )
-
-    let makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
-        makeCommonOps t =
-            [ ("default", t)
-#ifndef COVERAGE_BUILD
-            , ("rate AvgRate 10000", t . avgRate 10000)
-            , ("rate Nothing", t . rate Nothing)
-            , ("maxBuffer 0", t . maxBuffer 0)
-            , ("maxThreads 0", t . maxThreads 0)
-            , ("maxThreads 1", t . maxThreads 1)
-            , ("maxThreads -1", t . maxThreads (-1))
-#endif
-            ]
-
-    let makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
-        makeOps t = makeCommonOps t ++
-            [
-#ifndef COVERAGE_BUILD
-              ("maxBuffer 1", t . maxBuffer 1)
-#endif
-            ]
-
     -- For concurrent application test we need a buffer of at least size 2 to
     -- allow two threads to run.
     let makeConcurrentAppOps :: IsStream t
@@ -309,19 +272,6 @@ main = hspec
 #endif
             ]
 
-    let mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)
-    let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
-        serialOps spec = mapOps spec $ makeOps serially
-#ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
-            <> [("maxBuffer -1", serially . maxBuffer (-1))]
-#endif
-    let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
-        wSerialOps spec = mapOps spec $ makeOps wSerially
-#ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", wSerially . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
-#endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
         asyncOps spec = mapOps spec $ makeOps asyncly
 #ifndef COVERAGE_BUILD
@@ -365,7 +315,6 @@ main = hspec
         zipAsyncOps spec = mapOps spec $ makeOps zipAsyncly
 
     describe "Construction" $ do
-        wSerialOps  $ prop "wSerially replicateM" . constructWithReplicateM
         aheadOps    $ prop "aheadly replicateM" . constructWithReplicateM
         asyncOps    $ prop "asyncly replicateM" . constructWithReplicateM
         wAsyncOps   $ prop "wAsyncly replicateM" . constructWithReplicateM
@@ -381,8 +330,6 @@ main = hspec
         -- XXX add tests for fromIndices
 
     describe "Functor operations" $ do
-        wSerialOps   $ functorOps S.fromFoldable "wSerially" (==)
-        wSerialOps   $ functorOps folded "wSerially folded" (==)
         aheadOps     $ functorOps S.fromFoldable "aheadly" (==)
         aheadOps     $ functorOps folded "aheadly folded" (==)
         asyncOps     $ functorOps S.fromFoldable "asyncly" sortEq
@@ -397,7 +344,6 @@ main = hspec
         zipAsyncOps  $ functorOps folded "zipAsyncly folded" (==)
 
     describe "Semigroup operations" $ do
-        wSerialOps   $ semigroupOps "wSerially" (==)
         aheadOps     $ semigroupOps "aheadly" (==)
         asyncOps     $ semigroupOps "asyncly" sortEq
         wAsyncOps    $ semigroupOps "wAsyncly" sortEq
@@ -406,8 +352,6 @@ main = hspec
         zipAsyncOps  $ semigroupOps "zipAsyncly" (==)
 
     describe "Applicative operations" $ do
-        wSerialOps  $ prop "wSerially applicative" . applicativeOps S.fromFoldable sortEq
-        wSerialOps  $ prop "wSerially applicative folded" . applicativeOps folded sortEq
         aheadOps    $ prop "aheadly applicative" . applicativeOps S.fromFoldable (==)
         aheadOps    $ prop "aheadly applicative folded" . applicativeOps folded (==)
         asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
@@ -426,8 +370,6 @@ main = hspec
         -- We test only the serial zip with serial streams and the parallel
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
-        wSerialOps  $ prop "zip monadic wSerially" . zipMonadic S.fromFoldable (==)
-        wSerialOps  $ prop "zip monadic wSerially folded" . zipMonadic folded (==)
         aheadOps    $ prop "zip monadic aheadly" . zipAsyncMonadic S.fromFoldable (==)
         aheadOps    $ prop "zip monadic aheadly folded" . zipAsyncMonadic folded (==)
         asyncOps    $ prop "zip monadic asyncly" . zipAsyncMonadic S.fromFoldable (==)
@@ -443,25 +385,21 @@ main = hspec
     -- describe "Merge operations" $ do
 
     describe "Monad operations" $ do
-        wSerialOps  $ prop "wSerially monad then" . monadThen S.fromFoldable sortEq
         aheadOps    $ prop "aheadly monad then" . monadThen S.fromFoldable (==)
         asyncOps    $ prop "asyncly monad then" . monadThen S.fromFoldable sortEq
         wAsyncOps   $ prop "wAsyncly monad then" . monadThen S.fromFoldable sortEq
         parallelOps $ prop "parallely monad then" . monadThen S.fromFoldable sortEq
 
-        wSerialOps  $ prop "wSerially monad then folded" . monadThen folded sortEq
         aheadOps    $ prop "aheadly monad then folded" . monadThen folded (==)
         asyncOps    $ prop "asyncly monad then folded" . monadThen folded sortEq
         wAsyncOps   $ prop "wAsyncly monad then folded" . monadThen folded sortEq
         parallelOps $ prop "parallely monad then folded" . monadThen folded sortEq
 
-        wSerialOps  $ prop "wSerially monad bind" . monadBind S.fromFoldable sortEq
         aheadOps    $ prop "aheadly monad bind" . monadBind S.fromFoldable (==)
         asyncOps    $ prop "asyncly monad bind" . monadBind S.fromFoldable sortEq
         wAsyncOps   $ prop "wAsyncly monad bind" . monadBind S.fromFoldable sortEq
         parallelOps $ prop "parallely monad bind" . monadBind S.fromFoldable sortEq
 
-        wSerialOps  $ prop "wSerially monad bind folded" . monadBind folded sortEq
         aheadOps    $ prop "aheadly monad bind folded"   . monadBind folded (==)
         asyncOps    $ prop "asyncly monad bind folded"   . monadBind folded sortEq
         wAsyncOps   $ prop "wAsyncly monad bind folded"  . monadBind folded sortEq
@@ -493,7 +431,7 @@ main = hspec
         forOps (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
-        serialOps $ prop "serial" . concurrentApplication (==)
+--        serialOps $ prop "serial" . concurrentApplication (==)
         asyncOps $ prop "async" . concurrentApplication sortEq
         aheadOps $ prop "ahead" . concurrentApplication (==)
         parallelConcurrentAppOps $
@@ -505,7 +443,6 @@ main = hspec
             concurrentFoldlApplication
 
     describe "Stream transform and combine operations" $ do
-        wSerialOps   $ transformCombineOpsCommon S.fromFoldable "wSerially" sortEq
         aheadOps     $ transformCombineOpsCommon S.fromFoldable "aheadly" (==)
         asyncOps     $ transformCombineOpsCommon S.fromFoldable "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
@@ -513,7 +450,6 @@ main = hspec
         zipSerialOps $ transformCombineOpsCommon S.fromFoldable "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsCommon S.fromFoldable "zipAsyncly" (==)
 
-        wSerialOps   $ transformCombineOpsCommon folded "wSerially" sortEq
         aheadOps     $ transformCombineOpsCommon folded "aheadly" (==)
         asyncOps     $ transformCombineOpsCommon folded "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
@@ -530,7 +466,6 @@ main = hspec
         zipAsyncOps  $ transformCombineOpsOrdered folded "zipAsyncly" (==)
 
     describe "Stream elimination operations" $ do
-        wSerialOps   $ eliminationOps S.fromFoldable "wSerially"
         aheadOps     $ eliminationOps S.fromFoldable "aheadly"
         asyncOps     $ eliminationOps S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOps S.fromFoldable "wAsyncly"
@@ -538,7 +473,6 @@ main = hspec
         zipSerialOps $ eliminationOps S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOps S.fromFoldable "zipAsyncly"
 
-        wSerialOps   $ eliminationOps folded "wSerially folded"
         aheadOps     $ eliminationOps folded "aheadly folded"
         asyncOps     $ eliminationOps folded "asyncly folded"
         wAsyncOps    $ eliminationOps folded "wAsyncly folded"
@@ -546,7 +480,6 @@ main = hspec
         zipSerialOps $ eliminationOps folded "zipSerially folded"
         zipAsyncOps  $ eliminationOps folded "zipAsyncly folded"
 
-        wSerialOps   $ eliminationOpsWord8 S.fromFoldable "wSerially"
         aheadOps     $ eliminationOpsWord8 S.fromFoldable "aheadly"
         asyncOps     $ eliminationOpsWord8 S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOpsWord8 S.fromFoldable "wAsyncly"
@@ -554,7 +487,6 @@ main = hspec
         zipSerialOps $ eliminationOpsWord8 S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOpsWord8 S.fromFoldable "zipAsyncly"
 
-        wSerialOps   $ eliminationOpsWord8 folded "wSerially folded"
         aheadOps     $ eliminationOpsWord8 folded "aheadly folded"
         asyncOps     $ eliminationOpsWord8 folded "asyncly folded"
         wAsyncOps    $ eliminationOpsWord8 folded "wAsyncly folded"
@@ -565,12 +497,10 @@ main = hspec
     -- XXX Add a test where we chain all transformation APIs and make sure that
     -- the state is being passed through all of them.
     describe "Stream serial elimination operations" $ do
-        wSerialOps   $ eliminationOpsOrdered S.fromFoldable "wSerially"
         aheadOps     $ eliminationOpsOrdered S.fromFoldable "aheadly"
         zipSerialOps $ eliminationOpsOrdered S.fromFoldable "zipSerially"
         zipAsyncOps  $ eliminationOpsOrdered S.fromFoldable "zipAsyncly"
 
-        wSerialOps   $ eliminationOpsOrdered folded "wSerially folded"
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
         zipSerialOps $ eliminationOpsOrdered folded "zipSerially folded"
         zipAsyncOps  $ eliminationOpsOrdered folded "zipAsyncly folded"
