@@ -235,58 +235,11 @@ main = hspec
             <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
             <> [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
-    let parallelOps :: IsStream t
-            => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
-        parallelOps spec = mapOps spec $ makeOps parallely <> parallelCommonOps
 
     let parallelConcurrentAppOps :: IsStream t
             => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelConcurrentAppOps spec =
             mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
-
-    describe "Construction" $ do
-        parallelOps $ prop "parallely replicateM" .  constructWithReplicateM
-
-        -- take doesn't work well on concurrent streams. Even though it
-        -- seems like take only has a problem when used with parallely.
-        -- wSerialOps $ prop "wSerially iterateM" wSerially . constructWithIterate
-        -- aheadOps $ prop "aheadly iterateM" aheadly . onstructWithIterate
-        -- asyncOps $ prop "asyncly iterateM" asyncly . constructWithIterate
-        -- wAsyncOps $ prop "wAsyncly iterateM" wAsyncly . onstructWithIterate
-        -- parallelOps $ prop "parallely iterateM" parallely . onstructWithIterate
-        -- XXX add tests for fromIndices
-
-    describe "Functor operations" $ do
-        parallelOps  $ functorOps S.fromFoldable "parallely" sortEq
-        parallelOps  $ functorOps folded "parallely folded" sortEq
-
-    describe "Semigroup operations" $ do
-        parallelOps  $ semigroupOps "parallely" sortEq
-
-    describe "Applicative operations" $ do
-        parallelOps $ prop "parallely applicative folded" . applicativeOps folded sortEq
-
-    -- XXX add tests for indexed/indexedR
-    describe "Zip operations" $ do
-        -- We test only the serial zip with serial streams and the parallel
-        -- stream, because the rate setting in these streams can slow down
-        -- zipAsync.
-        parallelOps $ prop "zip monadic parallely" . zipMonadic S.fromFoldable (==)
-        parallelOps $ prop "zip monadic parallely folded" . zipMonadic folded (==)
-
-    -- XXX add merge tests like zip tests
-    -- for mergeBy, we can split a list randomly into two lists and
-    -- then merge them, it should result in original list
-    -- describe "Merge operations" $ do
-
-    describe "Monad operations" $ do
-        parallelOps $ prop "parallely monad then" . monadThen S.fromFoldable sortEq
-
-        parallelOps $ prop "parallely monad then folded" . monadThen folded sortEq
-
-        parallelOps $ prop "parallely monad bind" . monadBind S.fromFoldable sortEq
-
-        parallelOps $ prop "parallely monad bind folded" . monadBind folded sortEq
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
@@ -324,17 +277,3 @@ main = hspec
             concurrentFoldrApplication
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
-
-    describe "Stream transform and combine operations" $ do
-        parallelOps  $ transformCombineOpsCommon S.fromFoldable "parallely" sortEq
-
-        parallelOps  $ transformCombineOpsCommon folded "parallely" sortEq
-
-    describe "Stream elimination operations" $ do
-        parallelOps  $ eliminationOps S.fromFoldable "parallely"
-
-        parallelOps  $ eliminationOps folded "parallely folded"
-
-        parallelOps  $ eliminationOpsWord8 S.fromFoldable "parallely"
-
-        parallelOps  $ eliminationOpsWord8 folded "parallely folded"
