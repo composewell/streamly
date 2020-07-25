@@ -229,11 +229,6 @@ main = hspec
 #endif
             ]
 
-    let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
-        asyncOps spec = mapOps spec $ makeOps asyncly
-#ifndef COVERAGE_BUILD
-            <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
-#endif
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
         wAsyncOps spec = mapOps spec $ makeOps wAsyncly
 #ifndef COVERAGE_BUILD
@@ -255,7 +250,6 @@ main = hspec
             mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
 
     describe "Construction" $ do
-        asyncOps    $ prop "asyncly replicateM" . constructWithReplicateM
         wAsyncOps   $ prop "wAsyncly replicateM" . constructWithReplicateM
         parallelOps $ prop "parallely replicateM" .  constructWithReplicateM
 
@@ -269,21 +263,16 @@ main = hspec
         -- XXX add tests for fromIndices
 
     describe "Functor operations" $ do
-        asyncOps     $ functorOps S.fromFoldable "asyncly" sortEq
-        asyncOps     $ functorOps folded "asyncly folded" sortEq
         wAsyncOps    $ functorOps S.fromFoldable "wAsyncly" sortEq
         wAsyncOps    $ functorOps folded "wAsyncly folded" sortEq
         parallelOps  $ functorOps S.fromFoldable "parallely" sortEq
         parallelOps  $ functorOps folded "parallely folded" sortEq
 
     describe "Semigroup operations" $ do
-        asyncOps     $ semigroupOps "asyncly" sortEq
         wAsyncOps    $ semigroupOps "wAsyncly" sortEq
         parallelOps  $ semigroupOps "parallely" sortEq
 
     describe "Applicative operations" $ do
-        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
-        asyncOps    $ prop "asyncly applicative folded" . applicativeOps folded sortEq
         wAsyncOps   $ prop "wAsyncly applicative" . applicativeOps S.fromFoldable sortEq
         wAsyncOps   $ prop "wAsyncly applicative folded" . applicativeOps folded sortEq
         parallelOps $ prop "parallely applicative folded" . applicativeOps folded sortEq
@@ -293,8 +282,6 @@ main = hspec
         -- We test only the serial zip with serial streams and the parallel
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
-        asyncOps    $ prop "zip monadic asyncly" . zipAsyncMonadic S.fromFoldable (==)
-        asyncOps    $ prop "zip monadic asyncly folded" . zipAsyncMonadic folded (==)
         wAsyncOps   $ prop "zip monadic wAsyncly" . zipAsyncMonadic S.fromFoldable (==)
         wAsyncOps   $ prop "zip monadic wAsyncly folded" . zipAsyncMonadic folded (==)
         parallelOps $ prop "zip monadic parallely" . zipMonadic S.fromFoldable (==)
@@ -306,19 +293,15 @@ main = hspec
     -- describe "Merge operations" $ do
 
     describe "Monad operations" $ do
-        asyncOps    $ prop "asyncly monad then" . monadThen S.fromFoldable sortEq
         wAsyncOps   $ prop "wAsyncly monad then" . monadThen S.fromFoldable sortEq
         parallelOps $ prop "parallely monad then" . monadThen S.fromFoldable sortEq
 
-        asyncOps    $ prop "asyncly monad then folded" . monadThen folded sortEq
         wAsyncOps   $ prop "wAsyncly monad then folded" . monadThen folded sortEq
         parallelOps $ prop "parallely monad then folded" . monadThen folded sortEq
 
-        asyncOps    $ prop "asyncly monad bind" . monadBind S.fromFoldable sortEq
         wAsyncOps   $ prop "wAsyncly monad bind" . monadBind S.fromFoldable sortEq
         parallelOps $ prop "parallely monad bind" . monadBind S.fromFoldable sortEq
 
-        asyncOps    $ prop "asyncly monad bind folded"   . monadBind folded sortEq
         wAsyncOps   $ prop "wAsyncly monad bind folded"  . monadBind folded sortEq
         parallelOps $ prop "parallely monad bind folded" . monadBind folded sortEq
 
@@ -349,7 +332,7 @@ main = hspec
 
     describe "Concurrent application" $ do
 --        serialOps $ prop "serial" . concurrentApplication (==)
-        asyncOps $ prop "async" . concurrentApplication sortEq
+--        asyncOps $ prop "async" . concurrentApplication sortEq
 --        aheadOps $ prop "ahead" . concurrentApplication (==)
         parallelConcurrentAppOps $
             prop "parallel" . concurrentApplication sortEq
@@ -360,27 +343,21 @@ main = hspec
             concurrentFoldlApplication
 
     describe "Stream transform and combine operations" $ do
-        asyncOps     $ transformCombineOpsCommon S.fromFoldable "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon S.fromFoldable "parallely" sortEq
 
-        asyncOps     $ transformCombineOpsCommon folded "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon folded "parallely" sortEq
 
     describe "Stream elimination operations" $ do
-        asyncOps     $ eliminationOps S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOps S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOps S.fromFoldable "parallely"
 
-        asyncOps     $ eliminationOps folded "asyncly folded"
         wAsyncOps    $ eliminationOps folded "wAsyncly folded"
         parallelOps  $ eliminationOps folded "parallely folded"
 
-        asyncOps     $ eliminationOpsWord8 S.fromFoldable "asyncly"
         wAsyncOps    $ eliminationOpsWord8 S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOpsWord8 S.fromFoldable "parallely"
 
-        asyncOps     $ eliminationOpsWord8 folded "asyncly folded"
         wAsyncOps    $ eliminationOpsWord8 folded "wAsyncly folded"
         parallelOps  $ eliminationOpsWord8 folded "parallely folded"
