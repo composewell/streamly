@@ -153,49 +153,51 @@ parse pstep initial extract (Zipper [] backward forward) cont =
         r <- pst
         pRes <- pstep r x
         case pRes of
-            D.Partial 0 pst1 -> return $ Partial (parseCont [] (return pst1))
+            D.Done n b -> do
+                assert (n <= length (x:back)) (return ())
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                cont (Zipper [] [] fwd) (Done b)
+            D.Partial 0 pst1 ->
+                return $ Partial (parseCont [] (return pst1))
             D.Partial n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let src0 = Prelude.take n (x:back)
-                    src  = Prelude.reverse src0
-                goBuf [] src (return pst1)
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                goBuf [] fwd (return pst1)
             D.Continue 0 pst1 ->
                 return $ Continue (parseCont (x:back) (return pst1))
             D.Continue n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0
-                goBuf buf1 src (return pst1)
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0
-                cont (Zipper [] buf1 src) (Done b)
-            D.Error err -> cont (Zipper [] (x:back) []) (Error err)
+                let (fwd0, bwd) = splitAt n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                goBuf bwd fwd (return pst1)
+            D.Error err ->
+                cont (Zipper [] (x:back) []) (Error err)
 
     goBuf back [] !acc = return $ Continue (parseCont back acc)
     goBuf back (x:xs) !pst = do
         r <- pst
         pRes <- pstep r x
         case pRes of
+            D.Done n b -> do
+                assert (n <= length (x:back)) (return ())
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                cont (Zipper [] [] (fwd ++ xs)) (Done b)
             D.Partial 0 pst1 ->
                 goBuf [] xs (return pst1)
             D.Partial n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let src0 = Prelude.take n (x:back)
-                    src  = Prelude.reverse src0
-                goBuf [] (src ++ xs) (return pst1)
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                goBuf [] (fwd ++ xs) (return pst1)
             D.Continue 0 pst1 -> goBuf (x:back) xs (return pst1)
             D.Continue n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0 ++ xs
-                goBuf buf1 src (return pst1)
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0 ++ xs
-                cont (Zipper [] buf1 src) (Done b)
+                let (fwd0, bwd) = splitAt n (x:back)
+                    fwd = Prelude.reverse fwd0
+                goBuf bwd (fwd ++ xs) (return pst1)
             D.Error err -> cont (Zipper [] (x:back) xs) (Error err)
 
 -- The case when checkpoints exist
@@ -223,27 +225,27 @@ parse pstep initial extract (Zipper (cp:cps) backward forward) cont =
         pRes <- pstep r x
         let cnt1 = cnt + 1
         case pRes of
-            D.Partial 0 pst1 ->
+            D.Done n b -> do
+                assert (n <= length (x:back)) (return ())
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                assert (cp + cnt1 - n >= 0) (return ())
+                cont (Zipper (cp + cnt1 - n : cps) [] fwd) (Done b)
+            D.Partial 0 pst1 -> do
                 return $ Partial (parseCont cnt1 [] (return pst1))
             D.Partial n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let src0 = Prelude.take n (x:back)
-                    src  = Prelude.reverse src0
-                goBuf (cnt1 - n) [] src (return pst1)
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                goBuf (cnt1 - n) [] fwd (return pst1)
             D.Continue 0 pst1 ->
                 return $ Continue (parseCont cnt1 (x:back) (return pst1))
             D.Continue n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0
+                let (fwd0, bwd) = splitAt n (x:back)
+                    fwd  = Prelude.reverse fwd0
                 assert (cnt1 - n >= 0) (return ())
-                goBuf (cnt1 - n) buf1 src (return pst1)
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0
-                assert (cp + cnt1 - n >= 0) (return ())
-                cont (Zipper (cp + cnt1 - n : cps) buf1 src) (Done b)
+                goBuf (cnt1 - n) bwd fwd (return pst1)
             D.Error err ->
                 cont (Zipper (cp + cnt1 : cps) (x:back) []) (Error err)
 
@@ -253,26 +255,26 @@ parse pstep initial extract (Zipper (cp:cps) backward forward) cont =
         pRes <- pstep r x
         let cnt1 = cnt + 1
         case pRes of
+            D.Done n b -> do
+                assert (n <= length (x:back)) (return ())
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                assert (cp + cnt1 - n >= 0) (return ())
+                cont (Zipper (cp + cnt1 - n : cps) [] (fwd ++ xs)) (Done b)
             D.Partial 0 pst1 ->
                 goBuf cnt1 [] xs (return pst1)
             D.Partial n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let src0 = Prelude.take n (x:back)
-                    src  = Prelude.reverse src0
-                goBuf (cnt1 - n) [] (src ++ xs) (return pst1)
+                let fwd0 = Prelude.take n (x:back)
+                    fwd  = Prelude.reverse fwd0
+                goBuf (cnt1 - n) [] (fwd ++ xs) (return pst1)
             D.Continue 0 pst1 -> goBuf cnt1 (x:back) xs (return pst1)
             D.Continue n pst1 -> do
                 assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0 ++ xs
+                let (fwd0, bwd) = splitAt n (x:back)
+                    fwd  = Prelude.reverse fwd0 ++ xs
                 assert (cnt1 - n >= 0) (return ())
-                goBuf (cnt1 - n) buf1 src (return pst1)
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let (src0, buf1) = splitAt n (x:back)
-                    src  = Prelude.reverse src0 ++ xs
-                assert (cp + cnt1 - n >= 0) (return ())
-                cont (Zipper (cp + cnt1 - n : cps) buf1 src) (Done b)
+                goBuf (cnt1 - n) bwd fwd (return pst1)
             D.Error err ->
                 cont (Zipper (cp + cnt1 : cps) (x:back) xs) (Error err)
 
