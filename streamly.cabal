@@ -577,13 +577,6 @@ test-suite pure-streams-streamly
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite properties
-  import: test-options, prelude-test-options
-  type: exitcode-stdio-1.0
-  main-is: Prop.hs
-  other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
-
 test-suite Prelude.Serial
   import: test-options, prelude-test-options
   type: exitcode-stdio-1.0
@@ -645,6 +638,14 @@ test-suite Prelude.Parallel
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Parallel.hs
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
+
+test-suite Prelude.Concurrent
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Concurrent.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
   other-modules:   Streamly.Test.Common
                  , Streamly.Test.Prelude
 

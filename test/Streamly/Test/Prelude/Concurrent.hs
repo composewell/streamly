@@ -1,6 +1,15 @@
+-- |
+-- Module      : Streamly.Test.Prelude.Concurrent
+-- Copyright   : (c) 2020 Composewell Technologies
+--
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+
 {-# LANGUAGE OverloadedLists #-}
 
-module Main (main) where
+module Streamly.Test.Prelude.Concurrent where
 
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Exception
@@ -8,14 +17,15 @@ import Control.Exception
         BlockedIndefinitelyOnSTM(..), Handler(..))
 import Control.Monad (when, forM_, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup ((<>))
+#endif
 import GHC.Word (Word8)
-
 import Test.Hspec.QuickCheck
+import Test.Hspec as H
 import Test.QuickCheck
        (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
-
-import Test.Hspec as H
 
 import Streamly
 import qualified Streamly.Prelude as S
@@ -218,6 +228,26 @@ main = hspec
     $ modifyMaxSuccess (const 10)
 #endif
     $ do
+    -- We can have these in Test.Prelude, but I think it's unnecessary.
+    let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
+        serialOps spec = mapOps spec $ makeOps serially
+#ifndef COVERAGE_BUILD
+            <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
+            <> [("maxBuffer -1", serially . maxBuffer (-1))]
+#endif
+
+    let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
+        aheadOps spec = mapOps spec $ makeOps aheadly
+#ifndef COVERAGE_BUILD
+              <> [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
+#endif
+
+    let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
+        asyncOps spec = mapOps spec $ makeOps asyncly
+#ifndef COVERAGE_BUILD
+            <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
+#endif
+
     -- For concurrent application test we need a buffer of at least size 2 to
     -- allow two threads to run.
     let makeConcurrentAppOps :: IsStream t
@@ -267,9 +297,10 @@ main = hspec
         forOps (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
---        serialOps $ prop "serial" . concurrentApplication (==)
---        asyncOps $ prop "async" . concurrentApplication sortEq
---        aheadOps $ prop "ahead" . concurrentApplication (==)
+        serialOps $ prop "serial" . concurrentApplication (==)
+        asyncOps  $ prop "async" . concurrentApplication sortEq
+        aheadOps  $ prop "ahead" . concurrentApplication (==)
+
         parallelConcurrentAppOps $
             prop "parallel" . concurrentApplication sortEq
 
