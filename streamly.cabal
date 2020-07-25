@@ -632,6 +632,14 @@ test-suite Prelude.Async
   other-modules:   Streamly.Test.Common
                  , Streamly.Test.Prelude
 
+test-suite Prelude.WAsync
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/WAsync.hs
+  ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude
+
 test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0

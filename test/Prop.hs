@@ -229,11 +229,6 @@ main = hspec
 #endif
             ]
 
-    let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
-        wAsyncOps spec = mapOps spec $ makeOps wAsyncly
-#ifndef COVERAGE_BUILD
-            <> [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
-#endif
     let parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]
         parallelCommonOps = []
 #ifndef COVERAGE_BUILD
@@ -250,7 +245,6 @@ main = hspec
             mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
 
     describe "Construction" $ do
-        wAsyncOps   $ prop "wAsyncly replicateM" . constructWithReplicateM
         parallelOps $ prop "parallely replicateM" .  constructWithReplicateM
 
         -- take doesn't work well on concurrent streams. Even though it
@@ -263,18 +257,13 @@ main = hspec
         -- XXX add tests for fromIndices
 
     describe "Functor operations" $ do
-        wAsyncOps    $ functorOps S.fromFoldable "wAsyncly" sortEq
-        wAsyncOps    $ functorOps folded "wAsyncly folded" sortEq
         parallelOps  $ functorOps S.fromFoldable "parallely" sortEq
         parallelOps  $ functorOps folded "parallely folded" sortEq
 
     describe "Semigroup operations" $ do
-        wAsyncOps    $ semigroupOps "wAsyncly" sortEq
         parallelOps  $ semigroupOps "parallely" sortEq
 
     describe "Applicative operations" $ do
-        wAsyncOps   $ prop "wAsyncly applicative" . applicativeOps S.fromFoldable sortEq
-        wAsyncOps   $ prop "wAsyncly applicative folded" . applicativeOps folded sortEq
         parallelOps $ prop "parallely applicative folded" . applicativeOps folded sortEq
 
     -- XXX add tests for indexed/indexedR
@@ -282,8 +271,6 @@ main = hspec
         -- We test only the serial zip with serial streams and the parallel
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
-        wAsyncOps   $ prop "zip monadic wAsyncly" . zipAsyncMonadic S.fromFoldable (==)
-        wAsyncOps   $ prop "zip monadic wAsyncly folded" . zipAsyncMonadic folded (==)
         parallelOps $ prop "zip monadic parallely" . zipMonadic S.fromFoldable (==)
         parallelOps $ prop "zip monadic parallely folded" . zipMonadic folded (==)
 
@@ -293,16 +280,12 @@ main = hspec
     -- describe "Merge operations" $ do
 
     describe "Monad operations" $ do
-        wAsyncOps   $ prop "wAsyncly monad then" . monadThen S.fromFoldable sortEq
         parallelOps $ prop "parallely monad then" . monadThen S.fromFoldable sortEq
 
-        wAsyncOps   $ prop "wAsyncly monad then folded" . monadThen folded sortEq
         parallelOps $ prop "parallely monad then folded" . monadThen folded sortEq
 
-        wAsyncOps   $ prop "wAsyncly monad bind" . monadBind S.fromFoldable sortEq
         parallelOps $ prop "parallely monad bind" . monadBind S.fromFoldable sortEq
 
-        wAsyncOps   $ prop "wAsyncly monad bind folded"  . monadBind folded sortEq
         parallelOps $ prop "parallely monad bind folded" . monadBind folded sortEq
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
@@ -343,21 +326,15 @@ main = hspec
             concurrentFoldlApplication
 
     describe "Stream transform and combine operations" $ do
-        wAsyncOps    $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon S.fromFoldable "parallely" sortEq
 
-        wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon folded "parallely" sortEq
 
     describe "Stream elimination operations" $ do
-        wAsyncOps    $ eliminationOps S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOps S.fromFoldable "parallely"
 
-        wAsyncOps    $ eliminationOps folded "wAsyncly folded"
         parallelOps  $ eliminationOps folded "parallely folded"
 
-        wAsyncOps    $ eliminationOpsWord8 S.fromFoldable "wAsyncly"
         parallelOps  $ eliminationOpsWord8 S.fromFoldable "parallely"
 
-        wAsyncOps    $ eliminationOpsWord8 folded "wAsyncly folded"
         parallelOps  $ eliminationOpsWord8 folded "parallely folded"
