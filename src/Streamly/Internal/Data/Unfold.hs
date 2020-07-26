@@ -373,7 +373,7 @@ consM action unf = Unfold step inject
     inject = return . Left
 
     {-# INLINE_LATE step #-}
-    step (Left a) = do
+    step (Left a) =
         action a >>= \r -> return $ Yield r (Right (D.unfold unf a))
     step (Right (UnStream step1 st)) = do
         res <- step1 defState st

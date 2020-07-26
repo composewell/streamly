@@ -105,7 +105,7 @@ nil = Zipper [] [] []
 --
 {-# INLINE fromList #-}
 fromList :: [a] -> Zipper a
-fromList xs = Zipper [] [] xs
+fromList = Zipper [] []
 
 -------------------------------------------------------------------------------
 -- Checkpointing

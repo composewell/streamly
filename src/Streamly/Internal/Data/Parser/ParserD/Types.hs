@@ -342,7 +342,7 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
     -- Note: For the composed parse to terminate, the left parser has to be
     -- a terminating parser returning a Done at some point.
-    step (SeqAL st) a = do
+    step (SeqAL st) a =
         (\r i -> case r of
             -- Note: this leads to buffering even if we are not in an
             -- Alternative composition.
@@ -352,7 +352,7 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             -- XXX should we sequence initialR monadically?
             Error err -> Error err) <$> stepL st a <*> initialR
 
-    step (SeqAR st) a = do
+    step (SeqAR st) a =
         (\case
             Partial n s -> Partial n (SeqAR s)
             Continue n s -> Continue n (SeqAR s)

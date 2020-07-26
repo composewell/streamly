@@ -231,7 +231,7 @@ parse pstep initial extract (Zipper (cp:cps) backward forward) cont =
                     fwd  = Prelude.reverse fwd0
                 assert (cp + cnt1 - n >= 0) (return ())
                 cont (Zipper (cp + cnt1 - n : cps) [] fwd) (Done b)
-            D.Partial 0 pst1 -> do
+            D.Partial 0 pst1 ->
                 return $ Partial (parseCont cnt1 [] (return pst1))
             D.Partial n pst1 -> do
                 assert (n <= length (x:back)) (return ())
