@@ -39,6 +39,9 @@ main = hspec
         zipSerialOps $ functorOps S.fromFoldable "zipSerially" (==)
         zipSerialOps $ functorOps folded "zipSerially folded" (==)
 
+    describe "Monoid operations" $ do
+        zipSerialOps $ monoidOps "zipSerially" mempty (==)
+
     describe "Semigroup operations" $ do
         zipSerialOps $ semigroupOps "zipSerially" (==)
 

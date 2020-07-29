@@ -158,6 +158,23 @@ main = hspec
             <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
             <> [("maxBuffer -1", serially . maxBuffer (-1))]
 #endif
+    let toListSerial :: SerialT IO a -> IO [a]
+        toListSerial = S.toList . serially
+
+    describe "Runners" $ do
+        -- XXX use an IORef to store and check the side effects
+        it "simple serially" $
+            (S.drain . serially) (return (0 :: Int)) `shouldReturn` ()
+        it "simple serially with IO" $
+            (S.drain . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
+
+    describe "Empty" $
+        it "Monoid - mempty" $
+            toListSerial mempty `shouldReturn` ([] :: [Int])
+        -- it "Alternative - empty" $
+        --     (toListSerial empty) `shouldReturn` ([] :: [Int])
+        -- it "MonadPlus - mzero" $
+        --     (toListSerial mzero) `shouldReturn` ([] :: [Int])
 
     describe "Construction" $ do
         serialOps   $ prop "serially replicate" . constructWithReplicate
@@ -177,6 +194,10 @@ main = hspec
     describe "Functor operations" $ do
         serialOps    $ functorOps S.fromFoldable "serially" (==)
         serialOps    $ functorOps folded "serially folded" (==)
+
+    describe "Monoid operations" $ do
+        serialOps $ monoidOps "serially" mempty (==)
+
     describe "Semigroup operations" $ do
         serialOps    $ semigroupOps "serially" (==)
 

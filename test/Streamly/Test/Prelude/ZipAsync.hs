@@ -33,6 +33,9 @@ main = hspec
         zipAsyncOps  $ functorOps S.fromFoldable "zipAsyncly" (==)
         zipAsyncOps  $ functorOps folded "zipAsyncly folded" (==)
 
+    describe "Monoid operations" $ do
+        zipAsyncOps  $ monoidOps "zipAsyncly" mempty (==)
+
     describe "Semigroup operations" $ do
         zipAsyncOps  $ semigroupOps "zipAsyncly" (==)
 

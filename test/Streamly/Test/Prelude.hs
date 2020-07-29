@@ -29,6 +29,8 @@ module Streamly.Test.Prelude
     , eliminationOps
     -- * Functor operations
     , functorOps
+    -- * Monoid operations
+    , monoidOps
     -- * Semigroup operations
     , semigroupOps
     -- * Transformation operations
@@ -481,6 +483,51 @@ transformFromList constr eq listOp op a =
         let list = listOp a
         listEquals eq stream list
 
+
+------------------------------------------------------------------------------
+-- Monoid operations
+------------------------------------------------------------------------------
+
+monoidOps
+    :: (IsStream t, Semigroup (t IO Int))
+    => String
+    -> t IO Int
+    -> ([Int] -> [Int] -> Bool)
+    -> (t IO Int -> SerialT IO Int)
+    -> Spec
+monoidOps desc z eq t = do
+    -- XXX these should get covered by the property tests
+    prop (desc <> " Compose mempty, mempty") $ spec (z <> z) []
+    prop (desc <> " Compose empty at the beginning") $ spec (z <> singleton 1) [1]
+    prop (desc <> " Compose empty at the end") $ spec (singleton 1 <> z) [1]
+    prop (desc <> " Compose two") $ spec (singleton 0 <> singleton 1) [0, 1]
+    prop (desc <> " Compose many") $
+        spec (S.forEachWith (<>) [1 .. 100] singleton) [1 .. 100]
+
+    -- These are not covered by the property tests
+    prop (desc <> " Compose three - empty in the middle") $
+        spec (singleton 0 <> z <> singleton 1) [0, 1]
+    prop (desc <> " Compose left associated") $
+        spec
+            (((singleton 0 <> singleton 1) <> singleton 2) <> singleton 3)
+            [0, 1, 2, 3]
+    prop (desc <> " Compose right associated") $
+        spec
+            (singleton 0 <> (singleton 1 <> (singleton 2 <> singleton 3)))
+            [0, 1, 2, 3]
+    prop (desc <> " Compose hierarchical (multiple levels)") $
+        spec
+            (((singleton 0 <> singleton 1) <> (singleton 2 <> singleton 3)) <>
+             ((singleton 4 <> singleton 5) <> (singleton 6 <> singleton 7)))
+            [0 .. 7]
+
+    where
+
+    tl = S.toList . t
+    spec s list =
+        monadicIO $ do
+            stream <- run $ tl s
+            listEquals eq stream list
 
 -------------------------------------------------------------------------------
 -- Semigroup operations

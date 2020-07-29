@@ -41,6 +41,9 @@ main = hspec
         wAsyncOps $ functorOps S.fromFoldable "wAsyncly" sortEq
         wAsyncOps $ functorOps folded "wAsyncly folded" sortEq
 
+    describe "Monoid operations" $ do
+        wAsyncOps $ monoidOps "wAsyncly" mempty sortEq
+
     describe "Semigroup operations" $ do
         wAsyncOps $ semigroupOps "wAsyncly" sortEq
 

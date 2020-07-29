@@ -35,9 +35,6 @@ toListInterleaved = S.toList . wSerially
 toListAsync :: AsyncT IO a -> IO [a]
 toListAsync = S.toList . asyncly
 
-toListParallel :: WAsyncT IO a -> IO [a]
-toListParallel = S.toList . wAsyncly
-
 main :: IO ()
 main = hspec $ do
     parallelTests
@@ -189,36 +186,6 @@ testFoldOpsCleanup name f = do
 
 parallelTests :: SpecWith ()
 parallelTests = H.parallel $ do
-    describe "Runners" $ do
-        -- XXX move these to property tests
-        -- XXX use an IORef to store and check the side effects
-        it "simple serially" $
-            (S.drain . serially) (return (0 :: Int)) `shouldReturn` ()
-        it "simple serially with IO" $
-            (S.drain . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
-
-    describe "Empty" $ -- do
-        it "Monoid - mempty" $
-            toListSerial mempty `shouldReturn` ([] :: [Int])
-        -- it "Alternative - empty" $
-        --     (toListSerial empty) `shouldReturn` ([] :: [Int])
-        -- it "MonadPlus - mzero" $
-        --     (toListSerial mzero) `shouldReturn` ([] :: [Int])
-
-
-    ---------------------------------------------------------------------------
-    -- Monoidal Compositions, multiset equality checks
-    ---------------------------------------------------------------------------
-
-    describe "Serial Composition" $ compose serially mempty id
-    describe "Ahead Composition" $ compose aheadly mempty id
-    describe "WSerial Composition" $ compose wSerially mempty sort
-    describe "Async Composition" $ compose asyncly mempty sort
-    describe "WAsync Composition" $ compose wAsyncly mempty sort
-    describe "Parallel Composition" $ compose parallely mempty sort
-    describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
-    describe "Semigroup Composition for ZipAsync" $ compose zipAsyncly mempty id
-    -- XXX need to check alternative compositions as well
 
     ---------------------------------------------------------------------------
     -- TBD Monoidal composition combinations
@@ -902,39 +869,6 @@ parallelCheck t f = do
             `shouldReturn` [1..4]
 
     where event n = S.yieldM (threadDelay (n * 200000)) >> return n
-
-compose :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
-compose t z srt = do
-    -- XXX these should get covered by the property tests
-    it "Compose mempty, mempty" $
-        tl (z <> z) `shouldReturn` ([] :: [Int])
-    it "Compose empty at the beginning" $
-        tl (z <> singleton 1) `shouldReturn` [1]
-    it "Compose empty at the end" $
-        tl (singleton 1 <> z) `shouldReturn` [1]
-    it "Compose two" $
-        srt <$> tl (singleton 0 <> singleton 1)
-            `shouldReturn` [0, 1]
-    it "Compose many" $
-        srt <$> tl (S.forEachWith (<>) [1..100] singleton)
-            `shouldReturn` [1..100]
-
-    -- These are not covered by the property tests
-    it "Compose three - empty in the middle" $
-        srt <$> tl (singleton 0 <> z <> singleton 1)
-            `shouldReturn` [0, 1]
-    it "Compose left associated" $
-        srt <$> tl (((singleton 0 <> singleton 1) <> singleton 2) <> singleton 3)
-            `shouldReturn` [0, 1, 2, 3]
-    it "Compose right associated" $
-        srt <$> tl (singleton 0 <> (singleton 1 <> (singleton 2 <> singleton 3)))
-            `shouldReturn` [0, 1, 2, 3]
-    it "Compose hierarchical (multiple levels)" $
-        srt <$> tl (((singleton 0 <> singleton 1) <> (singleton 2 <> singleton 3))
-                <> ((singleton 4 <> singleton 5) <> (singleton 6 <> singleton 7)))
-            `shouldReturn` [0..7]
-    where tl = S.toList . t
 
 composeAndComposeSimple
     :: ( IsStream t1, Semigroup (t1 IO Int)

@@ -41,6 +41,9 @@ main = hspec
         wSerialOps   $ functorOps S.fromFoldable "wSerially" (==)
         wSerialOps   $ functorOps folded "wSerially folded" (==)
 
+    describe "Monoid operations" $ do
+        wSerialOps   $ monoidOps "wSerially" mempty sortEq
+
     describe "Semigroup operations" $ do
         wSerialOps   $ semigroupOps "wSerially" (==)
 

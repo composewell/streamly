@@ -44,6 +44,9 @@ main = hspec
         parallelOps $ functorOps S.fromFoldable "parallely" sortEq
         parallelOps $ functorOps folded "parallely folded" sortEq
 
+    describe "Monoid operations" $ do
+        parallelOps $ monoidOps "parallely" mempty sortEq
+
     describe "Semigroup operations" $ do
         parallelOps $ semigroupOps "parallely" sortEq
 

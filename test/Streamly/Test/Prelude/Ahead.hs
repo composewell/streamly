@@ -40,6 +40,9 @@ main = hspec
         aheadOps     $ functorOps S.fromFoldable "aheadly" (==)
         aheadOps     $ functorOps folded "aheadly folded" (==)
 
+    describe "Monoid operations" $ do
+        aheadOps     $ monoidOps "aheadly" mempty (==)
+
     describe "Semigroup operations" $ do
         aheadOps     $ semigroupOps "aheadly" (==)
 
