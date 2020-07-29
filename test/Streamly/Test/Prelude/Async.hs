@@ -44,8 +44,8 @@ main = hspec
         asyncOps     $ semigroupOps "asyncly" sortEq
 
     describe "Applicative operations" $ do
-        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
-        asyncOps    $ prop "asyncly applicative folded" . applicativeOps folded sortEq
+        asyncOps $ applicativeOps S.fromFoldable "asyncly applicative" sortEq
+        asyncOps $ applicativeOps folded "asyncly applicative folded" sortEq
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do

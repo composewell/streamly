@@ -45,8 +45,8 @@ main = hspec
         wSerialOps   $ semigroupOps "wSerially" (==)
 
     describe "Applicative operations" $ do
-        wSerialOps  $ prop "wSerially applicative" . applicativeOps S.fromFoldable sortEq
-        wSerialOps  $ prop "wSerially applicative folded" . applicativeOps folded sortEq
+        wSerialOps $ applicativeOps S.fromFoldable "wSerially applicative" sortEq
+        wSerialOps $ applicativeOps folded "wSerially applicative folded" sortEq
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do

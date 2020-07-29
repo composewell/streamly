@@ -44,8 +44,8 @@ main = hspec
         aheadOps     $ semigroupOps "aheadly" (==)
 
     describe "Applicative operations" $ do
-        aheadOps    $ prop "aheadly applicative" . applicativeOps S.fromFoldable (==)
-        aheadOps    $ prop "aheadly applicative folded" . applicativeOps folded (==)
+        aheadOps $ applicativeOps S.fromFoldable "aheadly applicative" (==)
+        aheadOps $ applicativeOps folded "aheadly applicative folded" (==)
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do

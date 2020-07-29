@@ -48,8 +48,7 @@ main = hspec
         parallelOps $ semigroupOps "parallely" sortEq
 
     describe "Applicative operations" $ do
-        parallelOps $
-            prop "parallely applicative folded" . applicativeOps folded sortEq
+        parallelOps $ applicativeOps folded "parallely applicative folded" sortEq
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do

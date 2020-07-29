@@ -237,37 +237,49 @@ constructWithFromIndicesM op len =
 applicativeOps
     :: Applicative (t IO)
     => ([Int] -> t IO Int)
+    -> String
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
-    -> ([Int], [Int])
-    -> Property
-applicativeOps constr eq t (a, b) = withMaxSuccess maxTestCount $
-    monadicIO $ do
-        stream <- run ((S.toList . t) ((,) <$> constr a <*> constr b))
-        let list = (,) <$> a <*> b
-        listEquals eq stream list
-
-        stream1 <- run ((S.toList . t) (liftA2 (,) (constr a) (constr b)))
-        listEquals eq stream1 list
+    -> Spec
+applicativeOps constr desc eq t = do
+    prop (desc <> " <*>") $
+        transformFromList2
+            constr
+            eq
+            (\a b -> (,) <$> a <*> b)
+            (\a b -> t ((,) <$> a <*> b))
+    prop (desc <> " liftA2") $
+        transformFromList2 constr eq (liftA2 (,)) (\a b -> t $ liftA2 (,) a b)
 
 -- XXX we can combine this with applicativeOps by making the type sufficiently
 -- polymorphic.
 applicativeOps1
     :: Applicative (t IO)
     => ([Int] -> t IO Int)
+    -> String
     -> ([Int] -> [Int] -> Bool)
     -> (t IO Int -> SerialT IO Int)
-    -> ([Int], [Int])
-    -> Property
-applicativeOps1 constr eq t (a, b) = withMaxSuccess maxTestCount $
-    monadicIO $ do
-        stream <- run ((S.toList . t) (constr a *> constr b))
-        let list = a *> b
-        listEquals eq stream list
+    -> Spec
+applicativeOps1 constr desc eq t = do
+    prop (desc <> " *>") $
+        transformFromList2 constr eq (*>) (\a b -> t (a *> b))
+    prop (desc <> " <*") $
+        transformFromList2 constr eq (<*) (\a b -> t (a <* b))
 
-        stream1 <- run ((S.toList . t) (constr a <* constr b))
-        let list1 = a <* b
-        listEquals eq stream1 list1
+transformFromList2
+  :: (Eq c, Show c)
+  => ([a] -> t IO a)
+  -> ([c] -> [c] -> Bool)
+  -> ([a] -> [a] -> [c])
+  -> (t IO a -> t IO a -> SerialT IO c)
+  -> ([a], [a])
+  -> Property
+transformFromList2 constr eq listOp op (a, b) =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <- run (S.toList $ op (constr a) (constr b))
+        let list = listOp a b
+        listEquals eq stream list
 
 -------------------------------------------------------------------------------
 -- Elimination operations
@@ -432,7 +444,7 @@ eliminationOpsWord8 constr desc t = do
 -------------------------------------------------------------------------------
 
 functorOps
-    :: Functor (t IO)
+    :: (Functor (t IO), Semigroup (t IO Int))
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
