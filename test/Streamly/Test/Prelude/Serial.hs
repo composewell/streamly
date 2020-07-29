@@ -184,10 +184,10 @@ main = hspec
         -- The tests using sorted equality are weaker tests
         -- We need to have stronger unit tests for all those
         -- XXX applicative with three arguments
-        serialOps $ applicativeOps S.fromFoldable "serially applicative" (==)
-        serialOps $ applicativeOps folded "serially applicative folded" (==)
-        serialOps $
-            applicativeOps1 S.fromFoldable "serially applicative discard" (==)
+        serialOps $ applicativeOps S.fromFoldable "serially" (==)
+        serialOps $ applicativeOps folded "serially folded" (==)
+        serialOps $ applicativeOps1 S.fromFoldable "serially" (==)
+        serialOps $ applicativeOps1 S.fromFoldable "serially folded" (==)
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do

@@ -235,7 +235,7 @@ constructWithFromIndicesM op len =
 -------------------------------------------------------------------------------
 
 applicativeOps
-    :: Applicative (t IO)
+    :: (Applicative (t IO), Semigroup (t IO Int))
     => ([Int] -> t IO Int)
     -> String
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
@@ -250,6 +250,14 @@ applicativeOps constr desc eq t = do
             (\a b -> t ((,) <$> a <*> b))
     prop (desc <> " liftA2") $
         transformFromList2 constr eq (liftA2 (,)) (\a b -> t $ liftA2 (,) a b)
+    prop (desc <> " Apply - composed first argument") $
+        sort <$>
+        (S.toList . t) ((,) <$> (pure 1 <> pure 2) <*> pure 3) `shouldReturn`
+        [(1, 3), (2, 3)]
+    prop (desc <> " Apply - composed second argument") $
+        sort <$>
+        (S.toList . t) ((,) <$> pure 1 <*> (pure 2 <> pure 3)) `shouldReturn`
+        [(1, 2), (1, 3)]
 
 -- XXX we can combine this with applicativeOps by making the type sufficiently
 -- polymorphic.
@@ -452,11 +460,12 @@ functorOps
     -> Spec
 functorOps constr desc eq t = do
     prop (desc <> " id") $ transformFromList constr eq id t
-    prop (desc <> " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . fmap (+1)
-
--------------------------------------------------------------------------------
--- Semigroup operations
--------------------------------------------------------------------------------
+    prop (desc <> " fmap (+1)") $
+        transformFromList constr eq (fmap (+ 1)) $ t . fmap (+ 1)
+    prop (desc <> " fmap on composed (<>)") $
+        sort <$>
+        (S.toList . t) (fmap (+ 1) (constr [1] <> constr [2])) `shouldReturn`
+        ([2, 3] :: [Int])
 
 transformFromList
     :: (Eq b, Show b) =>
@@ -471,6 +480,11 @@ transformFromList constr eq listOp op a =
         stream <- run ((S.toList . op) (constr a))
         let list = listOp a
         listEquals eq stream list
+
+
+-------------------------------------------------------------------------------
+-- Semigroup operations
+-------------------------------------------------------------------------------
 
 foldFromList
     :: ([Int] -> t IO Int)
