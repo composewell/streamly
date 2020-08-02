@@ -37,10 +37,10 @@ import Control.Monad.Catch (MonadCatch, MonadThrow(..), try)
 #if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
 #endif
-import Streamly.Internal.Data.Zipper (Zipper (..))
-import Prelude hiding (splitAt)
+#if !(MIN_VERSION_base(4,10,0))
+import Data.Semigroup ((<>))
+#endif
 
-import qualified Streamly.Internal.Data.Zipper as Z
 import qualified Streamly.Internal.Data.Parser.ParserD.Types as D
 
 -- | The parse driver result. The driver may stop with a final result, pause
@@ -52,14 +52,14 @@ data Driver m a r =
       Stop !Int r
       -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
       -- measure if that works any better.
-    | Partial (Maybe a -> m (Driver m a r))
-    | Continue (Maybe a -> m (Driver m a r))
+    | Partial !Int (Maybe a -> m (Driver m a r))
+    | Continue !Int (Maybe a -> m (Driver m a r))
     | Failed String
 
 instance Functor m => Functor (Driver m a) where
     fmap f (Stop n r) = Stop n (f r)
-    fmap f (Partial yld) = Partial (fmap (fmap f) . yld)
-    fmap f (Continue yld) = Continue (fmap (fmap f) . yld)
+    fmap f (Partial n yld) = Partial n (fmap (fmap f) . yld)
+    fmap f (Continue n yld) = Continue n (fmap (fmap f) . yld)
     fmap _ (Failed e) = Failed e
 
 -- The parser's result.
@@ -67,22 +67,19 @@ instance Functor m => Functor (Driver m a) where
 -- /Internal/
 --
 data Parse b =
-      Done !b           -- Done, no more input needed
+      Done !Int !b      -- Done, no more input needed
     | Error !String     -- Failed
 
 instance Functor Parse where
-    fmap f (Done b) = Done (f b)
+    fmap f (Done n b) = Done n (f b)
     fmap _ (Error e) = Error e
 
--- | A continuation passing style parser representation. The parser is supplied
--- with a 'Zipper' with an initial input, and a continuation to consume the
--- parse result. The Zipper is threaded around as a state and maintains the
--- parser backtracking buffer.
---
+-- | A continuation passing style parser representation.
 newtype Parser m a b = MkParser
     { runParser :: forall r.
-           Zipper a
-        -> (Zipper a -> Parse b -> m (Driver m a r))
+           Int        -- leftover elements
+        -> (Int, Int) -- (nesting level in Alternative, used element count)
+        -> ((Int, Int) -> Parse b -> m (Driver m a r))
         -> m (Driver m a r)
     }
 
@@ -90,199 +87,83 @@ newtype Parser m a b = MkParser
 -- Convert direct style 'D.Parser' to CPS style 'Parser'
 -------------------------------------------------------------------------------
 
--- Inlined definition. Without the inline "serially/parser/take" benchmark
--- degrades and splitParse does not fuse. Even using "inline" at the callsite
--- does not help.
-{-# INLINE splitAt #-}
-splitAt :: Int -> [a] -> ([a],[a])
-splitAt n ls
-  | n <= 0 = ([], ls)
-  | otherwise          = splitAt' n ls
-    where
-        splitAt' :: Int -> [a] -> ([a], [a])
-        splitAt' _  []     = ([], [])
-        splitAt' 1  (x:xs) = ([x], xs)
-        splitAt' m  (x:xs) = (x:xs', xs'')
-          where
-            (xs', xs'') = splitAt' (m - 1) xs
-
 -- XXX Unlike the direct style folds/parsers, the initial action in CPS parsers
 -- is not performed when the fold is initialized. It is performed when the
 -- first element is processed by the fold or if no elements are processed then
 -- at the extraction. We should either make the direct folds like this or make
 -- the CPS folds behavior also like the direct ones.
 --
--- | Parse a stream zipper using a direct style parser's @step@, @initial@ and
--- @extract@ functions.
+-- | Convert a direct style parser to a CPS style parser.
 --
-{-# INLINE_NORMAL parse #-}
-parse
+{-# INLINE_NORMAL parseDToK #-}
+parseDToK
     :: MonadCatch m
     => (s -> a -> m (D.Step s b))
     -> m s
     -> (s -> m b)
-    -> Zipper a
-    -> (Zipper a -> Parse b -> m (Driver m a r))
+    -> Int
+    -> (Int, Int)
+    -> ((Int, Int) -> Parse b -> m (Driver m a r))
     -> m (Driver m a r)
 
--- The case when no checkpoints exist
-parse pstep initial extract (Zipper [] backward forward) cont =
-    case forward of
-        [] -> return $ Continue (parseCont backward initial)
-        _ -> goBuf backward forward initial
+parseDToK pstep initial extract leftover (0, _) cont =
+    return $ Continue leftover (parseCont initial)
 
     where
 
-    parseCont back acc (Just x) = goSingle back x acc
-    parseCont back acc Nothing = do
+    parseCont pst (Just x) = do
+        r <- pst
+        pRes <- pstep r x
+        case pRes of
+            D.Done n b -> cont (0,0) (Done n b)
+            D.Error err -> cont (0,0) (Error err)
+            D.Partial n pst1 -> return $ Partial n (parseCont (return pst1))
+            D.Continue n pst1 -> return $ Continue n (parseCont (return pst1))
+
+    parseCont acc Nothing = do
         pst <- acc
         r <- try $ extract pst
-        -- NOTE: Any data held in the backtrack buffer is considered as unused
-        -- data if we extract the parser result without the parser finishing.
-        let z = Zipper [] back []
         case r of
-            Left (e :: D.ParseError) ->
-                cont z (Error (displayException e))
-            Right b -> cont z (Done b)
+            Left (e :: D.ParseError) -> cont (0,0) (Error (displayException e))
+            Right b -> cont (0,0) (Done 0 b)
 
-    {-# INLINE goSingle #-}
-    goSingle back x !pst = do
-        r <- pst
-        pRes <- pstep r x
-        case pRes of
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                cont (Zipper [] [] fwd) (Done b)
-            D.Partial 0 pst1 ->
-                return $ Partial (parseCont [] (return pst1))
-            D.Partial n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                goBuf [] fwd (return pst1)
-            D.Continue 0 pst1 ->
-                return $ Continue (parseCont (x:back) (return pst1))
-            D.Continue n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let (fwd0, bwd) = splitAt n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                goBuf bwd fwd (return pst1)
-            D.Error err ->
-                cont (Zipper [] (x:back) []) (Error err)
-
-    goBuf back [] !acc = return $ Continue (parseCont back acc)
-    goBuf back (x:xs) !pst = do
-        r <- pst
-        pRes <- pstep r x
-        case pRes of
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                cont (Zipper [] [] (fwd ++ xs)) (Done b)
-            D.Partial 0 pst1 ->
-                goBuf [] xs (return pst1)
-            D.Partial n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                goBuf [] (fwd ++ xs) (return pst1)
-            D.Continue 0 pst1 -> goBuf (x:back) xs (return pst1)
-            D.Continue n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let (fwd0, bwd) = splitAt n (x:back)
-                    fwd = Prelude.reverse fwd0
-                goBuf bwd (fwd ++ xs) (return pst1)
-            D.Error err -> cont (Zipper [] (x:back) xs) (Error err)
-
--- The case when checkpoints exist
--- XXX code duplication alert!
-parse pstep initial extract (Zipper (cp:cps) backward forward) cont =
-    case forward of
-        [] -> return $ Continue (parseCont 0 backward initial)
-        _ -> goBuf 0 backward forward initial
+parseDToK pstep initial extract leftover (level, count) cont =
+    return $ Continue leftover (parseCont count initial)
 
     where
 
-    parseCont cnt back acc (Just x) = goSingle cnt back x acc
-    parseCont cnt back acc Nothing = do
+    parseCont !cnt pst (Just x) = do
+        let !cnt1 = cnt + 1
+        r <- pst
+        pRes <- pstep r x
+        case pRes of
+            D.Done n b -> do
+                assert (n <= cnt1) (return ())
+                cont (level, cnt1 - n) (Done n b)
+            D.Error err ->
+                cont (level, cnt1) (Error err)
+            D.Partial n pst1 -> do
+                assert (n <= cnt1) (return ())
+                return $ Partial n (parseCont (cnt1 - n) (return pst1))
+            D.Continue n pst1 -> do
+                assert (n <= cnt1) (return ())
+                return $ Continue n (parseCont (cnt1 - n) (return pst1))
+    parseCont cnt acc Nothing = do
         pst <- acc
         r <- try $ extract pst
-        let z = Zipper (cp + cnt : cps) back []
+        let s = (level, cnt)
         case r of
-            Left (e :: D.ParseError) ->
-                cont z (Error (displayException e))
-            Right b -> cont z (Done b)
+            Left (e :: D.ParseError) -> cont s (Error (displayException e))
+            Right b -> cont s (Done 0 b)
 
-    {-# INLINE goSingle #-}
-    goSingle cnt back x !pst = do
-        r <- pst
-        pRes <- pstep r x
-        let cnt1 = cnt + 1
-        case pRes of
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                assert (cp + cnt1 - n >= 0) (return ())
-                cont (Zipper (cp + cnt1 - n : cps) [] fwd) (Done b)
-            D.Partial 0 pst1 ->
-                return $ Partial (parseCont cnt1 [] (return pst1))
-            D.Partial n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                goBuf (cnt1 - n) [] fwd (return pst1)
-            D.Continue 0 pst1 ->
-                return $ Continue (parseCont cnt1 (x:back) (return pst1))
-            D.Continue n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let (fwd0, bwd) = splitAt n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                assert (cnt1 - n >= 0) (return ())
-                goBuf (cnt1 - n) bwd fwd (return pst1)
-            D.Error err ->
-                cont (Zipper (cp + cnt1 : cps) (x:back) []) (Error err)
-
-    goBuf cnt back [] !acc = return $ Continue (parseCont cnt back acc)
-    goBuf cnt back (x:xs) !pst = do
-        r <- pst
-        pRes <- pstep r x
-        let cnt1 = cnt + 1
-        case pRes of
-            D.Done n b -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                assert (cp + cnt1 - n >= 0) (return ())
-                cont (Zipper (cp + cnt1 - n : cps) [] (fwd ++ xs)) (Done b)
-            D.Partial 0 pst1 ->
-                goBuf cnt1 [] xs (return pst1)
-            D.Partial n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let fwd0 = Prelude.take n (x:back)
-                    fwd  = Prelude.reverse fwd0
-                goBuf (cnt1 - n) [] (fwd ++ xs) (return pst1)
-            D.Continue 0 pst1 -> goBuf cnt1 (x:back) xs (return pst1)
-            D.Continue n pst1 -> do
-                assert (n <= length (x:back)) (return ())
-                let (fwd0, bwd) = splitAt n (x:back)
-                    fwd  = Prelude.reverse fwd0 ++ xs
-                assert (cnt1 - n >= 0) (return ())
-                goBuf (cnt1 - n) bwd fwd (return pst1)
-            D.Error err ->
-                cont (Zipper (cp + cnt1 : cps) (x:back) xs) (Error err)
-
--- | Convert a direct style 'Parser' to a CPS style 'K.Parser'.
+-- | Convert a direct style 'D.Parser' to a CPS style 'Parser'.
 --
 -- /Internal/
 --
 {-# INLINE_LATE toParserK #-}
 toParserK :: MonadCatch m => D.Parser m a b -> Parser m a b
 toParserK (D.Parser step initial extract) =
-    MkParser $ parse step initial extract
+    MkParser $ parseDToK step initial extract
 
 -------------------------------------------------------------------------------
 -- Convert CPS style 'Parser' to direct style 'D.Parser'
@@ -290,16 +171,10 @@ toParserK (D.Parser step initial extract) =
 
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDone #-}
-parserDone :: Monad m => Zipper a -> Parse b -> m (Driver m a b)
-parserDone (Z.Zipper [] bwd fwd) (Done b) =
-    -- When the parser is Done, we consider the data in the
-    -- backtracking buffer as well as in the forward buffer as
-    -- unconsumed input.
-    -- XXX Will it be more efficient/worth it to maintain a count
-    -- in the Zipper?
-    return $ Stop (length bwd + length fwd) b
-parserDone (Z.Zipper cps _ _) (Done _) =
-    error $ "Bug: fromParserK: when checkpoints exist: " ++ show cps
+parserDone :: Monad m => (Int, Int) -> Parse b -> m (Driver m a b)
+parserDone (0,_) (Done n b) = return $ Stop n b
+parserDone st (Done _ _) =
+    error $ "Bug: fromParserK: inside alternative: " ++ show st
 parserDone _ (Error e) = return $ Failed e
 
 -- | When there is no more input to feed, extract the result from the Parser.
@@ -311,21 +186,11 @@ extractParse cont = do
     r <- cont Nothing
     case r of
         Stop _ b -> return b
-        Partial _ -> error "Bug: extractParse got Partial"
-        Continue _ -> error "Bug: extractParse got Continue"
+        Partial _ _ -> error "Bug: extractParse got Partial"
+        Continue _ _ -> error "Bug: extractParse got Continue"
         Failed e -> throwM $ D.ParseError e
 
--- XXX The CPS style parsers use a zipper buffering the data, if a parserD is
--- driving the parserK then it would also be buffering the same data.  For
--- ParserD, instead of maintaining the buffer in the common driver, each parser
--- can have its own buffering and we can return the unconsumed buffer in the
--- end.  That way the zipper is maintained by the parser. If the parser fails
--- then it has to return all of the input. It is anyway maintained by
--- intermediate level parsers in a composition, so the only difference would be
--- that even the leaf levels parsers would do it. If we abstract the zipper
--- maintainance then it may not be too unwieldy.
-
-data FromParserK b e c = FPKDone !b | FPKError !e | FPKCont c
+data FromParserK b e c = FPKDone !Int !b | FPKError !e | FPKCont c
 
 -- | Convert a CPS style 'Parser' to a direct style 'D.Parser'.
 --
@@ -338,25 +203,24 @@ fromParserK parser = D.Parser step initial extract
     where
 
     initial = do
-        r <- runParser parser Z.nil parserDone
+        r <- runParser parser 0 (0,0) parserDone
         return $ case r of
-            Stop 0 b -> FPKDone b
-            Stop _ _ -> error "Bug: fromParserK: Stop n in initial"
+            Stop n b -> FPKDone n b
             Failed e -> FPKError e
-            Partial cont -> FPKCont cont -- XXX can we get this?
-            Continue cont -> FPKCont cont
+            Partial _ cont -> FPKCont cont -- XXX can we get this?
+            Continue _ cont -> FPKCont cont
 
-    step (FPKDone b) _ = return $ D.Done 1 b
+    step (FPKDone n b) _ = return $ D.Done (n + 1) b
     step (FPKError e) _ = return $ D.Error e
     step (FPKCont cont) a = do
         r <- cont (Just a)
         return $ case r of
             Stop n b -> D.Done n b
             Failed e -> D.Error e
-            Partial cont1 -> D.Partial 0 (FPKCont cont1)
-            Continue cont1 -> D.Continue 0 (FPKCont cont1)
+            Partial n cont1 -> D.Partial n (FPKCont cont1)
+            Continue n cont1 -> D.Continue n (FPKCont cont1)
 
-    extract (FPKDone b) = return b
+    extract (FPKDone _ b) = return b
     extract (FPKError e) = throwM $ D.ParseError e
     extract (FPKCont cont) = extractParse cont
 
@@ -375,9 +239,9 @@ fromParserK parser = D.Parser step initial extract
 --
 instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
-    fmap f parser = MkParser $ \zipper yieldk ->
-        let yld z res = yieldk z (fmap f res)
-         in runParser parser zipper yld
+    fmap f parser = MkParser $ \lo st yieldk ->
+        let yld s res = yieldk s (fmap f res)
+         in runParser parser lo st yld
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -391,7 +255,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE yield #-}
 yield :: b -> Parser m a b
-yield b = MkParser (\zipper yieldk -> yieldk zipper (Done b))
+yield b = MkParser (\lo st yieldk -> yieldk st (Done (lo + 1) b))
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
@@ -405,17 +269,19 @@ instance Monad m => Applicative (Parser m a) where
     (<*>) = ap
 
     {-# INLINE (*>) #-}
-    m1 *> m2 = MkParser $ \zipper yieldk ->
-        let yield1 z (Done _) = runParser m2 z yieldk
-            yield1 z (Error e) = yieldk z (Error e)
-        in runParser m1 zipper yield1
+    m1 *> m2 = MkParser $ \lo st yieldk ->
+        let yield1 s (Done n _) = runParser m2 n s yieldk
+            yield1 s (Error e) = yieldk s (Error e)
+        in runParser m1 lo st yield1
 
     {-# INLINE (<*) #-}
-    m1 <* m2 = MkParser $ \zipper yieldk ->
-        let
-            yield1 z (Done b) = runParser m2 z $ \z1 _ -> yieldk z1 (Done b)
-            yield1 z (Error e) = yieldk z (Error e)
-        in runParser m1 zipper yield1
+    m1 <* m2 = MkParser $ \lo st yieldk ->
+        let yield1 s (Done n b) =
+                let yield2 s1 (Done n1 _) = yieldk s1 (Done n1 b)
+                    yield2 s1 (Error e) = yieldk s1 (Error e)
+                in runParser m2 n s yield2
+            yield1 s (Error e) = yieldk s (Error e)
+        in runParser m1 lo st yield1
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -430,7 +296,7 @@ instance Monad m => Applicative (Parser m a) where
 --
 {-# INLINE die #-}
 die :: String -> Parser m a b
-die err = MkParser (\z yieldk -> yieldk z (Error err))
+die err = MkParser (\_ st yieldk -> yieldk st (Error err))
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
 -- future parses depend on the previously parsed values.
@@ -479,11 +345,13 @@ instance Monad m => Monad (Parser m a) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    m >>= k = MkParser $ \zipper yieldk ->
-        let
-            yield1 z (Done b) = runParser (k b) z yieldk
-            yield1 z (Error e) = yieldk z (Error e)
-         in runParser m zipper yield1
+    m >>= k = MkParser $ \lo st yieldk ->
+        let yield1 s (Done n b) = runParser (k b) n s yieldk
+            yield1 s (Error e) = yieldk s (Error e)
+         in runParser m lo st yield1
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
 
 #if !(MIN_VERSION_base(4,13,0))
     -- This is redefined instead of just being Fail.fail to be
@@ -502,13 +370,6 @@ instance Monad m => Fail.MonadFail (Parser m a) where
 -- Alternative
 -------------------------------------------------------------------------------
 
--- XXX one way to backtrack is to ask the input driver to create and release
--- checkpoints, like we do in the zipper. The other way is to pass around the
--- zipper itself. Currently in the direct style code we manage the checkpoints
--- manually by counting the input. We need to unify the CPS and direct style
--- code by either using a zipper in both or by using checkpointing commands for
--- the driver.
---
 -- | 'Alternative' form of 'Streamly.Internal.Data.Parser.alt'. Backtrack and
 -- run the second parser if the first one fails.
 --
@@ -527,10 +388,11 @@ instance Monad m => Alternative (Parser m a) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    m1 <|> m2 = MkParser $ \zipper yieldk ->
-        let yield1 z (Done b) = yieldk (Z.release z) (Done b)
-            yield1 z (Error _) = runParser m2 (Z.restore z) yieldk
-        in runParser m1 (Z.checkpoint zipper) yield1
+    m1 <|> m2 = MkParser $ \lo (level, _) yieldk ->
+        let yield1 (0, _) _ = error "0 nest level in Alternative"
+            yield1 (lvl, _) (Done n b) = yieldk (lvl - 1, 0) (Done n b)
+            yield1 (lvl, cnt) (Error _) = runParser m2 cnt (lvl - 1, 0) yieldk
+        in runParser m1 lo (level + 1, 0) yield1
 
     -- some and many are implemented here instead of using default definitions
     -- so that we can use INLINE on them. It gives 50% performance improvement.
