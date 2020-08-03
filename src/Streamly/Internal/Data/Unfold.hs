@@ -95,6 +95,9 @@ module Streamly.Internal.Data.Unfold
     , take
     , filter
     , filterM
+    , drop
+    , dropWhile
+    , dropWhileM
 
     -- * Zipping
     , zipWithM
@@ -132,7 +135,8 @@ import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude
-       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith)
+       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
+              , drop, dropWhile)
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
@@ -526,6 +530,60 @@ filterM f (Unfold step1 inject1) = Unfold step inject1
 {-# INLINE filter #-}
 filter :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 filter f = filterM (return . f)
+
+{-# INLINE_NORMAL drop #-}
+drop :: Monad m => Int -> Unfold m a b -> Unfold m a b
+drop n (Unfold step inject) = Unfold step' inject'
+  where
+    inject' a = do
+        b <- inject a
+        return (b, n)
+    {-# INLINE_LATE step' #-}
+    step' (st, i)
+        | i > 0 = do
+            r <- step st
+            return $
+                case r of
+                    Yield _ s -> Skip (s, i - 1)
+                    Skip s -> Skip (s, i)
+                    Stop -> Stop
+        | otherwise = do
+            r <- step st
+            return $
+                case r of
+                    Yield x s -> Yield x (s, 0)
+                    Skip s -> Skip (s, 0)
+                    Stop -> Stop
+
+{-# INLINE_NORMAL dropWhileM #-}
+dropWhileM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
+dropWhileM f (Unfold step inject) = Unfold step' inject'
+  where
+    inject' a = do
+        b <- inject a
+        return $ Left b
+    {-# INLINE_LATE step' #-}
+    step' (Left st) = do
+        r <- step st
+        case r of
+            Yield x s -> do
+                b <- f x
+                if b
+                then return $ Skip (Left s)
+                else return $ Yield x (Right s)
+            Skip s -> return $ Skip (Left s)
+            Stop -> return Stop
+
+    step' (Right st) = do
+        r <- step st
+        case r of
+            Yield x s -> return $ Yield x (Right s)
+            Skip s    -> return $ Skip (Right s)
+            Stop      -> return Stop
+
+{-# INLINE dropWhile #-}
+dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
+dropWhile f = dropWhileM (return . f)
 
 -------------------------------------------------------------------------------
 -- Enumeration
