@@ -293,7 +293,7 @@ dieM = K.toParserK . D.dieM
 
 {-# INLINE peekMaybe #-}
 peekMaybe :: MonadCatch m => Parser m a (Maybe a)
-peekMaybe = D.toParserK D.peekMaybe
+peekMaybe = K.toParserK D.peekMaybe
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -520,7 +520,7 @@ sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
 --
 {-# INLINE scan #-}
 scan :: MonadCatch m => s -> (s -> a -> Maybe s) -> Fold m a b -> Parser m a b
-scan s f fl = D.toParserK $ D.scan s f fl
+scan s f fl = K.toParserK $ D.scan s f fl
 
 -- | @sepBy fl p sep@ collects zero or more stream elements separated by @sep@.
 --
@@ -538,7 +538,7 @@ sepBy :: MonadCatch m
       -> Parser m a b
       -> Parser m a sep
       -> Parser m a c
-sepBy fl pa = D.toParserK . D.sepBy fl (D.fromParserK pa) . D.fromParserK
+sepBy fl pa = K.toParserK . D.sepBy fl (K.fromParserK pa) . K.fromParserK
 
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.
