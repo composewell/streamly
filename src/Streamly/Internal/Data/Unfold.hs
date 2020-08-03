@@ -424,6 +424,31 @@ const m = Unfold step inject
     inject _ = return ()
     step () = m >>= \r -> return $ Yield r ()
 
+
+-- | Convert a list of pure values to a 'Stream'
+{-# INLINE_LATE fromList #-}
+fromList :: Monad m => Unfold m [a] a
+fromList = Unfold step inject
+  where
+    inject x = return x
+    {-# INLINE_LATE step #-}
+    step (x:xs) = return $ Yield x xs
+    step []     = return Stop
+
+-- | Convert a list of monadic values to a 'Stream'
+{-# INLINE_LATE fromListM #-}
+fromListM :: Monad m => Unfold m [m a] a
+fromListM = Unfold step inject
+  where
+    inject x = return x
+    {-# INLINE_LATE step #-}
+    step (x:xs) = x >>= \r -> return $ Yield r xs
+    step []     = return Stop
+
+------------------------------------------------------------------------------
+-- Specialized Generation
+------------------------------------------------------------------------------
+
 -- | Generates a stream replicating the seed @n@ times.
 --
 {-# INLINE replicateM #-}
@@ -445,26 +470,6 @@ repeatM = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step x = return $ Yield x x
-
--- | Convert a list of pure values to a 'Stream'
-{-# INLINE_LATE fromList #-}
-fromList :: Monad m => Unfold m [a] a
-fromList = Unfold step inject
-  where
-    inject x = return x
-    {-# INLINE_LATE step #-}
-    step (x:xs) = return $ Yield x xs
-    step []     = return Stop
-
--- | Convert a list of monadic values to a 'Stream'
-{-# INLINE_LATE fromListM #-}
-fromListM :: Monad m => Unfold m [m a] a
-fromListM = Unfold step inject
-  where
-    inject x = return x
-    {-# INLINE_LATE step #-}
-    step (x:xs) = x >>= \r -> return $ Yield r xs
-    step []     = return Stop
 
 -------------------------------------------------------------------------------
 -- Filtering
