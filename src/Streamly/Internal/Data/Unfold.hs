@@ -76,10 +76,19 @@ module Streamly.Internal.Data.Unfold
     , singleton
     , identity
     , const
-    , replicateM
-    , repeatM
+
     , fromList
     , fromListM
+
+    -- ** Specialized Generation
+    -- | Generate a monadic stream from a seed.
+    , replicateM
+    , repeatM
+    , iterateM
+    , generateM
+    , fromIndicesM
+
+    -- ** Enumerations
     , enumerateFromStepIntegral
     , enumerateFromToIntegral
     , enumerateFromIntegral
@@ -453,6 +462,7 @@ fromListM = Unfold step inject
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
+-- XXX replicateM? Maybe just replicate?
 -- | Generates a stream replicating the seed @n@ times.
 --
 {-# INLINE replicateM #-}
@@ -466,6 +476,7 @@ replicateM n = Unfold step inject
         then Stop
         else Yield x (x, i - 1)
 
+-- XXX repeatM? Maybe just repeat?
 -- | Generates an infinite stream repeating the seed.
 --
 {-# INLINE repeatM #-}
@@ -474,6 +485,35 @@ repeatM = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step x = return $ Yield x x
+
+{-# INLINE iterateM #-}
+iterateM :: Monad m => (a -> m a) -> Unfold m a a
+iterateM f = Unfold step f
+    where
+    {-# INLINE_LATE step #-}
+    step x = do
+        fx <- f x
+        return $ Yield fx fx
+
+-- generateM n = take n . fromIndicesM
+{-# INLINE generateM #-}
+generateM :: Monad m => Int -> (Int -> m a) -> Unfold m Int a
+generateM n gen = Unfold step return
+  where
+    {-# INLINE_LATE step #-}
+    step i | i < n     = do
+                         x <- gen i
+                         return $ Yield x (i + 1)
+           | otherwise = return Stop
+
+{-# INLINE_NORMAL fromIndicesM #-}
+fromIndicesM :: Monad m => (Int -> m a) -> Unfold m Int a
+fromIndicesM gen = Unfold step return
+  where
+    {-# INLINE_LATE step #-}
+    step i = do
+         x <- gen i
+         return $ Yield x (i + 1)
 
 -------------------------------------------------------------------------------
 -- Filtering
