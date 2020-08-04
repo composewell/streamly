@@ -410,7 +410,6 @@ library
                      , Streamly.Internal.Data.Sink
 
                      -- Parsers
-                     , Streamly.Internal.Data.Zipper
                      , Streamly.Internal.Data.Parser.ParserK.Types
                      , Streamly.Internal.Data.Parser.ParserD.Types
                      , Streamly.Internal.Data.Parser.ParserD.Tee

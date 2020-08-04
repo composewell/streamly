@@ -77,8 +77,18 @@ instance Functor Parse where
 -- | A continuation passing style parser representation.
 newtype Parser m a b = MkParser
     { runParser :: forall r.
-           Int        -- leftover elements
-        -> (Int, Int) -- (nesting level in Alternative, used element count)
+           -- The number of elements that were not used by the previous
+           -- consumer and should be carried forward.
+           Int
+           -- (nesting level, used elem count). Nesting level is increased
+           -- whenever we enter an Alternative composition and decreased when
+           -- it is done. The used element count is a count of elements
+           -- consumed by the Alternative. If the Alternative fails we need to
+           -- backtrack by this amount.
+        -> (Int, Int)
+           -- The first argument is the (nest level, used count) tuple as
+           -- described above. The leftover element count carried as part of
+           -- 'Done' constructor of 'Parse'.
         -> ((Int, Int) -> Parse b -> m (Driver m a r))
         -> m (Driver m a r)
     }
@@ -93,7 +103,8 @@ newtype Parser m a b = MkParser
 -- at the extraction. We should either make the direct folds like this or make
 -- the CPS folds behavior also like the direct ones.
 --
--- | Convert a direct style parser to a CPS style parser.
+-- | Convert a direct style parser ('D.Parser') to a CPS style parser
+-- ('Parser').
 --
 {-# INLINE_NORMAL parseDToK #-}
 parseDToK
