@@ -76,9 +76,13 @@ module Streamly.Internal.Data.Unfold
     , singleton
     , identity
     , const
+    , unfoldrM
 
     , fromList
     , fromListM
+
+    , fromSVar
+    , fromProducer
 
     -- ** Specialized Generation
     -- | Generate a monadic stream from a seed.
@@ -91,6 +95,10 @@ module Streamly.Internal.Data.Unfold
     , enumerateFromStepIntegral
     , enumerateFromToIntegral
     , enumerateFromIntegral
+
+    , enumerateFromStepNum
+    , numFrom
+    , enumerateFromToFractional
 
     -- * Transformations
     , map
@@ -136,28 +144,32 @@ module Streamly.Internal.Data.Unfold
     )
 where
 
-import Control.Exception (Exception, mask_)
-import Control.Monad ((>=>))
+import Control.Exception (Exception, fromException, mask_)
+import Control.Monad ((>=>), when)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Data.Maybe (isNothing)
 import Data.Void (Void)
+import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import GHC.Types (SPEC(..))
-import Prelude
-       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
-              , drop, dropWhile)
-
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.SVar (defState, MonadAsync)
-import Control.Monad.Catch (MonadCatch)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+import System.Mem (performMajorGC)
 
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import Streamly.Internal.Data.SVar
+import Prelude
+       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
+              , drop, dropWhile)
 
 -------------------------------------------------------------------------------
 -- Input operations
@@ -457,6 +469,17 @@ fromListM = Unfold step inject
     step (x:xs) = x >>= \r -> return $ Yield r xs
     step []     = return Stop
 
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Unfold m a b
+unfoldrM next = Unfold step return
+  where
+    {-# INLINE_LATE step #-}
+    step st = do
+        r <- next st
+        return $ case r of
+            Just (x, s) -> Yield x s
+            Nothing     -> Stop
+
 ------------------------------------------------------------------------------
 -- Specialized Generation
 ------------------------------------------------------------------------------
@@ -637,6 +660,146 @@ enumerateFromToIntegral to =
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => Unfold m a a
 enumerateFromIntegral = enumerateFromToIntegral maxBound
+
+{-# INLINE enumerateFromStepNum #-}
+enumerateFromStepNum :: (Monad m, Num a) => a -> Unfold m a a
+enumerateFromStepNum stride = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step !s = return $ (Yield $! s) $! (s + stride)
+
+{-# INLINE_NORMAL numFrom #-}
+numFrom :: (Monad m, Num a) => Unfold m a a
+numFrom = enumerateFromStepNum 1
+
+{-# INLINE_NORMAL enumerateFromToFractional #-}
+enumerateFromToFractional :: (Monad m, Fractional a, Ord a) => a -> Unfold m a a
+enumerateFromToFractional to =
+    takeWhile (<= to + 1 / 2) $ enumerateFromStepNum 1
+
+-------------------------------------------------------------------------------
+-- Generation from SVar
+-------------------------------------------------------------------------------
+
+data FromSVarState t m a =
+      FromSVarInit (SVar t m a)
+    | FromSVarRead (SVar t m a)
+    | FromSVarLoop (SVar t m a) [ChildEvent a]
+    | FromSVarDone (SVar t m a)
+
+{-# INLINE_NORMAL fromSVar #-}
+fromSVar :: MonadAsync m => Unfold m (SVar t m a) a
+fromSVar = Unfold step (return . FromSVarInit)
+    where
+
+    {-# INLINE_LATE step #-}
+    step (FromSVarInit svar) = do
+        ref <- liftIO $ newIORef ()
+        _ <- liftIO $ mkWeakIORef ref hook
+        -- when this copy of svar gets garbage collected "ref" will get
+        -- garbage collected and our GC hook will be called.
+        let sv = svar{svarRef = Just ref}
+        return $ Skip (FromSVarRead sv)
+
+        where
+
+        {-# NOINLINE hook #-}
+        hook = do
+            when (svarInspectMode svar) $ do
+                r <- liftIO $ readIORef (svarStopTime (svarStats svar))
+                when (isNothing r) $
+                    printSVar svar "SVar Garbage Collected"
+            cleanupSVar svar
+            -- If there are any SVars referenced by this SVar a GC will prompt
+            -- them to be cleaned up quickly.
+            when (svarInspectMode svar) performMajorGC
+
+    step (FromSVarRead sv) = do
+        list <- readOutputQ sv
+        -- Reversing the output is important to guarantee that we process the
+        -- outputs in the same order as they were generated by the constituent
+        -- streams.
+        return $ Skip $ FromSVarLoop sv (Prelude.reverse list)
+
+    step (FromSVarLoop sv []) = do
+        done <- postProcess sv
+        return $ Skip $ if done
+                      then FromSVarDone sv
+                      else FromSVarRead sv
+
+    step (FromSVarLoop sv (ev : es)) = do
+        case ev of
+            ChildYield a -> return $ Yield a (FromSVarLoop sv es)
+            ChildStop tid e -> do
+                accountThread sv tid
+                case e of
+                    Nothing -> do
+                        stop <- shouldStop tid
+                        if stop
+                        then do
+                            liftIO (cleanupSVar sv)
+                            return $ Skip (FromSVarDone sv)
+                        else return $ Skip (FromSVarLoop sv es)
+                    Just ex ->
+                        case fromException ex of
+                            Just ThreadAbort ->
+                                return $ Skip (FromSVarLoop sv es)
+                            Nothing -> liftIO (cleanupSVar sv) >> MC.throwM ex
+        where
+
+        shouldStop tid =
+            case svarStopStyle sv of
+                StopNone -> return False
+                StopAny -> return True
+                StopBy -> do
+                    sid <- liftIO $ readIORef (svarStopBy sv)
+                    return $ tid == sid
+
+    step (FromSVarDone sv) = do
+        when (svarInspectMode sv) $ do
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
+            liftIO $ printSVar sv "SVar Done"
+        return Stop
+
+-------------------------------------------------------------------------------
+-- Process events received by a fold consumer from a stream producer
+-------------------------------------------------------------------------------
+
+-- XXX Why don't we do the same thing for "FromSVarInit" that we did in "fromSVar"?
+{-# INLINE_NORMAL fromProducer #-}
+fromProducer :: MonadAsync m => Unfold m (SVar t m a) a
+fromProducer = Unfold step (return . FromSVarRead)
+    where
+
+    {-# INLINE_LATE step #-}
+    step (FromSVarRead sv) = do
+        list <- readOutputQ sv
+        -- Reversing the output is important to guarantee that we process the
+        -- outputs in the same order as they were generated by the constituent
+        -- streams.
+        return $ Skip $ FromSVarLoop sv (Prelude.reverse list)
+
+    step (FromSVarLoop sv []) = return $ Skip $ FromSVarRead sv
+    step (FromSVarLoop sv (ev : es)) = do
+        case ev of
+            ChildYield a -> return $ Yield a (FromSVarLoop sv es)
+            ChildStop tid e -> do
+                accountThread sv tid
+                case e of
+                    Nothing -> do
+                        sendStopToProducer sv
+                        return $ Skip (FromSVarDone sv)
+                    Just _ -> error "Bug: fromProducer: received exception"
+
+    step (FromSVarDone sv) = do
+        when (svarInspectMode sv) $ do
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
+            liftIO $ printSVar sv "SVar Done"
+        return Stop
+
+    step (FromSVarInit _) = undefined
 
 -------------------------------------------------------------------------------
 -- Zipping
