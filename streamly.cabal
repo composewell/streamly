@@ -375,7 +375,9 @@ library
                      -- Internal modules
                      , Streamly.Internal.BaseCompat
                      , Streamly.Internal.Control.Monad
-                     , Streamly.Internal.Data.Strict
+                     , Streamly.Internal.Data.Tuple.Strict
+                     , Streamly.Internal.Data.Maybe.Strict
+                     , Streamly.Internal.Data.Either.Strict
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.TimeSpec

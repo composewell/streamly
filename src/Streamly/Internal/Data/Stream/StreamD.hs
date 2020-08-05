@@ -322,24 +322,11 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import System.Mem (performMajorGC)
-import Prelude
-       hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
-               takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
-               notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
-               reverse, iterate, splitAt)
-
-import qualified Control.Monad.Catch as MC
-import qualified Control.Monad.Trans.Reader as Reader
-import qualified Control.Monad.Trans.State.Strict as State
-import qualified Prelude
-
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64, RelTime64)
-
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -349,10 +336,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Strict (Tuple3'(..))
-
-import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
+import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
@@ -363,6 +347,19 @@ import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Control.Monad.Catch as MC
+import qualified Control.Monad.Trans.Reader as Reader
+import qualified Control.Monad.Trans.State.Strict as State
+import qualified Prelude
+
+import Prelude hiding
+       ( map, mapM, mapM_, repeat, foldr, last, take, filter
+       , takeWhile, drop, dropWhile, all, any, maximum, minimum, elem
+       , notElem, null, head, tail, zipWith, lookup, foldr1, sequence
+       , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
+       , reverse, iterate, splitAt)
+import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
 -- Construction

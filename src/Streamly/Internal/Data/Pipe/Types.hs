@@ -26,7 +26,7 @@ import Data.Maybe (isJust)
 import Data.Semigroup (Semigroup(..))
 #endif
 import Prelude hiding (zipWith, map, id, unzip, null)
-import Streamly.Internal.Data.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Prelude
 

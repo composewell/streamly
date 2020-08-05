@@ -133,11 +133,11 @@ import Control.Applicative (Alternative(..))
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
-import Prelude hiding (concatMap)
-
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold (Fold(..), toList)
-import Streamly.Internal.Data.Strict (Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
+
+import Prelude hiding (concatMap)
 
 -- | The return type of a 'Parser' step.
 --

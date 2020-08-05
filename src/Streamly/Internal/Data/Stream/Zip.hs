@@ -45,24 +45,24 @@ import Data.Semigroup (Endo(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..), IsString(..))
-import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
-                  readListPrecDefault)
-import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
-
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
-import Streamly.Internal.Data.Strict (Maybe'(..), toMaybe)
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
+
+import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 
 #include "Instances.hs"
 

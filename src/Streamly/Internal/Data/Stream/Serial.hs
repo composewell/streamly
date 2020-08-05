@@ -48,7 +48,6 @@ import Control.DeepSeq (NFData1(..))
 #endif
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
--- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
@@ -61,17 +60,19 @@ import Data.Semigroup (Endo(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..), IsString(..))
-import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
-                  readListPrecDefault)
-import Prelude hiding (map, mapM, errorWithoutStackTrace)
-
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace)
-import Streamly.Internal.Data.Stream.StreamK (IsStream(..), adapt, Stream, mkStream,
-                                 foldStream)
-import Streamly.Internal.Data.Strict (Maybe'(..), toMaybe)
+import Streamly.Internal.Data.Stream.StreamK
+       (IsStream(..), adapt, Stream, mkStream, foldStream)
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
+
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import Prelude hiding (map, mapM, errorWithoutStackTrace)
 
 #include "Instances.hs"
 #include "inline.hs"

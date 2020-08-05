@@ -535,25 +535,12 @@ import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
 import Data.Void (Void)
 import Foreign.Storable (Storable)
-import Prelude
-       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, span, splitAt, break,
-               repeat, concat, mconcat)
-
-import qualified Data.Heap as H
-import qualified Data.Map.Strict as Map
-import qualified Prelude
-import qualified System.IO as IO
-
-import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
+import Streamly.Internal.Data.Stream.Enumeration
+       (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
--- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Internal.Data.Stream.Prelude
@@ -564,11 +551,10 @@ import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
-       (AbsTime, MilliSecond64(..), addToAbsTime, toRelTime,
-       toAbsTime, TimeUnit64, RelTime64, addToAbsTime64)
+       ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
+       , toAbsTime, TimeUnit64, RelTime64, addToAbsTime64)
 import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
-
-import Streamly.Internal.Data.Strict
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Data.Fold as FL
@@ -576,19 +562,28 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.Zip as Z
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Data.Heap as H
+import qualified Data.Map.Strict as Map
+import qualified Prelude
+import qualified System.IO as IO
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
--- import qualified Streamly.Internal.Data.Stream.Async as Async
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Zip as Z
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import Prelude hiding
+       ( filter, drop, dropWhile, take, takeWhile, zipWith, foldr
+       , foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem
+       , notElem, maximum, minimum, head, last, tail, length, null
+       , reverse, iterate, init, and, or, lookup, foldr1, (!!)
+       , scanl, scanl1, replicate, concatMap, span, splitAt, break
+       , repeat, concat, mconcat)
 
 ------------------------------------------------------------------------------
 -- Deconstruction
