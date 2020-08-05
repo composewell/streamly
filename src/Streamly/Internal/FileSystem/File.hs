@@ -44,19 +44,18 @@ module Streamly.Internal.FileSystem.File
       withFile
 
     -- ** Read From File
+    , readWithBufferOf
     , read
     -- , readShared
-    -- , readTailForever
-
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    -- , readChunks
 
     , toBytes
 
     -- -- * Array Read
-    -- , readArrayOf
+    , readChunksWithBufferOf
+    , readChunks
 
     , toChunksWithBufferOf
     , toChunks
@@ -158,6 +157,19 @@ usingFile =
     UF.bracket (\file -> liftIO $ openFile file ReadMode)
                (liftIO . hClose)
 
+{-# INLINABLE usingFile2 #-}
+usingFile2 :: (MonadCatch m, MonadIO m)
+    => Unfold m (x, Handle) a -> Unfold m (x, FilePath) a
+usingFile2 = UF.bracket before after
+
+    where
+
+    before (x, file) =  do
+        h <- liftIO $ openFile file ReadMode
+        return (x, h)
+
+    after (_, h) = liftIO $ hClose h
+
 -------------------------------------------------------------------------------
 -- Array IO (Input)
 -------------------------------------------------------------------------------
@@ -217,15 +229,36 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
-{-
+-- | Unfold the tuple @(bufsize, filepath)@ into a stream of 'Word8' arrays.
+-- Read requests to the IO device are performed using a buffer of size
+-- @bufsize@. The size of an array in the resulting stream is always less than
+-- or equal to @bufsize@.
+--
+-- /Internal/
+--
+{-# INLINE readChunksWithBufferOf #-}
+readChunksWithBufferOf :: (MonadCatch m, MonadIO m)
+    => Unfold m (Int, FilePath) (Array Word8)
+readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
+
+-- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
+-- device are performed using a buffer of size
+-- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
+-- size of arrays in the resulting stream are therefore less than or equal to
+-- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+--
+-- /Internal/
+{-# INLINE readChunks #-}
+readChunks :: (MonadCatch m, MonadIO m) => Unfold m FilePath (Array Word8)
+readChunks = usingFile FH.readChunks
+
 -- | Unfolds the tuple @(bufsize, filepath)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE readWithBufferOf #-}
-readWithBufferOf :: MonadIO m => Unfold m (Int, FilePath) Word8
-readWithBufferOf = UF.concat (usingFilexxx FH.readChunksWithBufferOf) A.read
--}
+readWithBufferOf :: (MonadCatch m, MonadIO m) => Unfold m (Int, FilePath) Word8
+readWithBufferOf = usingFile2 FH.readWithBufferOf
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
@@ -236,20 +269,6 @@ readWithBufferOf = UF.concat (usingFilexxx FH.readChunksWithBufferOf) A.read
 read :: (MonadCatch m, MonadIO m) => Unfold m FilePath Word8
 read = UF.concat (usingFile FH.readChunks) A.read
 
-{-
--- | @readInChunksOf chunkSize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
--- as soon as EOF is encountered.
---
-{-# INLINE readInChunksOf #-}
-readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = A.flattenArrays $ toChunksWithBufferOf chunkSize h
--}
-
--- TODO
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
---
--- > read = 'readByChunks' defaultChunkSize
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single
 -- writer locking mode.
@@ -269,15 +288,6 @@ toBytes file = AS.concat $ withFile file ReadMode FH.toChunks
 {-# INLINE readShared #-}
 readShared :: (IsStream t, MonadIO m) => Handle -> t m Word8
 readShared = undefined
-
--- | Read a stream from a given file path. When end of file (EOF) is reached
--- this API waits for more data to be written to the file and keeps reading it
--- as it is written.
---
--- @since 0.7.0
-{-# INLINE readTailForever #-}
-readTailForever :: (IsStream t, MonadIO m) => Handle -> t m Word8
-readTailForever = undefined
 -}
 
 -------------------------------------------------------------------------------
