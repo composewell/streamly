@@ -211,24 +211,24 @@ import Data.Map.Strict (Map)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
+import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 
-import Prelude
-       hiding (filter, drop, dropWhile, take, takeWhile, zipWith,
-               foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, (!!),
-               scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
-               span, splitAt, break, mapM)
-
+import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
-import Streamly.Internal.Data.Fold.Types
-import Streamly.Internal.Data.Strict
+import Prelude hiding
+       ( filter, drop, dropWhile, take, takeWhile, zipWith
+       , foldl, map, mapM_, sequence, all, any, sum, product, elem
+       , notElem, maximum, minimum, head, last, tail, length, null
+       , reverse, iterate, init, and, or, lookup, (!!)
+       , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
+       , span, splitAt, break, mapM)
 import Streamly.Internal.Data.SVar
-
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import Streamly.Internal.Data.Fold.Types
 
 ------------------------------------------------------------------------------
 -- Smart constructors

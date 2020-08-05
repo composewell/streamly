@@ -94,6 +94,9 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
@@ -105,29 +108,23 @@ import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
+#if !defined(mingw32_HOST_OS)
+import Streamly.FileSystem.FDIO (IOVec(..))
+#endif
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Strict (Tuple'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
+#ifdef DEVBUILD
+import qualified Data.Foldable as F
+#endif
 import qualified Streamly.Memory.Malloc as Malloc
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified GHC.Exts as Exts
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
-
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
-
-#if !defined(mingw32_HOST_OS)
-import Streamly.FileSystem.FDIO (IOVec(..))
-#endif
-
-#ifdef DEVBUILD
-import qualified Data.Foldable as F
-#endif
 
 #if MIN_VERSION_base(4,10,0)
 import Foreign.ForeignPtr (plusForeignPtr)

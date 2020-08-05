@@ -29,7 +29,8 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Strict (Maybe'(..), Tuple' (..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Data.Parser as PR

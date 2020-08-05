@@ -9,7 +9,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Primitive.Types (Prim(..), sizeOf)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
-import Streamly.Internal.Data.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 

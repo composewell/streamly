@@ -160,13 +160,13 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
-import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import Prelude hiding
+       (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
-import Streamly.Internal.Data.Strict
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
