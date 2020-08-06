@@ -163,8 +163,8 @@ import Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold(..), liftInitialM, liftStep, liftExtract)
 
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
-import qualified Streamly.Internal.Data.Zipper as Z
+-- import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
+-- import qualified Streamly.Internal.Data.Zipper as Z
 import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Streamly.Internal.Data.Parser.ParserD.Tee
