@@ -15,13 +15,19 @@ module Streamly.Internal.Data.Binary.Decode
     , eqWord8
     , word8
     , word16be
+    , word16le
+    , word32be
+    , word32le
+    , word64be
+    , word64le
     )
 where
 
 import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Bits ((.|.), unsafeShiftL)
-import Data.Word (Word8, Word16)
+import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
+import Streamly.Internal.Data.Strict (Maybe'(..), Tuple' (..))
 
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
@@ -103,17 +109,16 @@ word16beD = PRD.Parser step initial extract
 
     where
 
-    initial = return Nothing
+    initial = return Nothing'
 
-    step Nothing a =
+    step Nothing' a =
         -- XXX We can use a non-failing parser or a fold so that we do not
         -- have to buffer for backtracking which is inefficient.
-        return $ PRD.Continue 0 (Just (fromIntegral a `unsafeShiftL` 8))
-    step (Just w) a =
+        return $ PRD.Continue 0 (Just' (fromIntegral a `unsafeShiftL` 8))
+    step (Just' w) a =
         return $ PRD.Done 0 (w .|. fromIntegral a)
 
-    extract Nothing = throwM $ PRD.ParseError "word16beD: end of input"
-    extract (Just _) = error "word16beD: unreachable state"
+    extract _ = throwM $ PRD.ParseError "word16be: end of input"
 
 -- | Parse two bytes as a 'Word16', the first byte is the MSB of the Word16 and
 -- second byte is the LSB (big endian representation).
@@ -123,3 +128,134 @@ word16beD = PRD.Parser step initial extract
 {-# INLINE word16be #-}
 word16be :: MonadCatch m => Parser m Word8 Word16
 word16be = PRK.toParserK word16beD
+
+-- | Little endian (LSB first) Word16
+{-# INLINE word16leD #-}
+word16leD :: MonadCatch m => PRD.Parser m Word8 Word16
+word16leD = PRD.Parser step initial extract
+
+    where
+
+    initial = return Nothing'
+
+    step Nothing' a =
+        return $ PRD.Continue 0 (Just' (fromIntegral a))
+    step (Just' w) a =
+        return $ PRD.Done 0 (w .|. fromIntegral a `unsafeShiftL` 8)
+
+    extract _ = throwM $ PRD.ParseError "word16le: end of input"
+
+-- | Parse two bytes as a 'Word16', the first byte is the LSB of the Word16 and
+-- second byte is the MSB (little endian representation).
+--
+-- /Internal/
+--
+{-# INLINE word16le #-}
+word16le :: MonadCatch m => Parser m Word8 Word16
+word16le = PRK.toParserK word16leD
+
+-- | Big endian (MSB first) Word32
+{-# INLINE word32beD #-}
+word32beD :: MonadCatch m => PRD.Parser m Word8 Word32
+word32beD = PRD.Parser step initial extract
+
+    where
+
+    initial = return $ Tuple' 0 24
+
+    step (Tuple' w sh) a = return $
+        if sh /= 0
+        then
+            let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
+             in PRD.Continue 0 (Tuple' w1 (sh - 8))
+        else PRD.Done 0 (w .|. fromIntegral a)
+
+    extract _ = throwM $ PRD.ParseError "word32beD: end of input"
+
+-- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
+-- and last byte is the LSB (big endian representation).
+--
+-- /Internal/
+--
+{-# INLINE word32be #-}
+word32be :: MonadCatch m => Parser m Word8 Word32
+word32be = PRK.toParserK word32beD
+
+-- | Little endian (LSB first) Word32
+{-# INLINE word32leD #-}
+word32leD :: MonadCatch m => PRD.Parser m Word8 Word32
+word32leD = PRD.Parser step initial extract
+
+    where
+
+    initial = return $ Tuple' 0 0
+
+    step (Tuple' w sh) a = return $
+        let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
+         in if sh /= 24
+            then PRD.Continue 0 (Tuple' w1 (sh + 8))
+            else PRD.Done 0 w1
+
+    extract _ = throwM $ PRD.ParseError "word32leD: end of input"
+
+-- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
+-- and last byte is the LSB (big endian representation).
+--
+-- /Internal/
+--
+{-# INLINE word32le #-}
+word32le :: MonadCatch m => Parser m Word8 Word32
+word32le = PRK.toParserK word32leD
+
+-- | Big endian (MSB first) Word64
+{-# INLINE word64beD #-}
+word64beD :: MonadCatch m => PRD.Parser m Word8 Word64
+word64beD = PRD.Parser step initial extract
+
+    where
+
+    initial = return $ Tuple' 0 56
+
+    step (Tuple' w sh) a = return $
+        if sh /= 0
+        then
+            let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
+             in PRD.Continue 0 (Tuple' w1 (sh - 8))
+        else PRD.Done 0 (w .|. fromIntegral a)
+
+    extract _ = throwM $ PRD.ParseError "word64beD: end of input"
+
+-- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
+-- and last byte is the LSB (big endian representation).
+--
+-- /Internal/
+--
+{-# INLINE word64be #-}
+word64be :: MonadCatch m => Parser m Word8 Word64
+word64be = PRK.toParserK word64beD
+
+-- | Little endian (LSB first) Word64
+{-# INLINE word64leD #-}
+word64leD :: MonadCatch m => PRD.Parser m Word8 Word64
+word64leD = PRD.Parser step initial extract
+
+    where
+
+    initial = return $ Tuple' 0 0
+
+    step (Tuple' w sh) a = return $
+        let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
+         in if sh /= 56
+            then PRD.Continue 0 (Tuple' w1 (sh + 8))
+            else PRD.Done 0 w1
+
+    extract _ = throwM $ PRD.ParseError "word64leD: end of input"
+
+-- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
+-- and last byte is the LSB (big endian representation).
+--
+-- /Internal/
+--
+{-# INLINE word64le #-}
+word64le :: MonadCatch m => Parser m Word8 Word64
+word64le = PRK.toParserK word64leD
