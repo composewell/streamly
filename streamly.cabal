@@ -455,6 +455,9 @@ library
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
 
+                     -- Serialization/deserialization in binary format
+                     , Streamly.Internal.Data.Binary.Decode
+
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
