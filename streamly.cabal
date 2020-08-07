@@ -145,6 +145,7 @@ extra-source-files:
     src/Streamly/Internal/Data/Array/PrimInclude.hs
     src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
     src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
+    src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
     stack.yaml
@@ -350,8 +351,15 @@ library
     include-dirs:    src
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Windows.c
+
     if os(darwin)
+      frameworks:    Cocoa
+      include-dirs:  src/Streamly/Internal
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
+                   , src/Streamly/Internal/FileSystem/Event/Darwin.c
+      exposed-modules:
+                     Streamly.Internal.FileSystem.Event.Darwin
+
     if os(linux)
       exposed-modules: Streamly.Internal.FileSystem.Event.Linux
 
