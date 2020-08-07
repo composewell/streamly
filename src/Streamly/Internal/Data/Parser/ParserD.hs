@@ -30,6 +30,8 @@ module Streamly.Internal.Data.Parser.ParserD
     , peek
     , eof
     , satisfy
+    , maybe
+    , either
 
     -- * Sequence parsers
     --
@@ -158,7 +160,8 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
-import Prelude hiding (any, all, take, takeWhile, sequence, concatMap)
+import Prelude
+       hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import Streamly.Internal.Data.Parser.ParserD.Tee
@@ -257,6 +260,44 @@ satisfy predicate = Parser step initial extract
         else Error "satisfy: predicate failed"
 
     extract _ = throwM $ ParseError "satisfy: end of input"
+
+-- | See 'Streamly.Internal.Data.Parser.maybe'.
+--
+-- /Internal/
+--
+{-# INLINE maybe #-}
+maybe :: MonadThrow m => (a -> Maybe b) -> Parser m a b
+maybe parser = Parser step initial extract
+
+    where
+
+    initial = return ()
+
+    step () a = return $
+        case parser a of
+            Just b -> Done 0 b
+            Nothing -> Error "maybe: predicate failed"
+
+    extract _ = throwM $ ParseError "maybe: end of input"
+
+-- | See 'Streamly.Internal.Data.Parser.either'.
+--
+-- /Internal/
+--
+{-# INLINE either #-}
+either :: MonadThrow m => (a -> Either String b) -> Parser m a b
+either parser = Parser step initial extract
+
+    where
+
+    initial = return ()
+
+    step () a = return $
+        case parser a of
+            Right b -> Done 0 b
+            Left err -> Error $ "either: " ++ err
+
+    extract _ = throwM $ ParseError "either: end of input"
 
 -------------------------------------------------------------------------------
 -- Taking elements

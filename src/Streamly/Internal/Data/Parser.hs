@@ -65,6 +65,8 @@ module Streamly.Internal.Data.Parser
     , peek
     , eof
     , satisfy
+    , maybe
+    , either
 
     -- * Sequence parsers
     --
@@ -199,7 +201,7 @@ where
 
 import Control.Monad.Catch (MonadCatch)
 import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap)
+       hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Types (Parser)
@@ -327,6 +329,26 @@ eof = K.toParserK D.eof
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = K.toParserK . D.satisfy
+
+-- | Map a 'Maybe' returning function on the next element in the stream. The
+-- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
+-- value.
+--
+-- /Internal/
+--
+{-# INLINE maybe #-}
+maybe :: MonadCatch m => (a -> Maybe b) -> Parser m a b
+maybe = K.toParserK . D.maybe
+
+-- | Map an 'Either' returning function on the next element in the stream.  If
+-- the function returns 'Left err', the parser fails with the error message
+-- @err@ otherwise returns the 'Right' value.
+--
+-- /Internal/
+--
+{-# INLINE either #-}
+either :: MonadCatch m => (a -> Either String b) -> Parser m a b
+either = K.toParserK . D.either
 
 -------------------------------------------------------------------------------
 -- Taking elements
