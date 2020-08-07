@@ -1,0 +1,136 @@
+cradle:
+  cabal:
+    - path: "./"
+      component: "streamly:bench:/*.hs"
+
+    - path: "src"
+      component: "lib:streamly"
+
+    - path: "test"
+      component: "streamly:test:test"
+
+    - path: "test"
+      component: "streamly:test:internal-prelude-test"
+
+    - path: "test"
+      component: "streamly:test:pure-streams-base"
+
+    - path: "test"
+      component: "streamly:test:pure-streams-streamly"
+
+    - path: "./"
+      component: "streamly:test:Prelude.Serial"
+
+    - path: "./"
+      component: "streamly:test:Prelude.WSerial"
+
+    - path: "./"
+      component: "streamly:test:Prelude.ZipSerial"
+
+    - path: "./"
+      component: "streamly:test:Prelude.ZipAsync"
+
+    - path: "./"
+      component: "streamly:test:Prelude.Ahead"
+
+    - path: "./"
+      component: "streamly:test:Prelude.Async"
+
+    - path: "./"
+      component: "streamly:test:Prelude.WAsync"
+
+    - path: "./"
+      component: "streamly:test:Prelude.Parallel"
+
+    - path: "./"
+      component: "streamly:test:Prelude.Concurrent"
+
+    - path: "test"
+      component: "streamly:test:array-test"
+
+    - path: "test"
+      component: "streamly:test:internal-data-fold-test"
+
+    - path: "test"
+      component: "streamly:test:internal-data-parser-test"
+
+    - path: "test"
+      component: "streamly:test:internal-data-parser-parserd-test"
+
+    - path: "test"
+      component: "streamly:test:data-array-test"
+
+    - path: "test"
+      component: "streamly:test:smallarray-test"
+
+    - path: "test"
+      component: "streamly:test:primarray-test"
+
+    - path: "test"
+      component: "streamly:test:prim-pinned-array-test"
+
+    - path: "test"
+      component: "streamly:test:string-test"
+
+    - path: "test"
+      component: "streamly:test:maxrate"
+
+    - path: "test"
+      component: "streamly:test:loops"
+
+    - path: "test"
+      component: "streamly:test:nested-loops"
+
+    - path: "test"
+      component: "streamly:test:parallel-loops"
+
+    - path: "test"
+      component: "streamly:test:version-bounds"
+
+    - path: "examples/SearchQuery.hs"
+      component: "streamly:exe:SearchQuery"
+
+    - path: "examples/ListDir.hs"
+      component: "streamly:exe:ListDir"
+
+    - path: "examples/MergeSort.hs"
+      component: "streamly:exe:MergeSort"
+
+    - path: "examples/AcidRain.hs"
+      component: "streamly:exe:AcidRain"
+
+    - path: "examples/CirclingSquare.hs"
+      component: "streamly:exe:CirclingSquare"
+
+    - path: "examples/ControlFlow.hs"
+      component: "streamly:exe:ControlFlow"
+
+    - path: "examples/HandleIO.hs"
+      component: "streamly:exe:HandleIO"
+
+    - path: "examples/FileIOExamples.hs"
+      component: "streamly:exe:FileIOExamples"
+
+    - path: "examples/EchoServer.hs"
+      component: "streamly:exe:EchoServer"
+
+    - path: "examples/FileSinkServer.hs"
+      component: "streamly:exe:FileSinkServer"
+
+    - path: "examples/FromFileClient.hs"
+      component: "streamly:exe:FromFileClient"
+
+    - path: "examples/WordClassifier.hs"
+      component: "streamly:exe:WordClassifier"
+
+    - path: "examples/WordCount.hs"
+      component: "streamly:exe:WordCount"
+
+    - path: "examples/CamelCase.hs"
+      component: "streamly:exe:CamelCase"
+
+    - path: "examples/Rate.hs"
+      component: "streamly:exe:Rate"
+
+    - path: "examples/Split.hs"
+      component: "streamly:exe:Split"
