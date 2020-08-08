@@ -590,8 +590,8 @@ lpackArraysChunksOf ::
     => Int
     -> Fold m (Array a) ()
     -> Fold m (Array a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) =
-    Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 extract1 cleanup1) =
+    Fold step initial extract cleanup
 
     where
 
@@ -604,6 +604,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple3' Nothing' 0 r1)
+
+    cleanup (Tuple3' _ _ r1) = cleanup1 r1
 
     extract (Tuple3' Nothing' _ r1) = extract1 r1
     extract (Tuple3' (Just' buf) boff r1) = do

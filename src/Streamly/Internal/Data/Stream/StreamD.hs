@@ -350,7 +350,8 @@ import Streamly.Internal.Data.Time.Units
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..), liftStep, liftExtract, liftInitialM)
+import Streamly.Internal.Data.Fold.Types
+       (Fold(..), liftStep, liftExtract, liftInitialM, liftCleanup)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -1515,14 +1516,17 @@ splitSuffixBy' predicate f (Stream step state) =
     where
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st) = do
+    stepOuter (Fold fstep initial done cleanup) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
                 if (predicate x)
-                then liftExtract done acc' >>= \val -> return $ Yield val (Just s)
+                then do
+                    fres <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield fres (Just s)
                 else go SPEC s acc'
 
             Skip s    -> return $ Skip $ Just s
@@ -1536,10 +1540,16 @@ splitSuffixBy' predicate f (Stream step state) =
                 Yield x s -> do
                     acc' <- liftStep fstep acc x
                     if (predicate x)
-                    then liftExtract done acc' >>= \val -> return $ Yield val (Just s)
+                    then do
+                        fres <- liftExtract done acc'
+                        liftCleanup cleanup acc'
+                        return $ Yield fres (Just s)
                     else go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \val -> return $ Yield val Nothing
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres Nothing
 
     stepOuter _ _ Nothing = return Stop
 
@@ -1554,7 +1564,7 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
     where
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
+    stepOuter (Fold fstep initial done cleanup) gst (Just st, Nothing) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -1575,11 +1585,17 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                     then do
                         acc' <- liftStep fstep acc x
                         go SPEC prev s acc'
-                    else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
+                    else do
+                        fres <- liftExtract done acc
+                        liftCleanup cleanup acc
+                        return $ Yield fres (Just s, Just x)
                 Skip s -> go SPEC prev s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres (Nothing, Nothing)
 
-    stepOuter (Fold fstep initial done) gst (Just st, Just prev) = do
+    stepOuter (Fold fstep initial done cleanup) gst (Just st, Just prev) = do
         acc <- initial
         acc' <- fstep acc prev
         go SPEC st acc'
@@ -1595,9 +1611,15 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                     then do
                         acc' <- liftStep fstep acc x
                         go SPEC s acc'
-                    else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
+                    else do
+                        fres <- liftExtract done acc
+                        liftCleanup cleanup acc
+                        return $ Yield fres (Just s, Just x)
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres (Nothing, Nothing)
 
     stepOuter _ _ (Nothing,_) = return Stop
 
@@ -1612,7 +1634,7 @@ groupsRollingBy cmp f (Stream step state) =
     where
 
       {-# INLINE_LATE stepOuter #-}
-      stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
+      stepOuter (Fold fstep initial done cleanup) gst (Just st, Nothing) = do
           res <- step (adaptState gst) st
           case res of
               Yield x s -> do
@@ -1632,12 +1654,17 @@ groupsRollingBy cmp f (Stream step state) =
                         then do
                           acc' <- liftStep fstep acc x
                           go SPEC x s acc'
-                        else
-                          liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
+                        else do
+                            fres <- liftExtract done acc
+                            liftCleanup cleanup acc
+                            return $ Yield fres (Just s, Just x)
                   Skip s -> go SPEC prev s acc
-                  Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                  Stop -> do
+                      fres <- liftExtract done acc
+                      liftCleanup cleanup acc
+                      return $ Yield fres (Nothing, Nothing)
 
-      stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
+      stepOuter (Fold fstep initial done cleanup) gst (Just st, Just prev') = do
           acc <- initial
           acc' <- fstep acc prev'
           go SPEC prev' st acc'
@@ -1651,9 +1678,15 @@ groupsRollingBy cmp f (Stream step state) =
                       then do
                           acc' <- liftStep fstep acc x
                           go SPEC x s acc'
-                      else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
+                      else do
+                          fres <- liftExtract done acc
+                          liftCleanup cleanup acc
+                          return $ Yield fres (Just s, Just x)
                   Skip s -> go SPEC prevv s acc
-                  Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                  Stop -> do
+                      fres <- liftExtract done acc
+                      liftCleanup cleanup acc
+                      return $ Yield fres (Nothing, Nothing)
 
       stepOuter _ _ (Nothing, _) = return Stop
 
@@ -1664,7 +1697,8 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
     where
 
     {-# INLINE_LATE step' #-}
-    step' (Fold fstep initial done) gst (Just st) = liftInitialM initial >>= go SPEC st
+    step' (Fold fstep initial done cleanup) gst (Just st) =
+        liftInitialM initial >>= go SPEC st
 
         where
 
@@ -1673,12 +1707,19 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
+                    then do
+                        fres <- liftExtract done acc
+                        liftCleanup cleanup acc
+                        return $ Yield fres (Just s)
+
                     else do
                         acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres Nothing
 
     step' _ _ Nothing = return Stop
 
@@ -1691,13 +1732,17 @@ splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
     where
 
     {-# INLINE_LATE step' #-}
-    step' (Fold fstep initial done) gst (Just st) = do
+    step' (Fold fstep initial done cleanup) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 acc <- initial
                 if predicate x
-                then done acc >>= \val -> return $ Yield val (Just s)
+                then do
+                    fres <- done acc
+                    cleanup acc
+                    return $ Yield fres (Just s)
+
                 else do
                     acc' <- fstep acc x
                     go SPEC s acc'
@@ -1712,12 +1757,19 @@ splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
+                    then do
+                        fres <- liftExtract done acc
+                        liftCleanup cleanup acc
+                        return $ Yield fres (Just s)
+
                     else do
                         acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres Nothing
 
     step' _ _ Nothing = return Stop
 
@@ -1728,7 +1780,7 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
     where
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st) = do
+    stepOuter (Fold fstep initial done cleanup) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -1749,12 +1801,19 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
+                    then do
+                        fres <- liftExtract done acc
+                        liftCleanup cleanup acc
+                        return $ Yield fres (Just s)
+
                     else do
                         acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres Nothing
 
     stepOuter _ _ Nothing = return Stop
 
@@ -1791,7 +1850,7 @@ splitOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOn patArr (Fold fstep initial done) (Stream step state) =
+splitOn patArr (Fold fstep initial done cleanup) (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1826,10 +1885,14 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     if pat == x
                     then do
                         r <- liftExtract done acc
+                        liftCleanup cleanup acc
                         return $ Yield r (GO_SINGLE_PAT s pat)
                     else liftStep fstep acc x >>= go SPEC s
                 Skip s -> go SPEC s acc
-                Stop -> liftExtract done acc >>= \r -> return $ Yield r GO_DONE
+                Stop -> do
+                    fres <- liftExtract done acc
+                    liftCleanup cleanup acc
+                    return $ Yield fres GO_DONE
 
     stepOuter gst (GO_SHORT_PAT stt) = liftInitialM initial >>= go0 SPEC 0 (0 :: Word) stt
 
@@ -1853,6 +1916,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                         if wrd' .&. mask == patWord
                         then do
                             r <- liftExtract done acc
+                            liftCleanup cleanup acc
                             return $ Yield r (GO_SHORT_PAT s)
                         else go1 SPEC wrd' s acc
                     else go0 SPEC (idx + 1) wrd' s acc
@@ -1861,7 +1925,9 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     acc' <- if idx /= 0
                             then go2 wrd idx acc
                             else return acc
-                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
+                    fres <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield fres GO_DONE
 
         {-# INLINE go1 #-}
         go1 !_ wrd st !acc = do
@@ -1872,12 +1938,17 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                         old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
                     acc' <- liftStep fstep acc (toEnum $ fromIntegral old)
                     if wrd' .&. mask == patWord
-                    then liftExtract done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    then do
+                        fres <- liftExtract done acc'
+                        liftCleanup cleanup acc'
+                        return $ Yield fres (GO_SHORT_PAT s)
                     else go1 SPEC wrd' s acc'
                 Skip s -> go1 SPEC wrd s acc
                 Stop -> do
                     acc' <- go2 wrd patLen acc
-                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
+                    fres <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield fres GO_DONE
 
         go2 !wrd !n !acc | n > 0 = do
             let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
@@ -1917,7 +1988,9 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     !acc' <- if idx /= 0
                              then RB.unsafeFoldRingM rh (liftStep fstep) acc rb
                              else return acc
-                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
+                    fres <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield fres GO_DONE
 
         -- XXX Theoretically this code can do 4 times faster if GHC generates
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
@@ -1943,12 +2016,15 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Skip s -> go1 SPEC cksum rh s acc
                 Stop -> do
                     acc' <- RB.unsafeFoldRingFullM rh (liftStep fstep) acc rb
-                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
+                    fres <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield fres GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
             if RB.unsafeEqArray rb rh' patArr
             then do
                 r <- liftExtract done acc'
+                liftCleanup cleanup acc'
                 return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
@@ -1958,7 +2034,9 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                liftExtract done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
+                fres <- liftExtract done acc'
+                liftCleanup cleanup acc'
+                return $ Yield fres (GO_EMPTY_PAT s)
             Skip s -> return $ Skip (GO_EMPTY_PAT s)
             Stop -> return Stop
 
@@ -1972,7 +2050,7 @@ splitSuffixOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitSuffixOn withSep patArr (Fold fstep initial done)
+splitSuffixOn withSep patArr (Fold fstep initial done cleanup)
                 (Stream step state) =
     Stream stepOuter GO_START
 
@@ -2008,7 +2086,10 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                 if pat == x
                 then do
                     acc' <- if withSep then fstep acc x else FL.partialM acc
-                    liftExtract done acc' >>= \r -> return $ Yield r (GO_SINGLE_PAT s pat)
+                    r <- liftExtract done acc'
+                    liftCleanup cleanup acc'
+                    return $ Yield r (GO_SINGLE_PAT s pat)
+
                 else fstep acc x >>= go SPEC s
             Skip s    -> return $ Skip $ (GO_SINGLE_PAT s pat)
             Stop      -> return Stop
@@ -3553,7 +3634,7 @@ scanlMx' fstep begin done s =
 {-# INLINE_NORMAL postscanFold #-}
 postscanFold :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-postscanFold (FL.Fold fstep begin done) (Stream step state) = do
+postscanFold (FL.Fold fstep begin done cleanup) (Stream step state) = do
     Stream step' (state, liftInitialM begin)
   where
     {-# INLINE_LATE step' #-}
@@ -3566,13 +3647,15 @@ postscanFold (FL.Fold fstep begin done) (Stream step state) = do
                 v <- liftExtract done y
                 v `seq` y `seq` return (Yield v (s, return y))
             Skip s -> return $ Skip (s, acc)
-            Stop   -> return Stop
+            Stop   -> do
+                acc >>= liftCleanup cleanup
+                return Stop
 
-
+-- XXX Cleanup?
 {-# INLINE scanFold #-}
 scanFold :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-scanFold fld@(FL.Fold _ begin done) s =
+scanFold fld@(FL.Fold _ begin done _) s =
     (begin >>= \x -> x `seq` done x) `consM` postscanFold fld s
 
 {-# INLINE scanlx' #-}
@@ -3756,7 +3839,8 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
-tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
+tap (Fold fstep initial extract cleanup) (Stream step state) =
+    Stream step' Nothing
 
     where
 
@@ -3772,13 +3856,16 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
                 return $ Yield x (Just (acc', s))
             Skip s    -> return $ Skip (Just (acc, s))
             Stop      -> do
+                -- XXX Extract used here?
+                -- XXX Write folds in such a way that extract does not have cleanup effects
                 void $ liftExtract extract acc
+                void $ liftCleanup cleanup acc
                 return $ Stop
 
 {-# INLINE_NORMAL tapOffsetEvery #-}
 tapOffsetEvery :: Monad m
     => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
-tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
+tapOffsetEvery offset n (Fold fstep initial extract cleanup) (Stream step state) =
     Stream step' Nothing
 
     where
@@ -3796,7 +3883,10 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
                 return $ Yield x (Just (acc', s, n - 1))
             Skip s    -> return $ Skip (Just (acc, s, count))
             Stop      -> do
+                -- XXX Extract used here?
+                -- XXX Write folds in such a way that extract does not have cleanup effects
                 void $ liftExtract extract acc
+                void $ liftCleanup cleanup acc
                 return $ Stop
 
     step' gst (Just (acc, st, count)) = do
@@ -3805,7 +3895,10 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
             Yield x s -> return $ Yield x (Just (acc, s, count - 1))
             Skip s    -> return $ Skip (Just (acc, s, count))
             Stop      -> do
+                -- XXX Extract used here?
+                -- XXX Write folds in such a way that extract does not have cleanup effects
                 void $ liftExtract extract acc
+                void $ liftCleanup cleanup acc
                 return $ Stop
 
 {-# INLINE_NORMAL pollCounts #-}
@@ -4334,7 +4427,7 @@ the (Stream step state) = go state
 
 {-# INLINE runFold #-}
 runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
-runFold (Fold fstep begin done) (Stream step state) =
+runFold (Fold fstep begin done cleanup) (Stream step state) =
     begin >>= \x -> go SPEC x state
   where
     -- XXX !acc?
@@ -4348,7 +4441,10 @@ runFold (Fold fstep begin done) (Stream step state) =
                     FL.Done b -> return b
                     FL.Partial acc'' -> go SPEC acc'' s
             Skip s -> go SPEC acc s
-            Stop   -> done acc
+            Stop   -> do
+                res <- done acc
+                cleanup acc
+                return res
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold
@@ -4558,7 +4654,7 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
 lastN n
     | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = A.unsafeFreeze <$> Fold step initial done
+    | otherwise = A.unsafeFreeze <$> FL.mkFoldM step initial done
   where
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a

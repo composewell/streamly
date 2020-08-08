@@ -158,10 +158,8 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
-import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap)
-
-import Streamly.Internal.Data.Fold.Types (Fold(..), liftInitialM, liftStep, liftExtract)
+import Streamly.Internal.Data.Fold.Types
+       (Fold(..), liftInitialM, liftStep, liftExtract, liftCleanup)
 
 -- import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 -- import qualified Streamly.Internal.Data.Zipper as Z
@@ -170,18 +168,23 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
 import Streamly.Internal.Data.Strict
+import Prelude
+       hiding (any, all, take, takeWhile, sequence, concatMap)
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
 --
+
 -- | See 'Streamly.Internal.Data.Parser.fromFold'.
 --
 -- /Internal/
 --
+
+-- XXX Ignoring cleanup?
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
-fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
+fromFold (Fold fstep finitial fextract _) = Parser step finitial fextract
 
     where
 
@@ -279,7 +282,7 @@ satisfy predicate = Parser step initial extract
 --
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Parser m a b
-take n (Fold fstep finitial fextract) = Parser step initial extract
+take n (Fold fstep finitial fextract fcleanup) = Parser step initial extract
 
      where
 
@@ -292,8 +295,9 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
                 s1 = Tuple' i1 res
             if i1 < n
             then return $ Partial 0 s1
-            else Done 0 <$> liftExtract fextract res
-        | otherwise = Done 1 <$> liftExtract fextract r
+            else Done 0 <$> liftExtract fextract res <* liftCleanup fcleanup r
+        | otherwise =
+            Done 1 <$> liftExtract fextract r <* liftCleanup fcleanup r
 
     extract (Tuple' _ r) = liftExtract fextract r
 
@@ -303,7 +307,7 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
+takeEQ cnt (Fold fstep finitial fextract fcleanup) = Parser step initial extract
 
     where
 
@@ -318,8 +322,8 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
               s1 = Tuple' i1 res
           if i1 < n
           then return (Continue 0 s1)
-          else Done 0 <$> liftExtract fextract res
-      | otherwise = Done 1 <$> liftExtract fextract r
+          else Done 0 <$> liftExtract fextract res <* liftCleanup fcleanup r
+      | otherwise = Done 1 <$> liftExtract fextract r <* liftCleanup fcleanup r
 
     extract (Tuple' i r) =
         if n == i
@@ -338,7 +342,7 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
+takeGE cnt (Fold fstep finitial fextract _) = Parser step initial extract
     where
 
     n = max cnt 0
@@ -373,7 +377,7 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-takeWhile predicate (Fold fstep finitial fextract) =
+takeWhile predicate (Fold fstep finitial fextract fcleanup) =
     Parser step initial (liftExtract fextract)
 
     where
@@ -383,7 +387,7 @@ takeWhile predicate (Fold fstep finitial fextract) =
     step s a =
         if predicate a
         then Partial 0 <$> liftStep fstep s a
-        else Done 1 <$> liftExtract fextract s
+        else Done 1 <$> liftExtract fextract s <* liftCleanup fcleanup s
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
@@ -391,7 +395,7 @@ takeWhile predicate (Fold fstep finitial fextract) =
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadThrow m => (a -> Bool) -> Fold m a b -> Parser m a b
-takeWhile1 predicate (Fold fstep finitial fextract) =
+takeWhile1 predicate (Fold fstep finitial fextract fcleanup) =
     Parser step initial extract
 
     where
@@ -412,7 +416,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             return $ Partial 0 (Just r)
         else do
             b <- liftExtract fextract s
-            return $ Done 1 b
+            return (Done 1 b) <* liftCleanup fcleanup s
 
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = liftExtract fextract s
@@ -423,7 +427,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 --
 {-# INLINABLE sliceSepBy #-}
 sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepBy predicate (Fold fstep finitial fextract) =
+sliceSepBy predicate (Fold fstep finitial fextract fcleanup) =
     Parser step initial (liftExtract fextract)
 
     where
@@ -432,7 +436,7 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
     step s a =
         if not (predicate a)
         then Partial 0 <$> liftStep fstep s a
-        else Done 0 <$> liftExtract fextract s
+        else Done 0 <$> liftExtract fextract s <* liftCleanup fcleanup s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --
@@ -461,7 +465,7 @@ sliceBeginWith = undefined
 {-# INLINABLE sliceSepByMax #-}
 sliceSepByMax :: Monad m
     => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
-sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
+sliceSepByMax predicate cnt (Fold fstep finitial fextract fcleanup) =
     Parser step initial extract
 
     where
@@ -476,8 +480,8 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
                 let i1 = i + 1
                     s1 = Tuple' i1 res
                 return $ Partial 0 s1
-            else Done 1 <$> liftExtract fextract r
-        | otherwise = Done 0 <$> liftExtract fextract r
+            else Done 1 <$> liftExtract fextract r <* liftCleanup fcleanup r
+        | otherwise = Done 0 <$> liftExtract fextract r <* liftCleanup fcleanup r
 
     extract (Tuple' _ r) = liftExtract fextract r
 
@@ -660,7 +664,7 @@ data ManyTillState fs sr sl = ManyTillR Int fs sr | ManyTillL fs sl
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m
     => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-manyTill (Fold fstep finitial fextract)
+manyTill (Fold fstep finitial fextract fcleanup)
          (Parser stepL initialL extractL)
          (Parser stepR initialR _) =
     Parser step initial extract
@@ -680,7 +684,7 @@ manyTill (Fold fstep finitial fextract)
                 return $ Continue n (ManyTillR (cnt + 1 - n) fs s)
             Done n _ -> do
                 b <- liftExtract fextract fs
-                return $ Done n b
+                return (Done n b) <* liftCleanup fcleanup fs
             Error _ -> do
                 rR <- initialL
                 return $ Continue (cnt + 1) (ManyTillL fs rR)
@@ -694,7 +698,7 @@ manyTill (Fold fstep finitial fextract)
                 fs1 <- liftStep fstep fs b
                 l <- initialR
                 return $ Partial n (ManyTillR 0 fs1 l)
-            Error err -> return $ Error err
+            Error err -> return (Error err) <* liftCleanup fcleanup fs
 
     extract (ManyTillL fs sR) = extractL sR >>= liftStep fstep fs >>= liftExtract fextract
     extract (ManyTillR _ fs _) = liftExtract fextract fs

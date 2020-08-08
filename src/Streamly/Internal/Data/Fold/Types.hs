@@ -121,10 +121,12 @@ module Streamly.Internal.Data.Fold.Types
     ( Step (..)
     , liftStep
     , liftExtract
+    , liftCleanup
     , liftInitial
     , liftInitialM
     , partialM
     , doneM
+    , nocleanup
     , Fold (..)
 
     , Fold2 (..)
@@ -200,8 +202,8 @@ instance Functor (Step s) where
 -- @since 0.7.0
 
 data Fold m a b =
-  -- | @Fold @ @ step @ @ initial @ @ extract@
-  forall s. Fold (s -> a -> m (Step s b)) (m s) (s -> m b)
+  -- | @Fold @ @ step @ @ initial @ @ extract @ @ cleanup@
+  forall s. Fold (s -> a -> m (Step s b)) (m s) (s -> m b) (s -> m ())
 
 {-# INLINE liftStep #-}
 liftStep :: Monad m => (s -> a -> m (Step s b)) -> Step s b -> a -> m (Step s b)
@@ -212,6 +214,11 @@ liftStep _ x _ = return x
 liftExtract :: Monad m => (s -> m b) -> Step s b -> m b
 liftExtract _ (Done b) = return b
 liftExtract done (Partial s) = done s
+
+{-# INLINE liftCleanup #-}
+liftCleanup :: Monad m => (s -> m ()) -> Step s b -> m ()
+liftCleanup _ (Done _) = return ()
+liftCleanup cleanup (Partial s) = cleanup s
 
 {-# INLINE liftInitial #-}
 liftInitial :: s -> Step s b
@@ -229,6 +236,10 @@ partialM = return . Partial
 doneM :: Monad m => b -> m (Step s b)
 doneM = return . Done
 
+{-# INLINE nocleanup #-}
+nocleanup :: Monad m => s -> m ()
+nocleanup _ = return ()
+
 -- | Experimental type to provide a side input to the fold for generating the
 -- initial state. For example, if we have to fold chunks of a stream and write
 -- each chunk to a different file, then we can generate the file name using a
@@ -239,14 +250,14 @@ data Fold2 m c a b =
   forall s. Fold2 (s -> a -> m s) (c -> m s) (s -> m b)
 
 -- | Convert more general type 'Fold2' into a simpler type 'Fold'
-simplify :: Functor m => Fold2 m c a b -> c -> Fold m a b
+simplify :: Monad m => Fold2 m c a b -> c -> Fold m a b
 simplify (Fold2 step inject extract) c =
-    Fold (\x a -> Partial <$> step x a) (inject c) extract
+    Fold (\x a -> Partial <$> step x a) (inject c) extract nocleanup
 
 -- | Maps a function on the output of the fold (the type @b@).
 instance Monad m => Functor (Fold m a) where
     {-# INLINE fmap #-}
-    fmap f (Fold step start done) = Fold step' start done'
+    fmap f (Fold step start done cleanup) = Fold step' start done' cleanup
         where
         step' x a = do
             res <- step x a
@@ -259,16 +270,18 @@ instance Monad m => Functor (Fold m a) where
 -- folds and combines their output using the supplied function.
 instance Monad m => Applicative (Fold m a) where
     {-# INLINE pure #-}
-    pure b = Fold (\() _ -> pure $ Done b) (pure ()) (\() -> pure b)
+    pure b = Fold (\() _ -> pure $ Done b) (pure ()) (\() -> pure b) return
     {-# INLINE (<*>) #-}
-    (Fold stepL beginL doneL) <*> (Fold stepR beginR doneR) =
+    (Fold stepL beginL doneL cleanupL) <*> (Fold stepR beginR doneR cleanupR) =
         let combine (Done dL) (Done dR) = Done $ dL dR
             combine sl sr = Partial $ Tuple' sl sr
             step (Tuple' xL xR) a =
                 combine <$> liftStep stepL xL a <*> liftStep stepR xR a
             begin = Tuple' <$> liftInitialM beginL <*> liftInitialM beginR
             done (Tuple' xL xR) = liftExtract doneL xL <*> liftExtract doneR xR
-         in Fold step begin done
+            cleanup (Tuple' xL xR) =
+                liftCleanup cleanupL xL >> liftCleanup cleanupR xR
+         in Fold step begin done cleanup
 
 
 -- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
@@ -394,7 +407,7 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toListRevF #-}
 toListRevF :: Monad m => Fold m a [a]
-toListRevF = Fold (\xs x -> partialM $ x:xs) (return []) return
+toListRevF = Fold (\xs x -> partialM $ x:xs) (return []) return nocleanup
 
 -- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --
@@ -404,7 +417,7 @@ toListRevF = Fold (\xs x -> partialM $ x:xs) (return []) return
 -- @since 0.7.0
 {-# INLINABLE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
-lmap f (Fold step begin done) = Fold step' begin done
+lmap f (Fold step begin done cleanup) = Fold step' begin done cleanup
   where
     step' x a = step x (f a)
 
@@ -413,7 +426,7 @@ lmap f (Fold step begin done) = Fold step' begin done
 -- @since 0.7.0
 {-# INLINABLE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
-lmapM f (Fold step begin done) = Fold step' begin done
+lmapM f (Fold step begin done cleanup) = Fold step' begin done cleanup
   where
     step' x a = f a >>= step x
 
@@ -429,7 +442,7 @@ lmapM f (Fold step begin done) = Fold step' begin done
 -- @since 0.7.0
 {-# INLINABLE lfilter #-}
 lfilter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
-lfilter f (Fold step begin done) = Fold step' begin done
+lfilter f (Fold step begin done cleanup) = Fold step' begin done cleanup
   where
     step' x a = if f a then step x a else partialM x
 
@@ -438,7 +451,7 @@ lfilter f (Fold step begin done) = Fold step' begin done
 -- @since 0.7.0
 {-# INLINABLE lfilterM #-}
 lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-lfilterM f (Fold step begin done) = Fold step' begin done
+lfilterM f (Fold step begin done cleanup) = Fold step' begin done cleanup
   where
     step' x a = do
       use <- f a
@@ -461,7 +474,7 @@ lcatMaybes = lfilter isJust . lmap fromJust
 -- @since 0.7.0
 {-# INLINE ltake #-}
 ltake :: Monad m => Int -> Fold m a b -> Fold m a b
-ltake n (Fold step initial done) = Fold step' initial' done'
+ltake n (Fold step initial done cleanup) = Fold step' initial' done' cleanup'
     where
     initial' = fmap (Tuple' 0) initial
     step' (Tuple' i r) a =
@@ -473,13 +486,15 @@ ltake n (Fold step initial done) = Fold step' initial' done'
                 Done b -> doneM b
         else Done <$> done r
     done' (Tuple' _ r) = done r
+    cleanup' (Tuple' _ r) = cleanup r
 
 -- | Takes elements from the input as long as the predicate succeeds.
 --
 -- @since 0.7.0
 {-# INLINABLE ltakeWhile #-}
 ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-ltakeWhile predicate (Fold step initial done) = Fold step' initial done
+ltakeWhile predicate (Fold step initial done cleanup) =
+    Fold step' initial done cleanup
     where
     step' r a =
         if predicate a
@@ -505,34 +520,36 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial done
 -- XXX Is this correct?
 {-# INLINABLE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
-duplicate (Fold step begin done) =
-    Fold step' begin (\x -> pure (Fold step (pure x) done))
+duplicate (Fold step begin done cleanup) =
+    Fold step' begin (\x -> pure (Fold step (pure x) done cleanup)) cleanup
     where
       step' x a = do
           res <- step x a
           case res of
               Partial s -> pure $ Partial s
-              Done _ -> pure $ Done $ Fold step (pure x) done
+              Done _ -> pure $ Done $ Fold step (pure x) done cleanup
 
 -- | Run the initialization effect of a fold. The returned fold would use the
 -- value returned by this effect as its initial value.
 --
 {-# INLINABLE initialize #-}
 initialize :: Monad m => Fold m a b -> m (Fold m a b)
-initialize (Fold step initial extract) = do
+initialize (Fold step initial extract cleanup) = do
     i <- initial
-    return $ Fold step (return i) extract
+    return $ Fold step (return i) extract cleanup
 
 -- | Run one step of a fold and store the accumulator as an initial value in
 -- the returned fold.
 {-# INLINABLE runStep #-}
 runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
-runStep (Fold step initial extract) a = do
+runStep (Fold step initial extract cleanup) a = do
     i <- initial
     r <- step i a
     case r of
-        Partial s -> return $ Fold step (return s) extract
-        Done b -> return $ Fold (\_ _ -> doneM b) (return i) (\_ -> return b)
+        Partial s -> return $ Fold step (return s) extract cleanup
+        Done b ->
+            return $
+            Fold (\_ _ -> doneM b) (return i) (\_ -> return b) nocleanup
 
 
 ------------------------------------------------------------------------------
@@ -547,8 +564,8 @@ runStep (Fold step initial extract) a = do
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
+lchunksOf n (Fold step1 initial1 extract1 cleanup1) (Fold step2 initial2 extract2 cleanup2) =
+    Fold step' initial' extract' cleanup'
 
     where
 
@@ -571,10 +588,13 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
         res <- liftExtract extract1 r1
         acc2 <- liftStep step2 r2 res
         liftExtract extract2 acc2
+    cleanup' (Tuple3' _ r1 r2) =
+        liftCleanup cleanup1 r1 >> liftCleanup cleanup2 r2
 
+-- XXX Resource never cleaned up
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
-lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
+lchunksOf2 n (Fold step1 initial1 extract1 _) (Fold2 step2 inject2 extract2) =
     Fold2 step' inject' extract'
 
     where
@@ -612,8 +632,8 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 -- XXX Should we check for mv2 at each step?
 {-# INLINE lsessionsOf #-}
 lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
+lsessionsOf n (Fold step1 initial1 extract1 cleanup1) (Fold step2 initial2 extract2 cleanup2) =
+    Fold step' initial' extract' cleanup'
 
     where
 
@@ -637,12 +657,21 @@ lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
                 Partial _ -> partialM acc
                 Done _ -> partialM $ Tuple3' t (Done mv1) mv2
     step' acc@(Tuple3' _ (Done _) _) _ = partialM acc
-    extract' (Tuple3' tid _ mv2) = do
+    extract' (Tuple3' _ _ mv2) = do
         r2 <- liftIO $ takeMVar mv2
-        liftIO $ killThread tid
         case r2 of
             Left e -> throwM e
             Right x -> liftExtract extract2 x
+    cleanup tid mv1 mv2 = do
+        liftIO $ killThread tid
+        r1 <- liftIO $ takeMVar mv1
+        liftCleanup cleanup1 r1
+        r2 <- liftIO $ takeMVar mv2
+        case r2 of
+            Left e -> throwM e
+            Right x -> liftCleanup cleanup2 x
+    cleanup' (Tuple3' tid (Done mv1) mv2) = cleanup tid mv1 mv2
+    cleanup' (Tuple3' tid (Partial mv1) mv2) = cleanup tid mv1 mv2
 
     timerThread mv1 mv2 = do
         liftIO $ threadDelay (round $ n * 1000000)

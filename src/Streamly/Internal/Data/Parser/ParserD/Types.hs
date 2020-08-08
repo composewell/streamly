@@ -133,13 +133,13 @@ import Control.Applicative (Alternative(..))
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
-
-import Prelude hiding (concatMap)
-
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Types (liftInitialM, liftStep, liftExtract)
+import Streamly.Internal.Data.Fold.Types
+       (liftInitialM, liftStep, liftExtract, liftCleanup)
 import Streamly.Internal.Data.Fold (Fold(..), toList)
 import Streamly.Internal.Data.Strict (Tuple3'(..))
+
+import Prelude hiding (concatMap)
 
 -- | The return type of a 'Parser' step.
 --
@@ -436,7 +436,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 --
 {-# INLINE splitMany #-}
 splitMany :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
+splitMany (Fold fstep finitial fextract fcleanup) (Parser step1 initial1 extract1) =
   Parser step initial extract
 
     where
@@ -463,14 +463,21 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return $ Partial n (Tuple3' s 0 fs1)
             Error _ -> do
                 xs <- liftExtract fextract fs
+                liftCleanup fcleanup fs
                 return $ Done cnt1 xs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ fs) = do
         r <- try $ extract1 s
         case r of
-            Left (_ :: ParseError) -> liftExtract fextract fs
-            Right b -> liftStep fstep fs b >>= liftExtract fextract
+            Left (_ :: ParseError) -> do
+                res <- liftExtract fextract fs
+                liftCleanup fcleanup fs
+                return res
+            Right b -> do
+                res <- liftStep fstep fs b >>= liftExtract fextract
+                liftCleanup fcleanup fs
+                return res
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
@@ -478,7 +485,7 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 --
 {-# INLINE splitSome #-}
 splitSome :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
+splitSome (Fold fstep finitial fextract fcleanup) (Parser step1 initial1 extract1) =
     Parser step initial extract
 
     where
@@ -498,7 +505,9 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 s <- initial1
                 fs1 <- liftStep fstep fs b
                 return $ Partial n (Tuple3' s 0 (Right fs1))
-            Error err -> return $ Error err
+            Error err -> do
+                liftCleanup fcleanup fs
+                return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
@@ -513,7 +522,10 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 s <- initial1
                 fs1 <- liftStep fstep fs b
                 return $ Partial n (Tuple3' s 0 (Right fs1))
-            Error _ -> Done cnt1 <$> liftExtract fextract fs
+            Error _ -> do
+                res <- Done cnt1 <$> liftExtract fextract fs
+                liftCleanup fcleanup fs
+                return res
 
     -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ (Left fs)) = extract1 s >>= liftStep fstep fs >>= liftExtract fextract

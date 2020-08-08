@@ -62,13 +62,14 @@ import Control.Monad.Trans.Class (lift, MonadTrans)
 import Data.Functor.Identity (Identity(..))
 import GHC.Base (build)
 import GHC.Types (SPEC(..))
-import Prelude hiding (map, mapM, foldr, take, concatMap)
 import Fusion.Plugin.Types (Fuse(..))
-
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
-import Streamly.Internal.Data.Fold.Types (Fold(..), liftInitialM, liftStep, liftExtract, Fold2(..))
+import Streamly.Internal.Data.Fold.Types
+       (Fold(..), liftInitialM, liftStep, liftExtract, liftCleanup, Fold2(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+
+import Prelude hiding (map, mapM, foldr, take, concatMap)
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -600,7 +601,7 @@ groupsOf
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-groupsOf n (Fold fstep initial extract) (Stream step state) =
+groupsOf n (Fold fstep initial extract cleanup) (Stream step state) =
     n `seq` Stream step' (GroupStart state)
 
     where
@@ -628,10 +629,13 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
                     then Skip (GroupYield fs' (GroupStart s))
                     else Skip (GroupBuffer s fs' i')
             Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
+            Stop -> do
+                liftCleanup cleanup fs
+                return $ Skip (GroupYield fs GroupFinish)
 
     step' _ (GroupYield fs next) = do
         r <- liftExtract extract fs
+        liftCleanup cleanup fs
         return $ Yield r next
 
     step' _ GroupFinish = return Stop

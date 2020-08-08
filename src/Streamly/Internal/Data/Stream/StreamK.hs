@@ -436,10 +436,14 @@ foldlMx' step begin done m = go begin m
 
 {-# INLINABLE runFold #-}
 runFold :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> m b
-runFold (FL.Fold step begin done) m = go begin m
+runFold (FL.Fold step begin done cleanup) m = go begin m
     where
     go !acc m1 =
-        let stop = acc >>= done
+        let stop = do
+                acc1 <- acc
+                res <- done acc1
+                cleanup acc1
+                return res
             single a = acc >>= \b -> step b a >>= FL.liftExtract done
             yieldk a r = acc
               >>= \b -> step b a

@@ -255,7 +255,7 @@ swap = lmap Tuple.swap
 --
 {-# INLINE_NORMAL fold #-}
 fold :: Monad m => Unfold m a b -> Fold m b c -> a -> m c
-fold (Unfold ustep inject) (Fold fstep initial extract) a =
+fold (Unfold ustep inject) (Fold fstep initial extract cleanup) a =
     initial >>= \x -> inject a >>= go SPEC x
   where
     -- XXX !acc?
@@ -269,7 +269,7 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
                     FL.Partial acc'' -> go SPEC acc'' s
                     FL.Done c -> return c
             Skip s -> go SPEC acc s
-            Stop   -> extract acc
+            Stop   -> extract acc <* cleanup acc
 
 {-# INLINE_NORMAL map #-}
 map :: Monad m => (b -> c) -> Unfold m a b -> Unfold m a c

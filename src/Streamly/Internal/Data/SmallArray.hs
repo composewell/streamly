@@ -57,7 +57,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold as FL
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
@@ -106,7 +106,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Memory.Array".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
-writeN limit = Fold step initial extract
+writeN limit = FL.mkFoldM step initial extract
   where
     initial = do
         marr <- liftIO $ newSmallArray limit bottomElement

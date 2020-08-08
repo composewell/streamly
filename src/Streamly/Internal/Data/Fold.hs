@@ -242,6 +242,8 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 -- Smart constructors
 ------------------------------------------------------------------------------
 
+-- These smart constructors do not provide any cleanup mechanism.
+
 -- | Make a non terminating fold using a pure step function, a pure initial
 -- state and a pure state extraction function.
 --
@@ -250,7 +252,11 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 {-# INLINE mkAccum #-}
 mkAccum :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
 mkAccum step initial extract =
-    Fold (\s a -> partialM $ step s a) (return initial) (return . extract)
+    Fold
+        (\s a -> partialM $ step s a)
+        (return initial)
+        (return . extract)
+        nocleanup
 
 -- | Make a non terminating fold using a pure step function and a pure initial
 -- state. The final state extracted is identical to the intermediate state.
@@ -267,8 +273,9 @@ mkAccum_ step initial = mkAccum step initial id
 -- /Internal/
 --
 {-# INLINE mkAccumM #-}
-mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
-mkAccumM step = Fold (\s a -> Partial <$> step s a)
+mkAccumM :: Monad m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
+mkAccumM step initial extract =
+    Fold (\s a -> Partial <$> step s a) initial extract nocleanup
 
 -- | Make a non terminating fold with an effectful step function and initial
 -- state.  The final state extracted is identical to the intermediate state.
@@ -287,7 +294,11 @@ mkAccumM_ step initial = mkAccumM step initial return
 {-# INLINE mkFold #-}
 mkFold :: Monad m => (s -> a -> Step s b) -> s -> (s -> b) -> Fold m a b
 mkFold step initial extract =
-    Fold (\s a -> return $ step s a) (return initial) (return . extract)
+    Fold
+        (\s a -> return $ step s a)
+        (return initial)
+        (return . extract)
+        nocleanup
 
 -- | Make a fold using a pure step function and a pure initial state. The
 -- final state extracted is identical to the intermediate state.
@@ -301,15 +312,13 @@ mkFold_ step initial = mkFold step initial id
 -- | Make a fold with an effectful step function and initial state, and a state
 -- extraction function.
 --
--- > mkFoldM = Fold
---
---  We can just use 'Fold' but it is provided for completeness.
+-- > mkFoldM step initial extract = Fold step initial extract nocleanup
 --
 -- /Internal/
 --
 {-# INLINE mkFoldM #-}
-mkFoldM :: (s -> a -> m (Step s b)) -> m s -> (s -> m b) -> Fold m a b
-mkFoldM = Fold
+mkFoldM ::Monad m => (s -> a -> m (Step s b)) -> m s -> (s -> m b) -> Fold m a b
+mkFoldM step initial extract = Fold step initial extract nocleanup
 
 -- | Make a fold with an effectful step function and initial state.  The final
 -- state extracted is identical to the intermediate state.
@@ -318,7 +327,7 @@ mkFoldM = Fold
 --
 {-# INLINE mkFoldM_ #-}
 mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m b -> Fold m a b
-mkFoldM_ step initial = Fold step initial return
+mkFoldM_ step initial = mkFoldM step initial return
 
 ------------------------------------------------------------------------------
 -- hoist
@@ -328,8 +337,8 @@ mkFoldM_ step initial = Fold step initial return
 --
 -- /Internal/
 hoist :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
-hoist f (Fold step initial extract) =
-    Fold (\x a -> f $ step x a) (f initial) (f . extract)
+hoist f (Fold step initial extract cleanup) =
+    Fold (\x a -> f $ step x a) (f initial) (f . extract) (f . cleanup)
 
 -- | Adapt a pure fold to any monad
 --
@@ -348,7 +357,8 @@ generally = hoist (return . runIdentity)
 -- @since 0.7.0
 {-# INLINE sequence #-}
 sequence :: Monad m => Fold m a (m b) -> Fold m a b
-sequence (Fold step initial extract) = Fold step' initial extract'
+sequence (Fold step initial extract cleanup) =
+    Fold step' initial extract' cleanup
   where
     step' s a = do
         res <- step s a
@@ -375,8 +385,8 @@ mapM f = sequence . fmap f
 -- @since 0.7.0
 {-# INLINE transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
-    Fold step initial extract
+transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract fcleanup) =
+    Fold step initial extract cleanup
 
     where
 
@@ -408,6 +418,8 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     extract (Tuple' _ fs) = fextract fs
 
+    cleanup (Tuple' _ fs) = fcleanup fs
+
 ------------------------------------------------------------------------------
 -- Utilities
 ------------------------------------------------------------------------------
@@ -418,7 +430,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 -- from the 'Foldable', the result is 'None' for empty containers.
 {-# INLINABLE _Fold1 #-}
 _Fold1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-_Fold1 step = Fold step_ (return Nothing') (return . toMaybe)
+_Fold1 step = Fold step_ (return Nothing') (return . toMaybe) nocleanup
   where
     step_ Nothing' a = partialM $ Just' a
     step_ (Just' x) a = partialM $ Just' $ step x  a
@@ -439,7 +451,7 @@ _Fold1 step = Fold step_ (return Nothing') (return . toMaybe)
 -- @since 0.7.0
 {-# INLINABLE drain #-}
 drain :: Monad m => Fold m a ()
-drain = Fold step begin done
+drain = mkFoldM step begin done
     where
     begin = return ()
     step _ _ = FL.partialM ()
@@ -455,7 +467,7 @@ drain = Fold step begin done
 -- @since 0.7.0
 {-# INLINABLE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
-drainBy f = Fold (const (fmap FL.Partial . void . f)) (return ()) return
+drainBy f = mkFoldM (const (fmap FL.Partial . void . f)) (return ()) return
 
 {-# INLINABLE drainBy2 #-}
 drainBy2 ::  Monad m => (a -> m b) -> Fold2 m c a ()
@@ -481,7 +493,7 @@ last = _Fold1 (flip const)
 -- @since 0.7.0
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
-genericLength = Fold (\n _ -> partialM $ n + 1) (return 0) return
+genericLength = mkFoldM (\n _ -> partialM $ n + 1) (return 0) return
 
 -- | Determine the length of the input stream.
 --
@@ -501,7 +513,7 @@ length = genericLength
 -- @since 0.7.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum = Fold (\x a -> partialM $ x + a) (return 0) return
+sum = mkFoldM (\x a -> partialM $ x + a) (return 0) return
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty.
@@ -511,7 +523,7 @@ sum = Fold (\x a -> partialM $ x + a) (return 0) return
 -- @since 0.7.0
 {-# INLINABLE product #-}
 product :: (Monad m, Num a) => Fold m a a
-product = Fold (\x a -> partialM $ x * a) (return 1) return
+product = mkFoldM (\x a -> partialM $ x * a) (return 1) return
 
 ------------------------------------------------------------------------------
 -- To Summary (Maybe)
@@ -578,7 +590,7 @@ minimum = _Fold1 min
 -- @since 0.7.0
 {-# INLINABLE mean #-}
 mean :: (Monad m, Fractional a) => Fold m a a
-mean = Fold step (return begin) (return . done)
+mean = mkFoldM step (return begin) (return . done)
   where
     begin = Tuple' 0 0
     step (Tuple' x n) y = return $
@@ -592,7 +604,7 @@ mean = Fold step (return begin) (return . done)
 -- @since 0.7.0
 {-# INLINABLE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
-variance = Fold step (return begin) (return . done)
+variance = mkFoldM step (return begin) (return . done)
   where
     begin = Tuple3' 0 0 0
 
@@ -627,7 +639,7 @@ stdDev = sqrt variance
 -- @since 0.7.0
 {-# INLINABLE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
-rollingHashWithSalt salt = Fold step initial extract
+rollingHashWithSalt salt = mkFoldM step initial extract
     where
     k = 2891336453 :: Int64
     initial = return salt
@@ -668,7 +680,7 @@ rollingHashFirstN n = ltake n rollingHash
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Monoid a) => a -> Fold m a a
-sconcat i = Fold (\x a -> partialM $ mappend x a) (return i) return
+sconcat i = mkFoldM (\x a -> partialM $ mappend x a) (return i) return
 
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
@@ -678,7 +690,7 @@ sconcat i = Fold (\x a -> partialM $ mappend x a) (return i) return
 -- @since 0.7.0
 {-# INLINABLE mconcat #-}
 mconcat :: (Monad m, Monoid a) => Fold m a a
-mconcat = Fold (\x a -> partialM $ mappend x a) (return mempty) return
+mconcat = mkFoldM (\x a -> partialM $ mappend x a) (return mempty) return
 
 -- |
 -- > foldMap f = lmap f mconcat
@@ -708,7 +720,7 @@ foldMap f = lmap f mconcat
 -- @since 0.7.0
 {-# INLINABLE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
-foldMapM act = Fold step begin done
+foldMapM act = mkFoldM step begin done
     where
     done = return
     begin = return mempty
@@ -730,7 +742,7 @@ foldMapM act = Fold step begin done
 -- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = Fold (\f x -> partialM $ f . (x :))
+toList = mkFoldM (\f x -> partialM $ f . (x :))
               (return id)
               (return . ($ []))
 
@@ -759,7 +771,7 @@ drainWhile p = ltakeWhile p drain
 -- @since 0.7.0
 {-# INLINABLE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
-genericIndex i = Fold step (return 0) (const (return Nothing))
+genericIndex i = mkFoldM step (return 0) (const (return Nothing))
   where
     step j a = return $ if i == j
                         then Done $ Just a
@@ -791,7 +803,7 @@ head = _Fold1 const
 -- @since 0.7.0
 {-# INLINABLE find #-}
 find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-find predicate = Fold step (return ()) (const (return Nothing))
+find predicate = mkFoldM step (return ()) (const (return Nothing))
   where
     step _ a = return $ if predicate a
                         then Done (Just a)
@@ -805,7 +817,7 @@ find predicate = Fold step (return ()) (const (return Nothing))
 -- @since 0.7.0
 {-# INLINABLE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
-lookup a0 = Fold step (return ()) (const (return Nothing))
+lookup a0 = mkFoldM step (return ()) (const (return Nothing))
   where
     step _ (a,b) = return $ if a == a0
                             then Done $ Just b
@@ -816,7 +828,7 @@ lookup a0 = Fold step (return ()) (const (return Nothing))
 -- @since 0.7.0
 {-# INLINABLE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
-findIndex predicate = Fold step (return 0) (const (return Nothing))
+findIndex predicate = mkFoldM step (return 0) (const (return Nothing))
   where
     step i a = return $ if predicate a
                         then Done $ Just i
@@ -842,7 +854,7 @@ elemIndex a = findIndex (a ==)
 -- @since 0.7.0
 {-# INLINABLE null #-}
 null :: Monad m => Fold m a Bool
-null = Fold (\_ _ -> doneM False) (return True) return
+null = mkFoldM (\_ _ -> doneM False) (return True) return
 
 -- |
 -- > any p = lmap p or
@@ -854,7 +866,7 @@ null = Fold (\_ _ -> doneM False) (return True) return
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Fold m a Bool
 any predicate =
-    Fold
+    mkFoldM
         (\_ a ->
              if predicate a
              then return $ FL.Done True
@@ -881,7 +893,7 @@ elem a = any (a ==)
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Fold m a Bool
 all predicate =
-    Fold
+    mkFoldM
         (\_ a ->
              if predicate a
              then return $ FL.Partial True
@@ -968,20 +980,24 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
-    where
-      initial  = Tuple3' n <$> liftInitialM initialL <*> liftInitialM initialR
-
-      step (Tuple3' i xL xR) input =
+splitAt n (Fold stepL initialL extractL clL) (Fold stepR initialR extractR clR) =
+    Fold step initial extract cleanup
+  where
+    initial = Tuple3' n <$> liftInitialM initialL <*> liftInitialM initialR
+    step (Tuple3' i xL xR) input =
         if i > 0
-        then liftStep stepL xL input >>= (\a -> partialM $ Tuple3' (i - 1) a xR)
+        then liftStep stepL xL input >>=
+             (\a -> partialM $ Tuple3' (i - 1) a xR)
         else do
-          b <- liftStep stepR xR input
-          case b of
-              Partial _ -> partialM $ Tuple3' i xL b
-              Done x -> fmap Done $ (,) <$> liftExtract extractL xL <*> return x
-      extract (Tuple3' _ a b) = (,) <$> liftExtract extractL a <*> liftExtract extractR b
+            b <- liftStep stepR xR input
+            case b of
+                Partial _ -> partialM $ Tuple3' i xL b
+                Done x ->
+                    fmap Done $ (,) <$> liftExtract extractL xL <*> return x
+    extract (Tuple3' _ a b) =
+        (,) <$> liftExtract extractL a <*> liftExtract extractR b
+    cleanup (Tuple3' _ a b) = liftCleanup clL a >> liftCleanup clR b
+
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1003,14 +1019,15 @@ spanBy
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+spanBy cmp (Fold stepL initialL extractL clL) (Fold stepR initialR extractR clR) =
+    Fold step initial extract cleanup
 
     where
 
-    initial =
-        Tuple3' <$> liftInitialM initialL <*> liftInitialM initialR <*>
-        return (Tuple' Nothing True)
+    initial = do
+        l <- liftInitialM initialL
+        r <- liftInitialM initialR
+        return $ Tuple3' l r (Tuple' Nothing True)
 
     step (Tuple3' (Done a) (Done b) _) _ = doneM (a, b)
     step (Tuple3' a b (Tuple' (Just frst) isFirstG)) input =
@@ -1032,6 +1049,7 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     extract (Tuple3' a b _) =
         (,) <$> liftExtract extractL a <*> liftExtract extractR b
+    cleanup (Tuple3' a b _) = liftCleanup clL a >> liftCleanup clR b
 
 {-
 spanBy cmp fld1 fld2 =
@@ -1068,14 +1086,15 @@ span
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+span p (Fold stepL initialL extractL clL) (Fold stepR initialR extractR clR) =
+    Fold step initial extract cleanup
 
     where
 
-    initial =
-        Tuple3' <$> liftInitialM initialL <*> liftInitialM initialR <*>
-        return True
+    initial = do
+        l <- liftInitialM initialL
+        r <- liftInitialM initialR
+        return $ Tuple3' l r True
 
     step (Tuple3' (Done a) (Done b) _) _ = doneM (a, b)
     step (Tuple3' a b isFirstG) input =
@@ -1087,6 +1106,7 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     extract (Tuple3' a b _) =
         (,) <$> liftExtract extractL a <*> liftExtract extractR b
+    cleanup (Tuple3' a b _) = liftCleanup clL a >> liftCleanup clR b
 
 {-
 span predicate fld1 fld2 =
@@ -1138,14 +1158,15 @@ spanByRolling
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanByRolling cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+spanByRolling cmp (Fold stepL initialL extractL clL) (Fold stepR initialR extractR clR) =
+    Fold step initial extract cleanup
 
     where
 
-    initial =
-        Tuple3' <$> liftInitialM initialL <*> liftInitialM initialR <*>
-        return Nothing
+    initial = do
+        l <- liftInitialM initialL
+        r <- liftInitialM initialR
+        return $ Tuple3' l r Nothing
 
     step (Tuple3' (Done a) (Done b) _) _ = doneM (a, b)
 
@@ -1161,6 +1182,7 @@ spanByRolling cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) 
 
     extract (Tuple3' a b _) =
         (,) <$> liftExtract extractL a <*> liftExtract extractR b
+    cleanup (Tuple3' a b _) = liftCleanup clL a >> liftCleanup clR b
 
 ------------------------------------------------------------------------------
 -- Binary splitting on a separator
@@ -1203,23 +1225,24 @@ tee f1 f2 = (,) <$> f1 <*> f2
 
 {-# INLINE foldNil #-}
 foldNil :: Monad m => Fold m a [b]
-foldNil = Fold step begin done  where
-  begin = return []
-  step _ _ = partialM []
-  done = return
+foldNil = mkFoldM step begin done
+  where
+    begin = return []
+    step _ _ = partialM []
+    done = return
 
 -- XXX How is the performance?
 {-# INLINE foldCons #-}
 foldCons :: Monad m => Fold m a b -> Fold m a [b] -> Fold m a [b]
-foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
+foldCons (Fold stepL beginL doneL clL) (Fold stepR beginR doneR clR) =
+    Fold step begin done cleanup
+  where
     begin = Tuple' <$> liftInitialM beginL <*> liftInitialM beginR
-    step (Tuple' (Done a) (Done b)) _ = doneM $ a:b
-    step (Tuple' xL xR) a = fmap Partial $ Tuple' <$> liftStep stepL xL a <*> liftStep stepR xR a
+    step (Tuple' (Done a) (Done b)) _ = doneM $ a : b
+    step (Tuple' xL xR) a =
+        fmap Partial $ Tuple' <$> liftStep stepL xL a <*> liftStep stepR xR a
     done (Tuple' xL xR) = (:) <$> liftExtract doneL xL <*> liftExtract doneR xR
+    cleanup (Tuple' xL xR) = liftCleanup clL xL >> liftCleanup clR xR
 
 -- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
 -- number of consumers? For polymorphic case a vector could be helpful. For
@@ -1253,7 +1276,7 @@ distribute = foldr foldCons foldNil
 -- XXX Efficiently find when to stop?
 {-# INLINE distribute_ #-}
 distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
-distribute_ fs = Fold step initial extract
+distribute_ fs = Fold step initial extract cleanup
     where
     initial    = Prelude.mapM initialize fs
     step ss a  = do
@@ -1261,7 +1284,8 @@ distribute_ fs = Fold step initial extract
         -- are equal to the number of Folds
         Prelude.mapM_ (\fld -> void $ runStep fld a) ss
         partialM ss
-    extract ss = Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
+    extract ss = Prelude.mapM_ (\(Fold _ i e _) -> i >>= e) ss
+    cleanup ss = Prelude.mapM_ (\(Fold _ i _ c) -> i >>= c) ss
 
 ------------------------------------------------------------------------------
 -- Partitioning
@@ -1310,9 +1334,9 @@ distribute_ fs = Fold step initial extract
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+partitionByM f (Fold stepL beginL doneL clL) (Fold stepR beginR doneR clR) =
 
-    Fold step begin done
+    Fold step begin done cleanup
 
     where
 
@@ -1324,6 +1348,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
             Left b -> fmap Partial $ Tuple' <$> liftStep stepL xL b <*> return xR
             Right c -> fmap Partial $ Tuple' xL <$> liftStep stepR xR c
     done (Tuple' xL xR) = (,) <$> liftExtract doneL xL <*> liftExtract doneR xR
+    cleanup (Tuple' xL xR) = liftCleanup clL xL >> liftCleanup clR xR
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
@@ -1399,7 +1424,7 @@ partition = partitionBy id
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
     => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a (Map k b)
-demuxWith f kv = Fold step initial extract
+demuxWith f kv = Fold step initial extract cleanup
 
     where
 
@@ -1425,7 +1450,8 @@ demuxWith f kv = Fold step initial extract
                 !r <- runStep fld a'
                 partialM $ Map.insert k r mp
 #endif
-    extract = Prelude.mapM (\(Fold _ acc e) -> acc >>= e)
+    extract = Prelude.mapM (\(Fold _ acc e _) -> acc >>= e)
+    cleanup = void . Prelude.mapM (\(Fold _ acc _ c) -> acc >>= c)
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1447,8 +1473,8 @@ demux = demuxWith id
 {-# INLINE demuxWithDefault_ #-}
 demuxWithDefault_ :: (Monad m, Ord k)
     => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m (k, a') b -> Fold m a ()
-demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
-    Fold step initial extract
+demuxWithDefault_ f kv (Fold dstep dinitial dextract dcleanup) =
+    Fold step initial extract cleanup
 
     where
 
@@ -1462,12 +1488,15 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
             Nothing -> do
                 acc <- liftStep dstep dacc (k, a')
                 partialM $ Tuple' mp acc
-            Just (Fold step' acc _) -> do
+            Just (Fold step' acc _ _) -> do
                 _ <- acc >>= \x -> step' x a'
                 partialM $ Tuple' mp dacc
     extract (Tuple' mp dacc) = do
         void $ liftExtract dextract dacc
-        Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e) mp
+        Prelude.mapM_ (\(Fold _ acc e _) -> acc >>= e) mp
+    cleanup (Tuple' mp dacc) =
+      liftCleanup dcleanup dacc >>
+      void (Prelude.mapM (\(Fold _ acc _ c) -> acc >>= c) mp)
 
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold without collecting the results. Useful for cases like protocol
@@ -1491,7 +1520,7 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
 {-# INLINE demuxWith_ #-}
 demuxWith_ :: (Monad m, Ord k)
     => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a ()
-demuxWith_ f kv = Fold step initial extract
+demuxWith_ f kv = Fold step initial extract cleanup
 
     where
 
@@ -1503,10 +1532,11 @@ demuxWith_ f kv = Fold step initial extract
       | (k, a') <- f a
       = case Map.lookup k mp of
             Nothing -> partialM mp
-            Just (Fold step' acc _) -> do
+            Just (Fold step' acc _ _) -> do
                 _ <- acc >>= \x -> step' x a'
                 partialM mp
-    extract = Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e)
+    extract = Prelude.mapM_ (\(Fold _ acc e _) -> acc >>= e)
+    cleanup = Prelude.mapM_ (\(Fold _ acc _ c) -> acc >>= c)
 
 -- | Given a stream of key value pairs and a map from keys to folds, fold the
 -- values for each key using the corresponding folds, discarding the outputs.
@@ -1547,7 +1577,8 @@ demuxDefault_ = demuxWithDefault_ id
 -- @since 0.7.0
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
-classifyWith f (Fold step initial extract) = Fold step' initial' extract'
+classifyWith f (Fold step initial extract cleanup) =
+    Fold step' initial' extract' cleanup'
 
     where
 
@@ -1563,6 +1594,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
                 r <- liftStep step x a
                 partialM $ Map.insert k r kv
     extract' = Prelude.mapM (liftExtract extract)
+    cleanup' = void . Prelude.mapM (liftCleanup cleanup)
 
 -- | Given an input stream of key value pairs and a fold for values, fold all
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the
@@ -1594,8 +1626,8 @@ classify fld = classifyWith fst (lmap snd fld)
 {-# INLINE unzipWithM #-}
 unzipWithM :: Monad m
     => (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
+unzipWithM f (Fold stepL beginL doneL clL) (Fold stepR beginR doneR clR) =
+    Fold step begin done cleanup
 
     where
 
@@ -1605,6 +1637,7 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         fmap Partial $ Tuple' <$> liftStep stepL xL b <*> liftStep stepR xR c
     begin = Tuple' <$> liftInitialM beginL <*> liftInitialM beginR
     done (Tuple' xL xR) = (,) <$> liftExtract doneL xL <*> liftExtract doneR xR
+    cleanup (Tuple' xL xR) = liftCleanup clL xL >> liftCleanup clR xR
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
@@ -1690,9 +1723,10 @@ lchunksInRange low high (Fold step1 initial1 extract1)
 -- Fold to a Parallel SVar
 ------------------------------------------------------------------------------
 
+-- XXX extract here should be cleanup?
 {-# INLINE toParallelSVar #-}
 toParallelSVar :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-toParallelSVar svar winfo = Fold step initial extract
+toParallelSVar svar winfo = mkFoldM step initial extract
     where
 
     initial = return ()
@@ -1707,10 +1741,11 @@ toParallelSVar svar winfo = Fold step initial extract
     extract () = liftIO $
         sendStop svar winfo
 
+-- XXX extract here should be cleanup?
 {-# INLINE toParallelSVarLimited #-}
 toParallelSVarLimited :: MonadIO m
     => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-toParallelSVarLimited svar winfo = Fold step initial extract
+toParallelSVarLimited svar winfo = mkFoldM step initial extract
     where
 
     initial = return True

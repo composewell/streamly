@@ -669,7 +669,7 @@ transformCombineOpsCommon constr desc eq t = do
         monadicIO $ do
             cref <- run $ newIORef 0
             let sumfoldinref =
-                    FL.Fold (\_ e -> FL.Partial <$> modifyIORef' cref (e+))
+                    FL.mkFoldM (\_ e -> FL.Partial <$> modifyIORef' cref (e+))
                     (return ())
                     (const $ return ())
                 op = S.tap sumfoldinref . S.mapM (\x -> return (x+1))

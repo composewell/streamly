@@ -338,10 +338,12 @@ write = toHandleWith A.defaultChunkSize
 -- to the device as a separate IO request.
 --
 -- /Internal/
+
+-- XXX Use strict tuple here
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, MonadCatch m, Storable a)
     => FilePath -> Fold m (Array a) ()
-writeChunks path = Fold step initial extract
+writeChunks path = Fold step initial extract cleanup
     where
     initial = do
         h <- liftIO (openFile path WriteMode)
@@ -351,9 +353,11 @@ writeChunks path = Fold step initial extract
     step (fld, h) x = do
         r <- FL.runStep fld x `MC.onException` liftIO (hClose h)
         FL.partialM (r, h)
-    extract (Fold _ initial1 extract1, h) = do
-        liftIO $ hClose h
+    extract (Fold _ initial1 extract1 _, _) = do
         initial1 >>= extract1
+    cleanup (Fold _ initial1 _ cleanup1, h) = do
+        liftIO $ hClose h
+        initial1 >>= cleanup1
 
 -- | @writeWithBufferOf chunkSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk

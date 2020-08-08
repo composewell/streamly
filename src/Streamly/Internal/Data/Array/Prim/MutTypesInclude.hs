@@ -162,7 +162,7 @@ write = FL.mkAccumM step initial extract
 -- /Internal/
 {-# INLINE_NORMAL writeN #-}
 writeN :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeN limit = Fold step initial extract
+writeN limit = FL.mkFoldM step initial extract
 
     where
 
@@ -354,18 +354,21 @@ packArraysChunksOf n (D.Stream step state) =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf ::
        (MonadIO m, Prim a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) =
-    Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 extract1 cleanup1) =
+    Fold step initial extract cleanup
 
     where
 
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
+            -- XXX Change the error message
             error $ "Streamly.Internal.Memory.Mutable.Array.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple' Nothing r1)
+
+    cleanup (Tuple' _ r1) = cleanup1 r1
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do

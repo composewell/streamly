@@ -575,7 +575,7 @@ import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 import Streamly.Internal.Data.Strict
 
 import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -1915,9 +1915,11 @@ toHandle h = go
 -- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
-                (return id)
-                (return . ($ K.nil))
+toStream =
+    FL.mkFoldM
+        (\f x -> return $ FL.Partial $ f . (x `K.cons`))
+        (return id)
+        (return . ($ K.nil))
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -1933,7 +1935,11 @@ toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = Fold (\xs x -> return $ FL.Partial $ x `K.cons` xs) (return K.nil) return
+toStreamRev =
+    FL.mkFoldM
+        (\xs x -> return $ FL.Partial $ x `K.cons` xs)
+        (return K.nil)
+        return
 
 -- | Convert a stream to a pure stream.
 --
@@ -4516,6 +4522,7 @@ data SessionState t m k a b = SessionState
 --
 
 -- XXX Perhaps we should use an "Event a" type to represent timestamped data.
+-- XXX Use PROPER cleanup?
 {-# INLINABLE classifySessionsBy #-}
 classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
@@ -4527,7 +4534,7 @@ classifySessionsBy
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick tmout reset ejectPred
-    (Fold step initial extract) str =
+    (Fold step initial extract cleanup) str =
     concatMap sessionOutputStream $
         scanlMAfter' sstep (return szero) flush stream
 
