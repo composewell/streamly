@@ -353,6 +353,9 @@ library
       c-sources:     src/Streamly/Internal/Data/Time/Windows.c
     if os(darwin)
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
+    if os(linux)
+      exposed-modules: Streamly.Internal.FileSystem.Event.Linux
+
     hs-source-dirs:    src
     other-modules:
                        Streamly.Data.Array
