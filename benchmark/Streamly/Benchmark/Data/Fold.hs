@@ -15,7 +15,7 @@ import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
 import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=), concat, seq)
+                compare, (>=), concat, seq, Either(..), odd)
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
@@ -66,6 +66,7 @@ o_1_space_serial_elimination value =
     [ bgroup "serially"
         [ bgroup "elimination"
             [ benchIOSink value "drain" (S.fold FL.drain)
+            , benchIOSink value "drainBy" (S.fold (FL.drainBy return))
             , benchIOSink value "drainN" (S.fold (IFL.drainN value))
             , benchIOSink
                   value
@@ -116,9 +117,17 @@ o_1_space_serial_elimination value =
                   value
                   "foldMap"
                   (S.fold (FL.foldMap (Last . Just)))
+            , benchIOSink
+                  value
+                  "foldMapM"
+                  (S.fold (FL.foldMapM (return . Last . Just)))
             , benchIOSink value "index" (S.fold (FL.index (value + 1)))
             , benchIOSink value "head" (S.fold FL.head)
             , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
+            , benchIOSink
+                  value
+                  "lookup"
+                  (S.fold (IFL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
             , benchIOSink
                   value
                   "findIndex"
@@ -152,6 +161,11 @@ o_1_space_serial_transformation value =
             [ benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
             , benchIOSink
                   value
+                  "sequence"
+                  (S.fold (FL.sequence (return <$> FL.drain)))
+            , benchIOSink value "mapM" (S.fold (FL.mapM return FL.drain))
+            , benchIOSink
+                  value
                   "pipe-mapM"
                   (S.fold
                        (IFL.transform
@@ -175,6 +189,24 @@ o_1_space_serial_composition value =
                   value
                   "sum,length"
                   (S.fold ((,) <$> FL.sum <*> FL.length))
+            , benchIOSink
+                  value
+                  "tee sum length"
+                  (S.fold (FL.tee FL.sum FL.length))
+            , benchIOSink
+                  value
+                  "distribute sum length"
+                  (S.fold (FL.distribute [FL.sum, FL.length]))
+            , benchIOSink
+                  value
+                  "partition sum length"
+                  (S.fold (IFL.lmap
+                               (\a -> if odd a then Left a else Right a)
+                               (FL.partition FL.sum FL.length)))
+            , benchIOSink
+                  value
+                  "unzip sum length"
+                  (S.fold (IFL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)))
             ]
         ]
     ]
