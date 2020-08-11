@@ -77,9 +77,8 @@ where
 
 import Control.Monad (ap, (>=>))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-#if __GLASGOW_HASKELL__ >= 800
 import Data.Kind (Type)
-#endif
+
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -793,9 +792,6 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ < 800
-#define Type *
-#endif
 -- Note eta expanded
 {-# INLINE_LATE mapFB #-}
 mapFB :: forall (t :: (Type -> Type) -> Type -> Type) b m a.

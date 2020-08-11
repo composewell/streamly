@@ -126,9 +126,7 @@ import Data.Concurrent.Queue.MichaelScott (LinkedQueue, pushL)
 import Data.Functor (void)
 import Data.Heap (Heap, Entry(..))
 import Data.Int (Int64)
-#if __GLASGOW_HASKELL__ >= 800
 import Data.Kind (Type)
-#endif
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.Maybe (fromJust, fromMaybe)
@@ -175,9 +173,6 @@ data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
 
-#if __GLASGOW_HASKELL__ < 800
-#define Type *
-#endif
 -- | Sorting out-of-turn outputs in a heap for Ahead style streams
 data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
       AheadEntryNull

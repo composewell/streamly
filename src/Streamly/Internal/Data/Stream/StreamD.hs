@@ -27,13 +27,7 @@ module Streamly.Internal.Data.Stream.StreamD
     (
     -- * The stream type
       Step (..)
-
-#if __GLASGOW_HASKELL__ >= 800
     , Stream (Stream, UnStream)
-#else
-    , Stream (UnStream)
-    , pattern Stream
-#endif
 
     -- * Construction
     , nil

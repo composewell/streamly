@@ -520,7 +520,6 @@ ENUMERABLE_FRACTIONAL(Double,)
 ENUMERABLE_FRACTIONAL(Fixed a,HasResolution a)
 ENUMERABLE_FRACTIONAL(Ratio a,Integral a)
 
-#if __GLASGOW_HASKELL__ >= 800
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}
     enumerateFrom (Identity from) = Serial.map Identity $
@@ -534,7 +533,6 @@ instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
         Serial.map Identity $ enumerateFromThenTo from next to
-#endif
 
 -- TODO
 {-

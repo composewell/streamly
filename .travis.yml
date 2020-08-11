@@ -101,10 +101,10 @@ matrix:
     os: linux
     arch: amd64
 
-  - env: BUILD=cabal-v2 GHCVER=7.10.3 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
-    os: linux
-    arch: amd64
+  #- env: BUILD=cabal-v2 GHCVER=7.10.3 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
+  #  addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #  os: linux
+  #  arch: amd64
 
 
   - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"

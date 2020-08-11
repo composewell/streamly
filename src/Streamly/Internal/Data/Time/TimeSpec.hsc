@@ -1,9 +1,7 @@
 {-# LANGUAGE CPP                         #-}
 {-# LANGUAGE ScopedTypeVariables         #-}
 
-#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-identities          #-}
-#endif
 
 #ifndef __GHCJS__
 #include "config.h"
@@ -111,10 +109,6 @@ instance Num TimeSpec where
 
 #if HS_CLOCK_POSIX
 #include <time.h>
-#endif
-
-#if __GLASGOW_HASKELL__ < 800
-#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
 #endif
 
 #ifdef HS_CLOCK_GHCJS

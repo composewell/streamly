@@ -51,9 +51,7 @@
 -- please see the "Streamly.Tutorial" module and the examples directory in this
 -- package.
 
-#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans #-}
-#endif
 
 #include "inline.hs"
 

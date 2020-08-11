@@ -16,12 +16,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
       Step (..)
     -- XXX UnStream is exported to avoid a performance issue in concatMap if we
     -- use the pattern synonym "Stream".
-#if __GLASGOW_HASKELL__ >= 800
     , Stream (Stream, UnStream)
-#else
-    , Stream (UnStream)
-    , pattern Stream
-#endif
+
     , fromStreamK
     , toStreamK
     , fromStreamD

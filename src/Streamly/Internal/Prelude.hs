@@ -1,6 +1,4 @@
-#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans  #-}
-#endif
 
 #include "inline.hs"
 
@@ -532,9 +530,7 @@ import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Functor.Identity (Identity (..))
-#if __GLASGOW_HASKELL__ >= 800
 import Data.Kind (Type)
-#endif
 import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
 import Data.Void (Void)
@@ -4469,10 +4465,6 @@ classifyKeepAliveChunks
     -> t m (k, b)
 classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -}
-
-#if __GLASGOW_HASKELL__ < 800
-#define Type *
-#endif
 
 data SessionState t m k a b = SessionState
     { sessionCurTime :: !AbsTime  -- ^ time since last event

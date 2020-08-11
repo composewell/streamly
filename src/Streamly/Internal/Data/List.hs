@@ -51,13 +51,8 @@
 --
 module Streamly.Internal.Data.List
     (
-#if __GLASGOW_HASKELL__ >= 800
     List (.., Nil, Cons)
-#else
-    List (..)
-    , pattern Nil
-    , pattern Cons
-#endif
+
     -- XXX we may want to use rebindable syntax for variants instead of using
     -- different types (applicative do and apWith).
     , ZipList (..)

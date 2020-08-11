@@ -58,6 +58,13 @@ common compile-options
       cpp-options:    -DINSPECTION
 
     ghc-options:      -Wall
+                      -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -68,15 +75,6 @@ common compile-options
 
     if flag(dev) || flag(debug)
       ghc-options:    -fno-ignore-asserts
-
-    if impl(ghc >= 8.0)
-      ghc-options:    -Wcompat
-                      -Wunrecognised-warning-flags
-                      -Widentities
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -Wnoncanonical-monad-instances
 
 common optimization-options
   ghc-options: -O2
@@ -100,7 +98,7 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.8   && < 5
+      base                >= 4.9   && < 5
     , deepseq             >= 1.4.1 && < 1.5
     , mtl                 >= 2.2   && < 3
 
@@ -395,8 +393,6 @@ benchmark Data.Array.Prim
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM
   build-depends: primitive
-  if impl(ghc < 8.0)
-    buildable: False
 
 benchmark Data.SmallArray
   import: bench-options
@@ -413,8 +409,6 @@ benchmark Data.Array.Prim.Pinned
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
-  if impl(ghc < 8.0)
-    buildable: False
 
 benchmark Memory.Array
   import: bench-options
@@ -454,7 +448,7 @@ executable chart
   if flag(dev) && !flag(no-charts) && !impl(ghcjs)
     buildable: True
     build-Depends:
-        base >= 4.8 && < 5
+        base >= 4.9 && < 5
       , bench-show >= 0.3 && < 0.4
       , transformers >= 0.4   && < 0.6
   else

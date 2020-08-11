@@ -1,6 +1,4 @@
-#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-#endif
 
 #include "inline.hs"
 

@@ -81,8 +81,7 @@ homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD-3-Clause
 license-file:        LICENSE
-tested-with:         GHC==7.10.3
-                   , GHC==8.0.2
+tested-with:         GHC==8.0.2
                    , GHC==8.4.4
                    , GHC==8.6.5
                    , GHC==8.8.1
@@ -224,6 +223,13 @@ common compile-options
       cpp-options:    -DINSPECTION
 
     ghc-options:      -Wall
+                      -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -234,15 +240,6 @@ common compile-options
 
     if flag(dev) || flag(debug)
       ghc-options:    -fno-ignore-asserts
-
-    if impl(ghc >= 8.0)
-      ghc-options:    -Wcompat
-                      -Wunrecognised-warning-flags
-                      -Widentities
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -Wnoncanonical-monad-instances
 
 common default-extensions
     default-extensions:
@@ -316,13 +313,9 @@ common prelude-test-options
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4  && < 0.6
-      , semigroups    >= 0.18 && < 0.19
   default-language: Haskell2010
 
 -- Used by maxrate test, benchmarks and executables
@@ -355,6 +348,7 @@ library
     hs-source-dirs:    src
     other-modules:
                        Streamly.Data.Array
+                     , Streamly.Data.Prim.Array
                      , Streamly.Data.SmallArray
 
                     -- Memory storage
@@ -394,6 +388,12 @@ library
 
                      -- Arrays
                      , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Array.Prim.Types
+                     , Streamly.Internal.Data.Array.Prim
+                     , Streamly.Internal.Data.Array.Prim.Mut.Types
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
+                     , Streamly.Internal.Data.Array.Prim.Pinned
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
                      , Streamly.Internal.Data.SmallArray.Types
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Mutable.Array.Types
@@ -453,23 +453,7 @@ library
                      , Streamly.Internal.Data.Unicode.Stream
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
-
-    if impl(ghc >= 8.0)
-       other-modules:  Streamly.Data.Prim.Array
-
-    if impl(ghc >= 8.0)
-       exposed-modules:
-                     -- Arrays
-                       Streamly.Internal.Data.Array.Prim.Types
-                     , Streamly.Internal.Data.Array.Prim
-                     , Streamly.Internal.Data.Array.Prim.Mut.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
-
-                     -- Text Processing
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
-
 
     if !impl(ghcjs)
        exposed-modules:
@@ -483,7 +467,7 @@ library
                     -- Core libraries shipped with ghc, the min and max
                     -- constraints of these libraries should match with
                     -- the GHC versions we support
-                       base              >= 4.8   &&  < 5
+                       base              >= 4.9   &&  < 5
                      , containers        >= 0.5   && < 0.7
                      , deepseq           >= 1.4.1 && < 1.5
                      , directory         >= 1.2.2 && < 1.4
@@ -508,9 +492,6 @@ library
   if !impl(ghcjs)
     build-depends:
                        network           >= 2.6   && < 4
-  if impl(ghc < 8.0)
-    build-depends:
-                       semigroups        >= 0.18   && < 0.19
 
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.17
@@ -533,7 +514,7 @@ test-suite test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
     , containers        >= 0.5   && < 0.7
     , transformers      >= 0.4   && < 0.6
@@ -549,7 +530,7 @@ test-suite internal-prelude-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
@@ -561,7 +542,7 @@ test-suite pure-streams-base
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -573,7 +554,7 @@ test-suite pure-streams-streamly
   cpp-options:  -DUSE_STREAMLY_LIST
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -658,12 +639,9 @@ test-suite array-test
   cpp-options: -DTEST_ARRAY
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
 test-suite internal-data-fold-test
@@ -674,7 +652,7 @@ test-suite internal-data-fold-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
     , QuickCheck        >= 2.10  && < 2.15
   default-language: Haskell2010
@@ -688,7 +666,7 @@ test-suite internal-data-parser-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
     , QuickCheck        >= 2.10  && < 2.15
     , transformers      >= 0.4 && < 0.6
@@ -702,7 +680,7 @@ test-suite internal-data-parser-parserd-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
     , QuickCheck        >= 2.10  && < 2.15
     , transformers      >= 0.4 && < 0.6
@@ -716,12 +694,9 @@ test-suite data-array-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
 test-suite smallarray-test
@@ -733,12 +708,9 @@ test-suite smallarray-test
   cpp-options: -DTEST_SMALL_ARRAY
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
 test-suite primarray-test
@@ -750,11 +722,9 @@ test-suite primarray-test
   cpp-options: -DDATA_ARRAY_PRIM
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    buildable: False
   default-language: Haskell2010
 
 test-suite prim-pinned-array-test
@@ -766,11 +736,9 @@ test-suite prim-pinned-array-test
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    buildable: False
   default-language: Haskell2010
 
 test-suite string-test
@@ -781,12 +749,9 @@ test-suite string-test
   hs-source-dirs: test
   build-depends:
       streamly
-    , base              >= 4.8   && < 5
+    , base              >= 4.9   && < 5
     , QuickCheck        >= 2.10  && < 2.15
     , hspec             >= 2.0   && < 3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
 test-suite maxrate
@@ -800,7 +765,7 @@ test-suite maxrate
     buildable: True
     build-Depends:
           streamly
-        , base   >= 4.8   && < 5
+        , base   >= 4.9   && < 5
         , hspec  >= 2.0   && < 3
         , random >= 1.0.0 && < 2
   else
@@ -814,7 +779,7 @@ test-suite loops
   hs-source-dirs:  test
   build-Depends:
       streamly
-    , base >= 4.8   && < 5
+    , base >= 4.9   && < 5
 
 test-suite nested-loops
   import: test-options
@@ -824,7 +789,7 @@ test-suite nested-loops
   hs-source-dirs:  test
   build-Depends:
       streamly
-    , base   >= 4.8   && < 5
+    , base   >= 4.9   && < 5
     , random >= 1.0.0 && < 2
 
 test-suite parallel-loops
@@ -835,7 +800,7 @@ test-suite parallel-loops
   hs-source-dirs:  test
   build-Depends:
       streamly
-    , base   >= 4.8   && < 5
+    , base   >= 4.9   && < 5
     , random >= 1.0.0 && < 2
 
 test-suite version-bounds
@@ -847,7 +812,7 @@ test-suite version-bounds
   build-Depends:
       streamly
     , ghc
-    , base   >= 4.8   && < 5
+    , base   >= 4.9   && < 5
 
 -------------------------------------------------------------------------------
 -- Examples
@@ -861,11 +826,8 @@ executable SearchQuery
     buildable: True
     build-depends:
         streamly
-      , base          >= 4.8   && < 5
+      , base          >= 4.9   && < 5
       , http-conduit  >= 2.2.2 && < 2.4
-    if impl(ghc < 8.0)
-      build-depends:
-        unliftio-core < 0.2
   else
     buildable: False
 
@@ -877,10 +839,7 @@ executable ListDir
     buildable: True
     build-Depends:
         streamly
-      , base    >= 4.8   && < 5
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4    && < 0.6
+      , base    >= 4.9   && < 5
   else
     buildable: False
 
@@ -892,7 +851,7 @@ executable MergeSort
     buildable: True
     build-Depends:
         streamly
-      , base   >= 4.8   && < 5
+      , base   >= 4.9   && < 5
       , random >= 1.0.0 && < 2
   else
     buildable: False
@@ -905,12 +864,8 @@ executable AcidRain
     buildable: True
     build-Depends:
         streamly
-      , base         >= 4.8   && < 5
+      , base         >= 4.9   && < 5
       , mtl          >= 2.2   && < 3
-    if impl(ghc < 8.0)
-      build-depends:
-          semigroups    >= 0.18   && < 0.19
-        , transformers  >= 0.4    && < 0.6
   else
     buildable: False
 
@@ -922,7 +877,7 @@ executable CirclingSquare
     buildable: True
     build-Depends:
         streamly
-      , base >= 4.8   && < 5
+      , base >= 4.9   && < 5
       , SDL  >= 0.6.5 && < 0.7
   else
     buildable: False
@@ -935,13 +890,10 @@ executable ControlFlow
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
       , exceptions        >= 0.8   && < 0.11
       , transformers      >= 0.4   && < 0.6
       , transformers-base >= 0.4   && < 0.5
-    if impl(ghc < 8.0)
-      build-depends:
-          semigroups    >= 0.18   && < 0.19
   else
     buildable: False
 
@@ -953,7 +905,7 @@ executable HandleIO
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
   else
     buildable: False
 
@@ -965,7 +917,7 @@ executable FileIOExamples
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
   else
     buildable: False
 
@@ -977,11 +929,8 @@ executable EchoServer
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
       , network           >= 2.6   && < 4
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
   else
     buildable: False
 
@@ -993,11 +942,8 @@ executable FileSinkServer
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
       , network           >= 2.6   && < 4
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
   else
     buildable: False
 
@@ -1009,7 +955,7 @@ executable FromFileClient
     buildable: True
     build-Depends:
         streamly
-      , base              >= 4.8   && < 5
+      , base              >= 4.9   && < 5
   else
     buildable: False
 
@@ -1021,7 +967,7 @@ executable WordClassifier
     buildable: True
     build-Depends:
         streamly
-      , base                 >= 4.8   && < 5
+      , base                 >= 4.9   && < 5
       , hashable             >= 1.2   && < 1.4
       , unordered-containers >= 0.2   && < 0.3
   else
@@ -1035,7 +981,7 @@ executable WordCount
     buildable: True
     build-Depends:
         streamly
-      , base                 >= 4.8   && < 5
+      , base                 >= 4.9   && < 5
       , vector               >= 0.12  && < 0.13
   else
     buildable: False
@@ -1048,7 +994,7 @@ executable CamelCase
     buildable: True
     build-Depends:
         streamly
-      , base                 >= 4.8   && < 5
+      , base                 >= 4.9   && < 5
   else
     buildable: False
 
@@ -1060,7 +1006,7 @@ executable Rate
     buildable: True
     build-Depends:
         streamly
-      , base                 >= 4.8   && < 5
+      , base                 >= 4.9   && < 5
   else
     buildable: False
 
@@ -1072,10 +1018,7 @@ executable Split
     buildable: True
     build-Depends:
         streamly
-      , base         >= 4.8   && < 5
+      , base         >= 4.9   && < 5
       , mtl          >= 2.2   && < 3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
   else
     buildable: False

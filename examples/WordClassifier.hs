@@ -1,8 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
-#if __GLASGOW_HASKELL__ >= 800
+
 {-# OPTIONS_GHC -Wno-orphans #-}
-#endif
+
 -- compile with:
 -- ghc -O2 -fspec-constr-recursive=10 -fmax-worker-args=16 word-classifier.hs
 --

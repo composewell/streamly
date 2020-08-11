@@ -136,9 +136,6 @@ import Prelude
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
-#if __GLASGOW_HASKELL__ < 800
-import Streamly.Internal.Data.Stream.StreamD.Type (pattern Stream)
-#endif
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (defState, MonadAsync)

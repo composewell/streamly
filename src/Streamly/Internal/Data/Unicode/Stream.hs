@@ -75,10 +75,6 @@ import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.Strict (Tuple'(..))
 
-#if __GLASGOW_HASKELL__ < 800
-import Streamly.Internal.Data.Stream.StreamD (pattern Stream)
-#endif
-
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
