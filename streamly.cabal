@@ -385,6 +385,7 @@ library
                      , Streamly.Internal.BaseCompat
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
+                     , Streamly.Internal.Data.Cont
                      , Streamly.Internal.Data.Tuple.Strict
                      , Streamly.Internal.Data.Maybe.Strict
                      , Streamly.Internal.Data.Either.Strict
