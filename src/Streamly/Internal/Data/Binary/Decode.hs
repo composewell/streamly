@@ -20,15 +20,18 @@ module Streamly.Internal.Data.Binary.Decode
     , word32le
     , word64be
     , word64le
+    , word64host
     )
 where
 
 import Control.Monad.Catch (MonadCatch, throwM)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Strict (Maybe'(..), Tuple' (..))
 
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
@@ -259,3 +262,16 @@ word64leD = PRD.Parser step initial extract
 {-# INLINE word64le #-}
 word64le :: MonadCatch m => Parser m Word8 Word64
 word64le = PRK.toParserK word64leD
+
+-------------------------------------------------------------------------------
+-- Host byte order
+-------------------------------------------------------------------------------
+
+-- | Parse eight bytes as a 'Word64' in the host byte order.
+--
+-- /Internal/
+--
+{-# INLINE word64host #-}
+word64host :: (MonadIO m, MonadCatch m) => Parser m Word8 Word64
+word64host =
+    fmap (flip A.unsafeIndex 0 . A.unsafeCast) $ PR.take 8 (A.writeN 8)
