@@ -332,6 +332,7 @@ common prelude-test-options
     , base              >= 4.9   && < 5
     , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
+    , exceptions        >= 0.8   && < 0.11
   default-language: Haskell2010
 
 -- Used by maxrate test, benchmarks and executables
@@ -545,22 +546,6 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
-test-suite test
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-    , containers        >= 0.5   && < 0.7
-    , transformers      >= 0.4   && < 0.6
-    , mtl               >= 2.2   && < 3
-    , exceptions        >= 0.8   && < 0.11
-  default-language: Haskell2010
-
 test-suite internal-prelude-test
   import: test-options
   type: exitcode-stdio-1.0
@@ -597,13 +582,23 @@ test-suite pure-streams-streamly
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
+test-suite Prelude
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude.hs
+  ghc-options: -main-is Streamly.Test.Prelude.main
+  build-depends:
+    , containers        >= 0.5   && < 0.7
+    , transformers      >= 0.4   && < 0.6
+    , mtl               >= 2.2   && < 3
+
 test-suite Prelude.Serial
   import: test-options, prelude-test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Serial.hs
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.WSerial
   import: test-options, prelude-test-options
@@ -611,7 +606,7 @@ test-suite Prelude.WSerial
   main-is: Streamly/Test/Prelude/WSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.ZipSerial
   import: test-options, prelude-test-options
@@ -619,7 +614,7 @@ test-suite Prelude.ZipSerial
   main-is: Streamly/Test/Prelude/ZipSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.ZipAsync
   import: test-options, prelude-test-options
@@ -627,7 +622,7 @@ test-suite Prelude.ZipAsync
   main-is: Streamly/Test/Prelude/ZipAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Ahead
   import: test-options, prelude-test-options
@@ -635,7 +630,7 @@ test-suite Prelude.Ahead
   main-is: Streamly/Test/Prelude/Ahead.hs
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Async
   import: test-options, prelude-test-options
@@ -643,7 +638,7 @@ test-suite Prelude.Async
   main-is: Streamly/Test/Prelude/Async.hs
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.WAsync
   import: test-options, prelude-test-options
@@ -651,7 +646,7 @@ test-suite Prelude.WAsync
   main-is: Streamly/Test/Prelude/WAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Parallel
   import: test-options, prelude-test-options
@@ -659,7 +654,7 @@ test-suite Prelude.Parallel
   main-is: Streamly/Test/Prelude/Parallel.hs
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Concurrent
   import: test-options, prelude-test-options
@@ -667,7 +662,16 @@ test-suite Prelude.Concurrent
   main-is: Streamly/Test/Prelude/Concurrent.hs
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
   other-modules:   Streamly.Test.Common
-                 , Streamly.Test.Prelude
+                 , Streamly.Test.Prelude.Common
+  build-depends: mtl >= 2.2 && < 3
+
+test-suite Prelude.Fold
+  import: test-options, prelude-test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Fold.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Fold.main
+  other-modules:   Streamly.Test.Common
+                 , Streamly.Test.Prelude.Common
 
 test-suite array-test
   import: test-options

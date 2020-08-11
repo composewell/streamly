@@ -18,7 +18,7 @@ import Test.Hspec as H
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 main :: IO ()
 main = hspec

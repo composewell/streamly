@@ -9,6 +9,7 @@
 
 module Streamly.Test.Prelude.WSerial where
 
+import Data.List (sort)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
@@ -17,11 +18,11 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import Streamly.Prelude
+import Streamly.Prelude hiding (repeat)
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 associativityCheck
     :: String
@@ -39,6 +40,20 @@ associativityCheck desc t = prop desc assocCheckProp
                 run $ S.toList $ t $ xStream `wSerial` yStream `wSerial` zStream
             assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
+
+interleaveCheck :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int -> t IO Int)
+    -> Spec
+interleaveCheck t f =
+    it "Interleave four" $
+        (S.toList . t) ((singleton 0 `f` singleton 1) `f` (singleton 100 `f` singleton 101))
+            `shouldReturn` [0, 100, 1, 101]
+
+    where
+
+    singleton :: IsStream t => a -> t m a
+    singleton a = a .: nil
 
 main :: IO ()
 main = hspec
@@ -63,6 +78,29 @@ main = hspec
 
     describe "Monoid operations" $ do
         wSerialOps   $ monoidOps "wSerially" mempty sortEq
+
+    describe "Bind and Monoidal composition combinations" $ do
+        -- XXX Taking a long time when wSerialOps is used.
+        bindAndComposeSimpleOps "WSerial" sortEq wSerially
+        bindAndComposeHierarchyOps "WSerial" wSerially
+        wSerialOps $ nestTwoStreams "WSerial" id sort
+        wSerialOps $ nestTwoStreamsApp "WSerial" id sort
+        composeAndComposeSimpleSerially
+            "WSerial <> "
+            [ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+            , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+            , [1, 4, 2, 7, 3, 5, 8, 6, 9]
+            , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+            ]
+            wSerially
+        composeAndComposeSimpleWSerially
+            "WSerial <> "
+            [ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+            , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+            , [1, 4, 3, 7, 2, 6, 9, 5, 8]
+            , [1, 7, 4, 9, 3, 8, 6, 2, 5]
+            ]
+            wSerially
 
     describe "Semigroup operations" $ do
         wSerialOps $ semigroupOps "wSerially" (==)
@@ -101,3 +139,14 @@ main = hspec
     describe "Stream serial elimination operations" $ do
         wSerialOps   $ eliminationOpsOrdered S.fromFoldable "wSerially"
         wSerialOps   $ eliminationOpsOrdered folded "wSerially folded"
+
+    ---------------------------------------------------------------------------
+    -- Semigroup/Monoidal Composition strict ordering checks
+    ---------------------------------------------------------------------------
+
+    describe "WSerial interleaved (<>) ordering check" $
+        interleaveCheck wSerially (<>)
+    describe "WSerial interleaved mappend ordering check" $
+        interleaveCheck wSerially mappend
+
+    describe "Composed MonadThrow wSerially" $ composeWithMonadThrow wSerially

@@ -17,11 +17,11 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import Streamly.Prelude
+import Streamly.Prelude (IsStream, SerialT, AheadT)
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 associativityCheck
     :: String
@@ -36,7 +36,7 @@ associativityCheck desc t = prop desc assocCheckProp
                 yStream = S.fromList ys
                 zStream = S.fromList zs
             infixAssocstream <-
-                run $ S.toList $ t $ xStream `ahead` yStream `ahead` zStream
+                run $ S.toList $ t $ xStream `S.ahead` yStream `S.ahead` zStream
             assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
 
@@ -48,9 +48,9 @@ main = hspec
 #endif
     $ do
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
-        aheadOps spec = mapOps spec $ makeOps aheadly
+        aheadOps spec = mapOps spec $ makeOps S.aheadly
 #ifndef COVERAGE_BUILD
-              <> [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
+              <> [("maxBuffer (-1)", S.aheadly . S.maxBuffer (-1))]
 #endif
 
     describe "Construction" $ do
@@ -62,6 +62,20 @@ main = hspec
 
     describe "Monoid operations" $ do
         aheadOps     $ monoidOps "aheadly" mempty (==)
+
+    describe "Ahead loops" $ loops S.aheadly id reverse
+
+    describe "Bind and Monoidal composition combinations" $ do
+        aheadOps $ bindAndComposeSimpleOps "Ahead" sortEq
+        aheadOps $ bindAndComposeHierarchyOps "Ahead"
+        aheadOps $ nestTwoStreams "Ahead" id id
+        aheadOps $ nestTwoStreamsApp "Ahead" id id
+        composeAndComposeSimpleSerially "Ahead <> " (repeat [1..9]) S.aheadly
+        composeAndComposeSimpleAheadly "Ahead <> " (repeat [1 .. 9]) S.aheadly
+        composeAndComposeSimpleWSerially
+            "Ahead <> "
+            [[1..9], [1..9], [1,3,2,4,6,5,7,9,8], [1,3,2,4,6,5,7,9,8]]
+            S.aheadly
 
     describe "Semigroup operations" $ do
         aheadOps $ semigroupOps "aheadly" (==)
@@ -107,3 +121,8 @@ main = hspec
     describe "Stream serial elimination operations" $ do
         aheadOps     $ eliminationOpsOrdered S.fromFoldable "aheadly"
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
+    
+    describe "Composed MonadThrow aheadly" $ composeWithMonadThrow S.aheadly
+
+    -- Ad-hoc tests
+    it "takes n from stream of streams" $ takeCombined 1 S.aheadly

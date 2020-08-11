@@ -9,6 +9,7 @@
 
 module Streamly.Test.Prelude.Async where
 
+import Data.List (sort)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
@@ -18,7 +19,7 @@ import Test.Hspec as H
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 main :: IO ()
 main = hspec
@@ -42,6 +43,14 @@ main = hspec
 
     describe "Monoid operations" $ do
         asyncOps     $ monoidOps "asyncly" mempty sortEq
+
+    describe "Async loops" $ loops asyncly sort sort
+
+    describe "Bind and Monoidal composition combinations" $ do
+        asyncOps $ bindAndComposeSimpleOps "Async" sortEq
+        asyncOps $ bindAndComposeHierarchyOps "Async"
+        asyncOps $ nestTwoStreams "Async" sort sort
+        asyncOps $ nestTwoStreamsApp "Async" sort sort
 
     describe "Semigroup operations" $ do
         asyncOps     $ semigroupOps "asyncly" sortEq
@@ -78,3 +87,15 @@ main = hspec
         asyncOps     $ eliminationOps folded "asyncly folded"
         asyncOps     $ eliminationOpsWord8 S.fromFoldable "asyncly"
         asyncOps     $ eliminationOpsWord8 folded "asyncly folded"
+
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
+    describe "Async mappend time order check" $ parallelCheck asyncly mappend
+
+    describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
+
+    -- Ad-hoc tests
+    it "takes n from stream of streams" $ takeCombined 2 asyncly

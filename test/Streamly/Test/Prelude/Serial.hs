@@ -35,7 +35,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 
 import Streamly.Test.Common
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
@@ -216,6 +216,21 @@ main = hspec
     describe "Monoid operations" $ do
         serialOps $ monoidOps "serially" mempty (==)
 
+    describe "Serial loops" $ loops serially id reverse
+
+    describe "Bind and Monoidal composition combinations" $ do
+        -- XXX Taking a long time when serialOps is used.
+        bindAndComposeSimpleOps "Serial" sortEq serially
+        bindAndComposeHierarchyOps "Serial" serially
+        serialOps $ nestTwoStreams "Serial" id id
+        serialOps $ nestTwoStreamsApp "Serial" id id
+        composeAndComposeSimpleSerially "Serial <> " (repeat [1..9]) serially
+        composeAndComposeSimpleAheadly "Serial <> " (repeat [1 .. 9]) serially
+        composeAndComposeSimpleWSerially
+            "Serial <> "
+            [[1..9], [1..9], [1,3,2,4,6,5,7,9,8], [1,3,2,4,6,5,7,9,8]]
+            serially
+
     describe "Semigroup operations" $ do
         serialOps $ semigroupOps "serially" (==)
         serialOps $ associativityCheck "serial == <>"
@@ -272,3 +287,5 @@ main = hspec
     describe "Tests for S.groupsBy" $ do
         prop "testGroupsBy" testGroupsBy
         prop "testGroupsBySep" testGroupsBySep
+    
+    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially

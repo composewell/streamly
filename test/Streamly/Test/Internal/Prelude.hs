@@ -11,6 +11,9 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
+import Data.Function ((&))
+import Data.IORef (newIORef, writeIORef, readIORef)
+import Data.Maybe (fromJust, isJust)
 
 import Test.Hspec as H
 import Test.Hspec.QuickCheck (prop)
@@ -20,7 +23,7 @@ import Test.QuickCheck.Monadic (monadicIO, pick)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.IsStream as SI
+import qualified Streamly.Internal.Data.Stream.IsStream as IS
 
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -62,7 +65,7 @@ testTakeByTime :: IO Bool
 testTakeByTime = do
     r <-
           S.fold ((,) <$> FL.head <*> FL.last)
-        $ SI.takeByTime takeDropTime
+        $ IS.takeByTime takeDropTime
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime r
 
@@ -71,7 +74,7 @@ testDropByTime = do
     t0 <- getTime Monotonic
     mt1 <-
           S.head
-        $ SI.dropByTime takeDropTime
+        $ IS.dropByTime takeDropTime
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
 
@@ -88,8 +91,33 @@ unfold0 = monadicIO $ do
     a <- pick $ choose (0, max_length `div` 2)
     b <- pick $ choose (0, max_length)
     let unf = UF.supply (UF.enumerateFromToIntegral b) a
-    ls <- S.toList $ SI.unfold0 unf
+    ls <- S.toList $ IS.unfold0 unf
     return $ ls == [a..b]
+
+testFromCallback :: IO Int
+testFromCallback = do
+    ref <- newIORef Nothing
+    let stream = S.map Just (IS.fromCallback (setCallback ref))
+                    `S.parallel` runCallback ref
+    S.sum $ S.map fromJust $ S.takeWhile isJust stream
+
+    where
+
+    setCallback ref cb = do
+        writeIORef ref (Just cb)
+
+    runCallback ref = S.yieldM $ do
+        cb <-
+              S.repeatM (readIORef ref)
+                & IS.delayPost 0.1
+                & S.mapMaybe id
+                & S.head
+
+        S.fromList [1..100]
+            & IS.delayPost 0.001
+            & S.mapM_ (fromJust cb)
+        threadDelay 100000
+        return Nothing
 
 main :: IO ()
 main =
@@ -100,3 +128,4 @@ main =
         describe "From Generators" $ do
             prop "unfold" unfold
             prop "unfold0" unfold0
+        it "fromCallback" $ testFromCallback `shouldReturn` (50*101)

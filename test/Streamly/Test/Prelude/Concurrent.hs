@@ -11,14 +11,18 @@
 
 module Streamly.Test.Prelude.Concurrent where
 
-import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
+import Control.Concurrent (MVar, takeMVar, threadDelay, putMVar, newEmptyMVar)
 import Control.Exception
        (BlockedIndefinitelyOnMVar(..), catches,
         BlockedIndefinitelyOnSTM(..), Handler(..))
-import Control.Monad (when, forM_, replicateM_)
+import Control.Monad (void, when, forM_, replicateM_)
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad.State (MonadState, get, modify, runStateT
+                           , StateT(..), evalStateT)
+import Data.Foldable (fold)                           
 import Data.IORef (readIORef, modifyIORef, newIORef)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup (Semigroup, (<>))
 #endif
 import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
@@ -27,11 +31,11 @@ import Test.QuickCheck
        (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 
-import Streamly.Prelude hiding (replicateM, reverse)
+import Streamly.Prelude hiding (fold, replicate, replicateM, reverse)
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 -------------------------------------------------------------------------------
 -- Concurrent generation
@@ -221,6 +225,104 @@ concurrentFoldrApplication n =
                                            (return [])
         listEquals (==) stream list
 
+-- Each snapshot carries an independent state. Multiple parallel tasks should
+-- not affect each other's state. This is especially important when we run
+-- multiple tasks in a single thread.
+snapshot :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot =
+    -- We deliberately use a replicate count 1 here, because a lower count
+    -- catches problems that a higher count doesn't.
+    S.replicateM 1 $ do
+        -- Even though we modify the state here it should not reflect in other
+        -- parallel tasks, it is local to each concurrent task.
+        modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==1))
+        modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+snapshot1 :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot1 = S.replicateM 1000 $
+    modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+snapshot2 :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot2 = S.replicateM 1000 $
+    modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+stateComp
+    :: ( IsStream t
+       , MonadAsync m
+       , Semigroup (t m ())
+       , MonadIO (t m)
+       , MonadState Int m
+       , MonadState Int (t m)
+       )
+    => t m ()
+stateComp = do
+    -- Each task in a concurrent composition inherits the state and maintains
+    -- its own modifications to it, not affecting the parent computation.
+    snapshot <> (modify (+1) >> (snapshot1 <> snapshot2))
+    -- The above modify statement does not affect our state because that is
+    -- used in a parallel composition. In a serial composition it will affect
+    -- our state.
+    get >>= liftIO . (`shouldSatisfy` (== (0 :: Int)))
+
+monadicStateSnapshot
+    :: ( IsStream t
+       , Semigroup (t (StateT Int IO) ())
+       , MonadIO (t (StateT Int IO))
+       , MonadState Int (t (StateT Int IO))
+       )
+    => (t (StateT Int IO) () -> SerialT (StateT Int IO) ()) -> IO ()
+monadicStateSnapshot t = void $ runStateT (S.drain $ t stateComp) 0
+
+stateCompOp
+    :: (   AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+       )
+    -> SerialT (StateT Int IO) ()
+stateCompOp op = do
+    -- Each task in a concurrent composition inherits the state and maintains
+    -- its own modifications to it, not affecting the parent computation.
+    asyncly (snapshot `op` (modify (+1) >> (snapshot1 `op` snapshot2)))
+    -- The above modify statement does not affect our state because that is
+    -- used in a parallel composition. In a serial composition it will affect
+    -- our state.
+    get >>= liftIO . (`shouldSatisfy` (== (0 :: Int)))
+
+checkMonadicStateTransfer
+    :: (IsStream t1, IsStream t2)
+    => (    t1 (StateT Int IO) ()
+        ->  t2 (StateT Int IO) ()
+        ->  SerialT (StateT Int IO) a3 )
+    -> IO ()
+checkMonadicStateTransfer op = evalStateT str (0 :: Int)
+  where
+    str =
+        S.drain $
+        maxBuffer 1 $
+        (serially $ S.mapM snapshoti $ S.fromList [1..10]) `op`
+        (serially $ S.mapM snapshoti $ S.fromList [1..10])
+    snapshoti y = do
+        modify (+ 1)
+        x <- get
+        lift1 $ x `shouldBe` y
+    lift1 m = StateT $ \s -> do
+        a <- m
+        return (a, s)
+
+monadicStateSnapshotOp
+    :: (   AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+       )
+    -> IO ()
+monadicStateSnapshotOp op = void $ runStateT (S.drain $ stateCompOp op) 0
+
+takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
+takeInfinite t =
+    it "take 1" $
+        S.drain (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
+        `shouldReturn` ()
+
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -308,3 +410,79 @@ main = hspec
             concurrentFoldrApplication
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
+ 
+    describe "take on infinite concurrent stream" $ takeInfinite asyncly
+    describe "take on infinite concurrent stream" $ takeInfinite wAsyncly
+    describe "take on infinite concurrent stream" $ takeInfinite aheadly
+
+    ---------------------------------------------------------------------------
+    -- Monadic state transfer in concurrent tasks
+    ---------------------------------------------------------------------------
+   
+    describe "Monadic state transfer in concurrent tasks" $ do
+        -- XXX Can we write better test cases to hit every case?
+        it "async: state is saved and used if the work is partially enqueued"
+            (checkMonadicStateTransfer async)
+        it "wAsync: state is saved and used if the work is partially enqueued"
+            (checkMonadicStateTransfer wAsync)
+        it "ahead: state is saved and used if the work is partially enqueued"
+            (checkMonadicStateTransfer ahead)
+
+    ---------------------------------------------------------------------------
+    -- Monadic state snapshot in concurrent tasks
+    ---------------------------------------------------------------------------
+
+    describe "Monadic state snapshot in concurrent tasks" $ do
+        it "asyncly maintains independent states in concurrent tasks"
+            (monadicStateSnapshot asyncly)
+        it "asyncly limited maintains independent states in concurrent tasks"
+            (monadicStateSnapshot (asyncly . S.take 10000))
+
+        it "wAsyncly maintains independent states in concurrent tasks"
+            (monadicStateSnapshot wAsyncly)
+        it "wAsyncly limited maintains independent states in concurrent tasks"
+            (monadicStateSnapshot (wAsyncly . S.take 10000))
+
+        it "aheadly maintains independent states in concurrent tasks"
+            (monadicStateSnapshot aheadly)
+        it "aheadly limited maintains independent states in concurrent tasks"
+            (monadicStateSnapshot (aheadly . S.take 10000))
+        it "parallely maintains independent states in concurrent tasks"
+            (monadicStateSnapshot parallely)
+
+
+        it "async maintains independent states in concurrent tasks"
+            (monadicStateSnapshotOp async)
+        it "ahead maintains independent states in concurrent tasks"
+            (monadicStateSnapshotOp ahead)
+        it "wAsync maintains independent states in concurrent tasks"
+            (monadicStateSnapshotOp wAsync)
+        it "parallel maintains independent states in concurrent tasks"
+            (monadicStateSnapshotOp S.parallel)
+
+    ---------------------------------------------------------------------------
+    -- Slower tests are at the end
+    ---------------------------------------------------------------------------
+
+    ---------------------------------------------------------------------------
+    -- Thread limits
+    ---------------------------------------------------------------------------
+
+    it "asyncly crosses thread limit (2000 threads)" $
+        S.drain (asyncly $ fold $
+                   replicate 2000 $ S.yieldM $ threadDelay 1000000)
+        `shouldReturn` ()
+
+    it "aheadly crosses thread limit (4000 threads)" $
+        S.drain (aheadly $ fold $
+                   replicate 4000 $ S.yieldM $ threadDelay 1000000)
+        `shouldReturn` ()
+
+    describe "restricts concurrency and cleans up extra tasks" $ do
+        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
+        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
+        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
+
+        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))

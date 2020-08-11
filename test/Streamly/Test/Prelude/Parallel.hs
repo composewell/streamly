@@ -9,7 +9,8 @@
 
 module Streamly.Test.Prelude.Parallel where
 
-#if __GLASGOW_HASKELL__ < 808
+import Data.List (sort)
+#if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup ((<>))
 #endif
 import Test.Hspec.QuickCheck
@@ -18,7 +19,7 @@ import Test.Hspec as H
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
-import Streamly.Test.Prelude
+import Streamly.Test.Prelude.Common
 
 main :: IO ()
 main = hspec
@@ -46,6 +47,15 @@ main = hspec
 
     describe "Monoid operations" $ do
         parallelOps $ monoidOps "parallely" mempty sortEq
+
+    describe "Parallel loops" $ loops parallely sort sort
+
+    describe "Bind and Monoidal composition combinations" $ do
+        -- XXX Taking a long time when parallelOps is used.
+        bindAndComposeSimpleOps "Parallel" sortEq parallely
+        bindAndComposeHierarchyOps "Parallel" parallely
+        parallelOps $ nestTwoStreams "Parallel" sort sort
+        parallelOps $ nestTwoStreamsApp "Parallel" sort sort
 
     describe "Semigroup operations" $ do
         parallelOps $ semigroupOps "parallely" sortEq
@@ -81,3 +91,19 @@ main = hspec
         parallelOps $ eliminationOps folded "parallely folded"
         parallelOps $ eliminationOpsWord8 S.fromFoldable "parallely"
         parallelOps $ eliminationOpsWord8 folded "parallely folded"
+    
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+
+    describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
+
+#ifdef DEVBUILD
+    -- parallely fails on CI machines, may need more difference in times of
+    -- the events, but that would make tests even slower.
+    it "take 1 parallely" $ checkCleanup 3 parallely (S.take 1)
+    it "takeWhile (< 0) parallely" $ checkCleanup 3 parallely (S.takeWhile (< 0))
+#endif
