@@ -120,6 +120,13 @@ module Streamly.Internal.Memory.Array
     -- * Immutable Transformations
     , streamTransform
 
+    -- * Casting
+    , cast
+    , castWord8
+    , unsafeCast
+    , withPtr
+    , withCString
+
     -- * Folding Arrays
     , streamFold
     , fold
@@ -129,11 +136,16 @@ module Streamly.Internal.Memory.Array
     )
 where
 
-import  Control.Monad (when)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
+import Data.Word (Word8)
 -- import Data.Functor.Identity (Identity)
-import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
-import Foreign.Ptr (plusPtr)
+import Foreign.C.String (CString)
+import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr, castForeignPtr)
+import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
@@ -487,6 +499,66 @@ streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
 streamTransform f arr =
     P.runFold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
         $ f (toStream arr)
+
+-------------------------------------------------------------------------------
+-- Casts
+-------------------------------------------------------------------------------
+
+-- | Cast an array having elements of type @a@ into an array having elements of
+-- type @b@. The array size must be a multiple of the size of type @b@
+-- otherwise accessing the last element of the array may result into a crash or
+-- a random value.
+--
+-- /Internal/
+--
+unsafeCast :: Array a -> Array b
+unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
+
+-- | Cast an array into a Word8 array
+--
+-- /Internal/
+--
+castWord8 :: Array a -> Array Word8
+castWord8 = unsafeCast
+
+-- | Cast an array having elements of type @a@ into an array having elements of
+-- type @b@. The length of the array should be a multiple of the size of the
+-- target element otherwise 'Nothing' is returned.
+--
+-- /Internal/
+--
+cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
+cast arr =
+    let len = A.byteLength arr
+        r = len `mod` sizeOf (undefined :: b)
+     in if r /= 0
+        then Nothing
+        else Just $ unsafeCast arr
+
+-- | Use the array as @Ptr a@.
+--
+-- /Unsafe/
+--
+-- /Internal/
+--
+withPtr :: Array a -> (Ptr b -> IO c) -> IO c
+withPtr Array{..} act = do
+    withForeignPtr aStart $ \ptr -> act (castPtr ptr)
+
+-- | Convert the array into a null terminated CString Ptr.
+--
+-- /Unsafe/
+--
+-- /Internal/
+--
+withCString :: Array a -> (CString -> IO b) -> IO b
+withCString arr act = do
+    let Array{..} = castWord8 arr <> A.fromList [0]
+    withForeignPtr aStart $ \ptr -> act (castPtr ptr)
+
+-------------------------------------------------------------------------------
+-- Folds
+-------------------------------------------------------------------------------
 
 -- | Fold an array using a 'Fold'.
 --
