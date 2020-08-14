@@ -37,9 +37,6 @@ import Control.Monad.Catch (MonadCatch, MonadThrow(..), try)
 #if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
 #endif
-#if !(MIN_VERSION_base(4,10,0))
-import Data.Semigroup ((<>))
-#endif
 import Streamly.Internal.Data.Zipper (Zipper (..))
 import Prelude hiding (splitAt)
 
