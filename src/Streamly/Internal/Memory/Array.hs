@@ -40,6 +40,10 @@ module Streamly.Internal.Memory.Array
 
     -- * Construction
 
+    -- Foreign (Unsafe)
+    , A.fromAddr#
+    , A.fromString#
+
     -- Pure List APIs
     , A.fromListN
     , A.fromList
