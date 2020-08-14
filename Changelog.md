@@ -6,6 +6,7 @@
   accumulator monadic.
 * Change the signature of `concatMapWith` to ensure that it can be
   used with a wide variety of combining functions.
+* Drop support for GHC <= 8.0.
 
 ### Bug Fixes
 
