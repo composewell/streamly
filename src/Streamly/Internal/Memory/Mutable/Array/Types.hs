@@ -28,8 +28,6 @@ module Streamly.Internal.Memory.Mutable.Array.Types
     , spliceWithDoubling
     , spliceTwo
 
-    , fromAddr#
-    , fromString#
     , fromList
     , fromListN
     , fromStreamDN
@@ -97,15 +95,14 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
-import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (Addr#, nullAddr#, realWorld#, build)
+import GHC.Base (nullAddr#, realWorld#, build)
 import GHC.Exts (IsList, IsString(..))
-import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
+import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -208,9 +205,6 @@ mutableArray = Array
 
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h strlen" c_strlen
-    :: CString -> IO CSize
 
 foreign import ccall unsafe "string.h memchr" c_memchr
     :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
@@ -383,90 +377,6 @@ reallocAligned alignSize newSize Array{..} = do
 {-# INLINABLE realloc #-}
 realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
 realloc = reallocAligned (alignment (undefined :: a))
-
--- XXX when converting an array of Word8 from a literal string we can simply
--- refer to the literal string. Is it possible to write rules such that
--- fromList Word8 can be rewritten so that GHC does not first convert the
--- literal to [Char] and then we convert it back to an Array Word8?
---
--- TBD: We can also add template haskell quasiquotes to specify arrays of other
--- literal types. TH will encode them into a string literal and we read that as
--- an array of the required type. With template Haskell we can provide a safe
--- version of fromString#.
---
--- | Create an @Array Word8@ of the given length from a machine address
--- 'Addr#'. This API is unsafe for the following reasons:
---
--- 1. The address must point to pinned memory or foreign memory.
--- 2. The address must be legally accessible upto the given length.
--- 3. To guarantee that the array is immutable, the contents of the address
--- must be guaranteed to not change.
---
--- A common use case for this API is to create an array from a static unboxed
--- string literal. GHC string literals are of type 'Addr#', and must contain
--- characters that can be encoded in a byte i.e. characters or literal bytes in
--- the range from 0-255.
---
--- >>> fromAddr# 5 "hello world!"#
--- > [104,101,108,108,111]
---
--- >>> fromAddr# 3 "\255\NUL\255"#
--- > [255,0,255]
---
--- /See also: 'fromString#'/
---
--- /Unsafe/
---
--- /Time complexity: O(1)/
---
-{-# INLINE fromAddr# #-}
-fromAddr# :: Int -> Addr# -> IO (Array Word8)
-fromAddr# n addr# = do
-    ptr <- newForeignPtr_ (castPtr $ Ptr addr#)
-    let p = unsafeForeignPtrToPtr ptr
-    let end = p `plusPtr` n
-    return $ Array
-        { aStart = ptr
-        , aEnd   = end
-        , aBound = end
-        }
-
--- | Like 'fromAddr#' but determines the length of the array upto and excluding
--- the first @0@ byte. The address must be legally accessible up to the first
--- NUL byte.
---
--- A common use case for this API is to create an array from an unboxed string
--- literal. Unboxed string literals are guaranteed to be terminated by a NUL
--- byte.
---
--- >>> fromString# "hello world!"#
--- > [104,101,108,108,111,32,119,111,114,108,100,33]
---
--- >>> fromString# "\255\NUL\255"#
--- > [255]
---
--- /See also: 'fromAddr#', 'fromString'/
---
--- /Unsafe/
---
--- /Time complexity: O(n) (computes the length of the string)/
---
-{-# INLINE fromString# #-}
-fromString# :: Addr# -> IO (Array Word8)
-fromString# addr# = do
-    ptr <- newForeignPtr_ (castPtr cstr)
-    len <- c_strlen cstr
-    let n = fromIntegral len
-    let p = unsafeForeignPtrToPtr ptr
-    let end = p `plusPtr` n
-    return $ Array
-        { aStart = ptr
-        , aEnd   = end
-        , aBound = end
-        }
-  where
-    cstr :: CString
-    cstr = Ptr addr#
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
