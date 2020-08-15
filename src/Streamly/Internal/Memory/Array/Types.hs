@@ -21,8 +21,9 @@ module Streamly.Internal.Memory.Array.Types
     -- * Construction
     , spliceTwo
 
+    , fromPtr
     , fromAddr#
-    , fromString#
+    , fromCString#
     , fromList
     , fromListN
     , fromStreamDN
@@ -86,7 +87,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..))
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (Addr#, nullAddr#)
@@ -217,6 +217,30 @@ spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 spliceTwo arr1 arr2 =
     unsafeFreeze <$> MA.spliceTwo (unsafeThaw arr1) (unsafeThaw arr2)
 
+-- | Create an 'Array' of the given number of elements of type @a@ from a read
+-- only pointer @Ptr a@.  The pointer is not freed when the array is garbage
+-- collected. This API is unsafe for the following reasons:
+--
+-- 1. The pointer must point to static pinned memory or foreign memory that
+-- does not require freeing..
+-- 2. The pointer must be legally accessible upto the given length.
+-- 3. To guarantee that the array is immutable, the contents of the address
+-- must be guaranteed to not change.
+--
+-- /Unsafe/
+--
+-- /Internal/
+--
+{-# INLINE fromPtr #-}
+fromPtr :: Int -> Ptr a -> Array a
+fromPtr n ptr = MA.unsafeInlineIO $ do
+    fptr <- newForeignPtr_ ptr
+    let end = ptr `plusPtr` n
+    return $ Array
+        { aStart = fptr
+        , aEnd   = end
+        }
+
 -- XXX when converting an array of Word8 from a literal string we can simply
 -- refer to the literal string. Is it possible to write rules such that
 -- fromList Word8 can be rewritten so that GHC does not first convert the
@@ -227,13 +251,8 @@ spliceTwo arr1 arr2 =
 -- an array of the required type. With template Haskell we can provide a safe
 -- version of fromString#.
 --
--- | Create an @Array Word8@ of the given length from a machine address
--- 'Addr#'. This API is unsafe for the following reasons:
---
--- 1. The address must point to pinned memory or foreign memory.
--- 2. The address must be legally accessible upto the given length.
--- 3. To guarantee that the array is immutable, the contents of the address
--- must be guaranteed to not change.
+-- | Create an @Array Word8@ of the given length from a static, read only
+-- machine address 'Addr#'. See 'fromPtr' for safety caveats.
 --
 -- A common use case for this API is to create an array from a static unboxed
 -- string literal. GHC string literals are of type 'Addr#', and must contain
@@ -252,52 +271,42 @@ spliceTwo arr1 arr2 =
 --
 -- /Time complexity: O(1)/
 --
+-- /Internal/
+--
 {-# INLINE fromAddr# #-}
-fromAddr# :: Int -> Addr# -> IO (Array Word8)
-fromAddr# n addr# = do
-    ptr <- newForeignPtr_ (castPtr $ Ptr addr#)
-    let p = unsafeForeignPtrToPtr ptr
-    let end = p `plusPtr` n
-    return $ Array
-        { aStart = ptr
-        , aEnd   = end
-        }
+fromAddr# :: Int -> Addr# -> Array a
+fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 
--- | Like 'fromAddr#' but determines the length of the array upto and excluding
--- the first @0@ byte. The address must be legally accessible up to the first
--- NUL byte.
+-- | Generate a byte array from an 'Addr#' that contains a sequence of NUL
+-- (@0@) terminated bytes. The array would not include the NUL byte. The
+-- address must be in static read-only memory and must be legally accessible up
+-- to and including the first NUL byte.
 --
--- A common use case for this API is to create an array from an unboxed string
--- literal. Unboxed string literals are guaranteed to be terminated by a NUL
--- byte.
+-- An unboxed string literal (e.g. @"hello"#@) is a common example of an
+-- 'Addr#' in static read only memory. It represents the UTF8 encoded sequence
+-- of bytes terminated by a NUL byte (a 'CString') corresponding to the
+-- given unicode string.
 --
--- >>> fromString# "hello world!"#
+-- >>> fromCString# "hello world!"#
 -- > [104,101,108,108,111,32,119,111,114,108,100,33]
 --
--- >>> fromString# "\255\NUL\255"#
+-- >>> fromCString# "\255\NUL\255"#
 -- > [255]
 --
--- /See also: 'fromAddr#', 'fromString'/
+-- /See also: 'fromAddr#'/
 --
 -- /Unsafe/
 --
 -- /Time complexity: O(n) (computes the length of the string)/
 --
-{-# INLINE fromString# #-}
-fromString# :: Addr# -> IO (Array Word8)
-fromString# addr# = do
-    ptr <- newForeignPtr_ (castPtr cstr)
-    len <- c_strlen cstr
-    let n = fromIntegral len
-    let p = unsafeForeignPtrToPtr ptr
-    let end = p `plusPtr` n
-    return $ Array
-        { aStart = ptr
-        , aEnd   = end
-        }
-  where
-    cstr :: CString
-    cstr = Ptr addr#
+-- /Internal/
+--
+{-# INLINE fromCString# #-}
+fromCString# :: Addr# -> Array Word8
+fromCString# addr# = do
+    let cstr = Ptr addr#
+        len = MA.unsafeInlineIO $ c_strlen cstr
+    fromPtr (fromIntegral len) (castPtr cstr)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the

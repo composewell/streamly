@@ -40,9 +40,12 @@ module Streamly.Internal.Memory.Array
 
     -- * Construction
 
-    -- Foreign (Unsafe)
+    -- Pure, From Static Memory (Unsafe)
+    -- We can use fromPtrM#, fromCStringM# and fromAddrM# to create arrays from
+    -- a dynamic memory address which requires a finalizer.
+    , A.fromPtr
     , A.fromAddr#
-    , A.fromString#
+    , A.fromCString#
 
     -- Pure List APIs
     , A.fromListN
