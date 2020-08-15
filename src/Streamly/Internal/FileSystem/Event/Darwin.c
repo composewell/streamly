@@ -21,6 +21,101 @@
  */
 
 /******************************************************************************
+ * Create Flags
+ *****************************************************************************/
+
+UInt32 FSEventStreamCreateFlagNoDefer () {
+  return kFSEventStreamCreateFlagNoDefer;
+}
+UInt32 FSEventStreamCreateFlagWatchRoot () {
+  return kFSEventStreamCreateFlagWatchRoot;
+}
+UInt32 FSEventStreamCreateFlagFileEvents () {
+  return kFSEventStreamCreateFlagFileEvents;
+}
+UInt32 FSEventStreamCreateFlagIgnoreSelf () {
+  return kFSEventStreamCreateFlagIgnoreSelf;
+}
+#if 0
+UInt32 FSEventStreamCreateFlagFullHistory = kFSEventStreamCreateFlagFullHistory;
+#endif
+
+/******************************************************************************
+ * Event Flags
+ *****************************************************************************/
+
+UInt32 FSEventStreamEventFlagEventIdsWrapped () {
+  return kFSEventStreamEventFlagEventIdsWrapped;
+}
+UInt32 FSEventStreamEventFlagMustScanSubDirs () {
+  return kFSEventStreamEventFlagMustScanSubDirs;
+}
+UInt32 FSEventStreamEventFlagKernelDropped () {
+  return kFSEventStreamEventFlagKernelDropped;
+}
+UInt32 FSEventStreamEventFlagUserDropped () {
+  return kFSEventStreamEventFlagUserDropped;
+}
+UInt32 FSEventStreamEventFlagHistoryDone () {
+  return kFSEventStreamEventFlagHistoryDone;
+}
+UInt32 FSEventStreamEventFlagRootChanged () {
+  return kFSEventStreamEventFlagRootChanged;
+}
+UInt32 FSEventStreamEventFlagMount () {
+  return kFSEventStreamEventFlagMount;
+}
+UInt32 FSEventStreamEventFlagUnmount () {
+  return kFSEventStreamEventFlagUnmount;
+}
+UInt32 FSEventStreamEventFlagItemChangeOwner () {
+  return kFSEventStreamEventFlagItemChangeOwner;
+}
+UInt32 FSEventStreamEventFlagItemInodeMetaMod () {
+  return kFSEventStreamEventFlagItemInodeMetaMod;
+}
+UInt32 FSEventStreamEventFlagItemFinderInfoMod () {
+  return kFSEventStreamEventFlagItemFinderInfoMod;
+}
+UInt32 FSEventStreamEventFlagItemXattrMod () {
+  return kFSEventStreamEventFlagItemXattrMod;
+}
+UInt32 FSEventStreamEventFlagItemCreated () {
+  return kFSEventStreamEventFlagItemCreated;
+}
+UInt32 FSEventStreamEventFlagItemRemoved () {
+  return kFSEventStreamEventFlagItemRemoved;
+}
+UInt32 FSEventStreamEventFlagItemRenamed () {
+  return kFSEventStreamEventFlagItemRenamed;
+}
+UInt32 FSEventStreamEventFlagItemModified () {
+  return kFSEventStreamEventFlagItemModified;
+}
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+UInt32 FSEventStreamEventFlagItemCloned () {
+  return kFSEventStreamEventFlagItemCloned;
+}
+#endif
+UInt32 FSEventStreamEventFlagItemIsDir () {
+  return kFSEventStreamEventFlagItemIsDir;
+}
+UInt32 FSEventStreamEventFlagItemIsFile () {
+  return kFSEventStreamEventFlagItemIsFile;
+}
+UInt32 FSEventStreamEventFlagItemIsSymlink () {
+  return kFSEventStreamEventFlagItemIsSymlink;
+}
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+UInt32 FSEventStreamEventFlagItemIsHardlink () {
+  return kFSEventStreamEventFlagItemIsHardlink;
+}
+#endif
+UInt32 FSEventStreamEventFlagItemIsLastHardlink () {
+  return kFSEventStreamEventFlagItemIsLastHardlink;
+}
+
+/******************************************************************************
  * Event watch
  *****************************************************************************/
 
