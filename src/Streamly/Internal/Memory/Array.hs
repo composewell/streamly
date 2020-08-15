@@ -125,10 +125,10 @@ module Streamly.Internal.Memory.Array
 
     -- * Casting
     , cast
-    , castWord8
     , unsafeCast
-    , withPtr
-    , withCString
+    , asPtr
+    , asByteArray
+    , asCString
 
     -- * Folding Arrays
     , streamFold
@@ -521,8 +521,8 @@ unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
 --
 -- /Internal/
 --
-castWord8 :: Array a -> Array Word8
-castWord8 = unsafeCast
+asByteArray :: Array a -> Array Word8
+asByteArray = unsafeCast
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
@@ -538,25 +538,27 @@ cast arr =
         then Nothing
         else Just $ unsafeCast arr
 
--- | Use the array as @Ptr a@.
+-- | Use an @Array a@ as @Ptr b@.
 --
 -- /Unsafe/
 --
 -- /Internal/
 --
-withPtr :: Array a -> (Ptr b -> IO c) -> IO c
-withPtr Array{..} act = do
+asPtr :: Array a -> (Ptr b -> IO c) -> IO c
+asPtr Array{..} act = do
     withForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
--- | Convert the array into a null terminated CString Ptr.
+-- | Convert an array of any type into a null terminated CString Ptr.
 --
 -- /Unsafe/
 --
+-- /O(n) Time: (creates a copy of the array)/
+--
 -- /Internal/
 --
-withCString :: Array a -> (CString -> IO b) -> IO b
-withCString arr act = do
-    let Array{..} = castWord8 arr <> A.fromList [0]
+asCString :: Array a -> (CString -> IO b) -> IO b
+asCString arr act = do
+    let Array{..} = asByteArray arr <> A.fromList [0]
     withForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
