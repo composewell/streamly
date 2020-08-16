@@ -24,7 +24,7 @@ module Handle.ReadWrite
 where
 
 import Control.Exception (SomeException)
-import System.IO (Handle, hClose)
+import System.IO (Handle, hClose, hGetChar)
 import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
@@ -403,6 +403,23 @@ fromToBytesBracketStream inh devNull =
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
 
+readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
+readWriteBeforeAfterStream inh devNull =
+    let readEx =
+            IP.after (hClose inh)
+                $ IP.before (hGetChar inh) (S.unfold FH.read inh)
+     in S.fold (FH.write devNull) readEx
+
+readWriteAfterStream :: Handle -> Handle -> IO ()
+readWriteAfterStream inh devNull =
+    let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
+     in S.fold (FH.write devNull) readEx
+
+readWriteAfter_Stream :: Handle -> Handle -> IO ()
+readWriteAfter_Stream inh devNull =
+    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
+     in S.fold (FH.write devNull) readEx
+
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
     [ bgroup "copy/read/exceptions"
@@ -414,6 +431,12 @@ o_1_space_copy_stream_exceptions env =
            readWriteFinally_Stream inh (nullH env)
        , mkBenchSmall "S.finally" env $ \inh _ ->
            readWriteFinallyStream inh (nullH env)
+       , mkBenchSmall "S.after . S.before" env $ \inh _ ->
+           readWriteBeforeAfterStream inh (nullH env)
+       , mkBenchSmall "S.after" env $ \inh _ ->
+           readWriteAfterStream inh (nullH env)
+       , mkBenchSmall "S.after_" env $ \inh _ ->
+           readWriteAfter_Stream inh (nullH env)
        ]
     , bgroup "copy/fromToBytes/exceptions"
        [ mkBenchSmall "S.bracket_" env $ \inh _ ->

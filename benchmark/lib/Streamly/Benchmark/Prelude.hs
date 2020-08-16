@@ -96,18 +96,6 @@ sourceUnfoldrMSerial count start = Serial.unfoldrM step start
         else return (Just (cnt, cnt + 1))
 
 -------------------------------------------------------------------------------
--- fromIndices
--------------------------------------------------------------------------------
-
-{-# INLINE _sourceFromIndices #-}
-_sourceFromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-_sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
-
-{-# INLINE _sourceFromIndicesM #-}
-_sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-_sourceFromIndicesM value n = S.take value $ S.fromIndicesM (fmap return (+ n))
-
--------------------------------------------------------------------------------
 -- fromList
 -------------------------------------------------------------------------------
 
