@@ -356,7 +356,7 @@ library
       frameworks:    Cocoa
       include-dirs:  src/Streamly/Internal
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
-                   , src/Streamly/Internal/FileSystem/Event/Darwin.c
+                   , src/Streamly/Internal/FileSystem/Event/Darwin.m
       exposed-modules:
                      Streamly.Internal.FileSystem.Event.Darwin
 
