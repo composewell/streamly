@@ -1,7 +1,15 @@
-/* src/Streamly/Internal/Data/Time/config.h.in.  Generated from configure.ac by autoheader.  */
+/* src/config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
+
+/* Define to 1 if you have the declaration of `IN_EXCL_UNLINK', and to 0 if
+   you don't. */
+#undef HAVE_DECL_IN_EXCL_UNLINK
+
+/* Define to 1 if you have the declaration of `IN_MASK_CREATE', and to 0 if
+   you don't. */
+#undef HAVE_DECL_IN_MASK_CREATE
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H

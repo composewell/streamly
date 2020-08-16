@@ -19,6 +19,8 @@
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)
 -- provided in this module are used to determine the attributes of the event.
 --
+-- Identical successive events may be coalesced into a single event.
+--
 -- =Design notes
 --
 -- For reference documentation see:
@@ -53,6 +55,9 @@
 -- 4. On Linux 'watchPaths' fails if a path does not exist, on macOS it does
 -- not fail.
 
+#include "config.h"
+
+#if HAVE_DECL_IN_EXCL_UNLINK
 module Streamly.Internal.FileSystem.Event.Linux
     (
     -- * Subscribing to events
@@ -231,8 +236,11 @@ foreign import capi
 setUnwatchMoved :: Toggle -> Config -> Config
 setUnwatchMoved = setFlag iN_EXCL_UNLINK
 
+#if HAVE_DECL_IN_MASK_CREATE
 foreign import capi
     "sys/inotify.h value IN_MASK_CREATE" iN_MASK_CREATE :: Word32
+#endif
+
 foreign import capi
     "sys/inotify.h value IN_MASK_ADD" iN_MASK_ADD :: Word32
 
@@ -242,9 +250,11 @@ foreign import capi
 -- /Internal/
 --
 data WhenExists =
-      FailIfExists -- ^ Fail the API
-    | AddIfExists -- ^ Do not set an existing setting to 'Off' only set to 'On'
+      AddIfExists -- ^ Do not set an existing setting to 'Off' only set to 'On'
     | ReplaceIfExists -- ^ Replace the existing settings with new settings
+#if HAVE_DECL_IN_MASK_CREATE
+    | FailIfExists -- ^ Fail the API
+#endif
 
 -- | When adding a new path to the watch, specify what to do if a watch already
 -- exists on that path.
@@ -256,9 +266,11 @@ data WhenExists =
 setWhenExists :: WhenExists -> Config -> Config
 setWhenExists val cfg =
     case val of
-        FailIfExists -> setFlag iN_MASK_CREATE On cfg
         AddIfExists -> setFlag iN_MASK_ADD On cfg
         ReplaceIfExists -> setFlag iN_MASK_ADD Off cfg
+#if HAVE_DECL_IN_MASK_CREATE
+        FailIfExists -> setFlag iN_MASK_CREATE On cfg
+#endif
 
 foreign import capi
     "sys/inotify.h value IN_ONESHOT" iN_ONESHOT :: Word32
@@ -1010,3 +1022,7 @@ showEvent ev@Event{..} =
     ++ "\n"
 
         where showev f str = if f ev then "\n" ++ str else ""
+#else
+#warning "Disabling module Streamly.Internal.FileSystem.Event.Linux. Does not support kernels older than 2.6.36."
+module Streamly.Internal.FileSystem.Event.Linux () where
+#endif

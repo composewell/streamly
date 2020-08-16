@@ -8,10 +8,14 @@ AC_INIT([streamly], [0.7.2], [streamly@composewell.com], [streamly])
 # To suppress "WARNING: unrecognized options: --with-compiler"
 AC_ARG_WITH([compiler], [GHC])
 
+# XXX Do this only for linux
+AC_CHECK_DECLS([IN_MASK_CREATE],[],[],[#include <sys/inotify.h>])
+AC_CHECK_DECLS([IN_EXCL_UNLINK],[],[],[#include <sys/inotify.h>])
+
 # Check headers and functions required
 AC_CHECK_HEADERS([time.h])
 AC_CHECK_FUNCS([clock_gettime])
 
 # Output
-AC_CONFIG_HEADERS([src/Streamly/Internal/Data/Time/config.h])
+AC_CONFIG_HEADERS([src/config.h])
 AC_OUTPUT

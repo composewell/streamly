@@ -2,7 +2,7 @@
 #define HS_CLOCK_GHCJS 1
 #elif defined(_WIN32)
 #define HS_CLOCK_WINDOWS 1
-#elif (defined (HAVE_TIME_H) && defined(HAVE_CLOCK_GETTIME))
+#elif HAVE_TIME_H && HAVE_CLOCK_GETTIME
 #define HS_CLOCK_POSIX 1
 #elif __APPLE__
 #define HS_CLOCK_OSX 1

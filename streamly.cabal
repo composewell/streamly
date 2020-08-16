@@ -145,7 +145,7 @@ extra-source-files:
     src/Streamly/Internal/Data/Array/PrimInclude.hs
     src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
     src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
-    src/Streamly/Internal/Data/Time/config.h.in
+    src/config.h.in
     src/inline.hs
     stack.yaml
 
@@ -153,7 +153,7 @@ extra-tmp-files:
     config.log
     config.status
     autom4te.cache
-    src/Streamly/Internal/Data/Time/config.h
+    src/config.h
 
 source-repository head
     type: git
@@ -347,8 +347,7 @@ library
       default-extensions: QuantifiedConstraints
 
     js-sources: jsbits/clock.js
-    include-dirs:     src/Streamly/Internal/Data/Time
-                    , src
+    include-dirs:    src
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Windows.c
     if os(darwin)

@@ -7,7 +7,7 @@
 #include "config.h"
 #endif
 
-#include "config-clock.h"
+#include "Streamly/Internal/Data/Time/config-clock.h"
 
 -- |
 -- Module      : Streamly.Internal.Data.Time.TimeSpec
