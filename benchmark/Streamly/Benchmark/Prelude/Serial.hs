@@ -34,9 +34,10 @@ import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
-import Prelude hiding (concatMap, mapM_, init, last, elem, notElem, all, any,
-    and, or, length, sum, product, maximum, minimum, reverse, fmap, map,
-    sequence, mapM, tail)
+import Prelude hiding
+       ( concatMap, mapM_, init, last, elem, notElem, all, any
+       , and, or, length, sum, product, maximum, minimum, reverse, fmap, map
+       , sequence, mapM, tail, repeat, replicate, iterate, (!!), lookup)
 
 import qualified Control.Applicative as AP
 import qualified Prelude as P
@@ -50,14 +51,13 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import Gauge
-import Streamly.Prelude (SerialT, IsStream, serially, serial)
+import Streamly.Prelude (SerialT, IsStream, serially, serial, MonadAsync)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Streamly.Internal.Data.Time.Units
@@ -98,11 +98,70 @@ readInstanceList str =
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
 
+{-# INLINE repeat #-}
+repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+repeat count = S.take count . S.repeat
+
+{-# INLINE repeatM #-}
+repeatM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+repeatM count = S.take count . S.repeatM . return
+
+{-# INLINE replicate #-}
+replicate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+replicate count = S.replicate count
+
+{-# INLINE replicateM #-}
+replicateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+replicateM count = S.replicateM count . return
+
+{-# INLINE enumerateFrom #-}
+enumerateFrom :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFrom count = S.take count . S.enumerateFrom
+
+{-# INLINE enumerateFromTo #-}
+enumerateFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFromTo = sourceIntFromTo
+
+{-# INLINE enumerateFromThen #-}
+enumerateFromThen :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFromThen count inp = S.take count $ S.enumerateFromThen inp (inp + 1)
+
+{-# INLINE enumerateFromThenTo #-}
+enumerateFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFromThenTo = sourceIntFromThenTo
+
+-- XXX enumerate?
+-- XXX enumerateTo?
+
+{-# INLINE iterate #-}
+iterate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+iterate count = S.take count . S.iterate (+1)
+
+{-# INLINE iterateM #-}
+iterateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+iterateM count = S.take count . S.iterateM (return . (+1)) . return
+
+{-# INLINE fromIndices #-}
+fromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+fromIndices value n = S.take value $ S.fromIndices (+ n)
+
+{-# INLINE fromIndicesM #-}
+fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
+
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
         [ benchIOSrc serially "unfoldr" (sourceUnfoldr value)
         , benchIOSrc serially "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc serially "repeat" (repeat value)
+        , benchIOSrc serially "repeatM" (repeatM value)
+        , benchIOSrc serially "replicate" (replicate value)
+        , benchIOSrc serially "replicateM" (replicateM value)
+        , benchIOSrc serially "iterate" (iterate value)
+        , benchIOSrc serially "iterateM" (iterateM value)
+        , benchIOSrc serially "fromIndices" (fromIndices value)
+        , benchIOSrc serially "fromIndicesM" (fromIndicesM value)
         , benchIOSrc serially "intFromTo" (sourceIntFromTo value)
         , benchIOSrc serially "intFromThenTo" (sourceIntFromThenTo value)
         , benchIOSrc serially "integerFromStep" (sourceIntegerFromStep value)
@@ -459,6 +518,26 @@ minimumBy = S.minimumBy compare
 maximumBy :: Monad m => SerialT m Int -> m (Maybe Int)
 maximumBy = S.maximumBy compare
 
+{-# INLINE the #-}
+the :: Monad m => SerialT m Int -> m (Maybe Int)
+the = S.the
+
+{-# INLINE drainN #-}
+drainN :: Monad m => Int -> SerialT m Int -> m ()
+drainN val = S.drainN val
+
+{-# INLINE drainWhile #-}
+drainWhile :: Monad m => SerialT m Int -> m ()
+drainWhile = S.drainWhile (const True)
+
+{-# INLINE (!!) #-}
+(!!) :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+(!!) val = flip (Internal.!!) val
+
+{-# INLINE lookup #-}
+lookup :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+lookup val = S.lookup val . S.map (\x -> (x, x))
+
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
     [ bgroup "elimination"
@@ -496,6 +575,8 @@ o_1_space_elimination_folds value =
 
         -- draining
         , benchIOSink value "drain" $ toNull serially
+        , benchIOSink value "drainN" $ drainN value
+        , benchIOSink value "drainWhile" $ drainWhile
         , benchPureSink value "drain (pure)" P.id
         , benchIOSink value "mapM_" mapM_
 
@@ -512,8 +593,11 @@ o_1_space_elimination_folds value =
         , benchIOSink value "minimumBy" minimumBy
         , benchIOSink value "minimum" minimum
 
+        , bench "the" $ nfIO $ randomRIO (1,1) >>= the . repeat value
         , benchIOSink value "find" (find value)
-    -- , benchIOSink value "lookup" lookup
+        -- , benchIOSink value "lookupFirst" (lookup 1)
+        , benchIOSink value "lookupNever" (lookup (value + 1))
+        , benchIOSink value "(!!)" ((!!) value)
         , benchIOSink value "findIndex" (findIndex value)
         , benchIOSink value "elemIndex" (elemIndex value)
         -- this is too fast, causes all benchmarks reported in ns
@@ -764,9 +848,21 @@ o_n_space_traversable value =
 scan :: MonadIO m => Int -> SerialT m Int -> m ()
 scan n = composeN n $ S.scanl' (+) 0
 
+{-# INLINE scanlM' #-}
+scanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
+scanlM' n = composeN n $ S.scanlM' (\b a -> return $ b + a) 0
+
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> SerialT m Int -> m ()
 scanl1' n = composeN n $ S.scanl1' (+)
+
+{-# INLINE postscanl' #-}
+postscanl' :: MonadIO m => Int -> SerialT m Int -> m ()
+postscanl' n = composeN n $ S.postscanl' (+) 0
+
+{-# INLINE postscanlM' #-}
+postscanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
+postscanlM' n = composeN n $ S.postscanlM' (\b a -> return $ b + a) 0
 
 {-# INLINE sequence #-}
 sequence ::
@@ -815,6 +911,11 @@ foldrT n = composeN n $ Internal.foldrT S.cons S.nil
 foldrTMap :: MonadIO m => Int -> SerialT m Int -> m ()
 foldrTMap n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
 
+
+{-# INLINE trace #-}
+trace :: MonadAsync m => Int -> SerialT m Int -> m ()
+trace n = composeN n $ Internal.trace return
+
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup
@@ -839,6 +940,9 @@ o_1_space_mapping value =
         -- Scanning
         , benchIOSink value "scanl'" (scan 1)
         , benchIOSink value "scanl1'" (scanl1' 1)
+        , benchIOSink value "scanlM'" (scanlM' 1)
+        , benchIOSink value "postscanl'" (postscanl' 1)
+        , benchIOSink value "postscanlM'" (postscanlM' 1)
 
         ]
     ]
@@ -848,9 +952,13 @@ o_1_space_mappingX4 value =
     [ bgroup "mappingX4"
         [ benchIOSink value "map" (mapN serially 4)
         , benchIOSink value "mapM" (mapM serially 4)
+        , benchIOSink value "trace" (trace 4)
 
         , benchIOSink value "scan" (scan 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
+        , benchIOSink value "scanlM'" (scanlM' 4)
+        , benchIOSink value "postscanl'" (postscanl' 4)
+        , benchIOSink value "postscanlM'" (postscanlM' 4)
 
         ]
     ]
@@ -972,6 +1080,18 @@ filterAllOut value n = composeN n $ S.filter (> (value + 1))
 filterAllIn :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 filterAllIn value n = composeN n $ S.filter (<= (value + 1))
 
+{-# INLINE filterMEven #-}
+filterMEven :: MonadIO m => Int -> SerialT m Int -> m ()
+filterMEven n = composeN n $ S.filterM (return . even)
+
+{-# INLINE filterMAllOut #-}
+filterMAllOut :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+filterMAllOut value n = composeN n $ S.filterM (\x -> return $ x > (value + 1))
+
+{-# INLINE filterMAllIn #-}
+filterMAllIn :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+filterMAllIn value n = composeN n $ S.filterM (\x -> return $ x <= (value + 1))
+
 {-# INLINE _takeOne #-}
 _takeOne :: MonadIO m => Int -> SerialT m Int -> m ()
 _takeOne n = composeN n $ S.take 1
@@ -984,9 +1104,9 @@ takeAll value n = composeN n $ S.take (value + 1)
 takeWhileTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 takeWhileTrue value n = composeN n $ S.takeWhile (<= (value + 1))
 
-{-# INLINE _takeWhileMTrue #-}
-_takeWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-_takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
+{-# INLINE takeWhileMTrue #-}
+takeWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
 
 {-# INLINE takeByTime #-}
 takeByTime :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
@@ -1010,13 +1130,22 @@ dropAll value n = composeN n $ S.drop (value + 1)
 dropWhileTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 dropWhileTrue value n = composeN n $ S.dropWhile (<= (value + 1))
 
-{-# INLINE _dropWhileMTrue #-}
-_dropWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-_dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
+{-# INLINE dropWhileMTrue #-}
+dropWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
 
 {-# INLINE dropWhileFalse #-}
 dropWhileFalse :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 dropWhileFalse value n = composeN n $ S.dropWhile (> (value + 1))
+
+-- XXX Decide on the time interval
+{-# INLINE _intervalsOfSum #-}
+_intervalsOfSum :: MonadAsync m => Double -> Int -> SerialT m Int -> m ()
+_intervalsOfSum i n = composeN n (S.intervalsOf i FL.sum)
+
+-- S.groups
+-- S.groupsBy
+-- S.groupsByRolling
 
 {-# INLINE dropByTime #-}
 dropByTime :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
@@ -1038,6 +1167,11 @@ elemIndices value n = composeN n $ S.elemIndices (value + 1)
 {-# INLINE deleteBy #-}
 deleteBy :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 deleteBy value n = composeN n $ S.deleteBy (>=) (value + 1)
+
+-- uniq . uniq == uniq, composeN 2 ~ composeN 1
+{-# INLINE uniq #-}
+uniq :: MonadIO m => Int -> SerialT m Int -> m ()
+uniq n = composeN n S.uniq
 
 {-# INLINE mapMaybe #-}
 mapMaybe :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -1066,6 +1200,10 @@ o_1_space_filtering value =
         , benchIOSink value "filter-all-out" (filterAllOut value 1)
         , benchIOSink value "filter-all-in" (filterAllIn value 1)
 
+        , benchIOSink value "filterM-even" (filterMEven 1)
+        , benchIOSink value "filterM-all-out" (filterMAllOut value 1)
+        , benchIOSink value "filterM-all-in" (filterMAllIn value 1)
+
         -- Trimming
         , benchIOSink value "take-all" (takeAll value 1)
         , benchIOSink
@@ -1088,6 +1226,8 @@ o_1_space_filtering value =
               (dropWhileFalse value 1)
         , benchIOSink value "deleteBy" (deleteBy value 1)
 
+        , benchIOSink value "uniq" (uniq 1)
+
         -- Map and filter
         , benchIOSink value "mapMaybe" (mapMaybe 1)
         , benchIOSink value "mapMaybeM" (mapMaybeM 1)
@@ -1105,19 +1245,25 @@ o_1_space_filteringX4 value =
         , benchIOSink value "filter-all-out" (filterAllOut value 4)
         , benchIOSink value "filter-all-in" (filterAllIn value 4)
 
+        , benchIOSink value "filterM-even" (filterMEven 4)
+        , benchIOSink value "filterM-all-out" (filterMAllOut value 4)
+        , benchIOSink value "filterM-all-in" (filterMAllIn value 4)
+
         -- trimming
         , benchIOSink value "take-all" (takeAll value 4)
         , benchIOSink value "takeWhile-true" (takeWhileTrue value 4)
-     -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 4)
+        , benchIOSink value "takeWhileM-true" (takeWhileMTrue value 4)
         , benchIOSink value "drop-one" (dropOne 4)
         , benchIOSink value "drop-all" (dropAll value 4)
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 4)
-     -- , benchIOSink value "dropWhileM-true" (_dropWhileMTrue value 4)
+        , benchIOSink value "dropWhileM-true" (dropWhileMTrue value 4)
         , benchIOSink
               value
               "dropWhile-false"
               (dropWhileFalse value 4)
         , benchIOSink value "deleteBy" (deleteBy value 4)
+
+        , benchIOSink value "uniq" (uniq 4)
 
         -- map and filter
         , benchIOSink value "mapMaybe" (mapMaybe 4)
@@ -1137,6 +1283,10 @@ o_1_space_filteringX4 value =
 intersperse :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
 intersperse value n = composeN n $ S.intersperse (value + 1)
 
+{-# INLINE intersperseM #-}
+intersperseM :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
+intersperseM value n = composeN n $ S.intersperseM (return $ value + 1)
+
 {-# INLINE insertBy #-}
 insertBy :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 insertBy value n = composeN n $ S.insertBy compare (value + 1)
@@ -1145,6 +1295,7 @@ o_1_space_inserting :: Int -> [Benchmark]
 o_1_space_inserting value =
     [ bgroup "filtering"
         [ benchIOSink value "intersperse" (intersperse value 1)
+        , benchIOSink value "intersperseM" (intersperseM value 1)
         , benchIOSink value "insertBy" (insertBy value 1)
         ]
     ]
@@ -1154,6 +1305,34 @@ o_1_space_insertingX4 value =
     [ bgroup "insertingX4"
         [ benchIOSink value "intersperse" (intersperse value 4)
         , benchIOSink value "insertBy" (insertBy value 4)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Indexing
+-------------------------------------------------------------------------------
+
+{-# INLINE indexed #-}
+indexed :: MonadIO m => Int -> SerialT m Int -> m ()
+indexed n = composeN n (S.map snd . S.indexed)
+
+{-# INLINE indexedR #-}
+indexedR :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+indexedR value n = composeN n (S.map snd . S.indexedR value)
+
+o_1_space_indexing :: Int -> [Benchmark]
+o_1_space_indexing value =
+    [ bgroup "indexing"
+        [ benchIOSink value "indexed" (indexed 1)
+        , benchIOSink value "indexedR" (indexedR value 1)
+        ]
+    ]
+
+o_1_space_indexingX4 :: Int -> [Benchmark]
+o_1_space_indexingX4 value =
+    [ bgroup "indexingx4"
+        [ benchIOSink value "indexed" (indexed 4)
+        , benchIOSink value "indexedR" (indexedR value 4)
         ]
     ]
 
@@ -1465,10 +1644,23 @@ mergeBy count n =
         (sourceUnfoldrM count n)
         (sourceUnfoldrM count (n + 1))
 
+{-# INLINE mergeByM #-}
+mergeByM :: Int -> Int -> IO ()
+mergeByM count n =
+    S.drain $
+    S.mergeByM
+        (\a b -> return $ P.compare a b)
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
+
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'mergeBy
 inspect $ 'mergeBy `hasNoType` ''SPEC
 inspect $ 'mergeBy `hasNoType` ''D.Step
+
+inspect $ hasNoTypeClasses 'mergeByM
+inspect $ 'mergeByM `hasNoType` ''SPEC
+inspect $ 'mergeByM `hasNoType` ''D.Step
 #endif
 
 o_1_space_joining :: Int -> [Benchmark]
@@ -1479,6 +1671,7 @@ o_1_space_joining value =
         , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
         , benchIOSrc1 "append (2,2,x/4)" (append4 (value `div` 4))
         , benchIOSrc1 "mergeBy (2,x/2)" (mergeBy (value `div` 2))
+        , benchIOSrc1 "mergeByM (2,x/2)" (mergeByM (value `div` 2))
         ]
     ]
 
@@ -1790,6 +1983,7 @@ o_n_heap_transformer value =
         ]
     ]
 
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1824,6 +2018,8 @@ main = do
             , o_1_space_insertingX4 size
             , o_1_space_transformations_mixed size
             , o_1_space_transformations_mixedX4 size
+            , o_1_space_indexing size
+            , o_1_space_indexingX4 size
 
             -- pipes
             , o_1_space_pipes size
