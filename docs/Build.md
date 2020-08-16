@@ -1,6 +1,20 @@
-# Compilation Options
+# GHC Haskell
+## Compiler Versions
 
-## Absolute Minimum
+GHC versions 8.0 onwards are supported by streamly per se. However, note
+that some packages we depend on (e.g. `network`) support only last three
+versions of GHC.
+
+Use GHC 8.8 for best performance.  Benchmarks show that GHC 8.8 has
+significantly better performance than GHC 8.6 in many cases.
+
+GHC 8.2.2 may hog memory and hang when building certain applications using
+streamly (particularly the benchmark programs in the streamly package).
+Therefore, we recommend avoiding using the GHC version 8.2.x.
+
+## Compilation Options
+
+### Absolute Minimum
 
 At the very least `-O -fdicts-strict` compilation options are
 required. If these options are not used, the program may exhibit memory
@@ -11,7 +25,7 @@ optimization option, is known to hog memory:
 main = S.drain $ S.concatMap S.fromList $ S.repeat []
 ```
 
-## Recommended Options
+### Recommended Options
 
 Use the following GHC options:
 
@@ -28,7 +42,7 @@ value or remove that option.
 
 See [Explanation](#explanation) for details about these flags.
 
-## Using Fusion Plugin
+### Using Fusion Plugin
 
 In many cases
 [fusion-plugin](https://hackage.haskell.org/package/fusion-plugin) can
@@ -44,7 +58,7 @@ package works only for GHC >= 8.6.
   -fplugin=Fusion.Plugin 
 ```
 
-## Explanation
+### Explanation
 
 * `-fdicts-strict` is needed to avoid [a GHC
 issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
@@ -64,7 +78,7 @@ bindings and therefore enabling case-of-case optimization. In some
 cases, especially in some file IO benchmarks, it can make a difference of
 5-10x better performance.
 
-# Multi-core Parallelism
+## Multi-core Parallelism
 
 Concurrency without a threaded runtime may be a bit more efficient. Do not use
 threaded runtime unless you really need multi-core parallelism. To get
@@ -72,14 +86,26 @@ multi-core parallelism use the following GHC options:
 
   `-threaded -with-rtsopts "-N"`
 
-# Compiler Versions
+# Platform Specific
 
-Use GHC 8.8 for best performance.  Benchmarks show that GHC 8.8 has
-significantly better performance than GHC 8.6 in many cases.
+Streamly supports Linux, macOS and Windows operating systems. Some
+modules and functionality may depend on specific OS kernel features.
+Features/modules may get disabled if the kernel/OS does not support it.
 
-GHC 8.2.2 may hog memory and hang when building certain application using
-streamly (particularly the benchmark programs in the streamly package).
-Therefore we recommend avoiding using the GHC version 8.2.x.
+## Linux
+
+* File system events notification module is supported only for kernel versions
+  2.6.36 onwards.
+
+## Mac OSX
+
+* File system events notification module requires macOS 10.7+ with
+  Xcode/macOS SDK installed (depends on `Cocoa` framework). However, we only
+  test on latest three versions of the OS.
+
+## Windows
+
+* File system event notification module is not yet available for Windows.
 
 # Performance Optimizations
 
