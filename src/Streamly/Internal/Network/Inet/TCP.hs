@@ -278,7 +278,7 @@ withConnectionM addr port =
 --
 -- /Internal/
 {-# INLINABLE usingConnection #-}
-usingConnection :: (MonadCatch m, MonadIO m)
+usingConnection :: (MonadCatch m, MonadAsync m)
     => Unfold m Socket a
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) a
 usingConnection =
@@ -298,7 +298,7 @@ usingConnection =
 --
 -- /Internal/
 {-# INLINABLE withConnection #-}
-withConnection :: (IsStream t, MonadCatch m, MonadIO m)
+withConnection :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
 withConnection addr port =
     S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
@@ -311,7 +311,7 @@ withConnection addr port =
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (MonadCatch m, MonadIO m)
+read :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
 read = UF.concat (usingConnection ISK.readChunks) A.read
 
@@ -319,7 +319,7 @@ read = UF.concat (usingConnection ISK.readChunks) A.read
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadCatch m, MonadIO m)
+toBytes :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
 toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 

@@ -122,7 +122,7 @@ handleWithM f sk = finally (f sk) (liftIO (Net.close sk))
 --
 -- @since 0.7.0
 {-# INLINE handleWith #-}
-handleWith :: (IsStream t, MonadCatch m, MonadIO m)
+handleWith :: (IsStream t, MonadAsync m, MonadCatch m)
     => Socket -> (Socket -> t m a) -> t m a
 handleWith sk f = S.finally (liftIO $ Net.close sk) (f sk)
 

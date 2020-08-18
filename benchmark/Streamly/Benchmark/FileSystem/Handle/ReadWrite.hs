@@ -110,19 +110,19 @@ inspect $ hasNoTypeClasses 'readChunksOnException
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
-readChunksBracket :: Handle -> Handle -> IO ()
-readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
+readChunksBracket_ :: Handle -> Handle -> IO ()
+readChunksBracket_ inh devNull =
+    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.readChunks
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readChunksBracket
+inspect $ hasNoTypeClasses 'readChunksBracket_
 -- inspect $ 'readChunksBracket `hasNoType` ''Step
 #endif
 
-readChunksBracketIO :: Handle -> Handle -> IO ()
-readChunksBracketIO inh devNull =
-    let readEx = IUF.bracketIO return (\_ -> hClose inh) FH.readChunks
+readChunksBracket :: Handle -> Handle -> IO ()
+readChunksBracket inh devNull =
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
     in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
@@ -130,10 +130,10 @@ o_1_space_copy_exceptions_readChunks env =
     [ bgroup "copy/readChunks/exceptions"
         [ mkBench "UF.onException" env $ \inH _ ->
             readChunksOnException inH (nullH env)
+        , mkBench "UF.bracket_" env $ \inH _ ->
+            readChunksBracket_ inH (nullH env)
         , mkBench "UF.bracket" env $ \inH _ ->
             readChunksBracket inH (nullH env)
-        , mkBench "UF.bracketIO" env $ \inH _ ->
-            readChunksBracketIO inH (nullH env)
         ]
     ]
 
@@ -142,6 +142,19 @@ o_1_space_copy_exceptions_readChunks env =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
+toChunksBracket_ :: Handle -> Handle -> IO ()
+toChunksBracket_ inh devNull =
+    let readEx = IP.bracket_
+            (return ())
+            (\_ -> hClose inh)
+            (\_ -> IFH.toChunks inh)
+    in S.fold (IFH.writeChunks devNull) $ readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksBracket_
+-- inspect $ 'toChunksBracket `hasNoType` ''Step
+#endif
+
 toChunksBracket :: Handle -> Handle -> IO ()
 toChunksBracket inh devNull =
     let readEx = S.bracket
@@ -150,26 +163,13 @@ toChunksBracket inh devNull =
             (\_ -> IFH.toChunks inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksBracket
--- inspect $ 'toChunksBracket `hasNoType` ''Step
-#endif
-
-toChunksBracketIO :: Handle -> Handle -> IO ()
-toChunksBracketIO inh devNull =
-    let readEx = IP.bracketIO
-            (return ())
-            (\_ -> hClose inh)
-            (\_ -> IFH.toChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
-
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
     [ bgroup "copy/toChunks/exceptions"
-        [ mkBench "S.bracket" env $ \inH _ ->
+        [ mkBench "S.bracket_" env $ \inH _ ->
+            toChunksBracket_ inH (nullH env)
+        , mkBench "S.bracket" env $ \inH _ ->
             toChunksBracket inH (nullH env)
-        , mkBench "S.bracketIO" env $ \inH _ ->
-            toChunksBracketIO inH (nullH env)
         ]
     ]
 
@@ -308,35 +308,35 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
+readWriteFinally_Unfold :: Handle -> Handle -> IO ()
+readWriteFinally_Unfold inh devNull =
+    let readEx = IUF.finally_ (\_ -> hClose inh) FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
+-- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
+#endif
+
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
     let readEx = IUF.finally (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteFinallyUnfold
--- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
-#endif
-
-readWriteFinallyIOUnfold :: Handle -> Handle -> IO ()
-readWriteFinallyIOUnfold inh devNull =
-    let readEx = IUF.finallyIO (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
 -- | Send the file contents to /dev/null with exception handling
-readWriteBracketUnfold :: Handle -> Handle -> IO ()
-readWriteBracketUnfold inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
+readWriteBracket_Unfold :: Handle -> Handle -> IO ()
+readWriteBracket_Unfold inh devNull =
+    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteBracketUnfold
+inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 -- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
 #endif
 
-readWriteBracketIOUnfold :: Handle -> Handle -> IO ()
-readWriteBracketIOUnfold inh devNull =
-    let readEx = IUF.bracketIO return (\_ -> hClose inh) FH.read
+readWriteBracketUnfold :: Handle -> Handle -> IO ()
+readWriteBracketUnfold inh devNull =
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
@@ -346,14 +346,14 @@ o_1_space_copy_read_exceptions env =
            readWriteOnExceptionUnfold inh (nullH env)
        , mkBenchSmall "UF.handle" env $ \inh _ ->
            readWriteHandleExceptionUnfold inh (nullH env)
+       , mkBenchSmall "UF.finally_" env $ \inh _ ->
+           readWriteFinally_Unfold inh (nullH env)
        , mkBenchSmall "UF.finally" env $ \inh _ ->
            readWriteFinallyUnfold inh (nullH env)
-       , mkBenchSmall "UF.finallyIO" env $ \inh _ ->
-           readWriteFinallyIOUnfold inh (nullH env)
+       , mkBenchSmall "UF.bracket_" env $ \inh _ ->
+           readWriteBracket_Unfold inh (nullH env)
        , mkBenchSmall "UF.bracket" env $ \inh _ ->
            readWriteBracketUnfold inh (nullH env)
-       , mkBenchSmall "UF.bracketIO" env $ \inh _ ->
-           readWriteBracketIOUnfold inh (nullH env)
         ]
     ]
 
@@ -375,31 +375,31 @@ readWriteHandleExceptionStream inh devNull =
     in S.fold (FH.write devNull) $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
+readWriteFinally_Stream :: Handle -> Handle -> IO ()
+readWriteFinally_Stream inh devNull =
+    let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
+    in S.fold (FH.write devNull) readEx
+
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
     let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
-readWriteFinallyIOStream :: Handle -> Handle -> IO ()
-readWriteFinallyIOStream inh devNull =
-    let readEx = IP.finallyIO (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) readEx
-
 -- | Send the file contents to /dev/null with exception handling
-fromToBytesBracketStream :: Handle -> Handle -> IO ()
-fromToBytesBracketStream inh devNull =
-    let readEx = S.bracket (return ()) (\_ -> hClose inh)
+fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
+fromToBytesBracket_Stream inh devNull =
+    let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fromToBytesBracketStream
+inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 -- inspect $ 'fromToBytesBracketStream `hasNoType` ''Step
 #endif
 
-fromToBytesBracketIOStream :: Handle -> Handle -> IO ()
-fromToBytesBracketIOStream inh devNull =
-    let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
+fromToBytesBracketStream :: Handle -> Handle -> IO ()
+fromToBytesBracketStream inh devNull =
+    let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
 
@@ -410,16 +410,16 @@ o_1_space_copy_stream_exceptions env =
            readWriteOnExceptionStream inh (nullH env)
        , mkBenchSmall "S.handle" env $ \inh _ ->
            readWriteHandleExceptionStream inh (nullH env)
+       , mkBenchSmall "S.finally_" env $ \inh _ ->
+           readWriteFinally_Stream inh (nullH env)
        , mkBenchSmall "S.finally" env $ \inh _ ->
            readWriteFinallyStream inh (nullH env)
-       , mkBenchSmall "S.finallyIO" env $ \inh _ ->
-           readWriteFinallyIOStream inh (nullH env)
        ]
     , bgroup "copy/fromToBytes/exceptions"
-       [ mkBenchSmall "S.bracket" env $ \inh _ ->
+       [ mkBenchSmall "S.bracket_" env $ \inh _ ->
+           fromToBytesBracket_Stream inh (nullH env)
+       , mkBenchSmall "S.bracket" env $ \inh _ ->
            fromToBytesBracketStream inh (nullH env)
-       , mkBenchSmall "S.bracketIO" env $ \inh _ ->
-           fromToBytesBracketIOStream inh (nullH env)
         ]
     ]
 

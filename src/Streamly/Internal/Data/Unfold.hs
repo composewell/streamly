@@ -111,16 +111,16 @@ module Streamly.Internal.Data.Unfold
     , apDiscardSnd
 
     -- * Exceptions
+    , gbracket_
     , gbracket
-    , gbracketIO
     , before
+    , after_
     , after
-    , afterIO
     , onException
+    , finally_
     , finally
-    , finallyIO
+    , bracket_
     , bracket
-    , bracketIO
     , handle
     )
 where
@@ -754,8 +754,8 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL gbracket #-}
-gbracket
+{-# INLINE_NORMAL gbracket_ #-}
+gbracket_
     :: Monad m
     => (a -> m c)                           -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
@@ -763,7 +763,7 @@ gbracket
     -> Unfold m (c, e) b                    -- ^ on exception
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
-gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
+gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     Unfold step inject
 
     where
@@ -797,8 +797,8 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL gbracketIO #-}
-gbracketIO
+{-# INLINE_NORMAL gbracket #-}
+gbracket
     :: (MonadIO m, MonadBaseControl IO m)
     => (a -> m c)                           -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
@@ -806,7 +806,7 @@ gbracketIO
     -> Unfold m (c, e) b                    -- ^ on exception
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
-gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
+gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     Unfold step inject
 
     where
@@ -848,7 +848,7 @@ gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 --
 {-# INLINE_NORMAL _before #-}
 _before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_before action = gbracket (\x -> action x >> return x) (fmap Right)
+_before action = gbracket_ (\x -> action x >> return x) (fmap Right)
                              (\_ -> return ()) undefined
 
 -- | Run a side effect before the unfold yields its first element.
@@ -874,18 +874,18 @@ before action (Unfold step1 inject1) = Unfold step inject
 
 {-# INLINE_NORMAL _after #-}
 _after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_after aft = gbracket return (fmap Right) aft undefined
+_after aft = gbracket_ return (fmap Right) aft undefined
 
 -- | Run a side effect whenever the unfold stops normally.
 --
--- Prefer afterIO over this as the @after@ action in this combinator is not
+-- Prefer 'after' over this as the @after@ action in this combinator is not
 -- executed if the unfold is partially evaluated lazily and then garbage
 -- collected.
 --
 -- /Internal/
-{-# INLINE_NORMAL after #-}
-after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-after action (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL after_ #-}
+after_ :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
+after_ action (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -905,10 +905,10 @@ after action (Unfold step1 inject1) = Unfold step inject
 -- or is garbage collected after a partial lazy evaluation.
 --
 -- /Internal/
-{-# INLINE_NORMAL afterIO #-}
-afterIO :: (MonadIO m, MonadBaseControl IO m)
+{-# INLINE_NORMAL after #-}
+after :: (MonadIO m, MonadBaseControl IO m)
     => (a -> m c) -> Unfold m a b -> Unfold m a b
-afterIO action (Unfold step1 inject1) = Unfold step inject
+after action (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -930,7 +930,7 @@ afterIO action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL _onException #-}
 _onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _onException action =
-    gbracket return MC.try
+    gbracket_ return MC.try
         (\_ -> return ())
         (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
@@ -958,20 +958,20 @@ onException action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL _finally #-}
 _finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _finally action =
-    gbracket return MC.try action
+    gbracket_ return MC.try action
         (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
 -- | Run a side effect whenever the unfold stops normally or aborts due to an
 -- exception.
 --
--- Prefer finallyIO over this as the @after@ action in this combinator is not
+-- Prefer 'finally' over this as the @after@ action in this combinator is not
 -- executed if the unfold is partially evaluated lazily and then garbage
 -- collected.
 --
 -- /Internal/
-{-# INLINE_NORMAL finally #-}
-finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
-finally action (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL finally_ #-}
+finally_ :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
+finally_ action (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -991,10 +991,10 @@ finally action (Unfold step1 inject1) = Unfold step inject
 -- exception or if it is garbage collected after a partial lazy evaluation.
 --
 -- /Internal/
-{-# INLINE_NORMAL finallyIO #-}
-finallyIO :: (MonadAsync m, MonadCatch m)
+{-# INLINE_NORMAL finally #-}
+finally :: (MonadAsync m, MonadCatch m)
     => (a -> m c) -> Unfold m a b -> Unfold m a b
-finallyIO action (Unfold step1 inject1) = Unfold step inject
+finally action (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -1017,23 +1017,23 @@ finallyIO action (Unfold step1 inject1) = Unfold step inject
 _bracket :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
 _bracket bef aft =
-    gbracket bef MC.try aft (nilM (\(a, e :: MC.SomeException) -> aft a >>
+    gbracket_ bef MC.try aft (nilM (\(a, e :: MC.SomeException) -> aft a >>
     MC.throwM e))
 
--- | @bracket before after between@ runs the @before@ action and then unfolds
+-- | @bracket_ before after between@ runs the @before@ action and then unfolds
 -- its output using the @between@ unfold. When the @between@ unfold is done or
 -- if an exception occurs then the @after@ action is run with the output of
 -- @before@ as argument.
 --
--- Prefer bracketIO over this as the @after@ action in this combinator is not
+-- Prefer 'bracket' over this as the @after@ action in this combinator is not
 -- executed if the unfold is partially evaluated lazily and then garbage
 -- collected.
 --
 -- /Internal/
-{-# INLINE_NORMAL bracket #-}
-bracket :: MonadCatch m
+{-# INLINE_NORMAL bracket_ #-}
+bracket_ :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-bracket bef aft (Unfold step1 inject1) = Unfold step inject
+bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -1057,10 +1057,10 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
 -- paritally evaluated and then garbage collected.
 --
 -- /Internal/
-{-# INLINE_NORMAL bracketIO #-}
-bracketIO :: (MonadAsync m, MonadCatch m)
+{-# INLINE_NORMAL bracket #-}
+bracket :: (MonadAsync m, MonadCatch m)
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
+bracket bef aft (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -1092,4 +1092,4 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
 handle :: (MonadCatch m, Exception e)
     => Unfold m e b -> Unfold m a b -> Unfold m a b
 handle exc =
-    gbracket return MC.try (\_ -> return ()) (discardFirst exc)
+    gbracket_ return MC.try (\_ -> return ()) (discardFirst exc)

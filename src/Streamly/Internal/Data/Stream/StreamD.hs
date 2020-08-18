@@ -282,15 +282,16 @@ module Streamly.Internal.Data.Stream.StreamD
     , newFinalizedIORef
     , runIORefFinalizer
     , clearIORefFinalizer
+    , gbracket_
     , gbracket
     , before
+    , after_
     , after
-    , afterIO
+    , bracket_
     , bracket
-    , bracketIO
     , onException
+    , finally_
     , finally
-    , finallyIO
     , handle
 
     -- * Concurrent Application
@@ -3131,8 +3132,8 @@ data GbracketState s1 s2 v
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL gbracket #-}
-gbracket
+{-# INLINE_NORMAL gbracket_ #-}
+gbracket_
     :: Monad m
     => m c                                  -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
@@ -3140,7 +3141,7 @@ gbracket
     -> (c -> e -> Stream m b)               -- ^ on exception
     -> (c -> Stream m b)                    -- ^ stream generator
     -> Stream m b
-gbracket bef exc aft fexc fnormal =
+gbracket_ bef exc aft fexc fnormal =
     Stream step GBracketInit
 
     where
@@ -3204,18 +3205,17 @@ data GbracketIOState s1 s2 v wref
     | GBracketIONormal s1 v wref
     | GBracketIOException s2
 
--- | Like gbracket but also uses a finalizer to make sure when the stream is
--- garbage collected we run the finalizing action. This requires a MonadIO and
--- MonadBaseControl IO constraint.
---
 -- | The most general bracketing and exception combinator. All other
 -- combinators can be expressed in terms of this combinator. This can also be
 -- used for cases which are not covered by the standard combinators.
 --
+-- | It uses a finalizer to make sure we run the finalizing action
+-- when the stream is garbage collected.
+--
 -- /Internal/
 --
-{-# INLINE_NORMAL gbracketIO #-}
-gbracketIO
+{-# INLINE_NORMAL gbracket #-}
+gbracket
     :: (MonadIO m, MonadBaseControl IO m)
     => m c                                  -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
@@ -3223,7 +3223,7 @@ gbracketIO
     -> (c -> e -> Stream m b)               -- ^ on exception
     -> (c -> Stream m b)                    -- ^ stream generator
     -> Stream m b
-gbracketIO bef exc aft fexc fnormal =
+gbracket bef exc aft fexc fnormal =
     Stream step GBracketIOInit
 
     where
@@ -3283,9 +3283,9 @@ before action (Stream step state) = Stream step' Nothing
             Stop      -> return Stop
 
 -- | Run a side effect whenever the stream stops normally.
-{-# INLINE_NORMAL after #-}
-after :: Monad m => m b -> Stream m a -> Stream m a
-after action (Stream step state) = Stream step' state
+{-# INLINE_NORMAL after_ #-}
+after_ :: Monad m => m b -> Stream m a -> Stream m a
+after_ action (Stream step state) = Stream step' state
 
     where
 
@@ -3297,10 +3297,10 @@ after action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> action >> return Stop
 
-{-# INLINE_NORMAL afterIO #-}
-afterIO :: (MonadIO m, MonadBaseControl IO m)
+{-# INLINE_NORMAL after #-}
+after :: (MonadIO m, MonadBaseControl IO m)
     => m b -> Stream m a -> Stream m a
-afterIO action (Stream step state) = Stream step' Nothing
+after action (Stream step state) = Stream step' Nothing
 
     where
 
@@ -3331,7 +3331,7 @@ afterIO action (Stream step state) = Stream step' Nothing
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action str =
-    gbracket (return ()) MC.try return
+    gbracket_ (return ()) MC.try return
         (\_ (e :: MC.SomeException) -> nilM (action >> MC.throwM e))
         (\_ -> str)
 
@@ -3357,17 +3357,22 @@ _onException action (Stream step state) = Stream step' state
 -- generate a stream using the output, run the second action providing the
 -- remembered value as an argument whenever the stream ends normally or due to
 -- an exception.
-{-# INLINE_NORMAL bracket #-}
-bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket bef aft bet =
-    gbracket bef MC.try aft
+{-# INLINE_NORMAL bracket_ #-}
+bracket_ :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+bracket_ bef aft bet =
+    gbracket_ bef MC.try aft
         (\a (e :: SomeException) -> nilM (aft a >> MC.throwM e)) bet
 
-{-# INLINE_NORMAL bracketIO #-}
-bracketIO :: (MonadAsync m, MonadCatch m)
+-- | Run the first action before the stream starts and remember its output,
+-- generate a stream using the output, run the second action providing the
+-- remembered value as an argument whenever the stream ends normally or due to
+-- an exception or gets garbage collected.
+--
+{-# INLINE_NORMAL bracket #-}
+bracket :: (MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracketIO bef aft bet =
-    gbracketIO bef MC.try aft
+bracket bef aft bet =
+    gbracket bef MC.try aft
         (\a (e :: SomeException) -> nilM (aft a >> MC.throwM e)) bet
 
 data BracketState s v = BracketInit | BracketRun s v
@@ -3395,14 +3400,17 @@ _bracket bef aft bet = Stream step' BracketInit
 
 -- | Run a side effect whenever the stream stops normally or aborts due to an
 -- exception.
-{-# INLINE finally #-}
-finally :: MonadCatch m => m b -> Stream m a -> Stream m a
+{-# INLINE finally_ #-}
+finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
 -- finally action xs = after action $ onException action xs
-finally action xs = bracket (return ()) (\_ -> action) (const xs)
+finally_ action xs = bracket_ (return ()) (\_ -> action) (const xs)
 
-{-# INLINE finallyIO #-}
-finallyIO :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
-finallyIO action xs = bracketIO (return ()) (\_ -> action) (const xs)
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception or gets garbage collected.
+--
+{-# INLINE finally #-}
+finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+finally action xs = bracket (return ()) (\_ -> action) (const xs)
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
@@ -3410,7 +3418,7 @@ finallyIO action xs = bracketIO (return ()) (\_ -> action) (const xs)
 handle :: (MonadCatch m, Exception e)
     => (e -> Stream m a) -> Stream m a -> Stream m a
 handle f str =
-    gbracket (return ()) MC.try return (\_ e -> f e) (\_ -> str)
+    gbracket_ (return ()) MC.try return (\_ e -> f e) (\_ -> str)
 
 {-# INLINE_NORMAL _handle #-}
 _handle :: (MonadCatch m, Exception e)

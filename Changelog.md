@@ -6,6 +6,10 @@
   accumulator monadic.
 * Change the signature of `concatMapWith` to ensure that it can be
   used with a wide variety of combining functions.
+* Exception handling functions `bracket`, `handle`, `finally` now
+  require an additional `MonadAsync` constraint. Several other
+  functions that used these functions also now require the additional
+  constraint.
 * Change the associativity of combinators `serial`, `wSerial`,
   `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
 * Drop support for GHC 7.10.3.
@@ -15,6 +19,8 @@
 * `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`
   API in `Streamly.Network.Socket` now close the socket if an exception is
   thrown.
+* `bracket`, `handle`, and `finally` now work on streams that aren't
+  fully drained.
 
 ## 0.7.2
 

@@ -481,13 +481,13 @@ module Streamly.Internal.Prelude
 
     -- * Exceptions
     , before
+    , after_
     , after
-    , afterIO
+    , bracket_
     , bracket
-    , bracketIO
     , onException
+    , finally_
     , finally
-    , finallyIO
     , handle
 
     -- * Generalize Inner Monad
@@ -4831,23 +4831,23 @@ before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream stops normally.
 --
--- Prefer 'afterIO' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
+-- Prefer 'after' over this as the @after@ action in this combinator is not
+-- executed if the stream is partially evaluated lazily and then garbage
 -- collected.
 --
 -- @since 0.7.0
-{-# INLINE after #-}
-after :: (IsStream t, Monad m) => m b -> t m a -> t m a
-after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
+{-# INLINE after_ #-}
+after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
+after_ action xs = D.fromStreamD $ D.after_ action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream stops normally
 -- or is garbage collected after a partial lazy evaluation.
 --
 -- /Internal/
 --
-{-# INLINE afterIO #-}
-afterIO :: (IsStream t, MonadIO m, MonadBaseControl IO m) => m b -> t m a -> t m a
-afterIO action xs = D.fromStreamD $ D.afterIO action $ D.toStreamD xs
+{-# INLINE after #-}
+after :: (IsStream t, MonadIO m, MonadBaseControl IO m) => m b -> t m a -> t m a
+after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream aborts due to an exception.
 --
@@ -4859,39 +4859,39 @@ onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 -- | Run a side effect whenever the stream stops normally or aborts due to an
 -- exception.
 --
--- Prefer 'finallyIO' over this as the @after@ action in this combinator is not
+-- Prefer 'finally' over this as the @after@ action in this combinator is not
 -- executed if the unfold is partially evaluated lazily and then garbage
 -- collected.
 --
 -- @since 0.7.0
-{-# INLINE finally #-}
-finally :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
-finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
+{-# INLINE finally_ #-}
+finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
+finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream stops normally, aborts due to an
 -- exception or if it is garbage collected after a partial lazy evaluation.
 --
 -- /Internal/
 --
-{-# INLINE finallyIO #-}
-finallyIO :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
-finallyIO action xs = D.fromStreamD $ D.finallyIO action $ D.toStreamD xs
+{-# INLINE finally #-}
+finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
+finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 
 -- | Run the first action before the stream starts and remember its output,
 -- generate a stream using the output, run the second action using the
 -- remembered value as an argument whenever the stream ends normally or due to
 -- an exception.
 --
--- Prefer 'bracketIO' over this as the @after@ action in this combinator is not
+-- Prefer 'bracket' over this as the @after@ action in this combinator is not
 -- executed if the unfold is partially evaluated lazily and then garbage
 -- collected.
 --
 -- @since 0.7.0
-{-# INLINE bracket #-}
-bracket :: (IsStream t, MonadCatch m)
+{-# INLINE bracket_ #-}
+bracket_ :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
-bracket bef aft bet = D.fromStreamD $
-    D.bracket bef aft (toStreamD . bet)
+bracket_ bef aft bet = D.fromStreamD $
+    D.bracket_ bef aft (toStreamD . bet)
 
 -- | Run the first action before the stream starts and remember its output,
 -- generate a stream using the output, run the second action using the
@@ -4900,11 +4900,11 @@ bracket bef aft bet = D.fromStreamD $
 --
 -- /Internal/
 --
-{-# INLINE bracketIO #-}
-bracketIO :: (IsStream t, MonadAsync m, MonadCatch m)
+{-# INLINE bracket #-}
+bracket :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
-bracketIO bef aft bet = D.fromStreamD $
-    D.bracketIO bef aft (toStreamD . bet)
+bracket bef aft bet = D.fromStreamD $
+    D.bracket bef aft (toStreamD . bet)
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
