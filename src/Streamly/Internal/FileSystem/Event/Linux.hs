@@ -157,11 +157,21 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
 import GHC.IO.FD (fdFD, mkFD)
-import GHC.IO.Handle.FD (mkHandleFromFD, handleToFd)
+import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import System.IO (Handle, hClose, IOMode(ReadMode))
+#if !MIN_VERSION_base(4,10,0)
+import Control.Concurrent.MVar (readMVar)
+import Data.Typeable (cast)
+import GHC.IO.Exception (IOException(..), IOErrorType(..), ioException)
+import GHC.IO.FD (FD)
+import GHC.IO.Handle.Types (Handle__(..), Handle(FileHandle, DuplexHandle))
+#else
+import GHC.IO.Handle.FD (handleToFd)
+#endif
+
 
 import qualified Data.IntMap.Lazy as Map
 import qualified Streamly.Internal.Data.Fold as FL
@@ -542,6 +552,24 @@ foreign import ccall unsafe
 
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.toList . U.decodeUtf8 . A.toStream
+
+#if !MIN_VERSION_base(4,10,0)
+-- | Turn an existing Handle into a file descriptor. This function throws an
+-- IOError if the Handle does not reference a file descriptor.
+handleToFd :: Handle -> IO FD
+handleToFd h = case h of
+    FileHandle _ mv -> do
+      Handle__{haDevice = dev} <- readMVar mv
+      case cast dev of
+        Just fd -> return fd
+        Nothing -> throwErr "not a file descriptor"
+    DuplexHandle{} -> throwErr "not a file handle"
+
+    where
+
+    throwErr msg = ioException $ IOError (Just h)
+      InappropriateType "handleToFd" msg Nothing Nothing
+#endif
 
 -- | Given a 'Config' and a @path@ supplied as a UTF-8 encoded byte array, add
 -- the path to the list of paths being monitored by the given watch 'Handle'.
