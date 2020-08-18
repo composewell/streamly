@@ -4955,7 +4955,7 @@ liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 -- / Internal/
 --
 {-# INLINE runReaderT #-}
-runReaderT :: (IsStream t, Monad m) => s -> t (ReaderT s m) a -> t m a
+runReaderT :: (IsStream t, Monad m) => m s -> t (ReaderT s m) a -> t m a
 runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
 
 -- | Evaluate the inner monad of a stream as 'StateT'.
@@ -4966,7 +4966,7 @@ runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
 -- / Internal/
 --
 {-# INLINE evalStateT #-}
-evalStateT ::  Monad m => s -> SerialT (StateT s m) a -> SerialT m a
+evalStateT ::  Monad m => m s -> SerialT (StateT s m) a -> SerialT m a
 evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 
 -- | Run a stateful (StateT) stream transformation using a given state.
@@ -4979,7 +4979,7 @@ evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 {-# INLINE usingStateT #-}
 usingStateT
     :: Monad m
-    => s
+    => m s
     -> (SerialT (StateT s m) a -> SerialT (StateT s m) a)
     -> SerialT m a
     -> SerialT m a
@@ -4994,7 +4994,7 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 -- / Internal/
 --
 {-# INLINE runStateT #-}
-runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
+runStateT :: Monad m => m s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
 
 -- | Run a stream transformation using a given environment.
@@ -5004,7 +5004,7 @@ runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
 {-# INLINE usingReaderT #-}
 usingReaderT
     :: (Monad m, IsStream t)
-    => r
+    => m r
     -> (t (ReaderT r m) a -> t (ReaderT r m) a)
     -> t m a
     -> t m a

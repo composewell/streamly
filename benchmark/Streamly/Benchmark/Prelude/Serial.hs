@@ -1688,12 +1688,14 @@ sourceUnfoldrState value n = S.unfoldrM step n
 
 {-# INLINE evalStateT #-}
 evalStateT :: S.MonadAsync m => Int -> Int -> SerialT m Int
-evalStateT value n = Internal.evalStateT 0 (sourceUnfoldrState value n)
+evalStateT value n =
+    Internal.evalStateT (return 0) (sourceUnfoldrState value n)
 
 {-# INLINE withState #-}
 withState :: S.MonadAsync m => Int -> Int -> SerialT m Int
 withState value n =
-    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM value n))
+    Internal.evalStateT
+        (return (0 :: Int)) (Internal.liftInner (sourceUnfoldrM value n))
 
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =

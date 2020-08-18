@@ -28,7 +28,7 @@ splitFile inHandle =
       S.unfold FH.read inHandle
     & S.liftInner
     & S.chunksOf2 (180 * 1024 * 1024) newHandle IFH.write2
-    & S.evalStateT Nothing  -- generate new handle for each iteration
+    & S.evalStateT (return Nothing)  -- generate new handle for each iteration
     & S.drain
 
 main :: IO ()

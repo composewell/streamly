@@ -839,39 +839,42 @@ liftInner (Stream step state) = Stream step' state
             Stop      -> Stop
 
 {-# INLINE_NORMAL runReaderT #-}
-runReaderT :: Monad m => s -> Stream (ReaderT s m) a -> Stream m a
-runReaderT sval (Stream step state) = Stream step' state
+runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
+runReaderT env (Stream step state) = Stream step' (state, env)
     where
     {-# INLINE_LATE step' #-}
-    step' gst st = do
-        r <- Reader.runReaderT (step (adaptState gst) st) sval
+    step' gst (st, action) = do
+        sv <- action
+        r <- Reader.runReaderT (step (adaptState gst) st) sv
         return $ case r of
-            Yield x s -> Yield x s
-            Skip  s   -> Skip s
+            Yield x s -> Yield x (s, return sv)
+            Skip  s   -> Skip (s, return sv)
             Stop      -> Stop
 
 {-# INLINE_NORMAL evalStateT #-}
-evalStateT :: Monad m => s -> Stream (StateT s m) a -> Stream m a
-evalStateT sval (Stream step state) = Stream step' (state, sval)
+evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+evalStateT initial (Stream step state) = Stream step' (state, initial)
     where
     {-# INLINE_LATE step' #-}
-    step' gst (st, sv) = do
+    step' gst (st, action) = do
+        sv <- action
         (r, sv') <- State.runStateT (step (adaptState gst) st) sv
         return $ case r of
-            Yield x s -> Yield x (s, sv')
-            Skip  s   -> Skip (s, sv')
+            Yield x s -> Yield x (s, return sv')
+            Skip  s   -> Skip (s, return sv')
             Stop      -> Stop
 
 {-# INLINE_NORMAL runStateT #-}
-runStateT :: Monad m => s -> Stream (StateT s m) a -> Stream m (s, a)
-runStateT sval (Stream step state) = Stream step' (state, sval)
+runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)
+runStateT initial (Stream step state) = Stream step' (state, initial)
     where
     {-# INLINE_LATE step' #-}
-    step' gst (st, sv) = do
+    step' gst (st, action) = do
+        sv <- action
         (r, sv') <- State.runStateT (step (adaptState gst) st) sv
         return $ case r of
-            Yield x s -> Yield (sv', x) (s, sv')
-            Skip  s   -> Skip (s, sv')
+            Yield x s -> Yield (sv', x) (s, return sv')
+            Skip  s   -> Skip (s, return sv')
             Stop      -> Stop
 
 ------------------------------------------------------------------------------
