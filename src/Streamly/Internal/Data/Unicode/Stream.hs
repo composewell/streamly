@@ -227,6 +227,10 @@ decode1 table state codep byte =
 -- * A starter was encountered without completing a codepoint
 -- * The last codepoint was not complete (input underflow)
 --
+-- Need to separate resumable and non-resumable error. In case of non-resumable
+-- error we can also provide the failing byte. In case of resumable error the
+-- state can be opaque.
+--
 data DecodeError = DecodeError !DecodeState !CodePoint deriving Show
 
 data FreshPoint s a
@@ -237,26 +241,37 @@ data FreshPoint s a
     | YieldAndContinue a (FreshPoint s a)
     | Done
 
--- XXX Add proper error messages
--- XXX Implement this in terms of decodeUtf8Either
+-- XXX write it as a parser and use parseMany to decode a stream, need to check
+-- if that preserves the same performance. Or we can use a resumable parser
+-- that parses a chunk at a time.
+--
+-- XXX Implement this in terms of decodeUtf8Either. Need to make sure that
+-- decodeUtf8Either preserves the performance characterstics.
+--
 {-# INLINE_NORMAL decodeUtf8WithD #-}
-decodeUtf8WithD :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
+decodeUtf8WithD :: Monad m
+    => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
     let A.Array p _ = utf8d
         !ptr = unsafeForeignPtrToPtr p
     in Stream (step' ptr) (FreshPointDecodeInit state)
-  where
-    {-# INLINE transliterateOrError #-}
-    transliterateOrError e s =
+
+    where
+
+    prefix = "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: "
+
+    {-# INLINE handleError #-}
+    handleError e s =
         case cfm of
             ErrorOnCodingFailure -> error e
             TransliterateCodingFailure -> YieldAndContinue replacementChar s
-    {-# INLINE inputUnderflow #-}
-    inputUnderflow =
+
+    {-# INLINE handleUnderflow #-}
+    handleUnderflow =
         case cfm of
-            ErrorOnCodingFailure ->
-                error "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Input Underflow"
+            ErrorOnCodingFailure -> error $ prefix ++ "Not enough input"
             TransliterateCodingFailure -> YieldAndContinue replacementChar Done
+
     {-# INLINE_LATE step' #-}
     step' _ gst (FreshPointDecodeInit st) = do
         r <- step (adaptState gst) st
@@ -287,32 +302,34 @@ decodeUtf8WithD cfm (Stream step state) =
         return $
             case sv of
                 12 ->
-                    Skip $
-                    transliterateOrError
-                        "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
-                        (FreshPointDecodeInit st)
+                    let msg = prefix ++ "Invalid first UTF8 byte " ++ show x
+                     in Skip $ handleError msg (FreshPointDecodeInit st)
                 0 -> error "unreachable state"
                 _ -> Skip (FreshPointDecoding st sv cp)
 
-    -- We recover by trying the new byte x a starter of a new codepoint.
+    -- We recover by trying the new byte x as a starter of a new codepoint.
     -- XXX need to use the same recovery in array decoding routine as well
     step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
-                return $
-                    case sv of
-                        0 -> Skip $ YieldAndContinue (unsafeChr cp)
-                                        (FreshPointDecodeInit s)
-                        12 ->
-                            Skip $
-                            transliterateOrError
-                                "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
-                                (FreshPointDecodeInit1 s x)
-                        _ -> Skip (FreshPointDecoding s sv cp)
-            Skip s -> return $ Skip (FreshPointDecoding s statePtr codepointPtr)
-            Stop -> return $ Skip inputUnderflow
+                return $ case sv of
+                    0 -> Skip $ YieldAndContinue
+                            (unsafeChr cp) (FreshPointDecodeInit s)
+                    12 ->
+                        let msg = prefix
+                                ++ "Invalid subsequent UTF8 byte "
+                                ++ show x
+                                ++ " in state "
+                                ++ show statePtr
+                                ++ " accumulated value "
+                                ++ show codepointPtr
+                         in Skip $ handleError msg (FreshPointDecodeInit1 s x)
+                    _ -> Skip (FreshPointDecoding s sv cp)
+            Skip s -> return $
+                Skip (FreshPointDecoding s statePtr codepointPtr)
+            Stop -> return $ Skip handleUnderflow
 
     step' _ _ (YieldAndContinue c s) = return $ Yield c s
     step' _ _ Done = return Stop
@@ -377,6 +394,7 @@ resumeDecodeUtf8EitherD dst codep (Stream step state) =
                 _ -> Skip (FreshPointDecoding st sv cp)
 
     -- We recover by trying the new byte x a starter of a new codepoint.
+    -- XXX on error need to report the next byte "x" as well.
     -- XXX need to use the same recovery in array decoding routine as well
     step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
         r <- step (adaptState gst) st
