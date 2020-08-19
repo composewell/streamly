@@ -149,6 +149,7 @@ import Data.Bits ((.|.), (.&.), complement)
 import Data.Foldable (foldlM)
 import Data.Functor.Identity (runIdentity)
 import Data.IntMap.Lazy (IntMap)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8, Word32)
 import Foreign.C.Error (throwErrnoIfMinus1)
 import Foreign.C.String (CString)
@@ -172,8 +173,8 @@ import GHC.IO.Handle.Types (Handle__(..), Handle(FileHandle, DuplexHandle))
 import GHC.IO.Handle.FD (handleToFd)
 #endif
 
-
 import qualified Data.IntMap.Lazy as Map
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -619,10 +620,10 @@ removeFromWatch (Watch handle wdMap) path = do
 --
 -- /Internal/
 --
-openWatch :: Config -> [Array Word8] -> IO Watch
+openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
 openWatch cfg paths = do
     w <- createWatch
-    foldlM (\w1 pth -> addToWatch cfg w1 pth) w paths
+    foldlM (\w1 pth -> addToWatch cfg w1 pth) w (NonEmpty.toList paths)
 
 -- | Close a 'Watch' handle.
 --
@@ -731,7 +732,8 @@ watchToStream (Watch handle wdMap) =
 --
 -- /Internal/
 --
-watchPathsWith :: (Config -> Config) -> [Array Word8] -> SerialT IO Event
+watchPathsWith :: 
+    (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
 watchPathsWith f paths = S.bracket before after watchToStream
 
     where
@@ -747,7 +749,7 @@ watchPathsWith f paths = S.bracket before after watchToStream
 --
 -- /Internal/
 --
-watchPaths :: [Array Word8] -> SerialT IO Event
+watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
 watchPaths = watchPathsWith id
 
 -------------------------------------------------------------------------------
