@@ -32,19 +32,31 @@
 --
 -- =BUGS
 --
--- There may be some idiosyncracies in event reporting likely due to temporal
--- coalescing of events by the macOS fs events implementation.
+-- There may be some idiosyncrasies in event reporting.
 --
--- 1. Multiple events that happen in quick succession may be coalesced into a
--- single event with multiple event flags set.  We have observed that sometimes
--- "Deleted", "Renamed", "Modified" events have "Created" flag also present.
--- For example, on macOS 10.15.1, try "touch x; rm x" or "rm x; touch
--- x" or "touch x; mv x y". Sometimes even just an "rm x" produces both flags.
--- 2. Sometimes it has been seen that the earlier events go missing and only
--- the latest one is reported. See 'isCreated' for one such case.
--- 3. When @rm -rf@ is used on the watched root directory, only one 'isDeleted'
+-- 1. Multiple events may be coalesced into a single event having multiple
+-- flags set.  For example, on macOS 10.15.6, "touch x; rm x" or "touch x; mv x
+-- y" produces an event with both "Created" and "Deleted/Moved" flags set.
+--
+-- 2. The same event can occur multiple times. For example, "touch x; sleep 1;
+-- rm x" generates a "Created" event followed by an event with both "Created"
+-- and "Deleted" flags set. Similarly, a cloned event can also occur multiple
+-- times.
+--
+-- 3. Some events can go missing and only the latest one is reported. See
+-- 'isCreated' for one such case.
+--
+-- 4. When @rm -rf@ is used on the watched root directory, only one 'isDeleted'
 -- event occurs and that is for the root. However, @rm -rf@ on a directory
 -- inside the watch root produces 'isDeleted' events for all files.
+--
+-- 5. When a file is moved, a move event occurs for both the source and the
+-- destination files. There seems to be no way to distinguish the source and
+-- the destination. Perhaps the lower eventId can be considered as source.
+--
+-- 6. When a file is cloned both source and destination generate a cloned
+-- event, however the source has lower eventId and destination may have
+-- OwnerGroupModeChanged, InodeAttrsChanged, Created flags as well.
 --
 -- You may have to stat the path of the event to know more information about
 -- what might have happened.  It may be a good idea to watch the behavior of
@@ -789,9 +801,9 @@ foreign import ccall safe
 -- non-existing path and the path is created later, then this event is not
 -- generated, the path is not watched.
 --
--- BUGS: When we use a "touch x" to create a file for the first time only an
--- 'isInodeAttrsChanged' event occurs and there is no 'isCreated' event (tested
--- on 10.15.1).
+-- BUGS: On 10.15.1 when we use a "touch x" to create a file for the first time
+-- only an 'isInodeAttrsChanged' event occurs and there is no 'isCreated'
+-- event. However, this seems to have been fixed on 10.15.6.
 --
 -- /Applicable only when 'setFileEvents' is 'On'/
 --
@@ -863,7 +875,8 @@ foreign import ccall safe
     kFSEventStreamEventFlagItemCloned :: Word32
 
 -- | Determine whether the event indicates cloning of an object within the
--- monitored path.
+-- monitored path. The "Duplicate" command in the "File" menu of the "Finder"
+-- application generates a "clone" event.
 --
 -- Applicable only when 'setFileEvents' is 'On'.
 --
