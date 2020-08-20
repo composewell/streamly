@@ -71,9 +71,6 @@
 -- APIs for persistent event-id related functionality, to get events from
 -- specific event-id etc are not implemented.
 
--- Need a real cpp to process Availability.h
-{-# OPTIONS_GHC -pgmP gcc -optP -E #-}
-
 #include <config.h>
 
 -- macOS 10.7+
