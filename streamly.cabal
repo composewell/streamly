@@ -216,6 +216,13 @@ flag use-c-malloc
 
 common compile-options
     default-language: Haskell2010
+
+    if os(darwin)
+      cpp-options:    -DCABAL_OS_DARWIN
+
+    if os(linux)
+      cpp-options:    -DCABAL_OS_LINUX
+
     if flag(streamk)
       cpp-options:    -DUSE_STREAMK_ONLY
 
@@ -839,6 +846,17 @@ test-suite version-bounds
       streamly
     , ghc
     , base   >= 4.9   && < 5
+
+executable FileSystem.Event
+  import: test-options
+  default-language: Haskell2010
+  main-is: Streamly/Test/FileSystem/Event.hs
+  hs-source-dirs: test
+  build-depends:
+      streamly
+    , base >= 4.8 && < 5
+  if os(windows)
+    buildable: False
 
 -------------------------------------------------------------------------------
 -- Examples
