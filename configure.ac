@@ -12,6 +12,12 @@ AC_ARG_WITH([compiler], [GHC])
 AC_CHECK_DECLS([IN_MASK_CREATE],[],[],[#include <sys/inotify.h>])
 AC_CHECK_DECLS([IN_EXCL_UNLINK],[],[],[#include <sys/inotify.h>])
 
+# XXX Do this only for macOS
+AC_CHECK_DECLS([kFSEventStreamCreateFlagFileEvents],[],[],[#include <CoreServices/CoreServices.h>])
+AC_CHECK_DECLS([kFSEventStreamCreateFlagFullHistory],[],[],[#include <CoreServices/CoreServices.h>])
+AC_CHECK_DECLS([kFSEventStreamEventFlagItemCloned],[],[],[#include <CoreServices/CoreServices.h>])
+AC_CHECK_DECLS([kFSEventStreamEventFlagItemIsHardlink],[],[],[#include <CoreServices/CoreServices.h>])
+
 # Check headers and functions required
 AC_CHECK_HEADERS([time.h])
 AC_CHECK_FUNCS([clock_gettime])

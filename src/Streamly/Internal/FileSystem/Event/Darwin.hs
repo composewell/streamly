@@ -62,10 +62,10 @@
 -- Need a real cpp to process Availability.h
 {-# OPTIONS_GHC -pgmP gcc -optP -E #-}
 
-#include <Availability.h>
+#include <config.h>
 
-#if defined(__MAC_OS_X_VERSION_MIN_REQUIRED) \
-    && __MAC_OS_X_VERSION_MIN_REQUIRED >= 10700
+-- macOS 10.7+
+#if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFILEEVENTS
 
 module Streamly.Internal.FileSystem.Event.Darwin
     (
@@ -84,7 +84,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , setRootChanged
     , setFileEvents
     , setIgnoreSelf
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+#if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
     , setFullHistory
 #endif
 
@@ -122,7 +122,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , isDeleted
     , isMoved
     , isModified
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMCLONED
     , isCloned
 #endif
 
@@ -130,7 +130,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , isDir
     , isFile
     , isSymLink
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMISHARDLINK
     , isHardLink
     , isLastHardLink
 #endif
@@ -287,7 +287,7 @@ foreign import ccall safe
 setIgnoreSelf :: Toggle -> Config -> Config
 setIgnoreSelf = setFlag kFSEventStreamCreateFlagIgnoreSelf
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+#if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
 foreign import ccall safe
     "FSEventStreamCreateFlagFullHistory"
     kFSEventStreamCreateFlagFullHistory :: Word32
@@ -314,7 +314,7 @@ setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 -- * 'setFileEvents' 'On'
 -- * 'setRootChanged' 'Off'
 -- * 'setIgnoreSelf' 'Off'
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
+#if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
 -- * 'setFullHistory' 'Off'
 #endif
 --
@@ -857,7 +857,7 @@ foreign import ccall safe
 isModified :: Event -> Bool
 isModified = getFlag kFSEventStreamEventFlagItemModified
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMCLONED
 foreign import ccall safe
     "FSEventStreamEventFlagItemCloned"
     kFSEventStreamEventFlagItemCloned :: Word32
@@ -924,7 +924,7 @@ foreign import ccall safe
 isSymLink :: Event -> Bool
 isSymLink = getFlag kFSEventStreamEventFlagItemIsSymlink
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMISHARDLINK
 foreign import ccall safe
     "FSEventStreamEventFlagItemIsHardlink"
     kFSEventStreamEventFlagItemIsHardlink :: Word32
@@ -994,14 +994,14 @@ showEvent ev@Event{..} =
         ++ showev isDeleted "Deleted"
         ++ showev isModified "Modified"
         ++ showev isMoved "Moved"
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMCLONED
         ++ showev isCloned "Cloned"
 #endif
 
         ++ showev isDir "Dir"
         ++ showev isFile "File"
         ++ showev isSymLink "SymLink"
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#if HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMISHARDLINK
         ++ showev isHardLink "HardLink"
         ++ showev isLastHardLink "LastHardLink"
 #endif

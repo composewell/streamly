@@ -11,6 +11,22 @@
    you don't. */
 #undef HAVE_DECL_IN_MASK_CREATE
 
+/* Define to 1 if you have the declaration of
+   `kFSEventStreamCreateFlagFileEvents', and to 0 if you don't. */
+#undef HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFILEEVENTS
+
+/* Define to 1 if you have the declaration of
+   `kFSEventStreamCreateFlagFullHistory', and to 0 if you don't. */
+#undef HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
+
+/* Define to 1 if you have the declaration of
+   `kFSEventStreamEventFlagItemCloned', and to 0 if you don't. */
+#undef HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMCLONED
+
+/* Define to 1 if you have the declaration of
+   `kFSEventStreamEventFlagItemIsHardlink', and to 0 if you don't. */
+#undef HAVE_DECL_KFSEVENTSTREAMEVENTFLAGITEMISHARDLINK
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 

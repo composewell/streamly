@@ -5,6 +5,10 @@
  *
  */
 
+#include <config.h>
+
+#if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFILEEVENTS
+
 #include <CoreServices/CoreServices.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -287,3 +291,4 @@ void destroyWatch(struct watch* w) {
     pthread_mutex_destroy(&w->mut);
     free(w);
 }
+#endif
