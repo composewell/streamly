@@ -139,6 +139,9 @@ module Streamly.Internal.Data.Fold.Types
     , lcatMaybes
     , ltake
     , ltakeWhile
+
+    , splitWith
+    , many
     , lsessionsOf
     , lchunksOf
     , lchunksOf2
@@ -146,6 +149,7 @@ module Streamly.Internal.Data.Fold.Types
     , duplicate
     , initialize
     , runStep
+    , concatMap
     )
 where
 
@@ -164,6 +168,8 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
+
+import Prelude hiding (concatMap)
 
 ------------------------------------------------------------------------------
 -- Monadic left folds
@@ -254,6 +260,22 @@ instance Monad m => Functor (Fold m a) where
                 Partial s -> partialM s
                 Done b -> doneM (f b)
         done' x = fmap f $! done x
+
+-- | Sequential fold application. Apply two folds sequentially to an input
+-- stream.  The input is provided to the first fold, when it is done the
+-- remaining input is provided to the second fold. When the second fold is
+-- done, the outputs of the two folds are combined using the supplied function.
+--
+-- Note: This is a folding dual of appending streams using
+-- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
+-- the results.
+--
+-- /Unimplemented/
+--
+{-# INLINE splitWith #-}
+splitWith :: -- Monad m =>
+    (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+splitWith = undefined
 
 -- | The fold resulting from '<*>' distributes its input to both the argument
 -- folds and combines their output using the supplied function.
@@ -534,43 +556,69 @@ runStep (Fold step initial extract) a = do
         Partial s -> return $ Fold step (return s) extract
         Done b -> return $ Fold (\_ _ -> doneM b) (return i) (\_ -> return b)
 
+-- | Map a 'Fold' returning function on the result of a 'Fold'.
+--
+-- /Unimplemented/
+--
+{-# INLINE concatMap #-}
+concatMap :: -- Monad m =>
+    (b -> Fold m a c) -> Fold m a b -> Fold m a c
+concatMap = undefined
 
 ------------------------------------------------------------------------------
 -- Parsing
 ------------------------------------------------------------------------------
 
--- XXX These can be expressed using foldChunks repeatedly on the input of a
--- fold.
+-- All the grouping transformation that we apply to a stream can also be
+-- applied to a fold input stream. groupBy et al can be written as terminating
+-- folds and then we can apply "many" to use those repeatedly on a stream.
+
+-- | Collect zero or more applications of a fold.  @many collect split@ applies
+-- the @split@ fold repeatedly on the input stream and accumulates zero or more
+-- fold results using @collect@.
+--
+-- /Internal/
+--
+-- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
+--
+{-# INLINE many #-}
+many :: Monad m => Fold m b c -> Fold m a b -> Fold m a c
+many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
+    Fold step initial extract
+
+    where
+
+    initial = do
+        ps <- initial1 -- parse state
+        fs <- finitial -- fold state
+        pure (Tuple' ps fs)
+
+    {-# INLINE step #-}
+    step (Tuple' st fs) a = do
+        r <- step1 st a
+        case r of
+            Partial s ->
+                return $ Partial (Tuple' s fs)
+            Done b -> do
+                s <- initial1
+                fs1 <- fstep fs b
+                case fs1 of
+                    Partial s1 -> return $ Partial (Tuple' s s1)
+                    Done b1 -> return $ Done b1
+
+    extract (Tuple' s fs) = do
+        b <- extract1 s
+        acc <- fstep fs b
+        case acc of
+            Partial s1 -> fextract s1
+            Done x -> return x
 
 -- | For every n input items, apply the first fold and supply the result to the
 -- next fold.
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
-
-    where
-
-    initial' = Tuple3' 0 <$> liftInitialM initial1 <*> liftInitialM initial2
-    step' (Tuple3' i r1 r2) a =
-        if i < n
-        then do
-            res <- liftStep step1 r1 a
-            partialM $ Tuple3' (i + 1) res r2
-        else do
-            res <- liftExtract extract1 r1
-            acc2 <- liftStep step2 r2 res
-            case acc2 of
-                Done b -> doneM b
-                Partial _ -> do
-                    i1 <- initial1
-                    acc1 <- step1 i1 a
-                    partialM $ Tuple3' 1 acc1 acc2
-    extract' (Tuple3' _ r1 r2) = do
-        res <- liftExtract extract1 r1
-        acc2 <- liftStep step2 r2 res
-        liftExtract extract2 acc2
+lchunksOf n split collect = many collect (ltake n split)
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
@@ -671,3 +719,9 @@ lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
                     Left _ -> r2
                     Right _ -> Left e
         putMVar mv2 r
+
+{-
+{-# INLINE lsessionsOf #-}
+lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
+lsessionsOf n split collect = many collect (takeByTime n split)
+-}

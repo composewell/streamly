@@ -62,9 +62,10 @@ import Prelude hiding (map, mapM, foldr, take, concatMap)
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
-import Streamly.Internal.Data.Fold.Types (Fold(..), liftInitialM, liftStep, liftExtract, Fold2(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -583,54 +584,52 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-data GroupState s fs
+data GroupState s fs b
     = GroupStart s
-    | GroupBuffer s fs Int
-    | GroupYield fs (GroupState s fs)
+    | GroupBuffer s fs
+    | GroupYield b (GroupState s fs b)
     | GroupFinish
 
-{-# INLINE_NORMAL groupsOf #-}
-groupsOf
-    :: Monad m
-    => Int
-    -> Fold m a b
-    -> Stream m a
-    -> Stream m b
-groupsOf n (Fold fstep initial extract) (Stream step state) =
-    n `seq` Stream step' (GroupStart state)
+{-# INLINE_NORMAL foldMany #-}
+foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldMany (Fold fstep initial extract) (Stream step state) =
+    Stream step' (GroupStart state)
 
     where
 
     {-# INLINE_LATE step' #-}
     step' _ (GroupStart st) = do
-        -- XXX shall we use the Natural type instead? Need to check performance
-        -- implications.
-        when (n <= 0) $
-            -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
-                 ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
-        fs <- liftInitialM initial
-        return $ Skip (GroupBuffer st fs 0)
+        fs <- initial
+        return $ Skip (GroupBuffer st fs)
 
-    step' gst (GroupBuffer st fs i) = do
+    step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                !fs' <- liftStep fstep fs x
-                let i' = i + 1
-                return $
-                    if i' >= n
-                    then Skip (GroupYield fs' (GroupStart s))
-                    else Skip (GroupBuffer s fs' i')
-            Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
+                fs' <- fstep fs x
+                return $ case fs' of
+                    FL.Done b -> Skip (GroupYield b (GroupStart s))
+                    FL.Partial ps -> Skip (GroupBuffer s ps)
+            Skip s ->
+                return $ Skip (GroupBuffer s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (GroupYield b GroupFinish)
 
-    step' _ (GroupYield fs next) = do
-        r <- liftExtract extract fs
-        return $ Yield r next
+    step' _ (GroupYield b next) = return $ Yield b next
 
     step' _ GroupFinish = return Stop
+
+{-# INLINE groupsOf #-}
+groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+groupsOf n fld = foldMany (FL.ltake n fld)
+
+data GroupState2 s fs
+    = GroupStart2 s
+    | GroupBuffer2 s fs Int
+    | GroupYield2 fs (GroupState2 s fs)
+    | GroupFinish2
 
 {-# INLINE_NORMAL groupsOf2 #-}
 groupsOf2
@@ -641,12 +640,12 @@ groupsOf2
     -> Stream m a
     -> Stream m b
 groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
-    n `seq` Stream step' (GroupStart state)
+    n `seq` Stream step' (GroupStart2 state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ (GroupStart st) = do
+    step' _ (GroupStart2 st) = do
         -- XXX shall we use the Natural type instead? Need to check performance
         -- implications.
         when (n <= 0) $
@@ -655,9 +654,9 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
         fs <- input >>= inject
-        return $ Skip (GroupBuffer st fs 0)
+        return $ Skip (GroupBuffer2 st fs 0)
 
-    step' gst (GroupBuffer st fs i) = do
+    step' gst (GroupBuffer2 st fs i) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
@@ -665,13 +664,13 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
                 let i' = i + 1
                 return $
                     if i' >= n
-                    then Skip (GroupYield fs' (GroupStart s))
-                    else Skip (GroupBuffer s fs' i')
-            Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
+                    then Skip (GroupYield2 fs' (GroupStart2 s))
+                    else Skip (GroupBuffer2 s fs' i')
+            Skip s -> return $ Skip (GroupBuffer2 s fs i)
+            Stop -> return $ Skip (GroupYield2 fs GroupFinish2)
 
-    step' _ (GroupYield fs next) = do
+    step' _ (GroupYield2 fs next) = do
         r <- extract fs
         return $ Yield r next
 
-    step' _ GroupFinish = return Stop
+    step' _ GroupFinish2 = return Stop
