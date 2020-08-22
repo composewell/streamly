@@ -3217,8 +3217,12 @@ runIORefFinalizer ref = liftIO $ do
     case res of
         Nothing -> return ()
         Just action -> do
-            writeIORef ref Nothing
-            action
+            -- if an async exception comes after writing 'Nothing' then the
+            -- finalizing action will never be run. We need to do this
+            -- atomically wrt async exceptions.
+            mask_ $ do
+                writeIORef ref Nothing
+                action
 
 -- | Deactivate the finalizer stored in an IORef without running it.
 --

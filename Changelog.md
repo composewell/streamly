@@ -20,7 +20,8 @@
   API in `Streamly.Network.Socket` now close the socket if an exception is
   thrown.
 * `bracket`, `handle`, and `finally` now work on streams that aren't
-  fully drained.
+  fully drained. Also, the resource acquisition and release is atomic with
+  respect to async exceptions.
 
 ## 0.7.2
 
