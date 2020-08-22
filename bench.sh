@@ -435,7 +435,7 @@ CABAL_BUILD_FLAGS=""
 GHC_VERSION=$(ghc --numeric-version)
 
 cabal_which() {
-  find dist-newstyle -type f -path "*${GHC_VERSION}*/$1"
+  find dist-newstyle -type f -path "*${GHC_VERSION}/streamly-benchmarks*/$1"
 }
 
 #-----------------------------------------------------------------------------
