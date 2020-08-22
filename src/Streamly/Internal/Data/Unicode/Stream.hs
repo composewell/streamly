@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Unicode.Stream
     , encodeLatin1
     , encodeLatin1Lax
     , encodeUtf8
+    , encodeUtf8Lax
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -674,6 +675,45 @@ decodeUtf8ArraysLenient =
 {-# INLINE encodeUtf8 #-}
 encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
 encodeUtf8 = D.fromStreamD . encodeUtf8D . D.toStreamD
+
+-- | See section "3.9 Unicode Encoding Forms" in
+-- https://www.unicode.org/versions/Unicode13.0.0/UnicodeStandard-13.0.pdf
+--
+{-# INLINE_NORMAL encodeUtf8LaxD #-}
+encodeUtf8LaxD :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8LaxD (Stream step state) = Stream step' (EncodeState state WNil)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (EncodeState st WNil) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c s ->
+                    case ord c of
+                        x | x <= 0x7F ->
+                              Yield (fromIntegral x) (EncodeState s WNil)
+                          | x <= 0x7FF -> Skip (EncodeState s (ord2 c))
+                          | x <= 0xFFFF ->
+                              if isSurrogate c
+                              then Skip $
+                                   EncodeState
+                                       s
+                                       (WCons 239 (WCons 191 (WCons 189 WNil)))
+                              else Skip (EncodeState s (ord3 c))
+                          | otherwise -> Skip (EncodeState s (ord4 c))
+                Skip s -> Skip (EncodeState s WNil)
+                Stop -> Stop
+    step' _ (EncodeState s (WCons x xs)) = return $ Yield x (EncodeState s xs)
+
+
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
+-- Invalid characters (U+D800-U+D8FF) in the input stream are replaced by the
+-- Unicode replacement character U+FFFD.
+--
+-- /Since: 0.8.0/
+{-# INLINE encodeUtf8Lax #-}
+encodeUtf8Lax :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8Lax = D.fromStreamD . encodeUtf8LaxD . D.toStreamD
 
 {-
 -------------------------------------------------------------------------------

@@ -75,6 +75,7 @@ module Streamly.Data.Unicode.Stream
     , encodeLatin1
     , encodeLatin1Lax
     , encodeUtf8
+    , encodeUtf8Lax
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
