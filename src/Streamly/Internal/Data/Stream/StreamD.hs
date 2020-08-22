@@ -281,7 +281,7 @@ module Streamly.Internal.Data.Stream.StreamD
     -- * Exceptions
     , newFinalizedIORef
     , runIORefFinalizer
-    , clearIORefFinalizer
+    , withIORefFinalizer
     , gbracket_
     , gbracket
     , before
@@ -313,7 +313,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_, control)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -3224,10 +3224,15 @@ runIORefFinalizer ref = liftIO $ do
                 writeIORef ref Nothing
                 action
 
--- | Deactivate the finalizer stored in an IORef without running it.
---
-clearIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
-clearIORefFinalizer ref = liftIO $ writeIORef ref Nothing
+-- | Run an action clearing the finalizer IORef atomically wrt async
+-- exceptions. The action is run with async exceptions masked.
+withIORefFinalizer :: MonadBaseControl IO m
+    => IORef (Maybe (IO ())) -> m a -> m a
+withIORefFinalizer ref action = do
+    control $ \runinio ->
+        mask_ $ do
+            writeIORef ref Nothing
+            runinio action
 
 ------------------------------------------------------------------------------
 
@@ -3251,7 +3256,7 @@ gbracket
     => m c                                  -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
     -> (c -> m d)                           -- ^ after, on normal stop or GC
-    -> (c -> e -> Stream m b -> Stream m b) -- ^ on exception
+    -> (c -> e -> Stream m b -> m (Stream m b)) -- ^ on exception
     -> (c -> Stream m b)                    -- ^ stream generator
     -> Stream m b
 gbracket bef exc aft fexc fnormal =
@@ -3286,8 +3291,12 @@ gbracket bef exc aft fexc fnormal =
                     runIORefFinalizer ref
                     return Stop
             Left e -> do
-                clearIORefFinalizer ref
-                return $ Skip (GBracketIOException (fexc v e (UnStream step1 st)))
+                -- Clearing of finalizer and running of exception handler must
+                -- be atomic wrt async exceptions. Otherwise if we have cleared
+                -- the finalizer and have not run the exception handler then we
+                -- may leak the resource.
+                stream <- withIORefFinalizer ref (fexc v e (UnStream step1 st))
+                return $ Skip (GBracketIOException stream)
     step gst (GBracketIOException (UnStream step1 st)) = do
         res <- step1 gst st
         case res of
@@ -3404,7 +3413,7 @@ bracket :: (MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft bet =
     gbracket bef MC.try aft
-        (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e)) bet
+        (\a (e :: SomeException) _ -> aft a >> return (nilM (MC.throwM e))) bet
 
 data BracketState s v = BracketInit | BracketRun s v
 

@@ -832,8 +832,11 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                     D.runIORefFinalizer ref
                     return Stop
             Left e -> do
-                D.clearIORefFinalizer ref
-                r <- einject (v, e)
+                -- Clearing of finalizer and running of exception handler must
+                -- be atomic wrt async exceptions. Otherwise if we have cleared
+                -- the finalizer and have not run the exception handler then we
+                -- may leak the resource.
+                r <- D.withIORefFinalizer ref (einject (v, e))
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
