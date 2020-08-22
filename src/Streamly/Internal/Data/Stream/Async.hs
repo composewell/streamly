@@ -628,6 +628,8 @@ joinStreamVarAsync style m1 m2 = mkStream $ \st yld sng stp ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
+infixr 6 `async`
+
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AsyncT'.
 -- Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
@@ -801,6 +803,8 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 {-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
 consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
 consMWAsync m r = fromStream $ K.yieldM m `wAsync` (toStream r)
+
+infixr 6 `wAsync`
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.

@@ -358,6 +358,8 @@ instance IsStream WSerialT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
+infixr 6 `wSerial`
+
 -- Additionally we can have m elements yield from the first stream and n
 -- elements yielding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and

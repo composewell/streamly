@@ -145,6 +145,23 @@ testGroupsBySep =
                 $ S.fromList vec
             assert $ decreasing a == True
 
+associativityCheck
+    :: String
+    -> (SerialT IO Int -> SerialT IO Int)
+    -> Spec
+associativityCheck desc t = prop desc assocCheckProp
+  where
+    assocCheckProp :: [Int] -> [Int] -> [Int] -> Property
+    assocCheckProp xs ys zs =
+        monadicIO $ do
+            let xStream = S.fromList xs
+                yStream = S.fromList ys
+                zStream = S.fromList zs
+            infixAssocstream <-
+                run $ S.toList $ t $ xStream `serial` yStream `serial` zStream
+            assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
+            listEquals (==) infixAssocstream assocStream
+
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -199,7 +216,8 @@ main = hspec
         serialOps $ monoidOps "serially" mempty (==)
 
     describe "Semigroup operations" $ do
-        serialOps    $ semigroupOps "serially" (==)
+        serialOps $ semigroupOps "serially" (==)
+        serialOps $ associativityCheck "serial == <>"
 
     describe "Applicative operations" $ do
         -- The tests using sorted equality are weaker tests

@@ -12,13 +12,33 @@ module Streamly.Test.Prelude.Ahead where
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
+import Test.QuickCheck (Property)
 import Test.Hspec.QuickCheck
+import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import Streamly
 import qualified Streamly.Prelude as S
 
+import Streamly.Test.Common
 import Streamly.Test.Prelude
+
+associativityCheck
+    :: String
+    -> (AheadT IO Int -> SerialT IO Int)
+    -> Spec
+associativityCheck desc t = prop desc assocCheckProp
+  where
+    assocCheckProp :: [Int] -> [Int] -> [Int] -> Property
+    assocCheckProp xs ys zs =
+        monadicIO $ do
+            let xStream = S.fromList xs
+                yStream = S.fromList ys
+                zStream = S.fromList zs
+            infixAssocstream <-
+                run $ S.toList $ t $ xStream `ahead` yStream `ahead` zStream
+            assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
+            listEquals (==) infixAssocstream assocStream
 
 main :: IO ()
 main = hspec
@@ -44,7 +64,8 @@ main = hspec
         aheadOps     $ monoidOps "aheadly" mempty (==)
 
     describe "Semigroup operations" $ do
-        aheadOps     $ semigroupOps "aheadly" (==)
+        aheadOps $ semigroupOps "aheadly" (==)
+        aheadOps $ associativityCheck "ahead == <>"
 
     describe "Applicative operations" $ do
         aheadOps $ applicativeOps S.fromFoldable "aheadly applicative" (==)

@@ -544,7 +544,6 @@ foldFromList constr op eq = transformFromList constr eq id op
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
     :: (IsStream t
-
 #if __GLASGOW_HASKELL__ < 804
        , Semigroup (t IO Int)
 #endif

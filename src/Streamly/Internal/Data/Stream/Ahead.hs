@@ -582,6 +582,8 @@ forkSVarAhead m1 m2 = mkStream $ \st yld sng stp -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
         foldStream st yld sng stp ma
 
+infixr 6 `ahead`
+
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AheadT'.
 -- Merges two streams sequentially but with concurrent lookahead.
 --

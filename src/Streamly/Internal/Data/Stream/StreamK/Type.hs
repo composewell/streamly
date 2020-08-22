@@ -755,6 +755,8 @@ foldrMKWith f step acc g = go g
 -- Semigroup
 ------------------------------------------------------------------------------
 
+infixr 6 `serial`
+
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'SerialT'.
 -- Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.

@@ -12,13 +12,33 @@ module Streamly.Test.Prelude.WSerial where
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
+import Test.QuickCheck (Property)
 import Test.Hspec.QuickCheck
+import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import Streamly
 import qualified Streamly.Prelude as S
 
+import Streamly.Test.Common
 import Streamly.Test.Prelude
+
+associativityCheck
+    :: String
+    -> (WSerialT IO Int -> SerialT IO Int)
+    -> Spec
+associativityCheck desc t = prop desc assocCheckProp
+  where
+    assocCheckProp :: [Int] -> [Int] -> [Int] -> Property
+    assocCheckProp xs ys zs =
+        monadicIO $ do
+            let xStream = S.fromList xs
+                yStream = S.fromList ys
+                zStream = S.fromList zs
+            infixAssocstream <-
+                run $ S.toList $ t $ xStream `wSerial` yStream `wSerial` zStream
+            assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
+            listEquals (==) infixAssocstream assocStream
 
 main :: IO ()
 main = hspec
@@ -45,7 +65,8 @@ main = hspec
         wSerialOps   $ monoidOps "wSerially" mempty sortEq
 
     describe "Semigroup operations" $ do
-        wSerialOps   $ semigroupOps "wSerially" (==)
+        wSerialOps $ semigroupOps "wSerially" (==)
+        wSerialOps $ associativityCheck "wSerial == <>"
 
     describe "Applicative operations" $ do
         wSerialOps $ applicativeOps S.fromFoldable "wSerially applicative" sortEq

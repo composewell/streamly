@@ -6,6 +6,8 @@
   accumulator monadic.
 * Change the signature of `concatMapWith` to ensure that it can be
   used with a wide variety of combining functions.
+* Change the associativity of combinators `serial`, `wSerial`,
+  `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
 * Drop support for GHC 7.10.3.
 
 ### Bug Fixes

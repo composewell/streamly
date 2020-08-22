@@ -205,6 +205,8 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
 consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
 consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
+infixr 6 `parallel`
+
 -- | Execute two streams concurrently and merge their outputs.  For example, if
 -- stream @a@ is a serial stream consisting of @a1, a2, a3@ and stream @b@ is a
 -- serial stream consisting of @b1, b2, b3@ then stream @a `parallel` b@ may
