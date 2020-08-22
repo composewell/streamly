@@ -3169,38 +3169,63 @@ gbracket_ bef exc aft fexc fnormal =
             Skip s    -> return $ Skip (GBracketException (Stream step1 s))
             Stop      -> return Stop
 
--- | Create an IORef holding a finalizer that is called automatically when the
--- IORef is garbage collected. The IORef can be written to with a 'Nothing'
+------------------------------------------------------------------------------
+-- Finalizers
+------------------------------------------------------------------------------
+
+-- | Make a finalizer from a monadic action @m a@ that can run in IO monad.
+mkIOFinalizer :: MonadBaseControl IO m => m b -> m (IO ())
+mkIOFinalizer f = do
+    mrun <- captureMonadState
+    return $
+        void $ do
+            _ <- runInIO mrun f
+            return ()
+
+-- | Run an IO action stored in a finalized IORef.
+runIORefFinalizerGC :: IORef (Maybe (IO ())) -> IO ()
+runIORefFinalizerGC ref = do
+    res <- readIORef ref
+    case res of
+        Nothing -> return ()
+        Just f -> f
+
+-- | Create an IORef holding a finalizer that is called automatically when
+-- the IORef is garbage collected. The IORef can be written to with a 'Nothing'
 -- value to deactivate the finalizer.
+--
+-- Note: The finalizer is always run with the state of the monad captured at
+-- the time of calling newFinalizedIORef. To run it on garbage collection we
+-- have no option but to take a snapshot of the monadic state at some point of
+-- time. For normal case we could run it with the current state of the monad
+-- but we want to keep both the cases consistent.
+--
 newFinalizedIORef :: (MonadIO m, MonadBaseControl IO m)
     => m a -> m (IORef (Maybe (IO ())))
 newFinalizedIORef finalizer = do
-    mrun <- captureMonadState
-    ref <- liftIO $ newIORef $ Just $ liftIO $ void $ do
-                _ <- runInIO mrun finalizer
-                return ()
-    let finalizer1 = do
-            res <- readIORef ref
-            case res of
-                Nothing -> return ()
-                Just f -> f
-    _ <- liftIO $ mkWeakIORef ref finalizer1
+    f <- mkIOFinalizer finalizer
+    ref <- liftIO $ newIORef $ Just f
+    _ <- liftIO $ mkWeakIORef ref (runIORefFinalizerGC ref)
     return ref
 
 -- | Run the finalizer stored in an IORef and deactivate it so that it is run
--- only once.
+-- only once. Note, the action runs with async exceptions masked.
 --
 runIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
 runIORefFinalizer ref = liftIO $ do
     res <- readIORef ref
     case res of
         Nothing -> return ()
-        Just f -> writeIORef ref Nothing >> f
+        Just action -> do
+            writeIORef ref Nothing
+            action
 
 -- | Deactivate the finalizer stored in an IORef without running it.
 --
 clearIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
 clearIORefFinalizer ref = liftIO $ writeIORef ref Nothing
+
+------------------------------------------------------------------------------
 
 data GbracketIOState s1 s2 v wref
     = GBracketIOInit
