@@ -48,7 +48,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
-import qualified Streamly.Internal.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 

@@ -427,6 +427,7 @@ library
                      , Streamly.Internal.Data.Stream.Prelude
 
                      -- Higher level streams
+                     , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
@@ -435,7 +436,6 @@ library
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.List
-                     , Streamly.Internal.Prelude
 
                      -- Unfolds
                      , Streamly.Internal.Data.Unfold.Types

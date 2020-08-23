@@ -15,7 +15,7 @@ import qualified Streamly as S
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude

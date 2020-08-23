@@ -46,7 +46,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)

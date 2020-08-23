@@ -27,17 +27,17 @@ type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
 import qualified Streamly.Internal.Data.Array.Prim.Pinned.Types as A
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM)
 import qualified Streamly.Internal.Data.Array.Prim as A
 import qualified Streamly.Internal.Data.Array.Prim.Types as A
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #else
 import qualified Streamly.Internal.Data.Array as A

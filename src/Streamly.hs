@@ -228,7 +228,7 @@ import Streamly.Internal.Data.Stream.StreamK hiding (serial)
 import Streamly.Internal.Data.Stream.Zip
 
 import qualified Streamly.Prelude as P
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.Async as Async
 

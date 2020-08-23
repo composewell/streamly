@@ -3,7 +3,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Memory.Array as A
 
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.FileSystem.File as File
 
 import Data.Char (ord)

@@ -1,6 +1,6 @@
 import Streamly
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 main :: IO ()
 main =

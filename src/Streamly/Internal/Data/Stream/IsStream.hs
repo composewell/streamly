@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Prelude
+-- Module      : Streamly.Internal.Data.Stream.IsStream
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -17,7 +17,7 @@
 -- unreleased and unimplemented APIs. For documentation on released APIs please
 -- see "Streamly.Prelude" module.
 
-module Streamly.Internal.Prelude
+module Streamly.Internal.Data.Stream.IsStream
     (
     -- * Construction
     -- ** Primitives

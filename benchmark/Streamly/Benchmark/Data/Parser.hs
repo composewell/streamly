@@ -28,7 +28,7 @@ import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
 import Streamly hiding (runStream)

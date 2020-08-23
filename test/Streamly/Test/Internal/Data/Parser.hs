@@ -1,7 +1,7 @@
 module Main (main) where
 
 import qualified Streamly.Internal.Data.Parser as P
-import qualified Streamly.Internal.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Fold as FL
 
 -- import Data.List (partition)

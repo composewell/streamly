@@ -50,7 +50,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import qualified Streamly as S
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 

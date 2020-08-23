@@ -6,7 +6,7 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Streamly (ahead)
 
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
 
 -- | List the current directory recursively using concurrent processing

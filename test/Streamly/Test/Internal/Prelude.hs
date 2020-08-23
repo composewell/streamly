@@ -20,7 +20,7 @@ import Test.QuickCheck.Monadic (monadicIO, pick)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Prelude as SI
+import qualified Streamly.Internal.Data.Stream.IsStream as SI
 
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units

@@ -532,7 +532,7 @@ tailPartial m = mkStream $ \st yld sng stp ->
 -- example:
 --
 -- @
--- import Streamly.Internal.Prelude as S
+-- import Streamly.Internal.Data.Stream.IsStream as S
 -- import System.IO.Unsafe (unsafeInterleaveIO)
 --
 -- main = do

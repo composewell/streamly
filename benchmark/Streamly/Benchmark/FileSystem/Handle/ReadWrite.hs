@@ -35,7 +35,7 @@ import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Memory.Unicode.Array as IUA
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 

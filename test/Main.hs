@@ -21,7 +21,7 @@ import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly as S
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 singleton :: IsStream t => a -> t m a
 singleton a = a .: nil

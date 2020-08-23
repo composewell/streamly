@@ -22,7 +22,7 @@ import System.Random (randomRIO)
 import qualified Data.Foldable as F
 import qualified Streamly as S
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 

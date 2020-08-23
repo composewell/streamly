@@ -27,7 +27,7 @@ import qualified Streamly.Internal.Data.Sink as Sink
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
-import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
 import Streamly hiding (runStream)

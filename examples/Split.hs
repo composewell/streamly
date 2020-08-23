@@ -1,4 +1,4 @@
-import qualified Streamly.Internal.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
