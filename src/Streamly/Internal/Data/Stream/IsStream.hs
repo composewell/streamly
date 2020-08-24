@@ -66,7 +66,7 @@ module Streamly.Internal.Data.Stream.IsStream
     , fromListM
     , K.fromFoldable
     , fromFoldableM
-    , fromPrimVar
+    , fromPrimIORef
     , fromCallback
 
     -- * Elimination
@@ -553,7 +553,7 @@ import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime, TimeUnit64, RelTime64, addToAbsTime64)
-import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
+import Streamly.Internal.Data.IORef.Prim (Prim, IORef)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Memory.Array as A
@@ -978,13 +978,13 @@ fromHandle h = go
             str <- liftIO $ IO.hGetLine h
             yld str go
 
--- | Construct a stream by reading a 'Prim' 'Var' repeatedly.
+-- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
 --
 -- /Internal/
 --
-{-# INLINE fromPrimVar #-}
-fromPrimVar :: (IsStream t, MonadIO m, Prim a) => Var IO a -> t m a
-fromPrimVar = fromStreamD . D.fromPrimVar
+{-# INLINE fromPrimIORef #-}
+fromPrimIORef :: (IsStream t, MonadIO m, Prim a) => IORef a -> t m a
+fromPrimIORef = fromStreamD . D.fromPrimIORef
 
 -- | Takes a callback setter function and provides it with a callback.  The
 -- callback when invoked adds a value at the tail of the stream. Returns a

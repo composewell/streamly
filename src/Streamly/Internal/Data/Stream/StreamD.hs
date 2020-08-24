@@ -81,7 +81,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , fromListM
     , fromStreamK
     , fromStreamD
-    , fromPrimVar
+    , fromPrimIORef
     , fromSVar
 
     -- * Elimination
@@ -325,8 +325,7 @@ import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import System.Mem (performMajorGC)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Mutable.Prim.Var
-       (Prim, Var, readVar, newVar, modifyVar')
+import Streamly.Internal.Data.IORef.Prim (Prim)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64, RelTime64)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
@@ -341,6 +340,7 @@ import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
+import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
@@ -677,12 +677,12 @@ fromListM = Stream step
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
 
-{-# INLINE_NORMAL fromPrimVar #-}
-fromPrimVar :: (MonadIO m, Prim a) => Var IO a -> Stream m a
-fromPrimVar var = Stream step ()
+{-# INLINE_NORMAL fromPrimIORef #-}
+fromPrimIORef :: (MonadIO m, Prim a) => Prim.IORef a -> Stream m a
+fromPrimIORef var = Stream step ()
   where
     {-# INLINE_LATE step #-}
-    step _ () = liftIO (readVar var) >>= \x -> return $ Yield x ()
+    step _ () = liftIO (Prim.readIORef var) >>= \x -> return $ Yield x ()
 
 -------------------------------------------------------------------------------
 -- Generation from SVar
@@ -3811,17 +3811,17 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
         -- As long as we are using an "Int" for counts lockfree reads from
         -- Var should work correctly on both 32-bit and 64-bit machines.
         -- However, an Int on a 32-bit machine may overflow quickly.
-        countVar <- liftIO $ newVar (0 :: Int)
+        countVar <- liftIO $ Prim.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ runFold fld
-            $ transf $ fromPrimVar countVar
+            $ transf $ fromPrimIORef countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                when (predicate x) $ liftIO $ modifyVar' countVar (+ 1)
+                when (predicate x) $ liftIO $ Prim.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
             Stop -> do
@@ -3842,12 +3842,12 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
         i <-
             MC.catch
                 (do liftIO $ threadDelay (round $ samplingRate * 1000000)
-                    i <- liftIO $ readVar countVar
+                    i <- liftIO $ Prim.readIORef countVar
                     let !diff = i - prev
                     void $ action diff
                     return i)
                 (\(e :: AsyncException) -> do
-                     i <- liftIO $ readVar countVar
+                     i <- liftIO $ Prim.readIORef countVar
                      let !diff = i - prev
                      void $ action diff
                      throwM (MC.toException e))
@@ -3855,7 +3855,7 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        countVar <- liftIO $ newVar 0
+        countVar <- liftIO $ Prim.newIORef 0
         tid <- fork $ loop countVar 0
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref (killThread tid)
@@ -3865,7 +3865,7 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
         r <- step gst st
         case r of
             Yield x s -> do
-                liftIO $ modifyVar' countVar (+ 1)
+                liftIO $ Prim.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s, ref))
             Skip s -> return $ Skip (Just (countVar, tid, s, ref))
             Stop -> do
@@ -4628,13 +4628,13 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Stop -> Stop
 
 {-# INLINE updateTimeVar #-}
-updateTimeVar :: Var IO Int64 -> IO ()
+updateTimeVar :: Prim.IORef Int64 -> IO ()
 updateTimeVar timeVar = do
     MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
-    modifyVar' timeVar (const t)
+    Prim.modifyIORef' timeVar (const t)
 
 {-# INLINE updateWithDelay #-}
-updateWithDelay :: RealFrac a => a -> Var IO Int64 -> IO ()
+updateWithDelay :: RealFrac a => a -> Prim.IORef Int64 -> IO ()
 updateWithDelay precision timeVar = do
     threadDelay (delayTime precision)
     updateTimeVar timeVar
@@ -4666,14 +4666,14 @@ times g = Stream step Nothing
         -- XXX note that this is safe only on a 64-bit machine. On a 32-bit
         -- machine a 64-bit 'Var' cannot be read consistently without a lock
         -- while another thread is writing to it.
-        timeVar <- liftIO $ newVar (0 :: Int64)
+        timeVar <- liftIO $ Prim.newIORef (0 :: Int64)
         liftIO $ updateTimeVar timeVar
         tid <- forkManaged $ liftIO $ forever (updateWithDelay g timeVar)
-        a <- liftIO $ readVar timeVar
+        a <- liftIO $ Prim.readIORef timeVar
         return $ Skip $ Just (timeVar, tid, a)
 
     step _ s@(Just (timeVar, _, t0)) = do
-        a <- liftIO $ readVar timeVar
+        a <- liftIO $ Prim.readIORef timeVar
         -- XXX we can perhaps use an AbsTime64 using a 64 bit Int for
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time

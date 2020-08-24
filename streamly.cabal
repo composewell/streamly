@@ -386,7 +386,7 @@ library
                      , Streamly.Internal.Data.SVar
 
                      -- Mutable data
-                     , Streamly.Internal.Mutable.Prim.Var
+                     , Streamly.Internal.Data.IORef.Prim
 
                      -- Arrays
                      , Streamly.Internal.Data.Array
