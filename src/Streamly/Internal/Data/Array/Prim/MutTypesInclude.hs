@@ -176,7 +176,7 @@ writeN limit = Fold step initial extract
         | i == limit = FL.Done <$> extract s
         | otherwise = do
             unsafeWriteIndex marr i x
-            FL.partialM $ Tuple' marr (i + 1)
+            return $ FL.Partial $ Tuple' marr (i + 1)
 
 -- Use Tuple' instead?
 data ArrayUnsafe a = ArrayUnsafe
@@ -215,7 +215,7 @@ fromStreamDN limit str = do
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Prim a) => D.Stream m a -> m (Array a)
-fromStreamD str = D.runFold write str
+fromStreamD str = D.foldOnce write str
 
 {-# INLINABLE fromListNM #-}
 fromListNM :: (MonadIO m, Prim a) => Int -> [a] -> m (Array a)
@@ -354,16 +354,16 @@ packArraysChunksOf n (D.Stream step state) =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf ::
        (MonadIO m, Prim a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) =
-    Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
 
     initial = do
-        when (n <= 0) $
+        when (n <= 0)
+          $ error
+          $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
+          ++ "arrays [" ++ show n ++ "] must be a natural number"
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
-                 ++ "arrays [" ++ show n ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple' Nothing r1)
 
@@ -372,34 +372,35 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> extract1 rr
-            FL.Done _ -> return ()
+            FL.Done () -> return ()
+            FL.Done1 () -> return ()
 
     step (Tuple' Nothing r1) arr = do
-            len <- byteLength arr
-            if len >= n
-            then do
-                r <- step1 r1 arr
-                case r of
-                    FL.Done _ -> FL.doneM ()
-                    FL.Partial s -> do
-                        extract1 s
-                        r1' <- initial1
-                        FL.partialM $ Tuple' Nothing r1'
-            else FL.partialM $ Tuple' (Just arr) r1
-
+        len <- byteLength arr
+        if len >= n
+        then do
+            r <- step1 r1 arr
+            case r of
+                FL.Done () -> return $ FL.Done ()
+                FL.Done1 () -> return $ FL.Done1 ()
+                FL.Partial s -> do
+                    extract1 s
+                    r1' <- initial1
+                    return $ FL.Partial $ Tuple' Nothing r1'
+        else return $ FL.Partial $ Tuple' (Just arr) r1
     step (Tuple' (Just buf) r1) arr = do
-            blen <- byteLength buf
-            alen <- byteLength arr
-            let len = blen + alen
-            buf' <- spliceTwo buf arr
-
-            if len >= n
-            then do
-                r <- step1 r1 buf'
-                case r of
-                    FL.Done _ -> FL.doneM ()
-                    FL.Partial s -> do
-                        extract1 s
-                        r1' <- initial1
-                        FL.partialM $ Tuple' Nothing r1'
-            else FL.partialM $ Tuple' (Just buf') r1
+        blen <- byteLength buf
+        alen <- byteLength arr
+        let len = blen + alen
+        buf' <- spliceTwo buf arr
+        if len >= n
+        then do
+            r <- step1 r1 buf'
+            case r of
+                FL.Done () -> return $ FL.Done ()
+                FL.Done1 () -> return $ FL.Done ()
+                FL.Partial s -> do
+                    extract1 s
+                    r1' <- initial1
+                    return $ FL.Partial $ Tuple' Nothing r1'
+        else return $ FL.Partial $ Tuple' (Just buf') r1

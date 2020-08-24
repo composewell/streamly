@@ -1415,7 +1415,7 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- @since 0.7.0
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SerialT m a -> m b
-fold = P.runFold
+fold = P.foldOnce
 
 ------------------------------------------------------------------------------
 -- Running a sink
@@ -2346,14 +2346,14 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan = P.scanFold
+scan = P.scanOnce
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan = P.postscanFold
+postscan = P.postscanOnce
 
 ------------------------------------------------------------------------------
 -- Stateful Transformations
@@ -4055,7 +4055,7 @@ splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitWithSuffix predicate f m =
-    D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
+    D.fromStreamD $ D.splitSuffixWith predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Split on a delimiter sequence
@@ -4652,14 +4652,16 @@ data SessionState t m k a b = SessionState
 
 #undef Type
 
+-- XXX Perhaps we should use an "Event a" type to represent timestamped data.
+-- XXX I've replaced it with the most natural implementation. Check logic.
 -- | @classifySessionsBy tick timeout idle pred f stream@ groups timestamped
 -- events in an input event stream into sessions based on a session key. Each
--- element in the stream is an event consisting of a triple @(session key,
+-- element in the input stream is an event consisting of a triple @(session key,
 -- sesssion data, timestamp)@.  @session key@ is a key that uniquely identifies
--- the session.  All the events belonging to a session are folded using the
--- fold @f@ until the fold returns a 'Left' result or a timeout has occurred.
--- The session key and the result of the fold are emitted in the output stream
--- when the session is purged.
+-- the session.  All the events belonging to a session are folded using the fold
+-- @f@ until the fold terminates or a timeout has occurred.  The session key and
+-- the result of the fold are emitted in the output stream when the session is
+-- purged.
 --
 -- When @idle@ is 'False', @timeout@ is the maximum lifetime of a session in
 -- seconds, measured from the @timestamp@ of the first event in that session.
@@ -4681,35 +4683,33 @@ data SessionState t m k a b = SessionState
 --
 -- /Internal/
 --
-
--- XXX Perhaps we should use an "Event a" type to represent timestamped data.
 {-# INLINABLE classifySessionsBy #-}
-classifySessionsBy
-    :: (IsStream t, MonadAsync m, Ord k)
-    => Double         -- ^ timer tick in seconds
-    -> Double         -- ^ session timeout in seconds
-    -> Bool           -- ^ reset the timeout when an event is received
+classifySessionsBy ::
+       (IsStream t, MonadAsync m, Ord k)
+    => Double -- ^ timer tick in seconds
+    -> Double -- ^ session timeout in seconds
+    -> Bool -- ^ reset the timeout when an event is received
     -> (Int -> m Bool) -- ^ predicate to eject sessions based on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> Fold m a b -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy tick tmout reset ejectPred
-    (Fold step initial extract) str =
-    concatMap sessionOutputStream $
-        scanlMAfter' sstep (return szero) flush stream
+classifySessionsBy tick tmout reset ejectPred (Fold step initial extract) str =
+    concatMap sessionOutputStream
+      $ scanlMAfter' sstep (return szero) flush stream
 
     where
 
     timeoutMs = toRelTime (round (tmout * 1000) :: MilliSecond64)
     tickMs = toRelTime (round (tick * 1000) :: MilliSecond64)
-    szero = SessionState
-        { sessionCurTime = toAbsTime (0 :: MilliSecond64)
-        , sessionEventTime = toAbsTime (0 :: MilliSecond64)
-        , sessionCount = 0
-        , sessionTimerHeap = H.empty
-        , sessionKeyValueMap = Map.empty
-        , sessionOutputStream = K.nil
-        }
+    szero =
+        SessionState
+            { sessionCurTime = toAbsTime (0 :: MilliSecond64)
+            , sessionEventTime = toAbsTime (0 :: MilliSecond64)
+            , sessionCount = 0
+            , sessionTimerHeap = H.empty
+            , sessionKeyValueMap = Map.empty
+            , sessionOutputStream = K.nil
+            }
 
     -- We can eject sessions based on the current session count to limit
     -- memory consumption. There are two possible strategies:
@@ -4720,9 +4720,8 @@ classifySessionsBy tick tmout reset ejectPred
     -- old ones.
     --
     -- We use the first strategy as of now.
-
     -- Got a new stream input element
-    sstep session@SessionState{..} (Just (key, value, timestamp)) = do
+    sstep session@SessionState {..} (Just (key, value, timestamp)) = do
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
         --
@@ -4736,95 +4735,91 @@ classifySessionsBy tick tmout reset ejectPred
         -- better performance.
         --
         let curTime = max sessionEventTime timestamp
-            accumulate v = do
-                old <- case v of
-                    Nothing -> FL.liftInitialM initial
-                    Just (Tuple' _ acc) -> return acc
-                new <- FL.liftStep step old value
-                return $ Tuple' timestamp new
             mOld = Map.lookup key sessionKeyValueMap
-
-        acc@(Tuple' _ fres) <- accumulate mOld
-        res <- FL.liftExtract extract fres
-        case res of
-            Left x -> do
+        old <-
+            case mOld of
+                Nothing -> initial
+                Just (Tuple' _ acc) -> return acc
+        res <- step old value
+        let onTerminate x = do
                 -- deleting a key from the heap is expensive, so we never
                 -- delete a key from heap, we just purge it from the Map and it
                 -- gets purged from the heap on timeout. We just need an extra
                 -- lookup in the Map when the key is purged from the heap, that
                 -- should not be expensive.
                 --
-                let (mp, cnt) = case mOld of
-                        Nothing -> (sessionKeyValueMap, sessionCount)
-                        Just _ -> (Map.delete key sessionKeyValueMap
-                                  , sessionCount - 1)
-                return $ session
-                    { sessionCurTime = curTime
-                    , sessionEventTime = curTime
-                    , sessionCount = cnt
-                    , sessionKeyValueMap = mp
-                    , sessionOutputStream = yield (key, x)
-                    }
-            Right _ -> do
-                (hp1, mp1, out1, cnt1) <- do
-                        let vars = (sessionTimerHeap, sessionKeyValueMap,
-                                           K.nil, sessionCount)
+                let (mp, cnt) =
                         case mOld of
-                            -- inserting new entry
-                            Nothing -> do
-                                -- Eject a session from heap and map is needed
-                                eject <- ejectPred sessionCount
-                                (hp, mp, out, cnt) <-
-                                    if eject
-                                    then ejectOne vars
-                                    else return vars
-
-                                -- Insert the new session in heap
-                                let expiry = addToAbsTime timestamp timeoutMs
-                                    hp' = H.insert (Entry expiry key) hp
-                                 in return (hp', mp, out, cnt + 1)
-                            -- updating old entry
-                            Just _ -> return vars
-
+                            Nothing -> (sessionKeyValueMap, sessionCount)
+                            Just _ ->
+                                ( Map.delete key sessionKeyValueMap
+                                , sessionCount - 1)
+                return
+                  $ session
+                        { sessionCurTime = curTime
+                        , sessionEventTime = curTime
+                        , sessionCount = cnt
+                        , sessionKeyValueMap = mp
+                        , sessionOutputStream = yield (key, x)
+                        }
+        case res of
+            -- Although the fold did not consume the element, it is part of a
+            -- bigger obejct which was used. Check this behaviour?
+            FL.Done1 x -> onTerminate x
+            FL.Done x -> onTerminate x
+            FL.Partial new -> do
+                let acc = Tuple' timestamp new
+                (hp1, mp1, out1, cnt1) <-
+                    do let vars =
+                               ( sessionTimerHeap
+                               , sessionKeyValueMap
+                               , K.nil
+                               , sessionCount)
+                       case mOld of
+                           -- inserting new entry
+                           Nothing -> do
+                               -- Eject a session from heap and map is needed
+                               eject <- ejectPred sessionCount
+                               (hp, mp, out, cnt) <-
+                                   if eject
+                                   then ejectOne vars
+                                   else return vars
+                               -- Insert the new session in heap
+                               let expiry = addToAbsTime timestamp timeoutMs
+                                   hp' = H.insert (Entry expiry key) hp
+                                in return (hp', mp, out, cnt + 1)
+                           -- updating old entry
+                           Just _ -> return vars
                 let mp2 = Map.insert key acc mp1
-                return $ SessionState
-                    { sessionCurTime = curTime
-                    , sessionEventTime = curTime
-                    , sessionCount = cnt1
-                    , sessionTimerHeap = hp1
-                    , sessionKeyValueMap = mp2
-                    , sessionOutputStream = out1
-                    }
-
+                return
+                  $ SessionState
+                        { sessionCurTime = curTime
+                        , sessionEventTime = curTime
+                        , sessionCount = cnt1
+                        , sessionTimerHeap = hp1
+                        , sessionKeyValueMap = mp2
+                        , sessionOutputStream = out1
+                        }
     -- Got a timer tick event
-    sstep sessionState@SessionState{..} Nothing =
+    sstep sessionState@SessionState {..} Nothing =
         let curTime = addToAbsTime sessionCurTime tickMs
-        in ejectExpired sessionState curTime
+         in ejectExpired sessionState curTime
 
-    flush session@SessionState{..} = do
+    flush session@SessionState {..} = do
         (hp', mp', out, count) <-
-            ejectAll
-                ( sessionTimerHeap
-                , sessionKeyValueMap
-                , K.nil
-                , sessionCount
-                )
-        return $ session
-            { sessionCount = count
-            , sessionTimerHeap = hp'
-            , sessionKeyValueMap = mp'
-            , sessionOutputStream = out
-            }
-
-    fromEither e =
-        case e of
-            Left  x -> x
-            Right x -> x
+            ejectAll (sessionTimerHeap, sessionKeyValueMap, K.nil, sessionCount)
+        return
+          $ session
+                { sessionCount = count
+                , sessionTimerHeap = hp'
+                , sessionKeyValueMap = mp'
+                , sessionOutputStream = out
+                }
 
     -- delete from map and output the fold accumulator
     ejectEntry hp mp out cnt acc key = do
-        sess <- FL.liftExtract extract acc
-        let out1 = (key, fromEither sess) `K.cons` out
+        sess <- extract acc
+        let out1 = (key, sess) `K.cons` out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)
 
@@ -4832,9 +4827,10 @@ classifySessionsBy tick tmout reset ejectPred
         let hres = H.uncons hp
         case hres of
             Just (Entry _ key, hp1) -> do
-                r <- case Map.lookup key mp of
-                    Nothing -> return (hp1, mp, out, cnt)
-                    Just (Tuple' _ acc) -> ejectEntry hp1 mp out cnt acc key
+                r <-
+                    case Map.lookup key mp of
+                        Nothing -> return (hp1, mp, out, cnt)
+                        Just (Tuple' _ acc) -> ejectEntry hp1 mp out cnt acc key
                 ejectAll r
             Nothing -> do
                 assert (Map.null mp) (return ())
@@ -4850,24 +4846,24 @@ classifySessionsBy tick tmout reset ejectPred
                         let expiry1 = addToAbsTime latestTS timeoutMs
                         if not reset || expiry1 <= expiry
                         then ejectEntry hp1 mp out cnt acc key
-                        else
-                            -- reset the session timeout and continue
-                            let hp2 = H.insert (Entry expiry1 key) hp1
-                            in ejectOne (hp2, mp, out, cnt)
+                        else -- reset the session timeout and continue
+                             let hp2 = H.insert (Entry expiry1 key) hp1
+                              in ejectOne (hp2, mp, out, cnt)
             Nothing -> do
                 assert (Map.null mp) (return ())
                 return (hp, mp, out, cnt)
 
-    ejectExpired session@SessionState{..} curTime = do
+    ejectExpired session@SessionState {..} curTime = do
         (hp', mp', out, count) <-
             ejectLoop sessionTimerHeap sessionKeyValueMap K.nil sessionCount
-        return $ session
-            { sessionCurTime = curTime
-            , sessionCount = count
-            , sessionTimerHeap = hp'
-            , sessionKeyValueMap = mp'
-            , sessionOutputStream = out
-            }
+        return
+          $ session
+                { sessionCurTime = curTime
+                , sessionCount = count
+                , sessionTimerHeap = hp'
+                , sessionKeyValueMap = mp'
+                , sessionOutputStream = out
+                }
 
         where
 
@@ -4882,20 +4878,17 @@ classifySessionsBy tick tmout reset ejectPred
                             r <- ejectPred cnt
                             return (r, r)
                     if eject
-                    then
-                        case Map.lookup key mp of
-                            Nothing -> ejectLoop hp1 mp out cnt
-                            Just (Tuple' latestTS acc) -> do
-                                let expiry1 = addToAbsTime latestTS timeoutMs
-                                if expiry1 <= curTime || not reset || force
-                                then do
-                                    (hp2,mp1,out1,cnt1) <-
-                                        ejectEntry hp1 mp out cnt acc key
-                                    ejectLoop hp2 mp1 out1 cnt1
-                                else
-                                    -- reset the session timeout and continue
-                                    let hp2 = H.insert (Entry expiry1 key) hp1
-                                    in ejectLoop hp2 mp out cnt
+                    then case Map.lookup key mp of
+                             Nothing -> ejectLoop hp1 mp out cnt
+                             Just (Tuple' latestTS acc) -> do
+                                 let expiry1 = addToAbsTime latestTS timeoutMs
+                                 if expiry1 <= curTime || not reset || force
+                                 then do
+                                     (hp2, mp1, out1, cnt1) <-
+                                         ejectEntry hp1 mp out cnt acc key
+                                     ejectLoop hp2 mp1 out1 cnt1
+                                 else let hp2 = H.insert (Entry expiry1 key) hp1
+                                       in ejectLoop hp2 mp out cnt
                     else return (hp, mp, out, cnt)
                 Nothing -> do
                     assert (Map.null mp) (return ())
@@ -4921,11 +4914,11 @@ classifySessionsBy tick tmout reset ejectPred
 -- /Internal/
 --
 {-# INLINABLE classifyKeepAliveSessions #-}
-classifyKeepAliveSessions
-    :: (IsStream t, MonadAsync m, Ord k)
-    => Double         -- ^ session inactive timeout
+classifyKeepAliveSessions ::
+       (IsStream t, MonadAsync m, Ord k)
+    => Double -- ^ session inactive timeout
     -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
+    -> Fold m a b -- ^ Fold to be applied to session payload data
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
 classifyKeepAliveSessions tmout =
@@ -4988,11 +4981,11 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- /Internal/
 --
 {-# INLINABLE classifySessionsOf #-}
-classifySessionsOf
-    :: (IsStream t, MonadAsync m, Ord k)
-    => Double         -- ^ time window size
+classifySessionsOf ::
+       (IsStream t, MonadAsync m, Ord k)
+    => Double -- ^ time window size
     -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> Fold m a b -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
 classifySessionsOf interval =

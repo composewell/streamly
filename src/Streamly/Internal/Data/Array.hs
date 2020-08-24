@@ -112,11 +112,11 @@ writeN limit = Fold step initial extract
     initial = do
         marr <- liftIO $ newArray limit bottomElement
         return (Tuple' marr 0)
-    step (Tuple' marr i) x
-        | i == limit = fmap FL.Done $ liftIO $ freezeArray marr 0 i
+    step st@(Tuple' marr i) x
+        | i == limit = fmap FL.Done $ extract st
         | otherwise = do
             liftIO $ writeArray marr i x
-            FL.partialM $ Tuple' marr (i + 1)
+            return $ FL.Partial $ Tuple' marr (i + 1)
     extract (Tuple' marr len) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL write #-}
@@ -132,10 +132,10 @@ write = Fold step initial extract
              in do newMarr <- liftIO $ newArray newCapacity bottomElement
                    liftIO $ copyMutableArray newMarr 0 marr 0 i
                    liftIO $ writeArray newMarr i x
-                   FL.partialM $ Tuple3' newMarr (i + 1) newCapacity
+                   return $ FL.Partial $ Tuple3' newMarr (i + 1) newCapacity
         | otherwise = do
             liftIO $ writeArray marr i x
-            FL.partialM $ Tuple3' marr (i + 1) capacity
+            return $ FL.Partial $ Tuple3' marr (i + 1) capacity
     extract (Tuple3' marr len _) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
@@ -151,7 +151,7 @@ fromStreamDN limit str = do
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
-fromStreamD = D.runFold write
+fromStreamD = D.foldOnce write
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -187,7 +187,7 @@ toStreamRev = D.fromStreamD . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> Array a -> m b
-fold f arr = D.runFold f (toStreamD arr)
+fold f arr = D.foldOnce f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
