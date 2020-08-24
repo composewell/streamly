@@ -272,7 +272,7 @@ import qualified Streamly.Internal.Data.Stream.Async as Async
 -- reducers of streams. Reducers can be combined to consume a stream source in
 -- many ways. The simplest is to reduce a stream source using a fold e.g.:
 --
--- > S.runFold FL.length $ S.enumerateTo 100
+-- > S.foldOnce FL.length $ S.enumerateTo 100
 --
 -- Folds are consumers of streams and can be used to split a stream into
 -- multiple independent flows. Grouping transforms a stream by applying a fold

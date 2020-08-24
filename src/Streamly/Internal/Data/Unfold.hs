@@ -289,6 +289,7 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
                 case acc' of
                     FL.Partial acc'' -> go SPEC acc'' s
                     FL.Done c -> return c
+                    FL.Done1 c -> return c
             Skip s -> go SPEC acc s
             Stop   -> extract acc
 

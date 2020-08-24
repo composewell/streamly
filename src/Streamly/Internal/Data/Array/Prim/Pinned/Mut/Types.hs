@@ -151,7 +151,7 @@ writeNAligned align limit = Fold step initial extract
         | i == limit = FL.Done <$> extract s
         | otherwise = do
             unsafeWriteIndex marr i x
-            FL.partialM $ Tuple' marr (i + 1)
+            return $ FL.Partial $ Tuple' marr (i + 1)
 
 -------------------------------------------------------------------------------
 -- Mutation with pointers

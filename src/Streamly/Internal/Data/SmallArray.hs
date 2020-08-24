@@ -107,15 +107,19 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
 writeN limit = Fold step initial extract
-  where
+
+    where
+
     initial = do
         marr <- liftIO $ newSmallArray limit bottomElement
         return (Tuple' marr 0)
-    step (Tuple' marr i) x
-        | i == limit = fmap FL.Done $ liftIO $ freezeSmallArray marr 0 i
+
+    step st@(Tuple' marr i) x
+        | i == limit = FL.Done <$> extract st
         | otherwise = do
             liftIO $ writeSmallArray marr i x
-            FL.partialM (Tuple' marr (i + 1))
+            return $ FL.Partial (Tuple' marr (i + 1))
+
     extract (Tuple' marr len) = liftIO $ freezeSmallArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
@@ -165,7 +169,7 @@ toStreamRev = D.fromStreamD . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SmallArray a -> m b
-fold f arr = D.runFold f (toStreamD arr)
+fold f arr = D.foldOnce f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> SmallArray a -> m b
