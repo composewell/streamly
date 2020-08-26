@@ -4829,24 +4829,25 @@ classifySessionsOf interval =
 before :: (IsStream t, Monad m) => m b -> t m a -> t m a
 before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 
--- | Run a side effect whenever the stream stops normally.
+-- | Run a side effect at the end of the stream. The side effect won't run if
+-- the stream is garbage collected before it reached the end.
 --
--- Prefer 'after' over this as the @after@ action in this combinator is not
--- executed if the stream is partially evaluated lazily and then garbage
--- collected.
+-- This has slightly better performance than 'after'.
 --
--- @since 0.7.0
+-- /Internal/
+--
 {-# INLINE after_ #-}
 after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 after_ action xs = D.fromStreamD $ D.after_ action $ D.toStreamD xs
 
--- | Run a side effect whenever the stream stops normally
--- or is garbage collected after a partial lazy evaluation.
+-- | Run a side effect at the end of the stream or if it is garbage collected
+-- even before reaching the end.
 --
--- /Internal/
+-- @since 0.7.0
 --
 {-# INLINE after #-}
-after :: (IsStream t, MonadIO m, MonadBaseControl IO m) => m b -> t m a -> t m a
+after :: (IsStream t, MonadIO m, MonadBaseControl IO m)
+    => m b -> t m a -> t m a
 after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream aborts due to an exception.
@@ -4856,22 +4857,22 @@ after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 
--- | Run a side effect whenever the stream stops normally or aborts due to an
--- exception.
+-- | Run a side effect at the end of the stream or if it aborts due to an
+-- exception before it could reach the end. The side effect is not run if the
+-- stream is garbage collected before reaching the end.
 --
--- Prefer 'finally' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
--- collected.
+-- This has slightly better performance than 'finally'.
 --
--- @since 0.7.0
+-- /Internal/
+--
 {-# INLINE finally_ #-}
 finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
 
--- | Run a side effect whenever the stream stops normally, aborts due to an
--- exception or if it is garbage collected after a partial lazy evaluation.
+-- | Run a side effect at the end of the stream, or if it aborts due to an
+-- exception or if it is garbage collected before it could reach the end.
 --
--- /Internal/
+-- @since 0.7.0
 --
 {-# INLINE finally #-}
 finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
@@ -4880,13 +4881,13 @@ finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 -- | Run the first action before the stream starts and remember its output,
 -- generate a stream using the output, run the second action using the
 -- remembered value as an argument whenever the stream ends normally or due to
--- an exception.
+-- an exception. The second action won't run if the stream is garbage collected
+-- before it could reach the end.
 --
--- Prefer 'bracket' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
--- collected.
+-- This has slightly better performance than 'bracket'.
 --
--- @since 0.7.0
+-- /Internal/
+--
 {-# INLINE bracket_ #-}
 bracket_ :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
@@ -4898,7 +4899,7 @@ bracket_ bef aft bet = D.fromStreamD $
 -- remembered value as an argument whenever the stream ends normally, due to
 -- an exception or if it is garbage collected after a partial lazy evaluation.
 --
--- /Internal/
+-- @since 0.7.0
 --
 {-# INLINE bracket #-}
 bracket :: (IsStream t, MonadAsync m, MonadCatch m)
