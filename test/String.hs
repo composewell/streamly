@@ -14,7 +14,7 @@ import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.Internal.Unicode.Stream as IUS
-import qualified Streamly.Internal.Memory.Unicode.Array as IUA
+import qualified Streamly.Internal.Unicode.Array.Char as IUA
 
 -- Coverage build takes too long with default number of tests
 {-
