@@ -119,7 +119,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
-import qualified Streamly.Memory.Malloc as Malloc
+import qualified Streamly.Internal.Foreign.Malloc as Malloc
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified GHC.Exts as Exts

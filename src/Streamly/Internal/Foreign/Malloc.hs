@@ -1,15 +1,15 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.Malloc
+-- Module      : Streamly.Internal.Foreign.Malloc
 -- Copyright   : (c) 2019 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Memory.Malloc
+module Streamly.Internal.Foreign.Malloc
     (
       mallocForeignPtrAlignedBytes
     , mallocForeignPtrAlignedUnmanagedBytes

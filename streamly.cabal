@@ -360,7 +360,6 @@ library
                      , Streamly.Data.SmallArray
 
                     -- Memory storage
-                       Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
 
                      , Streamly.FileSystem.IOVec
@@ -374,7 +373,7 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream
 
-                    -- IO devices
+                     -- IO devices
                      , Streamly.Memory.Array
                      , Streamly.FileSystem.Handle
 
@@ -392,6 +391,9 @@ library
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
+
+                     -- Memory storage
+                     ,  Streamly.Internal.Foreign.Malloc
 
                      -- Mutable data
                      , Streamly.Internal.Data.IORef.Prim
