@@ -484,7 +484,7 @@ library
                      -- Text Processing
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.Char
-                     , Streamly.Internal.Memory.Unicode.Array
+                     , Streamly.Internal.Unicode.Array.Char
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
 
                      -- Serialization/deserialization in binary format

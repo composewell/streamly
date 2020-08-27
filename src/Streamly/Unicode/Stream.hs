@@ -59,7 +59,7 @@
 --
 -- Some experimental APIs to conveniently process text using the
 -- @Array Char@ represenation directly can be found in
--- "Streamly.Internal.Memory.Unicode.Array".
+-- "Streamly.Internal.Unicode.Array.Char".
 
 -- XXX an unpinned array representation can be useful to store short and short
 -- lived strings in memory.

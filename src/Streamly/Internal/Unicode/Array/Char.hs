@@ -1,13 +1,13 @@
 -- |
--- Module      : Streamly.Memory.Internal.Unicode.Array
+-- Module      : Streamly.Internal.Unicode.Array.Char
 -- Copyright   : (c) 2018 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Memory.Unicode.Array
+module Streamly.Internal.Unicode.Array.Char
     (
     -- * Streams of Strings
       lines
