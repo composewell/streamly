@@ -343,7 +343,7 @@ import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
-import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
