@@ -101,7 +101,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified GHC.Exts as Exts
 
 #if __GLASGOW_HASKELL__ < 808
