@@ -388,7 +388,9 @@ library
                      , Streamly
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
-                     , Streamly.Data.Unicode.Stream
+
+                     -- Text Processing
+                     , Streamly.Unicode.Stream
 
                      -- IO devices
                      , Streamly.Memory.Array
@@ -489,6 +491,7 @@ library
                      , Streamly.Internal.Data.Binary.Decode
 
                      -- Deprecated
+                     , Streamly.Data.Unicode.Stream
 
     if !impl(ghcjs)
        exposed-modules:

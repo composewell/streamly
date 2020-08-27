@@ -36,7 +36,7 @@ import System.IO (Handle)
 import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Unicode.Stream as SS
+import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
 -- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Parser as PR

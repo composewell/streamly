@@ -1,8 +1,8 @@
 -- |
--- Module      : Streamly.Data.Unicode.Stream
--- Copyright   : (c) 2018 Composewell Technologies
+-- Module      : Streamly.Unicode.Stream
+-- Copyright   : (c) 2020 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -64,8 +64,7 @@
 -- XXX an unpinned array representation can be useful to store short and short
 -- lived strings in memory.
 --
-module Streamly.Data.Unicode.Stream
-    {-# DEPRECATED "Use Streamly.Unicode.Stream instead" #-}
+module Streamly.Unicode.Stream
     (
     -- * Construction (Decoding)
       decodeLatin1
