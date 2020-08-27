@@ -20,7 +20,7 @@ import System.Environment (getArgs)
 import Streamly (SerialT)
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Data.Unicode.Stream as Unicode
+import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #if defined(CABAL_OS_DARWIN)
 import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
