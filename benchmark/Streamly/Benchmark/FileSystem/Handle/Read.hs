@@ -41,7 +41,7 @@ import qualified Streamly.FileSystem.Handle as FH
 -- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Unicode.Stream as IUS
+import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT

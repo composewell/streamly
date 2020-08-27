@@ -13,7 +13,7 @@ src/Streamly/Internal/Data/Stream/StreamDK/Type.hs
 src/Streamly/Internal/Data/Stream/StreamD.hs
 src/Streamly/Internal/Data/Pipe/Types.hs
 src/Streamly/Internal/Data/SmallArray/Types.hs
-src/Streamly/Internal/Data/Unicode/Stream.hs
+src/Streamly/Internal/Unicode/Stream.hs
 src/Streamly/Internal/Data/IORef/Prim.hs
 src/Streamly/Internal/Data/Array/Prim/Types.hs
 src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs

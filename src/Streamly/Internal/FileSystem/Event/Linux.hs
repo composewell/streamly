@@ -178,7 +178,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Unicode.Stream as U
+import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Memory.Array as A
 
@@ -732,7 +732,7 @@ watchToStream (Watch handle wdMap) =
 --
 -- /Internal/
 --
-watchPathsWith :: 
+watchPathsWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
 watchPathsWith f paths = S.bracket before after watchToStream
 

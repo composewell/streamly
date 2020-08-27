@@ -31,7 +31,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unicode.Stream as IUS
+import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Memory.Unicode.Array as IUA

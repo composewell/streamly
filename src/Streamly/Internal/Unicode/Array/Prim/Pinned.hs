@@ -22,7 +22,7 @@ import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import Streamly.Internal.Data.Array.Prim.Pinned (Array)
 
-import qualified Streamly.Internal.Data.Unicode.Stream as S
+import qualified Streamly.Internal.Unicode.Stream as S
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
 
 -- | Break a string up into a stream of strings at newline characters.
