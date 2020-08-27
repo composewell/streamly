@@ -17,7 +17,7 @@ import qualified Data.List as List
 import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
 import qualified Streamly.Data.Unicode.Stream as S
-import qualified Streamly.Internal.Data.Unicode.Stream as S
+import qualified Streamly.Internal.Unicode.Stream as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF

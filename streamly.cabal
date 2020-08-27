@@ -480,7 +480,7 @@ library
                      , Streamly.Internal.FileSystem.File
 
                      -- Text Processing
-                     , Streamly.Internal.Data.Unicode.Stream
+                     , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
@@ -489,7 +489,6 @@ library
                      , Streamly.Internal.Data.Binary.Decode
 
                      -- Deprecated
-
 
     if !impl(ghcjs)
        exposed-modules:

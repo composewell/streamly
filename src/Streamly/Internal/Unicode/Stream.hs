@@ -1,9 +1,9 @@
 -- |
--- Module      : Streamly.Data.Internal.Unicode.Stream
+-- Module      : Streamly.Internal.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Bjoern Hoehrmann 2008-2009
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -11,7 +11,7 @@
 
 #include "inline.hs"
 
-module Streamly.Internal.Data.Unicode.Stream
+module Streamly.Internal.Unicode.Stream
     (
     -- * Construction (Decoding)
       decodeLatin1

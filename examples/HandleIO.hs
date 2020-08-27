@@ -10,7 +10,7 @@ import qualified Streamly.Prelude as S
 -- import qualified Streamly.FileSystem.FD as FH
 
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Unicode.Stream as US
+import qualified Streamly.Internal.Unicode.Stream as US
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 

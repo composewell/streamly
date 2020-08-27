@@ -171,7 +171,7 @@ import System.IO (Handle, hClose)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Unicode.Stream as U
+import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Memory.Array as A
 

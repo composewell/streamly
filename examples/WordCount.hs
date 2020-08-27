@@ -36,7 +36,7 @@ import Data.Word (Word8)
 import GHC.Conc (numCapabilities)
 import System.Environment (getArgs)
 import System.IO (Handle, openFile, IOMode(..))
-import Streamly.Internal.Data.Unicode.Stream
+import Streamly.Internal.Unicode.Stream
        (DecodeState, DecodeError(..), CodePoint, decodeUtf8Either,
        resumeDecodeUtf8Either)
 

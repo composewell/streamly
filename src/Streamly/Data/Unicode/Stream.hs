@@ -92,5 +92,5 @@ module Streamly.Data.Unicode.Stream
     )
 where
 
-import Streamly.Internal.Data.Unicode.Stream
+import Streamly.Internal.Unicode.Stream
 import Prelude hiding (lines, words, unlines, unwords)
