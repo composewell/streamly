@@ -130,14 +130,14 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
 import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (mutableArray)
 
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (groupIOVecsOf)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)

@@ -551,7 +551,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -601,7 +601,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple3' Nothing' 0 r1)

@@ -165,7 +165,7 @@ import GHC.IO.Handle.FD (fdToHandle)
 import Streamly (SerialT)
 import Streamly.Internal.Data.Cont (contListMap)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Memory.Array.Types (Array(..))
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 import System.IO (Handle, hClose)
 
 import qualified Data.List.NonEmpty as NonEmpty

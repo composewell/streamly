@@ -26,7 +26,7 @@ import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
 import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
