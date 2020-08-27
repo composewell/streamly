@@ -15,7 +15,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Function ((&))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
-import Streamly.Internal.Memory.Array (Array)
+import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 import System.Environment (getArgs)
 import Streamly (SerialT)
 
@@ -29,7 +29,7 @@ import qualified Streamly.Internal.FileSystem.Event.Linux as Event
 #else
 #error "FS Events not supported on this platform
 #endif
-import qualified Streamly.Internal.Memory.Array as Array
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
 
 -------------------------------------------------------------------------------
 -- Utilities

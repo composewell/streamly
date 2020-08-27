@@ -431,7 +431,7 @@ library
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
                      , Streamly.Internal.Data.Array.Storable.Foreign.Types
-                     , Streamly.Internal.Memory.Array
+                     , Streamly.Internal.Data.Array.Storable.Foreign
                      , Streamly.Internal.Memory.ArrayStream
 
                      -- Folds

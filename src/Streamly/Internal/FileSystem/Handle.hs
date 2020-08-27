@@ -124,7 +124,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as IA
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Memory.Array as A

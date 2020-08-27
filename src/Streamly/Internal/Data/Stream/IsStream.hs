@@ -570,7 +570,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.IORef.Prim (Prim, IORef)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P

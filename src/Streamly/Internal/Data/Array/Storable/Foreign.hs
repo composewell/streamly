@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Memory.Array
+-- Module      : Streamly.Internal.Data.Array.Storable.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -32,7 +32,7 @@
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
 
-module Streamly.Internal.Memory.Array
+module Streamly.Internal.Data.Array.Storable.Foreign
     (
       Array
 
