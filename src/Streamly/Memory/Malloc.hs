@@ -16,11 +16,12 @@ module Streamly.Memory.Malloc
     )
 where
 
-#define USE_GHC_MALLOC
+
+-- We use GHC malloc by default
 
 import Foreign.ForeignPtr (ForeignPtr, newForeignPtr_)
 import Foreign.Marshal.Alloc (mallocBytes)
-#ifndef USE_GHC_MALLOC
+#ifdef USE_C_MALLOC
 import Foreign.ForeignPtr (newForeignPtr)
 import Foreign.Marshal.Alloc (finalizerFree)
 #endif
@@ -29,13 +30,13 @@ import qualified GHC.ForeignPtr as GHC
 
 {-# INLINE mallocForeignPtrAlignedBytes #-}
 mallocForeignPtrAlignedBytes :: Int -> Int -> IO (GHC.ForeignPtr a)
-#ifdef USE_GHC_MALLOC
-mallocForeignPtrAlignedBytes =
-    GHC.mallocPlainForeignPtrAlignedBytes
-#else
+#ifdef USE_C_MALLOC
 mallocForeignPtrAlignedBytes size _alignment = do
     p <- mallocBytes size
     newForeignPtr finalizerFree p
+#else
+mallocForeignPtrAlignedBytes =
+    GHC.mallocPlainForeignPtrAlignedBytes
 #endif
 
 -- memalign alignment size

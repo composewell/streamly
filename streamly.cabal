@@ -204,6 +204,11 @@ flag examples-sdl
   manual: True
   default: False
 
+flag use-c-malloc
+  description: Use C malloc instead of GHC malloc
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -221,6 +226,9 @@ common compile-options
 
     if flag(inspection)
       cpp-options:    -DINSPECTION
+
+    if flag(use-c-malloc)
+      cpp-options:    -DUSE_C_MALLOC
 
     ghc-options:      -Wall
                       -Wcompat
