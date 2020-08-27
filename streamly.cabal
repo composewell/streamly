@@ -393,7 +393,7 @@ library
                      , Streamly.Unicode.Stream
 
                      -- IO devices
-                     , Streamly.Memory.Array
+                     , Streamly.Data.Array.Storable.Foreign
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
@@ -492,6 +492,7 @@ library
 
                      -- Deprecated
                      , Streamly.Data.Unicode.Stream
+                     , Streamly.Memory.Array
 
     if !impl(ghcjs)
        exposed-modules:

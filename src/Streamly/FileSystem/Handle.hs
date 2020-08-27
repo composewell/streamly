@@ -10,7 +10,7 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from file handles. File handle IO
--- APIs are quite similar to "Streamly.Memory.Array" read write APIs. In that
+-- APIs are quite similar to "Streamly.Data.Array.Storable.Foreign" read write APIs. In that
 -- regard, arrays can be considered as in-memory files or files can be
 -- considered as on-disk arrays.
 --

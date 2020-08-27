@@ -20,10 +20,10 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
-import Streamly.Memory.Array (Array)
+import Streamly.Data.Array.Storable.Foreign (Array)
 
 import qualified Streamly.Internal.Unicode.Stream as S
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
