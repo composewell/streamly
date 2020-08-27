@@ -481,12 +481,15 @@ library
 
                      -- Text Processing
                      , Streamly.Internal.Data.Unicode.Stream
-                     , Streamly.Internal.Data.Unicode.Char
+                     , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
 
                      -- Serialization/deserialization in binary format
                      , Streamly.Internal.Data.Binary.Decode
+
+                     -- Deprecated
+
 
     if !impl(ghcjs)
        exposed-modules:

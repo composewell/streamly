@@ -1,13 +1,13 @@
 -- |
--- Module      : Streamly.Data.Internal.Unicode.Char
+-- Module      : Streamly.Internal.Unicode.Char
 -- Copyright   : (c) 2018 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Unicode.Char
+module Streamly.Internal.Unicode.Char
     (
     -- * Predicates
       isAsciiAlpha
