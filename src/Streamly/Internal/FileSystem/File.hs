@@ -108,7 +108,7 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------

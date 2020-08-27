@@ -35,7 +35,7 @@ import qualified Streamly.Internal.Data.SmallArray as A
 type Stream = A.SmallArray
 #elif defined(MEMORY_ARRAY)
 import qualified GHC.Exts as GHC
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 type Stream = A.Array
 #elif defined(DATA_PRIM_ARRAY)

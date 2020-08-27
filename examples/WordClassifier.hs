@@ -22,7 +22,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.File as File
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 import           System.Environment (getArgs)
 

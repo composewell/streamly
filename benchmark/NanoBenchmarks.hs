@@ -9,7 +9,7 @@
 import Streamly (SerialT)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Fold as FL

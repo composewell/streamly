@@ -89,7 +89,7 @@
 -- APIs for unconnected sockets need to explicitly specify the remote endpoint.
 --
 -- By design, connected socket IO APIs are similar to
--- "Streamly.Memory.Array" read write APIs. They are almost identical to the
+-- "Streamly.Data.Array.Storable.Foreign" read write APIs. They are almost identical to the
 -- sequential streaming APIs in "Streamly.Internal.FileSystem.File".
 --
 module Streamly.Network.Socket

@@ -43,7 +43,7 @@ import Streamly.Internal.Unicode.Stream
 import qualified Streamly as S
 import qualified Streamly.Unicode.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 import qualified Data.Vector.Storable.Mutable as V
 

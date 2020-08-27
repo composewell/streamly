@@ -5,7 +5,7 @@ import System.IO (IOMode(..), hSeek, SeekMode(..))
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.FileSystem.FD as FH
 

@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.Array
+-- Module      : Streamly.Data.Array.Storable.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -34,8 +34,7 @@
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array.Storable.Foreign".
 
-module Streamly.Memory.Array
-    {-# DEPRECATED "Use Streamly.Data.Array.Storable.Foreign instead" #-}
+module Streamly.Data.Array.Storable.Foreign
     (
       A.Array
 

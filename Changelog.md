@@ -2,6 +2,7 @@
 
 ### Breaking changes
 
+* Deprecate `Streamly.Memory.Array` in favor of `Streamly.Data.Array.Storable.Foreign`
 * Deprecate `Streamly.Data.Unicode.Stream` in favor of `Streamly.Unicode.Stream`
 * Change the signature of `foldlM'` to make the initial value of the
   accumulator monadic.

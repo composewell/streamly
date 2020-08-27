@@ -12,7 +12,7 @@ import System.Environment (getArgs)
 import Streamly
 import Streamly.Unicode.Stream
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Network.Socket as NS
 import qualified Streamly.Network.Inet.TCP as TCP
 import qualified Streamly.Prelude as S

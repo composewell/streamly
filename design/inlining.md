@@ -15,7 +15,7 @@ i.e. phase 0, 1 and 2. We have defined them as follows in `inline.h`:
 The combinators in `Streamly.Prelude` are defined in terms of combinators in
 `Streamly.Internal.Data.Stream.StreamD` (Direct style streams) or `Streamly.Internal.Data.Stream.StreamK`
 (CPS style streams). We convert the stream from `StreamD` to `StreamK`
-representation or vice versa in some cases. 
+representation or vice versa in some cases.
 
 In the first inlining phase (INLINE_EARLY or INLINE) we expand
 the combinators in `Streamly.Prelude` into
@@ -82,7 +82,7 @@ consume as arguments. This means `StreamD` combinators should not be marked
 as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
 `INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
 etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
-`Streamly.Memory.Array` should also follow the same rules.
+`Streamly.Data.Array.Storable.Foreign` should also follow the same rules.
 
 ## Stream Fusion
 
@@ -118,6 +118,6 @@ possible. In most cases it is not necessary, but in some cases it may affect
 fusion and make a difference of 10x performance or more.  For example, using
 non-strict fields can increase the code size for internal join points and
 functions created during transformations, which can affect the inlining of
-these code blocks which in turn can affect stream fusion. 
+these code blocks which in turn can affect stream fusion.
 
 See https://gitlab.haskell.org/ghc/ghc/issues/17075 .
