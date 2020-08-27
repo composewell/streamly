@@ -74,7 +74,7 @@ import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

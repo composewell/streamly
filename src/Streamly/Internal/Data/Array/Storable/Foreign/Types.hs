@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Memory.Array.Types
+-- Module      : Streamly.Internal.Data.Array.Storable.Foreign.Types
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD3-3-Clause
@@ -9,7 +9,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Memory.Array.Types
+module Streamly.Internal.Data.Array.Storable.Foreign.Types
     (
       Array (..)
 

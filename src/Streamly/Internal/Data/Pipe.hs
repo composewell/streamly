@@ -246,7 +246,7 @@ import Prelude
 -- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
--- import Streamly.Internal.Memory.Array.Types (Array)
+-- import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array)
 -- import Streamly.Memory.Ring (Ring)
 -- import Streamly.Internal.Data.Stream.Serial (SerialT)
 -- import Streamly.Internal.Data.Stream.StreamK (IsStream())
@@ -256,7 +256,7 @@ import Streamly.Internal.Data.Pipe.Types
 
 -- import Streamly.Internal.Data.Strict
 
--- import qualified Streamly.Internal.Memory.Array.Types as A
+-- import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 -- import qualified Streamly.Prelude as S
 -- import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- import qualified Streamly.Internal.Data.Stream.StreamK as K

@@ -541,7 +541,7 @@ import Streamly.Internal.Data.Stream.Enumeration
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array, writeNUnsafe)
 import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Internal.Data.Stream.Prelude
