@@ -7,6 +7,9 @@
 
 ### Bug Fixes
 
+* The monadic state for the stream is now propogated across threads. Please
+  refer to [#369](https://github.com/composewell/streamly/issues/369) for
+  more info.
 * `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`
   API in `Streamly.Network.Socket` now close the socket if an exception is
   thrown.
