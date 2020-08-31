@@ -524,26 +524,58 @@ tailPartial m = mkStream $ \st yld sng stp ->
         yieldk _ r = foldStream st yld sng stp r
     in foldStream st yieldk single stop m
 
--- | Iterate a lazy function `f` of the shape `m a -> t m a` until it gets
--- fully defined i.e. becomes independent of its argument action, then return
--- the resulting value of the function (`t m a`).
+-- | We can define cyclic structures using @let@:
 --
--- It can be used to construct a stream that uses a cyclic definition. For
--- example:
+-- >>> let (a, b) = ([1, b], head a) in (a, b)
+-- ([1,1],1)
+--
+-- The function @fix@ defined as:
+--
+-- > fix f = let x = f x in x
+--
+-- ensures that the argument of a function and its output refer to the same
+-- lazy value @x@ i.e.  the same location in memory.  Thus @x@ can be defined
+-- in terms of itself, creating structures with cyclic references.
+--
+-- >>> f ~(a, b) = ([1, b], head a)
+-- >>> fix f
+-- ([1,1],1)
+--
+-- 'Control.Monad.mfix' is essentially the same as @fix@ but for monadic
+-- values.
+--
+-- Using 'mfix' for streams we can construct a stream in which each element of
+-- the stream is defined in a cyclic fashion. The argument of the function
+-- being fixed represents the current element of the stream which is being
+-- returned by the stream monad. Thus, we can use the argument to construct
+-- itself.
+--
+-- In the following example, the argument @action@ of the function @f@
+-- represents the tuple @(x,y)@ returned by it in a given iteration. We define
+-- the first element of the tuple in terms of the second.
 --
 -- @
--- import Streamly.Internal.Data.Stream.IsStream as S
+-- import Streamly.Internal.Data.Stream.IsStream as Stream
 -- import System.IO.Unsafe (unsafeInterleaveIO)
 --
 -- main = do
---     S.mapM_ print $ S.mfix $ \x -> do
---       a <- S.fromList [1,2]
---       b <- S.fromListM [return 3, unsafeInterleaveIO (fmap fst x)]
---       return (a, b)
+--     Stream.mapM_ print $ Stream.mfix f
+--
+--     where
+--
+--     f action = do
+--         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
+--         x <- Stream.fromListM [incr 1 action, incr 2 action]
+--         y <- Stream.fromList [4,5]
+--         return (x, y)
 -- @
 --
--- Note that the function `f` must be lazy in its argument, that's why we use
--- 'unsafeInterleaveIO' because IO monad is strict.
+-- Note: you cannot achieve this by just changing the order of the monad
+-- statements because that would change the order in which the stream elements
+-- are generated.
+--
+-- Note that the function @f@ must be lazy in its argument, that's why we use
+-- 'unsafeInterleaveIO' on @action@ because IO monad is strict.
 --
 -- /Internal/
 
@@ -552,8 +584,14 @@ mfix f = mkStream $ \st yld sng stp ->
     let single a  = foldStream st yld sng stp $ a `cons` ys
         yieldk a _ = foldStream st yld sng stp $ a `cons` ys
     in foldStream st yieldk single stp xs
-    where xs = fix  (f . headPartial)
-          ys = mfix (tailPartial . f)
+
+    where
+
+    -- fix the head element of the stream
+    xs = fix  (f . headPartial)
+
+    -- now fix the tail recursively
+    ys = mfix (tailPartial . f)
 
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
