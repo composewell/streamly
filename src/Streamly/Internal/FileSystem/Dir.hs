@@ -62,6 +62,7 @@ import Data.Either (isRight, isLeft)
 import Prelude hiding (read)
 
 -- import Streamly.Data.Fold (Fold)
+import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 -- import Streamly.Internal.Memory.Array.Types
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
@@ -78,18 +79,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 -- import qualified Streamly.Memory.Array as A
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
-
-#if MIN_VERSION_base(4,10,0)
-import Data.Either (fromRight, fromLeft)
-#else
-fromLeft :: a -> Either a b -> a
-fromLeft _ (Left a) = a
-fromLeft a _        = a
-
-fromRight :: b -> Either a b -> b
-fromRight _ (Right b) = b
-fromRight b _         = b
-#endif
 
 {-
 {-# INLINABLE readArrayUpto #-}

@@ -505,10 +505,13 @@ module Streamly.Internal.Data.Stream.IsStream
     , runStateT
 
     -- * Maybe Streams
+    , catMaybes
     , mapMaybe
     , mapMaybeM
 
     -- * Either Streams
+    , lefts
+    , rights
     , iterateMapLeftsWith
 
     -- * Diagnostics
@@ -538,12 +541,14 @@ import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
+import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity (..))
 import Data.Kind (Type)
 import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
 import Data.Void (Void)
 import Foreign.Storable (Storable)
+import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Stream.Enumeration
        (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
@@ -2563,6 +2568,13 @@ mapMaybeM f = fmap fromJust . filter isJust . K.mapM f
 mapMaybeMSerial :: Monad m => (a -> m (Maybe b)) -> SerialT m a -> SerialT m b
 mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 
+-- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
+--
+-- /Internal/
+--
+catMaybes :: (IsStream t, Monad m, Functor (t m)) => t m (Maybe a) -> t m a
+catMaybes = fmap fromJust . filter isJust
+
 ------------------------------------------------------------------------------
 -- Transformation by Reordering
 ------------------------------------------------------------------------------
@@ -3495,6 +3507,20 @@ iterateSmapMWith combine f initial stream =
 ------------------------------------------------------------------------------
 -- Either streams
 ------------------------------------------------------------------------------
+
+-- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
+--
+-- /Internal/
+--
+lefts :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m a
+lefts = fmap (fromLeft undefined) . filter isLeft
+
+-- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
+--
+-- /Internal/
+--
+rights :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m b
+rights = fmap (fromRight undefined) . filter isRight
 
 -- | In an 'Either' stream iterate on 'Left's.  This is a special case of
 -- 'iterateMapWith':
