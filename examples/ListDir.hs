@@ -14,8 +14,7 @@ import qualified Streamly.Internal.FileSystem.Dir as Dir
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    S.mapM_ print $ S.concatMapTreeWith ahead listDir
-        (S.yieldM $ return (Left "."))
+    S.mapM_ print $ S.iterateMapLeftsWith ahead listDir (S.yield $ (Left "."))
 
     where
 

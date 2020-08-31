@@ -56,10 +56,15 @@ module Streamly.Internal.Data.Stream.IsStream
     , unfoldrM
     , unfold
     , unfold0
-    , iterate
-    , iterateM
     , fromIndices
     , fromIndicesM
+
+    -- ** Iteration
+    , iterate
+    , iterateM
+
+    -- ** Cyclic Elements
+    , K.mfix
 
     -- ** From Containers
     , P.fromList
@@ -179,6 +184,8 @@ module Streamly.Internal.Data.Stream.IsStream
     , Serial.map
     , sequence
     , mapM
+    , smapM
+    -- $smapM_Notes
 
     -- ** Special Maps
     , mapM_
@@ -230,10 +237,6 @@ module Streamly.Internal.Data.Stream.IsStream
 
     , filter
     , filterM
-
-    -- ** Mapping Filters
-    , mapMaybe
-    , mapMaybeM
 
     -- ** Deleting Elements
     , deleteBy
@@ -444,19 +447,18 @@ module Streamly.Internal.Data.Stream.IsStream
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
-    -- ** Folding Containers of Streams
+    -- ** Flattening a Container of Streams
     , foldWith
     , foldMapWith
     , forEachWith
 
-    -- Flattening Nested Streams
-    -- ** Folding Streams of Streams
+    -- ** Flattening a Stream of Streams
     , concat
     , concatM
     , concatMap
     , concatMapM
-    -- XXX add stateful concatMapWith?
     , concatMapWith
+    , concatSmapMWith
     -- , bindWith
 
     -- ** Flattening Using Unfolds
@@ -464,12 +466,11 @@ module Streamly.Internal.Data.Stream.IsStream
     , concatUnfoldInterleave
     , concatUnfoldRoundrobin
 
-    -- ** Feedback Loops
-    , concatMapIterateWith
-    , concatMapTreeWith
-    , concatMapLoopWith
-    , concatMapTreeYieldLeavesWith
-    , K.mfix
+    -- ** Flattening a Tree of Streams
+    , iterateMapWith
+
+    -- ** Flattening a Graph of Streams
+    , iterateSmapMWith
 
     -- ** Inserting Streams in Streams
     , gintercalate
@@ -502,6 +503,13 @@ module Streamly.Internal.Data.Stream.IsStream
     , evalStateT
     , usingStateT
     , runStateT
+
+    -- * Maybe Streams
+    , mapMaybe
+    , mapMaybeM
+
+    -- * Either Streams
+    , iterateMapLeftsWith
 
     -- * Diagnostics
     , inspectMode
@@ -1902,7 +1910,7 @@ toHandle h = go
 -- | A fold that buffers its input to a pure stream.
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
--- be very inefficient, consider using "Streamly.Array" instead.
+-- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
 -- /Internal/
 {-# INLINE toStream #-}
@@ -1918,7 +1926,7 @@ toStream = Fold (\f x -> return $ f . (x `K.cons`))
 -- input.
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
--- be very inefficient, consider using "Streamly.Array" instead.
+-- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
 -- /Internal/
 
@@ -2180,6 +2188,8 @@ scanlMAfter' step initial done stream =
 -- IMPORTANT: 'scanl'' evaluates the accumulator to WHNF.  To avoid building
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
+--
+-- See also: 'usingStateT'
 --
 -- @since 0.2.0
 {-# INLINE scanl' #-}
@@ -2469,8 +2479,53 @@ mapMSerial = Serial.mapM
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
 sequence m = fromStreamS $ S.sequence (toStreamS m)
 
+-- $smapM_Notes
+--
+-- The stateful step function can be simplified to @(s -> a -> m b)@ to provide
+-- a read-only environment. However, that would just be 'mapM'.
+--
+-- The initial action could be @m (s, Maybe b)@, and we can also add a final
+-- action @s -> m (Maybe b)@. This can be used to get pre/post scan like
+-- functionality and also to flush the state in the end like scanlMAfter'.
+-- We can also use it along with a fusible version of bracket to get
+-- scanlMAfter' like functionality. See issue #677.
+--
+-- This can be further generalized to a type similar to Fold/Parser, giving it
+-- filtering and parsing capability as well (this is in fact equivalent to
+-- parseMany):
+--
+-- smapM :: (s -> a -> m (Step s b)) -> m s -> t m a -> t m b
+--
+
+-- | A stateful 'mapM', equivalent to a left scan, more like mapAccumL.
+-- Hopefully, this is a better alternative to @scan@. Separation of state from
+-- the output makes it easier to think in terms of a shared state, and also
+-- makes it easier to keep the state fully strict and the output lazy.
+--
+-- See also: 'scanlM''
+--
+-- /Internal/
+--
+{-# INLINE smapM #-}
+smapM :: (IsStream t, Monad m) =>
+       (s -> a -> m (s, b))
+    -> m s
+    -> t m a
+    -> t m b
+smapM step initial stream =
+    -- XXX implement this directly instead of using scanlM'
+    -- Once we have scanlM' with monadic initial we can use this code
+    -- let r = scanlM'
+    --              (\(s, _) a -> step s a)
+    --              (fmap (,undefined) initial)
+    --              stream
+    let r = concatMap
+                (\s0 -> scanlM' (\(s, _) a -> step s a) (s0, undefined) stream)
+                (yieldM initial)
+     in Serial.map snd r
+
 ------------------------------------------------------------------------------
--- Transformation by Map and Filter
+-- Maybe Streams
 ------------------------------------------------------------------------------
 
 -- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
@@ -3003,7 +3058,7 @@ mergeAsyncByM f m1 m2 = fromStreamD $
     D.mergeByM f (D.mkParallelD $ toStreamD m1) (D.mkParallelD $ toStreamD m2)
 
 ------------------------------------------------------------------------------
--- Nesting
+-- Flattening Lists
 ------------------------------------------------------------------------------
 
 -- | @concatMapWith merge map stream@ is a two dimensional looping combinator.
@@ -3026,10 +3081,30 @@ concatMapWith
     -> t m b
 concatMapWith = K.concatMapBy
 
+-- | Like 'concatMapWith' but carries a state which can be used to share
+-- information across multiple steps of concat.
+--
+-- @
+-- concatSmapMWith combine f initial = concatMapWith combine id . smapM f initial
+-- @
+--
+-- /Internal/
+--
+{-# INLINE concatSmapMWith #-}
+concatSmapMWith
+    :: (IsStream t, Monad m)
+    => (t m b -> t m b -> t m b)
+    -> (s -> a -> m (s, t m b))
+    -> m s
+    -> t m a
+    -> t m b
+concatSmapMWith combine f initial = concatMapWith combine id . smapM f initial
+
 -- | Map a stream producing function on each element of the stream and then
 -- flatten the results into a single stream.
 --
 -- @
+-- concatMap f = 'concat . map f'
 -- concatMap = 'concatMapWith' 'Serial.serial'
 -- concatMap f = 'concatMapM' (return . f)
 -- concatMap f = 'concatUnfold' (UF.lmap f UF.fromStream)
@@ -3189,7 +3264,13 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- | Given a stream value in the underlying monad, lift and join the underlying
 -- monad with the stream monad.
 --
--- Compare with 'concat' and 'sequence'.
+-- @
+-- concatM = concat . yieldM
+-- concatM = concat . lift    -- requires @(MonadTrans t)@
+-- concatM = join . lift      -- requires @(MonadTrans t@, @Monad (t m))@
+-- @
+--
+-- See also: 'concat', 'sequence'
 --
 --  /Internal/
 --
@@ -3330,130 +3411,114 @@ interposeSuffix x unf str =
 -- Flattening Trees
 ------------------------------------------------------------------------------
 
--- | Like 'iterateM' but using a stream generator function.
+-- | Like 'iterateM' but iterates after mapping a stream generator on the
+-- output.
+--
+-- Yield an input element in the output stream, map a stream generator on it
+-- and then do the same on the resulting stream. This can be used for a depth
+-- first traversal of a tree like structure.
+--
+-- Note that 'iterateM' is a special case of 'iterateMapWith':
+--
+-- @
+-- iterateM f = iterateMapWith serial (yieldM . f) . yieldM
+-- @
+--
+-- It can be used to traverse a tree structure.  For example, to list a
+-- directory tree:
+--
+-- @
+-- Stream.iterateMapWith Stream.serial
+--     (either Dir.toEither (const nil))
+--     (yield (Left "tmp"))
+-- @
 --
 -- /Internal/
 --
-{-# INLINE concatMapIterateWith #-}
-concatMapIterateWith
+{-# INLINE iterateMapWith #-}
+iterateMapWith
     :: IsStream t
     => (t m a -> t m a -> t m a)
     -> (a -> t m a)
     -> t m a
     -> t m a
-concatMapIterateWith combine f = concatMapWith combine go
+iterateMapWith combine f = concatMapWith combine go
     where
     go x = yield x `combine` concatMapWith combine go (f x)
 
--- concatMapIterateLeftsWith
+{-
+{-# INLINE iterateUnfold #-}
+iterateUnfold :: (IsStream t, MonadAsync m)
+    => Unfold m a a -> t m a -> t m a
+iterateUnfold unf xs = undefined
+-}
+
+------------------------------------------------------------------------------
+-- Flattening Graphs
+------------------------------------------------------------------------------
+
+-- To traverse graphs we need a state to be carried around in the traversal.
+-- For example, we can use a hashmap to store the visited status of nodes.
+
+-- | Like 'iterateMap' but carries a state in the stream generation function.
+-- This can be used to traverse graph like structures, we can remember the
+-- visited nodes in the state to avoid cycles.
 --
--- | Traverse a forest with recursive tree structures whose non-leaf nodes are
--- of type @a@ and leaf nodes are of type @b@, flattening all the trees into
--- streams and combining the streams into a single stream consisting of both
--- leaf and non-leaf nodes.
+-- Note that a combination of 'iterateMap' and 'usingState' can also be used to
+-- traverse graphs. However, this function provides a more localized state
+-- instead of using a global state.
 --
--- 'concatMapTreeWith' is a generalization of 'concatMap', using a recursive
--- feedback loop to append the non-leaf nodes back to the input stream enabling
--- recursive traversal.  'concatMap' flattens a single level nesting whereas
--- 'concatMapTreeWith' flattens a recursively nested structure.
+-- See also: 'mfix'
 --
--- Traversing a directory tree recursively is a canonical use case of
--- 'concatMapTreeWith'.
+-- /Internal/
+--
+{-# INLINE iterateSmapMWith #-}
+iterateSmapMWith
+    :: (IsStream t, Monad m)
+    => (t m a -> t m a -> t m a)
+    -> (b -> a -> m (b, t m a))
+    -> m b
+    -> t m a
+    -> t m a
+iterateSmapMWith combine f initial stream =
+    concatMap (\b -> concatMapWith combine (go b) stream) (yieldM initial)
+
+    where
+
+    go b a = yield a `combine` feedback b a
+
+    feedback b a =
+        concatMap
+            (\(b1, s) -> concatMapWith combine (go b1) s)
+            (yieldM $ f b a)
+
+------------------------------------------------------------------------------
+-- Either streams
+------------------------------------------------------------------------------
+
+-- | In an 'Either' stream iterate on 'Left's.  This is a special case of
+-- 'iterateMapWith':
 --
 -- @
--- concatMapTreeWith combine f xs = concatMapIterateWith combine g xs
---      where
---      g (Left tree)  = f tree
---      g (Right leaf) = nil
+-- iterateMapLeftsWith combine f = iterateMapWith combine (either f (const nil))
+-- @
+--
+-- To traverse a directory tree:
+--
+-- @
+-- iterateMapLeftsWith serial Dir.toEither (yield (Left "tmp"))
 -- @
 --
 -- /Internal/
 --
-{-# INLINE concatMapTreeWith #-}
-concatMapTreeWith
+{-# INLINE iterateMapLeftsWith #-}
+iterateMapLeftsWith
     :: IsStream t
     => (t m (Either a b) -> t m (Either a b) -> t m (Either a b))
     -> (a -> t m (Either a b))
-    -> t m (Either a b) -- Should be t m a?
     -> t m (Either a b)
-concatMapTreeWith combine f = concatMapWith combine go
-    where
-    go (Left tree)  = yield (Left tree) `combine` concatMapWith combine go (f tree)
-    go (Right leaf) = yield $ Right leaf
-
-{-
--- | Like concatMapTreeWith but produces only stream of leaf elements.
--- On an either stream, iterate lefts but yield only rights.
---
--- concatMapEitherYieldRightsWith combine f xs =
---  catRights $ concatMapTreeWith combine f xs
---
-{-# INLINE concatMapEitherYieldRightsWith #-}
-concatMapEitherYieldRightsWith :: (IsStream t, MonadAsync m)
-    => _ -> (a -> t m (Either a b)) -> t m (Either a b) -> t m b
-concatMapEitherYieldRightsWith combine f xs = undefined
--}
-
-{-
-{-# INLINE concatUnfoldTree #-}
-concatUnfoldTree :: (IsStream t, MonadAsync m)
-    => Unfold m a (Either a b) -> t m (Either a b) -> t m (Either a b)
-concatUnfoldTree unf xs = undefined
--}
-
-------------------------------------------------------------------------------
--- Feedback loop
-------------------------------------------------------------------------------
-
--- We can perhaps even implement the SVar using this. The stream we are mapping
--- on is the work queue. When evaluated it results in either a leaf element to
--- yield or a tail stream to queue back to the work queue.
---
--- | Flatten a stream with a feedback loop back into the input.
---
--- For example, exceptions generated by the output stream can be fed back to
--- the input to take any corrective action. The corrective action may be to
--- retry the action or do nothing or log the errors. For the retry case we need
--- a feedback loop.
---
--- /Internal/
---
-{-# INLINE concatMapLoopWith #-}
-concatMapLoopWith
-    :: (IsStream t, MonadAsync m)
-    => (forall x. t m x -> t m x -> t m x)
-    -> (a -> t m (Either b c))
-    -> (b -> t m a)  -- ^ feedback function to feed @b@ back into input
-    -> t m a
-    -> t m c
-concatMapLoopWith combine f fb xs =
-    concatMapWith combine go $ concatMapWith combine f xs
-    where
-    go (Left b) = concatMapLoopWith combine f fb $ fb b
-    go (Right c) = yield c
-
--- | Concat a stream of trees, generating only leaves.
---
--- Compare with 'concatMapTreeWith'. While the latter returns all nodes in the
--- tree, this one returns only the leaves.
---
--- Traversing a directory tree recursively and yielding on the files  is a
--- canonical use case of 'concatMapTreeYieldLeavesWith'.
---
--- @
--- concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
--- @
---
--- /Internal/
---
-{-# INLINE concatMapTreeYieldLeavesWith #-}
-concatMapTreeYieldLeavesWith
-    :: (IsStream t, MonadAsync m)
-    => (forall x. t m x -> t m x -> t m x)
-    -> (a -> t m (Either a b))
-    -> t m a
-    -> t m b
-concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
+    -> t m (Either a b)
+iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -4834,6 +4899,8 @@ classifySessionsOf interval =
 
 -- | Run a side effect before the stream yields its first element.
 --
+-- > before action xs = 'nilM' action <> xs
+--
 -- @since 0.7.0
 {-# INLINE before #-}
 before :: (IsStream t, Monad m) => m b -> t m a -> t m a
@@ -4841,6 +4908,8 @@ before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 
 -- | Run a side effect at the end of the stream. The side effect won't run if
 -- the stream is garbage collected before it reached the end.
+--
+-- > after_ action xs = xs <> 'nilM' action
 --
 -- This has slightly better performance than 'after'.
 --
@@ -4927,6 +4996,23 @@ handle :: (IsStream t, MonadCatch m, Exception e)
 handle handler xs =
     D.fromStreamD $ D.handle (D.toStreamD . handler) $ D.toStreamD xs
 
+-- Keep concating either streams as long as rights are generated, stop as soon
+-- as a left is generated and concat the left stream.
+--
+-- See also: 'handle'
+--
+-- /Unimplemented/
+--
+{-
+concatMapEitherWith
+    :: -- (IsStream t, MonadAsync m) =>
+       (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either (t m b) b))
+    -> t m a
+    -> t m b
+concatMapEitherWith = undefined
+-}
+
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad
 ------------------------------------------------------------------------------
@@ -4952,7 +5038,8 @@ generally xs = fromStreamS $ S.hoist (return . runIdentity) (toStreamS xs)
 -- Add and remove a monad transformer
 ------------------------------------------------------------------------------
 
--- | Lift the inner monad of a stream using a monad transformer.
+-- | Lift the inner monad @m@ of a stream @t m a@ to @tr m@ using the monad
+-- transformer @tr@.
 --
 -- / Internal/
 --
@@ -4961,6 +5048,10 @@ liftInner :: (Monad m, IsStream t, MonadTrans tr, Monad (tr m))
     => t m a -> t (tr m) a
 liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 
+------------------------------------------------------------------------------
+-- Sharing read only state in a stream
+------------------------------------------------------------------------------
+
 -- | Evaluate the inner monad of a stream as 'ReaderT'.
 --
 -- / Internal/
@@ -4968,6 +5059,25 @@ liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 {-# INLINE runReaderT #-}
 runReaderT :: (IsStream t, Monad m) => m s -> t (ReaderT s m) a -> t m a
 runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
+
+-- | Run a stream transformation using a given environment.
+--
+-- See also: 'Serial.map'
+--
+-- / Internal/
+--
+{-# INLINE usingReaderT #-}
+usingReaderT
+    :: (Monad m, IsStream t)
+    => m r
+    -> (t (ReaderT r m) a -> t (ReaderT r m) a)
+    -> t m a
+    -> t m a
+usingReaderT r f xs = runReaderT r $ f $ liftInner xs
+
+------------------------------------------------------------------------------
+-- Sharing read write state in a stream
+------------------------------------------------------------------------------
 
 -- | Evaluate the inner monad of a stream as 'StateT'.
 --
@@ -4984,6 +5094,8 @@ evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 --
 -- This is supported only for 'SerialT' as concurrent state updation may not be
 -- safe.
+--
+-- See also: 'scanl''
 --
 -- / Internal/
 --
@@ -5007,16 +5119,3 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => m s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
-
--- | Run a stream transformation using a given environment.
---
--- / Internal/
---
-{-# INLINE usingReaderT #-}
-usingReaderT
-    :: (Monad m, IsStream t)
-    => m r
-    -> (t (ReaderT r m) a -> t (ReaderT r m) a)
-    -> t m a
-    -> t m a
-usingReaderT r f xs = runReaderT r $ f $ liftInner xs
