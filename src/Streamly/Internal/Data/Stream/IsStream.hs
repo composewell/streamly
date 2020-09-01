@@ -276,6 +276,7 @@ module Streamly.Internal.Data.Stream.IsStream
 
     -- ** Parsing
     , parseMany
+    , parseManyD
     , parseManyTill
     , parseIterate
 
@@ -3486,6 +3487,15 @@ parseMany
     -> t m b
 parseMany p m =
     D.fromStreamD $ D.parseMany (PRK.fromParserK p) (D.toStreamD m)
+
+{-# INLINE parseManyD #-}
+parseManyD
+    :: (IsStream t, MonadThrow m)
+    => PRD.Parser m a b
+    -> t m a
+    -> t m b
+parseManyD p m =
+    D.fromStreamD $ D.parseMany p (D.toStreamD m)
 
 -- | @parseManyTill collect test stream@ tries the parser @test@ on the input,
 -- if @test@ fails it backtracks and tries @collect@, after @collect@ succeeds
