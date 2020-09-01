@@ -1,22 +1,25 @@
 module Main (main) where
 
+import Control.Exception (SomeException(..), displayException)
+import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.List ((\\))
+import Data.Word (Word8, Word32, Word64)
+import Test.Hspec (Spec, hspec, describe)
+import Test.Hspec.QuickCheck
+import Test.QuickCheck
+       (arbitrary, forAll, choose, elements, Property, property, listOf,
+        vectorOf, counterexample, Gen, chooseAny)
+import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor, run)
+
+import Prelude hiding (sequence)
+
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Fold as FL
-
--- import Data.List (partition)
-
-import Test.Hspec(Spec, hspec, describe)
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Test.Hspec as H
-import Test.Hspec.QuickCheck
-import Test.QuickCheck (arbitrary, forAll, choose, elements, Property,
-                        property, listOf, vectorOf, counterexample, Gen)
-
-import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor)
-import Control.Exception (SomeException(..), displayException)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (when)
-import Data.List ((\\))
+import qualified Prelude
 
 maxTestCount :: Int
 maxTestCount = 100
@@ -451,7 +454,7 @@ sliceSepByMax =
 --         Left _ -> True)
 
 many :: Property
-many = 
+many =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let
             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
@@ -462,13 +465,13 @@ many =
                 Left _ -> property False
 
 -- many_empty :: Property
--- many_empty = 
+-- many_empty =
 --     property (case S.parse (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
 --         Right res_list -> checkListEqual res_list ([] :: [Int])
 --         Left _ -> property False)
 
 some :: Property
-some = 
+some =
     forAll (listOf (chooseInt (0, 1))) $ \genLs ->
         let
             ls = 0 : genLs
@@ -480,16 +483,152 @@ some =
                 Left _ -> False
 
 -- someFail :: Property
--- someFail = 
+-- someFail =
 --     property (case S.parse (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+applicative :: Property
+applicative =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            let parser =
+                        (,)
+                            <$> P.take (length list1) FL.toList
+                            <*> P.take (length list2) FL.toList
+             in monadicIO $ do
+                    (olist1, olist2) <-
+                        run $ S.parse parser (S.fromList $ list1 ++ list2)
+                    listEquals (==) olist1 list1
+                    listEquals (==) olist2 list2
+
+sequence :: Property
+sequence =
+    forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
+        let parsers = fmap (\xs -> P.take (length xs) FL.toList) ins
+         in monadicIO $ do
+                outs <- run $
+                        S.parse
+                            (Prelude.sequence parsers)
+                            (S.fromList $ concat ins)
+                listEquals (==) outs ins
+
+monad :: Property
+monad =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            let parser = do
+                            olist1 <- P.take (length list1) FL.toList
+                            olist2 <- P.take (length list2) FL.toList
+                            return (olist1, olist2)
+             in monadicIO $ do
+                    (olist1, olist2) <-
+                        run $ S.parse parser (S.fromList $ list1 ++ list2)
+                    listEquals (==) olist1 list1
+                    listEquals (==) olist2 list2
+
+-------------------------------------------------------------------------------
+-- Stream parsing
+-------------------------------------------------------------------------------
+
+parseMany :: Property
+parseMany =
+    forAll (chooseInt (1,100)) $ \len ->
+        forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
+            monadicIO $ do
+                outs <-
+                    ( run
+                    $ S.toList
+                    $ S.parseMany
+                        (P.take len FL.toList) (S.fromList $ concat ins)
+                    )
+                listEquals (==) outs ins
+
+-------------------------------------------------------------------------------
+-- Test for a particular case hit during fs events testing
+-------------------------------------------------------------------------------
+
+evId :: [Word8]
+evId = [96,238,17,9,0,0,0,0]
+
+evFlags :: [Word8]
+evFlags = [0,4,1,0,0,0,0,0]
+
+evPathLen :: [Word8]
+evPathLen = [71,0,0,0,0,0,0,0]
+
+evPath :: [Word8]
+evPath =
+    [47,85,115,101,114,115,47,118,111,108,47,118,101,109,98,97,47,99,111,109
+    ,112,111,115,101,119,101 ,108,108,45,116,101,99,104,47,69,110,103,47,112
+    ,114,111,106,101,99,116,115,47,115,116,114,101,97,109,108,121,47,115,116
+    ,114,101,97,109,108,121,47,116,109,112,47,122,122
+    ]
+
+event :: [Word8]
+event = evId ++ evFlags ++ evPathLen ++ evPath
+
+data Event = Event
+   { eventId :: Word64
+   , eventFlags :: Word32
+   , eventAbsPath :: A.Array Word8
+   } deriving (Show, Ord, Eq)
+
+readOneEvent :: P.Parser IO Word8 Event
+readOneEvent = do
+    arr <- P.takeEQ 24 (A.writeN 24)
+    let arr1 = A.unsafeCast arr :: A.Array Word64
+        eid = A.unsafeIndex arr1 0
+        eflags = A.unsafeIndex arr1 1
+        pathLen = fromIntegral $ A.unsafeIndex arr1 2
+    -- XXX handle if pathLen is 0
+    path <- P.takeEQ pathLen (A.writeN pathLen)
+    return $ Event
+        { eventId = eid
+        , eventFlags = fromIntegral eflags
+        , eventAbsPath = path
+        }
+
+parseMany2Events :: Property
+parseMany2Events =
+    monadicIO $ do
+        xs <-
+            ( run
+            $ S.toList
+            $ S.parseMany readOneEvent
+            $ S.fromList (concat (replicate 2 event))
+            )
+        assert (length xs == 2)
+        -- XXX assuming little endian machine
+        let ev = Event
+                { eventId = 152170080
+                , eventFlags = 66560
+                , eventAbsPath = A.fromList evPath
+                }
+         in listEquals (==) xs (replicate 2 ev)
+
+-------------------------------------------------------------------------------
+-- Main
+-------------------------------------------------------------------------------
 
 main :: IO ()
 main =
     hspec $
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
+    describe "Instances" $ do
+        prop "applicative" applicative
+        prop "monad" monad
+        prop "sequence" sequence
+
+    describe "Stream parsing" $ do
+        prop "parseMany" parseMany
+        prop "parseMany2Events" parseMany2Events
+
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
         prop "P.any = Prelude.any" Main.any
