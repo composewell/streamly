@@ -40,6 +40,7 @@ import qualified Control.Monad.Fail as Fail
 #if !(MIN_VERSION_base(4,10,0))
 import Data.Semigroup ((<>))
 #endif
+import Streamly.Internal.Control.Exception
 
 import qualified Streamly.Internal.Data.Parser.ParserD.Types as D
 
@@ -205,6 +206,9 @@ data FromParserK b e c = FPKDone !Int !b | FPKError !e | FPKCont c
 
 -- | Convert a CPS style 'Parser' to a direct style 'D.Parser'.
 --
+-- "initial" returns a continuation which can be called one input at a time
+-- using the "step" function.
+--
 -- /Internal/
 --
 {-# INLINE_LATE fromParserK #-}
@@ -221,7 +225,12 @@ fromParserK parser = D.Parser step initial extract
             Partial _ cont -> FPKCont cont -- XXX can we get this?
             Continue _ cont -> FPKCont cont
 
-    step (FPKDone n b) _ = return $ D.Done (n + 1) b
+    -- Note, we can only reach FPKDone and FPKError from "initial". FPKCont
+    -- always transitions to only FPKCont.  The input remains unconsumed in
+    -- this case so we use "n + 1".
+    step (FPKDone n b) _ = do
+        assertM (n == 0)
+        return $ D.Done (n + 1) b
     step (FPKError e) _ = return $ D.Error e
     step (FPKCont cont) a = do
         r <- cont (Just a)
