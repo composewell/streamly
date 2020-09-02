@@ -275,7 +275,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE yield #-}
 yield :: b -> Parser m a b
-yield b = MkParser (\lo st yieldk -> yieldk st (Done (lo + 1) b))
+yield b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
