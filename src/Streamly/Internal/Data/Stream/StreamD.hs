@@ -1038,9 +1038,14 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     where
 
     {-# INLINE_LATE stepOuter #-}
-    -- Buffer is empty, go to stream processing loop
-    stepOuter _ (ParseChunksInit [] st) = do
-        initial >>= return . Skip . ParseChunksStream st []
+    -- Buffer is empty, get the first element from the stream, initialize the
+    -- fold and then go to stream processing loop.
+    stepOuter gst (ParseChunksInit [] st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> initial >>= return . Skip . ParseChunksBuf [x] s []
+            Skip s -> return $ Skip $ ParseChunksInit [] s
+            Stop   -> return Stop
 
     -- Buffer is not empty, go to buffered processing loop
     stepOuter _ (ParseChunksInit src st) = do
@@ -1049,7 +1054,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     -- XXX we just discard any leftover input at the end
     stepOuter _ (ParseChunksInitLeftOver _) = return Stop
 
-    -- Buffer is empty process elements from the stream
+    -- Buffer is empty, process elements from the stream
     stepOuter gst (ParseChunksStream st buf pst) = do
         r <- step (adaptState gst) st
         case r of
