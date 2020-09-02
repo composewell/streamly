@@ -199,7 +199,7 @@ extractParse cont = do
     case r of
         Stop _ b -> return b
         Partial _ _ -> error "Bug: extractParse got Partial"
-        Continue _ _ -> error "Bug: extractParse got Continue"
+        Continue _ cont1 -> extractParse cont1
         Failed e -> throwM $ D.ParseError e
 
 data FromParserK b e c = FPKDone !Int !b | FPKError !e | FPKCont c
@@ -240,6 +240,7 @@ fromParserK parser = D.Parser step initial extract
             Partial n cont1 -> D.Partial n (FPKCont cont1)
             Continue n cont1 -> D.Continue n (FPKCont cont1)
 
+    -- Note, we can only reach FPKDone and FPKError from "initial".
     extract (FPKDone _ b) = return b
     extract (FPKError e) = throwM $ D.ParseError e
     extract (FPKCont cont) = extractParse cont
