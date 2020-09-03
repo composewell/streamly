@@ -87,31 +87,39 @@ matrix:
   #- env: BUILD=cabal-v2 GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
-  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
-  #  os: linux
-  #  arch: amd64
+  # With coverage
+  - name: "GHC 8.10.1+inspection+Werror+coverage"
+    env: BUILD=cabal-v2 COVERALLS_OPTIONS=" --repo-token=9ezA743hCAcmzX3Ic273LhNlIXVdl7D1l --coverage-mode=StrictlyFullLines --exclude-dir=test" CABAL_PROJECT="cabal.project.coverage" GHC_OPTIONS=""
+    addons: {apt: {packages: [cabal-install-3.2,ghc-8.10.1], sources: [hvr-ghc]}}
 
+  # Built on github ci/on travis-stack-linux/on travis-stack-macOS
+  #- env: BUILD=cabal-v2 GHCVER=8.8.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS=""
+  # addons: {apt: {packages: [cabal-install-3.2,ghc-8.8.4], sources: [hvr-ghc]}}
+  # os: linux
+  # arch: amd64
+
+  # Built on github ci
+  #- env: BUILD=cabal-v2 GHCVER=8.6.5 GHC_OPTIONS="" CABAL_BUILD_OPTIONS=""
+  # addons: {apt: {packages: [cabal-install-3.2,ghc-8.6.5], sources: [hvr-ghc]}}
+  # os: linux
+  # arch: amd64
+
+  - name: "GHC 8.4.4+x86+debug"
+    env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
+    addons: {apt: {packages: [cabal-install-3.2,ghc-8.4.4], sources: [hvr-ghc]}}
+    os: linux
+    arch: x86
+
+  # Built on circleci
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
   #- env: BUILD=cabal-v2 GHCVER=8.2.2 GHC_OPTIONS="" DISABLE_BENCH=y
   #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - name: "GHC 8.0.2+examples-sdl"
+    env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
+    addons: {apt: {packages: [cabal-install-3.2,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
     os: linux
     arch: amd64
-
-  #- env: BUILD=cabal-v2 GHCVER=7.10.3 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
-  #  addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
-  #  os: linux
-  #  arch: amd64
-
-
-  - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
-    os: linux
-    arch: x86
-
 
   # You can specify build flags like this:
   #- env: BUILD=cabal-v2 CABAL_BUILD_OPTIONS="--flags=dev"
@@ -124,7 +132,8 @@ matrix:
   # Use CABAL_BUILD_OPTIONS to pass any options to cabal e.g. project-file
   # DISABLE_SDIST_BUILD is set because of a cabal issue. 'cabal info'
   # unnecessarily requires "ghc".
-  - env: BUILD=cabal-v2 ENABLE_GHCJS=y DISABLE_TEST=y ENABLE_INSTALL= DISABLE_DOCS=y DISABLE_SDIST_BUILD=y
+  - name: "GHCJS 8.4+no-test+no-docs"
+    env: BUILD=cabal-v2 ENABLE_GHCJS=y DISABLE_TEST=y ENABLE_INSTALL= DISABLE_DOCS=y DISABLE_SDIST_BUILD=y
     addons:
       apt:
         sources:
@@ -132,7 +141,7 @@ matrix:
         - sourceline: 'ppa:hvr/ghcjs'
         - sourceline: 'deb https://deb.nodesource.com/node_11.x xenial main'
           key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
-        packages: [cabal-install-2.4,ghcjs-8.4]
+        packages: [cabal-install-3.2,ghcjs-8.4]
 
   # --------------------------------------------------------------------------
   # (Linux) stack builds (BUILD=stack). Some common envvars for stack builds
@@ -181,31 +190,15 @@ matrix:
     env: BUILD=stack RESOLVER=lts-16.12 GHCVER=8.8 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y SDIST_OPTIONS="--ignore-check"
     os: osx
 
-  # GHC 8.4/stack
-  #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4
-  #  os: osx
-
   # --------------------------------------------------------------------------
   # Lint e.g. HLINT_COMMANDS="hlint lint src; hlint lint test"
   # --------------------------------------------------------------------------
 
-  - env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="src"
-  - env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="test benchmarks"
+  - name: "hlint src"
+    env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="src"
 
-  # --------------------------------------------------------------------------
-  # Build and send coverage report to coveralls.io using hpc-coveralls.  Add
-  # your project to coveralls.io first, for available options see hpc-coveralls
-  # docs. CAVEATS:
-  # * Works only with BUILD=cabal-v1
-  # * Does not work for multi-package repos
-  # * hpc-coveralls does not build with Cabal-2.2/GHC-8.4.3. The workaround is
-  #   to have a prebuilt hpc-coveralls binary installed on the build machine
-  #   and then you can use any version of ghc.
-  # --------------------------------------------------------------------------
-
-  - name: "GHC 8.10.1+inspection+Werror+coverage"
-    env: BUILD=cabal-v2 COVERALLS_OPTIONS=" --repo-token=9ezA743hCAcmzX3Ic273LhNlIXVdl7D1l --coverage-mode=StrictlyFullLines --exclude-dir=test" CABAL_PROJECT="cabal.project.coverage" GHC_OPTIONS=""
-    addons: {apt: {packages: [cabal-install-3.2,ghc-8.10.1], sources: [hvr-ghc]}}
+  - name: "hlint test benchmarks"
+    env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="test benchmarks"
 
   # --------------------------------------------------------------------------
   # Builds that are allowed to fail
