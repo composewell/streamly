@@ -9,7 +9,6 @@
 import Data.Word
 import System.Random (getStdGen, randoms)
 import Data.List (sort)
-import Data.Ord (compare)
 
 import Streamly
 import qualified Streamly.Prelude as S

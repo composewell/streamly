@@ -146,8 +146,9 @@ matrix:
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" SDIST_OPTIONS="--ignore-check"
-    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - name: "GHC 8.8+stack lts-16.12+examples-sdl"
+    env: BUILD=stack RESOLVER=lts-16.12 GHCVER=8.8 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" SDIST_OPTIONS="--ignore-check"
+    addons: {apt: {packages: [cabal-install-3.2,libsdl1.2-dev], sources: [hvr-ghc]}}
     os: linux
     arch: amd64
 
@@ -175,9 +176,9 @@ matrix:
   # OS X builds
   # --------------------------------------------------------------------------
 
-  # GHC 8.6 cabal build using stack!
   # On OSX autoreconf is not installed therefore disable sdist build
-  - env: BUILD=cabal-v2 RESOLVER=lts-14.25 GHCVER=8.6 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y
+  - name: "GHC 8.8"
+    env: BUILD=stack RESOLVER=lts-16.12 GHCVER=8.8 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y SDIST_OPTIONS="--ignore-check"
     os: osx
 
   # GHC 8.4/stack
