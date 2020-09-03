@@ -322,7 +322,7 @@ common prelude-test-options
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -548,7 +548,7 @@ test-suite internal-prelude-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -657,7 +657,7 @@ test-suite array-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -671,7 +671,7 @@ test-suite internal-data-fold-test
       streamly
     , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
   default-language: Haskell2010
 
 test-suite internal-data-parser-test
@@ -685,7 +685,7 @@ test-suite internal-data-parser-test
       streamly
     , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , transformers      >= 0.4 && < 0.6
   default-language: Haskell2010
 
@@ -699,7 +699,7 @@ test-suite internal-data-parser-parserd-test
       streamly
     , base              >= 4.9   && < 5
     , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , transformers      >= 0.4 && < 0.6
   default-language: Haskell2010
 
@@ -712,7 +712,7 @@ test-suite data-array-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -726,7 +726,7 @@ test-suite smallarray-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -740,7 +740,7 @@ test-suite primarray-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -754,7 +754,7 @@ test-suite prim-pinned-array-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
@@ -767,7 +767,7 @@ test-suite string-test
   build-depends:
       streamly
     , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.10  && < 2.15
+    , QuickCheck        >= 2.14  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
