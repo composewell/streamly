@@ -275,4 +275,4 @@ word64le = PRK.toParserK word64leD
 {-# INLINE word64host #-}
 word64host :: (MonadIO m, MonadCatch m) => Parser m Word8 Word64
 word64host =
-    fmap (flip A.unsafeIndex 0 . A.unsafeCast) $ PR.take 8 (A.writeN 8)
+    fmap (flip A.unsafeIndex 0 . A.unsafeCast) $ PR.takeEQ 8 (A.writeN 8)
