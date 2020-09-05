@@ -183,16 +183,16 @@ module Streamly.Internal.Data.Fold
     -- * Demultiplexing
 
     , demux
-    -- , demuxWith
+    , demuxWith
     , demux_
     , demuxDefault_
-    -- , demuxWith_
+    , demuxWith_
     , demuxWithDefault_
 
     -- * Classifying
 
     , classify
-    -- , classifyWith
+    , classifyWith
 
     -- * Unzipping
     , unzip
@@ -1341,7 +1341,7 @@ toUnitState (Partial _) = Partial ()
 toUnitState (Done _) = Done ()
 toUnitState (Done1 _) = Done1 ()
 
-
+-- XXX This is 2x times faster wiithout the terminating condition.
 -- | Like 'distribute' but for folds that return (), this can be more efficient
 -- than 'distribute' as it does not need to maintain state.
 --
@@ -1368,9 +1368,11 @@ distribute_ fs = Fold step initial extract
 
     extract ss = Prelude.mapM_ runMaybeExtract ss
 
+    {-# INLINE runMaybeExtract #-}
     runMaybeExtract (Partial (Fold _ i d)) = i >>= d
     runMaybeExtract _ = return ()
 
+    {-# INLINE runMaybeStep #-}
     runMaybeStep (Done1 ()) _ = return $ Done1 ()
     runMaybeStep (Done ()) _ = return $ Done1 ()
     runMaybeStep (Partial (Fold s i d)) a = do
@@ -1652,7 +1654,7 @@ demux :: (Monad m, Ord k)
 demux = demuxWith id
 
 -- data DemuxState m s = DemuxP !m !s | DemuxD !m
-data DemuxState m s = DemuxP Int s m | DemuxD Int m
+data DemuxState m s = DemuxP Int !s !m | DemuxD Int !m
 
 {-# INLINE demuxWithDefault_ #-}
 demuxWithDefault_ :: (Monad m, Ord k)

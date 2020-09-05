@@ -15,7 +15,10 @@ import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
 import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=), concat, seq)
+                compare, (>=), concat, seq, mod, fst, snd, const)
+
+import qualified Prelude as P
+import qualified Data.Map.Strict as Map
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
@@ -66,15 +69,15 @@ o_1_space_serial_elimination value =
     [ bgroup "serially"
         [ bgroup "elimination"
             [ benchIOSink value "drain" (S.fold FL.drain)
-            , benchIOSink value "drainN" (S.fold (IFL.drainN value))
+            , benchIOSink value "drainN" (S.fold (FL.drainN value))
             , benchIOSink
                   value
                   "drainWhileTrue"
-                  (S.fold (IFL.drainWhile $ (<=) (value + 1)))
+                  (S.fold (FL.drainWhile $ (<=) (value + 1)))
             , benchIOSink
                   value
                   "drainWhileFalse"
-                  (S.fold (IFL.drainWhile $ (>=) (value + 1)))
+                  (S.fold (FL.drainWhile $ (>=) (value + 1)))
             , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
             , benchIOSink value "last" (S.fold FL.last)
             , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
@@ -149,12 +152,12 @@ o_1_space_serial_transformation :: Int -> [Benchmark]
 o_1_space_serial_transformation value =
     [ bgroup "serially"
         [ bgroup "transformation"
-            [ benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
+            [ benchIOSink value "lmap" (S.fold (FL.lmap (+ 1) FL.drain))
             , benchIOSink
                   value
                   "pipe-mapM"
                   (S.fold
-                       (IFL.transform
+                       (FL.transform
                             (Pipe.mapM (\x -> return $ x + 1))
                             FL.drain))
             ]
@@ -163,21 +166,59 @@ o_1_space_serial_transformation value =
 
 o_1_space_serial_composition :: Int -> [Benchmark]
 o_1_space_serial_composition value =
-    [ bgroup "serially"
-        [ bgroup "composition" -- Applicative
-            [ benchIOSink
-                  value
-                  "all,any"
-                  (S.fold
-                       ((,) <$> FL.all (<= (value + 1)) <*>
-                        FL.any (> (value + 1))))
-            , benchIOSink
-                  value
-                  "sum,length"
-                  (S.fold ((,) <$> FL.sum <*> FL.length))
-            ]
-        ]
+    [ bgroup
+          "serially"
+          [ bgroup
+                "composition"
+                -- Applicative
+                [ benchIOSink
+                      value
+                      "<*> all any"
+                      (S.fold
+                           ((,) <$> FL.all (<= (value + 1))
+                              <*> FL.any (> (value + 1))))
+                , benchIOSink
+                      value
+                      "<*> sum length"
+                      (S.fold ((,) <$> FL.sum <*> FL.length))
+                , benchIOSink
+                      value
+                      "distribute_ [sum, length]"
+                      (S.fold
+                           (FL.distribute_
+                                [const () <$> FL.sum, const () <$> FL.length]))
+                , benchIOSink
+                      value
+                      "demuxWith [sum, length]"
+                      (S.fold (const () <$> FL.demuxWith demuxFunc demuxMap))
+                , benchIOSink
+                      value
+                      "demuxWith_ [sum, length]"
+                      (S.fold (const () <$> FL.demuxWith_ demuxFunc demuxMap))
+                , benchIOSink
+                      value
+                      "demuxWithDefault_ [sum, length] sum"
+                      (S.fold
+                           (const ()
+                              <$> FL.demuxWithDefault_
+                                    demuxFunc
+                                    demuxMap
+                                    (FL.lmap snd FL.sum)))
+                , benchIOSink
+                      value
+                      "classifyWith sum"
+                      (S.fold
+                           (const ()
+                              <$> FL.classifyWith (fst . demuxFunc) FL.sum))
+                ]
+          ]
     ]
+
+    where
+
+    demuxFunc x = (x `mod` 3, x)
+
+    demuxMap = Map.fromList [(0, FL.sum), (1, FL.length)]
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
@@ -188,7 +229,7 @@ o_n_heap_serial value =
                 [ benchIOSink value "toStream" (S.fold IP.toStream)
                 , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
                 , benchIOSink value "toList" (S.fold FL.toList)
-                , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
+                , benchIOSink value "toListRevF" (S.fold FL.toListRevF)
           -- Converting the stream to an array
                 , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
                 , benchIOSink value "writeN" (S.fold (A.writeN value))
