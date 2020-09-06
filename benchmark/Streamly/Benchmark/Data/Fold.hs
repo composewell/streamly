@@ -13,22 +13,25 @@ import Control.DeepSeq (NFData(..))
 import Data.Monoid (Last(..), Sum(..))
 
 import System.Random (randomRIO)
-import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
+import Prelude (IO, Int, Double, String, (>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=), concat, seq, mod, fst, snd, const)
+                compare, (>=), concat, seq, mod, fst, snd, const, Bool, Ord(..),
+                div, Num(..))
 
-import qualified Prelude as P
+import Data.Map.Strict (Map)
+import Streamly.Internal.Data.Fold (Fold(..))
+
 import qualified Data.Map.Strict as Map
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Pipe as Pipe
 
 import qualified Streamly.Internal.Data.Sink as Sink
 
 import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
-import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
@@ -57,8 +60,84 @@ benchIOSink
     => Int -> String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source value
 
+
 -------------------------------------------------------------------------------
--- Stream folds
+-- Folds
+-------------------------------------------------------------------------------
+
+{-# INLINE any #-}
+any :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+any value = IP.fold (FL.any (> value))
+
+{-# INLINE all #-}
+all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+all value = IP.fold (FL.all (<= value))
+
+{-# INLINE take #-}
+take :: Monad m => Int -> SerialT m a -> m ()
+take value = IP.fold (FL.ltake value FL.drain)
+
+{-# INLINE takeWhile #-}
+takeWhile :: Monad m => Int -> SerialT m Int -> m ()
+takeWhile value = IP.fold (FL.ltakeWhile (<= value) FL.drain)
+
+{-# INLINE many #-}
+many :: Monad m => SerialT m Int -> m Int
+many = IP.fold (FL.many FL.length FL.sum)
+
+{-# INLINE splitAllAny #-}
+splitAllAny :: Monad m => Int -> SerialT m Int -> m (Bool, Bool)
+splitAllAny value =
+    IP.fold (FL.splitWith (,) (FL.all (<= (value `div` 2))) (FL.any (> value)))
+
+{-# INLINE teeAllAny #-}
+teeAllAny :: (Monad m, Ord a) => a -> SerialT m a -> m (Bool, Bool)
+teeAllAny value =
+    IP.fold (FL.teeWith (,) (FL.all (<= value)) (FL.any (> value)))
+
+{-# INLINE teeSumLength #-}
+teeSumLength :: Monad m => SerialT m Int -> m (Int, Int)
+teeSumLength = IP.fold (FL.teeWith (,) FL.sum FL.length)
+
+{-# INLINE distribute_ #-}
+distribute_ :: Monad m => SerialT m Int -> m ()
+distribute_ =
+    IP.fold (FL.distribute_ [const () <$> FL.sum, const () <$> FL.length])
+
+{-# INLINE demuxWith  #-}
+demuxWith ::
+       (Monad m, Ord k)
+    => (a -> (k, a'))
+    -> Map k (Fold m a' b)
+    -> SerialT m a
+    -> m (Map k b)
+demuxWith f mp = S.fold (FL.demuxWith f mp)
+
+{-# INLINE demuxWith_ #-}
+demuxWith_ ::
+       (Monad m, Ord k)
+    => (a -> (k, a'))
+    -> Map k (Fold m a' b)
+    -> SerialT m a
+    -> m ()
+demuxWith_ f mp = S.fold (FL.demuxWith_ f mp)
+
+{-# INLINE demuxWithDefault_ #-}
+demuxWithDefault_ ::
+       (Monad m, Ord k, Num b)
+    => (a -> (k, b))
+    -> Map k (Fold m b b)
+    -> SerialT m a
+    -> m ()
+demuxWithDefault_ f mp = S.fold (FL.demuxWithDefault_ f mp (FL.lmap snd FL.sum))
+
+{-# INLINE classifyWith #-}
+classifyWith ::
+       (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
+classifyWith f = S.fold (FL.classifyWith f FL.sum)
+
+-------------------------------------------------------------------------------
+-- Benchmarks
 -------------------------------------------------------------------------------
 
 moduleName :: String
@@ -133,8 +212,10 @@ o_1_space_serial_elimination value =
             , benchIOSink value "null" (S.fold FL.null)
             , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
             , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
-            , benchIOSink value "all" (S.fold (FL.all (<= (value + 1))))
-            , benchIOSink value "any" (S.fold (FL.any (> (value + 1))))
+            , benchIOSink value "all" $ all value
+            , benchIOSink value "any" $ any value
+            , benchIOSink value "take" $ take value
+            , benchIOSink value "takeWhile" $ takeWhile value
             , benchIOSink
                   value
                   "and"
@@ -171,54 +252,26 @@ o_1_space_serial_composition value =
           [ bgroup
                 "composition"
                 -- Applicative
-                [ benchIOSink
-                      value
-                      "<*> all any"
-                      (S.fold
-                           ((,) <$> FL.all (<= (value + 1))
-                              <*> FL.any (> (value + 1))))
-                , benchIOSink
-                      value
-                      "<*> sum length"
-                      (S.fold ((,) <$> FL.sum <*> FL.length))
-                , benchIOSink
-                      value
-                      "distribute_ [sum, length]"
-                      (S.fold
-                           (FL.distribute_
-                                [const () <$> FL.sum, const () <$> FL.length]))
-                , benchIOSink
-                      value
-                      "demuxWith [sum, length]"
-                      (S.fold (const () <$> FL.demuxWith demuxFunc demuxMap))
-                , benchIOSink
-                      value
-                      "demuxWith_ [sum, length]"
-                      (S.fold (const () <$> FL.demuxWith_ demuxFunc demuxMap))
-                , benchIOSink
-                      value
-                      "demuxWithDefault_ [sum, length] sum"
-                      (S.fold
-                           (const ()
-                              <$> FL.demuxWithDefault_
-                                    demuxFunc
-                                    demuxMap
-                                    (FL.lmap snd FL.sum)))
-                , benchIOSink
-                      value
-                      "classifyWith sum"
-                      (S.fold
-                           (const ()
-                              <$> FL.classifyWith (fst . demuxFunc) FL.sum))
+                [ benchIOSink value "tee (all, any)" $ teeAllAny value
+                , benchIOSink value "tee (sum, length)" $ teeSumLength
+                , benchIOSink value "distribute_ [sum, length]" $ distribute_
+                , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
+                , benchIOSink value "demuxWith_ [sum, length]"
+                    $ demuxWith_ fn mp
+                , benchIOSink value "demuxWithDefault_ [sum, length] sum"
+                    $ demuxWithDefault_ fn mp
+                , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+                , benchIOSink value "many length sum" many
+                , benchIOSink value "split (all, any)" $ splitAllAny value
                 ]
           ]
     ]
 
     where
 
-    demuxFunc x = (x `mod` 3, x)
+    fn x = (x `mod` 3, x)
 
-    demuxMap = Map.fromList [(0, FL.sum), (1, FL.length)]
+    mp = Map.fromList [(0, FL.sum), (1, FL.length)]
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
