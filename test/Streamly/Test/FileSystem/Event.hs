@@ -8,7 +8,7 @@
 -- Portability : GHC
 --
 -- Just report all events under the paths provided as arguments
-
+{-# LANGUAGE CPP #-}
 module Main (main) where
 
 import Control.Monad.IO.Class (MonadIO)
@@ -26,8 +26,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
 #elif defined(CABAL_OS_LINUX)
 import qualified Streamly.Internal.FileSystem.Event.Linux as Event
-#else
-#error "FS Events not supported on this platform
+#elif defined(CABAL_OS_WINDOWS)
+import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 #endif
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
 
@@ -41,21 +41,30 @@ toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
-
-watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event
-
-#if defined(CABAL_OS_DARWIN)
+#if defined(CABAL_OS_WINDOWS)
+watchPaths :: [FilePath] -> SerialT IO Event.Event
+watchPaths = Event.watchTrees
+#elif defined(CABAL_OS_DARWIN)
+watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
 watchPaths = Event.watchTrees
 #elif defined(CABAL_OS_LINUX)
+watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
 watchPaths = Event.watchPaths
-#else
-#error "Unsupported platform
 #endif
 
+
+#if defined(CABAL_OS_WINDOWS)
+main :: IO ()
+main = do
+    args <- getArgs   
+    watchPaths args 
+        & Stream.mapM_ (putStrLn . Event.showEvent)
+
+#else    
 main :: IO ()
 main = do
     args <- getArgs
     paths <- mapM toUtf8 args
-
     watchPaths (NonEmpty.fromList paths)
         & Stream.mapM_ (putStrLn . Event.showEvent)
+#endif
