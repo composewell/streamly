@@ -228,6 +228,9 @@ common compile-options
     if os(linux)
       cpp-options:    -DCABAL_OS_LINUX
 
+    if os(windows)
+      cpp-options:    -DCABAL_OS_WINDOWS  
+
     if flag(streamk)
       cpp-options:    -DUSE_STREAMK_ONLY
 
@@ -364,6 +367,8 @@ library
     include-dirs:    src
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Windows.c
+      exposed-modules: Streamly.Internal.FileSystem.Event.Windows
+      build-depends: Win32         >= 2.6   && < 2.9
 
     if os(darwin)
       frameworks:    Cocoa
@@ -462,7 +467,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Enumeration
                      , Streamly.Internal.Data.Stream.Prelude
-
+                     
                      -- Higher level streams
                      , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.Stream.SVar
@@ -829,7 +834,7 @@ executable FileSystem.Event
   build-depends:
       streamly
     , base >= 4.8 && < 5
-  if !flag(manual-tests) || os(windows)
+  if !flag(manual-tests)
     buildable: False
 
 -------------------------------------------------------------------------------
