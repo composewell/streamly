@@ -8,44 +8,39 @@ import System.Win32.File
 import System.Win32.Types
 import Foreign
 import Foreign.C
-import Control.Monad.IO.Class (liftIO)
-import Data.Bits ((.|.), (.&.), complement)
-import Data.Functor.Identity (runIdentity)
-import Data.IntMap.Lazy (IntMap)
-import Data.List.NonEmpty (NonEmpty)
 import Streamly (SerialT, parallel)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Memory.Array.Types (Array(..))
-import Data.IORef
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 
-import qualified Data.IntMap.Lazy as Map
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Unicode.Stream as U
-import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Memory.Array as A
-import qualified System.IO as SY
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 
 type Handle = HANDLE
 
 watchTrees :: [FilePath] -> SerialT IO Event
-watchTrees paths = 
-    S.concatMapWith parallel (\(h, r) -> S.concatMap S.fromList $ 
-      S.mapM (S.parse (readOneEvent r). A.toStream) $ S.repeatM $ 
-      readDirectoryChanges h True 383) (strPathToStrHandle paths)
+watchTrees paths =  do
+    let sth = strPathToStrHandle paths
+    S.after (closePathHandleStream sth) $ S.concatMapWith parallel eventStreamAggr (sth)
    
+eventStreamAggr :: (Handle, FilePath) -> SerialT IO Event
+eventStreamAggr (handle, rootPath) =  S.concatMap S.fromList  
+      $ S.mapM (S.parse (readOneEvent rootPath). A.toStream) $ S.repeatM 
+      $ readDirectoryChanges handle True defaultFlags
 
 strPathToStrHandle :: [FilePath] -> SerialT IO (Handle, FilePath)
 strPathToStrHandle paths = do
   let pathStream = S.fromList paths
   S.mapM getWatchHandle pathStream
 
+defaultFlags :: DWORD
+defaultFlags = fILE_NOTIFY_CHANGE_FILE_NAME .|. fILE_NOTIFY_CHANGE_DIR_NAME .|. fILE_NOTIFY_CHANGE_ATTRIBUTES
+               .|. fILE_NOTIFY_CHANGE_SIZE  .|. fILE_NOTIFY_CHANGE_LAST_WRITE .|. fILE_NOTIFY_CHANGE_SECURITY 
+
 getWatchHandle :: FilePath -> IO (Handle, FilePath)
 getWatchHandle dir = do
         h <- createFile dir
-            System.Win32.File.fILE_LIST_DIRECTORY -- Access mode
+            fILE_LIST_DIRECTORY -- Access mode
             (fILE_SHARE_READ .|. fILE_SHARE_WRITE) -- Share mode
             Nothing -- security attributes
             oPEN_EXISTING -- Create mode, we want to look at an existing directory
@@ -62,20 +57,9 @@ readDirectoryChanges h wst mask = do
        readDirectoryChangesW h buffer (toEnum maxBuf) wst mask bret
        A.fromStream $ A.toStream $ A.fromPtr maxBuf buffer    
 
-
--------------------------------------------------------------------
--- Low-level stuff that binds to notifications in the Win32 API
-
--- Defined in System.Win32.File, but with too few cases:
--- type AccessMode = UINT
-
-
-fILE_LIST_DIRECTORY  :: AccessMode
-fILE_LIST_DIRECTORY  =  1
-
-
--- there are many more cases but I only need this one.
-
+closePathHandleStream :: SerialT IO (Handle, FilePath) -> IO ()
+closePathHandleStream sth = S.mapM_ ( \(h, _) -> closeHandle h) sth
+                      
 
 type FileAction = DWORD
 
@@ -90,7 +74,7 @@ fILE_ACTION_RENAMED_OLD_NAME  =  4
 fILE_ACTION_RENAMED_NEW_NAME  :: FileAction
 fILE_ACTION_RENAMED_NEW_NAME  =  5
 
-type WCHAR = Word16
+
 -- This is a bit overkill for now, I'll only use nullFunPtr anyway,
 -- but who knows, maybe someday I'll want asynchronous callbacks on the OS level.
 type LPOVERLAPPED_COMPLETION_ROUTINE = FunPtr ((DWORD, DWORD, LPOVERLAPPED) -> IO ())
@@ -109,9 +93,9 @@ data FILE_NOTIFY_INFORMATION = FILE_NOTIFY_INFORMATION
 
 peekFNI :: Ptr FILE_NOTIFY_INFORMATION -> IO FILE_NOTIFY_INFORMATION
 peekFNI buf = do
-  neof <- ((\hsc_ptr -> peekByteOff hsc_ptr 0)) buf
-  acti <- ((\hsc_ptr -> peekByteOff hsc_ptr 4)) buf
-  fnle <- ((\hsc_ptr -> peekByteOff hsc_ptr 8)) buf
+  neof <- peekByteOff buf 0
+  acti <- peekByteOff buf 4
+  fnle <- peekByteOff buf 8
   fnam <- peekCWStringLen
             (buf `plusPtr` ((12)), -- start of array
             fromEnum (fnle :: DWORD) `div` 2 ) -- fnle is the length in *bytes*, and a WCHAR is 2 bytes
@@ -126,25 +110,6 @@ readDirectoryChangesW h buf bufSize wst f br =
 foreign import ccall safe "windows.h ReadDirectoryChangesW"
   c_ReadDirectoryChangesW :: Handle -> LPVOID -> DWORD -> BOOL -> DWORD -> LPDWORD -> LPOVERLAPPED -> LPOVERLAPPED_COMPLETION_ROUTINE -> IO BOOL
 
-
--- See https://msdn.microsoft.com/en-us/library/windows/desktop/aa365465(v=vs.85).aspx
-fILE_NOTIFY_CHANGE_FILE_NAME  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_FILE_NAME  =  1
-fILE_NOTIFY_CHANGE_DIR_NAME  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_DIR_NAME  =  2
-fILE_NOTIFY_CHANGE_ATTRIBUTES  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_ATTRIBUTES  =  4
-fILE_NOTIFY_CHANGE_SIZE  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_SIZE  =  8
-fILE_NOTIFY_CHANGE_LAST_WRITE  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_LAST_WRITE  =  16
-fILE_NOTIFY_CHANGE_LAST_ACCESS  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_LAST_ACCESS  =  32
-fILE_NOTIFY_CHANGE_CREATION  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_CREATION  =  64
-fILE_NOTIFY_CHANGE_SECURITY  :: FileNotificationFlag
-fILE_NOTIFY_CHANGE_SECURITY  =  256
-
 readOneEvent :: String -> Parser IO Word8 [Event]
 readOneEvent root = do
   let headerLen = 8*1024
@@ -153,9 +118,8 @@ readOneEvent root = do
   return $ map maptoEvent fnis  
 
 maptoEvent ::  (FILE_NOTIFY_INFORMATION, String) -> Event
-maptoEvent fni =   Event{eventFlags = fniAction $ fst fni  , 
-                         eventRelPath = fniFileName $ fst  fni ,                     
-                         eventWd = 0 ,
+maptoEvent fni =   Event{eventFlags = fniAction $ fst fni, 
+                         eventRelPath = fniFileName $ fst  fni,  
                          eventRootPath = snd fni
                          }                                            
 
@@ -168,8 +132,7 @@ readChangeEvents pfni root = do
   return $ entry:entries
 
 data Event = Event
-   { eventWd :: CInt
-   , eventFlags :: Word32  
+   { eventFlags :: Word32  
    , eventRelPath :: String         
    , eventRootPath :: String 
    } deriving (Show, Ord, Eq)   
