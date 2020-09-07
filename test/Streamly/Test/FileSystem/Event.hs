@@ -17,8 +17,7 @@ import Data.Function ((&))
 import System.Environment (getArgs)
 import Streamly (SerialT)
 
-#if defined(CABAL_OS_WINDOWS)
-#else    
+#if !defined(CABAL_OS_WINDOWS)   
 import Control.Monad.IO.Class (MonadIO)    
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty)
@@ -41,8 +40,7 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
-#if defined(CABAL_OS_WINDOWS)
-#else
+#if !defined(CABAL_OS_WINDOWS)
 toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
 #endif
@@ -52,10 +50,7 @@ toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
 #if defined(CABAL_OS_WINDOWS)
 watchPaths :: [FilePath] -> SerialT IO Event.Event
 watchPaths = Event.watchTrees
-#elif defined(CABAL_OS_DARWIN)
-watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
-watchPaths = Event.watchTrees
-#elif defined(CABAL_OS_LINUX)
+#else
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
 watchPaths = Event.watchPaths
 #endif
