@@ -50,10 +50,14 @@ toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
 #if defined(CABAL_OS_WINDOWS)
 watchPaths :: [FilePath] -> SerialT IO Event.Event
 watchPaths = Event.watchTrees
-#else
+#elif defined(CABAL_OS_DARWIN)
+watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
+watchPaths = Event.watchTrees
+#elif defined(CABAL_OS_LINUX)
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
 watchPaths = Event.watchPaths
 #endif
+
 
 
 #if defined(CABAL_OS_WINDOWS)
