@@ -21,7 +21,7 @@ type Handle = HANDLE
 watchTrees :: [FilePath] -> SerialT IO Event
 watchTrees paths =  do
     let sth = strPathToStrHandle paths
-    S.after (closePathHandleStream sth) $ S.concatMapWith parallel eventStreamAggr (sth)
+    S.after (closePathHandleStream sth) $ S.concatMapWith parallel eventStreamAggr sth
    
 eventStreamAggr :: (Handle, FilePath) -> SerialT IO Event
 eventStreamAggr (handle, rootPath) =  S.concatMap S.fromList  
@@ -58,7 +58,7 @@ readDirectoryChanges h wst mask = do
        A.fromStream $ A.toStream $ A.fromPtr maxBuf buffer    
 
 closePathHandleStream :: SerialT IO (Handle, FilePath) -> IO ()
-closePathHandleStream sth = S.mapM_ ( \(h, _) -> closeHandle h) sth
+closePathHandleStream = S.mapM_ ( \(h, _) -> closeHandle h) 
                       
 
 type FileAction = DWORD
@@ -97,7 +97,7 @@ peekFNI buf = do
   acti <- peekByteOff buf 4
   fnle <- peekByteOff buf 8
   fnam <- peekCWStringLen
-            (buf `plusPtr` ((12)), -- start of array
+            (buf `plusPtr` 12, -- start of array
             fromEnum (fnle :: DWORD) `div` 2 ) -- fnle is the length in *bytes*, and a WCHAR is 2 bytes
   return $ FILE_NOTIFY_INFORMATION neof acti fnam
 
@@ -115,7 +115,7 @@ readOneEvent root = do
   let headerLen = 8*1024
   arr <- PR.take headerLen (A.writeN headerLen)  
   fnis <- PR.yieldM $ A.asPtr arr $ \buf -> readChangeEvents buf root
-  return $ map maptoEvent fnis  
+  return $ fmap maptoEvent fnis  
 
 maptoEvent ::  (FILE_NOTIFY_INFORMATION, String) -> Event
 maptoEvent fni =   Event{eventFlags = fniAction $ fst fni, 
