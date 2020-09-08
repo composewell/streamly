@@ -513,6 +513,8 @@ mkAsyncD m = D.Stream step Nothing
             D.Skip s    -> D.Skip (Just $ D.Stream step1 s)
             D.Stop      -> D.Stop
 
+-- /Since: 0.8.0 ("Streamly.Prelude")/
+--
 -- This is slightly faster than the CPS version above
 --
 -- | Make the stream producer and consumer run concurrently by introducing a
@@ -635,7 +637,9 @@ infixr 6 `async`
 -- Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 async = joinStreamVarAsync AsyncVar
@@ -675,11 +679,10 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- operation can be used to fold an infinite lazy container of streams.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = (S.toList . 'asyncly' $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
+-- main = (S.toList . S.'asyncly' $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,2,3,4]
@@ -698,7 +701,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- consumer.
 --
 -- @
--- main = 'drain' . 'asyncly' $ do
+-- main = S.'drain' . S.'asyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -710,19 +713,25 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- ThreadId 38: Delay 3
 -- @
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
     deriving (MonadTrans)
 
 -- | A demand driven left biased parallely composing IO stream of elements of
 -- type @a@.  See 'AsyncT' documentation for more details.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type Async = AsyncT IO
 
 -- | Fix the type of a polymorphic stream as 'AsyncT'.
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 asyncly :: IsStream t => AsyncT m a -> t m a
 asyncly = adapt
 
@@ -810,7 +819,9 @@ infixr 6 `wAsync`
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.
 --
--- @since 0.2.0
+-- @since 0.8.0
+--
+-- /Since: 0.2.0 ("Streamly")/
 {-# INLINE wAsync #-}
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 wAsync = joinStreamVarAsync WAsyncVar
@@ -828,11 +839,10 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- contrast to the depth wise scheduling behavior of 'AsyncT'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = (S.toList . 'wAsyncly' . maxThreads 1 $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
+-- main = (S.toList . S.'wAsyncly' . S.maxThreads 1 $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -843,7 +853,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- now take a more general example:
 --
 -- @
--- main = (S.toList . 'wAsyncly' . maxThreads 1 $ (S.fromList [1,2,3]) \<> (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])) >>= print
+-- main = (S.toList . S.'wAsyncly' . S.maxThreads 1 $ (S.fromList [1,2,3]) \<> (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])) >>= print
 -- @
 -- @
 -- [1,4,2,7,5,3,8,6,9]
@@ -899,7 +909,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- concurrently using a round robin scheduling.
 --
 -- @
--- main = 'drain' . 'wAsyncly' $ do
+-- main = S.'drain' . S.'wAsyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -911,19 +921,25 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- ThreadId 38: Delay 3
 -- @
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
     deriving (MonadTrans)
 
 -- | A round robin parallely composing IO stream of elements of type @a@.
 -- See 'WAsyncT' documentation for more details.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type WAsync = WAsyncT IO
 
 -- | Fix the type of a polymorphic stream as 'WAsyncT'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 wAsyncly :: IsStream t => WAsyncT m a -> t m a
 wAsyncly = adapt
 

@@ -1,6 +1,12 @@
-import Streamly
+{-# LANGUAGE CPP #-}
+
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
 import Streamly.Prelude (drain, nil, yieldM, (|:))
 import Network.HTTP.Simple
+
+import qualified Streamly.Prelude as S
 
 -- | Runs three search engine queries in parallel and prints the search engine
 -- names in the fastest first order.
@@ -10,13 +16,13 @@ import Network.HTTP.Simple
 main :: IO ()
 main = do
     putStrLn "Using parallel stream construction"
-    drain . parallely $ google |: bing |: duckduckgo |: nil
+    drain . S.parallely $ google |: bing |: duckduckgo |: nil
 
     putStrLn "\nUsing parallel semigroup composition"
-    drain . parallely $ yieldM google <> yieldM bing <> yieldM duckduckgo
+    drain . S.parallely $ yieldM google <> yieldM bing <> yieldM duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    drain . zipAsyncly $
+    drain . S.zipAsyncly $
         (,,) <$> yieldM google <*> yieldM bing <*> yieldM duckduckgo
 
     where

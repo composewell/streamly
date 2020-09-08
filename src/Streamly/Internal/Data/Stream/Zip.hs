@@ -130,7 +130,9 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'SerialT'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
         deriving (Semigroup, Monoid)
 
@@ -141,12 +143,16 @@ type ZipStream = ZipSerialM
 
 -- | An IO stream whose applicative instance zips streams serially.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type ZipSerial = ZipSerialM IO
 
 -- | Fix the type of a polymorphic stream as 'ZipSerialM'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 zipSerially :: IsStream t => ZipSerialM m a -> t m a
 zipSerially = K.adapt
 
@@ -209,18 +215,24 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'SerialT'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
         deriving (Semigroup, Monoid)
 
 -- | An IO stream whose applicative instance zips streams wAsyncly.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type ZipAsync = ZipAsyncM IO
 
 -- | Fix the type of a polymorphic stream as 'ZipAsyncM'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 zipAsyncly :: IsStream t => ZipAsyncM m a -> t m a
 zipAsyncly = K.adapt
 

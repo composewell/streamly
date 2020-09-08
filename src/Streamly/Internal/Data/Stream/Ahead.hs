@@ -596,7 +596,9 @@ infixr 6 `ahead`
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AheadT'.
 -- Merges two streams sequentially but with concurrent lookahead.
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE ahead #-}
 ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 ahead m1 m2 = mkStream $ \st yld sng stp ->
@@ -628,12 +630,12 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- container of streams.
 --
 -- @
--- import "Streamly"
+-- import "Streamly.Prelude"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
 -- main = do
---  xs \<- S.'toList' . 'aheadly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
+--  xs \<- S.'toList' . S.'aheadly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
 --  print xs
 --  where p n = threadDelay 1000000 >> return n
 -- @
@@ -650,7 +652,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- 'SerialT'.
 --
 -- @
--- main = S.drain . 'aheadly' $ do
+-- main = S.drain . S.'aheadly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -662,19 +664,25 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- ThreadId 38: Delay 3
 -- @
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype AheadT m a = AheadT {getAheadT :: Stream m a}
     deriving (MonadTrans)
 
 -- | A serial IO stream of elements of type @a@ with concurrent lookahead.  See
 -- 'AheadT' documentation for more details.
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 type Ahead = AheadT IO
 
 -- | Fix the type of a polymorphic stream as 'AheadT'.
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 aheadly :: IsStream t => AheadT m a -> t m a
 aheadly = K.adapt
 

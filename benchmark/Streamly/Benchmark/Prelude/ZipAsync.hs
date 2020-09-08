@@ -7,8 +7,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-import Streamly (serially)
-import qualified Streamly as S
+import Streamly.Prelude (serially)
 import qualified Streamly.Prelude  as S
 
 import Streamly.Benchmark.Common

@@ -28,6 +28,15 @@
   fully drained. Also, the resource acquisition and release is atomic with
   respect to async exceptions.
 
+### Deprecations
+
+* The `Streamly` module is now deprecated, its functionality is subsumed
+  by `Streamly.Prelude`.
+* Some functions from `Streamly` module have been renamed in `Streamly.Prelude` module:
+    * `foldWith` has been replaced by `concatFoldableWith`
+    * `foldMapWith` has been replaced by `concatMapFoldableWith`
+    * `forEachWith` has been replaced by `concatForFoldableWith`
+
 ## 0.7.2
 
 ### Bug Fixes

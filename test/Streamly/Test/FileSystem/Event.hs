@@ -17,7 +17,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 import System.Environment (getArgs)
-import Streamly (SerialT)
+import Streamly.Prelude (SerialT)
 
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Unicode.Stream as Unicode

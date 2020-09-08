@@ -22,6 +22,8 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
+module Main where
+
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -48,14 +50,14 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-import qualified Streamly as S
+
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import Gauge
-import Streamly
+import Streamly.Prelude (SerialT, IsStream, serially, serial)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Streamly.Internal.Data.Time.Units

@@ -132,7 +132,9 @@ infixr 5 |:
 -- | Class of types that can represent a stream of elements of some type 'a' in
 -- some monad 'm'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 class
 #if __GLASGOW_HASKELL__ >= 806
     ( forall m a. MonadAsync m => Semigroup (t m a)
@@ -198,7 +200,9 @@ type Streaming = IsStream
 --
 -- | Adapt any specific stream type to any other specific stream type.
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
@@ -761,7 +765,9 @@ infixr 6 `serial`
 -- Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly

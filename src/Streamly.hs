@@ -51,11 +51,12 @@
 -- please see the "Streamly.Tutorial" module and the examples directory in this
 -- package.
 
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 #include "inline.hs"
 
-module Streamly
+module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
     (
     -- -- * Concepts Overview
     -- -- ** Streams
@@ -181,13 +182,12 @@ module Streamly
     -- finite container of streams. Note that these are just special cases of
     -- the more general 'concatMapWith' operation.
     --
-    , IP.foldWith
-    , IP.foldMapWith
-    , IP.forEachWith
+    , foldWith
+    , foldMapWith
+    , forEachWith
 
     -- * Re-exports
     , Semigroup (..)
-
     -- * Deprecated
     , Streaming
     , runStream
@@ -206,14 +206,6 @@ module Streamly
     , zippingAsync
     , (<=>)
     , (<|)
-
-    {-
-    -- * Deprecated/Moved
-    -- | These APIs have been moved to other modules
-    , foldWith
-    , foldMapWith
-    , forEachWith
-    -}
     )
 where
 
@@ -640,3 +632,27 @@ mkAsync = return . Async.mkAsync
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'
 -- unnecessarily on polymorphic code.
+
+-- | Same as 'Streamly.Prelude.concatFoldableWith'
+--
+-- @since 0.1.0
+{-# DEPRECATED foldWith "Please use 'Streamly.Prelude.concatFoldableWith' instead." #-}
+{-# INLINEABLE foldWith #-}
+foldWith :: (IsStream t, Foldable f) => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
+foldWith = P.concatFoldableWith
+
+-- | Same as 'Streamly.Prelude.concatMapFoldableWith'
+--
+-- @since 0.1.0
+{-# DEPRECATED foldMapWith "Please use 'Streamly.Prelude.concatMapFoldableWith' instead." #-}
+{-# INLINEABLE foldMapWith #-}
+foldMapWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+foldMapWith = P.concatMapFoldableWith
+
+-- | Same as 'Streamly.Prelude.concatForFoldableWith'
+--
+-- @since 0.1.0
+{-# DEPRECATED forEachWith "Please use 'Streamly.Prelude.concatForFoldableWith' instead." #-}
+{-# INLINEABLE forEachWith #-}
+forEachWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
+forEachWith = P.concatForFoldableWith

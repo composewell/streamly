@@ -106,9 +106,9 @@ Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
 with your Haskell build tool or package manager. You may want to go through it
 before jumping to run the examples below.
 
-The module `Streamly` provides just the core stream types, type casting and
-concurrency control combinators.  Stream construction, transformation, folding,
-merging, zipping combinators are found in `Streamly.Prelude`.
+The module `Streamly.Prelude` provides the core stream types and combinators
+for type casting, controlling concurrency, stream construction, transformation,
+folding, merging, and zipping.
 
 ## Streaming Pipelines
 
@@ -117,7 +117,6 @@ numbers from stdin, prints the squares of even numbers and exits if an even
 number more than 9 is entered.
 
 ``` haskell
-import Streamly
 import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
@@ -150,7 +149,7 @@ each action is finished (asyncly):
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.toList $ asyncly $ p 3 |: p 2 |: p 1 |: S.nil
+> S.toList $ S.asyncly $ p 3 |: p 2 |: p 1 |: S.nil
 [1,2,3]
 ```
 
@@ -158,7 +157,7 @@ Use `aheadly` if you want speculative concurrency i.e. execute the actions in
 the stream concurrently but consume the results in the specified order:
 
 ``` haskell
-> S.toList $ aheadly $ p 3 |: p 2 |: p 1 |: S.nil
+> S.toList $ S.aheadly $ p 3 |: p 2 |: p 1 |: S.nil
 [3,2,1]
 ```
 
@@ -168,7 +167,7 @@ Monadic stream generation functions e.g. `unfoldrM`, `replicateM`, `repeatM`,
 The following finishes in 10 seconds (100 seconds when serial):
 
 ``` haskell
-S.drain $ asyncly $ S.replicateM 10 $ p 10
+S.drain $ S.asyncly $ S.replicateM 10 $ p 10
 ```
 
 ## Concurrency Auto Scaling
@@ -177,7 +176,7 @@ Concurrency is auto-scaled i.e. more actions are executed concurrently if the
 consumer is consuming the stream at a higher speed. How many tasks are executed
 concurrently can be controlled by `maxThreads` and how many results are
 buffered ahead of consumption can be controlled by `maxBuffer`. See the
-documentation in the `Streamly` module.
+documentation in the `Streamly.Prelude` module.
 
 ## Concurrent Streaming Pipelines
 
@@ -198,7 +197,7 @@ We can use `mapM` or `sequence` functions concurrently on a stream.
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.drain $ aheadly $ S.mapM (\x -> p 1 >> print x) (serially $ repeatM (p 1))
+> S.drain $ S.aheadly $ S.mapM (\x -> p 1 >> print x) (S.serially $ S.repeatM (p 1))
 ```
 
 ## Serial and Concurrent Merging
@@ -209,11 +208,10 @@ stream, each with a delay of 1 to 10 seconds, respectively. Since all the
 actions are concurrent we see one output printed every second:
 
 ``` haskell
-import Streamly
 import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
 
-main = S.toList $ parallely $ foldMap delay [1..10]
+main = S.toList $ S.parallely $ foldMap delay [1..10]
  where delay n = S.yieldM $ threadDelay (n * 1000000) >> print n
 ```
 
@@ -222,7 +220,6 @@ below, see the tutorial for more ways. We use the following `delay`
 function in the examples to demonstrate the concurrency aspects:
 
 ``` haskell
-import Streamly
 import qualified Streamly.Prelude as S
 import Control.Concurrent
 
@@ -245,7 +242,7 @@ ThreadId 36: Delay 1
 ### Parallel
 
 ``` haskell
-main = S.drain . parallely $ delay 3 <> delay 2 <> delay 1
+main = S.drain . S.parallely $ delay 3 <> delay 2 <> delay 1
 ```
 ```
 ThreadId 42: Delay 1
@@ -258,7 +255,6 @@ ThreadId 40: Delay 3
 The monad instance composes like a list monad.
 
 ``` haskell
-import Streamly
 import qualified Streamly.Prelude as S
 
 loops = do
@@ -282,7 +278,7 @@ loop can run concurrently but the results are presented to the consumer of the
 output in the same order as serial execution:
 
 ``` haskell
-main = S.drain $ aheadly $ loops
+main = S.drain $ S.aheadly $ loops
 ```
 
 Different stream types execute the loop iterations in different ways. For
@@ -298,11 +294,10 @@ to concurrently generate squares of a stream of numbers and then concurrently
 sum the square roots of all combinations of two streams:
 
 ``` haskell
-import Streamly
 import qualified Streamly.Prelude as S
 
 main = do
-    s <- S.sum $ asyncly $ do
+    s <- S.sum $ S.asyncly $ do
         -- Each square is performed concurrently, (<>) is concurrent
         x2 <- foldMap (\x -> return $ x * x) [1..100]
         y2 <- foldMap (\y -> return $ y * y) [1..100]
@@ -324,7 +319,7 @@ directories concurrently:
 ```haskell
 import Control.Monad.IO.Class (liftIO)
 import Path.IO (listDir, getCurrentDir) -- from path-io package
-import Streamly (AsyncT, adapt)
+import Streamly.Prelude (AsyncT, adapt)
 import qualified Streamly.Prelude as S
 
 listDirRecursive :: AsyncT IO ()
@@ -350,10 +345,9 @@ For bounded concurrent streams, stream yield rate can be specified. For
 example, to print hello once every second you can simply write this:
 
 ``` haskell
-import Streamly
 import Streamly.Prelude as S
 
-main = S.drain $ asyncly $ avgRate 1 $ S.repeatM $ putStrLn "hello"
+main = S.drain $ S.asyncly $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
 ```
 
 For some practical uses of rate control, see
