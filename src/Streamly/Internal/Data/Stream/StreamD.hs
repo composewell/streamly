@@ -1619,17 +1619,15 @@ data SplitOptions = SplitOptions
     }
 -}
 
-data SplitOnState fs s wrd a x =
+
+{-# ANN type SplitOnState Fuse #-}
+data SplitOnState fs s a b =
       GO_START
     | GO_EMPTY_PAT s
-    | GO_SINGLE_PAT fs s
-    | GO_SINGLE_PAT_WITH s a
-    | GO_SHORT_PAT s
-    | GO_SHORT_PAT_WITH s wrd a
-    | GO_SHORT_PAT_DRAIN Int fs s wrd
-    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
+    | GO_SINGLE_PAT_NEXT fs s a
+    | GO_SINGLE_PAT_WITH fs s a a
+    | GO_YIELD b (SplitOnState fs s a b)
     | GO_DONE
-
 
 -- XXX Can this be written as smaller folds and be used with foldMany/foldMany1.
 -- The logic is basically the same thing, the only catch being that we have rely
@@ -1642,8 +1640,7 @@ splitOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
-{-
+splitOn patArr (Fold fstep initial done) (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1651,8 +1648,6 @@ splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
     patLen = A.length patArr
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
-    -- Since the Array is immutable we can get away with using unsafePerformIO
-    sngPat = unsafePerformIO $ A.unsafeIndexIO patArr 0
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START =
@@ -1661,13 +1656,18 @@ splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
         else if patLen == 1
              then do
                  acc <- initial
-                 return $ Skip $ GO_SINGLE_PAT acc state
-             else if sizeOf (undefined :: a) * patLen
+                 pat <- liftIO $ A.unsafeIndexIO patArr 0
+                 return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat
+             else undefined
+    {-
+                 if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT state
                   else do
                       (rb, rhead) <- liftIO $ RB.new patLen
                       return $ Skip $ GO_KARP_RABIN state rb rhead
+    -}
+    stepOuter _ (GO_YIELD x ns) = return $ Yield x ns
     -----------------
     -- Single Pattern
     -----------------
@@ -1675,68 +1675,66 @@ splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
     -- have more info in the state but you would be relying on GHC for
     -- simplification.
     -- XXX Multiple Yield points
-    stepOuter _ (GO_SINGLE_PAT_WITH s x) = do
-        acc <- initial
-        acc' <- fstep acc x
-        case acc' of
-            FL.Partial sres -> return $ Skip $ (GO_SINGLE_PAT sres s)
-            FL.Done bres -> do
-                ini <- initial
-                return $ Yield bres (GO_SINGLE_PAT ini s)
-            FL.Done1 bres -> return $ Yield bres (GO_SINGLE_PAT_WITH s x)
-    stepOuter gst (GO_SINGLE_PAT fs stt) = go SPEC stt fs
-
-        where
-
-        -- XXX Multiple Yield points
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
+    stepOuter _ (GO_SINGLE_PAT_WITH fs s pat x) =
+        if pat == x
+        then do
+            r <- done fs
+            ini <- initial
+            return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_NEXT ini s pat)
+        else do
+            res <- fstep fs x
             case res of
-                Yield x s -> do
-                    if sngPat == x
-                    then do
-                        r <- done acc
-                        ini <- initial
-                        return $ Yield r (GO_SINGLE_PAT ini s)
-                    else do
-                        acc' <- fstep acc x
-                        case acc' of
-                            FL.Partial sres -> go SPEC s sres
-                            FL.Done bres -> do
-                                ini <- initial
-                                return $ Yield bres (GO_SINGLE_PAT ini s)
-                            FL.Done1 bres ->
-                                return $ Yield bres (GO_SINGLE_PAT_WITH s x)
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+                FL.Partial sres ->
+                    return $ Skip $ (GO_SINGLE_PAT_NEXT sres s pat)
+                FL.Done bres -> do
+                    ini <- initial
+                    return $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_NEXT ini s pat)
+                FL.Done1 bres -> do
+                    ini <- initial
+                    return
+                      $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_WITH ini s pat x)
+    stepOuter gst (GO_SINGLE_PAT_NEXT fs st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat x
+            Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat
+            Stop -> done fs >>= \r -> return $ Skip $ GO_YIELD r GO_DONE
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
+    stepOuter gst (GO_EMPTY_PAT st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                acc <- initial
+                acc' <- fstep acc x
+                case acc' of
+                    FL.Partial sres ->
+                        done sres
+                          >>= \r -> return $ Skip $ GO_YIELD r (GO_EMPTY_PAT s)
+                    FL.Done bres ->
+                        return $ Skip $ GO_YIELD bres (GO_EMPTY_PAT s)
+            Skip s -> return $ Skip (GO_EMPTY_PAT s)
+            Stop -> return Stop
+    stepOuter _ GO_DONE = return Stop
+{-
     ---------------------------
     -- Short Pattern - Shift Or
     ---------------------------
     -- XXX I've adapted the code accordingly but in my opinion redesigning this
     -- would be better.
-    stepOuter _ (GO_SHORT_PAT_WITH s wrd x) = do
-        acc <- initial
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    stepOuter _ (GO_SHORT_PAT_WITH fs s mask patWord wrd x) = do
         let wrd' = addToWord wrd x
             old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-        acc' <- fstep acc (toEnum $ fromIntegral old)
-        case acc' of
+        res <- fstep fs (toEnum $ fromIntegral old)
+        case res of
             FL.Partial sres ->
                 if wrd' .&. mask == patWord
                 then done sres >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                 else return $ Skip $ GO_SHORT_PAT s
             FL.Done bres -> return $ Yield bres (GO_SHORT_PAT s)
             FL.Done1 bres -> return $ Yield bres (GO_SHORT_PAT_WITH s wrd x)
-
-        where
-
-        -- XXX Duplicated code
-        mask :: Word
-        mask = (1 `shiftL` (elemBits * patLen)) - 1
-
-        addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
-
-        patWord :: Word
-        patWord = mask .&. A.foldl' addToWord 0 patArr
     stepOuter _ (GO_SHORT_PAT_DRAIN n0 ac s wd) = go wd n0 ac
 
         where
@@ -1759,8 +1757,8 @@ splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
                         ini <- initial
                         return $ Yield bres (GO_SHORT_PAT_DRAIN n ini s wrd)
                     FL.Done1 bres -> do
-                            ini <- initial
-                            return $ GO_SHORT_PAT_DRAIN n ini s wrd
+                        ini <- initial
+                        return $ GO_SHORT_PAT_DRAIN n ini s wrd
         go _ _ acc = done acc >>= \r -> return (Yield r GO_DONE)
     stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
 
@@ -1957,6 +1955,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) = undefined
             Stop -> return Stop
     stepOuter _ GO_DONE = return Stop
 -}
+
 {-# INLINE_NORMAL splitSuffixOn #-}
 splitSuffixOn
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)

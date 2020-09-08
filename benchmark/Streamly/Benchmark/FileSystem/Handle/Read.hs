@@ -472,8 +472,8 @@ o_1_space_reduce_read_split env =
             splitOnSuffix inh
         , mkBench "S.splitOnSeq \"\" FL.drain" env $ \inh _ ->
             splitOnSeq "" inh
-        , mkBench "S.splitOnSuffixSeq \"\" FL.drain" env $ \inh _ ->
-            splitOnSuffixSeq "" inh
+--        , mkBench "S.splitOnSuffixSeq \"\" FL.drain" env $ \inh _ ->
+--            splitOnSuffixSeq "" inh
         , mkBench "S.splitOnSeq \"\\n\" FL.drain" env $ \inh _ ->
             splitOnSeq "\n" inh
         , mkBench "S.splitOnSuffixSeq \"\\n\" FL.drain" env $ \inh _ ->
