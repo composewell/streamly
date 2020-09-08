@@ -13,14 +13,18 @@ import Data.Foldable (forM_, fold)
 import Data.Function ((&))
 import Data.List (sort)
 import Data.Maybe (fromJust, isJust)
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup (Semigroup(..))
+#endif
 import System.Mem (performMajorGC)
 
 import Data.IORef
 import Test.Hspec as H
 
-import Streamly
-import Streamly.Prelude ((.:), nil)
-import qualified Streamly as S
+import Streamly.Prelude
+       ( AsyncT, SerialT, WSerialT, MonadAsync, IsStream, (.:), nil, adapt
+       , ahead, async, aheadly, asyncly, serially, parallely, wAsync, wAsyncly
+       , wSerially, maxBuffer)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
@@ -478,7 +482,7 @@ parallelTests = H.parallel $ do
     it "wAsync maintains independent states in concurrent tasks"
         (monadicStateSnapshotOp wAsync)
     it "parallel maintains independent states in concurrent tasks"
-        (monadicStateSnapshotOp Streamly.parallel)
+        (monadicStateSnapshotOp S.parallel)
 
     ---------------------------------------------------------------------------
     -- Slower tests are at the end
@@ -757,8 +761,8 @@ composeWithMonadThrow t = do
 
     oneLevelNestedProduct desc t1 =
         it ("One level nested product" <> desc) $ do
-            let s1 = t $ S.foldMapWith (<>) return [1..4]
-                s2 = t1 $ S.foldMapWith (<>) return [5..8]
+            let s1 = t $ S.concatMapFoldableWith (<>) return [1..4]
+                s2 = t1 $ S.concatMapFoldableWith (<>) return [5..8]
             try $ tl (do
                 x <- adapt s1
                 y <- s2
@@ -783,8 +787,8 @@ _composeWithMonadError t = do
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in toListSerial (do
         x <- s1
         y <- s2
@@ -793,8 +797,8 @@ nestTwoSerial =
 
 nestTwoAhead :: Expectation
 nestTwoAhead =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in (S.toList . aheadly) (do
         x <- s1
         y <- s2
@@ -803,22 +807,22 @@ nestTwoAhead =
 
 nestTwoSerialApp :: Expectation
 nestTwoSerialApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in toListSerial ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoAheadApp :: Expectation
 nestTwoAheadApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in (S.toList . aheadly) ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoInterleaved :: Expectation
 nestTwoInterleaved =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in toListInterleaved (do
         x <- s1
         y <- s2
@@ -827,15 +831,15 @@ nestTwoInterleaved =
 
 nestTwoInterleavedApp :: Expectation
 nestTwoInterleavedApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in toListInterleaved ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoAsync :: Expectation
 nestTwoAsync =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> toListAsync (do
         x <- s1
         y <- s2
@@ -844,15 +848,15 @@ nestTwoAsync =
 
 nestTwoAsyncApp :: Expectation
 nestTwoAsyncApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> toListAsync ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoWAsync :: Expectation
 nestTwoWAsync =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> (S.toList . wAsyncly) (do
         x <- s1
         y <- s2
@@ -861,8 +865,8 @@ nestTwoWAsync =
 
 nestTwoParallel :: Expectation
 nestTwoParallel =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> (S.toList . parallely) (do
         x <- s1
         y <- s2
@@ -871,15 +875,15 @@ nestTwoParallel =
 
 nestTwoWAsyncApp :: Expectation
 nestTwoWAsyncApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> (S.toList . wAsyncly) ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoParallelApp :: Expectation
 nestTwoParallelApp =
-    let s1 = S.foldMapWith (<>) return [1..4]
-        s2 = S.foldMapWith (<>) return [5..8]
+    let s1 = S.concatMapFoldableWith (<>) return [1..4]
+        s2 = S.concatMapFoldableWith (<>) return [5..8]
     in sort <$> (S.toList . parallely) ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
@@ -918,7 +922,7 @@ composeAndComposeSimple
     -> (t2 IO Int -> t2 IO Int)
     -> [[Int]] -> Spec
 composeAndComposeSimple t1 t2 answer = do
-    let rfold = adapt . t2 . S.foldMapWith (<>) return
+    let rfold = adapt . t2 . S.concatMapFoldableWith (<>) return
     it "Compose right associated outer expr, right folded inner" $
          (S.toList . t1) (rfold [1,2,3] <> (rfold [4,5,6] <> rfold [7,8,9]))
             `shouldReturn` head answer
@@ -966,10 +970,10 @@ bindAndComposeSimple
     -> (t2 IO Int -> t2 IO Int)
     -> Spec
 bindAndComposeSimple t1 t2 = do
-    -- XXX need a bind in the body of forEachWith instead of a simple return
+    -- XXX need a bind in the body of concatForFoldableWith instead of a simple return
     it "Compose many (right fold) with bind" $
         (sort <$> (S.toList . t1)
-                    (adapt . t2 $ S.forEachWith (<>) [1..10 :: Int] return))
+                    (adapt . t2 $ S.concatForFoldableWith (<>) [1..10 :: Int] return))
             `shouldReturn` [1..10]
 
     it "Compose many (left fold) with bind" $
@@ -1079,7 +1083,7 @@ testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
     let stream = S.map Just (IP.fromCallback (setCallback ref))
-                    `Streamly.parallel` runCallback ref
+                    `S.parallel` runCallback ref
     S.sum $ S.map fromJust $ S.takeWhile isJust stream
 
     where

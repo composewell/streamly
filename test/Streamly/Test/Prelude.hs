@@ -80,7 +80,7 @@ import Data.List
     )
 import Data.Maybe (mapMaybe)
 #if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
+import Data.Semigroup (Semigroup, (<>))
 #endif
 import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
@@ -88,9 +88,9 @@ import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import Streamly
-import Streamly.Prelude ((.:), nil)
-import Streamly as S
+import Streamly.Prelude
+       ( SerialT, IsStream, (.:), nil, (|&), serially, avgRate, rate, maxBuffer
+       , maxThreads, maxBuffer)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as FL
@@ -502,7 +502,7 @@ monoidOps desc z eq t = do
     prop (desc <> " Compose empty at the end") $ spec (singleton 1 <> z) [1]
     prop (desc <> " Compose two") $ spec (singleton 0 <> singleton 1) [0, 1]
     prop (desc <> " Compose many") $
-        spec (S.forEachWith (<>) [1 .. 100] singleton) [1 .. 100]
+        spec (S.concatForFoldableWith (<>) [1 .. 100] singleton) [1 .. 100]
 
     -- These are not covered by the property tests
     prop (desc <> " Compose three - empty in the middle") $
@@ -553,8 +553,8 @@ semigroupOps
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 semigroupOps desc eq t = do
-    prop (desc <> " <>") $ foldFromList (S.foldMapWith (<>) singleton) t eq
-    prop (desc <> " mappend") $ foldFromList (S.foldMapWith mappend singleton) t eq
+    prop (desc <> " <>") $ foldFromList (S.concatMapFoldableWith (<>) singleton) t eq
+    prop (desc <> " mappend") $ foldFromList (S.concatMapFoldableWith mappend singleton) t eq
 
 -------------------------------------------------------------------------------
 -- Transformation operations
@@ -850,7 +850,7 @@ folded =
     (\xs ->
          case xs of
              [x] -> return x -- singleton stream case
-             _ -> S.foldMapWith (<>) return xs)
+             _ -> S.concatMapFoldableWith (<>) return xs)
 
 makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
 makeCommonOps t =

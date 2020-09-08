@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -------------------------------------------------------------------------------
@@ -14,8 +15,12 @@
 -- This file provides an example where we enter a sequence of characters "x",
 -- and "y" on separate lines, on the command line. When any other sequence is
 -- entered the control flow short circuits at the first non-matching char and
+
 -- exits.
 
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup (Semigroup(..))
+#endif
 import Control.Concurrent (threadDelay)
 import Control.Exception (catch, SomeException)
 import Control.Monad
@@ -25,7 +30,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Cont
-import Streamly
+import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------

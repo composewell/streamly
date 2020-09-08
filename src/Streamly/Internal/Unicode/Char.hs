@@ -24,7 +24,7 @@ where
 
 import Data.Char (isAsciiUpper, isAsciiLower)
 
--- import Streamly (IsStream)
+-- import Streamly.Prelude (IsStream)
 
 -------------------------------------------------------------------------------
 -- Unicode aware operations on strings

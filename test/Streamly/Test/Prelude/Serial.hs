@@ -29,7 +29,8 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 import Test.Hspec as H
 
-import Streamly
+import Streamly.Prelude
+      ( SerialT, IsStream, avgRate, maxBuffer, serial, serially)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 

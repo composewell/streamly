@@ -109,7 +109,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf, stdin, stdout)
 import Prelude hiding (read)
 
-import Streamly (MonadAsync)
+import Streamly.Prelude (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))

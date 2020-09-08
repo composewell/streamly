@@ -19,9 +19,51 @@
 
 module Streamly.Internal.Data.Stream.IsStream
     (
+    -- * Stream Types
+    -- ** Serial Streams
+      SerialT
+    , Serial
+    , WSerialT
+    , WSerial
+
+    -- ** Speculative Streams
+    , AheadT
+    , Ahead
+
+    -- ** Asynchronous Streams
+    , AsyncT
+    , Async
+    , WAsyncT
+    , WAsync
+    , ParallelT
+    , Parallel
+    , mkAsync
+
+    -- ** Zipping Streams
+    , ZipSerialM
+    , ZipSerial
+    , ZipAsyncM
+    , ZipAsync
+
+    -- * Stream Type Adapters
+    , IsStream ()
+
+    , serially
+    , wSerially
+    , asyncly
+    , aheadly
+    , wAsyncly
+    , parallely
+    , zipSerially
+    , zipAsyncly
+    , adapt
+
+    -- * Type Synonyms
+    , MonadAsync
+
     -- * Construction
     -- ** Primitives
-      K.nil
+    , K.nil
     , K.nilM
     , K.cons
     , (K..:)
@@ -415,6 +457,7 @@ module Streamly.Internal.Data.Stream.IsStream
     -- * Combining Streams
 
     -- ** Appending
+    , serial
     , append
 
     -- ** Interleaving
@@ -423,18 +466,22 @@ module Streamly.Internal.Data.Stream.IsStream
     , interleaveSuffix
     , interleaveInfix
 
+    , wSerial
     , Serial.wSerialFst
     , Serial.wSerialMin
 
     -- ** Scheduling
+    , ahead
+    , async
+    , wAsync
     , roundrobin
 
     -- ** Parallel
+    , parallel
     , Par.parallelFst
     , Par.parallelMin
 
     -- ** Merging
-
     -- , merge
     , mergeBy
     , mergeByM
@@ -448,9 +495,9 @@ module Streamly.Internal.Data.Stream.IsStream
     , Z.zipAsyncWithM
 
     -- ** Flattening a Container of Streams
-    , foldWith
-    , foldMapWith
-    , forEachWith
+    , concatFoldableWith
+    , concatMapFoldableWith
+    , concatForFoldableWith
 
     -- ** Flattening a Stream of Streams
     , concat
@@ -514,6 +561,18 @@ module Streamly.Internal.Data.Stream.IsStream
     , rights
     , iterateMapLeftsWith
 
+    -- * Concurrency Control
+    , maxThreads
+    , maxBuffer
+
+    -- * Rate Limiting
+    , Rate (..)
+    , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
+
     -- * Diagnostics
     , inspectMode
 
@@ -555,14 +614,26 @@ import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array, writeNUnsafe)
-import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
-import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
+import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate (..))
+import Streamly.Internal.Data.Stream.Ahead (AheadT, Ahead, ahead, aheadly)
+import Streamly.Internal.Data.Stream.Async
+       ( AsyncT, Async, WAsyncT, WAsync, mkAsync, async, asyncly, wAsync
+       , wAsyncly)
+import Streamly.Internal.Data.Stream.Combinators
+      ( inspectMode, maxBuffer, maxThreads, maxYields, rate, avgRate, minRate
+      , maxRate, constRate)
+import Streamly.Internal.Data.Stream.Parallel
+       ( ParallelT, Parallel, parallel, parallely)
 import Streamly.Internal.Data.Stream.Prelude
-       (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
+       (fromStreamS, toStreamS, concatFoldableWith, concatMapFoldableWith
+       , concatForFoldableWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
-import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
+import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM), adapt)
+import Streamly.Internal.Data.Stream.Serial
+       ( SerialT, WSerialT, Serial, WSerial, serial, wSerial, serially
+       , wSerially)
+import Streamly.Internal.Data.Stream.Zip
+       ( ZipSerialM, ZipSerial, ZipAsyncM, ZipAsync, zipSerially, zipAsyncly)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
@@ -918,9 +989,9 @@ iterate step = fromStreamS . S.iterate step
 --
 -- /Concurrent/
 --
--- /Since: 0.7.0 (signature change)/
---
 -- /Since: 0.1.2/
+--
+-- /Since: 0.7.0 (signature change)/
 {-# INLINE_EARLY iterateM #-}
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
 iterateM = K.iterateM
@@ -1997,7 +2068,9 @@ infixl 1 |&.
 --
 -- /Concurrent/
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> (t m a -> t m b)
 -- (|$) f = f . Async.mkAsync
@@ -2024,7 +2097,9 @@ applyAsync = (|$)
 --
 -- /Concurrent/
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE (|&) #-}
 (|&) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> t m b) -> t m b
 x |& f = f |$ x
@@ -2049,7 +2124,9 @@ x |& f = f |$ x
 --
 -- /Concurrent/
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 -- (|$.) f = f . Async.mkAsync
@@ -2073,7 +2150,9 @@ foldAsync = (|$.)
 --
 -- /Concurrent/
 --
--- @since 0.3.0
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE (|&.) #-}
 (|&.) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
 x |&. f = f |$. x
@@ -2109,9 +2188,9 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
 -- extraction.
 --
--- /Since: 0.7.0 (Monad m constraint)/
---
 -- /Since 0.2.0/
+--
+-- /Since: 0.7.0 (Monad m constraint)/
 {-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b

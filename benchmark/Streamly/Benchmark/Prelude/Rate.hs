@@ -5,9 +5,8 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Streamly (asyncly, aheadly, maxThreads)
-
-import qualified Streamly as S
+import Streamly.Prelude (asyncly, aheadly, maxThreads)
+import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude

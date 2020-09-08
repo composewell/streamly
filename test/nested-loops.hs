@@ -1,8 +1,10 @@
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
 import Control.Concurrent (myThreadId)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
-import Streamly
-import Streamly.Prelude (drain, nil, yieldM)
+import Streamly.Prelude
 
 main :: IO ()
 main = drain $ do

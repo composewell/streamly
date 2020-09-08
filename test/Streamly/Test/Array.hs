@@ -17,8 +17,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Test.Hspec as H
 
-import Streamly (SerialT)
-
+import Streamly.Prelude (SerialT)
 import qualified Streamly.Prelude as S
 
 #ifdef TEST_SMALL_ARRAY

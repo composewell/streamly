@@ -58,9 +58,9 @@ module Streamly.Internal.Data.Stream.Prelude
     , K.concatMap
 
     -- * Fold Utilities
-    , foldWith
-    , foldMapWith
-    , forEachWith
+    , concatFoldableWith
+    , concatMapFoldableWith
+    , concatForFoldableWith
     )
 where
 
@@ -292,58 +292,59 @@ foldbWith :: IsStream t
 foldbWith f = K.foldb f K.nil
 -}
 
--- /Since: 0.7.0 ("Streamly.Prelude")/
---
+
 -- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
 -- container of streams using the specified stream sum operation.
 --
--- @foldWith 'async' $ map return [1..3]@
+-- @concatFoldableWith 'async' $ map return [1..3]@
 --
 -- Equivalent to:
 --
 -- @
--- foldWith f = S.foldMapWith f id
+-- concatFoldableWith f = S.concatMapFoldableWith f id
 -- @
 --
--- /Since: 0.1.0 ("Streamly")/
-{-# INLINABLE foldWith #-}
-foldWith :: (IsStream t, Foldable f)
-    => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
-foldWith f = Prelude.foldr f K.nil
-
--- /Since: 0.7.0 ("Streamly.Prelude")/
+-- /Since: 0.8.0 (Renamed foldWith to concatFoldableWith)/
 --
+-- /Since: 0.1.0 ("Streamly")/
+{-# INLINABLE concatFoldableWith #-}
+concatFoldableWith :: (IsStream t, Foldable f)
+    => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
+concatFoldableWith f = Prelude.foldr f K.nil
+
 -- | A variant of 'foldMap' that allows you to map a monadic streaming action
 -- on a 'Foldable' container and then fold it using the specified stream merge
 -- operation.
 --
--- @foldMapWith 'async' return [1..3]@
+-- @concatMapFoldableWith 'async' return [1..3]@
 --
 -- Equivalent to:
 --
 -- @
--- foldMapWith f g xs = S.concatMapWith f g (S.fromFoldable xs)
+-- concatMapFoldableWith f g xs = S.concatMapWith f g (S.fromFoldable xs)
 -- @
 --
--- /Since: 0.1.0 ("Streamly")/
-{-# INLINABLE foldMapWith #-}
-foldMapWith :: (IsStream t, Foldable f)
-    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
-foldMapWith f g = Prelude.foldr (f . g) K.nil
-
--- /Since: 0.7.0 ("Streamly.Prelude")/
+-- /Since: 0.8.0 (Renamed foldMapWith to concatMapFoldableWith)/
 --
--- | Like 'foldMapWith' but with the last two arguments reversed i.e. the
+-- /Since: 0.1.0 ("Streamly")/
+{-# INLINABLE concatMapFoldableWith #-}
+concatMapFoldableWith :: (IsStream t, Foldable f)
+    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+concatMapFoldableWith f g = Prelude.foldr (f . g) K.nil
+
+-- | Like 'concatMapFoldableWith' but with the last two arguments reversed i.e. the
 -- monadic streaming function is the last argument.
 --
 -- Equivalent to:
 --
 -- @
--- forEachWith = flip S.foldMapWith
+-- concatForFoldableWith = flip S.concatMapFoldableWith
 -- @
 --
+-- /Since: 0.8.0 (Renamed forEachWith to concatForFoldableWith)/
+--
 -- /Since: 0.1.0 ("Streamly")/
-{-# INLINABLE forEachWith #-}
-forEachWith :: (IsStream t, Foldable f)
+{-# INLINABLE concatForFoldableWith #-}
+concatForFoldableWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
-forEachWith f xs g = Prelude.foldr (f . g) K.nil xs
+concatForFoldableWith f xs g = Prelude.foldr (f . g) K.nil xs

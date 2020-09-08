@@ -2,7 +2,6 @@
 
 import Data.Function ((&))
 
-import Streamly
 import Streamly.Internal.Network.Socket (handleWithM)
 import Streamly.Network.Socket
 
@@ -11,8 +10,8 @@ import qualified Streamly.Prelude as S
 
 main :: IO ()
 main =
-      serially (S.unfold TCP.acceptOnPort 8091)
-    & parallely . S.mapM (handleWithM echo)
+      S.serially (S.unfold TCP.acceptOnPort 8091)
+    & S.parallely . S.mapM (handleWithM echo)
     & S.drain
 
     where

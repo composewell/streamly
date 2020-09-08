@@ -7,7 +7,7 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (aheadly, serially, ahead, maxBuffer, maxThreads)
+import Streamly.Prelude (aheadly, serially, ahead, maxBuffer, maxThreads)
 import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common

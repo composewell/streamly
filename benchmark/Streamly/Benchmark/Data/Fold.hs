@@ -17,7 +17,6 @@ import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
                 compare, (>=), concat, seq)
 
-import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -30,7 +29,6 @@ import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
-import Streamly hiding (runStream)
 import Streamly.Benchmark.Common
 
 -- We need a monadic bind here to make sure that the function f does not get
@@ -52,7 +50,7 @@ source = sourceUnfoldrM
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
-    :: (IsStream t, NFData b)
+    :: (S.IsStream t, NFData b)
     => Int -> String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source value
 
