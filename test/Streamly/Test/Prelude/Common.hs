@@ -642,8 +642,8 @@ bindAndComposeHierarchyOps ::
 bindAndComposeHierarchyOps desc t1 = do
     let fldldesc = "Bind and compose foldl, " <> desc <> " Stream "
         fldrdesc = "Bind and compose foldr, " <> desc <> " Stream "
-    
-    bindAndComposeHierarchy 
+
+    bindAndComposeHierarchy
         (fldldesc <> "serially") S.serially fldl
     bindAndComposeHierarchy
         (fldrdesc <> "serially") S.serially fldr
@@ -707,21 +707,21 @@ bindAndComposeHierarchyOps desc t1 = do
             mx >>= \x -> my
             >>= \y -> mz
             >>= \z -> return (x + y + z)
-    
-    fldr, fldl :: (IsStream t, Semigroup (t IO Int)) 
+
+    fldr, fldl :: (IsStream t, Semigroup (t IO Int))
                 => [t IO Int] -> t IO Int
     fldr = foldr (<>) nil
     fldl = foldl (<>) nil
 
 -- Nest two lists using different styles of product compositions
-nestTwoStreams 
+nestTwoStreams
     :: (IsStream t, Semigroup (t IO Int), Monad (t IO))
     => String
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Spec
-nestTwoStreams desc streamListT listT t = 
+nestTwoStreams desc streamListT listT t =
     it ("Nests two streams using monadic " <> desc <> " composition") $ do
     let s1 = S.concatMapFoldableWith (<>) return [1..4]
         s2 = S.concatMapFoldableWith (<>) return [5..8]
@@ -731,19 +731,19 @@ nestTwoStreams desc streamListT listT t =
                 return $ x + y
     streamListT r `shouldBe` listT [6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12]
 
-nestTwoStreamsApp 
+nestTwoStreamsApp
     :: (IsStream t, Semigroup (t IO Int), Monad (t IO))
     => String
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Spec
-nestTwoStreamsApp desc streamListT listT t = 
+nestTwoStreamsApp desc streamListT listT t =
     it ("Nests two streams using applicative " <> desc <> " composition") $ do
     let s1 = S.concatMapFoldableWith (<>) return [1..4]
         s2 = S.concatMapFoldableWith (<>) return [5..8]
         r  = (S.toList . t) $ ((+) <$> s1 <*> s2)
-    streamListT <$> r 
+    streamListT <$> r
         `shouldReturn` listT [6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12]
 
 
@@ -926,7 +926,7 @@ transformCombineOpsCommon constr desc eq t = do
     prop (desc <> " scanl'") $ transform (scanl' (flip const) 0) t
                                        (S.scanl' (flip const) 0)
     prop (desc <> " scanlM'") $ transform (scanl' (flip const) 0) t
-                                       (S.scanlM' (\_ a -> return a) 0)
+                                       (S.scanlM' (\_ a -> return a) (return 0))
     prop (desc <> " scanl") $ transform (scanl' (flip const) 0) t
                                        (S.scanl' (flip const) 0)
     prop (desc <> " scanl1'") $ transform (scanl1 (flip const)) t

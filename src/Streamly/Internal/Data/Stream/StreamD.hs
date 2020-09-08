@@ -3616,23 +3616,27 @@ scanlx' fstep begin done s =
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL postscanlM' #-}
-postscanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
+postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
 postscanlM' fstep begin (Stream step state) =
-    begin `seq` Stream step' (state, begin)
+    Stream step' Nothing
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, acc) = acc `seq` do
+    step' _ Nothing = do
+        !x <- begin
+        return $ Skip (Just (state, x))
+
+    step' gst (Just (st, acc)) =  do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                y <- fstep acc x
-                y `seq` return (Yield y (s, y))
-            Skip s -> return $ Skip (s, acc)
+                !y <- fstep acc x
+                return $ Yield y (Just (s, y))
+            Skip s -> return $ Skip (Just (s, acc))
             Stop   -> return Stop
 
 {-# INLINE_NORMAL postscanl' #-}
 postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
-postscanl' f = postscanlM' (\a b -> return (f a b))
+postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 
 -- We can possibly have the "done" function as a Maybe to provide an option to
 -- emit or not emit the accumulator when the stream stops.
@@ -3660,26 +3664,43 @@ postscanlMAfter' fstep initial done (Stream step1 state1) = do
     step _ Nothing = return Stop
 
 {-# INLINE_NORMAL postscanlM #-}
-postscanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
-postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
+postscanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+postscanlM fstep begin (Stream step state) = Stream step' Nothing
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, acc) = do
+    step' _ Nothing = do
+        r <- begin
+        return $ Skip (Just (state, r))
+
+    step' gst (Just (st, acc)) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 y <- fstep acc x
-                return (Yield y (s, y))
-            Skip s -> return $ Skip (s, acc)
+                return (Yield y (Just (s, y)))
+            Skip s -> return $ Skip (Just (s, acc))
             Stop   -> return Stop
 
 {-# INLINE_NORMAL postscanl #-}
 postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
-postscanl f = postscanlM (\a b -> return (f a b))
+postscanl f seed = postscanlM (\a b -> return (f a b)) (return seed)
 
 {-# INLINE_NORMAL scanlM' #-}
-scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
-scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
+scanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+scanlM' fstep begin (Stream step state) = Stream step' Nothing
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        !x <- begin
+        return $ Yield x (Just (state, x))
+    step' gst (Just (st, acc)) =  do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                !y <- fstep acc x
+                return $ Yield y (Just (s, y))
+            Skip s -> return $ Skip (Just (s, acc))
+            Stop   -> return Stop
 
 {-# INLINE scanlMAfter' #-}
 scanlMAfter' :: Monad m
@@ -3690,15 +3711,28 @@ scanlMAfter' fstep initial done s =
 
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
-scanl' f = scanlM' (\a b -> return (f a b))
+scanl' f seed = scanlM' (\a b -> return (f a b)) (return seed)
 
 {-# INLINE_NORMAL scanlM #-}
-scanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
-scanlM fstep begin s = begin `cons` postscanlM fstep begin s
+scanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+scanlM fstep begin (Stream step state) = Stream step' Nothing
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        x <- begin
+        return $ Yield x (Just (state, x))
+    step' gst (Just (st, acc)) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                y <- fstep acc x
+                return $ Yield y (Just (s, y))
+            Skip s -> return $ Skip (Just (s, acc))
+            Stop   -> return $ Stop
 
 {-# INLINE scanl #-}
 scanl :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
-scanl f = scanlM (\a b -> return (f a b))
+scanl f seed = scanlM (\a b -> return (f a b)) (return seed)
 
 {-# INLINE_NORMAL scanl1M #-}
 scanl1M :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a

@@ -861,7 +861,7 @@ scan n = composeN n $ S.scanl' (+) 0
 
 {-# INLINE scanlM' #-}
 scanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
-scanlM' n = composeN n $ S.scanlM' (\b a -> return $ b + a) 0
+scanlM' n = composeN n $ S.scanlM' (\b a -> return $ b + a) (return 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -873,7 +873,7 @@ postscanl' n = composeN n $ S.postscanl' (+) 0
 
 {-# INLINE postscanlM' #-}
 postscanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
-postscanlM' n = composeN n $ S.postscanlM' (\b a -> return $ b + a) 0
+postscanlM' n = composeN n $ S.postscanlM' (\b a -> return $ b + a) (return 0)
 
 {-# INLINE sequence #-}
 sequence ::
@@ -983,7 +983,7 @@ sieveScan =
                 let ps = takeWhile (\p -> p * p <= n) primes
                  in if P.all (\p -> n `mod` p /= 0) ps
                     then (primes ++ [n], Just n)
-                    else (primes, Nothing)) ([2], Just 2)
+                    else (primes, Nothing)) (return ([2], Just 2))
 
 o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =

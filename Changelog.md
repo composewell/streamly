@@ -11,6 +11,8 @@
 * Deprecate `Streamly.Data.Unicode.Stream` in favor of `Streamly.Unicode.Stream`
 * Change the signature of `foldlM'` to make the initial value of the
   accumulator monadic.
+* Change the signature of `scanlM'`, `postscanlM'` to make the initial value of
+  the accumulator monadic.
 * Change the signature of `concatMapWith` to ensure that it can be
   used with a wide variety of combining functions.
 * Exception handling functions `bracket`, `handle`, `finally` now

@@ -114,7 +114,7 @@ foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
 foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) (return ())
 
 scanlM'StrictCheck :: IORef Int -> SerialT IO Int -> SerialT IO ()
-scanlM'StrictCheck ref = S.scanlM' (\_ _ -> writeIORef ref 1) ()
+scanlM'StrictCheck ref = S.scanlM' (\_ _ -> writeIORef ref 1) (return ())
 
 checkScanlMStrictness :: (IORef Int -> SerialT IO Int -> SerialT IO ()) -> IO ()
 checkScanlMStrictness f = do

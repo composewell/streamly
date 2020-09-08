@@ -2201,11 +2201,13 @@ scanx = P.scanlx'
 -- complexity when iterated over a stream. We should use StreamK style scanlM'
 -- for linear performance on iteration.
 --
--- | Like 'scanl'' but with a monadic fold function.
+-- | Like 'scanl'' but with a monadic step function and a monadic seed.
 --
--- @since 0.4.0
+-- /Since: 0.4.0/
+--
+-- /Since: 0.8.0 (signature change)/
 {-# INLINE scanlM' #-}
-scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
+scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
 scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 
 -- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
@@ -2290,11 +2292,13 @@ postscanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 postscanl' step z m = fromStreamD $ D.postscanl' step z $ toStreamD m
 
 -- XXX this needs to be concurrent
--- | Like 'postscanl'' but with a monadic step function.
+-- | Like 'postscanl'' but with a monadic step function and a monadic seed.
 --
--- @since 0.7.0
+-- /Since: 0.7.0/
+--
+-- /Since: 0.8.0 (signature change)/
 {-# INLINE postscanlM' #-}
-postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
+postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
 postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 
 -- XXX prescanl does not sound very useful, enable only if there is a
@@ -2308,7 +2312,7 @@ prescanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
 
 -- XXX this needs to be concurrent
--- | Like postscanl' but with a monadic step function.
+-- | Like prescanl' but with a monadic step function and a monadic seed.
 --
 -- /Internal/
 {-# INLINE prescanlM' #-}
@@ -2605,7 +2609,7 @@ smapM step initial stream =
     --              stream
     let r = concatMap
                 (\s0 ->
-                    postscanlM' (\(s, _) a -> step s a) (s0, undefined) stream
+                    postscanlM' (\(s, _) a -> step s a) (return (s0, undefined)) stream
                 )
                 (yieldM initial)
      in Serial.map snd r
