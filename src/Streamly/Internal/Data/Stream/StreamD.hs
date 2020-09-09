@@ -325,7 +325,6 @@ import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
-import GHC.IO (unsafePerformIO)
 import System.Mem (performMajorGC)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.IORef.Prim (Prim)
@@ -1619,20 +1618,26 @@ data SplitOptions = SplitOptions
     }
 -}
 
-
 {-# ANN type SplitOnState Fuse #-}
-data SplitOnState fs s a b =
+data SplitOnState fs s a b w =
       GO_START
     | GO_EMPTY_PAT s
-    | GO_SINGLE_PAT_NEXT fs s a
-    | GO_SINGLE_PAT_WITH fs s a a
-    | GO_YIELD b (SplitOnState fs s a b)
+    | GO_EMPTY_PAT_WITH s a
+    | GO_SINGLE_PAT_NEXT !fs s a
+    | GO_SINGLE_PAT_WITH !fs s a a
+    | GO_SHORT_PAT_ACCUM Int s !w
+    | GO_SHORT_PAT_NEXT !fs s !w
+    | GO_SHORT_PAT_DRAIN Int !fs !w
+    | GO_YIELD b (SplitOnState fs s a b w)
     | GO_DONE
 
 -- XXX Can this be written as smaller folds and be used with foldMany/foldMany1.
 -- The logic is basically the same thing, the only catch being that we have rely
 -- on GHC for simplification. We can compare the performance and choose
 -- accordingly.
+-- XXX This does not fuse. Even in origin/master this does not fuse. There is
+-- about 15% degradation in performance. If internal recursion is used (go, go1
+-- etc.) there is about 1500% degradation in performance
 {-# INLINE_NORMAL splitOn #-}
 splitOn
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
@@ -1649,6 +1654,20 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
 
+    -- XXX I initially put this in the state but I'd like to keep the state as
+    -- simple as possible to allow more fusion. Removing this from the state did
+    -- not change anything. I'll introduce them back once I figure out what's
+    -- wrong.
+    mask :: Word
+    mask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    pat :: Word
+    -- XXX You dont need .&. here?
+    pat = mask .&. A.foldl' addToWord 0 patArr
+
+    -- Used only if the pattern is short
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START =
         if patLen == 0
@@ -1658,16 +1677,37 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                  acc <- initial
                  pat <- liftIO $ A.unsafeIndexIO patArr 0
                  return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat
-             else undefined
-    {-
-                 if sizeOf (undefined :: a) * patLen
+             else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
-                  then return $ Skip $ GO_SHORT_PAT state
+                  then return $ Skip $ GO_SHORT_PAT_ACCUM 0 state (0 :: Word)
                   else do
+                      undefined
+    {-
                       (rb, rhead) <- liftIO $ RB.new patLen
                       return $ Skip $ GO_KARP_RABIN state rb rhead
     -}
     stepOuter _ (GO_YIELD x ns) = return $ Yield x ns
+    stepOuter _ GO_DONE = return Stop
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
+    stepOuter _ (GO_EMPTY_PAT_WITH s x) = do
+        ini <- initial
+        res <- fstep ini x
+        case res of
+            FL.Partial sres -> do
+                r <- done sres
+                return $ Skip $ GO_YIELD r (GO_EMPTY_PAT s)
+            FL.Done bres -> return $ Skip $ GO_YIELD bres (GO_EMPTY_PAT s)
+            FL.Done1 bres ->
+                return $ Skip $ GO_YIELD bres (GO_EMPTY_PAT_WITH s x)
+    stepOuter gst (GO_EMPTY_PAT st) = do
+        res <- step (adaptState gst) st
+        return
+          $ case res of
+                Yield x s -> Skip $ GO_EMPTY_PAT_WITH s x
+                Skip s -> Skip $ GO_EMPTY_PAT s
+                Stop -> Stop
     -----------------
     -- Single Pattern
     -----------------
@@ -1698,131 +1738,88 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
         case res of
             Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat x
             Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat
-            Stop -> done fs >>= \r -> return $ Skip $ GO_YIELD r GO_DONE
-    ---------------------------
-    -- Empty pattern
-    ---------------------------
-    stepOuter gst (GO_EMPTY_PAT st) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                acc <- initial
-                acc' <- fstep acc x
-                case acc' of
-                    FL.Partial sres ->
-                        done sres
-                          >>= \r -> return $ Skip $ GO_YIELD r (GO_EMPTY_PAT s)
-                    FL.Done bres ->
-                        return $ Skip $ GO_YIELD bres (GO_EMPTY_PAT s)
-            Skip s -> return $ Skip (GO_EMPTY_PAT s)
-            Stop -> return Stop
-    stepOuter _ GO_DONE = return Stop
-{-
+            Stop -> do
+                r <- done fs
+                return $ Skip $ GO_YIELD r GO_DONE
     ---------------------------
     -- Short Pattern - Shift Or
     ---------------------------
-    -- XXX I've adapted the code accordingly but in my opinion redesigning this
-    -- would be better.
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
-    stepOuter _ (GO_SHORT_PAT_WITH fs s mask patWord wrd x) = do
-        let wrd' = addToWord wrd x
-            old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-        res <- fstep fs (toEnum $ fromIntegral old)
+    stepOuter gst (GO_SHORT_PAT_ACCUM idx st wrd) = do
+        res <- step (adaptState gst) st
         case res of
-            FL.Partial sres ->
-                if wrd' .&. mask == patWord
-                then done sres >>= \r -> return $ Yield r (GO_SHORT_PAT s)
-                else return $ Skip $ GO_SHORT_PAT s
-            FL.Done bres -> return $ Yield bres (GO_SHORT_PAT s)
-            FL.Done1 bres -> return $ Yield bres (GO_SHORT_PAT_WITH s wrd x)
-    stepOuter _ (GO_SHORT_PAT_DRAIN n0 ac s wd) = go wd n0 ac
-
-        where
-
-        -- XXX Duplicated code
-        mask :: Word
-        mask = (1 `shiftL` (elemBits * patLen)) - 1
-
-        -- Check if this is correct?
-        -- Consider n == 1, fromIntegral (mask .&. word) is considering more
-        -- than one element. We should change the mask to ignore the previous
-        -- elements.
-        go !wrd !n !acc
-            | n > 0 = do
-                let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-                fres <- fstep acc (toEnum $ fromIntegral old)
+            Yield x s -> do
+                let wrd1 = addToWord wrd x
+                if idx == maxIndex
+                then if wrd1 .&. mask == pat
+                     then do
+                         r <- initial >>= done
+                         return
+                           $ Skip
+                           $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+                     else do
+                         ini <- initial
+                         return $ Skip $ GO_SHORT_PAT_NEXT ini s wrd1
+                else return $ Skip $ GO_SHORT_PAT_ACCUM (idx + 1) s wrd1
+            Skip s -> return $ Skip $ GO_SHORT_PAT_ACCUM idx s wrd
+            Stop -> do
+                ini <- initial
+                if idx /= 0
+                then return $ Skip $ GO_SHORT_PAT_DRAIN idx ini wrd
+                else do
+                    r <- done ini
+                    return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter gst (GO_SHORT_PAT_NEXT fs st wrd) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                let wrd1 = addToWord wrd x
+                    old = wrd `shiftR` (elemBits * (patLen - 1))
+                fres <- fstep fs (toEnum $ fromIntegral old)
                 case fres of
-                    FL.Partial sres -> go wrd (n - 1) sres
-                    FL.Done bres -> do
-                        ini <- initial
-                        return $ Yield bres (GO_SHORT_PAT_DRAIN n ini s wrd)
-                    FL.Done1 bres -> do
-                        ini <- initial
-                        return $ GO_SHORT_PAT_DRAIN n ini s wrd
-        go _ _ acc = done acc >>= \r -> return (Yield r GO_DONE)
-    stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
-
-        where
-
-        mask :: Word
-        mask = (1 `shiftL` (elemBits * patLen)) - 1
-
-        addToWord wrd a = (wrd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
-
-        patWord :: Word
-        patWord = mask .&. A.foldl' addToWord 0 patArr
-
-        go0 !_ !idx wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                    if idx == maxIndex
-                    then do
-                        if wrd' .&. mask == patWord
+                    FL.Partial sres ->
+                        if wrd1 .&. mask == pat
                         then do
-                            r <- done acc
-                            return $ Yield r (GO_SHORT_PAT s)
-                        else go1 SPEC wrd' s acc
-                    else go0 SPEC (idx + 1) wrd' s acc
-                Skip s -> go0 SPEC idx wrd s acc
-                Stop ->
-                    if idx /= 0
-                    then -- stepOuter gst (GO_SHORT_PAT_DRAIN patLen acc s wrd)
-                         go2 wrd idx acc
-                    else done acc >>= \r -> return (Yield r GO_DONE)
+                            r <- done sres
+                            return
+                              $ Skip
+                              $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+                        else return $ Skip $ GO_SHORT_PAT_NEXT sres s wrd1
+                    -- If the fold terminates then the behaviour is same as
+                    -- if the pattern is matched
+                    FL.Done bres ->
+                        return
+                          $ Skip
+                          $ GO_YIELD bres $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+                    FL.Done1 bres ->
+                        let wrd1 = addToWord (0 :: Word) x
+                         in return
+                              $ Skip
+                              $ GO_YIELD bres $ GO_SHORT_PAT_ACCUM 0 s wrd1
+            Skip s -> return $ Skip $ GO_SHORT_PAT_NEXT fs s wrd
+            Stop -> return $ Skip $ GO_SHORT_PAT_DRAIN patLen fs wrd
+    -- XXX Check if this is correct?  Consider n == 1, fromIntegral (mask
+    -- .&. word) is considering more than one element. We should change the mask
+    -- to ignore the previous elements.
+    stepOuter _ (GO_SHORT_PAT_DRAIN 0 fs _) = do
+        r <- done fs
+        return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
+        let old = wrd `shiftR` (elemBits * (n - 1))
+            mask = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask .&. wrd
+        fres <- fstep fs (toEnum $ fromIntegral old)
+        case fres of
+            FL.Partial sres ->
+                return $ Skip $ GO_SHORT_PAT_DRAIN (n - 1) sres wrd1
+            FL.Done bres -> do
+                ini <- initial
+                return
+                  $ Skip $ GO_YIELD bres $ GO_SHORT_PAT_DRAIN (n - 1) ini wrd1
+            FL.Done1 bres -> do
+                ini <- initial
+                return $ Skip $ GO_YIELD bres $ GO_SHORT_PAT_DRAIN n ini wrd
 
-        {-# INLINE go1 #-}
-        go1 !_ wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                        old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-                    acc' <- fstep acc (toEnum $ fromIntegral old)
-                    case acc' of
-                        FL.Partial sres ->
-                            if wrd' .&. mask == patWord
-                            then done sres
-                                   >>= \r -> return $ Yield r (GO_SHORT_PAT s)
-                            else go1 SPEC wrd' s sres
-                        FL.Done bres -> return $ Yield bres (GO_SHORT_PAT s)
-                        FL.Done1 bres ->
-                            return $ Yield bres (GO_SHORT_PAT_WITH s wrd x)
-                Skip s -> go1 SPEC wrd s acc
-                Stop ->
-                    -- stepOuter gst (GO_SHORT_PAT_DRAIN patLen acc s wrd)
-                    go2 wrd patLen acc
-
-        -- Eliminate this?
-        go2 !wrd !n !acc
-            | n > 0 = do
-                let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-                fres <- fstep acc (toEnum $ fromIntegral old)
-                case fres of
-                    FL.Partial sres -> go2 wrd (n - 1) sres
-                    FL.Done bres -> return $ Yield bres GO_DONE
-        go2 _ _ acc = done acc >>= \r -> return (Yield r GO_DONE)
+{-
     -------------------------------
     -- General Pattern - Karp Rabin
     -------------------------------
