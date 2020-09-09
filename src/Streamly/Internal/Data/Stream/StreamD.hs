@@ -1705,11 +1705,8 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                        <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT_ACCUM 0 state (0 :: Word)
                   else do
-                      undefined
-    {-
                       (rb, rhead) <- liftIO $ RB.new patLen
-                      return $ Skip $ GO_KARP_RABIN state rb rhead
-    -}
+                      return $ Skip $ GO_KARP_RABIN_ACCUM 0 state rb rhead
     stepOuter _ (GO_YIELD x ns) = return $ Yield x ns
     stepOuter _ GO_DONE = return Stop
     ---------------------------
