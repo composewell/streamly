@@ -1657,10 +1657,13 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     -- XXX I initially put this in the state but I'd like to keep the state as
     -- simple as possible to allow more fusion. Removing this from the state did
     -- not change anything. I'll introduce them back once I figure out what's
-    -- wrong.
+    -- currently wrong.
     mask :: Word
     mask = (1 `shiftL` (elemBits * patLen)) - 1
-
+    -- XXX I initially put this in the state but I'd like to keep the state as
+    -- simple as possible to allow more fusion. Removing this from the state did
+    -- not change anything. I'll introduce them back once I figure out what's
+    -- currently wrong.
     pat :: Word
     -- XXX You dont need .&. here?
     pat = mask .&. A.foldl' addToWord 0 patArr
