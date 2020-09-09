@@ -1645,7 +1645,10 @@ data SplitOnState fs s a b w rb rh ck =
 -- performance.
 
 -- XXX In the case for SHORT_PAT it's pretty bad. Its about 10 times worse. With
--- the fusion-plugin it's about 5-6 times worse.
+-- the fusion-plugin it's about 5 times worse.
+
+-- XXX In the case for KARP_RABIN its about 4 times worse with the fusion-plugin
+-- and 7 times worse without.
 {-# INLINE_NORMAL splitOn #-}
 splitOn
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
