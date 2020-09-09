@@ -1775,11 +1775,13 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                let wrd1 = addToWord wrd x
+                let wrd1 = mask .&. addToWord wrd x
                     old = wrd `shiftR` (elemBits * (patLen - 1))
                 fres <- fstep fs (toEnum $ fromIntegral old)
                 case fres of
                     FL.Partial sres ->
+                        -- XXX Removing the then branch increases the
+                        -- performance by 150%
                         if wrd1 .&. mask == pat
                         then do
                             r <- done sres
@@ -1794,10 +1796,10 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                           $ Skip
                           $ GO_YIELD bres $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
                     FL.Done1 bres ->
-                        let wrd1 = addToWord (0 :: Word) x
-                         in return
-                              $ Skip
-                              $ GO_YIELD bres $ GO_SHORT_PAT_ACCUM 0 s wrd1
+                        return
+                          $ Skip
+                          $ GO_YIELD bres
+                          $ GO_SHORT_PAT_ACCUM 1 s $ addToWord (0 :: Word) x
             Skip s -> return $ Skip $ GO_SHORT_PAT_NEXT fs s wrd
             Stop -> return $ Skip $ GO_SHORT_PAT_DRAIN patLen fs wrd
     -- XXX Check if this is correct?  Consider n == 1, fromIntegral (mask
