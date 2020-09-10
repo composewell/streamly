@@ -1627,10 +1627,12 @@ data SplitOnState fs s a b w rb rh ck =
     | GO_SINGLE_PAT_WITH !fs s a a
     | GO_SHORT_PAT_ACCUM Int s !w
     | GO_SHORT_PAT_NEXT !fs s !w
+    | GO_SHORT_PAT_NEXT_WITH !fs s a !w
     | GO_SHORT_PAT_DRAIN Int !fs !w
     | GO_KARP_RABIN_ACCUM Int s rb rh
-    | GO_KARP_RABIN_NEXT fs s rb rh ck
-    | GO_KARP_RABIN_DRAIN Int fs rb rh
+    | GO_KARP_RABIN_NEXT !fs s rb rh !ck
+    | GO_KARP_RABIN_NEXT_WITH !fs s a rb rh !ck
+    | GO_KARP_RABIN_DRAIN Int !fs rb rh
     | GO_YIELD b (SplitOnState fs s a b w rb rh ck)
     | GO_DONE
 
@@ -1639,10 +1641,11 @@ data SplitOnState fs s a b w rb rh ck =
 -- on GHC for simplification. We can compare the performance and choose
 -- accordingly.
 
--- XXX In the case for SINGLE_PAT This does not fuse. Even in origin/master this
--- does not fuse. There is about 15% degradation in performance. If internal
--- recursion is used (go, go1 etc.) there is about 1500% degradation in
--- performance.
+-- XXX This does not fuse. Even in origin/master this does not completely fuse.
+
+-- XXX In the case for SINGLE_PAT There is about 15% degradation in
+-- performance. If internal recursion is used (go, go1 etc.) there is about
+-- 1500% degradation in performance.
 
 -- XXX In the case for SHORT_PAT it's pretty bad. Its about 10 times worse. With
 -- the fusion-plugin it's about 5 times worse.
@@ -1668,7 +1671,8 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     -- XXX I initially put this in the state but I'd like to keep the state as
     -- simple as possible to allow more fusion (if that's how it
     -- works). Removing this from the state did not change anything. I'll
-    -- introduce them back once I figure out what's currently wrong.
+    -- introduce them back once I figure out what's currently wrong. Ideally, I
+    -- want them to be associated with the state.
     mask :: Word
     mask = (1 `shiftL` (elemBits * patLen)) - 1
 
@@ -1738,7 +1742,6 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     -- XXX These functions cab be designed in a better way? Get rid of go and
     -- have more info in the state but you would be relying on GHC for
     -- simplification.
-    -- XXX Multiple Yield points
     stepOuter _ (GO_SINGLE_PAT_WITH fs s pat x) =
         if pat == x
         then do
@@ -1793,35 +1796,34 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 else do
                     r <- done ini
                     return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter _ (GO_SHORT_PAT_NEXT_WITH fs s x wrd) = do
+        let wrd1 = mask .&. addToWord wrd x
+            old = wrd `shiftR` (elemBits * (patLen - 1))
+        fres <- fstep fs (toEnum $ fromIntegral old)
+        case fres of
+            FL.Partial sres ->
+                -- XXX Removing the then branch increases the
+                -- performance by 150%
+                if wrd1 .&. mask == pat
+                then do
+                    r <- done sres
+                    return
+                      $ Skip $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+                else return $ Skip $ GO_SHORT_PAT_NEXT sres s wrd1
+            -- If the fold terminates then the behaviour is same as if
+            -- the pattern is matched. We should not ignore the
+            -- currently stored pattern though.
+            FL.Done bres -> do
+                ini <- initial
+                return $ Skip $ GO_YIELD bres $ GO_SHORT_PAT_NEXT ini s wrd1
+            FL.Done1 bres -> do
+                ini <- initial
+                return
+                  $ Skip $ GO_YIELD bres $ GO_SHORT_PAT_NEXT_WITH ini s x wrd
     stepOuter gst (GO_SHORT_PAT_NEXT fs st wrd) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> do
-                let wrd1 = mask .&. addToWord wrd x
-                    old = wrd `shiftR` (elemBits * (patLen - 1))
-                fres <- fstep fs (toEnum $ fromIntegral old)
-                case fres of
-                    FL.Partial sres ->
-                        -- XXX Removing the then branch increases the
-                        -- performance by 150%
-                        if wrd1 .&. mask == pat
-                        then do
-                            r <- done sres
-                            return
-                              $ Skip
-                              $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
-                        else return $ Skip $ GO_SHORT_PAT_NEXT sres s wrd1
-                    -- If the fold terminates then the behaviour is same as
-                    -- if the pattern is matched
-                    FL.Done bres ->
-                        return
-                          $ Skip
-                          $ GO_YIELD bres $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
-                    FL.Done1 bres ->
-                        return
-                          $ Skip
-                          $ GO_YIELD bres
-                          $ GO_SHORT_PAT_ACCUM 1 s $ addToWord (0 :: Word) x
+            Yield x s -> return $ Skip $ GO_SHORT_PAT_NEXT_WITH fs s x wrd
             Skip s -> return $ Skip $ GO_SHORT_PAT_NEXT fs s wrd
             Stop -> return $ Skip $ GO_SHORT_PAT_DRAIN patLen fs wrd
     -- XXX Check if this is correct?  Consider n == 1, fromIntegral (mask
@@ -1880,37 +1882,39 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     -- faster, as soon as we add the "RB.unsafeEqArray rb v" condition the
     -- generated code changes drastically and becomes 4x slower. Need to
     -- investigate what is going on with GHC.
+    stepOuter _ (GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum) = do
+        old <- liftIO $ peek rh
+        let cksum1 = deltaCksum cksum old x
+        fres <- fstep fs old
+        case fres of
+            FL.Partial sres ->
+                if (cksum1 == patHash)
+                then do
+                    r <- done sres
+                    -- XXX It does not matter whether we give rh or rh1
+                    -- here. We restart anyway.
+                    return $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
+                else do
+                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                    return $ Skip $ GO_KARP_RABIN_NEXT sres s rb rh1 cksum1
+            FL.Done bres -> do
+                rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                ini <- initial
+                return
+                  $ Skip
+                  $ GO_YIELD bres $ GO_KARP_RABIN_NEXT ini s rb rh1 cksum1
+            FL.Done1 bres -> do
+                ini <- initial
+                return
+                  $ Skip
+                  $ GO_YIELD bres $ GO_KARP_RABIN_NEXT_WITH ini s x rb rh cksum
     stepOuter gst (GO_KARP_RABIN_NEXT fs st rb rh cksum) = do
         res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                old <- liftIO $ peek rh
-                let cksum1 = deltaCksum cksum old x
-                fres <- fstep fs old
-                case fres of
-                    FL.Partial sres ->
-                        if (cksum1 == patHash)
-                        then do
-                            r <- done sres
-                            -- XXX It does not matter whether we give rh or rh1
-                            -- here. We restart anyway.
-                            return
-                              $ Skip
-                              $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
-                        else do
-                            rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                            return
-                              $ Skip $ GO_KARP_RABIN_NEXT sres s rb rh1 cksum1
-                    FL.Done bres ->
-                        return
-                          $ Skip $ GO_YIELD bres $ GO_KARP_RABIN_ACCUM 0 s rb rh
-                    FL.Done1 bres -> do
-                        rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                        return
-                          $ Skip
-                          $ GO_YIELD bres $ GO_KARP_RABIN_ACCUM 1 s rb rh1
-            Skip s -> return $ Skip $ GO_KARP_RABIN_NEXT fs s rb rh cksum
-            Stop -> return $ Skip $ GO_KARP_RABIN_DRAIN patLen fs rb rh
+        return
+          $ case res of
+                Yield x s -> Skip $ GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum
+                Skip s -> Skip $ GO_KARP_RABIN_NEXT fs s rb rh cksum
+                Stop -> Skip $ GO_KARP_RABIN_DRAIN patLen fs rb rh
     stepOuter _ (GO_KARP_RABIN_DRAIN 0 fs _ _) = do
         r <- done fs
         return $ Skip $ GO_YIELD r GO_DONE
