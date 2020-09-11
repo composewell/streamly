@@ -12,7 +12,7 @@ module Main (main) where
 
 import Data.Function ((&))
 import System.Environment (getArgs)
-import Streamly (SerialT)
+import Streamly.Prelude (SerialT)
 import Data.List.NonEmpty (NonEmpty)
 
 #if !defined(CABAL_OS_WINDOWS)   
