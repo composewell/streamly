@@ -170,7 +170,6 @@ module Streamly.Tutorial
     )
 where
 
-import Streamly hiding (foldWith, foldMapWith, forEachWith)
 import Streamly.Prelude
 import Data.Semigroup
 import Control.Applicative
@@ -345,8 +344,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- GHCi session and import these lines to start playing.
 --
 -- @
--- > import "Streamly"
--- > import "Streamly.Prelude" ((|:))
+-- > import "Streamly.Prelude" ((|:), (|&))
 -- > import qualified "Streamly.Prelude" as S
 --
 -- > import Control.Concurrent
@@ -412,15 +410,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
--- > S.'toList' $ 'parallely' $ p 3 |: p 2 |: p 1 |: S.'nil'
+-- > :set +s
+-- > S.'toList' $ S.'parallely' $ p 3 |: p 2 |: p 1 |: S.'nil'
 -- [1,2,3]
--- > S.'toList' $ 'aheadly' $ p 3 |: p 2 |: p 1 |: S.'nil'
+-- (3.01 secs, 2,018,432 bytes)
+-- > S.'toList' $ S.'aheadly' $ p 3 |: p 2 |: p 1 |: S.'nil'
 -- [3,2,1]
+-- (3.01 secs, 2,055,880 bytes)
 -- @
 -- The following finishes in 10 seconds (100 seconds when serial):
 --
 -- @
--- > S.drain $ 'asyncly' $ S.'replicateM' 10 $ p 10
+-- > S.'drain' $ S.'asyncly' $ S.'replicateM' 10 $ p 10
+-- (10.01 secs, 2,080,320 bytes)
 -- @
 --
 
@@ -456,7 +458,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- numbers them and prints them:
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Data.Char (toUpper)
 -- import Data.Function ((&))
@@ -482,7 +483,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
--- > S.'drain' $ S.aheadly $ S.'mapM' (\\x -> p 1 >> print x) (serially $ S.repeatM (p 1))
+-- > S.'drain' $ S.'aheadly' $ S.'mapM' (\\x -> p 1 >> print x) (S.'serially' $ S.'repeatM' (p 1))
 -- @
 --
 
@@ -515,7 +516,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- not explicitly specified use the imports shown below.
 --
 -- @
--- import "Streamly"
 -- import "Streamly.Prelude" ((|:), nil)
 -- import qualified "Streamly.Prelude" as S
 --
@@ -553,7 +553,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 3, 4:
 --
 -- @
--- main = S.'drain' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = S.'drain' $ (print 1 |: print 2 |: S.nil) <> (print 3 |: print 4 |: S.nil)
 -- @
 -- @
 -- 1
@@ -580,7 +580,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- irrespective of the type of stream:
 --
 -- @
--- main = S.'drain' $ (print 1 |: print 2 |: nil) \`serial` (print 3 |: print 4 |: nil)
+-- main = S.'drain' $ (print 1 |: print 2 |: S.nil) \`S.serial` (print 3 |: print 4 |: S.nil)
 -- @
 
 -- $interleaved
@@ -597,7 +597,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The following example prints the sequence 1, 3, 2, 4
 --
 -- @
--- main = S.'drain' . 'wSerially' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = S.'drain' . S.'wSerially' $ (print 1 |: print 2 |: S.'nil') <> (print 3 |: print 4 |: S.'nil')
 -- @
 -- @
 -- 1
@@ -612,7 +612,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
--- main = S.'drain' . 'wSerially' $ delay 3 <> delay 2 <> delay 1
+-- main = S.'drain' . S.'wSerially' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -626,7 +626,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- combinator in the following example:
 --
 -- @
--- main = S.'drain' $ (print 1 |: print 2 |: nil) \`wSerial` (print 3 |: print 4 |: nil)
+-- main = S.'drain' $ (print 1 |: print 2 |: S.'nil') \`S.wSerial` (print 3 |: print 4 |: S.'nil')
 -- @
 -- @
 -- 1
@@ -656,7 +656,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---  xs \<- S.'toList' . 'aheadly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
+--  xs \<- S.'toList' . S.'aheadly' $ (p 1 |: p 2 |: S.nil) <> (p 3 |: p 4 |: S.nil)
 --  print xs
 --  where p n = threadDelay 1000000 >> return n
 -- @
@@ -693,7 +693,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- S.'toList' . 'asyncly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
+--   xs \<- S.'toList' . S.'asyncly' $ (p 1 |: p 2 |: S.'nil') <> (p 3 |: p 4 |: S.'nil')
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -708,7 +708,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- S.'toList' . 'asyncly' $ (serially $ p 1 |: p 2 |: nil) <> (serially $ p 3 |: p 4 |: nil)
+--   xs \<- S.'toList' . S.'asyncly' $ (S.'serially' $ p 1 |: p 2 |: S.'nil') <> (serially $ p 3 |: p 4 |: S.'nil')
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -722,7 +722,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- (3, 2, 1) = 3@ seconds:
 --
 -- @
--- main = S.'drain' . 'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
+-- main = S.'drain' . S.'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -741,7 +741,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- second as all of the actions are concurrent.
 --
 -- @
--- main = S.'drain' . 'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
+-- main = S.'drain' . S.'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
 -- @
 -- @
 -- 1
@@ -758,7 +758,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- even if none of them blocks:
 --
 -- @
--- main = S.'drain' . 'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
+-- main = S.'drain' . S.'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
 --  where traced m = S.'yieldM' (myThreadId >>= print) >> return m
 -- @
 -- @
@@ -776,7 +776,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- not used the 'asyncly' combinator in the following example:
 --
 -- @
--- main = S.'drain' $ delay 3 \`async` delay 2 \`async` delay 1
+-- main = S.'drain' $ delay 3 \`S.'async'` delay 2 \`S.'async'` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -819,7 +819,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- first traversal order but this is not guaranteed.
 --
 -- @
--- main = S.'drain' . 'wAsyncly' $ (serially $ print 1 |: print 2 |: nil) <> (serially $ print 3 |: print 4 |: nil)
+-- main = S.'drain' . S.'wAsyncly' $ (S.'serially' $ print 1 |: print 2 |: S.'nil') <> (S.'serially' $ print 3 |: print 4 |: S.'nil')
 -- @
 -- @
 -- 1
@@ -834,7 +834,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the 'wAsyncly' combinator in the following example:
 --
 -- @
--- main = S.'drain' $ delay 3 \`wAsync` delay 2 \`wAsync` delay 1
+-- main = S.'drain' $ delay 3 \S.`wAsync` delay 2 \S.`wAsync` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -873,11 +873,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- package to run this example:
 --
 -- @
--- import "Streamly"
 -- import qualified Streamly.Prelude as S
 -- import Network.HTTP.Simple
 --
--- main = S.'drain' . 'parallely' $ google \<> bing \<> duckduckgo
+-- main = S.'drain' . S.'parallely' $ google \<> bing \<> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -891,7 +890,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'parallely' combinator in the following example:
 --
 -- @
--- main = S.'drain' $ delay 3 \`parallel` delay 2 \`wAsync` delay 1
+-- main = S.'drain' $ delay 3 \`S.'parallel'` delay 2 \`S.'wAsync'` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -921,27 +920,26 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- style using 'fold' or 'foldMap'.  We have also provided some fold utilities
 -- to fold streams using the polymorphic combine operations:
 --
--- * 'foldWith' is like 'fold', it folds a 'Foldable' container of streams
--- using the given composition operator.
--- * 'foldMapWith' is like 'foldMap', it folds like @foldWith@ but also maps a
--- function before folding.
--- * 'forEachWith' is like @foldMapwith@ but the container argument comes before
--- the function argument.
+-- * 'concatFoldableWith' is like 'fold', it folds a 'Foldable' container of
+-- streams using the given composition operator.
+-- * 'concatMapFoldableWith' is like 'foldMap', it folds like
+-- @concatFoldableWith@ but also maps a function before folding.
+-- * 'concatForFoldableWith' is like @concatMapFoldableWith@ but the container
+-- argument comes before the function argument.
 --
 -- All of the following are equivalent and start ten concurrent tasks each with
 -- a delay from 1 to 10 seconds, resulting in the printing of each number every
 -- second:
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
 -- main = do
---  S.'drain' $ 'asyncly' $ foldMap delay [1..10]
---  S.'drain' $ S.'foldWith'    'async' (map delay [1..10])
---  S.'drain' $ S.'foldMapWith' 'async' delay [1..10]
---  S.'drain' $ S.'forEachWith' 'async' [1..10] delay
+--  S.'drain' $ S.'asyncly' $ foldMap delay [1..10]
+--  S.'drain' $ S.'concatFoldableWith' S.'async' (map delay [1..10])
+--  S.'drain' $ S.'concatMapFoldableWith' S.'async' delay [1..10]
+--  S.'drain' $ S.'concatForFoldableWith' S.'async' [1..10] delay
 --  where delay n = S.'yieldM' $ threadDelay (n * 1000000) >> print n
 -- @
 
@@ -987,7 +985,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- instead.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
 -- main = S.'drain' $ do
@@ -1009,12 +1006,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- written like this:
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
 -- import Control.Monad (forever)
 --
--- main = S.'drain' $ forever $ S.yieldM getLine >>= S.yieldM . putStrLn
+-- main = S.'drain' $ forever $ S.'yieldM' getLine >>= S.'yieldM' . putStrLn
 -- @
 --
 -- When multiple streams are composed using this style they nest in a DFS
@@ -1023,7 +1019,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- loops in imperative programming.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
 -- main = S.'drain' $ do
@@ -1052,10 +1047,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- type of the stream as 'Ahead'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- comp = S.'toList' . 'aheadly' $ do
+-- comp = S.'toList' . S.'aheadly' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x >> return x
 --
@@ -1093,10 +1087,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- type of the stream as 'Async'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . 'asyncly' $ do
+-- main = S.'drain' . S.'asyncly' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1120,10 +1113,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- on the demand from the consumer of the stream.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . 'asyncly' $ do
+-- main = S.'drain' . S.'asyncly' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1145,10 +1137,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- type of the stream as 'WSerial'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . 'wSerially' $ do
+-- main = S.'drain' . S.'wSerially' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.yieldM $ putStrLn $ show (x, y)
@@ -1173,10 +1164,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- specify the type of the stream as 'WAsync'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . 'wAsyncly' $ do
+-- main = S.'drain' . S.'wAsyncly' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1199,10 +1189,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- annotation can be used to specify the type of the stream as 'Parallel'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . 'parallely' $ do
+-- main = S.'drain' . S.'parallely' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1220,10 +1209,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- specific mode of composition. For example take a look at the following code.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- composed :: (IsStream t, Monad (t IO)) => t IO ()
+-- composed :: (S.IsStream t, Monad (t IO)) => t IO ()
 -- composed = do
 --     sz <- sizes
 --     cl <- colors
@@ -1240,11 +1228,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = S.'drain' . 'serially'  $ composed
--- main = S.'drain' . 'wSerially' $ composed
--- main = S.'drain' . 'asyncly'   $ composed
--- main = S.'drain' . 'wAsyncly'  $ composed
--- main = S.'drain' . 'parallely' $ composed
+-- main = S.'drain' . S.'serially'  $ composed
+-- main = S.'drain' . S.'wSerially' $ composed
+-- main = S.'drain' . S.'asyncly'   $ composed
+-- main = S.'drain' . S.'wAsyncly'  $ composed
+-- main = S.'drain' . S.'parallely' $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of
@@ -1257,7 +1245,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- serial.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
 -- main = (S.'toList' $ fmap show $ S.'fromFoldable' [1..10]) >>= print
@@ -1276,7 +1263,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- serially and takes a total 17 seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
@@ -1284,7 +1270,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- s2 = d 3 <> d 4
 -- d n = delay n >> return n
 --
--- main = (S.'toList' . 'serially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'serially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -1300,7 +1286,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- order but since it is serial it takes a total of 17 seconds:
 --
 -- @
--- main = (S.'toList' . 'wSerially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'wSerially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -1316,7 +1302,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- of 6 seconds which is max (1, 2) + max (3, 4):
 --
 -- @
--- main = (S.'toList' . 'asyncly' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'asyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -1332,7 +1318,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- therefore takes a total of 6 seconds (2 + 4):
 --
 -- @
--- main = (S.'toList' . 'wAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'wAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -1360,15 +1346,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- zip composition:
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
 -- d n = delay n >> return n
--- s1 = 'serially' $ d 1 <> d 2
--- s2 = 'serially' $ d 3 <> d 4
+-- s1 = S.'serially' $ d 1 <> d 2
+-- s2 = S.'serially' $ d 3 <> d 4
 --
--- main = (S.'toList' . 'zipSerially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'zipSerially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes total 10 seconds to zip, which is (1 + 2 + 3 + 4) since
@@ -1390,18 +1375,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
 -- d n = delay n >> return n
--- s1 = 'serially' $ d 1 <> d 2
--- s2 = 'serially' $ d 3 <> d 4
+-- s1 = S.'serially' $ d 1 <> d 2
+-- s2 = S.'serially' $ d 3 <> d 4
 --
 -- main = do
 --     hSetBuffering stdout LineBuffering
---     (S.'toList' . 'zipAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
+--     (S.'toList' . S.'zipAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
@@ -1432,17 +1416,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- combinator instead of explicitly folding with 'async'.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Data.List (sum)
 --
 -- main = do
 --     z \<-   S.'toList'
---          $ 'serially'     -- Serial monadic processing (sqrt below)
+--          $ S.'serially'     -- Serial monadic processing (sqrt below)
 --          $ do
---              x2 \<- 'forEachWith' 'async' [1..100] $ -- Concurrent @"for"@ loop
+--              x2 \<- S.'concatForFoldableWith' S.'async' [1..100] $ -- Concurrent @"for"@ loop
 --                          \\x -> return $ x * x  -- body of the loop
---              y2 \<- 'forEachWith' 'async' [1..100] $
+--              y2 \<- S.'concatForFoldableWith' S.'async' [1..100] $
 --                          \\y -> return $ y * y
 --              return $ sqrt (x2 + y2)
 --     print $ sum z
@@ -1477,11 +1460,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 -- {-\# LANGUAGE FlexibleContexts #-}
 --
--- import "Streamly"
+-- import "Streamly.Prelude" (MonadAsync, SerialT)
 -- import "Streamly.Prelude" as S
--- import Control.Monad (void, when)
+-- import Control.Monad (void)
 -- import Control.Monad.IO.Class (MonadIO(liftIO))
--- import Control.Monad.State (MonadState, get, modify, runStateT, put)
+-- import Control.Monad.State (MonadState, get, modify, runStateT)
 --
 -- data Event = Quit | Harm Int | Heal Int deriving (Show)
 --
@@ -1497,13 +1480,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             _        -> putStrLn "Type potion or harm or quit" >> askUser
 --
 -- acidRain :: MonadAsync m => 'SerialT' m Event
--- acidRain = 'asyncly' $ 'constRate' 1 $ S.'repeatM' $ liftIO $ return $ Harm 1
+-- acidRain = S.'asyncly' $ S.'constRate' 1 $ S.'repeatM' $ liftIO $ return $ Harm 1
 --
 -- data Result = Check | Done
 --
 -- runEvents :: (MonadAsync m, MonadState Int m) => 'SerialT' m Result
 -- runEvents = do
---     event \<- userAction \`parallel` acidRain
+--     event \<- userAction \`S.'parallel'` acidRain
 --     case event of
 --         Harm n -> modify (\\h -> h - n) >> return Check
 --         Heal n -> modify (\\h -> h + n) >> return Check
@@ -1556,12 +1539,12 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --  Interop with @vector@:
 --
 -- @
--- import Streamly
--- import qualified Streamly.Prelude as S
+-- import "Streamly.Prelude" (SerialT)
+-- import qualified "Streamly.Prelude" as S
 -- import qualified Data.Vector.Fusion.Stream.Monadic as V
 --
 -- -- | vector to streamly
--- fromVector :: (IsStream t, Monad m) => V.Stream m a -> t m a
+-- fromVector :: (S.IsStream t, Monad m) => V.Stream m a -> t m a
 -- fromVector = S.unfoldrM unconsV
 --     where
 --     unconsV v = do
@@ -1574,7 +1557,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- -- | streamly to vector
 -- toVector :: Monad m => SerialT m a -> V.Stream m a
--- toVector = V.unfoldrM (S.uncons . adapt)
+-- toVector = V.unfoldrM (S.uncons . S.adapt)
 --
 -- main = do
 --     S.toList (fromVector (V.fromList [1..3]))   >>= print
@@ -1584,13 +1567,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --  Interop with @pipes@:
 --
 -- @
--- import "Streamly"
+-- import "Streamly.Prelude" (SerialT)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Pipes as P
 -- import qualified Pipes.Prelude as P
 --
 -- -- | pipes to streamly
--- fromPipes :: (IsStream t, Monad m) => P.Producer a m r -> t m a
+-- fromPipes :: (S.IsStream t, Monad m) => P.Producer a m r -> t m a
 -- fromPipes = S.'unfoldrM' unconsP
 --     where
 --     -- Adapt P.next to return a Maybe instead of Either
@@ -1611,7 +1594,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Interop with @streaming@:
 --
 -- @
--- import "Streamly"
+-- import "Streamly.Prelude" (SerialT, MonadAsync)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Streaming as SG
 -- import qualified Streaming.Prelude as SG
@@ -1635,7 +1618,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Interop with @conduit@:
 --
 -- @
--- import "Streamly"
+-- import "Streamly.Prelude" (SerialT)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Data.Conduit as C
 -- import qualified Data.Conduit.List as C

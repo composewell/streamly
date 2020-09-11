@@ -121,11 +121,11 @@ sourceFromFoldableM n =
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Stream m Int
-sourceFoldMapWith n = SP.foldMapWith S.serial S.yield [n..n+value]
+sourceFoldMapWith n = SP.concatMapFoldableWith S.serial S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = SP.foldMapWith S.serial (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n = SP.concatMapFoldableWith S.serial (S.yieldM . return) [n..n+value]
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -484,8 +484,8 @@ o_1_space =
         , benchFold "fromFoldableM" toNull sourceFromFoldableM
 
         -- appends
-        , benchFold "foldMapWith"  toNull sourceFoldMapWith
-        , benchFold "foldMapWithM" toNull sourceFoldMapWithM
+        , benchFold "concatMapFoldableWith"  toNull sourceFoldMapWith
+        , benchFold "concatMapFoldableWithM" toNull sourceFoldMapWithM
         ]
       , bgroup "elimination"
         [ benchFold "toNull"   toNull   sourceUnfoldrM
@@ -542,7 +542,7 @@ o_1_space =
         , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
             (concatMapRepl value2 value2)
 
-        -- This is for comparison with foldMapWith
+        -- This is for comparison with concatMapFoldableWith
         , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
             (S.drain . S.concatMapBy S.serial id . sourceConcatMapId value)
 

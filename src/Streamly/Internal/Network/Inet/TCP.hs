@@ -103,7 +103,7 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
-import Streamly (MonadAsync)
+import Streamly.Prelude (MonadAsync)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))

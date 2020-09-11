@@ -9,9 +9,9 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (SerialT, parallely, parallel, serially, maxBuffer, maxThreads)
+import Streamly.Prelude
+       ( SerialT, parallely, parallel, serially, maxBuffer, maxThreads)
 
-import qualified Streamly as S
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

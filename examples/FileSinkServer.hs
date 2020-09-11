@@ -9,7 +9,6 @@ import Control.Monad.IO.Class (liftIO)
 import Network.Socket (close)
 import System.Environment (getArgs)
 
-import Streamly
 import Streamly.Unicode.Stream
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Data.Array.Storable.Foreign as A
@@ -26,7 +25,7 @@ main = do
         (\src -> S.fold (FH.write src)
         $ encodeLatin1Lax
         $ S.concatUnfold A.read
-        $ S.concatMapWith parallel use
+        $ S.concatMapWith S.parallel use
         $ S.unfold TCP.acceptOnPort 8090)
 
     where

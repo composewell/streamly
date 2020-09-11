@@ -15,7 +15,7 @@ import Data.Semigroup ((<>))
 import Test.Hspec.QuickCheck
 import Test.Hspec as H
 
-import Streamly
+import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Prelude

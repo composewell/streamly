@@ -1,6 +1,8 @@
-import Streamly
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly.Prelude (nil, yieldM, drain)
+import Streamly.Prelude
 
 main :: IO ()
 main = do

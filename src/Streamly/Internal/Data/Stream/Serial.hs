@@ -137,7 +137,9 @@ import Prelude hiding (map, mapM, errorWithoutStackTrace)
 -- In the code above, the 'serially' combinator can be omitted as the default
 -- stream type is 'SerialT'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid, MonadTrans)
@@ -145,7 +147,9 @@ newtype SerialT m a = SerialT {getSerialT :: Stream m a}
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
 -- for more details.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type Serial = SerialT IO
 
 -- |
@@ -155,7 +159,9 @@ type StreamT = SerialT
 
 -- | Fix the type of a polymorphic stream as 'SerialT'.
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 serially :: IsStream t => SerialT m a -> t m a
 serially = adapt
 
@@ -309,14 +315,18 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- (2,4)
 -- @
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
     deriving (MonadTrans)
 
 -- | An interleaving serial IO stream of elements of type @a@. See 'WSerialT'
 -- documentation for more details.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type WSerial = WSerialT IO
 
 -- |
@@ -326,7 +336,9 @@ type InterleavedT = WSerialT
 
 -- | Fix the type of a polymorphic stream as 'WSerialT'.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 wSerially :: IsStream t => WSerialT m a -> t m a
 wSerially = adapt
 
@@ -372,7 +384,9 @@ infixr 6 `wSerial`
 -- When one stream stops the rest of the other stream is used in the output
 -- stream.
 --
--- @since 0.2.0
+-- @since 0.8.0
+--
+-- /Since: 0.2.0 ("Streamly")/
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
 wSerial m1 m2 = mkStream $ \st yld sng stp -> do

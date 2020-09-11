@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP              #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -6,7 +7,9 @@
 -- This example is adapted from Gabriel Gonzalez's pipes-concurrency package.
 -- https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html
 
-import Streamly
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
 import Streamly.Prelude as S
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
@@ -26,13 +29,13 @@ userAction = S.repeatM $ liftIO askUser
             _        -> putStrLn "Type potion or harm or quit" >> askUser
 
 acidRain :: MonadAsync m => SerialT m Event
-acidRain = asyncly $ constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
+acidRain = S.asyncly $ S.constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
 
 data Result = Check | Done
 
 runEvents :: (MonadAsync m, MonadState Int m) => SerialT m Result
 runEvents = do
-    event <- userAction `parallel` acidRain
+    event <- userAction `S.parallel` acidRain
     case event of
         Harm n -> modify (\h -> h - n) >> return Check
         Heal n -> modify (\h -> h + n) >> return Check
@@ -52,7 +55,7 @@ getStatus result =
 
 main :: IO ()
 main = do
-    putStrLn "Your health is deteriorating due to acid rain,\
+    putStrLn "Your health is deteriorating due to acid rain,\\
              \ type \"potion\" or \"quit\""
     let runGame = S.drainWhile (== Alive) $ S.mapM getStatus runEvents
     void $ runStateT runGame 60

@@ -3,7 +3,6 @@ module Main (main) where
 import Data.Bifunctor (bimap)
 import Data.Function ((&))
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly (ahead)
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -14,7 +13,7 @@ import qualified Streamly.Internal.FileSystem.Dir as Dir
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    S.mapM_ print $ S.iterateMapLeftsWith ahead listDir (S.yield $ (Left "."))
+    S.mapM_ print $ S.iterateMapLeftsWith S.ahead listDir (S.yield $ (Left "."))
 
     where
 

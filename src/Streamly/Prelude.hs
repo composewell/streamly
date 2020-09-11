@@ -34,11 +34,62 @@
 -- Deconstruction and folds accept a 'SerialT' type instead of a polymorphic
 -- type to ensure that streams always have a concrete monomorphic type by
 -- default, reducing type errors. In case you want to use any other type of
--- stream you can use one of the type combinators provided in the "Streamly"
--- module to convert the stream type.
+-- stream you can use one of the type combinators provided to convert the
+-- stream type.
 
 module Streamly.Prelude
     (
+    -- * Stream Types
+    -- $streamtypes
+
+    -- ** Serial Streams
+    -- $serial
+      SerialT
+    , WSerialT
+
+    -- ** Speculative Streams
+    -- $ahead
+    , AheadT
+
+    -- ** Asynchronous Streams
+    -- $async
+    , AsyncT
+    , WAsyncT
+    , ParallelT
+    , mkAsync
+
+    -- ** Zipping Streams
+    -- $zipping
+    , ZipSerialM
+    , ZipAsyncM
+
+    -- * IO Streams
+    , Serial
+    , WSerial
+    , Ahead
+    , Async
+    , WAsync
+    , Parallel
+    , ZipSerial
+    , ZipAsync
+
+    -- * Type Synonyms
+    , MonadAsync
+
+    -- * Stream Type Adapters
+    -- $adapters
+    , IsStream ()
+
+    , serially
+    , wSerially
+    , asyncly
+    , aheadly
+    , wAsyncly
+    , parallely
+    , zipSerially
+    , zipAsyncly
+    , adapt
+
     -- * Construction
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
@@ -47,7 +98,7 @@ module Streamly.Prelude
     -- versions provided in this module can be much more efficient in most
     -- cases. Users can create custom combinators using these primitives.
 
-      nil
+    , nil
     , cons
     , (.:)
 
@@ -263,6 +314,13 @@ module Streamly.Prelude
     -- trimming sequences
     , stripPrefix
 
+    -- * Parallel Function Application
+    -- $application
+    , (|$)
+    , (|&)
+    , (|$.)
+    , (|&.)
+
     -- * Transformation
 
     -- ** Mapping
@@ -464,6 +522,16 @@ module Streamly.Prelude
     -- >> S.toList $ fold $ [S.fromList [1,2], S.fromList [3,4]]
     -- [1,2,3,4]
     -- @
+    , serial
+
+    -- ** Interleaving
+    , wSerial
+
+    -- ** Scheduling
+    , ahead
+    , async
+    , wAsync
+    , parallel
 
     -- ** Merging
     -- | Streams form a commutative semigroup under the merge
@@ -498,18 +566,6 @@ module Streamly.Prelude
     , zipAsyncWith
     , zipAsyncWithM
 
-    {-
-    -- ** Folding Containers of Streams
-    -- | These are variants of standard 'Foldable' fold functions that use a
-    -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
-    -- finite container of streams. Note that these are just special cases of
-    -- the more general 'concatMapWith' operation.
-    --
-    , foldMapWith
-    , forEachWith
-    , foldWith
-    -}
-
     -- ** Folding Streams of Streams
     -- | Stream operations like map and filter represent loop processing in
     -- imperative programming terms. Similarly, the imperative concept of
@@ -539,6 +595,16 @@ module Streamly.Prelude
     , concatMapM
     , concatUnfold
 
+    -- ** Folding Containers of Streams
+    -- | These are variants of standard 'Foldable' fold functions that use a
+    -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
+    -- finite container of streams. Note that these are just special cases of
+    -- the more general 'concatMapWith' operation.
+    --
+    , concatFoldableWith
+    , concatMapFoldableWith
+    , concatForFoldableWith
+
     -- * Exceptions
     , before
     , after
@@ -546,6 +612,19 @@ module Streamly.Prelude
     , onException
     , finally
     , handle
+
+    -- * Concurrency Control
+    -- $concurrency
+    , maxThreads
+    , maxBuffer
+
+    -- * Rate Limiting
+    , Rate (..)
+    , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
 
     -- * Deprecated
     , once
@@ -571,9 +650,124 @@ import Prelude
 
 import Streamly.Internal.Data.Stream.IsStream
 
+
+-- $streamtypes
+-- The basic stream type is 'Serial', it represents a sequence of IO actions,
+-- and is a 'Monad'.  The type 'SerialT' is a monad transformer that can
+-- represent a sequence of actions in an arbitrary monad. The type 'Serial' is
+-- in fact a synonym for @SerialT IO@.  There are a few more types similar to
+-- 'SerialT', all of them represent a stream and differ only in the
+-- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Serial'
+-- and 'WSerial' types compose serially whereas 'Async' and 'WAsync'
+-- types compose concurrently. All these types can be freely inter-converted
+-- using type combinators without any cost. You can freely switch to any type
+-- of composition at any point in the program.  When no type annotation or
+-- explicit stream type combinators are used, the default stream type is
+-- inferred as 'Serial'.
+
+-- $serial
+--
+-- When a stream consumer demands an element from a serial stream constructed
+-- as @a \`consM` b \`consM` ... nil@, the action @a@ at the head of the stream
+-- sequence is executed and the result is supplied to the consumer. When the
+-- next element is demanded, the action @b@ is executed and its result is
+-- supplied.  Thus, the effects are performed and results are consumed strictly
+-- in a serial order.  Serial streams can be considered as /spatially ordered/
+-- streams as the order of execution and consumption is the same as the spatial
+-- order in which the actions are composed by the programmer.
+--
+-- Serial streams enforce the side effects as well as the results of the
+-- actions to be in the same order in which the actions are added to the
+-- stream.  Therefore, the semigroup operation for serial streams is not
+-- commutative:
+--
+-- @
+-- a <> b is not the same as b <> a
+-- @
+--
+-- There are two serial stream types 'SerialT' and 'WSerialT'. The stream
+-- evaluation of both the variants works in the same way as described above,
+-- they differ only in the 'Semigroup' and 'Monad' implementaitons.
+
+-- $ahead
+--
+-- When a stream consumer demands an element from a speculative stream
+-- constructed as @a \`consM` b \`consM` ... nil@, the action @a@ at the head
+-- of the stream is executed and the output of the action is supplied to the
+-- consumer. However, in addition to the action at the head multiple actions
+-- following it may also be executed concurrently and the results buffered.
+-- When the next element is demanded it may be served from the buffer and we
+-- may execute the next action in the sequence to keep the buffer adequately
+-- filled.  Thus, the actions are executed concurrently but results consumed in
+-- serial order just like serial streams.  `consM` can be used to fold an
+-- infinite lazy container of effects, as the number of concurrent executions
+-- is limited.
+--
+-- Similar to 'consM', the monadic stream generation (e.g. replicateM) and
+-- transformation operations (e.g. mapM) on speculative streams can execute
+-- multiple effects concurrently in a speculative manner.
+--
+-- How many effects can be executed concurrently and how many results can be
+-- buffered are controlled by 'maxThreads' and 'maxBuffer' combinators
+-- respectively.  The actual number of concurrent threads is adjusted according
+-- to the rate at which the consumer is consuming the stream. It may even
+-- execute actions serially in a single thread if that is enough to match the
+-- consumer's speed.
+--
+-- Speculative streams enforce ordering of the results of actions in the stream
+-- but the side effects are only partially ordered.  Therefore, the semigroup
+-- operation for speculative streams is not commutative from the pure outputs
+-- perspective but commutative from side effects perspective.
+
+-- $async
+--
+-- /Scheduling and execution:/ In an asynchronous stream @a \`consM` b \`consM`
+-- c ...@, the actions @a@, @b@, and @c@ are executed concurrently with the
+-- consumer of the stream.  The actions are /scheduled/ for execution in the
+-- same order as they are specified in the stream. Multiple scheduled actions
+-- may be /executed/ concurrently in parallel threads of execution.  The
+-- actions may be executed out of order and they may complete at arbitrary
+-- times.  Therefore, the /effects/ of the actions may be observed out of
+-- order.
+--
+-- /Buffering:/ The /results/ from multiple threads of execution are queued in
+-- a buffer as soon as they become available. The consumer of the stream is
+-- served from this buffer.  Therefore, the consumer may observe the results to
+-- be out of order.  In other words, an asynchronous stream is an unordered
+-- stream i.e.  order does not matter.
+--
+-- /Concurrency control:/ Threads are suspended if the `maxBuffer` limit is
+-- reached, and resumed when the consumer makes space in the buffer.  The
+-- maximum number of concurrent threads depends on `maxThreads`. Number of
+-- threads is increased or decreased based on the speed of the consumer.
+--
+-- /Generation operations:/ Concurrent stream generation operations e.g.
+-- 'Streamly.Prelude.replicateM' when used in async style schedule and execute
+-- the stream generating actions in the manner described above. The generation
+-- actions run concurrently, effects and results of the actions as observed by
+-- the consumer of the stream may be out of order.
+--
+-- /Transformation operations:/ Concurrent stream transformation operations
+-- e.g.  'Streamly.Prelude.mapM', when used in async style, schedule and
+-- execute transformation actions in the manner described above. Transformation
+-- actions run concurrently, effects and results of the actions may be
+-- observed by the consumer out of order.
+--
+-- /Variants:/ There are two asynchronous stream types 'AsyncT' and 'WAsyncT'.
+-- They are identical with respect to single stream evaluation behavior.  Their
+-- behaviors differ in how they combine multiple streams using 'Semigroup' or
+-- 'Monad' composition. Since the order of elements does not matter in
+-- asynchronous streams the 'Semigroup' operation is effectively commutative.
+
+-- $zipping
+--
+-- 'ZipSerialM' and 'ZipAsyncM', provide 'Applicative' instances for zipping the
+-- corresponding elements of two streams together. Note that these types are
+-- not monads.
+
 -- $rightfolds
 --
--- Let's take a closer look at the @foldr@ definition for lists, as given
+-- Let's take a closer look at the @foldr@ definition for lists, as given3
 -- earlier:
 --
 -- @
@@ -802,3 +996,67 @@ import Streamly.Internal.Data.Stream.IsStream
 -- @
 --  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 -- @
+
+-- $application
+--
+-- Stream processing functions can be composed in a chain using function
+-- application with or without the '$' operator, or with reverse function
+-- application operator '&'. Streamly provides concurrent versions of these
+-- operators applying stream processing functions such that each stage of the
+-- stream can run in parallel. The operators start with a @|@; we can read '|$'
+-- as "@parallel dollar@" to remember that @|@ comes before '$'.
+--
+-- Imports for the code snippets below:
+--
+-- @
+--  import qualified Streamly.Prelude as S
+--  import Control.Concurrent
+-- @
+
+-- $concurrency
+--
+-- These combinators can be used at any point in a stream composition to set
+-- parameters to control the concurrency of the /argument stream/.  A control
+-- parameter set at any point remains effective for any concurrent combinators
+-- used in the argument stream until it is reset by using the combinator again.
+-- These control parameters have no effect on non-concurrent combinators in the
+-- stream, or on non-concurrent streams.
+--
+-- /Pitfall:/ Remember that 'maxBuffer' in the following example applies to
+-- 'mapM' and any other combinators that may follow it, and it does not apply
+-- to the combinators before it:
+--
+-- @
+--  ...
+--  $ S.maxBuffer 10
+--  $ S.mapM ...
+--  ...
+-- @
+--
+-- If we use '&' instead of '$' the situation will reverse, in the following
+-- example, 'maxBuffer' does not apply to 'mapM', it applies to combinators
+-- that come before it, because those are the arguments to 'maxBuffer':
+--
+-- @
+--  ...
+--  & S.maxBuffer 10
+--  & S.mapM ...
+--  ...
+-- @
+
+-- $adapters
+--
+-- You may want to use different stream composition styles at different points
+-- in your program. Stream types can be freely converted or adapted from one
+-- type to another.  The 'IsStream' type class facilitates type conversion of
+-- one stream type to another. It is not used directly, instead the type
+-- combinators provided below are used for conversions.
+--
+-- To adapt from one monomorphic type (e.g. 'AsyncT') to another monomorphic
+-- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
+-- a specific interpretation or to adapt a specific type to a polymorphic type
+-- use the type specific combinators e.g. 'asyncly' or 'wSerially'. You
+-- cannot adapt polymorphic code to polymorphic code, as the compiler would not know
+-- which specific type you are converting from or to. If you see a an
+-- @ambiguous type variable@ error then most likely you are using 'adapt'
+-- unnecessarily on polymorphic code.

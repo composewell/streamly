@@ -23,7 +23,6 @@ import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
-import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PR
@@ -31,7 +30,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
-import Streamly hiding (runStream)
+import Streamly.Prelude (SerialT, MonadAsync, IsStream)
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
@@ -41,7 +40,7 @@ import Streamly.Benchmark.Common
 -- XXX these can be moved to the common module
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM :: (IsStream t, MonadAsync m) => Int -> Int -> t m Int
 sourceUnfoldrM value n = S.unfoldrM step n
     where
     step cnt =

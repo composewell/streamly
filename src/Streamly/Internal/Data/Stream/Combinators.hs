@@ -48,7 +48,9 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 -- When the actions are CPU bound this option can be used to
 -- control the amount of CPU used by the stream.
 --
--- @since 0.4.0
+-- /Since: 0.4.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE_NORMAL maxThreads #-}
 maxThreads :: IsStream t => Int -> t m a -> t m a
 maxThreads n m = mkStream $ \st stp sng yld ->
@@ -73,7 +75,9 @@ maxThreadsSerial _ = id
 -- applicative zip streams generates an infinite stream causing unbounded
 -- concurrent generation with no limit on the buffer or threads.
 --
--- @since 0.4.0
+-- /Since: 0.4.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE_NORMAL maxBuffer #-}
 maxBuffer :: IsStream t => Int -> t m a -> t m a
 maxBuffer n m = mkStream $ \st stp sng yld ->
@@ -97,7 +101,9 @@ maxBufferSerial _ = id
 -- * The maximum rate that the stream producer can achieve
 -- * The maximum rate that the stream consumer can achieve
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE_NORMAL rate #-}
 rate :: IsStream t => Maybe Rate -> t m a -> t m a
 rate r m = mkStream $ \st stp sng yld ->
@@ -126,7 +132,9 @@ yieldRateSerial _ = id
 -- go down to half of the specified rate on the lower side and double of
 -- the specified rate on the higher side.
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 avgRate :: IsStream t => Double -> t m a -> t m a
 avgRate r = rate (Just $ Rate (r/2) r (2*r) maxBound)
 
@@ -137,7 +145,9 @@ avgRate r = rate (Just $ Rate (r/2) r (2*r) maxBound)
 -- specified rate, even though it may possibly go above it at times, the
 -- upper limit is double of the specified rate.
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 minRate :: IsStream t => Double -> t m a -> t m a
 minRate r = rate (Just $ Rate r r (2*r) maxBound)
 
@@ -150,7 +160,9 @@ minRate r = rate (Just $ Rate r r (2*r) maxBound)
 -- applications where certain resource usage must not be allowed to go
 -- beyond certain limits.
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 maxRate :: IsStream t => Double -> t m a -> t m a
 maxRate r = rate (Just $ Rate (r/2) r r maxBound)
 
@@ -162,7 +174,9 @@ maxRate r = rate (Just $ Rate (r/2) r r maxBound)
 -- applications like graphics frame refresh where we need to maintain a
 -- constant refresh rate.
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 constRate :: IsStream t => Double -> t m a -> t m a
 constRate r = rate (Just $ Rate r r r 0)
 
