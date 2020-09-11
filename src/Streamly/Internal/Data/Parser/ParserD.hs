@@ -300,6 +300,7 @@ either parser = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 
+-- It will be inconsistent with other takeish combinators.
 -- This is takeLE
 -- | See 'Streamly.Internal.Data.Parser.take'.
 --
@@ -321,6 +322,7 @@ takeEQ cnt (Fold step initial extract) = Parser step' initial' extract'
     where
 
     n = max cnt 0
+
     initial' = Tuple' 0 <$> initial
 
     step' (Tuple' i r) a

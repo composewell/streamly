@@ -468,7 +468,7 @@ foldlMx' fstep begin done (Stream step state) =
         case r of
             Yield x s -> do
                 acc' <- fstep acc x
-                go SPEC acc'  s
+                go SPEC acc' s
             Skip s -> go SPEC acc s
             Stop   -> done acc
 
@@ -686,6 +686,7 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
 
+-- XXX Investigate performance
 {-# INLINE groupsOf #-}
 groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
 groupsOf n fld = foldMany (FL.ltake n fld)

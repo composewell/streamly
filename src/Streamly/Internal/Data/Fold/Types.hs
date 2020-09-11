@@ -134,7 +134,6 @@ module Streamly.Internal.Data.Fold.Types
     , ltake
     , ltakeWhile
 
-    , distributiveAp
     , teeWith
     , teeWithFst
     , teeWithMin
@@ -155,7 +154,6 @@ module Streamly.Internal.Data.Fold.Types
     )
 where
 
-import Data.Bifunctor (Bifunctor(..))
 import Control.Applicative (liftA2)
 import Control.Concurrent (threadDelay, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
@@ -163,6 +161,7 @@ import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
+import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -301,7 +300,7 @@ instance Monad m => Applicative (Fold m a) where
     pure b = Fold (\() _ -> pure $ Done b) (pure ()) (\() -> pure b)
     -- XXX deprecate this?
     {-# INLINE (<*>) #-}
-    (<*>) = distributiveAp
+    (<*>) = teeWith ($)
 
 -- | @teeWith f f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @f@.
@@ -384,10 +383,6 @@ teeWithFst = undefined
 {-# INLINE teeWithMin #-}
 teeWithMin :: (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
 teeWithMin = undefined
-
-{-# INLINE distributiveAp #-}
-distributiveAp :: Monad m => Fold m a (b -> c) -> Fold m a b -> Fold m a c
-distributiveAp = teeWith ($)
 
 -- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
 -- instances.
@@ -634,11 +629,11 @@ ltakeWhile predicate (Fold fstep finitial fextract) =
 {-# INLINABLE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
 duplicate (Fold step begin done) =
-    Fold step' begin (\x -> pure (Fold step (pure x) done))
+    Fold step1 begin (\x -> pure (Fold step (pure x) done))
 
     where
 
-    step' x a = do
+    step1 x a = do
         res <- step x a
         -- XXX Discuss about initial element
         case res of
@@ -733,7 +728,7 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
             Done x -> return x
             Done1 x -> return x
 
-data GroupByState a s = GroupByN !s | GroupByJ !a !s
+data GroupByState a s = GroupByInit !s | GroupByGrouping !a !s
 
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a b
@@ -741,16 +736,16 @@ groupBy cmp (Fold fstep finitial fextract) = Fold step initial extract
 
     where
 
-    initial = GroupByN <$> finitial
+    initial = GroupByInit <$> finitial
 
-    step (GroupByN s) a = do
+    step (GroupByInit s) a = do
         res <- fstep s a
         return $
             case res of
                 Done bres -> Done bres
                 Done1 bres -> Done1 bres
-                Partial sres -> Partial (GroupByJ a sres)
-    step (GroupByJ a0 s) a =
+                Partial sres -> Partial (GroupByGrouping a sres)
+    step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then do
             res <- fstep s a
@@ -758,11 +753,11 @@ groupBy cmp (Fold fstep finitial fextract) = Fold step initial extract
                 case res of
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
-                    Partial sres -> Partial (GroupByJ a0 sres)
+                    Partial sres -> Partial (GroupByGrouping a0 sres)
         else Done1 <$> fextract s
 
-    extract (GroupByN s) = fextract s
-    extract (GroupByJ _ s) = fextract s
+    extract (GroupByInit s) = fextract s
+    extract (GroupByGrouping _ s) = fextract s
 
 {-# INLINE groupByRolling #-}
 groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a b
@@ -770,16 +765,16 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
 
     where
 
-    initial = GroupByN <$> finitial
+    initial = GroupByInit <$> finitial
 
-    step (GroupByN s) a = do
+    step (GroupByInit s) a = do
         res <- fstep s a
         return $
             case res of
                 Done bres -> Done bres
                 Done1 bres -> Done1 bres
-                Partial sres -> Partial (GroupByJ a sres)
-    step (GroupByJ a0 s) a =
+                Partial sres -> Partial (GroupByGrouping a sres)
+    step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then do
             res <- fstep s a
@@ -787,11 +782,11 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
                 case res of
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
-                    Partial sres -> Partial (GroupByJ a sres)
+                    Partial sres -> Partial (GroupByGrouping a sres)
         else Done1 <$> fextract s
 
-    extract (GroupByN s) = fextract s
-    extract (GroupByJ _ s) = fextract s
+    extract (GroupByInit s) = fextract s
+    extract (GroupByGrouping _ s) = fextract s
 
 -- | For every n input items, apply the first fold and supply the result to the
 -- next fold.
@@ -878,6 +873,18 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
     handleChildException :: MVar Bool -> SomeException -> IO ()
     handleChildException mv _ = void $ swapMVar mv True
 
+-- | Group the input stream into windows of n second each and then fold each
+-- group using the provided fold function.
+--
+-- For example, we can copy and distribute a stream to multiple folds where
+-- each fold can group the input differently e.g. by one second, one minute and
+-- one hour windows respectively and fold each resulting stream of folds.
+--
+-- @
+--
+-- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
+--
+-- @
 {-# INLINE lsessionsOf #-}
 lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
 lsessionsOf n split collect = many collect (takeByTime n split)
