@@ -17,7 +17,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import Streamly
+import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common

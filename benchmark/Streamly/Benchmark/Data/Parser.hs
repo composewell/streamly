@@ -24,14 +24,13 @@ import Prelude
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
-import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
-import Streamly hiding (runStream)
+import Streamly.Prelude (SerialT)
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
@@ -52,7 +51,7 @@ sourceUnfoldrM value n = S.unfoldrM step n
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
-    :: (IsStream t, NFData b)
+    :: (S.IsStream t, NFData b)
     => Int -> String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value

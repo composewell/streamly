@@ -48,7 +48,7 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Prelude as S
 
-import Streamly
+import Streamly.Prelude (SerialT)
 import Gauge
 
 -------------------------------------------------------------------------------

@@ -228,7 +228,6 @@ data WorkerInfo = WorkerInfo
     , workerLatencyStart  :: IORef (Count, AbsTime)
     }
 
-
 -- | Specifies the stream yield rate in yields per second (@Hertz@).
 -- We keep accumulating yield credits at 'rateGoal'. At any point of time we
 -- allow only as many yields as we have accumulated as per 'rateGoal' since the
@@ -248,7 +247,9 @@ data WorkerInfo = WorkerInfo
 -- If the 'rateGoal' is 0 or negative the stream never yields a value.
 -- If the 'rateBuffer' is 0 or negative we do not attempt to recover.
 --
--- @since 0.5.0
+-- /Since: 0.5.0 ("Streamly")/
+--
+-- @since 0.8.0
 data Rate = Rate
     { rateLow    :: Double -- ^ The lower rate limit
     , rateGoal   :: Double -- ^ The target rate we want to achieve
@@ -897,11 +898,15 @@ withDiagMVar sv label action =
 -- Spawning threads
 ------------------------------------------------------------------------------
 
+-- /Since: 0.8.0 ("Streamly.Prelude")/
+--
 -- | A monad that can perform concurrent or parallel IO operations. Streams
 -- that can be composed concurrently require the underlying monad to be
 -- 'MonadAsync'.
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 -- When we run computations concurrently, we completely isolate the state of

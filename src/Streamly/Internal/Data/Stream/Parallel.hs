@@ -249,7 +249,9 @@ infixr 6 `parallel`
 --
 -- `nilM` is currently @Internal@.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallel = joinStreamVarPar ParallelVar StopNone
@@ -451,7 +453,7 @@ distributeAsync_ = flip (foldr tapAsync)
 -- efficient than 'ParallelT'.
 --
 -- @
--- main = ('toList' . 'parallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- main = (S.'toList' . S.'parallely' $ (S.fromFoldable [1,2]) \<> (S.fromFoldable [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -471,11 +473,10 @@ distributeAsync_ = flip (foldr tapAsync)
 -- of the loop concurrently.
 --
 -- @
--- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = 'drain' . 'parallely' $ do
+-- main = S.'drain' . S.'parallely' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -490,21 +491,27 @@ distributeAsync_ = flip (foldr tapAsync)
 -- Note that parallel composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
+-- /Since: 0.1.0 ("Streamly")/
+--
 -- /Since: 0.7.0 (maxBuffer applies to ParallelT streams)/
 --
--- /Since: 0.1.0/
+-- @since 0.8.0
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
     deriving (MonadTrans)
 
 -- | A parallely composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.
 --
--- @since 0.2.0
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 type Parallel = ParallelT IO
 
 -- | Fix the type of a polymorphic stream as 'ParallelT'.
 --
--- @since 0.1.0
+-- /Since: 0.1.0 ("Streamly")/
+--
+-- @since 0.8.0
 parallely :: IsStream t => ParallelT m a -> t m a
 parallely = adapt
 

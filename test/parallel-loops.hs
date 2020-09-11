@@ -1,7 +1,7 @@
 import Control.Concurrent (myThreadId, threadDelay)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
-import Streamly
+import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
 main :: IO ()

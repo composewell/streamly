@@ -21,7 +21,6 @@ import Control.Monad.IO.Class (MonadIO)
 import Prelude (Bool, Int, Maybe(..), ($), (+), (.), (==), (>), undefined)
 
 import qualified Prelude as P
-import qualified Streamly as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude as S
 
 #ifndef DATA_PRIM_ARRAY

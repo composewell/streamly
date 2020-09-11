@@ -16,11 +16,13 @@ import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..))
 import Control.Exception (try)
 import Data.Functor.Identity (Identity)
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup (Semigroup((<>)))
+#endif
 import GHC.Exception (ErrorCall)
 import System.Random (randomRIO)
 
 import qualified Data.Foldable as F
-import qualified Streamly as S
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -293,21 +295,21 @@ transformZipMapM t n =
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
+sourceFoldMapWith :: (S.IsStream t, Semigroup (t m Int))
     => Int -> Int -> t m Int
-sourceFoldMapWith value n = S.foldMapWith (S.<>) S.yield [n..n+value]
+sourceFoldMapWith value n = S.concatMapFoldableWith (<>) S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithStream #-}
-sourceFoldMapWithStream :: (S.IsStream t, S.Semigroup (t m Int))
+sourceFoldMapWithStream :: (S.IsStream t, Semigroup (t m Int))
     => Int -> Int -> t m Int
-sourceFoldMapWithStream value n = S.foldMapWith (S.<>) S.yield
+sourceFoldMapWithStream value n = S.concatMapFoldableWith (<>) S.yield
     $ (S.enumerateFromTo n (n + value) :: S.SerialT Identity Int)
 
 {-# INLINE sourceFoldMapWithM #-}
-sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
+sourceFoldMapWithM :: (S.IsStream t, Monad m, Semigroup (t m Int))
     => Int -> Int -> t m Int
 sourceFoldMapWithM value n =
-    S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+    S.concatMapFoldableWith (<>) (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceFoldMapM #-}
 sourceFoldMapM :: (S.IsStream t, Monad m, Monoid (t m Int))

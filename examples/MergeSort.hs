@@ -10,7 +10,7 @@ import Data.Word
 import System.Random (getStdGen, randoms)
 import Data.List (sort)
 
-import Streamly
+import Streamly.Prelude (Serial)
 import qualified Streamly.Prelude as S
 
 getSorted :: Serial Word16

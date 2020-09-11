@@ -242,7 +242,7 @@ import Prelude
 -- import qualified Data.Map.Strict as Map
 -- import qualified Prelude
 
--- import Streamly (MonadAsync, parallel)
+-- import Streamly.Prelude (MonadAsync, parallel)
 -- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)

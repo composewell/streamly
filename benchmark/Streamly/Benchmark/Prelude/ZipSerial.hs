@@ -21,8 +21,7 @@
 
 import Prelude hiding (zip)
 
-import Streamly (zipSerially)
-import qualified Streamly as S
+import Streamly.Prelude (MonadAsync)
 import qualified Streamly.Prelude  as S
 
 import Streamly.Benchmark.Common
@@ -47,7 +46,7 @@ moduleName = "Prelude.ZipSerial"
 -- XXX somehow copying this definition here instead of importing it performs
 -- better. Need to investigate why.
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM :: (S.IsStream t, MonadAsync m) => Int -> Int -> t m Int
 sourceUnfoldrM count start = S.unfoldrM step start
     where
     step cnt =
@@ -100,7 +99,7 @@ o_1_space_joining value =
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "fmap" $ fmapN zipSerially 1
+        [ benchIOSink value "fmap" $ fmapN S.zipSerially 1
         ]
     ]
 
@@ -113,7 +112,7 @@ o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
         -- XXX needs fixing
-        [ benchIO "toNullAp" $ toNullAp value zipSerially
+        [ benchIO "toNullAp" $ toNullAp value S.zipSerially
         ]
     ]
 -}
@@ -140,4 +139,3 @@ main = do
             -- , o_1_space_outerProduct size
             ]
         ]
-

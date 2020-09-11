@@ -87,7 +87,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly (MonadAsync)
+import Streamly.Prelude (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), lpackArraysChunksOf)
 import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (mutableArray)

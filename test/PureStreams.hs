@@ -4,15 +4,17 @@
 
 module Main (main) where
 
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup ((<>))
+#endif
 import Test.Hspec
 import qualified GHC.Exts as GHC
-
-import Streamly
 
 #ifdef USE_STREAMLY_LIST
 import Data.Functor.Identity
 import Streamly.Internal.Data.List (List(..), pattern Cons, pattern Nil, ZipList(..),
                      fromZipList, toZipList)
+import Streamly.Prelude (SerialT)
 import qualified Streamly.Prelude as S
 #else
 import Prelude -- to suppress compiler warning

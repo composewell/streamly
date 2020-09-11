@@ -10,7 +10,7 @@ import Control.Concurrent
 import Control.Monad (when, replicateM)
 
 import Gauge
-import Streamly
+import Streamly.Prelude hiding (mapM_, replicateM)
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------

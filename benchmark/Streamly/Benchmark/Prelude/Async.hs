@@ -7,7 +7,7 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (asyncly, async, maxBuffer, maxThreads, serially)
+import Streamly.Prelude (asyncly, async, maxBuffer, maxThreads, serially)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as Internal
 

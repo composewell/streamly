@@ -18,8 +18,9 @@ module Streamly.Internal.Unicode.Array.Prim.Pinned
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly (IsStream, MonadAsync)
+import Streamly.Prelude (MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
+import Streamly.Internal.Data.Stream.IsStream (IsStream)
 import Streamly.Internal.Data.Array.Prim.Pinned (Array)
 
 import qualified Streamly.Internal.Unicode.Stream as S
