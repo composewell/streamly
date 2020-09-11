@@ -1841,8 +1841,8 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r GO_DONE
     stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask_ .&. wrd
+            mask1 = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask1 .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
@@ -2182,8 +2182,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
     stepOuter _ (GO_SHORT_PAT_YIELD_SEP n fs s wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask_ .&. wrd
+            mask1 = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask1 .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
@@ -2202,8 +2202,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r GO_DONE
     stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask_ .&. wrd
+            mask1 = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask1 .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
