@@ -43,7 +43,7 @@ import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)    
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr) 
-import Streamly (SerialT, parallel)
+import Streamly.Prelude (SerialT, parallel)
 import System.Win32.File (
                             FileNotificationFlag
                           , LPOVERLAPPED
