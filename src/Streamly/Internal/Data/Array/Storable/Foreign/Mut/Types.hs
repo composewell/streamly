@@ -1149,9 +1149,13 @@ writeNUnsafe n = Fold step initial extract
     initial = do
         (Array start end _) <- liftIO $ newArray (max n 0)
         return $ ArrayUnsafe start end
+
     step (ArrayUnsafe start end) x = do
         liftIO $ poke end x
-        return $ FL.Partial $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+        return
+          $ FL.Partial
+          $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+
     extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
