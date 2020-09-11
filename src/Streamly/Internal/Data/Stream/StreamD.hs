@@ -1841,8 +1841,8 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r GO_DONE
     stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask .&. wrd
+            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask_ .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
@@ -2014,8 +2014,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
         else if patLen == 1
              then do
                  acc <- initial
-                 pat <- liftIO $ A.unsafeIndexIO patArr 0
-                 return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat
+                 pat_ <- liftIO $ A.unsafeIndexIO patArr 0
+                 return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat_
              else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT_ACCUM 0 state (0 :: Word)
@@ -2051,53 +2051,53 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
     -- XXX These functions cab be designed in a better way? Get rid of go and
     -- have more info in the state but you would be relying on GHC for
     -- simplification.
-    stepOuter gst (GO_SINGLE_PAT_BEGIN st pat) = do
+    stepOuter gst (GO_SINGLE_PAT_BEGIN st pat_) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 ini <- initial
-                return $ Skip $ GO_SINGLE_PAT_WITH ini s pat x
-            Skip s -> return $ Skip $ GO_SINGLE_PAT_BEGIN s pat
+                return $ Skip $ GO_SINGLE_PAT_WITH ini s pat_ x
+            Skip s -> return $ Skip $ GO_SINGLE_PAT_BEGIN s pat_
             Stop -> return Stop
-    stepOuter _ (GO_SINGLE_PAT_WITH fs s pat x) =
+    stepOuter _ (GO_SINGLE_PAT_WITH fs s pat_ x) =
         if withSep
         then do
             res <- fstep fs x
             case res of
                 FL.Partial sres ->
-                    if pat == x
+                    if pat_ == x
                     then do
                         r <- done sres
-                        return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_BEGIN s pat)
-                    else return $ Skip $ (GO_SINGLE_PAT_NEXT sres s pat)
+                        return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_BEGIN s pat_)
+                    else return $ Skip $ (GO_SINGLE_PAT_NEXT sres s pat_)
                 FL.Done bres ->
-                    return $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_BEGIN s pat)
+                    return $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_BEGIN s pat_)
                 FL.Done1 bres -> do
                     ini <- initial
                     return
-                      $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_WITH ini s pat x)
-        else if pat == x
+                      $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_WITH ini s pat_ x)
+        else if pat_ == x
              then do
                  r <- done fs
-                 return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_BEGIN s pat)
+                 return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_BEGIN s pat_)
              else do
                  res <- fstep fs x
                  case res of
                      FL.Partial sres ->
-                         return $ Skip $ (GO_SINGLE_PAT_NEXT sres s pat)
+                         return $ Skip $ (GO_SINGLE_PAT_NEXT sres s pat_)
                      FL.Done bres ->
                          return
-                           $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_BEGIN s pat)
+                           $ Skip $ GO_YIELD bres (GO_SINGLE_PAT_BEGIN s pat_)
                      FL.Done1 bres -> do
                          ini <- initial
                          return
                            $ Skip
-                           $ GO_YIELD bres (GO_SINGLE_PAT_WITH ini s pat x)
-    stepOuter gst (GO_SINGLE_PAT_NEXT fs st pat) = do
+                           $ GO_YIELD bres (GO_SINGLE_PAT_WITH ini s pat_ x)
+    stepOuter gst (GO_SINGLE_PAT_NEXT fs st pat_) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat x
-            Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat
+            Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat_ x
+            Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat_
             Stop -> do
                 r <- done fs
                 return $ Skip $ GO_YIELD r GO_DONE
@@ -2182,8 +2182,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
     stepOuter _ (GO_SHORT_PAT_YIELD_SEP n fs s wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask .&. wrd
+            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask_ .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
@@ -2202,8 +2202,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
         return $ Skip $ GO_YIELD r GO_DONE
     stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
         let old = wrd `shiftR` (elemBits * (n - 1))
-            mask = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask .&. wrd
+            mask_ = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask_ .&. wrd
         fres <- fstep fs (toEnum $ fromIntegral old)
         case fres of
             FL.Partial sres ->
