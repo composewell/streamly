@@ -8,26 +8,21 @@
 -- Portability : GHC
 --
 -- Just report all events under the paths provided as arguments
-{-# LANGUAGE CPP #-}
 module Main (main) where
 
-
 import Data.Function ((&))
-
 import System.Environment (getArgs)
 import Streamly.Prelude (SerialT)
-
+import Data.List.NonEmpty (NonEmpty)
 #if !defined(CABAL_OS_WINDOWS)   
 import Control.Monad.IO.Class (MonadIO)    
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty)
 import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
 import Data.Word (Word8)
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 #endif
 
-
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #if defined(CABAL_OS_DARWIN)
 import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
@@ -48,7 +43,7 @@ toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
 -- Main
 -------------------------------------------------------------------------------
 #if defined(CABAL_OS_WINDOWS)
-watchPaths :: [FilePath] -> SerialT IO Event.Event
+watchPaths :: NonEmpty FilePath -> SerialT IO Event.Event
 watchPaths = Event.watchTrees
 #elif defined(CABAL_OS_DARWIN)
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event    
@@ -58,13 +53,11 @@ watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event
 watchPaths = Event.watchPaths
 #endif
 
-
-
 #if defined(CABAL_OS_WINDOWS)
 main :: IO ()
 main = do
     args <- getArgs   
-    watchPaths args 
+    watchPaths (NonEmpty.fromList args) 
         & Stream.mapM_ (putStrLn . Event.showEvent)
 
 #else    

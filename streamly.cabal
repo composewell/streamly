@@ -223,7 +223,7 @@ common compile-options
     if os(linux)
       cpp-options:    -DCABAL_OS_LINUX
 
-    if os(mingw32)
+    if os(windows)
       cpp-options:    -DCABAL_OS_WINDOWS  
 
     if flag(streamk)
