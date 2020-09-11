@@ -20,6 +20,7 @@ import Prelude (IO, Int, Double, String, (>), (<$>), (+), ($),
 
 import Data.Map.Strict (Map)
 import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Stream.IsStream (SerialT)
 
 import qualified Data.Map.Strict as Map
 
