@@ -164,14 +164,14 @@ setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
 -- /Internal/
 --
 setAllEvents :: Toggle -> Config -> Config
-setAllEvents s cfg =
+setAllEvents s =
     ( setModifiedFileName s
     . setModifiedDirName s
     . setModifiedAttribute s
     . setModifiedSize s
     . setModifiedLastWrite s
     . setModifiedSecurity s
-    ) cfg
+    )
 
 defaultConfig :: Config
 defaultConfig = setAllEvents On $ Config { watchRec = True, createFlags = 0 }
