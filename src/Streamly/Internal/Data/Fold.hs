@@ -530,15 +530,27 @@ length = genericLength
 sum :: (Monad m, Num a) => Fold m a a
 sum = Fold (\x a -> return $ Partial $ x + a) (return 0) return
 
+-- XXX Have a terminating condition here if `a == 0`
 -- | Determine the product of all elements of a stream of numbers. Returns
--- multiplicative identity (@1@) when the stream is empty.
+-- multiplicative identity (@1@) when the stream is empty. The fold terminates
+-- when it encounters (@0@) in its input.
 --
 -- > product = fmap getProduct $ FL.foldMap Product
 --
 -- @since 0.7.0
-{-# INLINABLE product #-}
-product :: (Monad m, Num a) => Fold m a a
-product = Fold (\x a -> return $ Partial $ x * a) (return 1) return
+{-# INLINE product #-}
+product :: (Monad m, Num a, Eq a) => Fold m a a
+product = Fold step (return 1) return
+
+    where
+
+    step x a =
+        return
+          $ if a == 0
+            then Done 0
+            else Partial $ x * a
+
+
 
 ------------------------------------------------------------------------------
 -- To Summary (Maybe)
@@ -548,7 +560,7 @@ product = Fold (\x a -> return $ Partial $ x * a) (return 1) return
 -- function.
 --
 -- @since 0.7.0
-{-# INLINABLE maximumBy #-}
+{-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
 maximumBy cmp = _Fold1 max'
 
@@ -569,14 +581,14 @@ maximumBy cmp = _Fold1 max'
 -- Compare with @FL.foldMap Max@.
 --
 -- @since 0.7.0
-{-# INLINABLE maximum #-}
+{-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
 maximum = _Fold1 max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
 -- @since 0.7.0
-{-# INLINABLE minimumBy #-}
+{-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
 minimumBy cmp = _Fold1 min'
 
@@ -597,7 +609,7 @@ minimumBy cmp = _Fold1 min'
 -- Compare with @FL.foldMap Min@.
 --
 -- @since 0.7.0
-{-# INLINABLE minimum #-}
+{-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
 minimum = _Fold1 min
 

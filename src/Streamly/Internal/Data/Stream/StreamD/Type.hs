@@ -686,6 +686,7 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
 
+-- XXX Investigate performance
 {-# INLINE groupsOf #-}
 groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
 groupsOf n fld = foldMany (FL.ltake n fld)
