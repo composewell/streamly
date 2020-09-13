@@ -694,7 +694,7 @@ manyTill (Fold fstep finitial fextract)
                         return $ Partial n (ManyTillR 0 fs1 l)
                     FL.Done fb -> return $ Done n fb
                     -- Keep a count of elements
-                    FL.Done1 fb -> error "Done1 nore supported in manyTill"
+                    FL.Done1 _ -> error "Done1 nore supported in manyTill"
             Error err -> return $ Error err
 
     extract (ManyTillL _ fs sR) = do
