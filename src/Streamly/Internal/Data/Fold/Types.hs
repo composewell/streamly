@@ -155,7 +155,6 @@ module Streamly.Internal.Data.Fold.Types
     )
 where
 
-import Data.Bifunctor (Bifunctor(..))
 import Control.Applicative (liftA2)
 import Control.Concurrent (threadDelay, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
@@ -163,6 +162,7 @@ import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
+import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))

@@ -4653,7 +4653,7 @@ data SessionState t m k a b = SessionState
 #undef Type
 
 -- XXX Perhaps we should use an "Event a" type to represent timestamped data.
--- XXX I've replaced it with the most natural implementation. Check logic.
+-- XXX Recheck this!
 -- | @classifySessionsBy tick timeout idle pred f stream@ groups timestamped
 -- events in an input event stream into sessions based on a session key. Each
 -- element in the input stream is an event consisting of a triple @(session key,

@@ -1532,7 +1532,6 @@ groupsRollingBy cmp f = foldMany (FL.groupByRolling cmp f)
 splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitBy predicate f = foldMany (FL.sliceSepBy predicate f)
 
--- XXX requires -funfolding-use-threshold=150 in lines-unlines benchmark
 {-# INLINE_NORMAL splitSuffixBy #-}
 splitSuffixBy :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -1544,11 +1543,11 @@ data WordsByState fs s a b
     | WordBeginWith !s !a
     | WordFold !fs !s
 
-{-# INLINE_NORMAL wordsBy #-}
-wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 -- This has a hard time fusing even with simple pipeline.
 -- wordsBy predicate f = foldMany (FL.sliceSepTill predicate f)
 -- XXX Check this
+{-# INLINE_NORMAL wordsBy #-}
+wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsBy predicate (Fold fstep initial done) (Stream step state) =
     Stream step1 (WordBegin state)
 
@@ -3943,9 +3942,9 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
             r <- step gst st
             case r of
                 Yield x s -> do
-                    acc' <- fstep acc x
+                    acc1 <- fstep acc x
                     return
-                      $ case acc' of
+                      $ case acc1 of
                             FL.Partial sres -> Yield x (Tapping sres s)
                             FL.Done _ -> Yield x (TapDone s)
                             FL.Done1 _ -> Yield x (TapDone s)
@@ -3981,9 +3980,9 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
             r <- step gst st
             case r of
                 Yield x s -> do
-                    acc' <- fstep acc x
+                    acc1 <- fstep acc x
                     return
-                      $ case acc' of
+                      $ case acc1 of
                             FL.Partial sres ->
                                 Yield x (TapOffTapping sres s (n - 1))
                             FL.Done _ -> Yield x (TapOffDone s)

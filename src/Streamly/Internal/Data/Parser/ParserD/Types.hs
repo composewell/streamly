@@ -469,8 +469,8 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
-    -- XXX The "try" may impact performance if this parser is used as a scan
 
+    -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ fs) = do
         r <- try $ extract1 s
         case r of

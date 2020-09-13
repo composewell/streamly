@@ -400,7 +400,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     initial = Tuple' pinitial <$> finitial
     errorMsgOnDone1 =
-        "Only only accumulators or folds not returning Done1 are supported by this operation."
+        "Only folds not returning Done1 are supported by this operation."
 
     step (Tuple' ps fs) x = do
         r <- pstep1 ps x
@@ -786,7 +786,8 @@ foldMapM act = Fold step begin done
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Data.Array.Storable.Foreign" instead.
+-- very inefficient, consider using "Streamly.Data.Array.Storable.Foreign"
+-- instead.
 --
 -- @since 0.7.0
 
@@ -1315,6 +1316,8 @@ foldCons f1 f2 = teeWith (:) f1 f2
 -- number of consumers? For polymorphic case a vector could be helpful. For
 -- Storables we can use arrays. Will need separate APIs for those.
 --
+--XXX This fold terminates when all the folds terminate?
+--
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
 --
@@ -1355,7 +1358,8 @@ toUnitState (Done1 _) = Done1 ()
 
 -- XXX This is 2x times faster wiithout the terminating condition.
 -- | Like 'distribute' but for folds that return (), this can be more efficient
--- than 'distribute' as it does not need to maintain state.
+-- than 'distribute' as it does not need to maintain state. This fold terminates
+-- when all the folds terminate.
 --
 {-# INLINE distribute_ #-}
 distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
@@ -1461,17 +1465,19 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
             Left b -> do
                 res <- stepL sL b
                 return
+                  $ Partial
                   $ case res of
-                        Partial sres -> Partial $ RunBoth sres sR
-                        Done bres -> Partial $ RunRight bres sR
-                        Done1 bres -> Partial $ RunRight bres sR
+                        Partial sres -> RunBoth sres sR
+                        Done bres -> RunRight bres sR
+                        Done1 bres -> RunRight bres sR
             Right c -> do
                 res <- stepR sR c
                 return
+                  $ Partial
                   $ case res of
-                        Partial sres -> Partial $ RunBoth sL sres
-                        Done bres -> Partial $ RunLeft sL bres
-                        Done1 bres -> Partial $ RunLeft sL bres
+                        Partial sres -> RunBoth sL sres
+                        Done bres -> RunLeft sL bres
+                        Done1 bres -> RunLeft sL bres
     step (RunLeft sL bR) a = do
         r <- f a
         case r of
@@ -2050,13 +2056,13 @@ toParallelSVar svar winfo = Fold step initial extract
 
     initial = return ()
 
+    -- XXX we can have a separate fold for unlimited buffer case to avoid a
+    -- branch in the step here.
     step () x =
         liftIO $ do
             decrementBufferLimit svar
             void $ send svar (ChildYield x)
             return $ FL.Partial ()
-    -- XXX we can have a separate fold for unlimited buffer case to avoid a
-    -- branch in the step here.
 
     extract () = liftIO $ sendStop svar winfo
 
