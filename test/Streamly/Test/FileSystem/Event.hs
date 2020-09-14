@@ -36,7 +36,7 @@ import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
 -------------------------------------------------------------------------------
 
 toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
+toUtf8 = Array.fromStream . Unicode.encodeUtf8' . Stream.fromList
 
 -------------------------------------------------------------------------------
 -- Main

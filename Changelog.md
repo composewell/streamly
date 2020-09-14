@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Enhancements
+
+* New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
+  are added, these routines fail when they encounter any invalid characters.
+
 ### Breaking changes
 
 * Deprecate `Streamly.Memory.Array` in favor of `Streamly.Data.Array.Storable.Foreign`
@@ -14,6 +19,12 @@
   constraint.
 * Change the associativity of combinators `serial`, `wSerial`,
   `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
+* `encodeUtf8`, `decodeUtf8` now replace any invalid character encountered
+  during encoding/decoding with the Unicode replacement character. Use
+  `encodeUtf8'`, `decodeUtf8'` to recover the previous functionality.
+* `encodeLatin1` now silently truncates any character beyond 255 to incorrect
+  characters in the input stream. Use `encodeLatin1'` to recover previous
+  functionality.
 * Drop support for GHC 7.10.3.
 
 ### Bug Fixes
@@ -33,9 +44,13 @@
 * The `Streamly` module is now deprecated, its functionality is subsumed
   by `Streamly.Prelude`.
 * Some functions from `Streamly` module have been renamed in `Streamly.Prelude` module:
-    * `foldWith` has been replaced by `concatFoldableWith`
-    * `foldMapWith` has been replaced by `concatMapFoldableWith`
-    * `forEachWith` has been replaced by `concatForFoldableWith`
+    * `foldWith` to `concatFoldableWith`
+    * `foldMapWith` to `concatMapFoldableWith`
+    * `forEachWith` to `concatForFoldableWith`
+* The following encoding/decoding routines have been renamed:
+    * `encodeUtf8Lax` to `encodeUtf8`
+    * `encodeLatin1Lax` to `encodeLatin1`
+    * `decodeUtf8Lenient` to `decodeUtf8`
 
 ## 0.7.2
 

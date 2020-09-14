@@ -552,7 +552,7 @@ foreign import ccall unsafe
         :: CInt -> CString -> CUInt -> IO CInt
 
 utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.toList . U.decodeUtf8 . A.toStream
+utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
 
 #if !MIN_VERSION_base(4,10,0)
 -- | Turn an existing Handle into a file descriptor. This function throws an

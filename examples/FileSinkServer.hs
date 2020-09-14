@@ -23,7 +23,7 @@ main = do
     file <- fmap head getArgs
     withFile file AppendMode
         (\src -> S.fold (FH.write src)
-        $ encodeLatin1Lax
+        $ encodeLatin1
         $ S.concatUnfold A.read
         $ S.concatMapWith S.parallel use
         $ S.unfold TCP.acceptOnPort 8090)
