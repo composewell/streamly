@@ -455,14 +455,19 @@ sliceSepByMax =
 
 many :: Property
 many =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        let
-            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
-            prsr = P.many concatFold $ P.sliceSepBy (== 1) FL.toList
-        in
-            case S.parse prsr (S.fromList ls) of
-                Right res_list -> checkListEqual res_list (Prelude.filter (== 0) ls)
-                Left _ -> property False
+    forAll (listOf (chooseInt (0, 1)))
+      $ \ls ->
+            let concatFold =
+                    FL.Fold
+                        (\concatList curr_list ->
+                             return $ FL.Partial $ concatList ++ curr_list)
+                        (return [])
+                        return
+                prsr = P.many concatFold $ P.sliceSepBy (== 1) FL.toList
+             in case S.parse prsr (S.fromList ls) of
+                    Right res_list ->
+                        checkListEqual res_list (Prelude.filter (== 0) ls)
+                    Left _ -> property False
 
 -- many_empty :: Property
 -- many_empty =
@@ -472,15 +477,19 @@ many =
 
 some :: Property
 some =
-    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
-        let
-            ls = 0 : genLs
-            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
-            prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
-        in
-            case S.parse prsr (S.fromList ls) of
-                Right res_list -> res_list == Prelude.filter (== 0) ls
-                Left _ -> False
+    forAll (listOf (chooseInt (0, 1)))
+      $ \genLs ->
+            let ls = 0 : genLs
+                concatFold =
+                    FL.Fold
+                        (\concatList curr_list ->
+                             return $ FL.Partial $ concatList ++ curr_list)
+                        (return [])
+                        return
+                prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
+             in case S.parse prsr (S.fromList ls) of
+                    Right res_list -> res_list == Prelude.filter (== 0) ls
+                    Left _ -> False
 
 -- someFail :: Property
 -- someFail =
