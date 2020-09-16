@@ -500,6 +500,7 @@ library
 
                      -- Serialization/deserialization in binary format
                      , Streamly.Internal.Data.Binary.Decode
+                     , Streamly.Internal.Data.Json.Stream
 
                      -- Deprecated
                      , Streamly.Data.Unicode.Stream

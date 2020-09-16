@@ -29,14 +29,14 @@ import qualified Data.Scientific as Sci
 import Streamly.Internal.Data.Parser.ParserD (Parser)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Strict (Tuple' (..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unicode.Stream as Uni
+import qualified Streamly.Internal.Unicode.Stream as Uni
 import qualified Streamly.Data.Fold as FL
 
 #define BACKSLASH 92
@@ -185,7 +185,7 @@ parseJsonString = do
     w <- P.peek
     case w of
         DOUBLE_QUOTE -> skip 1 >> return s
-        BACKSLASH -> fmap (s <>) escapeParseJsonString
+        BACKSLASH -> (fmap (s <>) escapeParseJsonString) <* skip 1
         _ -> do
             P.die $ [(chr . fromIntegral) w] ++ " : String without end."
 

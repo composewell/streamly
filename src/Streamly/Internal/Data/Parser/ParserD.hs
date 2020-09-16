@@ -517,7 +517,7 @@ sepBy (Fold fstep finitial fextract) (Parser pstep pinitial pextract)
             Done n b -> do
                 pseps <- psepinitial
                 fs <- fstep fstate b
-                return $ Continue n (SepParseSep 0 fs pseps)
+                return $ Partial n (SepParseSep 0 fs pseps)
             Error _ -> do
                 c <- fextract fstate
                 return $ Done (cnt + 1) c
@@ -529,7 +529,7 @@ sepBy (Fold fstep finitial fextract) (Parser pstep pinitial pextract)
             Continue n s -> return $ Continue n (SepParseSep (cnt + 1 - n) fstate s)
             Done n _ -> do
                 ps <- pinitial
-                return $ Continue n (SepParseA (cnt + 1) fstate ps)
+                return $ Continue n (SepParseA (cnt + 1 - n) fstate ps)
             Error _ -> do
                 c <- fextract fstate
                 return $ Done (cnt + 1) c
