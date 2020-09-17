@@ -3830,7 +3830,9 @@ intervalsOf n f xs =
 ------------------------------------------------------------------------------
 -- N-ary APIs
 ------------------------------------------------------------------------------
---
+
+-- XXX We should probably change the order of the comparision and update the
+-- docs accordingly.
 -- | @groupsBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
 -- first group, if @b \`cmp` a@ is 'True' then @b@ is also assigned to the same
 -- group.  If @c \`cmp` a@ is 'True' then @c@ is also assigned to the same
@@ -3849,7 +3851,7 @@ groupsBy
     -> Fold m a b
     -> t m a
     -> t m b
-groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
+groupsBy cmp f m = D.fromStreamD $ D.groupsBy (flip cmp) f (D.toStreamD m)
 
 -- | Unlike @groupsBy@ this function performs a rolling comparison of two
 -- successive elements in the input stream. @groupsByRolling cmp f $ S.fromList
