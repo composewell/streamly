@@ -16,20 +16,24 @@ module Streamly.Internal.Unicode.Stream
     -- * Construction (Decoding)
       decodeLatin1
     , decodeUtf8
-    , decodeUtf8Lax
+    , decodeUtf8'
+    , decodeUtf8_
     , DecodeError(..)
     , DecodeState
     , CodePoint
     , decodeUtf8Either
     , resumeDecodeUtf8Either
     , decodeUtf8Arrays
-    , decodeUtf8ArraysLenient
+    , decodeUtf8Arrays'
+    , decodeUtf8Arrays_
 
     -- * Elimination (Encoding)
     , encodeLatin1
-    , encodeLatin1Lax
+    , encodeLatin1'
+    , encodeLatin1_
     , encodeUtf8
-    , encodeUtf8Lax
+    , encodeUtf8'
+    , encodeUtf8_
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -38,12 +42,16 @@ module Streamly.Internal.Unicode.Stream
 
     -- * StreamD UTF8 Encoding / Decoding transformations.
     , decodeUtf8D
+    , decodeUtf8D'
+    , decodeUtf8D_
     , encodeUtf8D
-    , decodeUtf8LenientD
+    , encodeUtf8D'
+    , encodeUtf8D_
     , decodeUtf8EitherD
     , resumeDecodeUtf8EitherD
     , decodeUtf8ArraysD
-    , decodeUtf8ArraysLenientD
+    , decodeUtf8ArraysD'
+    , decodeUtf8ArraysD_
 
     -- * Transformation
     , stripStart
@@ -51,12 +59,17 @@ module Streamly.Internal.Unicode.Stream
     , words
     , unlines
     , unwords
+
+    -- * Deprecations
+    , decodeUtf8Lax
+    , encodeLatin1Lax
+    , encodeUtf8Lax
     )
 where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
-import Data.Char (ord)
+import Data.Char (chr, ord)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -118,6 +131,7 @@ ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
 data CodingFailureMode
     = TransliterateCodingFailure
     | ErrorOnCodingFailure
+    | DropOnCodingFailure
     deriving (Show)
 
 {-# INLINE replacementChar #-}
@@ -266,12 +280,14 @@ decodeUtf8WithD cfm (Stream step state) =
         case cfm of
             ErrorOnCodingFailure -> error e
             TransliterateCodingFailure -> YieldAndContinue replacementChar s
+            DropOnCodingFailure -> s
 
     {-# INLINE handleUnderflow #-}
     handleUnderflow =
         case cfm of
             ErrorOnCodingFailure -> error $ prefix ++ "Not enough input"
             TransliterateCodingFailure -> YieldAndContinue replacementChar Done
+            DropOnCodingFailure -> Done
 
     {-# INLINE_LATE step' #-}
     step' _ gst (FreshPointDecodeInit st) = do
@@ -337,11 +353,15 @@ decodeUtf8WithD cfm (Stream step state) =
 
 {-# INLINE decodeUtf8D #-}
 decodeUtf8D :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8D = decodeUtf8WithD ErrorOnCodingFailure
+decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 
-{-# INLINE decodeUtf8LenientD #-}
-decodeUtf8LenientD :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8LenientD = decodeUtf8WithD TransliterateCodingFailure
+{-# INLINE decodeUtf8D' #-}
+decodeUtf8D' :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
+
+{-# INLINE decodeUtf8D_ #-}
+decodeUtf8D_ :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 
 {-# INLINE_NORMAL resumeDecodeUtf8EitherD #-}
 resumeDecodeUtf8EitherD
@@ -455,6 +475,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         case cfm of
             ErrorOnCodingFailure -> error e
             TransliterateCodingFailure -> YAndC replacementChar s
+            DropOnCodingFailure -> s
     {-# INLINE inputUnderflow #-}
     inputUnderflow =
         case cfm of
@@ -462,6 +483,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                 error
                     "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Input Underflow"
             TransliterateCodingFailure -> YAndC replacementChar D
+            DropOnCodingFailure -> D
     {-# INLINE_LATE step' #-}
     step' _ gst (OuterLoop st Nothing) = do
         r <- step (adaptState gst) st
@@ -541,14 +563,21 @@ decodeUtf8ArraysD ::
        MonadIO m
     => Stream m (A.Array Word8)
     -> Stream m Char
-decodeUtf8ArraysD = decodeUtf8ArraysWithD ErrorOnCodingFailure
+decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
 
-{-# INLINE decodeUtf8ArraysLenientD #-}
-decodeUtf8ArraysLenientD ::
+{-# INLINE decodeUtf8ArraysD' #-}
+decodeUtf8ArraysD' ::
        MonadIO m
     => Stream m (A.Array Word8)
     -> Stream m Char
-decodeUtf8ArraysLenientD = decodeUtf8ArraysWithD TransliterateCodingFailure
+decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
+
+{-# INLINE decodeUtf8ArraysD_ #-}
+decodeUtf8ArraysD_ ::
+       MonadIO m
+    => Stream m (A.Array Word8)
+    -> Stream m Char
+decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
 
 data EncodeState s = EncodeState s !WList
 
@@ -556,9 +585,9 @@ data EncodeState s = EncodeState s !WList
 -- too much code bloat or some trouble with fusion. So keeping only two yield
 -- points for now, one for the ascii chars (fast path) and one for all other
 -- paths (slow path).
-{-# INLINE_NORMAL encodeUtf8D #-}
-encodeUtf8D :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8D (Stream step state) = Stream step' (EncodeState state WNil)
+{-# INLINE_NORMAL encodeUtf8D' #-}
+encodeUtf8D' :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8D' (Stream step state) = Stream step' (EncodeState state WNil)
   where
     {-# INLINE_LATE step' #-}
     step' gst (EncodeState st WNil) = do
@@ -585,7 +614,9 @@ encodeUtf8D (Stream step state) = Stream step' (EncodeState state WNil)
 -- | Decode a stream of bytes to Unicode characters by mapping each byte to a
 -- corresponding Unicode 'Char' in 0-255 range.
 --
--- /Since: 0.7.0/
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- @since 0.8.0
 {-# INLINE decodeLatin1 #-}
 decodeLatin1 :: (IsStream t, Monad m) => t m Word8 -> t m Char
 decodeLatin1 = S.map (unsafeChr . fromIntegral)
@@ -594,10 +625,10 @@ decodeLatin1 = S.map (unsafeChr . fromIntegral)
 -- to a byte in 0-255 range. Throws an error if the input stream contains
 -- characters beyond 255.
 --
--- /Since: 0.7.0/
-{-# INLINE encodeLatin1 #-}
-encodeLatin1 :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1 = S.map convert
+-- @since 0.8.0
+{-# INLINE encodeLatin1' #-}
+encodeLatin1' :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1' = S.map convert
     where
     convert c =
         let codepoint = ord c
@@ -606,38 +637,71 @@ encodeLatin1 = S.map convert
                       "input char codepoint " ++ show codepoint
            else fromIntegral codepoint
 
--- | Like 'encodeLatin1' but silently truncates and maps input characters beyond
+-- | Like 'encodeLatin1'' but silently truncates and maps input characters beyond
 -- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
 -- when such truncation occurs.
 --
--- /Since: 0.7.0/
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- /Since: 0.8.0 (Lenient Behaviour)/
+{-# INLINE encodeLatin1 #-}
+encodeLatin1 :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1 = S.map (fromIntegral . ord)
+
+-- | Like 'encodeLatin1' but drops the input characters beyond 255.
+--
+-- @since 0.8.0
+{-# INLINE encodeLatin1_ #-}
+encodeLatin1_ :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1_ = S.map (fromIntegral . ord) . S.filter (<= chr (255))
+
+-- | Same as 'encodeLatin1'
+--
+{-# DEPRECATED encodeLatin1Lax "Please use 'encodeLatin1' instead" #-}
 {-# INLINE encodeLatin1Lax #-}
 encodeLatin1Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1Lax = S.map (fromIntegral . ord)
+encodeLatin1Lax = encodeLatin1
 
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
--- The incoming stream is truncated if an invalid codepoint is encountered.
+-- The function throws an error if an invalid codepoint is encountered.
 --
--- /Since: 0.7.0/
-{-# INLINE decodeUtf8 #-}
-decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
-decodeUtf8 = D.fromStreamD . decodeUtf8D . D.toStreamD
+-- @since 0.8.0
+{-# INLINE decodeUtf8' #-}
+decodeUtf8' :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8' = D.fromStreamD . decodeUtf8D' . D.toStreamD
 
 -- |
 --
 -- /Internal/
-{-# INLINE decodeUtf8Arrays #-}
-decodeUtf8Arrays :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
-decodeUtf8Arrays = D.fromStreamD . decodeUtf8ArraysD . D.toStreamD
+{-# INLINE decodeUtf8Arrays' #-}
+decodeUtf8Arrays' :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays' = D.fromStreamD . decodeUtf8ArraysD' . D.toStreamD
 
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
 -- Any invalid codepoint encountered is replaced with the unicode replacement
 -- character.
 --
--- /Since: 0.7.0/
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- /Since: 0.8.0 (Lenient Behaviour)/
+{-# INLINE decodeUtf8 #-}
+decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8 = D.fromStreamD . decodeUtf8D . D.toStreamD
+
+-- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- Any invalid codepoint encountered is dropped.
+--
+-- @since 0.8.0
+{-# INLINE decodeUtf8_ #-}
+decodeUtf8_ :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8_ = D.fromStreamD . decodeUtf8D_ . D.toStreamD
+
+-- | Same as 'decodeUtf8'
+--
+{-# DEPRECATED decodeUtf8Lax "Please use 'decodeUtf8' instead" #-}
 {-# INLINE decodeUtf8Lax #-}
-decodeUtf8Lax :: (Monad m, IsStream t) => t m Word8 -> t m Char
-decodeUtf8Lax = D.fromStreamD . decodeUtf8LenientD . D.toStreamD
+decodeUtf8Lax :: (IsStream t, Monad m) => t m Word8 -> t m Char
+decodeUtf8Lax = decodeUtf8
 
 -- |
 --
@@ -663,25 +727,36 @@ resumeDecodeUtf8Either st cp =
 -- |
 --
 -- /Internal/
-{-# INLINE decodeUtf8ArraysLenient #-}
-decodeUtf8ArraysLenient ::
+{-# INLINE decodeUtf8Arrays #-}
+decodeUtf8Arrays ::
        (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
-decodeUtf8ArraysLenient =
-    D.fromStreamD . decodeUtf8ArraysLenientD . D.toStreamD
+decodeUtf8Arrays =
+    D.fromStreamD . decodeUtf8ArraysD . D.toStreamD
 
--- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+-- |
 --
--- /Since: 0.7.0/
-{-# INLINE encodeUtf8 #-}
-encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
-encodeUtf8 = D.fromStreamD . encodeUtf8D . D.toStreamD
+-- /Internal/
+{-# INLINE decodeUtf8Arrays_ #-}
+decodeUtf8Arrays_ ::
+       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays_ =
+    D.fromStreamD . decodeUtf8ArraysD_ . D.toStreamD
+
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. When
+-- any invalid character (U+D800-U+D8FF) is encountered in the input stream the
+-- function errors out.
+--
+-- @since 0.8.0
+{-# INLINE encodeUtf8' #-}
+encodeUtf8' :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8' = D.fromStreamD . encodeUtf8D' . D.toStreamD
 
 -- | See section "3.9 Unicode Encoding Forms" in
 -- https://www.unicode.org/versions/Unicode13.0.0/UnicodeStandard-13.0.pdf
 --
-{-# INLINE_NORMAL encodeUtf8LaxD #-}
-encodeUtf8LaxD :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8LaxD (Stream step state) = Stream step' (EncodeState state WNil)
+{-# INLINE_NORMAL encodeUtf8D #-}
+encodeUtf8D :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8D (Stream step state) = Stream step' (EncodeState state WNil)
   where
     {-# INLINE_LATE step' #-}
     step' gst (EncodeState st WNil) = do
@@ -710,10 +785,51 @@ encodeUtf8LaxD (Stream step state) = Stream step' (EncodeState state WNil)
 -- Invalid characters (U+D800-U+D8FF) in the input stream are replaced by the
 -- Unicode replacement character U+FFFD.
 --
--- /Since: 0.8.0/
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- /Since: 0.8.0 (Lenient Behaviour)/
+{-# INLINE encodeUtf8 #-}
+encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8 = D.fromStreamD . encodeUtf8D . D.toStreamD
+
+{-# INLINE_NORMAL encodeUtf8D_ #-}
+encodeUtf8D_ :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8D_ (Stream step state) = Stream step' (EncodeState state WNil)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (EncodeState st WNil) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c s ->
+                    case ord c of
+                        x | x <= 0x7F ->
+                              Yield (fromIntegral x) (EncodeState s WNil)
+                          | x <= 0x7FF -> Skip (EncodeState s (ord2 c))
+                          | x <= 0xFFFF ->
+                              if isSurrogate c
+                              then Skip $
+                                   EncodeState s WNil
+                              else Skip (EncodeState s (ord3 c))
+                          | otherwise -> Skip (EncodeState s (ord4 c))
+                Skip s -> Skip (EncodeState s WNil)
+                Stop -> Stop
+    step' _ (EncodeState s (WCons x xs)) = return $ Yield x (EncodeState s xs)
+
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
+-- Invalid characters (U+D800-U+D8FF) in the input stream are dropped.
+--
+-- @since 0.8.0
+{-# INLINE encodeUtf8_ #-}
+encodeUtf8_ :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8_ = D.fromStreamD . encodeUtf8D_ . D.toStreamD
+
+-- | Same as 'encodeUtf8'
+--
+{-# DEPRECATED encodeUtf8Lax "Please use 'encodeUtf8' instead" #-}
 {-# INLINE encodeUtf8Lax #-}
-encodeUtf8Lax :: (Monad m, IsStream t) => t m Char -> t m Word8
-encodeUtf8Lax = D.fromStreamD . encodeUtf8LaxD . D.toStreamD
+encodeUtf8Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeUtf8Lax = encodeUtf8
 
 {-
 -------------------------------------------------------------------------------

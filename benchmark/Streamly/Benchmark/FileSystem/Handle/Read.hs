@@ -120,12 +120,12 @@ inspect $ hasNoTypeClasses 'toChunksCountBytes
 inspect $ 'toChunksCountBytes `hasNoType` ''Step
 #endif
 
-toChunksDecodeUtf8ArraysLenient :: Handle -> IO ()
-toChunksDecodeUtf8ArraysLenient =
-   S.drain . IUS.decodeUtf8ArraysLenient . IFH.toChunks
+toChunksDecodeUtf8Arrays :: Handle -> IO ()
+toChunksDecodeUtf8Arrays =
+   S.drain . IUS.decodeUtf8Arrays . IFH.toChunks
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksDecodeUtf8ArraysLenient
+inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
 -- inspect $ 'toChunksDecodeUtf8ArraysLenient `hasNoType` ''Step
 #endif
 
@@ -146,8 +146,8 @@ o_1_space_read_chunked env =
             toChunksSplitOn inH
         , mkBench "countBytes" env $ \inH _ ->
             toChunksCountBytes inH
-        , mkBenchSmall "US.decodeUtf8ArraysLenient" env $ \inH _ ->
-            toChunksDecodeUtf8ArraysLenient inH
+        , mkBenchSmall "US.decodeUtf8Arrays" env $ \inH _ ->
+            toChunksDecodeUtf8Arrays inH
         ]
     ]
 
@@ -240,14 +240,14 @@ readDecodeLatin1 inh =
      $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
-readDecodeUtf8Lax :: Handle -> IO ()
-readDecodeUtf8Lax inh =
+readDecodeUtf8 :: Handle -> IO ()
+readDecodeUtf8 inh =
    S.drain
-     $ SS.decodeUtf8Lax
+     $ SS.decodeUtf8
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readDecodeUtf8Lax
+inspect $ hasNoTypeClasses 'readDecodeUtf8
 -- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
 #endif
 
@@ -273,8 +273,8 @@ o_1_space_reduce_read env =
             readCountWords inh
 
         -- read with utf8 decoding
-        , mkBenchSmall "SS.decodeUtf8Lax" env $ \inh _ ->
-            readDecodeUtf8Lax inh
+        , mkBenchSmall "SS.decodeUtf8" env $ \inh _ ->
+            readDecodeUtf8 inh
         ]
     ]
 
@@ -505,14 +505,14 @@ o_1_space_reduce_read_split env =
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
-        $ IUS.decodeUtf8ArraysLenient
+        $ IUS.decodeUtf8Arrays
         $ IFH.toChunks inh) -- >>= print
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
     [ bgroup "reduce/toChunks"
         [ mkBenchSmall ("S.splitOnSeqUtf8 \"abcdefgh\" FL.drain "
-            ++ ". US.decodeUtf8ArraysLenient") env $ \inh _ ->
+            ++ ". US.decodeUtf8Arrays") env $ \inh _ ->
                 splitOnSeqUtf8 "abcdefgh" inh
         , mkBenchSmall "S.splitOnSeqUtf8 \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh

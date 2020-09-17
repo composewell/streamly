@@ -37,8 +37,9 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -------------------------------------------------------------------------------
 #if !defined(CABAL_OS_WINDOWS)
 toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = Array.fromStream . Unicode.encodeUtf8 . Stream.fromList
+toUtf8 = Array.fromStream . Unicode.encodeUtf8' . Stream.fromList
 #endif
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------

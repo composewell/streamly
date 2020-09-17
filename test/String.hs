@@ -33,6 +33,15 @@ genUnicode = listOf arbitraryUnicodeChar
 genWord8 :: Gen [Word8]
 genWord8 = listOf arbitrary
 
+propDecodeEncodeId' :: Property
+propDecodeEncodeId' =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            let wrds = SS.encodeUtf8' $ S.fromList list
+            chrs <- S.toList $ SS.decodeUtf8' wrds
+            assert (chrs == list)
+
+-- XXX need to use invalid characters
 propDecodeEncodeId :: Property
 propDecodeEncodeId =
     forAll genUnicode $ \list ->
@@ -41,21 +50,12 @@ propDecodeEncodeId =
             chrs <- S.toList $ SS.decodeUtf8 wrds
             assert (chrs == list)
 
--- XXX need to use invalid characters
-propDecodeEncodeIdLenient :: Property
-propDecodeEncodeIdLenient =
-    forAll genUnicode $ \list ->
-        monadicIO $ do
-            let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ SS.decodeUtf8Lax wrds
-            assert (chrs == list)
-
 propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ IUS.decodeUtf8ArraysLenient
+            let wrds = SS.encodeUtf8' $ S.fromList list
+            chrs <- S.toList $ IUS.decodeUtf8Arrays
                                     (S.fold A.write wrds)
             assert (chrs == list)
 
@@ -117,9 +117,9 @@ main = hspec
     $ modifyMaxSuccess (const 1000)
     $ do
     describe "UTF8 - Encoding / Decoding" $ do
-        prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
-        prop "decodeUtf8Lax . encodeUtf8 == id" $ propDecodeEncodeIdLenient
-        prop "decodeUtf8ArraysLenient . encodeUtf8 == id"
+        prop "decodeUtf8' . encodeUtf8' == id" $ propDecodeEncodeId'
+        prop "decodeUtf8 . encodeUtf8' == id" $ propDecodeEncodeId
+        prop "decodeUtf8Arrays . encodeUtf8' == id"
                 $ propDecodeEncodeIdArrays
         prop "Streamly.Data.String.lines == Prelude.lines" $ testLines
         prop "Arrays Streamly.Data.String.lines == Prelude.lines" $ testLinesArray

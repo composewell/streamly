@@ -33,7 +33,7 @@
 -- stream as @Array Char@ using the array 'Streamly.Data.Array.Storable.Foreign.write' fold.
 -- The 'Array' type provides a more compact representation and pinned memory
 -- reducing GC overhead. If space efficiency is a concern you can use
--- 'encodeUtf8' on the 'Char' stream before writing it to an 'Array' providing
+-- 'encodeUtf8'' on the 'Char' stream before writing it to an 'Array' providing
 -- an even more compact representation.
 --
 -- = String Literals
@@ -65,18 +65,15 @@
 -- lived strings in memory.
 --
 module Streamly.Data.Unicode.Stream
-    {-# DEPRECATED "Use Streamly.Unicode.Stream instead" #-}
+    {-# DEPRECATED "Use \"Streamly.Unicode.Stream\" instead" #-}
     (
     -- * Construction (Decoding)
       decodeLatin1
     , decodeUtf8
-    , decodeUtf8Lax
 
     -- * Elimination (Encoding)
     , encodeLatin1
-    , encodeLatin1Lax
     , encodeUtf8
-    , encodeUtf8Lax
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -90,6 +87,11 @@ module Streamly.Data.Unicode.Stream
     -- , words
     -- , unlines
     -- , unwords
+
+    -- * Deprecations
+    , decodeUtf8Lax
+    , encodeLatin1Lax
+    , encodeUtf8Lax
     )
 where
 

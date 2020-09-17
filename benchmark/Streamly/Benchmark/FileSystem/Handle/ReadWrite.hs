@@ -71,8 +71,8 @@ inspect $ 'copyChunks `hasNoType` ''Step
 copyCodecUtf8ArraysLenient :: Handle -> Handle -> IO ()
 copyCodecUtf8ArraysLenient inh outh =
    S.fold (FH.write outh)
-     $ SS.encodeUtf8
-     $ IUS.decodeUtf8ArraysLenient
+     $ SS.encodeUtf8'
+     $ IUS.decodeUtf8Arrays
      $ IFH.toChunks inh
 
 #ifdef INSPECTION
@@ -194,7 +194,7 @@ inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 copyStreamLatin1 :: Handle -> Handle -> IO ()
 copyStreamLatin1 inh outh =
    S.fold (FH.write outh)
-     $ SS.encodeLatin1
+     $ SS.encodeLatin1'
      $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
@@ -208,30 +208,30 @@ inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
 -- | Copy file
-_copyStreamUtf8 :: Handle -> Handle -> IO ()
-_copyStreamUtf8 inh outh =
+_copyStreamUtf8' :: Handle -> Handle -> IO ()
+_copyStreamUtf8' inh outh =
    S.fold (FH.write outh)
-     $ SS.encodeUtf8
-     $ SS.decodeUtf8
+     $ SS.encodeUtf8'
+     $ SS.decodeUtf8'
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses '_copyStreamUtf8
+inspect $ hasNoTypeClasses '_copyStreamUtf8'
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''Step
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''AT.FlattenState
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Copy file
-copyStreamUtf8Lax :: Handle -> Handle -> IO ()
-copyStreamUtf8Lax inh outh =
+copyStreamUtf8 :: Handle -> Handle -> IO ()
+copyStreamUtf8 inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
-     $ SS.decodeUtf8Lax
+     $ SS.decodeUtf8
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'copyStreamUtf8Lax
+inspect $ hasNoTypeClasses 'copyStreamUtf8
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''Step
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''AT.FlattenState
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
@@ -245,14 +245,14 @@ o_1_space_copy_read env =
         , mkBench "rawToFile" env $ \inh outh ->
             copyStream inh outh
         -- This needs an ascii file, as decode just errors out.
-        , mkBench "SS.encodeLatin1 . SS.decodeLatin1" env $ \inh outh ->
+        , mkBench "SS.encodeLatin1' . SS.decodeLatin1" env $ \inh outh ->
             copyStreamLatin1 inh outh
 #ifdef DEVBUILD
         , mkBench "copyUtf8" env $ \inh outh ->
-            _copyStreamUtf8 inh outh
+            _copyStreamUtf8' inh outh
 #endif
         , mkBenchSmall "SS.encodeUtf8 . SS.decodeUtf8Lax" env $ \inh outh ->
-            copyStreamUtf8Lax inh outh
+            copyStreamUtf8 inh outh
         ]
     ]
 
@@ -471,7 +471,7 @@ o_1_space_copy_toChunks_group_ungroup env =
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeLatin1
+      $ SS.encodeLatin1'
       $ IUS.unlines IUF.fromList
       $ S.splitOnSuffix (== '\n') FL.toList
       $ SS.decodeLatin1
@@ -489,7 +489,7 @@ linesUnlinesArrayWord8Copy inh outh =
 linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
 linesUnlinesArrayCharCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeLatin1
+      $ SS.encodeLatin1'
       $ IUA.unlines
       $ IUA.lines
       $ SS.decodeLatin1
@@ -507,9 +507,9 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Storable]
 linesUnlinesArrayUtf8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayUtf8Copy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeLatin1
+      $ SS.encodeLatin1'
       $ IP.intercalate (A.fromList [10]) (pipe SS.decodeUtf8P A.read)
-      $ S.splitOnSuffix (== '\n') (IFL.lmap SS.encodeUtf8 A.write)
+      $ S.splitOnSuffix (== '\n') (IFL.lmap SS.encodeUtf8' A.write)
       $ SS.decodeLatin1
       $ S.unfold FH.read inh
 -}
@@ -531,7 +531,7 @@ inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeLatin1
+      $ SS.encodeLatin1'
       $ IUS.unwords IUF.fromList
       -- XXX This pipeline does not fuse with wordsBy but fuses with splitOn
       -- with -funfolding-use-threshold=300.  With wordsBy it does not fuse
@@ -553,7 +553,7 @@ wordsUnwordsCopy inh outh =
 wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCharArrayCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeLatin1
+      $ SS.encodeLatin1'
       $ IUA.unwords
       $ IUA.words
       $ SS.decodeLatin1
