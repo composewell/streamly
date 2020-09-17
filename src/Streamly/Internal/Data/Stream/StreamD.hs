@@ -1557,13 +1557,12 @@ wordsBy predicate (Fold fstep initial done) (Stream step state) =
     step1 gst (WordBegin st) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> do
-                if predicate x
-                then return $ Skip (WordBegin s)
-                else do
-                    -- step1 gst (WordBeginWith s x)
-                    ini <- initial
-                    wordFoldWith ini s x
+            Yield x s ->
+                return
+                  $ Skip
+                  $ if predicate x
+                    then WordBegin s
+                    else WordBeginWith s x
             Skip s -> return $ Skip $ WordBegin s
             Stop -> return Stop
     step1 gst (WordFold fs st) = do
@@ -1576,7 +1575,9 @@ wordsBy predicate (Fold fstep initial done) (Stream step state) =
                     return $ Skip $ WordYield bres (WordBegin s)
                 else wordFoldWith fs s x
             Skip s -> return $ Skip $ WordFold fs s
-            Stop -> return Stop
+            Stop -> do
+                bres <- done fs
+                return $ Skip $ WordYield bres (WordBegin st)
     step1 _ (WordYield bres ns) = return $ Yield bres ns
     step1 _ (WordBeginWith s x) = do
         -- XXX We dont need to check for predicate here, we already know "x"
