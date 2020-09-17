@@ -233,10 +233,10 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
 
-import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Prelude
 
 import Prelude hiding
@@ -370,8 +370,8 @@ sequence (Fold step initial extract) = Fold step' initial extract'
         res <- step s a
         case res of
             Partial x -> return $ Partial x
-            Done b -> b >>= return . Done
-            Done1 b -> b >>= return . Done1
+            Done b -> Done <$> b
+            Done1 b -> Done1 <$> b
 
     extract' = join . extract
 
@@ -389,6 +389,8 @@ mapM f = sequence . fmap f
 -- rename to lpipe?
 --
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
+--
+-- Only folds not returning 'Done1' are supported by this operation.
 --
 -- @since 0.7.0
 {-# INLINE transform #-}
@@ -549,8 +551,6 @@ product = Fold step (return 1) return
           $ if a == 0
             then Done 0
             else Partial $ x * a
-
-
 
 ------------------------------------------------------------------------------
 -- To Summary (Maybe)
@@ -735,7 +735,7 @@ sconcat i = Fold (\x a -> return $ Partial $ x <> a) (return i) return
 -- > S.fold FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
 --
 -- @since 0.7.0
-{-# INLINABLE mconcat #-}
+{-# INLINE mconcat #-}
 mconcat :: (Monad m, Monoid a) => Fold m a a
 mconcat = sconcat mempty
 
@@ -990,7 +990,7 @@ notElem a = all (a /=)
 -- > and = fmap getAll . FL.foldMap All
 --
 -- @since 0.7.0
-{-# INLINABLE and #-}
+{-# INLINE and #-}
 and :: Monad m => Fold m Bool Bool
 and = all (== True)
 
@@ -1000,7 +1000,7 @@ and = all (== True)
 -- > or = fmap getAny . FL.foldMap Any
 --
 -- @since 0.7.0
-{-# INLINABLE or #-}
+{-# INLINE or #-}
 or :: Monad m => Fold m Bool Bool
 or = any (== True)
 
@@ -1340,65 +1340,47 @@ foldCons f1 f2 = teeWith (:) f1 f2
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
 distribute = foldr foldCons foldNil
 
--- It would be neater if we use a new type
-{-# INLINE combineFoldState #-}
-combineFoldState :: Step () () -> Step () () -> Step () ()
-combineFoldState (Partial ()) _ = Partial ()
-combineFoldState _ (Partial ()) = Partial ()
-combineFoldState (Done ()) (Done ()) = Done ()
-combineFoldState (Done ()) (Done1 ()) = Done ()
-combineFoldState (Done1 ()) (Done ()) = Done ()
-combineFoldState (Done1 ()) (Done1 ()) = Done1 ()
-
-{-# INLINE toUnitState #-}
-toUnitState :: Step s b -> Step () ()
-toUnitState (Partial _) = Partial ()
-toUnitState (Done _) = Done ()
-toUnitState (Done1 _) = Done1 ()
-
 -- XXX This is 2x times faster wiithout the terminating condition.
 -- | Like 'distribute' but for folds that return (), this can be more efficient
 -- than 'distribute' as it does not need to maintain state. This fold terminates
 -- when all the folds terminate.
 --
+-- 'Done1' and 'Done' are treated equally for the case of distribute_. This is
+-- not the case for 'distribute'.
 {-# INLINE distribute_ #-}
 distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
 distribute_ fs = Fold step initial extract
 
     where
 
-    initial = Prelude.mapM (fmap Partial . initialize) fs
+    initial = Prelude.mapM initialize fs
 
+    -- XXX This itself can be a recursive function but we might face inlining
+    -- problems.
+    step [] _ = return $ Done1 ()
     step ss a = do
-        ss1 <- Prelude.mapM (flip runMaybeStep a) ss
-        let endRes =
-                List.foldl'
-                    (\fb fa -> toUnitState fa `combineFoldState` fb)
-                    (Done1 ())
-                    ss1
+        ss1 <- go ss a
         return
-          $ case endRes of
-                Done () -> Done ()
-                Done1 () -> Done1 ()
-                Partial () -> Partial ss1
+          $ if Prelude.null ss1
+            then Done ()
+            else Partial ss1
 
-    extract ss = Prelude.mapM_ runMaybeExtract ss
+    go [] _ = return []
+    go ((Fold s i d):ss) a = do
+        i1 <- i
+        res <- s i1 a
+        case res of
+            Partial i2 -> do
+                rst <- go ss a
+                let fld = Fold s (return i2) d
+                return $ fld : rst
+            Done () -> go ss a
+            Done1 () -> go ss a
 
-    {-# INLINE runMaybeExtract #-}
-    runMaybeExtract (Partial (Fold _ i d)) = i >>= d
-    runMaybeExtract _ = return ()
+    extract ss = go1 ss
 
-    {-# INLINE runMaybeStep #-}
-    runMaybeStep (Done1 ()) _ = return $ Done1 ()
-    runMaybeStep (Done ()) _ = return $ Done1 ()
-    runMaybeStep (Partial (Fold s i d)) a = do
-        ii <- i
-        res <- s ii a
-        return
-          $ case res of
-                Partial sres -> Partial (Fold s (return sres) d)
-                Done _ -> Done ()
-                Done1 _ -> Done1 ()
+    go1 [] = return ()
+    go1 ((Fold _ i d):ss) = (i >>= d) >> go1 ss
 
 ------------------------------------------------------------------------------
 -- Partitioning
@@ -1407,7 +1389,7 @@ distribute_ fs = Fold step initial extract
 -- | Partition the input over two folds using an 'Either' partitioning
 -- predicate. This fold terminates when both the folds terminate.
 --
--- See 'partitionByFstM' and 'partitionByMinM'.
+-- See also: 'partitionByFstM' and 'partitionByMinM'.
 --
 -- @
 --
@@ -1607,52 +1589,40 @@ demuxWith f kv = Fold step initial extract
 
     where
 
-    initial =
-        Tuple' (Map.size kv) <$> Prelude.mapM (fmap Left . initialize) kv
+    initial = Tuple' Map.empty <$> Prelude.mapM initialize kv
 
-    step (Tuple' n mp) a =
-        let (k, a') = f a
-         in case Map.lookup k mp of
-                Nothing -> return $ Partial $ Tuple' n mp
-                Just (Left (Fold stp ini dn)) -> do
+    step (Tuple' bmp mp) a =
+        if Map.size mp > 0
+        then do
+            let (k, a') = f a
+            case Map.lookup k mp of
+                Nothing -> return $ Partial $ Tuple' bmp mp
+                Just (Fold stp ini dn) -> do
                     !st <- ini
                     !res <- stp st a'
-                    let n1 = n - 1
                     return
                       $ case res of
                             Partial sres ->
-                                Partial
-                                  $ Tuple' n
-                                  $ Map.insert
-                                        k
-                                        (Left (Fold stp (return sres) dn))
-                                        mp
-                            -- XXX Check for n - 1 == 0 here for Done & Done1?
-                            -- XXX Treat the last completing fold differently?
+                                let fld = Fold stp (return sres) dn
+                                    mp1 = Map.insert k fld mp
+                                 in Partial $ Tuple' bmp mp1
                             Done bres ->
-                                if n1 == 0
-                                then Done $ done $ Map.insert k (Right bres) mp
-                                else Partial
-                                       $ Tuple' n1
-                                       $ Map.insert k (Right bres) mp
+                                let mp1 = Map.delete k mp
+                                    bmp1 = Map.insert k bres bmp
+                                 in if Map.size mp1 == 0
+                                    then Done bmp1
+                                    else Partial $ Tuple' bmp1 mp1
                             Done1 bres ->
-                                if n1 == 0
-                                then Done1 $ done $ Map.insert k (Right bres) mp
-                                else Partial
-                                       $ Tuple' n1
-                                       $ Map.insert k (Right bres) mp
-                Just (Right _) -> do
-                    return $ Partial $ Tuple' n mp
+                                let mp1 = Map.delete k mp
+                                    bmp1 = Map.insert k bres bmp
+                                 in if Map.size mp1 == 0
+                                    then Done1 bmp1
+                                    else Partial $ Tuple' bmp1 mp1
+        else return $ Done1 bmp
 
-    extract (Tuple' _ mp) = Prelude.mapM runEitherExtract mp
-
-    runEitherExtract (Left (Fold _ i d)) = i >>= d
-    runEitherExtract (Right b) = return b
-
-    done = Map.map runEitherDone
-
-    runEitherDone (Left _) = error "Incomplete folds exist"
-    runEitherDone (Right b) = b
+    extract (Tuple' bmp mp) = do
+        mpe <- Prelude.mapM (\(Fold _ i d) -> i >>= d) mp
+        return $ bmp `Map.union` mpe
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1671,8 +1641,8 @@ demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
 demux = demuxWith id
 
--- data DemuxState m s = DemuxP !m !s | DemuxD !m
-data DemuxState m s = DemuxP Int !s !m | DemuxD Int !m
+-- data DemuxState m s = DemuxP !m !s | DemuxingOnlyMap !m
+data DemuxState s m1 m2 = DemuxingWithDefault !s !m1 !m2 | DemuxingOnlyMap !m2
 
 {-# INLINE demuxWithDefault_ #-}
 demuxWithDefault_ :: (Monad m, Ord k)
@@ -1682,76 +1652,87 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
 
     where
 
-    initial =
-        DemuxP (Map.size kv + 1) <$> dinitial <*> Prelude.mapM initialize kv
+    initial = do
+        ini <- dinitial
+        mp <- Prelude.mapM initialize kv
+        return $ DemuxingWithDefault ini Set.empty mp
 
-    step (DemuxP n dacc mp) a
-        | (k, a') <- f a =
+    -- XXX Some code can probably be abstracted
+    step (DemuxingWithDefault dacc bst mp) a =
+        if Map.size mp > 0
+        then do
+            let (k, a1) = f a
             case Map.lookup k mp of
-                Nothing -> do
-                    res <- dstep dacc (k, a')
-                    let n1 = n - 1
-                    return
-                      $ case res of
-                            Partial sres -> Partial $ DemuxP n sres mp
-                            Done _ ->
-                                if n1 == 0
-                                then Done ()
-                                else Partial $ DemuxD n1 mp
-                            Done1 _ ->
-                                if n1 == 0
-                                then Done1 ()
-                                else Partial $ DemuxD n1 mp
+                Nothing ->
+                    if k `Set.member` bst
+                    then return $ Partial $ DemuxingWithDefault dacc bst mp
+                    else do
+                        res <- dstep dacc (k, a1)
+                        return
+                          $ Partial
+                          $ case res of
+                                Partial sres -> DemuxingWithDefault sres bst mp
+                                Done _ -> DemuxingOnlyMap mp
+                                Done1 _ -> DemuxingOnlyMap mp
                 Just (Fold stp ini dn) -> do
                     !st <- ini
-                    !res <- stp st a'
-                    let n1 = n - 1
+                    !res <- stp st a1
                     return
                       $ case res of
                             Partial sres ->
-                                Partial
-                                  $ DemuxP n dacc
-                                  $ Map.insert k (Fold stp (return sres) dn) mp
-                            -- XXX Check for n - 1 == 0 here for Done & Done1?
-                            -- XXX Treat the last completing fold differently?
+                                let fld = (Fold stp (return sres) dn)
+                                    mp1 = Map.insert k fld mp
+                                 in Partial $ DemuxingWithDefault dacc bst mp1
                             Done _ ->
-                                if n1 == 0
+                                -- XXX We can skip the check here
+                                if Map.size mp == 1
                                 then Done ()
-                                else Partial $ DemuxP n1 dacc $ Map.delete k mp
+                                else Partial
+                                       $ DemuxingWithDefault
+                                             dacc
+                                             (Set.insert k bst)
+                                             (Map.delete k mp)
                             Done1 _ ->
-                                if n1 == 0
+                                if Map.size mp == 1
                                 then Done1 ()
-                                else Partial $ DemuxP n1 dacc $ Map.delete k mp
+                                else Partial
+                                       $ DemuxingWithDefault
+                                             dacc
+                                             (Set.insert k bst)
+                                             (Map.delete k mp)
+        else return $ Done1 ()
     -- XXX Reduce code duplication?
-    step (DemuxD n mp) a
-        | (k, a') <- f a =
+    step (DemuxingOnlyMap mp) a =
+        if Map.size mp > 0
+        then do
+            let (k, a1) = f a
             case Map.lookup k mp of
-                Nothing -> return $ Partial $ DemuxD n mp
+                Nothing -> return $ Partial $ DemuxingOnlyMap mp
                 Just (Fold stp ini dn) -> do
                     !st <- ini
-                    !res <- stp st a'
-                    let n1 = n - 1
+                    !res <- stp st a1
                     return
                       $ case res of
                             Partial sres ->
                                 Partial
-                                  $ DemuxD n
+                                  $ DemuxingOnlyMap
                                   $ Map.insert k (Fold stp (return sres) dn) mp
                             -- XXX Check for n - 1 == 0 here for Done & Done1?
                             -- XXX Treat the last completing fold differently?
                             Done _ ->
-                                if n1 == 0
+                                if Map.size mp == 1
                                 then Done ()
-                                else Partial $ DemuxD n1 $ Map.delete k mp
+                                else Partial $ DemuxingOnlyMap $ Map.delete k mp
                             Done1 _ ->
-                                if n1 == 0
+                                if Map.size mp == 1
                                 then Done1 ()
-                                else Partial $ DemuxD n1 $ Map.delete k mp
+                                else Partial $ DemuxingOnlyMap $ Map.delete k mp
+        else return $ Done1 ()
 
-    extract (DemuxP _ dacc mp) = do
+    extract (DemuxingWithDefault dacc _ mp) = do
         void $ dextract dacc
         Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
-    extract (DemuxD _ mp) = do
+    extract (DemuxingOnlyMap mp) = do
         Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
 
 -- | Split the input stream based on a key field and fold each split using a
@@ -1991,7 +1972,8 @@ unzipWithMinM :: -- Monad m =>
 unzipWithMinM = undefined
 
 -- | Split elements in the input stream into two parts using a pure splitter
--- function, direct each part to a different fold and zip the results.
+-- function, direct each part to a different fold and zip the results. The fold
+-- terminates when both the input folds terminate.
 --
 -- @since 0.7.0
 {-# INLINE unzipWith #-}

@@ -4720,8 +4720,9 @@ classifySessionsBy tick tmout reset ejectPred (Fold step initial extract) str =
     -- old ones.
     --
     -- We use the first strategy as of now.
+
     -- Got a new stream input element
-    sstep session@SessionState {..} (Just (key, value, timestamp)) = do
+    sstep session@SessionState{..} (Just (key, value, timestamp)) = do
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
         --

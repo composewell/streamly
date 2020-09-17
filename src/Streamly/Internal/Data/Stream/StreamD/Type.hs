@@ -468,7 +468,7 @@ foldlMx' fstep begin done (Stream step state) =
         case r of
             Yield x s -> do
                 acc' <- fstep acc x
-                go SPEC acc'  s
+                go SPEC acc' s
             Skip s -> go SPEC acc s
             Stop   -> done acc
 

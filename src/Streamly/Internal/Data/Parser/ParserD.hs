@@ -300,7 +300,6 @@ either parser = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 
--- XXX Convert this to `take :: Int -> Fold m a b -> Parser m a b`
 -- It will be inconsistent with other takeish combinators.
 -- This is takeLE
 -- | See 'Streamly.Internal.Data.Parser.take'.
@@ -693,8 +692,9 @@ manyTill (Fold fstep finitial fextract)
                         l <- initialR
                         return $ Partial n (ManyTillR 0 fs1 l)
                     FL.Done fb -> return $ Done n fb
-                    -- Keep a count of elements
-                    FL.Done1 _ -> error "Done1 nore supported in manyTill"
+                    FL.Done1 fb -> do
+                        assert (cnt + 1 - n >= 0) (return ())
+                        return $ Done (cnt + 1) fb
             Error err -> return $ Error err
 
     extract (ManyTillL _ fs sR) = do
