@@ -751,7 +751,12 @@ sconcat i = Fold (\x a -> return $ Partial $ x <> a) (return i) return
 --
 -- @since 0.7.0
 {-# INLINE mconcat #-}
-mconcat :: (Monad m, Monoid a) => Fold m a a
+mconcat ::
+    ( Monad m
+#if !MIN_VERSION_base(4,11,0)
+    , Semigroup a
+#endif
+    , Monoid a) => Fold m a a
 mconcat = sconcat mempty
 
 -- |
@@ -1374,7 +1379,7 @@ distribute_ fs = Fold step initial extract
     -- problems.
     step [] _ = return $ Done1 ()
     step ss a = do
-        ss1 <- go ss a
+        !ss1 <- go ss a
         return
           $ if Prelude.null ss1
             then Done ()
@@ -1987,8 +1992,9 @@ unzipWithMinM :: -- Monad m =>
 unzipWithMinM = undefined
 
 -- | Split elements in the input stream into two parts using a pure splitter
--- function, direct each part to a different fold and zip the results. The fold
--- terminates when both the input folds terminate.
+-- function, direct each part to a different fold and zip the results.
+--
+-- This fold terminates when both the input folds terminate.
 --
 -- @since 0.7.0
 {-# INLINE unzipWith #-}
