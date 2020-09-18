@@ -738,7 +738,7 @@ sconcat i = Fold (\x a -> return $ Partial $ x <> a) (return i) return
 {-# INLINE mconcat #-}
 mconcat ::
     ( Monad m
-#if MIN_VERSION_base(4,11,0)
+#if !MIN_VERSION_base(4,11,0)
     , Semigroup a
 #endif
     , Monoid a) => Fold m a a
