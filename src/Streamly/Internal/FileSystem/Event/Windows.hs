@@ -30,9 +30,7 @@ module Streamly.Internal.FileSystem.Event.Windows
     , watchPathsWith
     , watchTrees
     , watchTreesWith   
-    , closePathHandleStream
-    , getWatchHandle    
-
+    
     -- * Handling Events
     , getRelPath 
     , getRoot
@@ -211,7 +209,6 @@ data Event = Event
 -- For reference documentation see:
 --    
 -- See https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-file_notify_information
-
 data FILE_NOTIFY_INFORMATION = FILE_NOTIFY_INFORMATION
     { fniNextEntryOffset :: DWORD
     , fniAction :: DWORD
@@ -220,6 +217,18 @@ data FILE_NOTIFY_INFORMATION = FILE_NOTIFY_INFORMATION
 
 type LPOVERLAPPED_COMPLETION_ROUTINE = 
     FunPtr ((DWORD, DWORD, LPOVERLAPPED) -> IO ())
+
+-- | A handle for a watch.
+getWatchHandle :: FilePath -> IO (HANDLE, FilePath)
+getWatchHandle dir = do
+    h <- createFile dir
+        fILE_LIST_DIRECTORY -- Access mode
+        (fILE_SHARE_READ .|. fILE_SHARE_WRITE) -- Share mode
+        Nothing -- security attributes
+        oPEN_EXISTING -- Create mode, we want to look at an existing directory
+        fILE_FLAG_BACKUP_SEMANTICS -- File attribute, nb NOT using OVERLAPPED since we work synchronously
+        Nothing -- No template file
+    return (h, dir)
     
 -- For reference documentation see:
 --
@@ -227,7 +236,6 @@ type LPOVERLAPPED_COMPLETION_ROUTINE =
 -- Note that this API uses UTF-16 for file system paths: 
 -- 1. https://docs.microsoft.com/en-us/windows/win32/intl/unicode-in-the-windows-api
 -- 2. https://docs.microsoft.com/en-us/windows/win32/intl/unicode
-
 foreign import ccall safe 
     "windows.h ReadDirectoryChangesW" c_ReadDirectoryChangesW 
         :: HANDLE -> LPVOID -> DWORD -> BOOL -> DWORD -> LPDWORD 
@@ -306,11 +314,14 @@ peekFNI buf = do
         fromEnum (fnle :: DWORD) `div` 2 ) -- fnle is the length in *bytes*, and a WCHAR is 2 bytes
     return $ FILE_NOTIFY_INFORMATION neof acti fnam
 
-utf8ToString :: Array Word8 -> String
+-------------------------------------------------------------------------------
+-- Utilities
+-------------------------------------------------------------------------------
+utf8ToString :: Array Word8 -> FilePath
 utf8ToString = runIdentity . S.toList . U.decodeUtf8 . A.toStream
 
 utf8ToStringList :: NonEmpty (Array Word8) -> NonEmpty FilePath
-utf8ToStringList utf8Array =  NonEmpty.map (\utf8 -> utf8ToString utf8) utf8Array
+utf8ToStringList = NonEmpty.map utf8ToString
 
 -- | Close a Directory handle.
 --
@@ -369,17 +380,6 @@ watchTreesWith f paths = do
 watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
 watchTrees = watchTreesWith id    
 
--- | A handle for a watch.
-getWatchHandle :: FilePath -> IO (HANDLE, FilePath)
-getWatchHandle dir = do
-    h <- createFile dir
-        fILE_LIST_DIRECTORY -- Access mode
-        (fILE_SHARE_READ .|. fILE_SHARE_WRITE) -- Share mode
-        Nothing -- security attributes
-        oPEN_EXISTING -- Create mode, we want to look at an existing directory
-        fILE_FLAG_BACKUP_SEMANTICS -- File attribute, nb NOT using OVERLAPPED since we work synchronously
-        Nothing -- No template file
-    return (h, dir)
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
