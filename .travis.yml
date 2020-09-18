@@ -115,9 +115,9 @@ matrix:
   #- env: BUILD=cabal-v2 GHCVER=8.2.2 GHC_OPTIONS="" DISABLE_BENCH=y
   #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  - name: "GHC 8.0.2+examples-sdl"
-    env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
-    addons: {apt: {packages: [cabal-install-3.2,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - name: "GHC 8.0.2"
+    env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS=""
+    addons: {apt: {packages: [cabal-install-3.2,ghc-8.0.2], sources: [hvr-ghc]}}
     os: linux
     arch: amd64
 
@@ -155,9 +155,9 @@ matrix:
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
-  - name: "GHC 8.8+stack lts-16.12+examples-sdl"
-    env: BUILD=stack RESOLVER=lts-16.12 GHCVER=8.8 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" SDIST_OPTIONS="--ignore-check"
-    addons: {apt: {packages: [cabal-install-3.2,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - name: "GHC 8.8+stack lts-16.12"
+    env: BUILD=stack RESOLVER=lts-16.12 GHCVER=8.8 SDIST_OPTIONS="--ignore-check"
+    addons: {apt: {packages: [cabal-install-3.2], sources: [hvr-ghc]}}
     os: linux
     arch: amd64
 

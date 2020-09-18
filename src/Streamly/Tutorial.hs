@@ -24,7 +24,8 @@
 -- used to fine tune the concurrency control.
 --
 -- Streaming and concurrency together enable expressing reactive applications
--- conveniently. See the @CirclingSquare@ example in the examples directory for
+-- conveniently. See the @CirclingSquare@ example in 
+-- <https://github.com/composewell/streamly-examples Streamly Examples> for
 -- a simple SDL based FRP example. To summarize, streamly provides a unified
 -- computing framework for streaming, non-determinism and functional reactive
 -- programming in an elegant and simple API that is a natural extension of pure
@@ -912,7 +913,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- time.  Take an example of a merge sort of two sorted streams. We need to
 -- keep consuming items from the stream which has the lowest item in the sort
 -- order.  This can be achieved using async references to streams. See
--- "MergeSort.hs" in the examples directory.
+-- "MergeSort.hs" in <https://github.com/composewell/streamly-examples Streamly Examples>.
 
 -- $monoid
 --
@@ -1436,9 +1437,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- and operators instead of the ugly pragmas.
 --
 -- For more concurrent programming examples see,
--- <examples/ListDir.hs ListDir.hs>,
--- <examples/MergeSort.hs MergeSort.hs> and
--- <examples/SearchQuery.hs SearchQuery.hs> in the examples directory.
+-- <https://github.com/composewell/streamly-examples/tree/master/ListDir.hs ListDir.hs>,
+-- <https://github.com/composewell/streamly-examples/tree/master/MergeSort.hs MergeSort.hs> and
+-- <https://github.com/composewell/streamly-examples/tree/master/SearchQuery.hs SearchQuery.hs> in the examples directory.
 
 -- $reactive
 --
@@ -1512,14 +1513,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     void $ runStateT runGame 60
 -- @
 --
--- You can also find the source of this example in the examples directory as
--- <examples/AcidRain.hs AcidRain.hs>. It has been adapted from Gabriel's
+-- You can also find the source of this example in the streamly-examples repo 
+-- as <https://github.com/composewell/streamly-examples/tree/master/AcidRain.hs AcidRain.hs>.
+-- It has been adapted from Gabriel's
 -- <https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html pipes-concurrency>
 -- package.
 -- This is much simpler compared to the pipes version because of the builtin
 -- concurrency in streamly. You can also find a SDL based reactive programming
 -- example adapted from Yampa in
--- <examples/CirclingSquare.hs CirclingSquare.hs>.
+-- <https://github.com/composewell/streamly-examples/tree/master/CirclingSquare.hs CirclingSquare.hs>.
 
 -- $performance
 --
@@ -1714,15 +1716,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- strong reactive programming library as well. Reactive programming is
 -- fundamentally stream of events that can be processed concurrently. The
 -- example in this tutorial as well as the
--- <examples/CirclingSquare.hs CirclingSquare> example from Yampa demonstrate
--- the basic reactive capability of streamly. In core concepts streamly is
--- strikingly similar to @dunai@.  dunai was designed from a FRP perspective
--- and streamly was originally designed from a concurrency perspective.
--- However, both have similarity at the core.
+-- <https://github.com/composewell/streamly-examples/tree/master/CirclingSquare.hs CirclingSquare>
+-- example from Yampa demonstrate the basic reactive capability of streamly.
+-- In core concepts streamly is strikingly similar to @dunai@.  dunai was
+-- designed from a FRP perspective and streamly was originally designed from a
+-- concurrency perspective. However, both have similarity at the core.
 
 -- $furtherReading
 --
 -- * Read the documentation of "Streamly" module
 -- * Read the documentation of "Streamly.Prelude" module
--- * See the examples in the "examples" directory of the package
+-- * See the examples in <https://github.com/composewell/streamly-examples streamly-examples> repo.
 -- * See the tests in the "test" directory of the package
