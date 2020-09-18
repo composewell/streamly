@@ -4157,6 +4157,8 @@ splitOnAny
 splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
 -}
 
+-- XXX Check the 1st example
+-- XXX Is splitSuffixOn a typo?
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.
 --

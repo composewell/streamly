@@ -32,7 +32,9 @@ import Test.Hspec as H
 import Streamly.Prelude
       ( SerialT, IsStream, avgRate, maxBuffer, serial, serially)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Array.Storable.Foreign as A
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude
@@ -163,6 +165,58 @@ associativityCheck desc t = prop desc assocCheckProp
             assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
 
+splitOnSeq :: Spec
+splitOnSeq = do
+    describe "Tests for splitOnSeq" $ do
+        it "splitOnSeq' \"hello\" \"\" = [\"\"]"
+          $ splitOnSeq' "hello" "" `shouldReturn` [""]
+        it "splitOnSeq' \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitOnSeq' "hello" "hello" `shouldReturn` ["", ""]
+        it "splitOnSeq' \"x\" \"hello\" = [\"hello\"]"
+          $ splitOnSeq' "x" "hello" `shouldReturn` ["hello"]
+        it "splitOnSeq' \"h\" \"hello\" = [\"\", \"ello\"]"
+          $ splitOnSeq' "h" "hello" `shouldReturn` ["", "ello"]
+        it "splitOnSeq' \"o\" \"hello\" = [\"hell\", \"\"]"
+          $ splitOnSeq' "o" "hello" `shouldReturn` ["hell", ""]
+        it "splitOnSeq' \"e\" \"hello\" = [\"h\", \"llo\"]"
+          $ splitOnSeq' "e" "hello" `shouldReturn` ["h", "llo"]
+        it "splitOnSeq' \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
+          $ splitOnSeq' "l" "hello" `shouldReturn` ["he", "", "o"]
+        it "splitOnSeq' \"ll\" \"hello\" = [\"he\", \"o\"]"
+          $ splitOnSeq' "ll" "hello" `shouldReturn` ["he", "o"]
+
+    where
+
+    splitOnSeq' pat xs =
+        S.toList $ S.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+
+-- XXX Check the 1st test
+splitOnSuffixSeq :: Spec
+splitOnSuffixSeq = do
+    describe "Tests for splitOnSuffixSeq" $ do
+        it "splitSuffixOn_ \".\" \"\" [\"\"]"
+          $ splitSuffixOn_ "." "" `shouldReturn` [""]
+        it "splitSuffixOn_ \".\" \".\" [\"\"]"
+          $ splitSuffixOn_ "." "." `shouldReturn` [""]
+        it "splitSuffixOn_ \".\" \"a\" [\"a\"]"
+          $ splitSuffixOn_ "." "a" `shouldReturn` ["a"]
+        it "splitSuffixOn_ \".\" \".a\" [\"\",\"a\"]"
+          $ splitSuffixOn_ "." ".a" `shouldReturn` ["", "a"]
+        it "splitSuffixOn_ \".\" \"a.\" [\"a\"]"
+          $ splitSuffixOn_ "." "a." `shouldReturn` ["a"]
+        it "splitSuffixOn_ \".\" \"a.b\" [\"a\",\"b\"]"
+          $ splitSuffixOn_ "." "a.b" `shouldReturn` ["a", "b"]
+        it "splitSuffixOn_ \".\" \"a.b.\" [\"a\",\"b\"]"
+          $ splitSuffixOn_ "." "a.b." `shouldReturn` ["a", "b"]
+        it "splitSuffixOn_ \".\" \"a..b..\" [\"a\",\"\",\"b\",\"\"]"
+          $ splitSuffixOn_ "." "a..b.." `shouldReturn` ["a", "", "b", ""]
+
+    where
+
+    splitSuffixOn_ pat xs =
+        S.toList $ S.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+
+
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -272,3 +326,6 @@ main = hspec
     describe "Tests for S.groupsBy" $ do
         prop "testGroupsBy" testGroupsBy
         prop "testGroupsBySep" testGroupsBySep
+
+    splitOnSeq
+    splitOnSuffixSeq
