@@ -297,9 +297,9 @@ eventStreamAggr (handle, rootPath, cfg) =  do
     S.concatMap S.fromList $ S.repeatM 
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
-strPathToStrHandle 
+pathsToHandles 
     :: NonEmpty FilePath -> Config -> SerialT IO (HANDLE, FilePath, Config)
-strPathToStrHandle paths cfg = do
+pathsToHandles paths cfg = do
     let pathStream = S.fromList (NonEmpty.toList paths)
         st2 = S.mapM getWatchHandle pathStream
     S.map ( \(h, f) -> (h, f , cfg) ) st2   
@@ -342,7 +342,7 @@ closePathHandleStream = S.mapM_ ( \(h, _, _) -> closeHandle h)
 watchPathsWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
 watchPathsWith f paths = do
     let cfg = f $ setRecursiveMode False defaultConfig
-        sth = strPathToStrHandle (utf8ToStringList paths) cfg        
+        sth = pathsToHandles (utf8ToStringList paths) cfg        
     S.after (closePathHandleStream sth) 
         $ S.concatMapWith parallel eventStreamAggr sth
 
@@ -368,7 +368,7 @@ watchPaths = watchPathsWith id
 watchTreesWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event   
 watchTreesWith f paths = do
     let cfg = f $ setRecursiveMode True defaultConfig
-        sth = strPathToStrHandle (utf8ToStringList paths) cfg        
+        sth = pathsToHandles (utf8ToStringList paths) cfg        
     S.after (closePathHandleStream sth) $ S.concatMapWith parallel eventStreamAggr sth
 
 -- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
@@ -429,4 +429,4 @@ showEvent ev@Event{..} =
     ++ showev isMovedTo "MovedTo"
     ++ "\n"
 
-        where showev f str = if f ev then "\n" ++ str else ""
+    where showev f str = if f ev then "\n" ++ str else ""
