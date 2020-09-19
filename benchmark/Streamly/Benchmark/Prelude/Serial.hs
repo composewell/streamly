@@ -855,6 +855,25 @@ o_1_space_mappingX4 value =
         ]
     ]
 
+{-# INLINE sieveScan #-}
+sieveScan :: Monad m => SerialT m Int -> SerialT m Int
+sieveScan =
+      S.mapMaybe snd
+    . S.scanlM' (\(primes, _) n -> do
+            return $
+                let ps = takeWhile (\p -> p * p <= n) primes
+                 in if P.all (\p -> n `mod` p /= 0) ps
+                    then (primes ++ [n], Just n)
+                    else (primes, Nothing)) ([2], Just 2)
+
+o_n_space_mapping :: Int -> [Benchmark]
+o_n_space_mapping value =
+    [ bgroup "mapping"
+        [ benchIO "naive prime sieve"
+            (\n -> S.sum $ sieveScan $ S.enumerateFromTo 2 (value + n))
+        ]
+    ]
+
 -------------------------------------------------------------------------------
 -- Iteration/looping utilities
 -------------------------------------------------------------------------------
@@ -1657,6 +1676,17 @@ o_1_space_monad value =
         ]
     ]
 
+-- This is a good benchmark but inefficient way to compute primes. As we see a
+-- new prime we keep appending a division filter for all the future numbers.
+{-# INLINE sieve #-}
+sieve :: Monad m => SerialT m Int -> SerialT m Int
+sieve s = do
+    r <- lift $ S.uncons s
+    case r of
+        Just (prime, rest) ->
+            prime `S.cons` sieve (S.filter (\n -> n `mod` prime /= 0) rest)
+        Nothing -> S.nil
+
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
     [ bgroup "Monad"
@@ -1668,6 +1698,8 @@ o_n_space_monad value =
             toListM value serially
         , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
             toListSome value serially
+        , benchIO "naive prime sieve (n/4)"
+            (\n -> S.sum $ sieve $ S.enumerateFromTo 2 (value `div` 4 + n))
         ]
     ]
 
@@ -1823,6 +1855,7 @@ main = do
 
             -- transformation
             , o_n_space_traversable size
+            , o_n_space_mapping size
             , o_n_space_grouping size
 
             -- multi-stream
