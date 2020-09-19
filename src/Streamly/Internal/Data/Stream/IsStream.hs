@@ -2598,13 +2598,15 @@ smapM :: (IsStream t, Monad m) =>
     -> t m b
 smapM step initial stream =
     -- XXX implement this directly instead of using scanlM'
-    -- Once we have scanlM' with monadic initial we can use this code
-    -- let r = scanlM'
+    -- Once we have postscanlM' with monadic initial we can use this code
+    -- let r = postscanlM'
     --              (\(s, _) a -> step s a)
     --              (fmap (,undefined) initial)
     --              stream
     let r = concatMap
-                (\s0 -> scanlM' (\(s, _) a -> step s a) (s0, undefined) stream)
+                (\s0 ->
+                    postscanlM' (\(s, _) a -> step s a) (s0, undefined) stream
+                )
                 (yieldM initial)
      in Serial.map snd r
 
