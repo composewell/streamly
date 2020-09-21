@@ -97,11 +97,13 @@ extra-source-files:
     test/Streamly/Test/Network/Inet/TCP.hs
     test/Streamly/Test/Prelude.hs
     test/Streamly/Test/Prelude/*.hs
-    test/Streamly/Test/Unicode/Stream.hs
+    test/Streamly/Test/Unicode/*.hs
     test/lib/Streamly/Test/Common.hs
     test/lib/Streamly/Test/Prelude/Common.hs
     test/streamly-tests.cabal
     test/version-bounds.hs
+    test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
+    test/Streamly/Test/Unicode/extra/NormalizationTest.txt
 
 extra-doc-files:
     CONTRIBUTING.md
