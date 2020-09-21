@@ -126,20 +126,6 @@ extra-doc-files:
     docs/API-changelog.txt
     test/README.md
 
-extra-doc-files:
-    CONTRIBUTING.md
-    Changelog.md
-    README.md
-    benchmark/README.md
-    dev/*.md
-    dev/*.png
-    dev/*.rst
-    docs/*.md
-    docs/*.rst
-    docs/*.svg
-    docs/API-changelog.txt
-    test/README.md
-
 extra-tmp-files:
     config.log
     config.status

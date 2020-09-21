@@ -158,7 +158,6 @@ library
     if flag(limit-build-mem)
       ghc-options: +RTS -M1500M -RTS
 
-
 -------------------------------------------------------------------------------
 -- Test suite options
 -------------------------------------------------------------------------------
@@ -366,6 +365,12 @@ test-suite Unicode.Stream
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Stream.hs
   ghc-options: -main-is Streamly.Test.Unicode.Stream.main
+
+test-suite Unicode.Char
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Char.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Char.main
 
 test-suite version-bounds
   import: test-options
