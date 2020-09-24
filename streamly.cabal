@@ -412,6 +412,7 @@ library
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
+                     , Streamly.Internal.Data.Monoid.Builder
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Consable
 
