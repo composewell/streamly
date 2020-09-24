@@ -16,7 +16,8 @@
 -- the right. The semigroup operation ('<>') can be used for appends. However,
 -- from performance standpoint (<>) is a right associative operation, when left
 -- associated, which is the case for incremental appends, each append adds one
--- nesting layer making the lazy consumption to take O(n^2).
+-- nesting layer making the lazy consumption to take O(n^2), @n@ being the
+-- number of appends.
 --
 -- = Illustration
 --
@@ -61,6 +62,52 @@
 -- Therefore, builders are used to build finite right associative structures by
 -- incremental appending.
 --
+-- = Usage
+--
+-- == Using 'one', 'bag' and ('<>')
+--
+-- Using '<>':
+--
+-- @
+-- one x <> one y :: 'Builder' [] a
+-- one x <> one y & 'close' :: [a]
+-- @
+--
+-- @
+-- bag xs <> bag ys :: 'Builder' [] a
+-- bag xs <> bag ys & 'close' :: [a]
+-- @
+--
+-- == Using 'cons', 'snoc' and 'nil'
+--
+-- Right associative, building with elements:
+--
+-- @
+-- x `'cons'` y `'cons'` 'nil' :: 'Builder' [] a
+-- 'close' $ x `'cons'` y `'cons'` 'nil' :: [a]
+-- @
+--
+-- Right associative, building with lists:
+--
+-- @
+-- xs `'bcons'` ys `'bcons'` 'nil' :: 'Builder' [] a
+-- 'close' $ xs `'bcons'` ys `'bcons'` 'nil' :: [a]
+-- @
+--
+-- Left associative, building with elements:
+--
+-- @
+-- 'nil' `'snoc'` x `'snoc'` y :: 'Builder' [] a
+-- 'nil' `'snoc'` x `'snoc'` y & 'close' :: [a]
+-- @
+--
+-- Left associative, building with lists:
+--
+-- @
+-- 'nil' `'bsnoc'` x `'bsnoc'` y :: 'Builder' [] a
+-- 'nil' `'bsnoc'` x `'bsnoc'` y & 'close' :: [a]
+-- @
+--
 -- = Notes
 --
 -- In general, we should preclude the possibility of left associated appends
@@ -72,7 +119,7 @@ module Streamly.Internal.Data.Builder
 
     -- * Construction
     , nil
-    , solo
+    , one
     , cons
     , snoc
 
@@ -90,12 +137,12 @@ module Streamly.Internal.Data.Builder
     -- right.
 
     , append -- use (<>)
-    , build
-    , extendL -- cons
-    , extendR -- snoc
+    , bag
+    , bcons
+    , bsnoc
 
     -- * Conversion
-    , fromFoldable -- experimental, use foldMap solo
+    , fromFoldable -- experimental, use foldMap one
 
     -- * Elimination
     , close
@@ -121,14 +168,14 @@ newtype Builder t a = Builder (t a -> t a)
 -- Construction
 -------------------------------------------------------------------------------
 
--- | Lift a singleton value to a builder.
+-- | Lift a single element to a builder.
 --
 -- For streams this is 2x faster than using 'build' with singleton streams.
 --
 -- /Internal/
 --
-solo :: Consable t => a -> Builder t a
-solo = Builder . Consable.cons
+one :: Consable t => a -> Builder t a
+one = Builder . Consable.cons
 
 -- | Append two builders sequentially, the left or right associativity of the
 -- expression does not matter, @(a `append` b) `append` c@ has the same
@@ -166,54 +213,66 @@ nil = Builder id
 instance Monoid (Builder t a) where
     mempty = nil
 
+infixr 5 `cons`
+
+-- (.>)
+--
 -- | Add a value at the head of the builder.
 --
--- > cons a b = solo a <> b
+-- > cons a b = one a <> b
 --
 -- /Internal/
 --
 cons :: Consable t => a -> Builder t a -> Builder t a
-cons a b = solo a <> b
+cons a b = one a <> b
 
+-- (<.)
+--
 -- | Add a value at the tail of the builder.
 --
--- > snoc b a = b <> solo a
+-- > snoc b a = b <> one a
 --
 -- /Internal/
 --
 snoc :: Consable t => Builder t a -> a -> Builder t a
-snoc b a = b <> solo a
+snoc b a = b <> one a
 
 -------------------------------------------------------------------------------
 -- Semigroup operations
 -------------------------------------------------------------------------------
 
--- | Wrap a 'Semigroup' capable container into a builder.
+-- | Lift a 'Semigroup' capable container to a builder.
 --
--- > build = Builder . (<>)
+-- > bag = Builder . (<>)
 --
 -- /Internal/
 --
-build :: Semigroup (t a) => t a -> Builder t a
-build = Builder . (<>)
+bag :: Semigroup (t a) => t a -> Builder t a
+bag = Builder . (<>)
 
--- | Extend a builder by appending a structure on the right side.
---
--- > extendR b xs = b <> build xs
---
--- /Internal/
---
-extendR :: Semigroup (t a) => Builder t a -> t a -> Builder t a
-extendR b xs = b <> build xs
+infixr 5 `bcons`
 
--- | Extend a builder by prepending a structure on the left side.
+-- (+>)
 --
--- > extendL xs b = build xs <> b
+-- | Extend a builder by prepending a structure at the beginning.
+--
+-- > bcons xs b = bag xs <> b
 --
 -- /Internal/
 --
-extendL :: Semigroup (t a) => t a -> Builder t a -> Builder t a
-extendL xs b = build xs <> b
+bcons :: Semigroup (t a) => t a -> Builder t a -> Builder t a
+bcons xs b = bag xs <> b
+
+-- (<+)
+--
+-- | Extend a builder by appending a structure at the end.
+--
+-- > bsnoc b xs = b <> bag xs
+--
+-- /Internal/
+--
+bsnoc :: Semigroup (t a) => Builder t a -> t a -> Builder t a
+bsnoc b xs = b <> bag xs
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -240,12 +299,12 @@ unfoldr step b =
 --
 -- | Convert a 'Foldable' container to a builder.
 --
--- > fromFoldable = foldMap solo
+-- > fromFoldable = foldMap one
 --
 -- /Internal/
 --
 fromFoldable :: (Foldable t1, Consable t2) => t1 a -> Builder t2 a
-fromFoldable = foldMap solo
+fromFoldable = foldMap one
 
 -------------------------------------------------------------------------------
 -- Elimination
