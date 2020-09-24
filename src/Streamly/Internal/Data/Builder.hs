@@ -64,49 +64,21 @@
 --
 -- = Usage
 --
--- == Using 'one', 'bag' and ('<>')
+-- == Using 'add', 'bag' and ('<>')
 --
--- Using '<>':
+-- >>> b1 = add 'h'           -- Builder [] Char
+-- >>> b2 = b1 <> add 'e'     -- Builder [] Char
+-- >>> b3 = b2 <> bag "llo!"  -- Builder [] Char
+-- >>> close b3               -- [Char]
+-- "hello!"
 --
--- @
--- one x <> one y :: 'Builder' [] a
--- one x <> one y & 'close' :: [a]
--- @
+-- == Using 'cons' and 'snoc'
 --
--- @
--- bag xs <> bag ys :: 'Builder' [] a
--- bag xs <> bag ys & 'close' :: [a]
--- @
---
--- == Using 'cons', 'snoc' and 'nil'
---
--- Right associative, building with elements:
---
--- @
--- x `'cons'` y `'cons'` 'nil' :: 'Builder' [] a
--- 'close' $ x `'cons'` y `'cons'` 'nil' :: [a]
--- @
---
--- Right associative, building with lists:
---
--- @
--- xs `'bcons'` ys `'bcons'` 'nil' :: 'Builder' [] a
--- 'close' $ xs `'bcons'` ys `'bcons'` 'nil' :: [a]
--- @
---
--- Left associative, building with elements:
---
--- @
--- 'nil' `'snoc'` x `'snoc'` y :: 'Builder' [] a
--- 'nil' `'snoc'` x `'snoc'` y & 'close' :: [a]
--- @
---
--- Left associative, building with lists:
---
--- @
--- 'nil' `'bsnoc'` x `'bsnoc'` y :: 'Builder' [] a
--- 'nil' `'bsnoc'` x `'bsnoc'` y & 'close' :: [a]
--- @
+-- >>> b1 = 'h' `cons` "el" `bcons` mempty -- Builder [] Char
+-- >>> b2 = b1 `snoc` 'l' `snoc` 'o'       -- Builder [] Char
+-- >>> b3 = b2 `bsnoc` " world!"           -- Builder [] Char
+-- >>> close b3                            -- [Char]
+-- "hello world!"
 --
 -- = Notes
 --
@@ -118,12 +90,18 @@ module Streamly.Internal.Data.Builder
     ( Builder (..)
 
     -- * Construction
+    , add
+    , bag
+
+    -- * Elimination
+    , close
+
+    -- * Experimental
     , nil
-    , one
     , cons
     , snoc
 
-    -- * Generation
+    -- ** Generation
     -- | Experimental. In general, we can generate a structure and lift it into
     -- a builder. For lists there is no perf difference in wrapping lists in a
     -- builder vs wrapping elements. In case of streams there is a 2x
@@ -131,21 +109,14 @@ module Streamly.Internal.Data.Builder
     -- cases it may not matter.
     , unfoldr -- experimental, use builder
 
-    -- * Semigroup
-    -- | Open a 'Consable' structure for O(1) appends irrespective of
-    -- associativity. We can then cheaply extend it on the left or on the
-    -- right.
-
     , append -- use (<>)
-    , bag
     , bcons
     , bsnoc
 
-    -- * Conversion
-    , fromFoldable -- experimental, use foldMap one
+    -- ** Conversion
+    , fromFoldable -- experimental, use foldMap add
 
-    -- * Elimination
-    , close
+    -- ** Elimination
     , final
     , concat -- this is of limited use perhaps
     )
@@ -174,8 +145,8 @@ newtype Builder t a = Builder (t a -> t a)
 --
 -- /Internal/
 --
-one :: Consable t => a -> Builder t a
-one = Builder . Consable.cons
+add :: Consable t => a -> Builder t a
+add = Builder . Consable.cons
 
 -- | Append two builders sequentially, the left or right associativity of the
 -- expression does not matter, @(a `append` b) `append` c@ has the same
@@ -219,23 +190,23 @@ infixr 5 `cons`
 --
 -- | Add a value at the head of the builder.
 --
--- > cons a b = one a <> b
+-- > cons a b = add a <> b
 --
 -- /Internal/
 --
 cons :: Consable t => a -> Builder t a -> Builder t a
-cons a b = one a <> b
+cons a b = add a <> b
 
 -- (<.)
 --
 -- | Add a value at the tail of the builder.
 --
--- > snoc b a = b <> one a
+-- > snoc b a = b <> add a
 --
 -- /Internal/
 --
 snoc :: Consable t => Builder t a -> a -> Builder t a
-snoc b a = b <> one a
+snoc b a = b <> add a
 
 -------------------------------------------------------------------------------
 -- Semigroup operations
@@ -299,12 +270,12 @@ unfoldr step b =
 --
 -- | Convert a 'Foldable' container to a builder.
 --
--- > fromFoldable = foldMap one
+-- > fromFoldable = foldMap add
 --
 -- /Internal/
 --
 fromFoldable :: (Foldable t1, Consable t2) => t1 a -> Builder t2 a
-fromFoldable = foldMap one
+fromFoldable = foldMap add
 
 -------------------------------------------------------------------------------
 -- Elimination

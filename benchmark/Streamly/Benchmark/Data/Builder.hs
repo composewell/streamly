@@ -12,6 +12,7 @@ import Streamly.Prelude (SerialT, serially)
 
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Builder as Builder
+import qualified Streamly.Internal.Data.Monoid.Builder as MBuilder
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -37,7 +38,7 @@ appendListBuilderSourceR value n =
 {-# INLINE consListBuilderSourceR #-}
 consListBuilderSourceR :: Int -> Int -> [Int]
 consListBuilderSourceR value n =
-    Builder.close $ foldMap Builder.one [n..n+value]
+    Builder.close $ foldMap Builder.add [n..n+value]
 
 {-# INLINE appendSourceR #-}
 appendSourceR :: Int -> Int -> SerialT m Int
@@ -46,7 +47,7 @@ appendSourceR value n = foldMap Stream.yield [n..n+value]
 {-# INLINE consStreamBuilderSourceR #-}
 consStreamBuilderSourceR :: Int -> Int -> SerialT m Int
 consStreamBuilderSourceR value n =
-    Builder.close $ foldMap Builder.one [n..n+value]
+    Builder.close $ foldMap Builder.add [n..n+value]
 
 {-# INLINE appendStreamBuilderSourceR #-}
 appendStreamBuilderSourceR :: Int -> Int -> SerialT m Int
@@ -79,20 +80,26 @@ o_1_space_appendR value =
 {-# INLINE appendListSourceL #-}
 appendListSourceL :: Int -> Int -> [Int]
 appendListSourceL value n =
-    Prelude.foldl (Prelude.++) [] (Prelude.map (: []) [n..n+value])
+    Prelude.foldl (Prelude.++) [] (map (: []) [n..n+value])
 
 {-# INLINE appendListBuilderSourceL #-}
 appendListBuilderSourceL :: Int -> Int -> [Int]
 appendListBuilderSourceL value n =
     Builder.close
         $ Prelude.foldl
-            (<>) mempty (Prelude.map (Builder.bag . (: [])) [n..n+value])
+            (<>) mempty (map (Builder.bag . (: [])) [n..n+value])
+
+{-# INLINE appendListMonoidBuilderSourceL #-}
+appendListMonoidBuilderSourceL :: Int -> Int -> [Int]
+appendListMonoidBuilderSourceL value n =
+    MBuilder.close
+        $ Prelude.foldl (<>) mempty (map (MBuilder.add . (: [])) [n..n+value])
 
 {-# INLINE consListBuilderSourceL #-}
 consListBuilderSourceL :: Int -> Int -> [Int]
 consListBuilderSourceL value n =
     Builder.close
-        $ Prelude.foldl (<>) mempty (Prelude.map  Builder.one [n..n+value])
+        $ Prelude.foldl (<>) mempty (map  Builder.add [n..n+value])
 
 {-# INLINE appendSourceL #-}
 appendSourceL :: Int -> Int -> SerialT m Int
@@ -107,13 +114,13 @@ appendStreamBuilderSourceL value n =
         $ Prelude.foldl
             (<>)
             mempty
-            (Prelude.map (Builder.bag . Stream.yield) [n..n+value])
+            (map (Builder.bag . Stream.yield) [n..n+value])
 
 {-# INLINE consStreamBuilderSourceL #-}
 consStreamBuilderSourceL :: Int -> Int -> SerialT m Int
 consStreamBuilderSourceL value n =
     Builder.close
-        $ Prelude.foldl (<>) mempty (Prelude.map Builder.one [n..n+value])
+        $ Prelude.foldl (<>) mempty (map Builder.add [n..n+value])
 
 -- Use builder of streams and concat
 {-# INLINE streamConcatStreamBuilderSourceL #-}
@@ -124,7 +131,7 @@ streamConcatStreamBuilderSourceL value n =
         $ Prelude.foldl
             (<>)
             mempty
-            (Prelude.map (Builder.one . Stream.yield) [n..n+value])
+            (map (Builder.add . Stream.yield) [n..n+value])
 
 {-# INLINE builderConcatStreamBuilderSourceL #-}
 builderConcatStreamBuilderSourceL :: Int -> Int -> SerialT Identity Int
@@ -133,7 +140,7 @@ builderConcatStreamBuilderSourceL value n =
         $ Prelude.foldl
             (<>)
             mempty
-            (Prelude.map (Builder.one . (Stream.yield :: Int -> SerialT Identity Int)) [n..n+value])
+            (map (Builder.add . (Stream.yield :: Int -> SerialT Identity Int)) [n..n+value])
 
 o_1_space_appendL :: Int -> [Benchmark]
 o_1_space_appendL value =
@@ -143,6 +150,10 @@ o_1_space_appendL value =
         , benchPure
             "singleton list builders"
             (appendListBuilderSourceL value)
+            id
+        , benchPure
+            "singleton list monoid builders"
+            (appendListMonoidBuilderSourceL value)
             id
         , benchPure
             "consed list builders"
