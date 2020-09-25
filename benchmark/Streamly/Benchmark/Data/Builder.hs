@@ -122,6 +122,13 @@ consStreamBuilderSourceL value n =
     Builder.close
         $ Prelude.foldl (<>) mempty (map Builder.add [n..n+value])
 
+{-# INLINE appendStreamMonoidBuilderSourceL #-}
+appendStreamMonoidBuilderSourceL :: Int -> Int -> SerialT m Int
+appendStreamMonoidBuilderSourceL value n =
+    MBuilder.close
+        $ Prelude.foldl
+            (<>) mempty (map (MBuilder.add . Stream.yield) [n..n+value])
+
 -- Use builder of streams and concat
 {-# INLINE streamConcatStreamBuilderSourceL #-}
 streamConcatStreamBuilderSourceL :: Monad m => Int -> Int -> SerialT m Int
@@ -171,6 +178,10 @@ o_1_space_appendL value =
             serially
             "consed stream builders"
             (consStreamBuilderSourceL value)
+        , benchIOSrc
+            serially
+            "singleton stream monoid builders"
+            (appendStreamMonoidBuilderSourceL value)
         , benchIOSrc
             serially
             "Stream.concat stream builders"
