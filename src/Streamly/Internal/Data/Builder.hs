@@ -64,28 +64,43 @@
 --
 -- = Usage
 --
--- == Using 'mk', 'bag' and ('<>')
+-- == Using cons and snoc operators
 --
--- >>> b1 = mk 'h'           -- Builder [] Char
--- >>> b2 = b1 <> mk 'e'     -- Builder [] Char
--- >>> b3 = b2 <> bag "llo!" -- Builder [] Char
--- >>> use b3                -- [Char]
--- "hello!"
+-- Build using elements:
+--
+-- >>> b1 = 'h' <+ 'i' <+ mempty -- Builder t Char
+-- >>> b2 = b1 +> '!'            -- Builder t Char
+-- >>> use b2 :: [Char]
+-- "hi!"
+-- >>> use b2 :: SerialT Identity Char
+-- "hi!"
+--
+-- Build using containers:
+--
+-- >>> b1 = "hello" <++ " world" <++ mempty -- Builder [] Char
+-- >>> b2 = b1 ++> "!!"                     -- Builder [] Char
+-- >>> use b2                               -- [Char]
+-- "hello world!!"
+--
+-- Mixed:
+--
+-- >>> b1 = 'h' <+ "ello" <++ mempty -- Builder [] Char
+-- >>> b2 = b1 ++> " world" +> '!'   -- Builder [] Char
+-- >>> use b2                        -- [Char]
+-- "hello world!"
 --
 -- == Using 'cons' and 'snoc'
 --
--- >>> b1 = 'h' `cons` "el" `bcons` mempty -- Builder [] Char
--- >>> b2 = b1 `snoc` 'l' `snoc` 'o'       -- Builder [] Char
--- >>> b3 = b2 `bsnoc` " world!"           -- Builder [] Char
--- >>> use b3                              -- [Char]
+-- >>> b1 = 'h' `cons` "ello" `bcons` mempty -- Builder [] Char
+-- >>> b2 = b1 `bsnoc` " world" `snoc` '!'   -- Builder [] Char
+-- >>> use b2                                -- [Char]
 -- "hello world!"
 --
--- == Using cons and snoc operators
+-- == Using 'mk', 'bag' and ('<>')
 --
--- >>> b1 = 'h' <+ "el" <++ mempty -- Builder [] Char
--- >>> b2 = b1 +> 'l' +> 'o'       -- Builder [] Char
--- >>> b3 = b2 ++> " world!"       -- Builder [] Char
--- >>> use b3                      -- [Char]
+-- >>> b1 = mk 'h' <> bag "ello"         -- Builder [] Char
+-- >>> b2 = b1 <> bag " world" <> mk '!' -- Builder [] Char
+-- >>> use b2                            -- [Char]
 -- "hello world!"
 --
 -- = Notes
@@ -198,7 +213,8 @@ instance Monoid (Builder t a) where
 
 infixr 5 `cons`
 
--- | Add a value at the head of the builder.
+-- | Add a value at the head of the builder. Right associvative when used
+-- infix.
 --
 -- > cons a b = mk a <> b
 --
@@ -207,7 +223,9 @@ infixr 5 `cons`
 cons :: Consable t => a -> Builder t a -> Builder t a
 cons a b = mk a <> b
 
--- | Same as 'cons'.
+infixr 5 <+
+
+-- | Same as 'cons'. Right associvative.
 --
 -- /Internal/
 --
@@ -215,7 +233,7 @@ cons a b = mk a <> b
 (<+) = cons
 
 --
--- | Add a value at the tail of the builder.
+-- | Add a value at the tail of the builder. Left associvative when used infix.
 --
 -- > snoc b a = b <> mk a
 --
@@ -224,7 +242,7 @@ cons a b = mk a <> b
 snoc :: Consable t => Builder t a -> a -> Builder t a
 snoc b a = b <> mk a
 
--- | Same as 'snoc'.
+-- | Same as 'snoc'. Left associvative.
 --
 -- /Internal/
 --
@@ -246,7 +264,8 @@ bag = Builder . (<>)
 
 infixr 5 `bcons`
 
--- | Extend a builder by prepending a structure at the beginning.
+-- | Extend a builder by prepending a structure at the beginning. Right
+-- associvative when used infix.
 --
 -- > bcons xs b = bag xs <> b
 --
@@ -255,16 +274,17 @@ infixr 5 `bcons`
 bcons :: Semigroup (t a) => t a -> Builder t a -> Builder t a
 bcons xs b = bag xs <> b
 
--- | Same as 'bcons'.
+infixr 5 <++
+
+-- | Same as 'bcons'. Right associative.
 --
 -- /Internal/
 --
 (<++) :: Semigroup (t a) => t a -> Builder t a -> Builder t a
 (<++) = bcons
 
--- (++>)
---
--- | Extend a builder by appending a structure at the end.
+-- | Extend a builder by appending a structure at the end. Left associative
+-- when used infix.
 --
 -- > bsnoc b xs = b <> bag xs
 --
@@ -273,7 +293,7 @@ bcons xs b = bag xs <> b
 bsnoc :: Semigroup (t a) => Builder t a -> t a -> Builder t a
 bsnoc b xs = b <> bag xs
 
--- | Same as 'bsnoc'.
+-- | Same as 'bsnoc'. Left associative.
 --
 -- /Internal/
 --
