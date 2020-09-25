@@ -96,10 +96,10 @@
 -- >>> use b2                                -- [Char]
 -- "hello world!"
 --
--- == Using 'mk', 'bag' and ('<>')
+-- == Using 'mk', 'add' and ('<>')
 --
--- >>> b1 = mk 'h' <> bag "ello"         -- Builder [] Char
--- >>> b2 = b1 <> bag " world" <> mk '!' -- Builder [] Char
+-- >>> b1 = mk 'h' <> add "ello"         -- Builder [] Char
+-- >>> b2 = b1 <> add " world" <> mk '!' -- Builder [] Char
 -- >>> use b2                            -- [Char]
 -- "hello world!"
 --
@@ -111,20 +111,22 @@
 
 module Streamly.Internal.Data.Builder
     ( Builder (..)
+    , Buildable (..)
 
     -- * Construction
-    , mk
-    , bag
-
-    -- * Elimination
-    , use
-
-    -- * Experimental
     , nil
+
     , cons
     , snoc
     , (<+)
     , (+>)
+
+    , bcons
+    , bsnoc
+    , (<++)
+    , (++>)
+
+    -- * Experimental
 
     -- ** Generation
     -- | Experimental. In general, we can generate a structure and lift it into
@@ -135,24 +137,18 @@ module Streamly.Internal.Data.Builder
     , unfoldr -- experimental, use builder
 
     , append -- use (<>)
-    , bcons
-    , bsnoc
-    , (<++)
-    , (++>)
 
     -- ** Conversion
     , fromFoldable -- experimental, use foldMap mk
 
     -- ** Elimination
     , final
-    , concat -- this is of limited use perhaps
     )
 where
 
 import Data.Semigroup (Semigroup (..))
-import Streamly.Internal.Data.Consable (Consable)
-
-import qualified Streamly.Internal.Data.Consable as Consable
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+import qualified Streamly.Internal.Data.Stream.StreamK as Serial
 
 import Prelude hiding (concat)
 
@@ -162,18 +158,27 @@ import Prelude hiding (concat)
 -- generalized to a 'Consable'. This is fully associative builder.
 newtype Builder t a = Builder (t a -> t a)
 
+class Buildable t where
+    -- | Make a builder from a single element.
+    mk :: a -> Builder t a
+    -- | Make a builder from a container.
+    add :: t a -> Builder t a
+    -- | Use the builder as the underlying container type.
+    use :: Builder t a -> t a
+
+instance Buildable [] where
+    mk = Builder . (:)
+    add = Builder . (++)
+    use (Builder k) = k []
+
+instance Buildable (SerialT m) where
+    mk = Builder . (Serial.cons)
+    add = Builder . (Serial.serial)
+    use (Builder k) = k Serial.nil
+
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
-
--- | Lift a single element to a builder.
---
--- For streams this is 2x faster than using 'build' with singleton streams.
---
--- /Internal/
---
-mk :: Consable t => a -> Builder t a
-mk = Builder . Consable.cons
 
 -- | Append two builders sequentially, the left or right associativity of the
 -- expression does not matter, @(a `append` b) `append` c@ has the same
@@ -220,7 +225,7 @@ infixr 5 `cons`
 --
 -- /Internal/
 --
-cons :: Consable t => a -> Builder t a -> Builder t a
+cons :: Buildable t => a -> Builder t a -> Builder t a
 cons a b = mk a <> b
 
 infixr 5 <+
@@ -229,7 +234,7 @@ infixr 5 <+
 --
 -- /Internal/
 --
-(<+) :: Consable t => a -> Builder t a -> Builder t a
+(<+) :: Buildable t => a -> Builder t a -> Builder t a
 (<+) = cons
 
 --
@@ -239,40 +244,31 @@ infixr 5 <+
 --
 -- /Internal/
 --
-snoc :: Consable t => Builder t a -> a -> Builder t a
+snoc :: Buildable t => Builder t a -> a -> Builder t a
 snoc b a = b <> mk a
 
 -- | Same as 'snoc'. Left associvative.
 --
 -- /Internal/
 --
-(+>) :: Consable t => Builder t a -> a -> Builder t a
+(+>) :: Buildable t => Builder t a -> a -> Builder t a
 (+>) = snoc
 
 -------------------------------------------------------------------------------
 -- Semigroup operations
 -------------------------------------------------------------------------------
 
--- | Lift a 'Semigroup' capable container to a builder.
---
--- > bag = Builder . (<>)
---
--- /Internal/
---
-bag :: Semigroup (t a) => t a -> Builder t a
-bag = Builder . (<>)
-
 infixr 5 `bcons`
 
 -- | Extend a builder by prepending a structure at the beginning. Right
 -- associvative when used infix.
 --
--- > bcons xs b = bag xs <> b
+-- > bcons xs b = add xs <> b
 --
 -- /Internal/
 --
-bcons :: Semigroup (t a) => t a -> Builder t a -> Builder t a
-bcons xs b = bag xs <> b
+bcons :: Buildable t => t a -> Builder t a -> Builder t a
+bcons xs b = add xs <> b
 
 infixr 5 <++
 
@@ -280,24 +276,24 @@ infixr 5 <++
 --
 -- /Internal/
 --
-(<++) :: Semigroup (t a) => t a -> Builder t a -> Builder t a
+(<++) :: Buildable t => t a -> Builder t a -> Builder t a
 (<++) = bcons
 
 -- | Extend a builder by appending a structure at the end. Left associative
 -- when used infix.
 --
--- > bsnoc b xs = b <> bag xs
+-- > bsnoc b xs = b <> add xs
 --
 -- /Internal/
 --
-bsnoc :: Semigroup (t a) => Builder t a -> t a -> Builder t a
-bsnoc b xs = b <> bag xs
+bsnoc :: Buildable t => Builder t a -> t a -> Builder t a
+bsnoc b xs = b <> add xs
 
 -- | Same as 'bsnoc'. Left associative.
 --
 -- /Internal/
 --
-(++>) :: Semigroup (t a) => Builder t a -> t a -> Builder t a
+(++>) :: Buildable t => Builder t a -> t a -> Builder t a
 (++>) = bsnoc
 
 -------------------------------------------------------------------------------
@@ -313,11 +309,11 @@ bsnoc b xs = b <> bag xs
 --
 -- /Internal/
 --
-unfoldr :: Consable t => (b -> Maybe (a, b)) -> b -> Builder t a
+unfoldr :: Buildable t => (b -> Maybe (a, b)) -> b -> Builder t a
 unfoldr step b =
     case step b of
         Nothing -> nil
-        Just (a, b1) -> a `cons` unfoldr step b1
+        Just (a, b1) -> mk a <> unfoldr step b1
 
 -------------------------------------------------------------------------------
 -- Conversion
@@ -329,20 +325,12 @@ unfoldr step b =
 --
 -- /Internal/
 --
-fromFoldable :: (Foldable t1, Consable t2) => t1 a -> Builder t2 a
+fromFoldable :: (Foldable t1, Buildable t2) => t1 a -> Builder t2 a
 fromFoldable = foldMap mk
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
-
--- | Close the builder and extract the container.
---
--- /Internal/
---
-{-# INLINE use #-}
-use :: Consable t => Builder t a -> t a
-use (Builder k) = k Consable.nil
 
 -- | Close a builder by appending a final container to it.
 --
@@ -354,18 +342,11 @@ use (Builder k) = k Consable.nil
 final :: Builder t a -> t a -> t a
 final (Builder k) = k
 
--- | Flatten a builder building a container of containers.
---
--- /Internal/
---
-concat :: (Consable t1, Foldable t1, Foldable t2) => Builder t1 (t2 a) -> t1 a
-concat = foldr (\x y -> foldr Consable.cons y x) Consable.nil . use
-
 {-
 -- XXX creates an intermediate structure, can it be fused?
 -- The foldable instance essentially realizes the builder to underlying
 -- container and folds it.  For simplicity, it is perhaps better to perform
 -- operations on the container explicitly rather doing it on the builder.
-instance (Consable t, Foldable t) => Foldable (Builder t) where
+instance (Buildable t, Foldable t) => Foldable (Builder t) where
     foldMap f = foldMap f . use
 -}

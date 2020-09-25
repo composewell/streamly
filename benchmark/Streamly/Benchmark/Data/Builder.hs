@@ -7,7 +7,6 @@
 
 module Main where
 
-import Data.Functor.Identity (Identity)
 import Streamly.Prelude (SerialT, serially)
 
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
@@ -33,7 +32,7 @@ appendListSourceR value n =
 {-# INLINE appendListBuilderSourceR #-}
 appendListBuilderSourceR :: Int -> Int -> [Int]
 appendListBuilderSourceR value n =
-    Builder.use $ foldMap (Builder.bag . (: [])) [n..n+value]
+    Builder.use $ foldMap (Builder.add . (: [])) [n..n+value]
 
 {-# INLINE consListBuilderSourceR #-}
 consListBuilderSourceR :: Int -> Int -> [Int]
@@ -52,7 +51,7 @@ consStreamBuilderSourceR value n =
 {-# INLINE appendStreamBuilderSourceR #-}
 appendStreamBuilderSourceR :: Int -> Int -> SerialT m Int
 appendStreamBuilderSourceR value n =
-    Builder.use $ foldMap (Builder.bag . Stream.yield) [n..n+value]
+    Builder.use $ foldMap (Builder.add . Stream.yield) [n..n+value]
 
 o_1_space_appendR :: Int -> [Benchmark]
 o_1_space_appendR value =
@@ -87,7 +86,7 @@ appendListBuilderSourceL :: Int -> Int -> [Int]
 appendListBuilderSourceL value n =
     Builder.use
         $ Prelude.foldl
-            (<>) mempty (map (Builder.bag . (: [])) [n..n+value])
+            (<>) mempty (map (Builder.add . (: [])) [n..n+value])
 
 {-# INLINE appendListMonoidBuilderSourceL #-}
 appendListMonoidBuilderSourceL :: Int -> Int -> [Int]
@@ -114,7 +113,7 @@ appendStreamBuilderSourceL value n =
         $ Prelude.foldl
             (<>)
             mempty
-            (map (Builder.bag . Stream.yield) [n..n+value])
+            (map (Builder.add . Stream.yield) [n..n+value])
 
 {-# INLINE consStreamBuilderSourceL #-}
 consStreamBuilderSourceL :: Int -> Int -> SerialT m Int
@@ -139,15 +138,6 @@ streamConcatStreamBuilderSourceL value n =
             (<>)
             mempty
             (map (Builder.mk . Stream.yield) [n..n+value])
-
-{-# INLINE builderConcatStreamBuilderSourceL #-}
-builderConcatStreamBuilderSourceL :: Int -> Int -> SerialT Identity Int
-builderConcatStreamBuilderSourceL value n =
-    Builder.concat
-        $ Prelude.foldl
-            (<>)
-            mempty
-            (map (Builder.mk . (Stream.yield :: Int -> SerialT Identity Int)) [n..n+value])
 
 o_1_space_appendL :: Int -> [Benchmark]
 o_1_space_appendL value =
@@ -186,9 +176,6 @@ o_1_space_appendL value =
             serially
             "Stream.concat stream builders"
             (streamConcatStreamBuilderSourceL value)
-        , benchPureSrc
-            "Builder.concat stream builders"
-            (builderConcatStreamBuilderSourceL value)
         ]
     ]
 
