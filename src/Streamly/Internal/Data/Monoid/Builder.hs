@@ -12,25 +12,25 @@
 --
 -- = Usage
 --
--- >>> b1 = add "hello "
--- >>> b2 = b1 <> add "world!"
--- >>> close b2
+-- >>> b1 = mk "hello "
+-- >>> b2 = b1 <> mk "world!"
+-- >>> use b2
 -- "hello world!"
 --
 module Streamly.Internal.Data.Monoid.Builder
     ( Builder (..)
 
     -- * Construction
-    , add
+    , mk
 
     -- * Elimination
-    , close
+    , use
 
     -- * Experimental
     , nil -- use mempty
     , cons
     , snoc
-    , fromFoldable -- use foldMap add
+    , fromFoldable -- use foldMap mk
     , final
     )
 where
@@ -48,8 +48,8 @@ newtype Builder a = Builder (a -> a)
 --
 -- /Internal/
 --
-add :: Monoid a => a -> Builder a
-add = Builder . (<>)
+mk :: Monoid a => a -> Builder a
+mk = Builder . (<>)
 
 -- | Append two builders sequentially, the left or right associativity of the
 -- expression does not matter, @(a `append` b) `append` c@ has the same
@@ -93,23 +93,23 @@ infixr 5 `cons`
 --
 -- | Add a value at the head of the builder.
 --
--- > cons a b = add a <> b
+-- > cons a b = mk a <> b
 --
 -- /Internal/
 --
 cons :: Monoid a => a -> Builder a -> Builder a
-cons a b = add a <> b
+cons a b = mk a <> b
 
 -- (<.)
 --
 -- | Add a value at the tail of the builder.
 --
--- > snoc b a = b <> add a
+-- > snoc b a = b <> mk a
 --
 -- /Internal/
 --
 snoc :: Monoid a => Builder a -> a -> Builder a
-snoc b a = b <> add a
+snoc b a = b <> mk a
 
 -------------------------------------------------------------------------------
 -- Conversion
@@ -117,12 +117,12 @@ snoc b a = b <> add a
 --
 -- | Convert a 'Foldable' container to a builder.
 --
--- > fromFoldable = foldMap add
+-- > fromFoldable = foldMap mk
 --
 -- /Internal/
 --
 fromFoldable :: (Foldable t, Monoid a) => t a -> Builder a
-fromFoldable = foldMap add
+fromFoldable = foldMap mk
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -132,9 +132,9 @@ fromFoldable = foldMap add
 --
 -- /Internal/
 --
-{-# INLINE close #-}
-close :: Monoid a => Builder a -> a
-close (Builder k) = k mempty
+{-# INLINE use #-}
+use :: Monoid a => Builder a -> a
+use (Builder k) = k mempty
 
 -- | Close a builder by appending a final value to it.
 --

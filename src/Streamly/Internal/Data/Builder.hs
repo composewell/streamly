@@ -64,12 +64,12 @@
 --
 -- = Usage
 --
--- == Using 'add', 'bag' and ('<>')
+-- == Using 'mk', 'bag' and ('<>')
 --
--- >>> b1 = add 'h'           -- Builder [] Char
--- >>> b2 = b1 <> add 'e'     -- Builder [] Char
--- >>> b3 = b2 <> bag "llo!"  -- Builder [] Char
--- >>> close b3               -- [Char]
+-- >>> b1 = mk 'h'           -- Builder [] Char
+-- >>> b2 = b1 <> mk 'e'     -- Builder [] Char
+-- >>> b3 = b2 <> bag "llo!" -- Builder [] Char
+-- >>> use b3                -- [Char]
 -- "hello!"
 --
 -- == Using 'cons' and 'snoc'
@@ -77,7 +77,15 @@
 -- >>> b1 = 'h' `cons` "el" `bcons` mempty -- Builder [] Char
 -- >>> b2 = b1 `snoc` 'l' `snoc` 'o'       -- Builder [] Char
 -- >>> b3 = b2 `bsnoc` " world!"           -- Builder [] Char
--- >>> close b3                            -- [Char]
+-- >>> use b3                              -- [Char]
+-- "hello world!"
+--
+-- == Using cons and snoc operators
+--
+-- >>> b1 = 'h' <+ "el" <++ mempty -- Builder [] Char
+-- >>> b2 = b1 +> 'l' +> 'o'       -- Builder [] Char
+-- >>> b3 = b2 ++> " world!"       -- Builder [] Char
+-- >>> use b3                      -- [Char]
 -- "hello world!"
 --
 -- = Notes
@@ -90,16 +98,18 @@ module Streamly.Internal.Data.Builder
     ( Builder (..)
 
     -- * Construction
-    , add
+    , mk
     , bag
 
     -- * Elimination
-    , close
+    , use
 
     -- * Experimental
     , nil
     , cons
     , snoc
+    , (<+)
+    , (+>)
 
     -- ** Generation
     -- | Experimental. In general, we can generate a structure and lift it into
@@ -112,9 +122,11 @@ module Streamly.Internal.Data.Builder
     , append -- use (<>)
     , bcons
     , bsnoc
+    , (<++)
+    , (++>)
 
     -- ** Conversion
-    , fromFoldable -- experimental, use foldMap add
+    , fromFoldable -- experimental, use foldMap mk
 
     -- ** Elimination
     , final
@@ -145,8 +157,8 @@ newtype Builder t a = Builder (t a -> t a)
 --
 -- /Internal/
 --
-add :: Consable t => a -> Builder t a
-add = Builder . Consable.cons
+mk :: Consable t => a -> Builder t a
+mk = Builder . Consable.cons
 
 -- | Append two builders sequentially, the left or right associativity of the
 -- expression does not matter, @(a `append` b) `append` c@ has the same
@@ -186,27 +198,38 @@ instance Monoid (Builder t a) where
 
 infixr 5 `cons`
 
--- (.>)
---
 -- | Add a value at the head of the builder.
 --
--- > cons a b = add a <> b
+-- > cons a b = mk a <> b
 --
 -- /Internal/
 --
 cons :: Consable t => a -> Builder t a -> Builder t a
-cons a b = add a <> b
+cons a b = mk a <> b
 
--- (<.)
+-- | Same as 'cons'.
+--
+-- /Internal/
+--
+(<+) :: Consable t => a -> Builder t a -> Builder t a
+(<+) = cons
+
 --
 -- | Add a value at the tail of the builder.
 --
--- > snoc b a = b <> add a
+-- > snoc b a = b <> mk a
 --
 -- /Internal/
 --
 snoc :: Consable t => Builder t a -> a -> Builder t a
-snoc b a = b <> add a
+snoc b a = b <> mk a
+
+-- | Same as 'snoc'.
+--
+-- /Internal/
+--
+(+>) :: Consable t => Builder t a -> a -> Builder t a
+(+>) = snoc
 
 -------------------------------------------------------------------------------
 -- Semigroup operations
@@ -223,8 +246,6 @@ bag = Builder . (<>)
 
 infixr 5 `bcons`
 
--- (+>)
---
 -- | Extend a builder by prepending a structure at the beginning.
 --
 -- > bcons xs b = bag xs <> b
@@ -234,7 +255,14 @@ infixr 5 `bcons`
 bcons :: Semigroup (t a) => t a -> Builder t a -> Builder t a
 bcons xs b = bag xs <> b
 
--- (<+)
+-- | Same as 'bcons'.
+--
+-- /Internal/
+--
+(<++) :: Semigroup (t a) => t a -> Builder t a -> Builder t a
+(<++) = bcons
+
+-- (++>)
 --
 -- | Extend a builder by appending a structure at the end.
 --
@@ -244,6 +272,13 @@ bcons xs b = bag xs <> b
 --
 bsnoc :: Semigroup (t a) => Builder t a -> t a -> Builder t a
 bsnoc b xs = b <> bag xs
+
+-- | Same as 'bsnoc'.
+--
+-- /Internal/
+--
+(++>) :: Semigroup (t a) => Builder t a -> t a -> Builder t a
+(++>) = bsnoc
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -270,12 +305,12 @@ unfoldr step b =
 --
 -- | Convert a 'Foldable' container to a builder.
 --
--- > fromFoldable = foldMap add
+-- > fromFoldable = foldMap mk
 --
 -- /Internal/
 --
 fromFoldable :: (Foldable t1, Consable t2) => t1 a -> Builder t2 a
-fromFoldable = foldMap add
+fromFoldable = foldMap mk
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -285,13 +320,13 @@ fromFoldable = foldMap add
 --
 -- /Internal/
 --
-{-# INLINE close #-}
-close :: Consable t => Builder t a -> t a
-close (Builder k) = k Consable.nil
+{-# INLINE use #-}
+use :: Consable t => Builder t a -> t a
+use (Builder k) = k Consable.nil
 
 -- | Close a builder by appending a final container to it.
 --
--- This is experimental. We can always 'extendR' and 'close' instead.
+-- This is experimental. We can always 'extendR' and 'use instead.
 --
 -- /Internal/
 --
@@ -304,7 +339,7 @@ final (Builder k) = k
 -- /Internal/
 --
 concat :: (Consable t1, Foldable t1, Foldable t2) => Builder t1 (t2 a) -> t1 a
-concat = foldr (\x y -> foldr Consable.cons y x) Consable.nil . close
+concat = foldr (\x y -> foldr Consable.cons y x) Consable.nil . use
 
 {-
 -- XXX creates an intermediate structure, can it be fused?
@@ -312,5 +347,5 @@ concat = foldr (\x y -> foldr Consable.cons y x) Consable.nil . close
 -- container and folds it.  For simplicity, it is perhaps better to perform
 -- operations on the container explicitly rather doing it on the builder.
 instance (Consable t, Foldable t) => Foldable (Builder t) where
-    foldMap f = foldMap f . close
+    foldMap f = foldMap f . use
 -}

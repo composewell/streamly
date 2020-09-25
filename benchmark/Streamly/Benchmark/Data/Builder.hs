@@ -33,12 +33,12 @@ appendListSourceR value n =
 {-# INLINE appendListBuilderSourceR #-}
 appendListBuilderSourceR :: Int -> Int -> [Int]
 appendListBuilderSourceR value n =
-    Builder.close $ foldMap (Builder.bag . (: [])) [n..n+value]
+    Builder.use $ foldMap (Builder.bag . (: [])) [n..n+value]
 
 {-# INLINE consListBuilderSourceR #-}
 consListBuilderSourceR :: Int -> Int -> [Int]
 consListBuilderSourceR value n =
-    Builder.close $ foldMap Builder.add [n..n+value]
+    Builder.use $ foldMap Builder.mk [n..n+value]
 
 {-# INLINE appendSourceR #-}
 appendSourceR :: Int -> Int -> SerialT m Int
@@ -47,12 +47,12 @@ appendSourceR value n = foldMap Stream.yield [n..n+value]
 {-# INLINE consStreamBuilderSourceR #-}
 consStreamBuilderSourceR :: Int -> Int -> SerialT m Int
 consStreamBuilderSourceR value n =
-    Builder.close $ foldMap Builder.add [n..n+value]
+    Builder.use $ foldMap Builder.mk [n..n+value]
 
 {-# INLINE appendStreamBuilderSourceR #-}
 appendStreamBuilderSourceR :: Int -> Int -> SerialT m Int
 appendStreamBuilderSourceR value n =
-    Builder.close $ foldMap (Builder.bag . Stream.yield) [n..n+value]
+    Builder.use $ foldMap (Builder.bag . Stream.yield) [n..n+value]
 
 o_1_space_appendR :: Int -> [Benchmark]
 o_1_space_appendR value =
@@ -85,21 +85,21 @@ appendListSourceL value n =
 {-# INLINE appendListBuilderSourceL #-}
 appendListBuilderSourceL :: Int -> Int -> [Int]
 appendListBuilderSourceL value n =
-    Builder.close
+    Builder.use
         $ Prelude.foldl
             (<>) mempty (map (Builder.bag . (: [])) [n..n+value])
 
 {-# INLINE appendListMonoidBuilderSourceL #-}
 appendListMonoidBuilderSourceL :: Int -> Int -> [Int]
 appendListMonoidBuilderSourceL value n =
-    MBuilder.close
-        $ Prelude.foldl (<>) mempty (map (MBuilder.add . (: [])) [n..n+value])
+    MBuilder.use
+        $ Prelude.foldl (<>) mempty (map (MBuilder.mk . (: [])) [n..n+value])
 
 {-# INLINE consListBuilderSourceL #-}
 consListBuilderSourceL :: Int -> Int -> [Int]
 consListBuilderSourceL value n =
-    Builder.close
-        $ Prelude.foldl (<>) mempty (map  Builder.add [n..n+value])
+    Builder.use
+        $ Prelude.foldl (<>) mempty (map  Builder.mk [n..n+value])
 
 {-# INLINE appendSourceL #-}
 appendSourceL :: Int -> Int -> SerialT m Int
@@ -110,7 +110,7 @@ appendSourceL value n =
 {-# INLINE appendStreamBuilderSourceL #-}
 appendStreamBuilderSourceL :: Int -> Int -> SerialT m Int
 appendStreamBuilderSourceL value n =
-    Builder.close
+    Builder.use
         $ Prelude.foldl
             (<>)
             mempty
@@ -119,26 +119,26 @@ appendStreamBuilderSourceL value n =
 {-# INLINE consStreamBuilderSourceL #-}
 consStreamBuilderSourceL :: Int -> Int -> SerialT m Int
 consStreamBuilderSourceL value n =
-    Builder.close
-        $ Prelude.foldl (<>) mempty (map Builder.add [n..n+value])
+    Builder.use
+        $ Prelude.foldl (<>) mempty (map Builder.mk [n..n+value])
 
 {-# INLINE appendStreamMonoidBuilderSourceL #-}
 appendStreamMonoidBuilderSourceL :: Int -> Int -> SerialT m Int
 appendStreamMonoidBuilderSourceL value n =
-    MBuilder.close
+    MBuilder.use
         $ Prelude.foldl
-            (<>) mempty (map (MBuilder.add . Stream.yield) [n..n+value])
+            (<>) mempty (map (MBuilder.mk . Stream.yield) [n..n+value])
 
 -- Use builder of streams and concat
 {-# INLINE streamConcatStreamBuilderSourceL #-}
 streamConcatStreamBuilderSourceL :: Monad m => Int -> Int -> SerialT m Int
 streamConcatStreamBuilderSourceL value n =
     Stream.concat
-        $ Builder.close
+        $ Builder.use
         $ Prelude.foldl
             (<>)
             mempty
-            (map (Builder.add . Stream.yield) [n..n+value])
+            (map (Builder.mk . Stream.yield) [n..n+value])
 
 {-# INLINE builderConcatStreamBuilderSourceL #-}
 builderConcatStreamBuilderSourceL :: Int -> Int -> SerialT Identity Int
@@ -147,7 +147,7 @@ builderConcatStreamBuilderSourceL value n =
         $ Prelude.foldl
             (<>)
             mempty
-            (map (Builder.add . (Stream.yield :: Int -> SerialT Identity Int)) [n..n+value])
+            (map (Builder.mk . (Stream.yield :: Int -> SerialT Identity Int)) [n..n+value])
 
 o_1_space_appendL :: Int -> [Benchmark]
 o_1_space_appendL value =
