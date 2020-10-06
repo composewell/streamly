@@ -130,8 +130,15 @@ enumerateFromThen count inp = S.take count $ S.enumerateFromThen inp (inp + 1)
 enumerateFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 enumerateFromThenTo = sourceIntFromThenTo
 
--- XXX enumerate?
--- XXX enumerateTo?
+-- n ~ 1
+{-# INLINE enumerate #-}
+enumerate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerate count n = S.take (count + n) $ S.enumerate
+
+-- n ~ 1
+{-# INLINE enumerateTo #-}
+enumerateTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateTo count n = S.enumerateFrom (minBound + count + n)
 
 {-# INLINE iterate #-}
 iterate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
@@ -171,6 +178,10 @@ o_1_space_generation value =
         , benchPureSrc "IsList.fromList" (sourceIsList value)
         , benchPureSrc "IsString.fromString" (sourceIsString value)
         , benchIOSrc serially "fromListM" (sourceFromListM value)
+        , benchIOSrc serially "enumerateFrom" (enumerateFrom value)
+        , benchIOSrc serially "enumerateFromThen" (enumerateFromThen value)
+        , benchIOSrc serially "enumerate" (enumerate value)
+        , benchIOSrc serially "enumerateTo" (enumerateTo value)
 
           -- These essentially test cons and consM
         , benchIOSrc serially "fromFoldable" (sourceFromFoldable value)
