@@ -90,7 +90,7 @@ replicateM :: Property
 replicateM =
     property $ \x ->
         runIdentity $ do
-            x1 <- S.toList $ S.unfold (UF.replicateM x) ()
+            x1 <- S.toList $ S.unfold (UF.replicateM x) (return ())
             let x2 = P.replicate x ()
             return $ x1 == x2
 
@@ -98,7 +98,7 @@ repeatM :: Property
 repeatM =
     property $ \x ->
         runIdentity $ do
-            x1 <- S.toList $ S.take x $ S.unfold UF.repeatM ()
+            x1 <- S.toList $ S.take x $ S.unfold UF.repeatM (return ())
             let x2 = P.take x $ P.repeat ()
             return $ x1 == x2
 
@@ -142,8 +142,10 @@ drop :: Property
 drop =
     property $ \x y ->
         runIdentity $ do
-            x1 <- S.toList $ S.unfold (UF.drop x (UF.replicateM (x + y))) ()
-            x2 <- S.toList $ S.drop x $ S.unfold (UF.replicateM (x + y)) ()
+            x1 <- S.toList
+                      $ S.unfold (UF.drop x (UF.replicateM (x + y))) (return ())
+            x2 <- S.toList
+                      $ S.drop x $ S.unfold (UF.replicateM (x + y)) (return ())
             return $ x1 == x2
 
 dropWhileM :: Property

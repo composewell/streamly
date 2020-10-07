@@ -36,11 +36,11 @@ fromListM value n =
 
 {-# INLINE replicateM #-}
 replicateM :: Monad m => Int -> Int -> m ()
-replicateM value n = S.drain $ S.unfold (UF.replicateM value) n
+replicateM value n = S.drain $ S.unfold (UF.replicateM value) (return n)
 
 {-# INLINE repeatM #-}
 repeatM :: Monad m => Int -> Int -> m ()
-repeatM value n = S.drain $ S.take value $ S.unfold UF.repeatM n
+repeatM value n = S.drain $ S.take value $ S.unfold UF.repeatM (return n)
 
 {-# INLINE enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: Monad m => Int -> Int -> m ()
@@ -56,7 +56,6 @@ enumerateFromToIntegral value n =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
--- XXX Investigate
 {-# INLINE take #-}
 take :: Monad m => Int -> Int -> m ()
 take value n =
@@ -73,9 +72,9 @@ takeWhileM value n =
                  (UF.enumerateFromToIntegral (value + n)))
             n
 
-{-# INLINE dropOne #-}
-dropOne :: Monad m => Int -> Int -> m ()
-dropOne value n =
+{-# INLINE _dropOne #-}
+_dropOne :: Monad m => Int -> Int -> m ()
+_dropOne value n =
     S.drain $ S.unfold (UF.drop 1 (UF.enumerateFromToIntegral (value + n))) n
 
 {-# INLINE dropAll #-}
@@ -147,13 +146,14 @@ o_1_space_serial_transformation value =
         , benchIO "filterAllOut" $ filterAllOut value
         , benchIO "filterAllIn" $ filterAllIn value
         , benchIO "filterSome" $ filterSome value
-        , benchIO "dropOne" $ dropOne value
+        -- This will take nanoseconds, We need to fix the benchmark reporting to
+        -- have microseconds as the minimum unit before uncommenting this.
+        -- , benchIO "dropOne" $ dropOne value
         , benchIO "dropAll" $ dropAll value
         , benchIO "dropWhileMTrue" $ dropWhileMTrue value
         , benchIO "dropWhileMFalse" $ dropWhileMFalse value
         ]
     ]
-
 
 o_1_space_serial_combination :: Int -> [Benchmark]
 o_1_space_serial_combination value =
@@ -161,7 +161,6 @@ o_1_space_serial_combination value =
         [ benchIO "zipWithM" $ zipWithM value
         ]
     ]
-
 
 o_1_space_serial_outerProduct :: Int -> [Benchmark]
 o_1_space_serial_outerProduct value =
