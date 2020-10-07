@@ -551,19 +551,6 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
-test-suite internal-prelude-test
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Internal/Prelude.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
-
 test-suite pure-streams-base
   import: test-options
   type: exitcode-stdio-1.0
