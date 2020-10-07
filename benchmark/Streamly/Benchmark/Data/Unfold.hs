@@ -31,26 +31,27 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
 {-# INLINE fromListM #-}
 fromListM :: Monad m => Int -> Int -> m ()
-fromListM value n =
-    S.drain $ S.unfold UF.fromListM (Prelude.map return [n .. n + value])
+fromListM size start =
+    S.drain
+         $ S.unfold UF.fromListM (Prelude.map return [start .. start + size])
 
 {-# INLINE replicateM #-}
 replicateM :: Monad m => Int -> Int -> m ()
-replicateM value n = S.drain $ S.unfold (UF.replicateM value) (return n)
+replicateM size start = S.drain $ S.unfold (UF.replicateM size) (return start)
 
 {-# INLINE repeatM #-}
 repeatM :: Monad m => Int -> Int -> m ()
-repeatM value n = S.drain $ S.take value $ S.unfold UF.repeatM (return n)
+repeatM size start = S.drain $ S.take size $ S.unfold UF.repeatM (return start)
 
 {-# INLINE enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: Monad m => Int -> Int -> m ()
-enumerateFromStepIntegral value n = S.drain $
-    S.take value $ S.unfold UF.enumerateFromStepIntegral (n, 1)
+enumerateFromStepIntegral size start = S.drain $
+    S.take size $ S.unfold UF.enumerateFromStepIntegral (start, 1)
 
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
-enumerateFromToIntegral value n =
-    S.drain $ S.unfold (UF.enumerateFromToIntegral (value + n)) n
+enumerateFromToIntegral size start =
+    S.drain $ S.unfold (UF.enumerateFromToIntegral (size + start)) start
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -58,52 +59,55 @@ enumerateFromToIntegral value n =
 
 {-# INLINE take #-}
 take :: Monad m => Int -> Int -> m ()
-take value n =
+take size start =
     S.drain
-        $ S.unfold (UF.take value (UF.enumerateFromToIntegral (value + n))) n
+        $ S.unfold
+              (UF.take size (UF.enumerateFromToIntegral (size + start)))
+              start
 
 {-# INLINE takeWhileM #-}
 takeWhileM :: Monad m => Int -> Int -> m ()
-takeWhileM value n =
+takeWhileM size start =
     S.drain
         $ S.unfold
             (UF.takeWhileM
-                 (\b -> return (b <= value + n))
-                 (UF.enumerateFromToIntegral (value + n)))
-            n
+                 (\b -> return (b <= size + start))
+                 (UF.enumerateFromToIntegral (size + start)))
+            start
 
 {-# INLINE _dropOne #-}
 _dropOne :: Monad m => Int -> Int -> m ()
-_dropOne value n =
-    S.drain $ S.unfold (UF.drop 1 (UF.enumerateFromToIntegral (value + n))) n
+_dropOne size start =
+    S.drain
+         $ S.unfold (UF.drop 1 (UF.enumerateFromToIntegral (size + start))) start
 
 {-# INLINE dropAll #-}
 dropAll :: Monad m => Int -> Int -> m ()
-dropAll value n =
+dropAll size start =
     S.drain
         $ S.unfold
-            (UF.drop (value + 1) (UF.enumerateFromToIntegral (value + n)))
-            n
+            (UF.drop (size + 1) (UF.enumerateFromToIntegral (size + start)))
+            start
 
 {-# INLINE dropWhileMTrue #-}
 dropWhileMTrue :: Monad m => Int -> Int -> m ()
-dropWhileMTrue value n =
+dropWhileMTrue size start =
     S.drain
         $ S.unfold
             (UF.dropWhileM
                  (\_ -> return True)
-                 (UF.enumerateFromToIntegral (value + n)))
-            n
+                 (UF.enumerateFromToIntegral (size + start)))
+            start
 
 {-# INLINE dropWhileMFalse #-}
 dropWhileMFalse :: Monad m => Int -> Int -> m ()
-dropWhileMFalse value n =
+dropWhileMFalse size start =
     S.drain
         $ S.unfold
             (UF.dropWhileM
                  (\_ -> return False)
-                 (UF.enumerateFromToIntegral (value + n)))
-            n
+                 (UF.enumerateFromToIntegral (size + start)))
+            start
 
 -------------------------------------------------------------------------------
 -- Stream combination
@@ -111,14 +115,14 @@ dropWhileMFalse value n =
 
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m => Int -> Int -> m ()
-zipWithM value n =
+zipWithM size start =
     S.drain
         $ S.unfold
             (UF.zipWithM
                  (\a b -> return $ a + b)
-                 (UF.enumerateFromToIntegral (value + n))
-                 (UF.enumerateFromToIntegral (value + n + 1)))
-            (n, n + 1)
+                 (UF.enumerateFromToIntegral (size + start))
+                 (UF.enumerateFromToIntegral (size + start + 1)))
+            (start, start + 1)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -128,55 +132,55 @@ moduleName :: String
 moduleName = "Data.Unfold"
 
 o_1_space_serial_generation :: Int -> [Benchmark]
-o_1_space_serial_generation value =
+o_1_space_serial_generation size =
     [ bgroup "generation"
-        [ benchIO "fromListM" $ fromListM value
-        , benchIO "replicateM" $ replicateM value
-        , benchIO "repeatM" $ repeatM value
-        , benchIO "enumerateFromStepIntegral" $ enumerateFromStepIntegral value
-        , benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral value
+        [ benchIO "fromListM" $ fromListM size
+        , benchIO "replicateM" $ replicateM size
+        , benchIO "repeatM" $ repeatM size
+        , benchIO "enumerateFromStepIntegral" $ enumerateFromStepIntegral size
+        , benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral size
         ]
     ]
 
 o_1_space_serial_transformation :: Int -> [Benchmark]
-o_1_space_serial_transformation value =
+o_1_space_serial_transformation size =
     [ bgroup "transformation"
-        [ benchIO "take" $ take value
-        , benchIO "takeWhileM" $ takeWhileM value
-        , benchIO "filterAllOut" $ filterAllOut value
-        , benchIO "filterAllIn" $ filterAllIn value
-        , benchIO "filterSome" $ filterSome value
+        [ benchIO "take" $ take size
+        , benchIO "takeWhileM" $ takeWhileM size
+        , benchIO "filterAllOut" $ filterAllOut size
+        , benchIO "filterAllIn" $ filterAllIn size
+        , benchIO "filterSome" $ filterSome size
         -- This will take nanoseconds, We need to fix the benchmark reporting to
         -- have microseconds as the minimum unit before uncommenting this.
-        -- , benchIO "dropOne" $ dropOne value
-        , benchIO "dropAll" $ dropAll value
-        , benchIO "dropWhileMTrue" $ dropWhileMTrue value
-        , benchIO "dropWhileMFalse" $ dropWhileMFalse value
+        -- , benchIO "dropOne" $ dropOne size
+        , benchIO "dropAll" $ dropAll size
+        , benchIO "dropWhileMTrue" $ dropWhileMTrue size
+        , benchIO "dropWhileMFalse" $ dropWhileMFalse size
         ]
     ]
 
 o_1_space_serial_combination :: Int -> [Benchmark]
-o_1_space_serial_combination value =
+o_1_space_serial_combination size =
     [ bgroup "combination"
-        [ benchIO "zipWithM" $ zipWithM value
+        [ benchIO "zipWithM" $ zipWithM size
         ]
     ]
 
 o_1_space_serial_outerProduct :: Int -> [Benchmark]
-o_1_space_serial_outerProduct value =
+o_1_space_serial_outerProduct size =
     [ bgroup "outer-product"
-        [ benchIO "toNull" $ toNull value
-        , benchIO "toNull3" $ toNull3 value
-        , benchIO "concat" $ concat value
-        , benchIO "breakAfterSome" $ breakAfterSome value
+        [ benchIO "toNull" $ toNull size
+        , benchIO "toNull3" $ toNull3 size
+        , benchIO "concat" $ concat size
+        , benchIO "breakAfterSome" $ breakAfterSome size
         ]
     ]
 
 o_n_space_serial :: Int -> [Benchmark]
-o_n_space_serial value =
+o_n_space_serial size =
     [ bgroup "outer-product"
-        [ benchIO "toList" $ toList value
-        , benchIO "toListSome" $ toListSome value
+        [ benchIO "toList" $ toList size
+        , benchIO "toListSome" $ toListSome size
         ]
     ]
 
@@ -186,19 +190,19 @@ o_n_space_serial value =
 
 main :: IO ()
 main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+    (size, cfg, benches) <- parseCLIOpts defaultStreamSize
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size)
 
     where
 
-    allBenchmarks value =
+    allBenchmarks size =
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
-                  [ o_1_space_serial_generation value
-                  , o_1_space_serial_transformation value
-                  , o_1_space_serial_combination value
-                  , o_1_space_serial_outerProduct value
+                  [ o_1_space_serial_generation size
+                  , o_1_space_serial_transformation size
+                  , o_1_space_serial_combination size
+                  , o_1_space_serial_outerProduct size
                   ]
         , bgroup (o_n_space_prefix moduleName)
-            $ Prelude.concat [o_n_space_serial value]
+            $ Prelude.concat [o_n_space_serial size]
         ]
