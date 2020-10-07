@@ -565,7 +565,11 @@ then
   then
     $BUILD_BENCH || die "build failed"
   else
-    $BUILD_BENCH $EXECUTABLES || die "build failed"
+    for c in $EXECUTABLES
+    do
+      COMPONENTS+="streamly-benchmarks:bench:$c "
+    done
+    $BUILD_BENCH $COMPONENTS || die "build failed"
   fi
   run_measurements "$BENCHMARKS"
 fi
