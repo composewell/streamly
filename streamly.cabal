@@ -700,10 +700,10 @@ test-suite internal-data-fold-test
     , QuickCheck        >= 2.14  && < 2.15
   default-language: Haskell2010
 
-test-suite internal-data-unfold-test
+test-suite Data.Unfold
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Internal/Data/Unfold.hs
+  main-is: Streamly/Test/Data/Unfold.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
   build-depends:
