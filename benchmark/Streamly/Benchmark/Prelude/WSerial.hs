@@ -126,7 +126,7 @@ o_1_space_concat value =
 concatUnfoldInterleaveRepl4xN :: Int -> Int -> IO ()
 concatUnfoldInterleaveRepl4xN value n =
     S.drain $ Internal.concatUnfoldInterleave
-        (UF.replicateM 4)
+        (UF.lmap return (UF.replicateM 4))
         (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION
@@ -140,7 +140,7 @@ inspect $ hasNoTypeClasses 'concatUnfoldInterleaveRepl4xN
 concatUnfoldRoundrobinRepl4xN :: Int -> Int -> IO ()
 concatUnfoldRoundrobinRepl4xN value n =
     S.drain $ Internal.concatUnfoldRoundrobin
-        (UF.replicateM 4)
+        (UF.lmap return (UF.replicateM 4))
         (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION

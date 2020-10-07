@@ -407,7 +407,10 @@ inspect $ 'concatMapRepl `hasNoType` ''SPEC
 {-# INLINE concatUnfoldRepl #-}
 concatUnfoldRepl :: Int -> Int -> Int -> IO ()
 concatUnfoldRepl outer inner n =
-    S.drain $ S.concatMapU (UF.replicateM inner) (sourceUnfoldrMN outer n)
+    S.drain
+         $ S.concatMapU
+               (UF.lmap return (UF.replicateM inner))
+               (sourceUnfoldrMN outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatUnfoldRepl

@@ -484,30 +484,36 @@ unfoldrM next = Unfold step return
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
--- XXX replicateM? Maybe just replicate?
 -- | Generates a stream replicating the seed @n@ times.
 --
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Unfold m a a
+replicateM :: Monad m => Int -> Unfold m (m a) a
 replicateM n = Unfold step inject
-    where
-    inject x = return (x, n)
-    {-# INLINE_LATE step #-}
-    step (x, i) = return $
-        if i <= 0
-        then Stop
-        else Yield x (x, i - 1)
 
--- XXX repeatM? Maybe just repeat?
+    where
+
+    inject x = return (x, n)
+
+    {-# INLINE_LATE step #-}
+    step (x, i) = do
+        x1 <- x
+        return
+            $ if i <= 0
+              then Stop
+              else Yield x1 (x, i - 1)
+
 -- | Generates an infinite stream repeating the seed.
 --
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Unfold m a a
+repeatM :: Monad m => Unfold m (m a) a
 repeatM = Unfold step return
     where
     {-# INLINE_LATE step #-}
-    step x = return $ Yield x x
+    step x = x >>= \x1 -> return $ Yield x1 x
 
+-- | Generates an infinite stream starting with the given seed and applying the
+-- given function repeteadly.
+--
 {-# INLINE iterateM #-}
 iterateM :: Monad m => (a -> m a) -> Unfold m a a
 iterateM f = Unfold step f
@@ -517,6 +523,9 @@ iterateM f = Unfold step f
         fx <- f x
         return $ Yield fx fx
 
+-- | @fromIndicesM gen@ generates an infinite stream of values using @gen@
+-- starting from the seed.
+--
 {-# INLINE_NORMAL fromIndicesM #-}
 fromIndicesM :: Monad m => (Int -> m a) -> Unfold m Int a
 fromIndicesM gen = Unfold step return
@@ -585,52 +594,59 @@ filter f = filterM (return . f)
 {-# INLINE_NORMAL drop #-}
 drop :: Monad m => Int -> Unfold m a b -> Unfold m a b
 drop n (Unfold step inject) = Unfold step' inject'
-  where
+
+    where
+
     inject' a = do
         b <- inject a
         return (b, n)
+
     {-# INLINE_LATE step' #-}
     step' (st, i)
         | i > 0 = do
             r <- step st
-            return $
-                case r of
-                    Yield _ s -> Skip (s, i - 1)
-                    Skip s -> Skip (s, i)
-                    Stop -> Stop
+            return
+                $ case r of
+                      Yield _ s -> Skip (s, i - 1)
+                      Skip s -> Skip (s, i)
+                      Stop -> Stop
         | otherwise = do
             r <- step st
-            return $
-                case r of
-                    Yield x s -> Yield x (s, 0)
-                    Skip s -> Skip (s, 0)
-                    Stop -> Stop
+            return
+                $ case r of
+                      Yield x s -> Yield x (s, 0)
+                      Skip s -> Skip (s, 0)
+                      Stop -> Stop
 
 {-# INLINE_NORMAL dropWhileM #-}
 dropWhileM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
 dropWhileM f (Unfold step inject) = Unfold step' inject'
-  where
+
+    where
+
     inject' a = do
         b <- inject a
         return $ Left b
+
     {-# INLINE_LATE step' #-}
     step' (Left st) = do
         r <- step st
         case r of
             Yield x s -> do
                 b <- f x
-                if b
-                then return $ Skip (Left s)
-                else return $ Yield x (Right s)
+                return
+                    $ if b
+                      then Skip (Left s)
+                      else Yield x (Right s)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
-
     step' (Right st) = do
         r <- step st
-        case r of
-            Yield x s -> return $ Yield x (Right s)
-            Skip s    -> return $ Skip (Right s)
-            Stop      -> return Stop
+        return
+            $ case r of
+                  Yield x s -> Yield x (Right s)
+                  Skip s -> Skip (Right s)
+                  Stop -> Stop
 
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
