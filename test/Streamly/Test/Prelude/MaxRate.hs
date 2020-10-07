@@ -1,7 +1,19 @@
-{-# LANGUAGE CPP #-}
+-- |
+-- Module      : Streamly.Test.Prelude.MaxRate
+-- Copyright   : (c) 2018 Composewell Technologies
+--
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
 
-import Streamly
+module Streamly.Test.Prelude.MaxRate where
+
 import qualified Streamly.Prelude as S
+
+import Streamly.Prelude
+    ( aheadly, asyncly, wAsyncly, avgRate, maxBuffer, maxThreads, rate,
+      SerialT, IsStream )
 import Streamly.Internal.Data.Time.Clock (getTime, Clock(..))
 import Streamly.Internal.Data.Time.Units
     (NanoSecond64, diffAbsTime64, fromRelTime64)

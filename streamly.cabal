@@ -665,6 +665,17 @@ test-suite Prelude.Fold
   other-modules:   Streamly.Test.Common
                  , Streamly.Test.Prelude.Common
 
+test-suite Prelude.MaxRate
+  import: prelude-test-options, exe-options, default-extensions
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/MaxRate.hs
+  ghc-options: -main-is Streamly.Test.Prelude.MaxRate.main
+  if flag(dev)
+    buildable: True
+    build-depends: random >= 1.0.0 && < 2
+  else
+    buildable: False
+
 test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0
@@ -804,23 +815,6 @@ test-suite string-test
     , QuickCheck        >= 2.13  && < 2.15
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
-
-test-suite maxrate
-  import: exe-options
-  type: exitcode-stdio-1.0
-  default-language: Haskell2010
-  main-is: MaxRate.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs:  test
-  if flag(dev)
-    buildable: True
-    build-Depends:
-          streamly
-        , base   >= 4.9   && < 5
-        , hspec  >= 2.0   && < 3
-        , random >= 1.0.0 && < 2
-  else
-    buildable: False
 
 test-suite loops
   import: test-options
