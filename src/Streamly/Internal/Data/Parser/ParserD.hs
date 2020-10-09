@@ -661,13 +661,11 @@ sequence _f _p = undefined
 --
 -- | See 'Streamly.Internal.Data.Parser.choice'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE choice #-}
-choice ::
-    -- Foldable t =>
-    t (Parser m a b) -> Parser m a b
-choice _ps = undefined
+choice :: (Monad m, Foldable t) => t (Parser m a b) -> Parser m a b
+choice ps = foldl1 shortest ps
 
 -------------------------------------------------------------------------------
 -- Sequential Repetition
