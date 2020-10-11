@@ -295,6 +295,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , ghandle
     , handle
     , retry
+    , retry1
 
     -- * Concurrent Application
     , mkParallel
@@ -3533,6 +3534,67 @@ retry emap0 han0 str0 = gbracket_ bef MC.try return (\_ -> han) (\_ -> str0)
                      in lift (put emap1) >> str
                 | otherwise -> han0 e
             Nothing -> han0 e
+
+data RetryState m s1 s2 = WithOldStream m s1 | WithNewStream m s2
+
+{-# INLINE_NORMAL retry1 #-}
+retry1
+    :: forall e m a. (Exception e, Ord e, MonadCatch m)
+    => Map e Int
+       -- ^ map from exception to retry count
+    -> (e -> Stream m a)
+       -- ^ default handler for those exceptions that are not in the map
+    -> Stream m a
+    -> Stream m a
+retry1 emap0 han0 (Stream step0 state0) = Stream step state
+
+    where
+
+    state = WithOldStream emap0 state0
+
+    {-# INLINE_LATE step #-}
+    step gst rs@(WithOldStream emap st) = do
+        -- XXX gtry? Whats the difference?
+        eres <- MC.try $ step0 gst st
+        case eres of
+            Left e -> return $ han e rs
+            Right res ->
+                return
+                    $ case res of
+                          Yield x st1 -> Yield x $ WithOldStream emap st1
+                          Skip st1 -> Skip $ WithOldStream emap st1
+                          Stop -> Stop
+    step gst rs@(WithNewStream emap (Stream step1 state1)) = do
+        -- XXX gtry? Whats the difference?
+        eres <- MC.try $ step1 gst state1
+        case eres of
+            Left e -> return $ han e rs
+            Right res ->
+                return
+                    $ case res of
+                          Yield x st1 ->
+                              Yield x $ WithNewStream emap (Stream step1 st1)
+                          Skip st1 ->
+                              Skip $ WithNewStream emap (Stream step1 st1)
+                          Stop -> Stop
+
+    {-# INLINE han #-}
+    han e (WithOldStream emap st) =
+        case Map.lookup e emap of
+            Just i
+                | i > 0 ->
+                    let emap1 = Map.insert e (i - 1) emap
+                     in Skip $ WithOldStream emap1 st
+                | otherwise -> Skip $ WithNewStream emap (han0 e)
+            Nothing -> Skip $ WithNewStream emap (han0 e)
+    han e (WithNewStream emap str) =
+        case Map.lookup e emap of
+            Just i
+                | i > 0 ->
+                    let emap1 = Map.insert e (i - 1) emap
+                     in Skip $ WithNewStream emap1 str
+                | otherwise -> Skip $ WithNewStream emap (han0 e)
+            Nothing -> Skip $ WithNewStream emap (han0 e)
 
 -------------------------------------------------------------------------------
 -- General transformation
