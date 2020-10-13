@@ -1,2 +1,6 @@
 packages: .
 write-ghc-environment-files: always
+source-repository-package
+  type: git
+  location: https://github.com/composewell/fusion-plugin
+  tag: exitify-after-spec-constr
