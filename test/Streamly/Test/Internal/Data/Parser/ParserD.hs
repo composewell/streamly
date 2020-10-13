@@ -8,7 +8,7 @@ import Data.Word (Word8, Word32, Word64)
 import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-       (arbitrary, forAll, choose, chooseAny, elements, Property,
+       (arbitrary, forAll, choose, elements, Property,
         property, listOf, vectorOf, counterexample, (.&&.), Gen)
 import Test.QuickCheck.Monadic
        (monadicIO, PropertyM, assert, monitor, run)
@@ -21,6 +21,21 @@ import qualified Prelude
 import qualified Test.Hspec as H
 
 import Prelude hiding (sequence)
+
+#if MIN_VERSION_QuickCheck(2,14,0)
+
+import Test.QuickCheck (chooseAny)
+
+#else
+
+import System.Random (Random(random))
+import Test.QuickCheck.Gen (Gen(MkGen))
+
+-- | Generates a random element over the natural range of `a`.
+chooseAny :: Random a => Gen a
+chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
+
+#endif
 
 maxTestCount :: Int
 maxTestCount = 100
