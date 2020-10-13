@@ -9,7 +9,7 @@ import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, choose, elements, Property, property, listOf,
-        vectorOf, counterexample, Gen, chooseAny)
+        vectorOf, counterexample, Gen)
 import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor, run)
 
 import Prelude hiding (sequence)
@@ -20,6 +20,22 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Test.Hspec as H
 import qualified Prelude
+
+#if MIN_VERSION_QuickCheck(2,14,0)
+
+import Test.QuickCheck (chooseAny)
+
+#else
+
+import System.Random (Random(random))
+import Test.QuickCheck.Gen (Gen(MkGen))
+
+-- | Generates a random element over the natural range of `a`.
+chooseAny :: Random a => Gen a
+chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
+
+#endif
+
 
 maxTestCount :: Int
 maxTestCount = 100
