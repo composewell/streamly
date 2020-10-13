@@ -210,6 +210,11 @@ flag use-c-malloc
   manual: True
   default: False
 
+flag manual-tests
+  description: Builds tests that are to be run manually
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -881,7 +886,7 @@ executable FileSystem.Event
   build-depends:
       streamly
     , base >= 4.8 && < 5
-  if os(windows)
+  if !flag(manual-tests) || os(windows)
     buildable: False
 
 -------------------------------------------------------------------------------
