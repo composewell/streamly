@@ -551,10 +551,10 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
-test-suite pure-streams-base
+test-suite Data.List
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: PureStreams.hs
+  main-is: Streamly/Test/Data/List.hs
   hs-source-dirs: test
   build-depends:
       streamly
@@ -562,10 +562,10 @@ test-suite pure-streams-base
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite pure-streams-streamly
+test-suite Streamly.Test.Data.List
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: PureStreams.hs
+  main-is: Streamly/Test/Data/List.hs
   hs-source-dirs: test
   cpp-options:  -DUSE_STREAMLY_LIST
   build-depends:
