@@ -9,7 +9,7 @@
 
 module Streamly.Test.Prelude (main) where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (myThreadId, threadDelay)
 import Control.Exception (Exception, try)
 import Control.Monad (when)
 import Control.Monad.Catch (throwM)
@@ -23,6 +23,8 @@ import Data.Maybe (fromJust, isJust)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup (Semigroup(..))
 #endif
+import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+import System.Random (randomIO)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, choose)
@@ -227,6 +229,26 @@ mixedOpsAheadly =
                 return (x1 + y1 + z1)
         return (x + y + z)
 
+nestedLoops :: IO ()
+nestedLoops = S.drain $ do
+    S.yieldM $ hSetBuffering stdout LineBuffering
+    x <- loop "A " 2
+    y <- loop "B " 2
+    S.yieldM $ myThreadId >>= putStr . show
+             >> putStr " "
+             >> print (x, y)
+
+    where
+
+    -- we can just use
+    -- parallely $ mconcat $ replicate n $ yieldM (...)
+    loop :: String -> Int -> SerialT IO String
+    loop name n = do
+        rnd <- S.yieldM (randomIO :: IO Int)
+        let result = name <> show rnd
+            repeatIt = if n > 1 then loop name (n - 1) else S.nil
+         in return result `S.wAsync` repeatIt
+
 main :: IO ()
 main = hspec $ H.parallel $ do
     describe "Filtering" $ do
@@ -243,6 +265,7 @@ main = hspec $ H.parallel $ do
     describe "Miscellaneous combined examples aheadly" mixedOpsAheadly
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
+    it "Nested loops" nestedLoops
     {-
     describe "Composed MonadError serially" $ composeWithMonadError serially
     describe "Composed MonadError wSerially" $ composeWithMonadError wSerially
