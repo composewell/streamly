@@ -816,16 +816,6 @@ test-suite string-test
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite loops
-  import: test-options
-  type: exitcode-stdio-1.0
-  default-language: Haskell2010
-  main-is: loops.hs
-  hs-source-dirs:  test
-  build-Depends:
-      streamly
-    , base >= 4.9   && < 5
-
 test-suite nested-loops
   import: test-options
   type: exitcode-stdio-1.0
