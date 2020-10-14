@@ -229,6 +229,7 @@ mixedOpsAheadly =
                 return (x1 + y1 + z1)
         return (x + y + z)
 
+-- XXX Merge both the loops.
 nestedLoops :: IO ()
 nestedLoops = S.drain $ do
     S.yieldM $ hSetBuffering stdout LineBuffering
@@ -249,6 +250,29 @@ nestedLoops = S.drain $ do
             repeatIt = if n > 1 then loop name (n - 1) else S.nil
          in return result `S.wAsync` repeatIt
 
+parallelLoops :: IO ()
+parallelLoops = do
+    hSetBuffering stdout LineBuffering
+    S.drain $ do
+        x <- S.take 10 $ loop "A" `S.parallel` loop "B"
+        S.yieldM $ myThreadId >>= putStr . show
+               >> putStr " got "
+               >> print x
+
+    where
+
+    -- we can just use
+    -- parallely $ cycle1 $ yieldM (...)
+    loop :: String -> SerialT IO (String, Int)
+    loop name = do
+        S.yieldM $ threadDelay 1000000
+        rnd <- S.yieldM (randomIO :: IO Int)
+        S.yieldM $ myThreadId >>= putStr . show
+               >> putStr " yielding "
+               >> print rnd
+        return (name, rnd) `S.parallel` loop name
+
+
 main :: IO ()
 main = hspec $ H.parallel $ do
     describe "Filtering" $ do
@@ -266,6 +290,7 @@ main = hspec $ H.parallel $ do
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
     it "Nested loops" nestedLoops
+    it "Parallel loops" parallelLoops
     {-
     describe "Composed MonadError serially" $ composeWithMonadError serially
     describe "Composed MonadError wSerially" $ composeWithMonadError wSerially

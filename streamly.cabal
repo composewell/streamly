@@ -817,17 +817,6 @@ test-suite string-test
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite parallel-loops
-  import: test-options
-  type: exitcode-stdio-1.0
-  default-language: Haskell2010
-  main-is: parallel-loops.hs
-  hs-source-dirs:  test
-  build-Depends:
-      streamly
-    , base   >= 4.9   && < 5
-    , random >= 1.0.0 && < 2
-
 test-suite version-bounds
   import: test-options
   type: exitcode-stdio-1.0
