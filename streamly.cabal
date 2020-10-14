@@ -804,18 +804,11 @@ test-suite prim-pinned-array-test
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite string-test
-  import: test-options
+test-suite Streamly.Test.Unicode.Stream
+  import: test-options, prelude-test-options
   type: exitcode-stdio-1.0
-  main-is: String.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
+  main-is: Streamly/Test/Unicode/Stream.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Stream.main
 
 test-suite version-bounds
   import: test-options

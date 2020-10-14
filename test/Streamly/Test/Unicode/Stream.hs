@@ -1,4 +1,4 @@
-module Main (main) where
+module Streamly.Test.Unicode.Stream (main) where
 
 import Data.Char (ord, chr)
 import Data.Word (Word8)
