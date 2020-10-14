@@ -788,12 +788,59 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
     extract (GroupByInit s) = fextract s
     extract (GroupByGrouping _ s) = fextract s
 
+-- XXX The only difference from the previous implementation is that the `if`
+-- statement encompasses `collect` rather then the other way around.
 -- | For every n input items, apply the first fold and supply the result to the
 -- next fold.
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n split collect = many collect (ltake n split)
+lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
+    Fold step initial extract
+
+    where
+
+    {-# INLINE initial #-}
+    initial = Tuple3' n <$> sini <*> cini
+
+    {-# INLINE extract #-}
+    extract (Tuple3' _ ss cs) = do
+        sb <- sext ss
+        cs0 <- cstp cs sb
+        case cs0 of
+            Partial cs1 -> cext cs1
+            Done cb -> return cb
+            Done1 cb -> return cb
+
+    {-# INLINE step #-}
+    step (Tuple3' i ss cs) a = split i ss cs a
+
+    {-# INLINE collect #-}
+    collect cs b onP = do
+        cs0 <- cstp cs b
+        case cs0 of
+            Partial cs1 -> do
+                esini <- sini
+                onP 0 esini cs1
+            Done cb -> return $ Done cb
+            -- The branch below is incorrect
+            Done1 cb -> return $ Done cb
+
+    {-# INLINE split #-}
+    split i ss cs a = do
+        let i1 = i + 1
+        ss0 <- sstp ss a
+        let done i_ ss_ cs_ = return $ Partial $ Tuple3' i_ ss_ cs_
+            done1 a_ i_ ss_ cs_ = split i_ ss_ cs_ a_
+        case ss0 of
+            Partial ss1 ->
+                if i1 == n
+                then do
+                    sb <- sext ss1
+                    collect cs sb done
+                else return $ Partial $ Tuple3' i1 ss1 cs
+            Done sb -> collect cs sb done
+            Done1 sb -> collect cs sb (done1 a)
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
