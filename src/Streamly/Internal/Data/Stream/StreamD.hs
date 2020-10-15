@@ -295,7 +295,6 @@ module Streamly.Internal.Data.Stream.StreamD
     , ghandle
     , handle
     , retry
-    , retry1
 
     -- * Concurrent Application
     , mkParallel
@@ -312,7 +311,6 @@ import Control.Exception
 import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.State.Class (MonadState(get, put))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(lift))
@@ -3504,41 +3502,10 @@ _handle f (Stream step state) = Stream step' (Left state)
             Skip s    -> return $ Skip (Right (Stream step1 s))
             Stop      -> return Stop
 
-{-# INLINE_NORMAL retry #-}
-retry
-    :: forall e m a. (Exception e, Ord e, MonadState (Map e Int) m, MonadCatch m)
-    => Map e Int
-       -- ^ map from exception to retry count
-    -> (e -> Stream m a)
-       -- ^ default handler for those exceptions that are not in the map
-    -> Stream m a
-    -> Stream m a
-retry emap0 han0 str0 = gbracket_ bef MC.try return (\_ -> han) (\_ -> str0)
-
-    where
-
-    bef = put emap0
-
-    -- XXX Should we make this function from ground-up without using gbracket_?
-    -- XXX Use updateWithLookup instead?
-    -- XXX We are essentially using the monadic instance of Stream here. This
-    -- will have a hard time fusing.
-    {-# INLINE han #-}
-    han :: e -> Stream m a -> Stream m a
-    han e str = do
-        emap <- lift $ get
-        case Map.lookup e emap of
-            Just i
-                | i > 0 ->
-                    let emap1 = Map.insert e (i - 1) emap
-                     in lift (put emap1) >> str
-                | otherwise -> han0 e
-            Nothing -> han0 e
-
 data RetryState m s1 s2 = WithOldStream m s1 | WithNewStream s2
 
-{-# INLINE_NORMAL retry1 #-}
-retry1
+{-# INLINE_NORMAL retry #-}
+retry
     :: forall e m a. (Exception e, Ord e, MonadCatch m)
     => Map e Int
        -- ^ map from exception to retry count
@@ -3546,7 +3513,7 @@ retry1
        -- ^ default handler for those exceptions that are not in the map
     -> Stream m a
     -> Stream m a
-retry1 emap0 han0 (Stream step0 state0) = Stream step state
+retry emap0 han0 (Stream step0 state0) = Stream step state
 
     where
 
