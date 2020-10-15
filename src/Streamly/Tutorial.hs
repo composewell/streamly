@@ -1620,21 +1620,22 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Interop with @conduit@:
 --
 -- @
--- import "Streamly.Prelude" (SerialT)
+-- import "Streamly.Prelude" (IsStream, MonadAsync, SerialT)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Data.Conduit as C
 -- import qualified Data.Conduit.List as C
--- import qualified Data.Conduit.Combinators as C
 --
--- -- It seems there is no way out of a conduit as it does not provide an
--- -- uncons or a tail function. We can convert streamly to conduit though.
+-- -- | conduit to streamly
+-- fromConduit :: (IsStream t, MonadAsync m) => C.ConduitT () a m () -> t m a
+-- fromConduit = S.unfoldrM C.unconsM . C.sealConduitT
 --
 -- -- | streamly to conduit
 -- toConduit :: Monad m => SerialT m a -> C.ConduitT i a m ()
--- toConduit s = C.unfoldM S.'uncons' s
+-- toConduit = C.unfoldM S.'uncons'
 --
 -- main = do
---  C.runConduit (toConduit (S.'fromFoldable' [1..3]) C..| C.sinkList) >>= print
+--     S.'toList' (fromConduit (C.sourceList [1..3])) >>= print
+--     C.runConduit (toConduit (S.'fromFoldable' [1..3]) C..| C.consume) >>= print
 -- @
 
 -- $comparison
