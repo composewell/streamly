@@ -1567,24 +1567,25 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --  Interop with @pipes@:
 --
 -- @
--- import "Streamly.Prelude" (SerialT)
+-- import "Streamly.Prelude" (IsStream, MonadAsync, SerialT)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Pipes as P
 -- import qualified Pipes.Prelude as P
 --
 -- -- | pipes to streamly
--- fromPipes :: (S.IsStream t, Monad m) => P.Producer a m r -> t m a
+-- fromPipes :: (IsStream t, MonadAsync m) => P.Producer a m () -> t m a
 -- fromPipes = S.'unfoldrM' unconsP
 --     where
 --     -- Adapt P.next to return a Maybe instead of Either
---     unconsP p = P.next p >>= either (\\_ -> return Nothing) (return . Just)
+--     unconsP p = either (const Nothing) Just <$> P.next p
 --
 -- -- | streamly to pipes
 -- toPipes :: Monad m => SerialT m a -> P.Producer a m ()
--- toPipes = P.unfoldr unconsS
+-- toPipes = P.unfoldr unconsEither
 --     where
 --     -- Adapt S.uncons to return an Either instead of Maybe
---     unconsS s = S.'uncons' s >>= maybe (return $ Left ()) (return . Right)
+--     unconsEither :: Monad m => SerialT m a -> m (Either () (a, SerialT m a))
+--     unconsEither s = maybe (Left ()) Right <$> S.'uncons' s
 --
 -- main = do
 --     S.'toList' (fromPipes (P.each [1..3])) >>= print
@@ -1594,25 +1595,26 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Interop with @streaming@:
 --
 -- @
--- import "Streamly.Prelude" (SerialT, MonadAsync)
+-- import "Streamly.Prelude" (IsStream, MonadAsync, SerialT)
 -- import qualified "Streamly.Prelude" as S
 -- import qualified Streaming as SG
 -- import qualified Streaming.Prelude as SG
 --
 -- -- | streaming to streamly
--- fromStreaming :: (IsStream t, MonadAsync m) => SG.Stream (SG.Of a) m r -> t m a
--- fromStreaming = S.unfoldrM SG.uncons
+-- fromStreaming :: (IsStream t, MonadAsync m) => SG.Stream (SG.Of a) m () -> t m a
+-- fromStreaming = S.'unfoldrM' SG.uncons
 --
 -- -- | streamly to streaming
 -- toStreaming :: Monad m => SerialT m a -> SG.Stream (SG.Of a) m ()
--- toStreaming = SG.unfoldr unconsS
+-- toStreaming = SG.unfoldr unconsEither
 --     where
 --     -- Adapt S.uncons to return an Either instead of Maybe
---     unconsS s = S.'uncons' s >>= maybe (return $ Left ()) (return . Right)
+--     unconsEither :: Monad m => SerialT m a -> m (Either () (a, SerialT m a))
+--     unconsEither s = maybe (Left ()) Right <$> S.'uncons' s
 --
 -- main = do
---     S.toList (fromStreaming (SG.each [1..3])) >>= print
---     SG.toList (toStreaming (S.fromFoldable [1..3])) >>= print
+--     S.'toList' (fromStreaming (SG.each [1..3])) >>= print
+--     SG.toList (toStreaming (S.'fromFoldable' [1..3])) >>= print
 -- @
 --
 -- Interop with @conduit@:
