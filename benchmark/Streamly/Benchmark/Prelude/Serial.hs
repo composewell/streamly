@@ -1470,13 +1470,13 @@ o_1_space_joining value =
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc serially "foldMapWith (<>) (List)"
+        [ benchIOSrc serially "concatMapFoldableWith (<>) yield (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc serially "foldMapWith (<>) (Stream)"
+        , benchIOSrc serially "concatMapFoldableWith (<>) yield (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc serially "foldMapWithM (<>) (List)"
+        , benchIOSrc serially "concatMapFoldableWith (<>) yieldM (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc serially "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc serially "foldMap yieldM (List)" (sourceFoldMapM value)
         ]
     ]
 
