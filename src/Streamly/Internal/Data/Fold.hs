@@ -102,7 +102,7 @@ module Streamly.Internal.Data.Fold
     -- , ldeleteBy
     -- , luniq
     , lcatMaybes
-
+    , mapMaybe
     {-
     -- ** Mapping Filters
     , lmapMaybe
@@ -208,6 +208,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
+import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
@@ -313,6 +314,16 @@ sequence (Fold step initial extract) = Fold step initial extract'
 {-# INLINE mapM #-}
 mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
 mapM f = sequence . fmap f
+
+-- | @(mapMaybe f fold)@ maps a 'Maybe' returning function @f@ on the input of the fold,
+-- filter out the 'Nothing' elements, and return a values extracted from 'Just'.
+-- >>> S.fold (FL.mapMaybe (\x -> case x of  5 -> Just x ; _ -> Nothing) FL.sum) 
+-- (S.enumerateFromTo 1 10) 
+-- 5
+-- /Internal/
+{-# INLINE mapMaybe #-}
+mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
+mapMaybe f = lmap f . lfilter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs

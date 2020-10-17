@@ -159,6 +159,13 @@ o_1_space_serial_transformation value =
     [ bgroup "serially"
         [ bgroup "transformation"
             [ benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
+            , benchIOSink 
+                value 
+                "mapMaybe" 
+                (S.fold 
+                    (IFL.mapMaybe 
+                        (\x -> case x of  1 -> Just x ; _ -> Nothing) 
+                            FL.drain))
             , benchIOSink
                   value
                   "sequence"
