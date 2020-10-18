@@ -16,9 +16,9 @@ import Streamly.Internal.Data.Unfold (Unfold)
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Benchmark.Data.NestedUnfoldOps as Nested
 
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Data.NestedUnfoldOps
 import Gauge
 import Prelude hiding (concat, take)
 
@@ -160,8 +160,8 @@ zipWithM size start =
 moduleName :: String
 moduleName = "Data.Unfold"
 
-o_1_space_serial_generation :: Int -> [Benchmark]
-o_1_space_serial_generation size =
+o_1_space_generation :: Int -> [Benchmark]
+o_1_space_generation size =
     [ bgroup "generation"
         [ benchIO "fromListM" $ fromListM size
         , benchIO "replicateM" $ replicateM size
@@ -171,14 +171,11 @@ o_1_space_serial_generation size =
         ]
     ]
 
-o_1_space_serial_transformation :: Int -> [Benchmark]
-o_1_space_serial_transformation size =
+o_1_space_transformation :: Int -> [Benchmark]
+o_1_space_transformation size =
     [ bgroup "transformation"
         [ benchIO "take" $ take size
         , benchIO "takeWhileM" $ takeWhileM size
-        , benchIO "filterAllOut" $ filterAllOut size
-        , benchIO "filterAllIn" $ filterAllIn size
-        , benchIO "filterSome" $ filterSome size
         -- This will take nanoseconds, We need to fix the benchmark reporting to
         -- have microseconds as the minimum unit before uncommenting this.
         -- , benchIO "dropOne" $ dropOne size
@@ -188,28 +185,31 @@ o_1_space_serial_transformation size =
         ]
     ]
 
-o_1_space_serial_combination :: Int -> [Benchmark]
-o_1_space_serial_combination size =
+o_1_space_combination :: Int -> [Benchmark]
+o_1_space_combination size =
     [ bgroup "combination"
         [ benchIO "zipWithM" $ zipWithM size
         ]
     ]
 
-o_1_space_serial_outerProduct :: Int -> [Benchmark]
-o_1_space_serial_outerProduct size =
+o_1_space_nested :: Int -> [Benchmark]
+o_1_space_nested size =
     [ bgroup "outer-product"
-        [ benchIO "toNull" $ toNull size
-        , benchIO "toNull3" $ toNull3 size
-        , benchIO "concat" $ concat size
-        , benchIO "breakAfterSome" $ breakAfterSome size
+        [ benchIO "toNull" $ Nested.toNull size
+        , benchIO "toNull3" $ Nested.toNull3 size
+        , benchIO "concat" $ Nested.concat size
+        , benchIO "breakAfterSome" $ Nested.breakAfterSome size
+        , benchIO "filterAllOut" $ Nested.filterAllOut size
+        , benchIO "filterAllIn" $ Nested.filterAllIn size
+        , benchIO "filterSome" $ Nested.filterSome size
         ]
     ]
 
-o_n_space_serial :: Int -> [Benchmark]
-o_n_space_serial size =
+o_n_space_nested :: Int -> [Benchmark]
+o_n_space_nested size =
     [ bgroup "outer-product"
-        [ benchIO "toList" $ toList size
-        , benchIO "toListSome" $ toListSome size
+        [ benchIO "toList" $ Nested.toList size
+        , benchIO "toListSome" $ Nested.toListSome size
         ]
     ]
 
@@ -227,11 +227,11 @@ main = do
     allBenchmarks size =
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
-                  [ o_1_space_serial_generation size
-                  , o_1_space_serial_transformation size
-                  , o_1_space_serial_combination size
-                  , o_1_space_serial_outerProduct size
+                  [ o_1_space_generation size
+                  , o_1_space_transformation size
+                  , o_1_space_combination size
+                  , o_1_space_nested size
                   ]
         , bgroup (o_n_space_prefix moduleName)
-            $ Prelude.concat [o_n_space_serial size]
+            $ Prelude.concat [o_n_space_nested size]
         ]
