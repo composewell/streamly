@@ -492,28 +492,30 @@ o_1_space_combination size =
 
 o_1_space_nested :: Int -> [Benchmark]
 o_1_space_nested size =
-    [ bgroup "outer-product"
-        [ benchIO "toNull" $ Nested.toNull size
-        , benchIO "toNull3" $ Nested.toNull3 size
-        , benchIO "concat" $ Nested.concat size
-        , benchIO "breakAfterSome" $ Nested.breakAfterSome size
-        , benchIO "filterAllOut" $ Nested.filterAllOut size
-        , benchIO "filterAllIn" $ Nested.filterAllIn size
-        , benchIO "filterSome" $ Nested.filterSome size
-        , benchIO "concatMapM (100 x n/100)" $ concatMapM size
-        -- Unimplemented
-        -- , benchIO "ap" $ ap size
-        -- , benchIO "apDiscardFst" $ apDiscardFst size
-        -- , benchIO "apDiscardSnd" $ apDiscardSnd size
-        ]
+    [ bgroup
+          "outer-product"
+          [ benchIO "toNull" $ Nested.toNull size
+          , benchIO "toNull3" $ Nested.toNull3 size
+          , benchIO "concat" $ Nested.concat size
+          , benchIO "breakAfterSome" $ Nested.breakAfterSome size
+          , benchIO "filterAllOut" $ Nested.filterAllOut size
+          , benchIO "filterAllIn" $ Nested.filterAllIn size
+          , benchIO "filterSome" $ Nested.filterSome size
+          , benchIO "concatMapM (100 x n/100)" $ concatMapM size
+          -- Unimplemented
+          -- , benchIO "ap" $ ap size
+          -- , benchIO "apDiscardFst" $ apDiscardFst size
+          -- , benchIO "apDiscardSnd" $ apDiscardSnd size
+          ]
     ]
 
 o_n_space_nested :: Int -> [Benchmark]
 o_n_space_nested size =
-    [ bgroup "outer-product"
-        [ benchIO "toList" $ Nested.toList size
-        , benchIO "toListSome" $ Nested.toListSome size
-        ]
+    [ bgroup
+          "outer-product"
+          [ benchIO "toList" $ Nested.toList size
+          , benchIO "toListSome" $ Nested.toListSome size
+          ]
     ]
 
 -------------------------------------------------------------------------------
