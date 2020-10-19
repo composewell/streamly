@@ -58,6 +58,45 @@ testUnfoldD :: Unfold Identity a Int -> a -> [Int] -> Bool
 testUnfoldD = testUnfold
 
 -------------------------------------------------------------------------------
+-- Operations on input
+-------------------------------------------------------------------------------
+
+lmapM :: Bool
+lmapM =
+    let unf = UF.lmapM (\x -> modify (+ 1) >> return x) (UF.singleton id)
+     in testUnfoldAD unf 0 1 1 [1]
+
+supply :: Bool
+supply =
+    let unf = UF.supply (UF.singleton id) 1
+     in testUnfold unf undefined ([1] :: [Int])
+
+supplyFirst :: Bool
+supplyFirst =
+    let unf = UF.supplyFirst (UF.singleton id) 1
+     in testUnfold unf 2 ([(1, 2)] :: [(Int, Int)])
+
+supplySecond :: Bool
+supplySecond =
+    let unf = UF.supplySecond (UF.singleton id) 1
+     in testUnfold unf 2 ([(2, 1)] :: [(Int, Int)])
+
+discardFirst :: Bool
+discardFirst =
+    let unf = UF.discardFirst (UF.singleton id)
+     in testUnfold unf ((1, 2) :: (Int, Int)) [2]
+
+discardSecond :: Bool
+discardSecond =
+    let unf = UF.discardSecond (UF.singleton id)
+     in testUnfold unf ((1, 2) :: (Int, Int)) [1]
+
+swap :: Bool
+swap =
+    let unf = UF.swap (UF.singleton id)
+     in testUnfold unf ((1, 2) :: (Int, Int)) [(2, 1)]
+
+-------------------------------------------------------------------------------
 -- Stream generation
 -------------------------------------------------------------------------------
 
@@ -211,8 +250,30 @@ outerProduct =
         lst = [(a, b) :: (Int, Int) | a <- [0 .. 10], b <- [0 .. 20]]
      in testUnfold unf ((0, 0) :: (Int, Int)) lst
 
+-------------------------------------------------------------------------------
+-- Test groups
+-------------------------------------------------------------------------------
+
+testInputOps :: Spec
+testInputOps =
+    describe "Input"
+        $ do
+            -- prop "lmap" lmap
+            prop "lmapM" lmapM
+            prop "supply" supply
+            prop "supplyFirst" supplyFirst
+            prop "supplySecond" supplySecond
+            prop "discardFirst" discardFirst
+            prop "discardSecond" discardSecond
+            prop "swap" swap
+
+-------------------------------------------------------------------------------
+-- Main
+-------------------------------------------------------------------------------
+
 main :: IO ()
-main = hspec $
+main = hspec $ do
+    testInputOps
     describe "Unfold tests" $ do
        prop "fromStream" fromStream
        prop "nilM" nilM
