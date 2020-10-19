@@ -134,13 +134,18 @@ fromStream :: Int -> Int -> IO ()
 fromStream size start =
     drainGeneration UF.fromStream (S.replicate size start :: S.SerialT IO Int)
 
+-- XXX INVESTIGATE: Although the performance of this should be equivalant to
+-- fromStream, this is considerably worse. More than 4x worse.
 {-# INLINE fromStreamK #-}
 fromStreamK :: Monad m => Int -> Int -> m ()
 fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 
-{-# INLINE fromStreamD #-}
-fromStreamD :: Monad m => Int -> Int -> m ()
-fromStreamD size start = drainGeneration UF.fromStreamD (D.replicate size start)
+-- XXX INVESTIGATE: This either takes too long or is in an infinite loop, either
+-- way see whats going on.
+{-# INLINE _fromStreamD #-}
+_fromStreamD :: Monad m => Int -> Int -> m ()
+_fromStreamD size start =
+    drainGeneration UF.fromStreamD (D.replicate size start)
 
 {-# INLINE _nilM #-}
 _nilM :: Monad m => Int -> Int -> m ()
@@ -209,16 +214,6 @@ replicateM size start = drainGeneration (UF.replicateM size) (return start)
 repeatM :: Monad m => Int -> Int -> m ()
 repeatM size start = drainGeneration (UF.take size UF.repeatM) (return start)
 
-{-# INLINE enumerateFromStepIntegral #-}
-enumerateFromStepIntegral :: Monad m => Int -> Int -> m ()
-enumerateFromStepIntegral size start =
-    drainGeneration (UF.take size UF.enumerateFromStepIntegral) (start, 1)
-
-{-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
-enumerateFromToIntegral size start =
-    drainGeneration (UF.enumerateFromToIntegral (size + start)) start
-
 {-# INLINE iterateM #-}
 iterateM :: Monad m => Int -> Int -> m ()
 iterateM size start =
@@ -228,6 +223,16 @@ iterateM size start =
 fromIndicesM :: Monad m => Int -> Int -> m ()
 fromIndicesM size start =
     drainGeneration (UF.take size (UF.fromIndicesM return)) start
+
+{-# INLINE enumerateFromStepIntegral #-}
+enumerateFromStepIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromStepIntegral size start =
+    drainGeneration (UF.take size UF.enumerateFromStepIntegral) (start, 1)
+
+{-# INLINE enumerateFromToIntegral #-}
+enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromToIntegral size start =
+    drainGeneration (UF.enumerateFromToIntegral (size + start)) start
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Monad m => Int -> Int -> m ()
@@ -284,7 +289,6 @@ takeWhile size start =
 filter :: Monad m => Int -> Int -> m ()
 filter size start =
     drainTransformationDefault size (UF.filter (\_ -> True)) start
-
 
 {-# INLINE filterM #-}
 filterM :: Monad m => Int -> Int -> m ()
@@ -422,7 +426,8 @@ o_1_space_generation_resource size =
           "generation/resource"
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
-          , benchIO "fromStreamD" $ fromStreamD size
+          -- XXX INVESTIGATE, see the definition
+          -- , benchIO "fromStreamD" $ fromStreamD size
           -- Very small benchmarks, reporting in ns
           -- , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
