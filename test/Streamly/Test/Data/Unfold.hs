@@ -13,6 +13,8 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Prelude
 import qualified Data.List as List
 
@@ -106,6 +108,16 @@ fromStream =
         $ \n ->
               testUnfoldD UF.fromStream (S.fromList n :: SerialT Identity Int) n
 
+fromStreamD :: Property
+fromStreamD =
+    property
+        $ \list -> testUnfoldD UF.fromStreamD (D.fromList list) (list :: [Int])
+
+fromStreamK :: Property
+fromStreamK =
+    property
+        $ \list -> testUnfoldD UF.fromStreamK (K.fromList list) (list :: [Int])
+
 nilM :: Bool
 nilM =
     let unf = UF.nilM put
@@ -132,6 +144,18 @@ const =
     let unf = UF.take 10 $ UF.const (modify (+ 1) >> get)
      in testUnfoldAD unf 0 10 (0 :: Int) [1 .. 10]
 
+unfoldrM :: Property
+unfoldrM =
+    property
+        $ \gen ->
+              let genA = apply gen :: Int -> Maybe (Int, Int)
+                  genM x = modify (+ 1) >> return (genA x)
+                  list = Prelude.take 100 $ List.unfoldr genA 1
+                  unf = UF.take 100 $ UF.unfoldrM genM
+                  ll = length list
+                  fs = if ll < 100 then ll + 1 else 100
+               in testUnfoldAD unf 0 fs 1 list
+
 fromListM :: Property
 fromListM =
     property
@@ -143,13 +167,63 @@ replicateM :: Property
 replicateM =
     property
         $ \i ->
-              let ns = max 0 i + 1
+              let ns = max 0 i
                   seed = modify (+ 1) >> get
                in testUnfoldAD (UF.replicateM i) 0 ns seed [1 .. i]
 
 repeatM :: Bool
 repeatM =
     testUnfoldAD (UF.take 10 UF.repeatM) 0 10 (modify (+ 1) >> get) [1 .. 10]
+
+iterateM :: Property
+iterateM =
+    property
+        $ \next ->
+              let nextA = apply next :: Int -> Int
+                  nextM x = modify (+ 1) >> return (nextA x)
+                  list = Prelude.take 100 $ List.iterate nextA 1
+                  unf = UF.take 100 $ UF.iterateM nextM
+               in testUnfoldAD unf 0 110 (modify (+ 10) >> return 1) list
+
+fromIndicesM :: Property
+fromIndicesM =
+    property
+        $ \indF ->
+              let indFA = apply indF :: Int -> Int
+                  indFM x = modify (+ 1) >> return (indFA x)
+                  list = Prelude.take 100 $ Prelude.map indFA [1 ..]
+                  unf = UF.take 100 $ UF.fromIndicesM indFM
+               in testUnfoldAD unf 0 (length list) 1 list
+
+enumerateFromStepNum :: Property
+enumerateFromStepNum =
+    property
+        $ \f s ->
+              let unf = UF.take 10 $ UF.enumerateFromStepNum s
+                  lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
+               in testUnfoldD unf f lst
+
+enumerateFromToFractional :: Property
+enumerateFromToFractional =
+    property
+        $ \f t ->
+              let unf = UF.enumerateFromToFractional (t :: Double)
+               in testUnfold unf (f :: Double) [f .. t]
+
+enumerateFromStepIntegral :: Property
+enumerateFromStepIntegral =
+    property
+        $ \f s ->
+              let unf = UF.take 10 UF.enumerateFromStepIntegral
+                  lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
+               in testUnfoldD unf (f, s) lst
+
+enumerateFromToIntegral :: Property
+enumerateFromToIntegral =
+    property
+        $ \f t ->
+              let unf = UF.enumerateFromToIntegral t
+               in testUnfoldD unf f [f .. t]
 
 take :: Property
 take =
@@ -207,21 +281,6 @@ dropWhileM =
                   fS = Prelude.length n - Prelude.length fL
                in testUnfoldAD unf 0 fS n fL
 
-enumerateFromStepIntegral :: Property
-enumerateFromStepIntegral =
-    property
-        $ \f s ->
-              let unf = UF.take 10 UF.enumerateFromStepIntegral
-                  lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
-               in testUnfoldD unf (f, s) lst
-
-enumerateFromToIntegral :: Property
-enumerateFromToIntegral =
-    property
-        $ \f t ->
-              let unf = UF.enumerateFromToIntegral t
-               in testUnfoldD unf f [f .. t]
-
 zipWithM :: Property
 zipWithM =
     property
@@ -267,6 +326,36 @@ testInputOps =
             prop "discardSecond" discardSecond
             prop "swap" swap
 
+testGeneration :: Spec
+testGeneration =
+    describe "Generation"
+        $ do
+            prop "fromStream" fromStream
+            prop "fromStreamK" fromStreamK
+            prop "fromStreamD" fromStreamD
+            prop "nilM" nilM
+            prop "consM" consM
+            prop "effect" effect
+            prop "singletonM" singletonM
+            -- prop "singleton" singleton
+            -- prop "identity" identity
+            prop "const" const
+            prop "unfoldrM" unfoldrM
+            -- prop "fromList" fromList
+            prop "fromListM" fromListM
+            -- prop "fromSVar" fromSVar
+            -- prop "fromProducer" fromProducer
+            prop "replicateM" replicateM
+            prop "repeatM" repeatM
+            prop "iterateM" iterateM
+            prop "fromIndicesM" fromIndicesM
+            prop "enumerateFromStepIntegral" enumerateFromStepIntegral
+            prop "enumerateFromToIntegral" enumerateFromToIntegral
+            -- prop "enumerateFromIntegral" enumerateFromIntegral
+            prop "enumerateFromStepNum" enumerateFromStepNum
+            -- prop "numFrom" numFrom
+            prop "enumerateFromToFractional" enumerateFromToFractional
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -274,23 +363,13 @@ testInputOps =
 main :: IO ()
 main = hspec $ do
     testInputOps
+    testGeneration
     describe "Unfold tests" $ do
-       prop "fromStream" fromStream
-       prop "nilM" nilM
-       prop "consM" consM
-       prop "effect" effect
-       prop "singletonM" singletonM
-       prop "const" const
-       prop "fromListM" fromListM
-       prop "replicateM" replicateM
-       prop "repeatM" repeatM
        prop "take" take
        prop "takeWhileM" takeWhileM
        prop "filterM" filterM
        prop "drop" drop
        prop "dropWhileM" dropWhileM
-       prop "enumerateFromStepIntegral" enumerateFromStepIntegral
-       prop "enumerateFromToIntegral" enumerateFromToIntegral
        prop "zipWithM" zipWithM
        prop "concat" concat
        prop "outerProduct" outerProduct
