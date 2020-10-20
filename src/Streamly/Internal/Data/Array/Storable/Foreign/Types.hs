@@ -92,6 +92,9 @@ import Foreign.Storable (Storable(..))
 import GHC.Base (Addr#, nullAddr#)
 import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
+#ifdef DEVBUILD
+import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
+#endif
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..), lmap)
@@ -232,7 +235,11 @@ spliceTwo arr1 arr2 =
 -- /Internal/
 --
 {-# INLINE fromPtr #-}
-fromPtr :: Int -> Ptr a -> Array a
+fromPtr ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    Int -> Ptr a -> Array a
 fromPtr n ptr = MA.unsafeInlineIO $ do
     fptr <- newForeignPtr_ ptr
     let end = ptr `plusPtr` n
@@ -274,7 +281,11 @@ fromPtr n ptr = MA.unsafeInlineIO $ do
 -- /Internal/
 --
 {-# INLINE fromAddr# #-}
-fromAddr# :: Int -> Addr# -> Array a
+fromAddr# ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    Int -> Addr# -> Array a
 fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 
 -- | Generate a byte array from an 'Addr#' that contains a sequence of NUL

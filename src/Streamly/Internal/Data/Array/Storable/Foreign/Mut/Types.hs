@@ -193,7 +193,11 @@ data Array a =
     }
 
 {-# INLINE mutableArray #-}
-mutableArray :: ForeignPtr a -> Ptr a -> Ptr a -> Array a
+mutableArray ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    ForeignPtr a -> Ptr a -> Ptr a -> Array a
 mutableArray = Array
 
 -------------------------------------------------------------------------------

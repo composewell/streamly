@@ -514,7 +514,11 @@ streamTransform f arr =
 --
 -- /Internal/
 --
-unsafeCast :: Array a -> Array b
+unsafeCast ::
+#ifdef DEVBUILD
+    Storable b =>
+#endif
+    Array a -> Array b
 unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
 
 -- | Cast an array into a Word8 array
