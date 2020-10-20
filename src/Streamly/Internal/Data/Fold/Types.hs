@@ -179,21 +179,25 @@ import Prelude hiding (concatMap)
 data Step s b
     = Partial !s
     | Done !b
+    | Partial1 !s
     | Done1 !b
 
 instance Bifunctor Step where
     {-# INLINE bimap #-}
     bimap f _ (Partial a) = Partial (f a)
+    bimap f _ (Partial1 a) = Partial1 (f a)
     bimap _ g (Done b) = Done (g b)
     bimap _ g (Done1 b) = Done (g b)
 
     {-# INLINE first #-}
     first f (Partial a) = Partial (f a)
+    first f (Partial1 a) = Partial1 (f a)
     first _ (Done x) = Done x
     first _ (Done1 x) = Done1 x
 
     {-# INLINE second #-}
     second _ (Partial x) = Partial x
+    second _ (Partial1 x) = Partial1  x
     second f (Done a) = Done (f a)
     second f (Done1 a) = Done1 (f a)
 
@@ -268,15 +272,17 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
         r <- stepL st a
         case r of
             Partial s -> return $ Partial (SeqFoldL s)
+            Partial1 s -> return $ Partial1 (SeqFoldL s)
             Done b -> Partial <$> (SeqFoldR (func b) <$> initialR)
             Done1 b -> do
                 ir <- initialR
-                step (SeqFoldR (func b) ir) a
+                return $ Partial1 $ SeqFoldR (func b) ir
     step (SeqFoldR f st) a = do
         r <- stepR st a
         return
           $ case r of
                 Partial s -> Partial (SeqFoldR f s)
+                Partial1 s -> Partial1 (SeqFoldR f s)
                 Done b -> Done (f b)
                 Done1 b -> Done1 (f b)
 
@@ -328,18 +334,28 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                   $ Partial
                   $ case resR of
                         Partial sR1 -> RunBoth sL1 sR1
+                        Partial1 sR1 -> RunBoth sL1 sR1
                         Done bR -> RunLeft sL1 bR
                         Done1 bR -> RunLeft sL1 bR
+            Partial1 sL1 ->
+                return
+                  $ case resR of
+                        Partial sR1 -> Partial $ RunBoth sL1 sR1
+                        Partial1 sR1 -> Partial1 $ RunBoth sL1 sR1
+                        Done bR -> Partial $ RunLeft sL1 bR
+                        Done1 bR -> Partial1 $ RunLeft sL1 bR
             Done bL ->
                 return
                   $ case resR of
                         Partial sR1 -> Partial $ RunRight bL sR1
+                        Partial1 sR1 -> Partial $ RunRight bL sR1
                         Done bR -> Done $ f bL bR
                         Done1 bR -> Done $ f bL bR
             Done1 bL ->
                 return
                   $ case resR of
                         Partial sR1 -> Partial $ RunRight bL sR1
+                        Partial1 sR1 -> Partial1 $ RunRight bL sR1
                         Done bR -> Done $ f bL bR
                         Done1 bR -> Done1 $ f bL bR
     step (RunLeft sL bR) a = do
@@ -347,6 +363,7 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         return
           $ case resL of
                 Partial sL1 -> Partial $ RunLeft sL1 bR
+                Partial1 sL1 -> Partial1 $ RunLeft sL1 bR
                 Done bL -> Done $ f bL bR
                 Done1 bL -> Done1 $ f bL bR
     step (RunRight bL sR) a = do
@@ -354,6 +371,7 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         return
           $ case resR of
                 Partial sR1 -> Partial $ RunRight bL sR1
+                Partial1 sR1 -> Partial1 $ RunRight bL sR1
                 Done bR -> Done $ f bL bR
                 Done1 bR -> Done1 $ f bL bR
 
@@ -588,6 +606,12 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
                     if i1 < n
                     then return $ Partial s1
                     else Done <$> fextract sres
+                Partial1 sres -> do
+                    let i1 = i + 1
+                        s1 = Tuple' i1 sres
+                    if i1 < n
+                    then return $ Partial1 s1
+                    else Done1 <$> fextract sres
                 Done bres -> return $ Done bres
                 Done1 bres -> return $ Done1 bres
         | otherwise = Done1 <$> fextract r
@@ -638,6 +662,7 @@ duplicate (Fold step begin done) =
         -- XXX Discuss about initial element
         case res of
             Partial s -> pure $ Partial s
+            Partial1 s -> pure $ Partial1 s
             Done b ->
                 return
                   $ Done
@@ -666,6 +691,8 @@ runStep (Fold step initial extract) a = do
     r <- step i a
     case r of
         Partial s -> return $ Fold step (return s) extract
+        -- XXX runStep is kind of a wierd one. No backtracking possible here.
+        Partial1 s -> return $ Fold step (return s) extract
         Done b ->
             return $ Fold (\_ _ -> return $ Done1 b) (return i) (\_ -> return b)
         Done1 b ->
@@ -704,20 +731,30 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
         r <- step1 st a
         case r of
             Partial s -> return $ Partial (Tuple' s fs)
+            Partial1 s -> return $ Partial1 (Tuple' s fs)
             Done b -> do
                 s <- initial1
                 fs1 <- fstep fs b
                 return
                   $ case fs1 of
                         Partial s1 -> Partial (Tuple' s s1)
+                        -- XXX This is not correct, we need to backtrack all the
+                        -- elements consumed to produce `b` but that is not
+                        -- possible. We could probably return an error here.
+                        Partial1 s1 -> Partial1 (Tuple' s s1)
                         Done b1 -> Done b1
+                        -- XXX This is not correct.
                         Done1 b1 -> Done b1
             Done1 b -> do
                 s <- initial1
                 fs1 <- fstep fs b
+                -- XXX Move return out
                 case fs1 of
-                    Partial s1 -> step (Tuple' s s1) a
+                    Partial s1 -> return $ Partial1 (Tuple' s s1)
+                    -- XXX This is not correct.
+                    Partial1 s1 -> return $ Partial1 (Tuple' s s1)
                     Done b1 -> return $ Done1 b1
+                    -- XXX This is not correct.
                     Done1 b1 -> return $ Done1 b1
 
     extract (Tuple' s fs) = do
@@ -725,6 +762,7 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
         acc <- fstep fs b
         case acc of
             Partial s1 -> fextract s1
+            Partial1 s1 -> fextract s1
             Done x -> return x
             Done1 x -> return x
 
@@ -745,6 +783,7 @@ groupBy cmp (Fold fstep finitial fextract) = Fold step initial extract
                 Done bres -> Done bres
                 Done1 bres -> Done1 bres
                 Partial sres -> Partial (GroupByGrouping a sres)
+                Partial1 sres -> Partial1 (GroupByGrouping a sres)
     step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then do
@@ -754,6 +793,7 @@ groupBy cmp (Fold fstep finitial fextract) = Fold step initial extract
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
                     Partial sres -> Partial (GroupByGrouping a0 sres)
+                    Partial1 sres -> Partial1 (GroupByGrouping a0 sres)
         else Done1 <$> fextract s
 
     extract (GroupByInit s) = fextract s
@@ -774,6 +814,7 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
                 Done bres -> Done bres
                 Done1 bres -> Done1 bres
                 Partial sres -> Partial (GroupByGrouping a sres)
+                Partial1 sres -> Partial1 (GroupByGrouping a sres)
     step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then do
@@ -783,11 +824,13 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
                     Partial sres -> Partial (GroupByGrouping a sres)
+                    Partial1 sres -> Partial1 (GroupByGrouping a sres)
         else Done1 <$> fextract s
 
     extract (GroupByInit s) = fextract s
     extract (GroupByGrouping _ s) = fextract s
 
+-- XXX Replace this with the previous implementation using `many`
 -- XXX The only difference from the previous implementation is that the `if`
 -- statement encompasses `collect` rather then the other way around.
 -- | For every n input items, apply the first fold and supply the result to the
@@ -809,6 +852,7 @@ lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
         cs0 <- cstp cs sb
         case cs0 of
             Partial cs1 -> cext cs1
+            Partial1 cs1 -> cext cs1
             Done cb -> return cb
             Done1 cb -> return cb
 
@@ -822,6 +866,8 @@ lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
             Partial cs1 -> do
                 esini <- sini
                 onP 0 esini cs1
+            -- XXX Return an informative error here
+            Partial1 _ -> undefined
             Done cb -> return $ Done cb
             -- The branch below is incorrect
             Done1 cb -> return $ Done cb
@@ -831,7 +877,7 @@ lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
         let i1 = i + 1
         ss0 <- sstp ss a
         let done i_ ss_ cs_ = return $ Partial $ Tuple3' i_ ss_ cs_
-            done1 a_ i_ ss_ cs_ = split i_ ss_ cs_ a_
+            done1 i_ ss_ cs_ = return $ Partial1 $ Tuple3' i_ ss_ cs_
         case ss0 of
             Partial ss1 ->
                 if i1 == n
@@ -839,8 +885,14 @@ lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
                     sb <- sext ss1
                     collect cs sb done
                 else return $ Partial $ Tuple3' i1 ss1 cs
+            Partial1 ss1 ->
+                if i1 == n
+                then do
+                    sb <- sext ss1
+                    collect cs sb done
+                else return $ Partial1 $ Tuple3' i1 ss1 cs
             Done sb -> collect cs sb done
-            Done1 sb -> collect cs sb (done1 a)
+            Done1 sb -> collect cs sb done1
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
@@ -857,6 +909,7 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
             res <- step1 r1 a
             case res of
                 Partial sres -> return $ Tuple3' (i + 1) sres r2
+                Partial1 sres -> step' (Tuple3' i sres r2) a
                 Done b -> do
                     s <- initial1
                     r21 <- step2 r2 b
@@ -906,6 +959,7 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
             return
               $ case res of
                     Partial sres -> Partial $ Tuple3' sres mv t
+                    Partial1 sres -> Partial1 $ Tuple3' sres mv t
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
 

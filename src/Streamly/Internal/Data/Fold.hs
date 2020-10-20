@@ -371,6 +371,7 @@ sequence (Fold step initial extract) = Fold step' initial extract'
         res <- step s a
         case res of
             Partial x -> return $ Partial x
+            Partial1 x -> return $ Partial1 x
             Done b -> Done <$> b
             Done1 b -> Done1 <$> b
 
@@ -405,7 +406,8 @@ mapMaybe f = lmap f . lfilter isJust . lmap fromJust
 --
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
 --
--- Only folds not returning 'Done1' are supported by this operation.
+-- Only folds not returning 'Done1' or 'Partial1' are supported by this
+-- operation.
 --
 -- @since 0.7.0
 {-# INLINE transform #-}
@@ -416,8 +418,8 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
     where
 
     initial = Tuple' pinitial <$> finitial
-    errorMsgOnDone1 =
-        "Only folds not returning Done1 are supported by this operation."
+    errorMsg =
+        "Only folds not returning Done1 or Partial1 are supported by transform."
 
     step (Tuple' ps fs) x = do
         r <- pstep1 ps x
@@ -430,15 +432,17 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
             acc' <- fstep acc b
             case acc' of
                 Partial s -> return $ Partial $ Tuple' ps' s
+                Partial1 _ -> error errorMsg
                 Done b2 -> return $ Done b2
-                Done1 _ -> error errorMsgOnDone1
+                Done1 _ -> error errorMsg
         go acc (Pipe.Yield b (Produce ps')) = do
             acc' <- fstep acc b
             r <- pstep2 ps'
             case acc' of
                 Partial s -> go s r
+                Partial1 _ -> error errorMsg
                 Done b2 -> return $ Done b2
-                Done1 _ -> error errorMsgOnDone1
+                Done1 _ -> error errorMsg
         go acc (Pipe.Continue (Consume ps')) = return $ Partial $ Tuple' ps' acc
         go acc (Pipe.Continue (Produce ps')) = do
             r <- pstep2 ps'
@@ -1146,6 +1150,7 @@ sliceSepWith predicate (Fold fstep finitial fextract) =
             res <- fstep s a
             case res of
                 Partial sres -> Done <$> fextract sres
+                Partial1 sres -> Done <$> fextract sres
                 Done bres -> return $ Done bres
                 Done1 bres -> return $ Done bres
 
@@ -1181,6 +1186,7 @@ wordBy predicate (Fold fstep finitial fextract) = Fold step initial extract
             return
               $ case res of
                     Partial sres -> Partial $ Left' sres
+                    Partial1 sres -> Partial1 $ Left' sres
                     Done bres -> Done bres
                     Done1 bres -> Done1 bres
         else do
@@ -1365,7 +1371,8 @@ distribute = foldr foldCons foldNil
 -- than 'distribute' as it does not need to maintain state. This fold terminates
 -- when all the folds terminate.
 --
--- 'Done1' and 'Done' are treated equally for the case of distribute_. This is
+-- 'Done1' and 'Done' are treated equally in the case of distribute_. 'Partial1'
+-- and 'Partial' are also treated equally in the case of distribute_. This is
 -- not the case for 'distribute'.
 {-# INLINE distribute_ #-}
 distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
@@ -1391,6 +1398,10 @@ distribute_ fs = Fold step initial extract
         res <- s i1 a
         case res of
             Partial i2 -> do
+                rst <- go ss a
+                let fld = Fold s (return i2) d
+                return $ fld : rst
+            Partial1 i2 -> do
                 rst <- go ss a
                 let fld = Fold s (return i2) d
                 return $ fld : rst
@@ -1470,6 +1481,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                   $ Partial
                   $ case res of
                         Partial sres -> RunBoth sres sR
+                        Partial1 sres -> RunBoth sres sR
                         Done bres -> RunRight bres sR
                         Done1 bres -> RunRight bres sR
             Right c -> do
@@ -1478,6 +1490,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                   $ Partial
                   $ case res of
                         Partial sres -> RunBoth sL sres
+                        Partial1 sres -> RunBoth sL sres
                         Done bres -> RunLeft sL bres
                         Done1 bres -> RunLeft sL bres
     step (RunLeft sL bR) a = do
@@ -1488,6 +1501,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                 return
                   $ case res of
                         Partial sres -> Partial $ RunLeft sres bR
+                        Partial1 sres -> Partial1 $ RunLeft sres bR
                         Done bres -> Done (bres, bR)
                         Done1 bres -> Done1 (bres, bR)
             Right _ -> return $ Partial $ RunLeft sL bR
@@ -1500,6 +1514,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                 return
                   $ case res of
                         Partial sres -> Partial $ RunRight bL sres
+                        Partial1 sres -> Partial1 $ RunRight bL sres
                         Done bres -> Done (bL, bres)
                         Done1 bres -> Done1 (bL, bres)
 
@@ -1626,6 +1641,10 @@ demuxWith f kv = Fold step initial extract
                                 let fld = Fold stp (return sres) dn
                                     mp1 = Map.insert k fld mp
                                  in Partial $ Tuple' bmp mp1
+                            Partial1 sres ->
+                                let fld = Fold stp (return sres) dn
+                                    mp1 = Map.insert k fld mp
+                                 in Partial $ Tuple' bmp mp1
                             Done bres ->
                                 let mp1 = Map.delete k mp
                                     bmp1 = Map.insert k bres bmp
@@ -1636,6 +1655,7 @@ demuxWith f kv = Fold step initial extract
                                 let mp1 = Map.delete k mp
                                     bmp1 = Map.insert k bres bmp
                                  in if Map.size mp1 == 0
+                                    -- XXX This should just be Done?
                                     then Done1 bmp1
                                     else Partial $ Tuple' bmp1 mp1
         else return $ Done1 bmp
@@ -1692,6 +1712,7 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                           $ Partial
                           $ case res of
                                 Partial sres -> DemuxingWithDefault sres bst mp
+                                Partial1 sres -> DemuxingWithDefault sres bst mp
                                 Done _ -> DemuxingOnlyMap mp
                                 Done1 _ -> DemuxingOnlyMap mp
                 Just (Fold stp ini dn) -> do
@@ -1700,6 +1721,10 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                     return
                       $ case res of
                             Partial sres ->
+                                let fld = (Fold stp (return sres) dn)
+                                    mp1 = Map.insert k fld mp
+                                 in Partial $ DemuxingWithDefault dacc bst mp1
+                            Partial1 sres ->
                                 let fld = (Fold stp (return sres) dn)
                                     mp1 = Map.insert k fld mp
                                  in Partial $ DemuxingWithDefault dacc bst mp1
@@ -1714,6 +1739,7 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                                              (Map.delete k mp)
                             Done1 _ ->
                                 if Map.size mp == 1
+                                -- XXX This should just be Done?
                                 then Done1 ()
                                 else Partial
                                        $ DemuxingWithDefault
@@ -1737,6 +1763,10 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                                 Partial
                                   $ DemuxingOnlyMap
                                   $ Map.insert k (Fold stp (return sres) dn) mp
+                            Partial1 sres ->
+                                Partial
+                                  $ DemuxingOnlyMap
+                                  $ Map.insert k (Fold stp (return sres) dn) mp
                             -- XXX Check for n - 1 == 0 here for Done & Done1?
                             -- XXX Treat the last completing fold differently?
                             Done _ ->
@@ -1745,6 +1775,7 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                                 else Partial $ DemuxingOnlyMap $ Map.delete k mp
                             Done1 _ ->
                                 if Map.size mp == 1
+                                -- XXX This should just be Done?
                                 then Done1 ()
                                 else Partial $ DemuxingOnlyMap $ Map.delete k mp
         else return $ Done1 ()
@@ -1797,6 +1828,10 @@ demuxWith_ f kv = Fold step initial extract
                                 Partial
                                   $ Tuple' n
                                   $ Map.insert k (Fold stp (return sres) dn) mp
+                            Partial1 sres ->
+                                Partial
+                                  $ Tuple' n
+                                  $ Map.insert k (Fold stp (return sres) dn) mp
                             -- XXX Check for n - 1 == 0 here for Done & Done1?
                             -- XXX Treat the last completing fold differently?
                             Done _ ->
@@ -1805,6 +1840,7 @@ demuxWith_ f kv = Fold step initial extract
                                 else Partial $ Tuple' n1 $ Map.delete k mp
                             Done1 _ ->
                                 if n1 == 0
+                                -- This should just be Done?
                                 then Done1 ()
                                 else Partial $ Tuple' n1 $ Map.delete k mp
 
@@ -1866,6 +1902,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
                   $ flip (Map.insert k) kv
                   $ case r of
                         Partial sr -> Left' sr
+                        Partial1 sr -> Left' sr
                         Done br -> Right' br
                         Done1 br -> Right' br
             Just x -> do
@@ -1877,6 +1914,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
                           $ flip (Map.insert k) kv
                           $ case r of
                                 Partial sr -> Left' sr
+                                Partial1 sr -> Left' sr
                                 Done br -> Right' br
                                 Done1 br -> Right' br
                     Right' _ -> return $ Partial kv
@@ -1938,18 +1976,28 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                   $ Partial
                   $ case resR of
                         Partial sresR -> RunBoth sresL sresR
+                        Partial1 sresR -> RunBoth sresL sresR
                         Done bresR -> RunLeft sresL bresR
                         Done1 bresR -> RunLeft sresL bresR
+            Partial1 sresL ->
+                return
+                  $ case resR of
+                        Partial sresR -> Partial $ RunBoth sresL sresR
+                        Partial1 sresR -> Partial1 $ RunBoth sresL sresR
+                        Done bresR -> Partial $ RunLeft sresL bresR
+                        Done1 bresR -> Partial1 $ RunLeft sresL bresR
             Done bresL ->
                 return
                   $ case resR of
                         Partial sresR -> Partial $ RunRight bresL sresR
+                        Partial1 sresR -> Partial $ RunRight bresL sresR
                         Done bresR -> Done (bresL, bresR)
                         Done1 bresR -> Done (bresL, bresR)
             Done1 bresL ->
                 return
                   $ case resR of
                         Partial sresR -> Partial $ RunRight bresL sresR
+                        Partial1 sresR -> Partial1 $ RunRight bresL sresR
                         Done bresR -> Done (bresL, bresR)
                         Done1 bresR -> Done1 (bresL, bresR)
     step (RunLeft sL bR) a = do
@@ -1958,6 +2006,7 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         return
           $ case resL of
                 Partial sresL -> Partial $ RunLeft sresL bR
+                Partial1 sresL -> Partial1 $ RunLeft sresL bR
                 Done bresL -> Done (bresL, bR)
                 Done1 bresL -> Done1 (bresL, bR)
     step (RunRight bL sR) a = do
@@ -1966,6 +2015,7 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         return
           $ case resR of
                 Partial sresR -> Partial $ RunRight bL sresR
+                Partial1 sresR -> Partial1 $ RunRight bL sresR
                 Done bresR -> Done (bL, bresR)
                 Done1 bresR -> Done1 (bL, bresR)
 

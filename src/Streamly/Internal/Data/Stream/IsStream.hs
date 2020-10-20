@@ -4790,6 +4790,9 @@ classifySessionsBy tick tmout reset ejectPred (Fold step initial extract) str =
             -- bigger obejct which was used. Check this behaviour?
             FL.Done1 x -> onTerminate x
             FL.Done x -> onTerminate x
+            -- XXX Need to think about this
+            -- XXX This should be the same as Partial?
+            FL.Partial1 _ -> undefined
             FL.Partial new -> do
                 let acc = Tuple' timestamp new
                 (hp1, mp1, out1, cnt1) <-

@@ -682,6 +682,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> extract1 rr
+            FL.Partial1 rr -> extract1 rr
             FL.Done _ -> return ()
             FL.Done1 _ -> return ()
 
@@ -697,6 +698,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                             extract1 s
                             r1' <- initial1
                             return $ FL.Partial $ Tuple' Nothing r1'
+                        FL.Partial1 s -> do
+                            extract1 s
+                            r1' <- initial1
+                            return $ FL.Partial1 $ Tuple' Nothing r1'
                 else return $ FL.Partial $ Tuple' (Just arr) r1
 
     step (Tuple' (Just buf) r1) arr = do
@@ -716,6 +721,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                         extract1 s
                         r1' <- initial1
                         return $ FL.Partial $ Tuple' Nothing r1'
+                    FL.Partial1 s -> do
+                        extract1 s
+                        r1' <- initial1
+                        return $ FL.Partial1 $ Tuple' Nothing r1'
             else return $ FL.Partial $ Tuple' (Just buf'') r1
 
 #if !defined(mingw32_HOST_OS)

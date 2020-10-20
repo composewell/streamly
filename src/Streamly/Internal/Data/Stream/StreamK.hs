@@ -444,12 +444,14 @@ foldOnce (FL.Fold step begin done) m = go begin m
               >>= \b -> step b a
               >>= \x -> case x of
                             FL.Partial s -> done s
+                            FL.Partial1 s -> done s
                             FL.Done b1 -> return b1
                             FL.Done1 b1 -> return b1
             yieldk a r = acc
               >>= \b -> step b a
               >>= \x -> case x of
                             FL.Partial s -> go (return s) r
+                            FL.Partial1 s -> go (return s) m1
                             FL.Done b1 -> return b1
                             FL.Done1 b1 -> return b1
          in foldStream defState yieldk single stop m1

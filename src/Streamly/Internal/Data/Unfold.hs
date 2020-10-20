@@ -281,15 +281,19 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
   where
     -- XXX !acc?
     {-# INLINE_LATE go #-}
+    goWith !_ !acc st x = do
+        acc' <- fstep acc x
+        case acc' of
+            FL.Partial acc'' -> go SPEC acc'' st
+            FL.Partial1 acc'' -> goWith SPEC acc'' st x
+            FL.Done c -> return c
+            FL.Done1 c -> return c
+
+    -- XXX Get rid of seq
     go !_ acc st = acc `seq` do
         r <- ustep st
         case r of
-            Yield x s -> do
-                acc' <- fstep acc x
-                case acc' of
-                    FL.Partial acc'' -> go SPEC acc'' s
-                    FL.Done c -> return c
-                    FL.Done1 c -> return c
+            Yield x s -> goWith SPEC acc s x
             Skip s -> go SPEC acc s
             Stop   -> extract acc
 

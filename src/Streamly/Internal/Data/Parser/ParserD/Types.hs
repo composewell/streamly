@@ -453,17 +453,22 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
+                -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Continue n s -> do
+                -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
+                -- XXX Combine assert with the next statement
+                assert (cnt1 - n >= 0) (return ())
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
+                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 s1)
                         FL.Done b1 -> Done n b1
                         FL.Done1 b1 -> Done cnt1 b1
             Error _ -> do
@@ -479,6 +484,7 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fextract s1
+                    FL.Partial1 s1 -> fextract s1
                     FL.Done b1 -> return b1
                     FL.Done1 b1 -> return b1
 
@@ -501,6 +507,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         pure (Tuple3' ps (0 :: Int) (Left fs))
 
     {-# INLINE step #-}
+    -- XXX We need to backtrack if the fold does not consume any elements
     step (Tuple3' st _ (Left fs)) a = do
         r <- step1 st a
         case r of
@@ -512,6 +519,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
+                        FL.Partial1 s1 -> Partial n (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
                         FL.Done1 b1 -> Done n b1
             Error err -> return $ Error err
@@ -528,9 +536,11 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
+                assert (cnt1 - n >= 0) (return ())
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
+                        FL.Partial1 s1 -> Partial cnt (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
                         FL.Done1 b1 -> Done cnt1 b1
             Error _ -> Done cnt1 <$> fextract fs
@@ -541,6 +551,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         fs1 <- fstep fs b
         case fs1 of
             FL.Partial s1 -> fextract s1
+            FL.Partial1 s1 -> fextract s1
             FL.Done b1 -> return b1
             FL.Done1 b1 -> return b1
     extract (Tuple3' s _ (Right fs)) = do
@@ -551,6 +562,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fextract s1
+                    FL.Partial1 s1 -> fextract s1
                     FL.Done b1 -> return b1
                     FL.Done1 b1 -> return b1
 
