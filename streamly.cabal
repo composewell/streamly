@@ -256,6 +256,7 @@ common compile-options
                       -Wincomplete-uni-patterns
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
+                      -Rghc-timing
 
     if flag(has-llvm)
       ghc-options: -fllvm
