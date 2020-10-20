@@ -308,6 +308,10 @@ dropWhileM =
                   fS = Prelude.length n - Prelude.length fL
                in testUnfoldAD unf 0 fS n fL
 
+-------------------------------------------------------------------------------
+-- Stream combination
+-------------------------------------------------------------------------------
+
 zipWithM :: Property
 zipWithM =
     property
@@ -335,6 +339,22 @@ outerProduct =
         unf = UF.outerProduct unf1 unf2
         lst = [(a, b) :: (Int, Int) | a <- [0 .. 10], b <- [0 .. 20]]
      in testUnfold unf ((0, 0) :: (Int, Int)) lst
+
+concatMapM :: Bool
+concatMapM =
+    let unfInF b =
+            modify (+ 1)
+                >> return
+                      (UF.lmap
+                           (\() -> undefined)
+                           (UF.supply
+                                (UF.replicateM 10)
+                                (modify (+ 1) >> return b)))
+        listInF b = replicate 10 b
+        unfOut = UF.enumerateFromToIntegral 10
+        unf = UF.concatMapM unfInF unfOut
+        list = List.concatMap listInF [1 .. 10]
+     in testUnfoldAD unf 0 110 1 list
 
 -------------------------------------------------------------------------------
 -- Test groups
@@ -399,19 +419,35 @@ testTransformation =
             -- prop "dropWhile" dropWhile
             prop "dropWhileM" dropWhileM
 
+
+testCombination :: Spec
+testCombination =
+    describe "Transformation"
+        $ do
+            prop "zipWithM" zipWithM
+            -- prop "zipWith" zipWith
+            -- prop "teeZipWith" teeZipWith
+            prop "concat" concat
+            prop "concatMapM" concatMapM
+            prop "outerProduct" outerProduct
+            -- prop "ap" ap
+            -- prop "apDiscardFst" apDiscardFst
+            -- prop "apDiscardSnd" apDiscardSnd
+
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = hspec $ do
-    testInputOps
-    testGeneration
-    testTransformation
-    describe "Unfold tests" $ do
-       prop "zipWithM" zipWithM
-       prop "concat" concat
-       prop "outerProduct" outerProduct
+main =
+    hspec
+        $ describe "Unfold tests"
+        $ do
+            testInputOps
+            testGeneration
+            testTransformation
+            testCombination
        -- prop "concatMapM" concatMapM
        -- prop "gbracket" gbracket
        -- prop "gbracketIO" gbracketIO
