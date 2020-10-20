@@ -208,7 +208,10 @@ enumerateFromToFractional =
     property
         $ \f t ->
               let unf = UF.enumerateFromToFractional (t :: Double)
-               in testUnfold unf (f :: Double) [f .. t]
+                  list =
+                      Prelude.takeWhile (<= t + 0.5)
+                          $ List.unfoldr (\x -> Just (x, x + 1)) f
+               in testUnfold unf (f :: Double) list
 
 enumerateFromStepIntegral :: Property
 enumerateFromStepIntegral =
