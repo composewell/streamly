@@ -527,13 +527,13 @@ repeatM = Unfold step return
 -- /Internal/
 --
 {-# INLINE iterateM #-}
-iterateM :: Monad m => (a -> m a) -> Unfold m a a
-iterateM f = Unfold step f
+iterateM :: Monad m => (a -> m a) -> Unfold m (m a) a
+iterateM f = Unfold step id
     where
     {-# INLINE_LATE step #-}
     step x = do
         fx <- f x
-        return $ Yield fx fx
+        return $ Yield x fx
 
 -- | @fromIndicesM gen@ generates an infinite stream of values using @gen@
 -- starting from the seed.
