@@ -7,6 +7,14 @@ notices in the individual files.
 
 * macOS FS Event handling C code adapted from hfsevents package:
   * Copyright (c) 2012, Luite Stegeman
+  * http://hackage.haskell.org/package/hfsevents-0.1.6
+  * See hfsevents-0.1.6.txt for the original license
+
+* Some code snippets in Windows FS event handling module are taken from the
+  fsnotify package.
+  * Copyright (c) 2012, Mark Dittmer
+  * http://hackage.haskell.org/package/fsnotify-0.3.0.1/
+  * See fsnotify-0.3.0.1.txt for the original license
 
 ## 0.7.1
 

@@ -9,13 +9,13 @@
 --
 -- Just report all events under the paths provided as arguments
 module Main (main) where
-    
-import Control.Monad.IO.Class (MonadIO)   
+
+import Control.Monad.IO.Class (MonadIO)
 import Data.Function ((&))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
 import System.Environment (getArgs)
-import Streamly.Prelude (SerialT) 
+import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 
 import qualified Streamly.Unicode.Stream as Unicode
@@ -35,22 +35,25 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
+
 toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = Array.fromStream . Unicode.encodeUtf8' . Stream.fromList
 
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
+
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event
-#if defined(CABAL_OS_LINUX)    
+#if defined(CABAL_OS_LINUX)
 watchPaths = Event.watchPaths
-#else    
+#else
 watchPaths = Event.watchTrees
 #endif
 
 main :: IO ()
 main = do
-    args <- getArgs 
+    args <- getArgs
     paths <- mapM toUtf8 args
+
     watchPaths (NonEmpty.fromList paths)
         & Stream.mapM_ (putStrLn . Event.showEvent)
