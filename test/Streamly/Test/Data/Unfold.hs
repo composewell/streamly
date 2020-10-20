@@ -11,12 +11,12 @@ module Main (main) where
 
 import Streamly.Internal.Data.Unfold (Unfold)
 
+import qualified Data.List as List
+import qualified Prelude
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Prelude
-import qualified Data.List as List
 
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
@@ -27,15 +27,13 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.QuickCheck.Function
 
--- We check for side effects in most cases
-
 -------------------------------------------------------------------------------
 -- Helper functions
 -------------------------------------------------------------------------------
 
-testUnfoldA ::
+testUnfoldM ::
        (Eq s, Eq b) => Unfold (State s) a b -> s -> s -> a -> [b] -> Bool
-testUnfoldA unf si sf seed lst = evalState action si
+testUnfoldM unf si sf seed lst = evalState action si
 
     where
 
@@ -44,8 +42,8 @@ testUnfoldA unf si sf seed lst = evalState action si
         y <- get
         return $ x == lst && y == sf
 
-testUnfoldAD :: Unfold (State Int) a Int -> Int -> Int -> a -> [Int] -> Bool
-testUnfoldAD = testUnfoldA
+testUnfoldMD :: Unfold (State Int) a Int -> Int -> Int -> a -> [Int] -> Bool
+testUnfoldMD = testUnfoldM
 
 testUnfold :: Eq b => Unfold Identity a b -> a -> [b] -> Bool
 testUnfold unf seed lst = runIdentity action
@@ -66,7 +64,7 @@ testUnfoldD = testUnfold
 lmapM :: Bool
 lmapM =
     let unf = UF.lmapM (\x -> modify (+ 1) >> return x) (UF.singleton id)
-     in testUnfoldAD unf 0 1 1 [1]
+     in testUnfoldMD unf 0 1 1 [1]
 
 supply :: Bool
 supply =
@@ -121,28 +119,28 @@ fromStreamK =
 nilM :: Bool
 nilM =
     let unf = UF.nilM put
-     in testUnfoldAD unf 0 1 1 []
+     in testUnfoldMD unf 0 1 1 []
 
 consM :: Bool
 consM =
     let cns = UF.consM (\a -> modify (+ a) >> get)
         unf = cns $ cns $ UF.nilM $ \a -> modify (+ a)
-     in testUnfoldAD unf 0 3 1 [1, 2]
+     in testUnfoldMD unf 0 3 1 [1, 2]
 
 effect :: Bool
 effect =
     let unf = UF.effect (modify (+ 1) >> get)
-     in testUnfoldAD unf 0 1 undefined [1]
+     in testUnfoldMD unf 0 1 undefined [1]
 
 singletonM :: Bool
 singletonM =
     let unf = UF.singletonM (\a -> modify (+ a) >> get)
-     in testUnfoldAD unf 0 1 1 [1]
+     in testUnfoldMD unf 0 1 1 [1]
 
 const :: Bool
 const =
     let unf = UF.take 10 $ UF.const (modify (+ 1) >> get)
-     in testUnfoldAD unf 0 10 (0 :: Int) [1 .. 10]
+     in testUnfoldMD unf 0 10 (0 :: Int) [1 .. 10]
 
 unfoldrM :: Property
 unfoldrM =
@@ -154,14 +152,14 @@ unfoldrM =
                   unf = UF.take 100 $ UF.unfoldrM genM
                   ll = length list
                   fs = if ll < 100 then ll + 1 else 100
-               in testUnfoldAD unf 0 fs 1 list
+               in testUnfoldMD unf 0 fs 1 list
 
 fromListM :: Property
 fromListM =
     property
         $ \n ->
               let lst = Prelude.map (\x -> modify (+ 1) >> return x) n
-               in testUnfoldAD UF.fromListM 0 (length n) lst n
+               in testUnfoldMD UF.fromListM 0 (length n) lst n
 
 replicateM :: Property
 replicateM =
@@ -169,11 +167,11 @@ replicateM =
         $ \i ->
               let ns = max 0 i
                   seed = modify (+ 1) >> get
-               in testUnfoldAD (UF.replicateM i) 0 ns seed [1 .. i]
+               in testUnfoldMD (UF.replicateM i) 0 ns seed [1 .. i]
 
 repeatM :: Bool
 repeatM =
-    testUnfoldAD (UF.take 10 UF.repeatM) 0 10 (modify (+ 1) >> get) [1 .. 10]
+    testUnfoldMD (UF.take 10 UF.repeatM) 0 10 (modify (+ 1) >> get) [1 .. 10]
 
 iterateM :: Property
 iterateM =
@@ -183,7 +181,7 @@ iterateM =
                   nextM x = modify (+ 1) >> return (nextA x)
                   list = Prelude.take 100 $ List.iterate nextA 1
                   unf = UF.take 100 $ UF.iterateM nextM
-               in testUnfoldAD unf 0 110 (modify (+ 10) >> return 1) list
+               in testUnfoldMD unf 0 110 (modify (+ 10) >> return 1) list
 
 fromIndicesM :: Property
 fromIndicesM =
@@ -193,7 +191,7 @@ fromIndicesM =
                   indFM x = modify (+ 1) >> return (indFA x)
                   list = Prelude.take 100 $ Prelude.map indFA [1 ..]
                   unf = UF.take 100 $ UF.fromIndicesM indFM
-               in testUnfoldAD unf 0 (length list) 1 list
+               in testUnfoldMD unf 0 (length list) 1 list
 
 enumerateFromStepNum :: Property
 enumerateFromStepNum =
@@ -240,7 +238,7 @@ mapM =
                   fM x = modify (+ 1) >> return (fA x)
                   unf = UF.mapM fM UF.fromList
                   mList = Prelude.map fA list
-               in testUnfoldAD unf 0 (length list) list mList
+               in testUnfoldMD unf 0 (length list) list mList
 
 mapMWithInput :: Property
 mapMWithInput =
@@ -250,7 +248,7 @@ mapMWithInput =
                   fM x y = modify (+ 1) >> return (fA x y)
                   unf = UF.mapMWithInput fM UF.fromList
                   mList = Prelude.map (fA list) list
-               in testUnfoldAD unf 0 (length list) list mList
+               in testUnfoldMD unf 0 (length list) list mList
 
 take :: Property
 take =
@@ -272,7 +270,7 @@ takeWhileM =
                   unf = UF.takeWhileM fM UF.fromList
                   fL = Prelude.takeWhile (apply f) n
                   fS = Prelude.length fL
-               in testUnfoldAD unf 0 fS n fL
+               in testUnfoldMD unf 0 fS n fL
 
 filterM :: Property
 filterM =
@@ -285,7 +283,7 @@ filterM =
                   unf = UF.filterM fM UF.fromList
                   fL = Prelude.filter (apply f) n
                   fS = Prelude.length fL
-               in testUnfoldAD unf 0 fS n fL
+               in testUnfoldMD unf 0 fS n fL
 
 drop :: Property
 drop =
@@ -306,7 +304,7 @@ dropWhileM =
                   unf = UF.dropWhileM fM UF.fromList
                   fL = Prelude.dropWhile (apply f) n
                   fS = Prelude.length n - Prelude.length fL
-               in testUnfoldAD unf 0 fS n fL
+               in testUnfoldMD unf 0 fS n fL
 
 -------------------------------------------------------------------------------
 -- Stream combination
@@ -322,7 +320,7 @@ zipWithM =
                   fM a b = modify (+ 1) >> return (fA a b)
                   unf = UF.zipWithM fM unf1 unf2
                   lst = Prelude.zipWith fA [1 .. 10] [1 .. 20]
-               in testUnfoldAD unf 0 10 (1, 1) lst
+               in testUnfoldMD unf 0 10 (1, 1) lst
 
 concat :: Bool
 concat =
@@ -354,7 +352,7 @@ concatMapM =
         unfOut = UF.enumerateFromToIntegral 10
         unf = UF.concatMapM unfInF unfOut
         list = List.concatMap listInF [1 .. 10]
-     in testUnfoldAD unf 0 110 1 list
+     in testUnfoldMD unf 0 110 1 list
 
 -------------------------------------------------------------------------------
 -- Test groups
@@ -419,7 +417,6 @@ testTransformation =
             -- prop "dropWhile" dropWhile
             prop "dropWhileM" dropWhileM
 
-
 testCombination :: Spec
 testCombination =
     describe "Transformation"
@@ -434,7 +431,6 @@ testCombination =
             -- prop "apDiscardFst" apDiscardFst
             -- prop "apDiscardSnd" apDiscardSnd
 
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -448,14 +444,3 @@ main =
             testGeneration
             testTransformation
             testCombination
-       -- prop "concatMapM" concatMapM
-       -- prop "gbracket" gbracket
-       -- prop "gbracketIO" gbracketIO
-       -- prop "before" before
-       -- prop "after" after
-       -- prop "afterIO" afterIO
-       -- prop "onException" onException
-       -- prop "finally" finally
-       -- prop "finallyIO" finallyIO
-       -- prop "bracket" bracket
-       -- prop "bracketIO" bracketIO
