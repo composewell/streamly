@@ -20,7 +20,7 @@ import qualified Data.List as List
 
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
-import Prelude hiding (const, take, drop, concat)
+import Prelude hiding (const, take, drop, concat, mapM)
 import Streamly.Prelude (SerialT)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
@@ -228,6 +228,30 @@ enumerateFromToIntegral =
               let unf = UF.enumerateFromToIntegral t
                in testUnfoldD unf f [f .. t]
 
+-------------------------------------------------------------------------------
+-- Stream transformation
+-------------------------------------------------------------------------------
+
+mapM :: Property
+mapM =
+    property
+        $ \f list ->
+              let fA = apply f :: Int -> Int
+                  fM x = modify (+ 1) >> return (fA x)
+                  unf = UF.mapM fM UF.fromList
+                  mList = Prelude.map fA list
+               in testUnfoldAD unf 0 (length list) list mList
+
+mapMWithInput :: Property
+mapMWithInput =
+    property
+        $ \f list ->
+              let fA = applyFun2 f :: [Int] -> Int -> Int
+                  fM x y = modify (+ 1) >> return (fA x y)
+                  unf = UF.mapMWithInput fM UF.fromList
+                  mList = Prelude.map (fA list) list
+               in testUnfoldAD unf 0 (length list) list mList
+
 take :: Property
 take =
     property
@@ -359,6 +383,22 @@ testGeneration =
             -- prop "numFrom" numFrom
             prop "enumerateFromToFractional" enumerateFromToFractional
 
+testTransformation :: Spec
+testTransformation =
+    describe "Transformation"
+        $ do
+            -- prop "map" map
+            prop "mapM" mapM
+            prop "mapMWithInput" mapMWithInput
+            prop "takeWhileM" takeWhileM
+            -- prop "takeWhile" takeWhile
+            prop "take" take
+            -- prop "filter" filter
+            prop "filterM" filterM
+            prop "drop" drop
+            -- prop "dropWhile" dropWhile
+            prop "dropWhileM" dropWhileM
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -367,12 +407,8 @@ main :: IO ()
 main = hspec $ do
     testInputOps
     testGeneration
+    testTransformation
     describe "Unfold tests" $ do
-       prop "take" take
-       prop "takeWhileM" takeWhileM
-       prop "filterM" filterM
-       prop "drop" drop
-       prop "dropWhileM" dropWhileM
        prop "zipWithM" zipWithM
        prop "concat" concat
        prop "outerProduct" outerProduct
