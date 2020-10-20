@@ -503,12 +503,12 @@ replicateM n = Unfold step inject
     inject x = return (x, n)
 
     {-# INLINE_LATE step #-}
-    step (x, i) = do
-        x1 <- x
-        return
-            $ if i <= 0
-              then Stop
-              else Yield x1 (x, i - 1)
+    step (x, i) =
+        if i <= 0
+        then return Stop
+        else do
+            x1 <- x
+            return $ Yield x1 (x, i - 1)
 
 -- | Generates an infinite stream repeating the seed.
 --
