@@ -7,7 +7,6 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fspec-constr-recursive=4 #-}
 
 module Main
   (

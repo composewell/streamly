@@ -322,6 +322,7 @@ import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
+import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import System.Mem (performMajorGC)
 import Fusion.Plugin.Types (Fuse(..))
@@ -953,6 +954,11 @@ splitAt n ls
           where
             (xs', xs'') = splitAt' (m - 1) xs
 
+-- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
+-- to make a newtype.
+{-# ANN type List NoSpecConstr #-}
+newtype List a = List {getList :: [a]}
+
 -- | Run a 'Parse' over a stream.
 {-# INLINE_NORMAL parselMx' #-}
 parselMx'
@@ -963,7 +969,7 @@ parselMx'
     -> Stream m a
     -> m b
 parselMx' pstep initial extract (Stream step state) = do
-    initial >>= go SPEC state []
+    initial >>= go SPEC state (List [])
 
     where
 
@@ -977,40 +983,41 @@ parselMx' pstep initial extract (Stream step state) = do
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    PR.Partial 0 pst1 -> go SPEC s [] pst1
+                    PR.Partial 0 pst1 -> go SPEC s (List []) pst1
                     PR.Partial n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let src0 = Prelude.take n (x:buf)
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s [] src pst1
-                    PR.Continue 0 pst1 -> go SPEC s (x:buf) pst1
+                        gobuf SPEC s (List []) (List src) pst1
+                    PR.Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
                     PR.Continue n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
+                        assert (n <= length (x:getList buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s buf1 src pst1
+                        gobuf SPEC s (List buf1) (List src) pst1
                     PR.Done _ b -> return b
                     PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
             Stop   -> extract pst
 
-    gobuf !_ s buf [] !pst = go SPEC s buf pst
-    gobuf !_ s buf (x:xs) !pst = do
+    gobuf !_ s buf (List []) !pst = go SPEC s buf pst
+    gobuf !_ s buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
             PR.Partial 0 pst1 ->
-                gobuf SPEC s [] xs pst1
+                gobuf SPEC s (List []) (List xs) pst1
             PR.Partial n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s [] src pst1
-            PR.Continue 0 pst1 -> gobuf SPEC s (x:buf) xs pst1
+                gobuf SPEC s (List []) (List src) pst1
+            PR.Continue 0 pst1 ->
+                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
             PR.Continue n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s buf1 src pst1
+                gobuf SPEC s (List buf1) (List src) pst1
             PR.Done _ b -> return b
             PR.Error err -> throwM $ ParseError err
 
