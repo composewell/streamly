@@ -1029,8 +1029,8 @@ parselMx' pstep initial extract (Stream step state) = do
 data ParseChunksState x inpBuf st pst =
       ParseChunksInit inpBuf st
     | ParseChunksInitLeftOver inpBuf
-    | ParseChunksStream st inpBuf pst
-    | ParseChunksBuf inpBuf st inpBuf pst
+    | ParseChunksStream st inpBuf !pst
+    | ParseChunksBuf inpBuf st inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
 {-# INLINE_NORMAL parseMany #-}
@@ -1075,14 +1075,16 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         return $ Skip $ ParseChunksBuf src s [] pst1
-                    -- PR.Continue 0 pst1 ->
-                    --     return $ Skip $ ParseChunksStream s (x:buf) pst1
+                    PR.Continue 0 pst1 ->
+                        return $ Skip $ ParseChunksStream s (x:buf) pst1
                     PR.Continue n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         return $ Skip $ ParseChunksBuf src s buf1 pst1
-                    -- XXX Specialize for Stop 0 common case?
+                    PR.Done 0 b -> do
+                        return $ Skip $
+                            ParseChunksYield b (ParseChunksInit [] s)
                     PR.Done n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf))
@@ -1111,13 +1113,15 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s [] pst1
-         -- PR.Continue 0 pst1 -> return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
+            PR.Continue 0 pst1 ->
+                return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s buf1 pst1
-            -- XXX Specialize for Stop 0 common case?
+            PR.Done 0 b ->
+                return $ Skip $ ParseChunksYield b (ParseChunksInit xs s)
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
