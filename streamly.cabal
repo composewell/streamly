@@ -683,7 +683,7 @@ test-suite array-test
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
-test-suite internal-data-fold-test
+test-suite data-fold-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Internal/Data/Fold.hs
