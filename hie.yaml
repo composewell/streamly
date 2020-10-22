@@ -1,0 +1,60 @@
+cradle:
+  multi:
+    - path: "./benchmark"
+      config:
+        cradle:
+          none:
+    - path: "./examples"
+      config:
+        cradle:
+          none:
+    - path: "./"
+      config:
+        cradle:
+          cabal:
+            - path: "./src"
+              component: "lib:streamly"
+            - path: "./test/Streamly/Test/Data/List.hs"
+              component: "test:Streamly.Test.Data.List"
+            - path: "./test/Streamly/Test/Data/List.hs"
+              component: "test:Data.List"
+            - path: "./test/Streamly/Test/Prelude.hs"
+              component: "test:Prelude"
+            - path: "./test/Streamly/Test/Prelude/Serial.hs"
+              component: "test:Prelude.Serial"
+            - path: "./test/Streamly/Test/Prelude/WSerial.hs"
+              component: "test:Prelude.WSerial"
+            - path: "./test/Streamly/Test/Prelude/ZipSerial.hs"
+              component: "test:Prelude.ZipSerial"
+            - path: "./test/Streamly/Test/Prelude/ZipAsync.hs"
+              component: "test:Prelude.ZipAsync"
+            - path: "./test/Streamly/Test/Prelude/Ahead.hs"
+              component: "test:Prelude.Ahead"
+            - path: "./test/Streamly/Test/Prelude/Async.hs"
+              component: "test:Prelude.Async"
+            - path: "./test/Streamly/Test/Prelude/WAsync.hs"
+              component: "test:Prelude.WAsync"
+            - path: "./test/Streamly/Test/Prelude/Parallel.hs"
+              component: "test:Prelude.Parallel"
+            - path: "./test/Streamly/Test/Prelude/Concurrent.hs"
+              component: "test:Prelude.Concurrent"
+            - path: "./test/Streamly/Test/Prelude/Fold.hs"
+              component: "test:Prelude.Fold"
+            - path: "./test/Streamly/Test/Prelude/MaxRate.hs"
+              component: "test:Prelude.MaxRate"
+            - path: "./test/Streamly/Test/Array.hs"
+              component: "test:array-test"
+            - path: "./test/Streamly/Test/Internal/Data/Fold.hs"
+              component: "test:internal-data-fold-test"
+            - path: "./test/Streamly/Test/Data/Parser.hs"
+              component: "test:internal-data-parser-test"
+            - path: "./test/Streamly/Test/Data/Parser/ParserD.hs"
+              component: "test:internal-data-parser-parserd-test"
+            - path: "./test/Streamly/Test/Unicode/Stream.hs"
+              component: "test:Streamly.Test.Unicode.Stream"
+            - path: "./test/version-bounds.hs"
+              component: "test:version-bounds"
+
+dependencies:
+  - streamly.cabal
+  - hie.yaml
