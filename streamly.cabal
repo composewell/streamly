@@ -729,7 +729,7 @@ test-suite internal-data-parser-test
   import: test-options
   ghc-options: -O2
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Internal/Data/Parser.hs
+  main-is: Streamly/Test/Data/Parser.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
   build-depends:
@@ -744,7 +744,7 @@ test-suite internal-data-parser-test
 test-suite internal-data-parser-parserd-test
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Internal/Data/Parser/ParserD.hs
+  main-is: Streamly/Test/Data/Parser/ParserD.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
   build-depends:
