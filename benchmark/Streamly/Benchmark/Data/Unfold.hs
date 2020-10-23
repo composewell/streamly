@@ -193,6 +193,11 @@ unfoldrM size start = drainGeneration (UF.unfoldrM step) start
 fromList :: Monad m => Int -> Int -> m ()
 fromList size start = drainGeneration UF.fromList [start .. start + size]
 
+{-# INLINE fromListM #-}
+fromListM :: Monad m => Int -> Int -> m ()
+fromListM size start =
+    drainGeneration UF.fromListM (Prelude.map return [start .. start + size])
+
 {-# INLINE _fromSVar #-}
 _fromSVar :: Int -> Int -> m ()
 _fromSVar = undefined
@@ -200,11 +205,6 @@ _fromSVar = undefined
 {-# INLINE _fromProducer #-}
 _fromProducer :: Int -> Int -> m ()
 _fromProducer = undefined
-
-{-# INLINE fromListM #-}
-fromListM :: Monad m => Int -> Int -> m ()
-fromListM size start =
-    drainGeneration UF.fromListM (Prelude.map return [start .. start + size])
 
 {-# INLINE replicateM #-}
 replicateM :: Monad m => Int -> Int -> m ()
@@ -277,6 +277,14 @@ mapMWithInput size start =
         (UF.mapMWithInput (\a b -> return $ a + b))
         start
 
+{-# INLINE takeWhileM #-}
+takeWhileM :: Monad m => Int -> Int -> m ()
+takeWhileM size start =
+    drainTransformationDefault
+        size
+        (UF.takeWhileM (\b -> return (b <= size + start)))
+        start
+
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => Int -> Int -> m ()
 takeWhile size start =
@@ -284,6 +292,10 @@ takeWhile size start =
         size
         (UF.takeWhile (\b -> b <= size + start))
         start
+
+{-# INLINE take #-}
+take :: Monad m => Int -> Int -> m ()
+take size start = drainTransformationDefault size (UF.take size) start
 
 {-# INLINE filter #-}
 filter :: Monad m => Int -> Int -> m ()
@@ -295,28 +307,6 @@ filterM :: Monad m => Int -> Int -> m ()
 filterM size start =
     drainTransformationDefault size (UF.filterM (\_ -> (return True))) start
 
-{-# INLINE dropWhileTrue #-}
-dropWhileTrue :: Monad m => Int -> Int -> m ()
-dropWhileTrue size start =
-    drainTransformationDefault size (UF.dropWhileM (\_ -> return True)) start
-
-{-# INLINE dropWhileFalse #-}
-dropWhileFalse :: Monad m => Int -> Int -> m ()
-dropWhileFalse size start =
-    drainTransformationDefault size (UF.dropWhileM (\_ -> return False)) start
-
-{-# INLINE take #-}
-take :: Monad m => Int -> Int -> m ()
-take size start = drainTransformationDefault size (UF.take size) start
-
-{-# INLINE takeWhileM #-}
-takeWhileM :: Monad m => Int -> Int -> m ()
-takeWhileM size start =
-    drainTransformationDefault
-        size
-        (UF.takeWhileM (\b -> return (b <= size + start)))
-        start
-
 {-# INLINE _dropOne #-}
 _dropOne :: Monad m => Int -> Int -> m ()
 _dropOne size start =
@@ -326,6 +316,16 @@ _dropOne size start =
 dropAll :: Monad m => Int -> Int -> m ()
 dropAll size start =
     drainTransformationDefault size (UF.drop (size + 1)) start
+
+{-# INLINE dropWhileTrue #-}
+dropWhileTrue :: Monad m => Int -> Int -> m ()
+dropWhileTrue size start =
+    drainTransformationDefault size (UF.dropWhileM (\_ -> return True)) start
+
+{-# INLINE dropWhileFalse #-}
+dropWhileFalse :: Monad m => Int -> Int -> m ()
+dropWhileFalse size start =
+    drainTransformationDefault size (UF.dropWhileM (\_ -> return False)) start
 
 {-# INLINE dropWhileMTrue #-}
 dropWhileMTrue :: Monad m => Int -> Int -> m ()
