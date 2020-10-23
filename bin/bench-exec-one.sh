@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Environment passed:
 # BENCH_EXEC_PATH: the benchmark executable
