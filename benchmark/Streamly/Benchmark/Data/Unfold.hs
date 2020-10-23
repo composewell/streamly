@@ -140,11 +140,9 @@ fromStream size start =
 fromStreamK :: Monad m => Int -> Int -> m ()
 fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 
--- XXX INVESTIGATE: This either takes too long or is in an infinite loop, either
--- way see whats going on.
-{-# INLINE _fromStreamD #-}
-_fromStreamD :: Monad m => Int -> Int -> m ()
-_fromStreamD size start =
+{-# INLINE fromStreamD #-}
+fromStreamD :: Monad m => Int -> Int -> m ()
+fromStreamD size start =
     drainGeneration UF.fromStreamD (D.replicate size start)
 
 {-# INLINE _nilM #-}
@@ -430,8 +428,7 @@ o_1_space_generation size =
           "generation"
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
-          -- XXX INVESTIGATE, see the definition
-          -- , benchIO "fromStreamD" $ fromStreamD size
+          , benchIO "fromStreamD (n/100)" $ fromStreamD (size `div` 100)
           -- Very small benchmarks, reporting in ns
           -- , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
