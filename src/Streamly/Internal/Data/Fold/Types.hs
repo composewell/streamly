@@ -838,6 +838,8 @@ groupByRolling cmp (Fold fstep finitial fextract) = Fold step initial extract
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+lchunksOf n split collect = many collect (ltake n split)
+{-
 lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
     Fold step initial extract
 
@@ -893,6 +895,7 @@ lchunksOf n (Fold sstp sini sext) (Fold cstp cini cext) =
                 else return $ Partial1 $ Tuple3' i1 ss1 cs
             Done sb -> collect cs sb done
             Done1 sb -> collect cs sb done1
+            -}
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
