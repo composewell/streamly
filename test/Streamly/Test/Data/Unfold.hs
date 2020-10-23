@@ -107,8 +107,11 @@ swap =
 fromStream :: Property
 fromStream =
     property
-        $ \n ->
-              testUnfoldD UF.fromStream (S.fromList n :: SerialT Identity Int) n
+        $ \list ->
+              testUnfoldD
+                  UF.fromStream
+                  (S.fromList list :: SerialT Identity Int)
+                  list
 
 fromStreamD :: Property
 fromStreamD =
@@ -161,9 +164,9 @@ unfoldrM =
 fromListM :: Property
 fromListM =
     property
-        $ \n ->
-              let lst = Prelude.map (\x -> modify (+ 1) >> return x) n
-               in testUnfoldMD UF.fromListM lst 0 (length n) n
+        $ \list ->
+              let listM = Prelude.map (\x -> modify (+ 1) >> return x) list
+               in testUnfoldMD UF.fromListM listM 0 (length list) list
 
 replicateM :: Property
 replicateM =
@@ -266,49 +269,49 @@ take =
 takeWhileM :: Property
 takeWhileM =
     property
-        $ \f n ->
+        $ \f list ->
               let fM x =
                       if apply f x
                       then modify (+ 1) >> return True
                       else return False
                   unf = UF.takeWhileM fM UF.fromList
-                  fL = Prelude.takeWhile (apply f) n
+                  fL = Prelude.takeWhile (apply f) list
                   fS = Prelude.length fL
-               in testUnfoldMD unf n 0 fS fL
+               in testUnfoldMD unf list 0 fS fL
 
 filterM :: Property
 filterM =
     property
-        $ \f n ->
+        $ \f list ->
               let fM x =
                       if apply f x
                       then modify (+ 1) >> return True
                       else return False
                   unf = UF.filterM fM UF.fromList
-                  fL = Prelude.filter (apply f) n
+                  fL = Prelude.filter (apply f) list
                   fS = Prelude.length fL
-               in testUnfoldMD unf n 0 fS fL
+               in testUnfoldMD unf list 0 fS fL
 
 drop :: Property
 drop =
     property
-        $ \i n ->
+        $ \i list ->
               let unf = UF.drop i UF.fromList
-                  fL = Prelude.drop i n
-               in testUnfoldD unf n fL
+                  fL = Prelude.drop i list
+               in testUnfoldD unf list fL
 
 dropWhileM :: Property
 dropWhileM =
     property
-        $ \f n ->
+        $ \f list ->
               let fM x =
                       if apply f x
                       then modify (+ 1) >> return True
                       else return False
                   unf = UF.dropWhileM fM UF.fromList
-                  fL = Prelude.dropWhile (apply f) n
-                  fS = Prelude.length n - Prelude.length fL
-               in testUnfoldMD unf n 0 fS fL
+                  fL = Prelude.dropWhile (apply f) list
+                  fS = Prelude.length list - Prelude.length fL
+               in testUnfoldMD unf list 0 fS fL
 
 -------------------------------------------------------------------------------
 -- Stream combination
