@@ -477,10 +477,10 @@ o_1_space_transformation size =
           ]
     ]
 
-o_1_space_combination :: Int -> [Benchmark]
-o_1_space_combination size =
+o_1_space_zip :: Int -> [Benchmark]
+o_1_space_zip size =
     [ bgroup
-          "combination"
+          "zip"
           [ benchIO "zipWithM" $ zipWithM size
           , benchIO "zipWith" $ zipWith size
           , benchIO "teeZipWith" $ teeZipWith size
@@ -532,7 +532,7 @@ main = do
                   [ o_1_space_transformation_input size
                   , o_1_space_generation size
                   , o_1_space_transformation size
-                  , o_1_space_combination size
+                  , o_1_space_zip size
                   , o_1_space_nested size
                   ]
         , bgroup (o_n_space_prefix moduleName)
