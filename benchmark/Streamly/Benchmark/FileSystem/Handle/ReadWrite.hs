@@ -24,7 +24,7 @@ module Handle.ReadWrite
 where
 
 import Control.Exception (SomeException)
-import System.IO (Handle, hClose, hGetChar)
+import System.IO (Handle, hClose, hPutChar)
 import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
@@ -407,7 +407,7 @@ readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
             IP.after (hClose inh)
-                $ IP.before (hGetChar inh) (S.unfold FH.read inh)
+                $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
 readWriteAfterStream :: Handle -> Handle -> IO ()
