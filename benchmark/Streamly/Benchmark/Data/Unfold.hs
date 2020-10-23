@@ -45,8 +45,8 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 {-# INLINE drainTransformationDefault #-}
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
-drainTransformationDefault size =
-    drainTransformation (UF.take size UF.enumerateFromIntegral)
+drainTransformationDefault to =
+    drainTransformation (UF.enumerateFromToIntegral to)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -65,12 +65,11 @@ drainProductDefault ::
     -> (Unfold m Int Int -> Unfold m Int Int -> Unfold m e f)
     -> e
     -> m ()
-drainProductDefault size = drainProduct src1 src2
+drainProductDefault to = drainProduct src src
 
     where
 
-    src1 = UF.take size UF.enumerateFromIntegral
-    src2 = UF.take size (UF.supplySecond UF.enumerateFromStepIntegral 2)
+    src = UF.enumerateFromToIntegral to
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -78,17 +77,18 @@ drainProductDefault size = drainProduct src1 src2
 
 {-# INLINE lmap #-}
 lmap :: Monad m => Int -> Int -> m ()
-lmap size start = drainTransformationDefault size (UF.lmap (+ 1)) start
+lmap size start =
+    drainTransformationDefault (size + start) (UF.lmap (+ 1)) start
 
 {-# INLINE lmapM #-}
 lmapM :: Monad m => Int -> Int -> m ()
 lmapM size start =
-    drainTransformationDefault size (UF.lmapM (return . (+) 1)) start
+    drainTransformationDefault (size + start) (UF.lmapM (return . (+) 1)) start
 
 {-# INLINE supply #-}
 supply :: Monad m => Int -> Int -> m ()
 supply size start =
-    drainTransformationDefault size (flip UF.supply start) undefined
+    drainTransformationDefault (size + start) (flip UF.supply start) undefined
 
 
 {-# INLINE supplyFirst #-}
@@ -110,12 +110,12 @@ supplySecond size start =
 {-# INLINE discardFirst #-}
 discardFirst :: Monad m => Int -> Int -> m ()
 discardFirst size start =
-    drainTransformationDefault size UF.discardFirst (start, start)
+    drainTransformationDefault (size + start) UF.discardFirst (start, start)
 
 {-# INLINE discardSecond #-}
 discardSecond :: Monad m => Int -> Int -> m ()
 discardSecond size start =
-    drainTransformationDefault size UF.discardSecond (start, start)
+    drainTransformationDefault (size + start) UF.discardSecond (start, start)
 
 {-# INLINE swap #-}
 swap :: Monad m => Int -> Int -> m ()
@@ -151,7 +151,8 @@ _nilM _ start = drainGeneration (UF.nilM return) start
 
 {-# INLINE consM #-}
 consM :: Monad m => Int -> Int -> m ()
-consM size start = drainTransformationDefault size (UF.consM return) start
+consM size start =
+    drainTransformationDefault (size + start) (UF.consM return) start
 
 {-# INLINE _effect #-}
 _effect :: Monad m => Int -> Int -> m ()
@@ -260,12 +261,12 @@ enumerateFromToFractional size start =
 
 {-# INLINE map #-}
 map :: Monad m => Int -> Int -> m ()
-map size start = drainTransformationDefault size (UF.map (+1)) start
+map size start = drainTransformationDefault (size + start) (UF.map (+1)) start
 
 {-# INLINE mapM #-}
 mapM :: Monad m => Int -> Int -> m ()
 mapM size start =
-    drainTransformationDefault size (UF.mapM (return . (+) 1)) start
+    drainTransformationDefault (size + start) (UF.mapM (return . (+) 1)) start
 
 {-# INLINE mapMWithInput #-}
 mapMWithInput :: Monad m => Int -> Int -> m ()
@@ -297,37 +298,46 @@ takeWhile size start =
 
 {-# INLINE take #-}
 take :: Monad m => Int -> Int -> m ()
-take size start = drainTransformationDefault size (UF.take size) start
+take size start = drainTransformationDefault (size + start) (UF.take size) start
 
 {-# INLINE filter #-}
 filter :: Monad m => Int -> Int -> m ()
 filter size start =
-    drainTransformationDefault size (UF.filter (\_ -> True)) start
+    drainTransformationDefault (size + start) (UF.filter (\_ -> True)) start
 
 {-# INLINE filterM #-}
 filterM :: Monad m => Int -> Int -> m ()
 filterM size start =
-    drainTransformationDefault size (UF.filterM (\_ -> (return True))) start
+    drainTransformationDefault
+        (size + start)
+        (UF.filterM (\_ -> (return True)))
+        start
 
 {-# INLINE _dropOne #-}
 _dropOne :: Monad m => Int -> Int -> m ()
 _dropOne size start =
-    drainTransformationDefault size (UF.drop 1) start
+    drainTransformationDefault (size + start) (UF.drop 1) start
 
 {-# INLINE dropAll #-}
 dropAll :: Monad m => Int -> Int -> m ()
 dropAll size start =
-    drainTransformationDefault size (UF.drop (size + 1)) start
+    drainTransformationDefault (size + start) (UF.drop (size + 1)) start
 
 {-# INLINE dropWhileTrue #-}
 dropWhileTrue :: Monad m => Int -> Int -> m ()
 dropWhileTrue size start =
-    drainTransformationDefault size (UF.dropWhileM (\_ -> return True)) start
+    drainTransformationDefault
+        (size + start)
+        (UF.dropWhileM (\_ -> return True))
+        start
 
 {-# INLINE dropWhileFalse #-}
 dropWhileFalse :: Monad m => Int -> Int -> m ()
 dropWhileFalse size start =
-    drainTransformationDefault size (UF.dropWhileM (\_ -> return False)) start
+    drainTransformationDefault
+        (size + start)
+        (UF.dropWhileM (\_ -> return False))
+        start
 
 {-# INLINE dropWhileMTrue #-}
 dropWhileMTrue :: Monad m => Int -> Int -> m ()
@@ -352,20 +362,20 @@ dropWhileMFalse size start =
 {-# INLINE zipWith #-}
 zipWith :: Monad m => Int -> Int -> m ()
 zipWith size start =
-    drainProductDefault size (UF.zipWith (+)) (start, start + 1)
+    drainProductDefault (size + start) (UF.zipWith (+)) (start, start + 1)
 
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m => Int -> Int -> m ()
 zipWithM size start =
     drainProductDefault
-        size
+        (size + start)
         (UF.zipWithM (\a b -> return $ a + b))
         (start, start + 1)
 
 {-# INLINE teeZipWith #-}
 teeZipWith :: Monad m => Int -> Int -> m ()
 teeZipWith size start =
-    drainProductDefault size (UF.teeZipWith (+)) start
+    drainProductDefault (size + start) (UF.teeZipWith (+)) start
 
 -------------------------------------------------------------------------------
 -- Nested
