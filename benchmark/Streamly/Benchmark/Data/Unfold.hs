@@ -420,10 +420,10 @@ o_1_space_transformation_input size =
           ]
     ]
 
-o_1_space_generation_resource :: Int -> [Benchmark]
-o_1_space_generation_resource size =
+o_1_space_generation :: Int -> [Benchmark]
+o_1_space_generation size =
     [ bgroup
-          "generation/resource"
+          "generation"
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
           -- XXX INVESTIGATE, see the definition
@@ -442,15 +442,7 @@ o_1_space_generation_resource size =
           -- Unimplemented
           -- , benchIO "fromSVar" $ fromSVar size
           -- , benchIO "fromProducer" $ fromProducer size
-          ]
-    ]
-
-
-o_1_space_generation_specialized :: Int -> [Benchmark]
-o_1_space_generation_specialized size =
-    [ bgroup
-          "generation/specialized"
-          [ benchIO "replicateM" $ replicateM size
+          , benchIO "replicateM" $ replicateM size
           , benchIO "repeatM" $ repeatM size
           , benchIO "iterateM" $ iterateM size
           , benchIO "fromIndicesM" $ fromIndicesM size
@@ -538,8 +530,7 @@ main = do
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
                   [ o_1_space_transformation_input size
-                  , o_1_space_generation_resource size
-                  , o_1_space_generation_specialized size
+                  , o_1_space_generation size
                   , o_1_space_transformation size
                   , o_1_space_combination size
                   , o_1_space_nested size
