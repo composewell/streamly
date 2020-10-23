@@ -262,7 +262,7 @@ yield = K.toParserK . D.yield
 --
 {-# INLINE yieldM #-}
 yieldM :: MonadCatch m => m b -> Parser m a b
-yieldM = K.toParserK . D.yieldM
+yieldM = K.yieldM -- K.toParserK . D.yieldM
 
 -- This is the dual of "nil".
 --
