@@ -405,10 +405,10 @@ _apDiscardSnd = undefined
 moduleName :: String
 moduleName = "Data.Unfold"
 
-o_1_space_generation_input_ops :: Int -> [Benchmark]
-o_1_space_generation_input_ops size =
+o_1_space_transformation_input :: Int -> [Benchmark]
+o_1_space_transformation_input size =
     [ bgroup
-          "generation/input-ops"
+          "transformation/input"
           [ benchIO "lmap" $ lmap size
           , benchIO "lmapM" $ lmapM size
           , benchIO "supply" $ supply size
@@ -537,7 +537,7 @@ main = do
     allBenchmarks size =
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
-                  [ o_1_space_generation_input_ops size
+                  [ o_1_space_transformation_input size
                   , o_1_space_generation_resource size
                   , o_1_space_generation_specialized size
                   , o_1_space_transformation size
