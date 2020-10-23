@@ -277,6 +277,10 @@ mapMWithInput size start =
         (UF.mapMWithInput (\a b -> return $ a + b))
         start
 
+-------------------------------------------------------------------------------
+-- Stream filtering
+-------------------------------------------------------------------------------
+
 {-# INLINE takeWhileM #-}
 takeWhileM :: Monad m => Int -> Int -> m ()
 takeWhileM size start =
@@ -462,7 +466,14 @@ o_1_space_transformation size =
           [ benchIO "map" $ map size
           , benchIO "mapM" $ mapM size
           , benchIO "mapMWithInput" $ mapMWithInput size
-          , benchIO "takeWhileM" $ takeWhileM size
+          ]
+    ]
+
+o_1_space_filtering :: Int -> [Benchmark]
+o_1_space_filtering size =
+    [ bgroup
+          "filtering"
+          [ benchIO "takeWhileM" $ takeWhileM size
           , benchIO "takeWhile" $ takeWhile size
           , benchIO "take" $ take size
           , benchIO "filter" $ filter size
@@ -532,6 +543,7 @@ main = do
                   [ o_1_space_transformation_input size
                   , o_1_space_generation size
                   , o_1_space_transformation size
+                  , o_1_space_filtering size
                   , o_1_space_zip size
                   , o_1_space_nested size
                   ]
