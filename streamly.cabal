@@ -320,11 +320,25 @@ common threading-options
 common lib-options
   import: compile-options, optimization-options, default-extensions
 
+common test-dependencies
+  build-depends:
+      streamly
+    , base              >= 4.9   && < 5
+    , containers        >= 0.5   && < 0.7
+    , exceptions        >= 0.8   && < 0.11
+    , ghc
+    , hspec             >= 2.0   && < 3
+    , mtl               >= 2.2   && < 3
+    , random            >= 1.0.0 && < 2
+    , transformers      >= 0.4   && < 0.6
+    , QuickCheck        >= 2.13  && < 2.15
+
 -- Compilation for coverage builds on CI machines takes too long without -O0
 -- XXX we should use coverage flag for that, -O0 may take too long to run tests
 -- in general.
 common test-options
   import: compile-options, threading-options, default-extensions
+         ,test-dependencies
 
   ghc-options:  -O0
                 -fno-ignore-asserts
@@ -334,15 +348,8 @@ common test-options
   --   build-depends:
   --       fusion-plugin     >= 0.2   && < 0.3
 
-common prelude-test-options
-  js-sources: jsbits/clock.js
   hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-    , exceptions        >= 0.8   && < 0.11
+  js-sources: jsbits/clock.js
   default-language: Haskell2010
 
 -- Used by maxrate test, benchmarks and executables
@@ -562,38 +569,21 @@ test-suite Data.List
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite Streamly.Test.Data.List
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
-  hs-source-dirs: test
   cpp-options:  -DUSE_STREAMLY_LIST
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite Prelude
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude.hs
   ghc-options: -main-is Streamly.Test.Prelude.main
-  build-depends:
-    , containers        >= 0.5   && < 0.7
-    , transformers      >= 0.4   && < 0.6
-    , mtl               >= 2.2   && < 3
-    , random            >= 1.0.0 && < 2
 
 test-suite Prelude.Serial
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Serial.hs
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
@@ -601,7 +591,7 @@ test-suite Prelude.Serial
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.WSerial
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
@@ -609,7 +599,7 @@ test-suite Prelude.WSerial
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.ZipSerial
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/ZipSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
@@ -617,7 +607,7 @@ test-suite Prelude.ZipSerial
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.ZipAsync
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/ZipAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
@@ -625,7 +615,7 @@ test-suite Prelude.ZipAsync
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Ahead
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Ahead.hs
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
@@ -633,7 +623,7 @@ test-suite Prelude.Ahead
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Async
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Async.hs
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
@@ -641,7 +631,7 @@ test-suite Prelude.Async
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.WAsync
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
@@ -649,7 +639,7 @@ test-suite Prelude.WAsync
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Parallel
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Parallel.hs
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
@@ -657,7 +647,7 @@ test-suite Prelude.Parallel
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.Concurrent
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Concurrent.hs
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
@@ -666,7 +656,7 @@ test-suite Prelude.Concurrent
   build-depends: mtl >= 2.2 && < 3
 
 test-suite Prelude.Fold
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Fold.hs
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
@@ -674,13 +664,12 @@ test-suite Prelude.Fold
                  , Streamly.Test.Prelude.Common
 
 test-suite Prelude.MaxRate
-  import: prelude-test-options, exe-options, default-extensions
+  import: test-options, exe-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/MaxRate.hs
   ghc-options: -main-is Streamly.Test.Prelude.MaxRate.main
   if flag(dev)
     buildable: True
-    build-depends: random >= 1.0.0 && < 2
   else
     buildable: False
 
@@ -688,131 +677,55 @@ test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
   cpp-options: -DTEST_ARRAY
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite internal-data-fold-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Internal/Data/Fold.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.13  && < 2.15
-  default-language: Haskell2010
 
 test-suite Data.Unfold
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Unfold.hs
-  js-sources: jsbits/clock.js
   hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.8   && < 5
-    , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.13  && < 2.15
-    , transformers      >= 0.4 && < 0.6
-  default-language: Haskell2010
 
 test-suite internal-data-parser-test
   import: test-options
   ghc-options: -O2
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.13  && < 2.15
-    , transformers      >= 0.4 && < 0.6
-    , random            >= 1.0.0 && < 2
-  default-language: Haskell2010
 
 test-suite internal-data-parser-parserd-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , hspec             >= 2.0   && < 3
-    , QuickCheck        >= 2.13  && < 2.15
-    , transformers      >= 0.4 && < 0.6
-    , random            >= 1.0.0 && < 2
-  default-language: Haskell2010
 
 test-suite data-array-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite smallarray-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
   cpp-options: -DTEST_SMALL_ARRAY
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite primarray-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
   cpp-options: -DDATA_ARRAY_PRIM
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite prim-pinned-array-test
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
-  js-sources: jsbits/clock.js
-  hs-source-dirs: test
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
-  build-depends:
-      streamly
-    , base              >= 4.9   && < 5
-    , QuickCheck        >= 2.13  && < 2.15
-    , hspec             >= 2.0   && < 3
-  default-language: Haskell2010
 
 test-suite Streamly.Test.Unicode.Stream
-  import: test-options, prelude-test-options
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Stream.hs
   ghc-options: -main-is Streamly.Test.Unicode.Stream.main
@@ -820,22 +733,11 @@ test-suite Streamly.Test.Unicode.Stream
 test-suite version-bounds
   import: test-options
   type: exitcode-stdio-1.0
-  default-language: Haskell2010
   main-is: version-bounds.hs
-  hs-source-dirs:  test
-  build-Depends:
-      streamly
-    , ghc
-    , base   >= 4.9   && < 5
 
 executable FileSystem.Event
   import: test-options
-  default-language: Haskell2010
   main-is: Streamly/Test/FileSystem/Event.hs
-  hs-source-dirs: test
-  build-depends:
-      streamly
-    , base >= 4.8 && < 5
   if !flag(manual-tests)
     buildable: False
 
