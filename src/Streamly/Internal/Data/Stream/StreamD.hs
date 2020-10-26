@@ -1786,12 +1786,25 @@ data SplitOptions = SplitOptions
     }
 -}
 
-data SplitOnState s a =
+{-# ANN type SplitOnState Fuse #-}
+data SplitOnState fs s a b w rb rh ck =
       GO_START
     | GO_EMPTY_PAT s
-    | GO_SINGLE_PAT s a
-    | GO_SHORT_PAT s
-    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
+    | GO_EMPTY_PAT_WITH s a
+    -- | GO_SINGLE_PAT_BEGIN s a -- Only for splitSuffixOn
+    | GO_SINGLE_PAT_NEXT !fs s a
+    | GO_SINGLE_PAT_WITH !fs s a a
+    | GO_SHORT_PAT_ACCUM Int s !w
+    | GO_SHORT_PAT_NEXT !fs s !w
+    | GO_SHORT_PAT_NEXT_WITH !fs s a !w
+    | GO_SHORT_PAT_DRAIN Int !fs !w
+    -- | GO_SHORT_PAT_YIELD_SEP Int !fs s w -- Only for splitSuffixOn.
+    | GO_KARP_RABIN_ACCUM Int s rb rh
+    | GO_KARP_RABIN_NEXT !fs s rb rh !ck
+    | GO_KARP_RABIN_NEXT_WITH !fs s a rb rh !ck
+    | GO_KARP_RABIN_DRAIN Int !fs rb rh
+    -- | GO_KARP_RABIN_YIELD_SEP Int !fs s rb rh -- Only for splitSuffixOn.
+    | GO_YIELD b (SplitOnState fs s a b w rb rh ck)
     | GO_DONE
 
 {-# INLINE_NORMAL splitOn #-}
@@ -1810,169 +1823,236 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
 
+    -- XXX I initially put this in the state but I'd like to keep the state as
+    -- simple as possible to allow more fusion (if that's how it
+    -- works). Removing this from the state did not change anything. I'll
+    -- introduce them back once I figure out what's currently wrong. Ideally, I
+    -- want them to be associated with the state.
+    mask :: Word
+    mask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    -- XXX I initially put this in the state but I'd like to keep the state as
+    -- simple as possible to allow more fusion. Removing this from the state did
+    -- not change anything. I'll introduce them back once I figure out what's
+    -- currently wrong.
+    pat :: Word
+    -- XXX You dont need .&. here?
+    pat = mask .&. A.foldl' addToWord 0 patArr
+
+    -- Used only if the pattern is short
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    -- Used in Rabin-Karp
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    -- XXX shall we use a random starting hash or 1 instead of 0?
+    patHash = A.foldl' addCksum 0 patArr
+
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START =
         if patLen == 0
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
-            then do
-                r <- liftIO $ (A.unsafeIndexIO patArr 0)
-                return $ Skip $ GO_SINGLE_PAT state r
-            else if sizeOf (undefined :: a) * patLen
-                    <= sizeOf (undefined :: Word)
-                then return $ Skip $ GO_SHORT_PAT state
-                else do
-                    (rb, rhead) <- liftIO $ RB.new patLen
-                    return $ Skip $ GO_KARP_RABIN state rb rhead
+             then do
+                 acc <- initial
+                 pat_ <- liftIO $ A.unsafeIndexIO patArr 0
+                 return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat_
+             else if sizeOf (undefined :: a) * patLen
+                       <= sizeOf (undefined :: Word)
+                  then return $ Skip $ GO_SHORT_PAT_ACCUM 0 state (0 :: Word)
+                  else do
+                      (rb, rhead) <- liftIO $ RB.new patLen
+                      return $ Skip $ GO_KARP_RABIN_ACCUM 0 state rb rhead
+    stepOuter _ (GO_YIELD x ns) = return $ Yield x ns
+    stepOuter _ GO_DONE = return Stop
 
-    stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
 
-        where
-
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    if pat == x
-                    then do
-                        r <- done acc
-                        return $ Yield r (GO_SINGLE_PAT s pat)
-                    else fstep acc x >>= go SPEC s
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
-
-    stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
-
-        where
-
-        mask :: Word
-        mask = (1 `shiftL` (elemBits * patLen)) - 1
-
-        addToWord wrd a = (wrd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
-
-        patWord :: Word
-        patWord = mask .&. A.foldl' addToWord 0 patArr
-
-        go0 !_ !idx wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                    if idx == maxIndex
-                    then do
-                        if wrd' .&. mask == patWord
-                        then do
-                            r <- done acc
-                            return $ Yield r (GO_SHORT_PAT s)
-                        else go1 SPEC wrd' s acc
-                    else go0 SPEC (idx + 1) wrd' s acc
-                Skip s -> go0 SPEC idx wrd s acc
-                Stop -> do
-                    acc' <- if idx /= 0
-                            then go2 wrd idx acc
-                            else return acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
-
-        {-# INLINE go1 #-}
-        go1 !_ wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                        old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-                    acc' <- fstep acc (toEnum $ fromIntegral old)
-                    if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
-                    else go1 SPEC wrd' s acc'
-                Skip s -> go1 SPEC wrd s acc
-                Stop -> do
-                    acc' <- go2 wrd patLen acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
-
-        go2 !wrd !n !acc | n > 0 = do
-            let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-            fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
-        go2 _ _ acc = return acc
-
-    stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
-        initial >>= go0 SPEC 0 rhead stt
-
-        where
-
-        k = 2891336453 :: Word32
-        coeff = k ^ patLen
-        addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
-        deltaCksum cksum old new =
-            addCksum cksum new - coeff * fromIntegral (fromEnum old)
-
-        -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' addCksum 0 patArr
-
-        -- rh == ringHead
-        go0 !_ !idx !rh st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    rh' <- liftIO $ RB.unsafeInsert rb rh x
-                    if idx == maxIndex
-                    then do
-                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                        let !ringHash = fold addCksum 0 rb
-                        if ringHash == patHash
-                        then go2 SPEC ringHash rh' s acc
-                        else go1 SPEC ringHash rh' s acc
-                    else go0 SPEC (idx + 1) rh' s acc
-                Skip s -> go0 SPEC idx rh s acc
-                Stop -> do
-                    !acc' <- if idx /= 0
-                             then RB.unsafeFoldRingM rh fstep acc rb
-                             else return acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
-
-        -- XXX Theoretically this code can do 4 times faster if GHC generates
-        -- optimal code. If we use just "(cksum' == patHash)" condition it goes
-        -- 4x faster, as soon as we add the "RB.unsafeEqArray rb v" condition
-        -- the generated code changes drastically and becomes 4x slower. Need
-        -- to investigate what is going on with GHC.
-        {-# INLINE go1 #-}
-        go1 !_ !cksum !rh st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    old <- liftIO $ peek rh
-                    let cksum' = deltaCksum cksum old x
-                    acc' <- fstep acc old
-
-                    if (cksum' == patHash)
-                    then do
-                        rh' <- liftIO (RB.unsafeInsert rb rh x)
-                        go2 SPEC cksum' rh' s acc'
-                    else do
-                        rh' <- liftIO (RB.unsafeInsert rb rh x)
-                        go1 SPEC cksum' rh' s acc'
-                Skip s -> go1 SPEC cksum rh s acc
-                Stop -> do
-                    acc' <- RB.unsafeFoldRingFullM rh fstep acc rb
-                    done acc' >>= \r -> return $ Yield r GO_DONE
-
-        go2 !_ !cksum' !rh' s !acc' = do
-            if RB.unsafeEqArray rb rh' patArr
-            then do
-                r <- done acc'
-                return $ Yield r (GO_KARP_RABIN s rb rhead)
-            else go1 SPEC cksum' rh' s acc'
-
+    stepOuter _ (GO_EMPTY_PAT_WITH s x) = do
+        ini <- initial
+        res <- fstep ini x
+        r <- done res
+        return $ Skip $ GO_YIELD r (GO_EMPTY_PAT s)
     stepOuter gst (GO_EMPTY_PAT st) = do
+        res <- step (adaptState gst) st
+        return
+          $ case res of
+                Yield x s -> Skip $ GO_EMPTY_PAT_WITH s x
+                Skip s -> Skip $ GO_EMPTY_PAT s
+                Stop -> Stop
+
+    -----------------
+    -- Single Pattern
+    -----------------
+
+    -- XXX These functions cab be designed in a better way? Get rid of go and
+    -- have more info in the state but you would be relying on GHC for
+    -- simplification.
+    -- XXX We can probably move pat_ outside? Or move the things outside, inside
+    -- the state to make it consistent.
+    stepOuter _ (GO_SINGLE_PAT_WITH fs s pat_ x) =
+        if pat_ == x
+        then do
+            r <- done fs
+            ini <- initial
+            return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_NEXT ini s pat_)
+        else do
+            res <- fstep fs x
+            return $ Skip $ (GO_SINGLE_PAT_NEXT res s pat_)
+    stepOuter gst (GO_SINGLE_PAT_NEXT fs st pat_) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat_ x
+            Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat_
+            Stop -> do
+                r <- done fs
+                return $ Skip $ GO_YIELD r GO_DONE
+
+    ---------------------------
+    -- Short Pattern - Shift Or
+    ---------------------------
+
+    -- XXX mask can be omitted in most of the places?
+    stepOuter gst (GO_SHORT_PAT_ACCUM idx st wrd) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                acc <- initial
-                acc' <- fstep acc x
-                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
-            Skip s -> return $ Skip (GO_EMPTY_PAT s)
-            Stop -> return Stop
+                let wrd1 = addToWord wrd x
+                if idx == maxIndex
+                then if wrd1 .&. mask == pat
+                     then do
+                         r <- initial >>= done
+                         return
+                           $ Skip
+                           $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+                     else do
+                         ini <- initial
+                         return $ Skip $ GO_SHORT_PAT_NEXT ini s wrd1
+                else return $ Skip $ GO_SHORT_PAT_ACCUM (idx + 1) s wrd1
+            Skip s -> return $ Skip $ GO_SHORT_PAT_ACCUM idx s wrd
+            Stop -> do
+                ini <- initial
+                if idx /= 0
+                then return $ Skip $ GO_SHORT_PAT_DRAIN idx ini wrd
+                else do
+                    r <- done ini
+                    return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter _ (GO_SHORT_PAT_NEXT_WITH fs s x wrd) = do
+        let wrd1 = mask .&. addToWord wrd x
+            old = wrd `shiftR` (elemBits * (patLen - 1))
+        fres <- fstep fs (toEnum $ fromIntegral old)
+        -- XXX Removing the then branch increases the
+        -- performance by 150%
+        if wrd1 .&. mask == pat
+        then do
+            r <- done fres
+            return
+              $ Skip $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
+        else return $ Skip $ GO_SHORT_PAT_NEXT fres s wrd1
+            -- If the fold terminates then the behaviour is same as if
+            -- the pattern is matched. We should not ignore the
+            -- currently stored pattern though.
+    stepOuter gst (GO_SHORT_PAT_NEXT fs st wrd) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> return $ Skip $ GO_SHORT_PAT_NEXT_WITH fs s x wrd
+            Skip s -> return $ Skip $ GO_SHORT_PAT_NEXT fs s wrd
+            Stop -> return $ Skip $ GO_SHORT_PAT_DRAIN patLen fs wrd
+    -- XXX Check if this is correct?  Consider n == 1, fromIntegral (mask
+    -- .&. word) is considering more than one element. We should change the mask
+    -- to ignore the previous elements.
+    stepOuter _ (GO_SHORT_PAT_DRAIN 0 fs _) = do
+        r <- done fs
+        return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
+        let old = wrd `shiftR` (elemBits * (n - 1))
+            mask1 = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
+            wrd1 = mask1 .&. wrd
+        fres <- fstep fs (toEnum $ fromIntegral old)
+        return $ Skip $ GO_SHORT_PAT_DRAIN (n - 1) fres wrd1
 
-    stepOuter _ GO_DONE = return Stop
+    -------------------------------
+    -- General Pattern - Karp Rabin
+    -------------------------------
+
+    stepOuter gst (GO_KARP_RABIN_ACCUM idx st rb rh) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                rh1 <- liftIO $ RB.unsafeInsert rb rh x
+                if idx == maxIndex
+                then do
+                    let fold = RB.unsafeFoldRing (RB.ringBound rb)
+                    let !ringHash = fold addCksum 0 rb
+                    if ringHash == patHash
+                    then do
+                        r <- initial >>= done
+                        return
+                          $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh1
+                    else do
+                        ini <- initial
+                        return $ Skip $ GO_KARP_RABIN_NEXT ini s rb rh1 ringHash
+                else return $ Skip $ GO_KARP_RABIN_ACCUM (idx + 1) s rb rh1
+            Skip s -> return $ Skip $ GO_KARP_RABIN_ACCUM idx s rb rh
+            Stop -> do
+                ini <- initial
+                let rh1 = RB.moveBy (0 - idx) rb (rh :: Ptr a)
+                if idx /= 0
+                then return $ Skip $ GO_KARP_RABIN_DRAIN idx ini rb rh1
+                else do
+                    r <- done ini
+                    return $ Skip $ GO_YIELD r GO_DONE
+    -- XXX Theoretically this code can do 4 times faster if GHC generates
+    -- optimal code. If we use just "(cksum1 == patHash)" condition it goes 4x
+    -- faster, as soon as we add the "RB.unsafeEqArray rb v" condition the
+    -- generated code changes drastically and becomes 4x slower. Need to
+    -- investigate what is going on with GHC.
+    stepOuter _ (GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum) = do
+        old <- liftIO $ peek rh
+        let cksum1 = deltaCksum cksum old x
+        fres <- fstep fs old
+        if (cksum1 == patHash)
+        then do
+            r <- done fres
+            -- XXX It does not matter whether we give rh or rh1
+            -- here. We restart anyway.
+            return $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
+        else do
+            rh1 <- liftIO (RB.unsafeInsert rb rh x)
+            return $ Skip $ GO_KARP_RABIN_NEXT fres s rb rh1 cksum1
+    stepOuter gst (GO_KARP_RABIN_NEXT fs st rb rh cksum) = do
+        res <- step (adaptState gst) st
+        return
+          $ Skip
+          $ case res of
+                Yield x s -> GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum
+                Skip s -> GO_KARP_RABIN_NEXT fs s rb rh cksum
+                Stop -> GO_KARP_RABIN_DRAIN patLen fs rb rh
+    stepOuter _ (GO_KARP_RABIN_DRAIN 0 fs _ _) = do
+        r <- done fs
+        return $ Skip $ GO_YIELD r GO_DONE
+    stepOuter _ (GO_KARP_RABIN_DRAIN n fs rb rh) = do
+        old <- liftIO $ peek rh
+        let rh1 = RB.advance rb rh
+        fres <- fstep fs old
+        return $ Skip $ GO_KARP_RABIN_DRAIN (n - 1) fres rb rh1
+    stepOuter _ _ = undefined
+
+data SplitOnState1 s a =
+      GO_START1
+    | GO_EMPTY_PAT1 s
+    | GO_SINGLE_PAT s a
+    | GO_SHORT_PAT s
+    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
+    | GO_DONE1
 
 {-# INLINE_NORMAL splitSuffixOn #-}
 splitSuffixOn
@@ -1984,7 +2064,7 @@ splitSuffixOn
     -> Stream m b
 splitSuffixOn withSep patArr (Fold fstep initial done)
                 (Stream step state) =
-    Stream stepOuter GO_START
+    Stream stepOuter GO_START1
 
     where
 
@@ -1993,9 +2073,9 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
     elemBits = sizeOf (undefined :: a) * 8
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter _ GO_START =
+    stepOuter _ GO_START1 =
         if patLen == 0
-        then return $ Skip $ GO_EMPTY_PAT state
+        then return $ Skip $ GO_EMPTY_PAT1 state
         else if patLen == 1
              then do
                 r <- liftIO $ (A.unsafeIndexIO patArr 0)
@@ -2037,7 +2117,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         return $ Yield r (GO_SINGLE_PAT s pat)
                     else fstep acc x >>= go SPEC s
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE1
 
     stepOuter gst (GO_SHORT_PAT stt) = do
 
@@ -2095,7 +2175,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         acc' <- if idx /= 0 && not withSep
                                 then go2 wrd idx acc
                                 else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        done acc' >>= \r -> return $ Yield r GO_DONE1
 
         {-# INLINE go1 #-}
         go1 !_ wrd st !acc = do
@@ -2120,7 +2200,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         acc' <- if withSep
                                 then return acc
                                 else go2 wrd patLen acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        done acc' >>= \r -> return $ Yield r GO_DONE1
 
         go2 !wrd !n !acc | n > 0 = do
             let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
@@ -2181,7 +2261,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         !acc' <- if idx /= 0 && not withSep
                                  then RB.unsafeFoldRingM rh fstep acc rb
                                  else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        done acc' >>= \r -> return $ Yield r GO_DONE1
 
         -- XXX Theoretically this code can do 4 times faster if GHC generates
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
@@ -2214,7 +2294,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         acc' <- if withSep
                                 then return acc
                                 else RB.unsafeFoldRingFullM rh fstep acc rb
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        done acc' >>= \r -> return $ Yield r GO_DONE1
 
         go2 !_ !cksum' !rh' s !acc' = do
             if RB.unsafeEqArray rb rh' patArr
@@ -2223,17 +2303,17 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                 return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
-    stepOuter gst (GO_EMPTY_PAT st) = do
+    stepOuter gst (GO_EMPTY_PAT1 st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
-            Skip s -> return $ Skip (GO_EMPTY_PAT s)
+                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT1 s)
+            Skip s -> return $ Skip (GO_EMPTY_PAT1 s)
             Stop -> return Stop
 
-    stepOuter _ GO_DONE = return Stop
+    stepOuter _ GO_DONE1 = return Stop
 
 data SplitState s arr
     = SplitInitial s
