@@ -19,7 +19,7 @@ import Control.Monad (void, when, forM_, replicateM_)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT
                            , StateT(..), evalStateT)
-import Data.Foldable (fold)                           
+import Data.Foldable (fold)
 import Data.IORef (readIORef, modifyIORef, newIORef)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup (Semigroup, (<>))
@@ -410,7 +410,7 @@ main = hspec
             concurrentFoldrApplication
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
- 
+
     describe "take on infinite concurrent stream" $ takeInfinite asyncly
     describe "take on infinite concurrent stream" $ takeInfinite wAsyncly
     describe "take on infinite concurrent stream" $ takeInfinite aheadly
@@ -418,7 +418,7 @@ main = hspec
     ---------------------------------------------------------------------------
     -- Monadic state transfer in concurrent tasks
     ---------------------------------------------------------------------------
-   
+
     describe "Monadic state transfer in concurrent tasks" $ do
         -- XXX Can we write better test cases to hit every case?
         it "async: state is saved and used if the work is partially enqueued"
@@ -478,6 +478,7 @@ main = hspec
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
+#ifdef DEVBUILD
     describe "restricts concurrency and cleans up extra tasks" $ do
         it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
         it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
@@ -486,3 +487,4 @@ main = hspec
         it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
         it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
         it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
+#endif

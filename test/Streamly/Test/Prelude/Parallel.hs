@@ -91,13 +91,15 @@ main = hspec
         parallelOps $ eliminationOps folded "parallely folded"
         parallelOps $ eliminationOpsWord8 S.fromFoldable "parallely"
         parallelOps $ eliminationOpsWord8 folded "parallely folded"
-    
+
     -- test both (<>) and mappend to make sure we are using correct instance
     -- for Monoid that is using the right version of semigroup. Instance
     -- deriving can cause us to pick wrong instances sometimes.
 
+#ifdef DEVBUILD
     describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+#endif
 
     describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
 

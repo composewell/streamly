@@ -92,8 +92,10 @@ main = hspec
     -- for Monoid that is using the right version of semigroup. Instance
     -- deriving can cause us to pick wrong instances sometimes.
 
+#ifdef DEVBUILD
     describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
     describe "Async mappend time order check" $ parallelCheck asyncly mappend
+#endif
 
     describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
 

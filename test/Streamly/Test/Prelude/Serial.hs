@@ -43,7 +43,10 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
+
+#ifdef DEVBUILD
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+#endif
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
@@ -205,6 +208,7 @@ checkTakeDropTime (mt0, mt1) = do
                         " tMax = " ++ show tMax
                     return r
 
+#ifdef DEVBUILD
 testTakeByTime :: IO Bool
 testTakeByTime = do
     r <-
@@ -221,6 +225,7 @@ testDropByTime = do
         $ IS.dropByTime takeDropTime
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
+#endif
 
 unfold :: Property
 unfold = monadicIO $ do
@@ -373,9 +378,11 @@ main = hspec
         serialOps    $ transformCombineOpsOrdered S.fromFoldable "serially" (==)
         serialOps    $ transformCombineOpsOrdered folded "serially" (==)
 
+#ifdef DEVBUILD
         describe "Filtering" $ do
             it "takeByTime" (testTakeByTime `shouldReturn` True)
             it "dropByTime" (testDropByTime `shouldReturn` True)
+#endif
 
     describe "Stream group and split operations" $ do
         groupSplitOps "serially"
@@ -395,7 +402,7 @@ main = hspec
     describe "Tests for S.groupsBy" $ do
         prop "testGroupsBy" testGroupsBy
         prop "testGroupsBySep" testGroupsBySep
-    
+
     describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
 
     it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
