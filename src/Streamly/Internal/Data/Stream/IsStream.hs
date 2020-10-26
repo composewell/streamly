@@ -1398,7 +1398,9 @@ foldxM = P.foldlMx'
 
 -- | Like 'foldl'' but with a monadic step function.
 --
--- @since 0.2.0
+-- /Since: 0.2.0/
+--
+-- /Since: 0.8.0 (signature change)/
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> SerialT m a -> m b
 foldlM' step begin m = S.foldlM' step begin $ toStreamS m
@@ -3167,7 +3169,9 @@ mergeAsyncByM f m1 m2 = fromStreamD $
 --
 -- /Compare 'foldMapWith'/
 --
--- @since 0.7.0
+-- /Since: 0.7.0/
+--
+-- /Since: 0.8.0 (signature change)/
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: IsStream t
