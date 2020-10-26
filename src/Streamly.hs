@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly
--- Copyright   : (c) 2017 Harendra Kumar
+-- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Benchmark.Data.Stream.StreamDK
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

@@ -2,7 +2,7 @@
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 --               (c) The University of Glasgow, 2009
 --

@@ -2,7 +2,7 @@
 
 -- |
 -- Module      : Streamly.Internal.FileSystem.File
--- Copyright   : (c) 2019 Harendra Kumar
+-- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

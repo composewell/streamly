@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP              #-}
 {-# LANGUAGE FlexibleContexts #-}
 
--- Copyright   : (c) 2017 Harendra Kumar
+-- Copyright   : (c) 2017 Composewell Technologies
 --               (c) 2013, 2014 Gabriel Gonzalez
 --
 -- This example is adapted from Gabriel Gonzalez's pipes-concurrency package.

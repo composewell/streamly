@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
 -- Module      : Streamly.Tutorial
--- Copyright   : (c) 2017 Harendra Kumar
+-- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

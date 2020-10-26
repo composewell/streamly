@@ -9,7 +9,7 @@
 
 -- |
 -- Module      : Streamly.Internal.Data.Time.Clock
--- Copyright   : (c) 2019 Harendra Kumar
+-- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2009-2012, Cetin Sert
 --               (c) 2010, Eugene Kirpichov
 -- License     : BSD3
