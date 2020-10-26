@@ -12,6 +12,8 @@ module Streamly.Memory.Ring
 
     -- * Construction
     , new
+    , advance
+    , moveBy
 
     -- * Modification
     , unsafeInsert
@@ -78,6 +80,23 @@ advance Ring{..} ringHead =
     in if ptr <  ringBound
        then ptr
        else unsafeForeignPtrToPtr ringStart
+
+-- | Move the ringHead by n items. The direction depends on the sign on whether
+-- n is positive or negative. Wrap around if we hit the beginning or end of the
+-- array.
+{-# INLINE moveBy #-}
+moveBy :: forall a. Storable a => Int -> Ring a -> Ptr a -> Ptr a
+moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
+
+    where
+
+    elemSize = sizeOf (undefined :: a)
+    ringStartPtr = unsafeForeignPtrToPtr ringStart
+    lenInBytes = ringBound `minusPtr` ringStartPtr
+    offInBytes = ringHead `minusPtr` ringStartPtr
+    len = assert (lenInBytes `mod` elemSize == 0) $ lenInBytes `div` elemSize
+    off = assert (offInBytes `mod` elemSize == 0) $ offInBytes `div` elemSize
+    advanceFromHead = (off + by `mod` len) * elemSize
 
 -- | Insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item. This is unsafe
