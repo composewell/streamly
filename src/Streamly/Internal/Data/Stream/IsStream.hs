@@ -2607,11 +2607,10 @@ smapM step initial stream =
     --              (\(s, _) a -> step s a)
     --              (fmap (,undefined) initial)
     --              stream
-    let r = concatMap
-                (\s0 ->
-                    postscanlM' (\(s, _) a -> step s a) (return (s0, undefined)) stream
-                )
-                (yieldM initial)
+    let r = postscanlM'
+                (\(s, _) a -> step s a)
+                (fmap (,undefined) initial)
+                stream
      in Serial.map snd r
 
 ------------------------------------------------------------------------------
