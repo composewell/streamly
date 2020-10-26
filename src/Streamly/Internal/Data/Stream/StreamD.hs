@@ -1547,69 +1547,9 @@ splitSuffixBy :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitSuffixBy predicate f = foldMany1 (FL.sliceSepBy predicate f)
 
-data WordsByState fs s a b
-    = WordYield !b !(WordsByState fs s a b)
-    | WordBegin !s
-    | WordFoldWith !fs !s !a
-    | WordFold !fs !s
-
--- This has a hard time fusing even with simple pipeline.
--- wordsBy predicate f = foldMany (FL.sliceSepTill predicate f)
--- XXX Check this
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-wordsBy predicate (Fold fstep initial done) (Stream step state) =
-    Stream step1 (WordBegin state)
-
-    where
-
-    {-# INLINE_LATE step1 #-}
-    step1 gst (WordBegin st) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s ->
-                 if predicate x
-                 then return $ Skip $ WordBegin s
-                 else do
-                      ini <- initial
-                      return $ Skip $ WordFoldWith ini s x
-            Skip s -> return $ Skip $ WordBegin s
-            Stop -> return Stop
-    step1 gst (WordFold fs st) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                if predicate x
-                then do
-                    bres <- done fs
-                    return $ Skip $ WordYield bres (WordBegin s)
-                else wordFoldWith fs s x
-            Skip s -> return $ Skip $ WordFold fs s
-            Stop -> do
-                bres <- done fs
-                return $ Skip $ WordYield bres (WordBegin st)
-    step1 _ (WordYield bres ns) = return $ Yield bres ns
-    step1 _ (WordFoldWith fs s x) =
-        -- XXX We dont need to check for predicate here, we already know "x"
-        -- does not satisfy the predicate.
-        -- XXX Manually inline this function
-        wordFoldWith fs s x
-
-    {-# INLINE wordFoldWith #-}
-    wordFoldWith fs s x = do
-        -- XXX We dont need to check for predicate here, we already know "x"
-        -- does not satisfy the predicate.
-        fs1 <- fstep fs x
-        case fs1 of
-            FL.Partial sres -> return $ Skip $ WordFold sres s
-            FL.Partial1 sres -> return $ Skip $ WordFoldWith sres s x
-            FL.Done bres -> return $ Skip $ WordYield bres (WordBegin s)
-            -- XXX This will lead to an infinite loop most of the time.  But
-            -- it may terminate as it is an effectful step function. If
-            -- possible, we should somehow warn the user.
-            FL.Done1 bres -> do
-                ini <- initial
-                return $ Skip $ WordYield bres (WordFoldWith ini s x)
+wordsBy predicate f = foldMany (FL.wordBy predicate f)
 
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
