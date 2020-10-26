@@ -4830,25 +4830,34 @@ the (Stream step state) = go state
             Skip s -> go' n s
             Stop   -> return (Just n)
 
-{-# INLINE foldOnce #-}
+{-# INLINE_NORMAL foldOnce #-}
 foldOnce :: (Monad m) => Fold m a b -> Stream m a -> m b
 foldOnce (Fold fstep begin done) (Stream step state) =
     begin >>= \x -> go SPEC x state
-  where
-    {-# INLINE_LATE go #-}
-    goWith !_ !fs st x = do
+
+    where
+
+    {-# INLINE go #-}
+    go !_ !fs st = do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                res <- fstep fs x
+                case res of
+                    FL.Done b -> return b
+                    FL.Done1 b -> return b
+                    FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Partial1 fs1 -> goBuf SPEC fs1 s x
+            Skip s -> go SPEC fs s
+            Stop   -> done fs
+
+    goBuf !_ !fs st x = do
         res <- fstep fs x
         case res of
             FL.Done b -> return b
             FL.Done1 b -> return b
-            FL.Partial sres -> go SPEC sres st
-            FL.Partial1 sres -> goWith SPEC sres st x
-    go !_ !fs st = do
-        r <- step defState st
-        case r of
-            Yield x s -> goWith SPEC fs s x
-            Skip s -> go SPEC fs s
-            Stop   -> done fs
+            FL.Partial fs1 -> go SPEC fs1 st
+            FL.Partial1 fs1 -> goBuf SPEC fs1 st x
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold
