@@ -1,12 +1,12 @@
 # Guidelines for writing well optimized code
 
-Stream operations are always part of a loop. Usually the loop consiste of a
+Stream operations are always part of a loop. Usually the loop consists of a
 stream generation or an unfold operation followed by stream transformation
 functions (e.g. map) and then a stream elimination operation or a fold
 operation.
 
 The default or most common stream representation used in streamly is `StreamD`
-which is a direct style stream reprensentation.  All the direct style
+which is a direct style stream representation.  All the direct style
 operations in a loop "fuse" together to form a tight machine loop eliminating
 any intermediate constructors, therefore, reducing allocations and cpu cost.
 This elimination of intermediate constructors in a loop is known as stream
@@ -74,11 +74,34 @@ The step function of a Fold or Parser:
 
 * Sometimes you may need an explicit INLINE on the step function.
 
+## NOINLINE, isolating the closed loop
+
+We want the loop iterations to be optimized and the loop stages to be fused to
+generate a tighter loop. However, it is not necessarily optimal to inline the
+whole loop itself into a parent function. For example, consider the following
+function:
+
+```
+{-# NOINLINE readWriteAfter_Stream #-}
+readWriteAfter_Stream :: Handle -> Handle -> IO ()
+readWriteAfter_Stream inh devNull =
+    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
+     in S.fold (FH.write devNull) readEx
+```
+
+If this is inlined into a parent benchmark group list, this leads to
+many times performance degradation. That's because inlining the loop
+into a bigger structure may interfere with the optimization of the loop
+itself and it may not fuse. Whereas it is desirable to INLINE all
+the stages of a loop, it is often not useful to inline the whole loop
+itself, in fact we may have to occasionally use a `NOINLINE` so that the
+compiler does not inline it.
+
 ## StreamK operations
 
 StreamK uses foldr/build fusion to a very limited degree. StreamK is not the
 primary representation in streamly but is used for several operations that
-cannot scale in StreamD represenation. StreamK is relatively immune to compiler
+cannot scale in StreamD representation. StreamK is relatively immune to compiler
 optimizations. In some cases you may need an INLINE pragma to improve the
 performance.
 
@@ -182,14 +205,14 @@ enough to achieve that. In general, we should try to ensure that higher order
 functions are inlined before or in the same phase as the functions they can
 consume as arguments. This means `StreamD` combinators should not be marked
 as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
-`INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
+`INLINE_NORMAL` because higher order functions like `concatMap`/`map`/`mapM`
 etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
 `Streamly.Data.Array.Storable.Foreign` should also follow the same rules.
 
 ## Stream Fusion
 
 In StreamD combinators, inlining the inner step or loop functions too early
-i.e. in the same pahse or before the outer function is inlined may block stream
+i.e. in the same phase or before the outer function is inlined may block stream
 fusion opportunities. Therefore, the inner step functions and folding loops are
 marked as INLINE_LATE.
 
