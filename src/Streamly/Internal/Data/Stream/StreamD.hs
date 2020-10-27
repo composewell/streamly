@@ -1799,10 +1799,10 @@ data SplitOnState fs s a b w rb rh ck =
     | GO_SHORT_PAT_NEXT_WITH !fs s a !w
     | GO_SHORT_PAT_DRAIN Int !fs !w
     -- | GO_SHORT_PAT_YIELD_SEP Int !fs s w -- Only for splitSuffixOn.
-    | GO_KARP_RABIN_ACCUM Int s rb rh
-    | GO_KARP_RABIN_NEXT !fs s rb rh !ck
-    | GO_KARP_RABIN_NEXT_WITH !fs s a rb rh !ck
-    | GO_KARP_RABIN_DRAIN Int !fs rb rh
+    | GO_KARP_RABIN_ACCUM Int s rb !rh
+    | GO_KARP_RABIN_NEXT !fs s rb !rh !ck
+    | GO_KARP_RABIN_NEXT_WITH !fs s a rb !rh !ck
+    | GO_KARP_RABIN_DRAIN Int !fs rb !rh
     -- | GO_KARP_RABIN_YIELD_SEP Int !fs s rb rh -- Only for splitSuffixOn.
     | GO_YIELD b (SplitOnState fs s a b w rb rh ck)
     | GO_DONE
