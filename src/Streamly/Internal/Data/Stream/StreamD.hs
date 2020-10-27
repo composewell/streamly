@@ -1791,19 +1791,15 @@ data SplitOnState fs s a b w rb rh ck =
       GO_START
     | GO_EMPTY_PAT s
     | GO_EMPTY_PAT_WITH s a
-    -- | GO_SINGLE_PAT_BEGIN s a -- Only for splitSuffixOn
     | GO_SINGLE_PAT_NEXT !fs s a
     | GO_SINGLE_PAT_WITH !fs s a a
     | GO_SHORT_PAT_ACCUM Int s !w
     | GO_SHORT_PAT_NEXT !fs s !w
     | GO_SHORT_PAT_NEXT_WITH !fs s a !w
     | GO_SHORT_PAT_DRAIN Int !fs !w
-    -- | GO_SHORT_PAT_YIELD_SEP Int !fs s w -- Only for splitSuffixOn.
     | GO_KARP_RABIN_ACCUM Int s rb !rh
     | GO_KARP_RABIN_NEXT !fs s rb !rh !ck
-    | GO_KARP_RABIN_NEXT_WITH !fs s a rb !rh !ck
     | GO_KARP_RABIN_DRAIN Int !fs rb !rh
-    -- | GO_KARP_RABIN_YIELD_SEP Int !fs s rb rh -- Only for splitSuffixOn.
     | GO_YIELD b (SplitOnState fs s a b w rb rh ck)
     | GO_DONE
 
@@ -2010,32 +2006,27 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 else do
                     r <- done ini
                     return $ Skip $ GO_YIELD r GO_DONE
-    -- XXX Theoretically this code can do 4 times faster if GHC generates
-    -- optimal code. If we use just "(cksum1 == patHash)" condition it goes 4x
-    -- faster, as soon as we add the "RB.unsafeEqArray rb v" condition the
-    -- generated code changes drastically and becomes 4x slower. Need to
-    -- investigate what is going on with GHC.
-    stepOuter _ (GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum) = do
-        old <- liftIO $ peek rh
-        let cksum1 = deltaCksum cksum old x
-        fres <- fstep fs old
-        if (cksum1 == patHash)
-        then do
-            r <- done fres
-            -- XXX It does not matter whether we give rh or rh1
-            -- here. We restart anyway.
-            return $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
-        else do
-            rh1 <- liftIO (RB.unsafeInsert rb rh x)
-            return $ Skip $ GO_KARP_RABIN_NEXT fres s rb rh1 cksum1
-    stepOuter gst (GO_KARP_RABIN_NEXT fs st rb rh cksum) = do
-        res <- step (adaptState gst) st
-        return
-          $ Skip
-          $ case res of
-                Yield x s -> GO_KARP_RABIN_NEXT_WITH fs s x rb rh cksum
-                Skip s -> GO_KARP_RABIN_NEXT fs s rb rh cksum
-                Stop -> GO_KARP_RABIN_DRAIN patLen fs rb rh
+    stepOuter gst (GO_KARP_RABIN_NEXT fs0 st0 rb rh0 cksum0) =
+        go SPEC fs0 st0 rh0 cksum0
+
+        where
+
+        go !_ !fs !st !rh !cksum = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    old <- liftIO $ peek rh
+                    let cksum1 = deltaCksum cksum old x
+                    fres <- fstep fs old
+                    if (cksum1 == patHash)
+                    then do
+                        r <- done fres
+                        return $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
+                    else do
+                        rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                        go SPEC fres s rh1 cksum1
+                Skip s -> go SPEC fs s rh cksum
+                Stop -> return $ Skip $ GO_KARP_RABIN_DRAIN patLen fs rb rh
     stepOuter _ (GO_KARP_RABIN_DRAIN 0 fs _ _) = do
         r <- done fs
         return $ Skip $ GO_YIELD r GO_DONE
