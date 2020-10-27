@@ -4170,7 +4170,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- > splitSuffixOn_ pat xs = S.toList $ S.splitSuffixOn (A.fromList pat) (FL.toList) (S.fromList xs)
 --
 -- >>> splitSuffixOn_ "." ""
--- [""]
+-- []
 --
 -- >>> splitSuffixOn_ "." "."
 -- [""]

@@ -41,6 +41,8 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
+import qualified Streamly.Data.Array.Storable.Foreign as A
+
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
 
@@ -51,9 +53,62 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
 
+splitOnSeq :: Spec
+splitOnSeq = do
+    describe "Tests for splitOnSeq" $ do
+        it "splitOnSeq' \"hello\" \"\" = [\"\"]"
+          $ splitOnSeq' "hello" "" `shouldReturn` [""]
+        it "splitOnSeq' \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitOnSeq' "hello" "hello" `shouldReturn` ["", ""]
+        it "splitOnSeq' \"x\" \"hello\" = [\"hello\"]"
+          $ splitOnSeq' "x" "hello" `shouldReturn` ["hello"]
+        it "splitOnSeq' \"h\" \"hello\" = [\"\", \"ello\"]"
+          $ splitOnSeq' "h" "hello" `shouldReturn` ["", "ello"]
+        it "splitOnSeq' \"o\" \"hello\" = [\"hell\", \"\"]"
+          $ splitOnSeq' "o" "hello" `shouldReturn` ["hell", ""]
+        it "splitOnSeq' \"e\" \"hello\" = [\"h\", \"llo\"]"
+          $ splitOnSeq' "e" "hello" `shouldReturn` ["h", "llo"]
+        it "splitOnSeq' \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
+          $ splitOnSeq' "l" "hello" `shouldReturn` ["he", "", "o"]
+        it "splitOnSeq' \"ll\" \"hello\" = [\"he\", \"o\"]"
+          $ splitOnSeq' "ll" "hello" `shouldReturn` ["he", "o"]
+
+    where
+
+    splitOnSeq' pat xs =
+        S.toList $ IS.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+
+splitOnSuffixSeq :: Spec
+splitOnSuffixSeq = do
+    describe "Tests for splitOnSuffixSeq" $ do
+        it "splitSuffixOn_ \".\" \"\" [\"\"]"
+          $ splitSuffixOn_ "." "" `shouldReturn` []
+        it "splitSuffixOn_ \".\" \".\" [\"\"]"
+          $ splitSuffixOn_ "." "." `shouldReturn` [""]
+        it "splitSuffixOn_ \".\" \"a\" [\"a\"]"
+          $ splitSuffixOn_ "." "a" `shouldReturn` ["a"]
+        it "splitSuffixOn_ \".\" \".a\" [\"\",\"a\"]"
+          $ splitSuffixOn_ "." ".a" `shouldReturn` ["", "a"]
+        it "splitSuffixOn_ \".\" \"a.\" [\"a\"]"
+          $ splitSuffixOn_ "." "a." `shouldReturn` ["a"]
+        it "splitSuffixOn_ \".\" \"a.b\" [\"a\",\"b\"]"
+          $ splitSuffixOn_ "." "a.b" `shouldReturn` ["a", "b"]
+        it "splitSuffixOn_ \".\" \"a.b.\" [\"a\",\"b\"]"
+          $ splitSuffixOn_ "." "a.b." `shouldReturn` ["a", "b"]
+        it "splitSuffixOn_ \".\" \"a..b..\" [\"a\",\"\",\"b\",\"\"]"
+          $ splitSuffixOn_ "." "a..b.." `shouldReturn` ["a", "", "b", ""]
+
+    where
+
+    splitSuffixOn_ pat xs =
+        S.toList
+             $ IS.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
+    splitOnSeq
+    splitOnSuffixSeq
     -- XXX add tests with multichar separators too
 {-
     prop (desc <> " intercalate . splitOnSeq == id (nil separator)") $
