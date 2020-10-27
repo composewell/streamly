@@ -65,7 +65,7 @@ blockCount size = (size + blockSize - 1) `div` blockSize
 main :: IO ()
 main = do
     (_, cfg, benches) <- parseCLIOpts defaultStreamSize
-    r <- lookupEnv "Benchmark.FileSystem.Handle.InputFile"
+    r <- lookupEnv "Benchmark_FileSystem_Handle_InputFile"
     (small, big) <-
         case r of
             Just inFileName -> return (inFileName, inFileName)
@@ -83,18 +83,18 @@ main = do
                 runProcess_ (shell (cmd inFileBig bigFileSize))
                 return (inFileSmall, inFileBig)
 
+    putStrLn $ "Using small input file: " ++ small
     smallHandle <- openFile small ReadMode
+
+    putStrLn $ "Using big input file: " ++ big
     bigHandle <- openFile big ReadMode
+
+    putStrLn $ "Using output file: " ++ outfile
     outHandle <- openFile outfile WriteMode
     devNull <- openFile "/dev/null" WriteMode
 
-#if __GLASGOW_HASKELL__ >= 800
     ssize <- fromIntegral <$> getFileSize small
     bsize <- fromIntegral <$> getFileSize big
-#else
-    let ssize = smallFileSize
-    let bsize = bigFileSize
-#endif
 
     ref <- newIORef $ RefHandles
         { smallInH = smallHandle
@@ -107,6 +107,8 @@ main = do
             , smallSize = ssize
             , bigSize = bsize
             , nullH = devNull
+            , smallInFile = small
+            , bigInFile = big
             }
 
     runMode (mode cfg) cfg benches (allBenchmarks env)

@@ -69,6 +69,8 @@ data BenchEnv = BenchEnv
     , smallSize :: Int
     , bigSize :: Int
     , nullH :: Handle
+    , smallInFile :: String
+    , bigInFile :: String
     }
 
 withScaling :: BenchEnv -> String -> String
@@ -96,8 +98,8 @@ mkBenchCommon mkHandles name env action =
             hClose $ outputH r
 
             -- reopen
-            smallInHandle <- openFile inFileSmall ReadMode
-            bigInHandle <- openFile inFileBig ReadMode
+            smallInHandle <- openFile (smallInFile env) ReadMode
+            bigInHandle <- openFile (bigInFile env) ReadMode
             outHandle <- openFile outfile WriteMode
 
             let refHandles = RefHandles
