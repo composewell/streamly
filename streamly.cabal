@@ -96,6 +96,7 @@ build-type:          Configure
 extra-source-files:
     .circleci/config.yml
     .github/workflows/haskell.yml
+    .github/workflows/check-allocations.yml
     .gitignore
     .hlint.ignore
     .hlint.yaml
