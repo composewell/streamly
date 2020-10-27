@@ -48,6 +48,12 @@
 
     * Run tests with `dev` flag on. Many tests are disabled in regular runs.
 
+* _Examples_:
+
+    * Update
+      [streamly-examples][https://github.com/composewell/streamly-examples]
+      to make sure it runs with the latest release.
+
 * _Update Package Metadata:_
 
     * Update `stack.yaml` to latest stable resolver, cleanup extra-deps
