@@ -4152,7 +4152,7 @@ splitWithSuffix predicate f m =
 splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOnSeq patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
+splitOnSeq patt f m = D.fromStreamD $ D.splitOnSeq patt f (D.toStreamD m)
 
 {-
 -- This can be implemented easily using Rabin Karp
