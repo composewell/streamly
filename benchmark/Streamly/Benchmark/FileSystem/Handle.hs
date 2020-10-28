@@ -52,12 +52,6 @@ smallFileSize = 10 * 1024 * 1024
 bigFileSize :: Int
 bigFileSize = 100 * 1024 * 1024
 
-blockSize :: Int
-blockSize = 32768
-
-blockCount :: Int -> Int
-blockCount size = (size + blockSize - 1) `div` blockSize
-
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
@@ -75,9 +69,8 @@ main = do
                         "mkdir -p " ++ scratchDir
                             ++ "; test -e " ++ infile
                             ++ " || { echo \"creating input file " ++ infile
-                            ++ "\" && dd if=/dev/random of=" ++ infile
-                            ++ " bs=" ++ show blockSize
-                            ++ " count=" ++ show (blockCount size)
+                            ++ "\" && head -c " ++ show size
+                            ++ " </dev/urandom >" ++ infile
                             ++ ";}"
                 runProcess_ (shell (cmd inFileSmall smallFileSize))
                 runProcess_ (shell (cmd inFileBig bigFileSize))
