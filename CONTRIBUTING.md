@@ -198,7 +198,9 @@ In general, the rule is - the shorter the scope of a variable the shorter its
 name can be. For example, `s` has the shortest scope in the above code, `st`
 has a bigger scope and `state` has the biggest scope.
 
-For better fusion we try to keep a single yield point in the state machine.
+## Design guides
+
+See [the design directory](design) for design guidelines and documents.
 
 ### Tricky Parts
 

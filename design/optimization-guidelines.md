@@ -5,17 +5,76 @@ stream generation or an unfold operation followed by stream transformation
 functions (e.g. map) and then a stream elimination operation or a fold
 operation.
 
-The default or most common stream representation used in streamly is `StreamD`
-which is a direct style stream representation.  All the direct style
-operations in a loop "fuse" together to form a tight machine loop eliminating
-any intermediate constructors, therefore, reducing allocations and cpu cost.
-This elimination of intermediate constructors in a loop is known as stream
-fusion.
+The default or most common stream representation used in streamly is
+`StreamD` which is a direct style (compare with CPS representation
+`StreamK`) stream representation.  All the direct style operations in
+a loop "fuse" together to form a tight machine loop eliminating any
+intermediate constructors, therefore, reducing allocations and cpu cost.
+This elimination of intermediate constructors in a stream loop is known
+as stream fusion.
 
-## General
+## Writing high performance code using streamly
 
-To enable stream fusion in direct stream all the operations that are part of a
-loop must be inlined:
+This section outlines guidelines for writing code using the available
+combinators. The guidelines for writing new combinators are provided in
+the following section.
+
+Note that there is no absolute benchmark for performance, most of
+the time even without following the guidelines you may get excellent
+performance for the task at hand. Two important points to keep in mind
+before you optimize:
+
+* See if you actually need more performance
+* See if the code you are optimizing is in fast path
+
+### Stream Fusion
+
+When your performance requirements are stringent you may want to care
+about not breaking stream fusion unnecessarily.  Certain operations do
+not fuse and act as a barrier to stream fusion. If these operations are
+part of a loop, the loop won't fuse completely. In some cases these may
+be necessary but in others it may be possible to replace these with
+better fusing operations. These operations include:
+
+* Avoid unnecessary use of stream append operations in code that should
+  fuse.  Append operations in general force CPS style breaking stream
+  fusion.  Some direct style append operations can fuse but they won't
+  scale for more than a few appends.
+* Avoid unnecessary use of the stream monad if fusion is important. You
+  may use functor or applicative though.
+* Concurrent stream operations cannot fuse
+* Operations involving exception primitives like catch/throw/mask
+  on elements of the stream cannot fuse.
+* Stream loops involving FFI calls on the elements of the stream
+
+The haddock documentation includes a note when an operation cannot fuse.
+
+### Unfolds
+
+* Use unfolds especially when higher order operations are involved. For
+  example, `concatUnfold` can fuse completely whereas `concatMap` would
+  not fuse.
+* Use `outerProduct` in `Unfold` module instead of using the monad instance of
+  streams to fuse nested loops where performance matters. See the unfold
+  benchmarks for an example. `outerProduct` can give you C like nested loop
+  performance.
+
+### Inlining
+
+To make sure fusion can occur INLINE any operations that are part of a
+stream loop but factored out as separate functions.
+
+### Strictness
+
+Keep the fold and scan accumulators strict. You could also consider
+using mutable state in a fold accumulator if the state is large. A
+large immutable structure as an accumulator may cause optimization
+issues. See the `WordCount` example for an example of this case.
+
+## Writing streamly combinators
+
+To enable stream fusion in a direct style stream all the operations that
+are part of a loop must be inlined:
 
 * Use an explicit INLINE pragma on any combinator that could be part of a loop
   to ensure they will be inlined.
@@ -24,7 +83,7 @@ loop must be inlined:
   is consuming. Use appropriate inline phases to ensure proper inline ordering
   when required.
 
-## Streams and Unfolds
+### Streams and Unfolds
 
 Stream and Unfold State.  Direct style stream and unfold combinators use a
 state data type to represent the internal state of the stream/unfold generator.
@@ -32,21 +91,52 @@ state data type to represent the internal state of the stream/unfold generator.
 * In some cases we may have to add a `FUSE` annotation on the state type to
   ensure that all the internal join points created by GHC are inlined with the
   help of the `fusion-plugin`.
-* In rare cases we may need to use a strictness annotation on the state.
-  `parseMany` is one such example.
+* In rare cases we may need to use a strictness annotation on the state
+  to allow fusion. `parseMany` and `splitOnSeq` are such examples.
 
 Step function of a stream or unfold:
 
-* Never make the step function recursive. Always use the `Skip` constructor to
-  remove recursion. Recursive step function can introduce optimization barriers
-  that are harder to remove by the GHC simplifier.
-* Try to make sure that there is a single yield point in the whole state
-  machine. A single yield point is usually desirable, however not always
-  necessary.
+* Do not introduce unnecessary states. If there is only one entry point of a
+  state then perhaps you want to collapse the state into the state from which
+  it is called. More states means more jumps and may affect code locality, and
+  efficiency of low level code (e.g. register allocation) because of
+  independent placement of the code blocks in different states.
+* Keep minimum possible data in state. More variables in state may lead
+  to poor performance because the state may not fit into registers and the
+  spill may cause allocations on each iteration of the loop. Mutable state
+  may help in such cases.
 * The step function must be annotated such that it gets inlined after the main
   combinator (`INLINE_LATE`).
 
-## Fold and Parser drivers
+Multiple yield points or single?:
+
+* A single yield point is usually desirable, however, not always necessary.
+  In some cases multiple yield points may in fact be needed for fusion,
+  see `splitOnSeq` for an example. Or maybe its fusing because of a
+  direct yield instead of going through an indirect common yielding
+  state.
+
+Recursion in step function:
+
+* In general, we avoid making the step function recursive. Use the
+  `Skip` constructor to remove recursion. Recursive step function can
+  introduce optimization barriers that are harder to remove by the GHC
+  simplifier.
+
+  However, in some cases it may be better to have a local recursive
+  loop. A recursive loop can help us avoid threading around some large
+  state values every time. Values that do not change across a loop can
+  be factored in the scope outside the loop (static argument transform),
+  this way we can create a local loop which is more efficient than
+  threading around the state in a larger loop.  See the `splitOnSeq`
+  combinator as an example where we use a local recursive loop, it fuses
+  and is significantly efficient compared to using `Skip`.
+
+  In a local recursive loop use SPEC and annotate even the rest of the
+  loop arguments as strict where needed. We have observed that when the
+  arguments were not strict the loop does not fuse (splitOnSeq).
+
+### Fold and Parser drivers
 
 Recursive loop closing operations:
 
@@ -55,7 +145,7 @@ Recursive loop closing operations:
   "Spec Constructor" optimization removes boxed arguments and reduces
   allocations.
 
-## Fold and Parser combinators
+### Fold and Parser combinators
 
 State of a Fold or Parser:
 
@@ -70,16 +160,16 @@ The step function of a Fold or Parser:
 
 * Never make the fold step recursive, recursion creates an optimization barrier
   for the GHC simplifier. Use `Partial` or `Continue` constructors to avoid
-    recursion.
+  recursion.
 
 * Sometimes you may need an explicit INLINE on the step function.
 
-## NOINLINE, isolating the closed loop
+### NOINLINE, isolating the closed loop
 
 We want the loop iterations to be optimized and the loop stages to be fused to
 generate a tighter loop. However, it is not necessarily optimal to inline the
 whole loop itself into a parent function. For example, consider the following
-function:
+function in the `FileSystem.Handle` benchmarks:
 
 ```
 {-# NOINLINE readWriteAfter_Stream #-}
@@ -91,13 +181,20 @@ readWriteAfter_Stream inh devNull =
 
 If this is inlined into a parent benchmark group list, this leads to
 many times performance degradation. That's because inlining the loop
-into a bigger structure may interfere with the optimization of the loop
-itself and it may not fuse. Whereas it is desirable to INLINE all
+into a bigger structure interferes with the optimization of the loop
+body itself and it may not fuse. Whereas it is desirable to INLINE all
 the stages of a loop, it is often not useful to inline the whole loop
 itself, in fact we may have to occasionally use a `NOINLINE` so that the
 compiler does not inline it.
 
-## StreamK operations
+### NoSpecConstr
+
+It is not always useful to specialize function calls for all constructors, some
+constructors may just add to code bloat or add overhead of passing unboxed
+values in a loop. In such cases the `NoSpecConstr` annotation can be useful.
+See the `parselMx'` function in `StreamD` module.
+
+### StreamK operations
 
 StreamK uses foldr/build fusion to a very limited degree. StreamK is not the
 primary representation in streamly but is used for several operations that
@@ -105,12 +202,21 @@ cannot scale in StreamD representation. StreamK is relatively immune to compiler
 optimizations. In some cases you may need an INLINE pragma to improve the
 performance.
 
-# GHC Optimizations
+### How to debug non-fusing code?
+
+Strip down the code to a minimal version until it starts fusing and then
+start building it up from there adding more things incrementally. At
+each stage keep checking if the code is fusing. At some point it
+won't fuse. See what we added that made the code not fuse. Go through
+the guidelines above to check if we did something that that is not
+recommended. Or raise an issue for GHC to be fixed if possible.
+
+# GHC Optimizations In Streamly
 
 There are three important levels of optimizations used in streamly:
 
-* CPS style stream representation (StreamK) to direct style (StreamD) and
-  vice-versa using rewrite rules
+* CPS style stream representation (StreamK) to direct style (StreamD)
+  conversion and vice-versa using rewrite rules
 * Stream fusion using case-of-case optimization in StreamD
 * foldr/build fusion using rewrite rules in StreamK
 
