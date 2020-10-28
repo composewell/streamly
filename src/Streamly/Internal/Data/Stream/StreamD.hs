@@ -168,7 +168,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , wordsBy
     , splitSuffixBy'
 
-    , splitOn
+    , splitOnSeq
     , splitSuffixOn
 
     , splitInnerBy
@@ -1786,32 +1786,32 @@ data SplitOptions = SplitOptions
     }
 -}
 
-{-# ANN type SplitOnState Fuse #-}
-data SplitOnState fs s a b w rb rh ck =
-      GO_START
-    | GO_EMPTY_PAT s
-    | GO_EMPTY_PAT_WITH s a
-    | GO_SINGLE_PAT_NEXT !fs s a
-    | GO_SINGLE_PAT_WITH !fs s a a
-    | GO_SHORT_PAT_ACCUM Int s !w
-    | GO_SHORT_PAT_NEXT !fs s !w
-    | GO_SHORT_PAT_NEXT_WITH !fs s a !w
-    | GO_SHORT_PAT_DRAIN Int !fs !w
-    | GO_KARP_RABIN_ACCUM Int s rb !rh
-    | GO_KARP_RABIN_NEXT !fs s rb !rh !ck
-    | GO_KARP_RABIN_DRAIN Int !fs rb !rh
-    | GO_YIELD b (SplitOnState fs s a b w rb rh ck)
-    | GO_DONE
+{-# ANN type SplitOnSeqState Fuse #-}
+data SplitOnSeqState rb rh ck w fs s b x =
+      SplitOnSeqInit
+    | SplitOnSeqYield b (SplitOnSeqState rb rh ck w fs s b x)
+    | SplitOnSeqDone
 
-{-# INLINE_NORMAL splitOn #-}
-splitOn
+    | SplitOnSeqEmpty s
+    | SplitOnSeqSingle !fs s x
+
+    | SplitOnSeqWordInit Int s !w
+    | SplitOnSeqWordLoop !fs s !w
+    | SplitOnSeqWordDone Int !fs !w
+
+    | SplitOnSeqKRInit Int s rb !rh
+    | SplitOnSeqKRLoop fs s rb !rh !ck
+    | SplitOnSeqKRDone Int !fs rb !rh
+
+{-# INLINE_NORMAL splitOnSeq #-}
+splitOnSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOn patArr (Fold fstep initial done) (Stream step state) =
-    Stream stepOuter GO_START
+splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
+    Stream stepOuter SplitOnSeqInit
 
     where
 
@@ -1819,26 +1819,19 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
 
-    -- XXX I initially put this in the state but I'd like to keep the state as
-    -- simple as possible to allow more fusion (if that's how it
-    -- works). Removing this from the state did not change anything. I'll
-    -- introduce them back once I figure out what's currently wrong. Ideally, I
-    -- want them to be associated with the state.
-    mask :: Word
-    mask = (1 `shiftL` (elemBits * patLen)) - 1
+    -- For word pattern case
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    -- XXX I initially put this in the state but I'd like to keep the state as
-    -- simple as possible to allow more fusion. Removing this from the state did
-    -- not change anything. I'll introduce them back once I figure out what's
-    -- currently wrong.
-    pat :: Word
-    -- XXX You dont need .&. here?
-    pat = mask .&. A.foldl' addToWord 0 patArr
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
 
-    -- Used only if the pattern is short
+    wordPat :: Word
+    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+
     addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
 
-    -- Used in Rabin-Karp
+    -- For Rabin-Karp search
     k = 2891336453 :: Word32
     coeff = k ^ patLen
 
@@ -1850,136 +1843,125 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
     -- XXX shall we use a random starting hash or 1 instead of 0?
     patHash = A.foldl' addCksum 0 patArr
 
+    skip = return . Skip
+
     {-# INLINE_LATE stepOuter #-}
-    stepOuter _ GO_START =
+    stepOuter _ SplitOnSeqInit =
         if patLen == 0
-        then return $ Skip $ GO_EMPTY_PAT state
+        then return $ Skip $ SplitOnSeqEmpty state
         else if patLen == 1
              then do
                  acc <- initial
-                 pat_ <- liftIO $ A.unsafeIndexIO patArr 0
-                 return $ Skip $ GO_SINGLE_PAT_NEXT acc state pat_
+                 let !pat = A.unsafeIndex patArr 0
+                 return $ Skip $ SplitOnSeqSingle acc state pat
              else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
-                  then return $ Skip $ GO_SHORT_PAT_ACCUM 0 state (0 :: Word)
+                  then return $ Skip $ SplitOnSeqWordInit 0 state (0 :: Word)
                   else do
                       (rb, rhead) <- liftIO $ RB.new patLen
-                      return $ Skip $ GO_KARP_RABIN_ACCUM 0 state rb rhead
-    stepOuter _ (GO_YIELD x ns) = return $ Yield x ns
-    stepOuter _ GO_DONE = return Stop
+                      skip $ SplitOnSeqKRInit 0 state rb rhead
+
+    stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
 
     ---------------------------
     -- Empty pattern
     ---------------------------
 
-    stepOuter _ (GO_EMPTY_PAT_WITH s x) = do
-        ini <- initial
-        res <- fstep ini x
-        r <- done res
-        return $ Skip $ GO_YIELD r (GO_EMPTY_PAT s)
-    stepOuter gst (GO_EMPTY_PAT st) = do
+    stepOuter gst (SplitOnSeqEmpty st) = do
         res <- step (adaptState gst) st
-        return
-          $ case res of
-                Yield x s -> Skip $ GO_EMPTY_PAT_WITH s x
-                Skip s -> Skip $ GO_EMPTY_PAT s
-                Stop -> Stop
+        case res of
+            Yield x s -> do
+                acc <- initial
+                acc1 <- fstep acc x
+                r <- done acc1
+                skip $ SplitOnSeqYield r (SplitOnSeqEmpty s)
+            Skip s -> return $ Skip (SplitOnSeqEmpty s)
+            Stop -> return Stop
+
+    -----------------
+    -- Done
+    -----------------
+
+    stepOuter _ SplitOnSeqDone = return Stop
 
     -----------------
     -- Single Pattern
     -----------------
 
-    -- XXX These functions cab be designed in a better way? Get rid of go and
-    -- have more info in the state but you would be relying on GHC for
-    -- simplification.
-    -- XXX We can probably move pat_ outside? Or move the things outside, inside
-    -- the state to make it consistent.
-    stepOuter _ (GO_SINGLE_PAT_WITH fs s pat_ x) =
-        if pat_ == x
-        then do
-            r <- done fs
-            ini <- initial
-            return $ Skip $ GO_YIELD r (GO_SINGLE_PAT_NEXT ini s pat_)
-        else do
-            res <- fstep fs x
-            return $ Skip $ (GO_SINGLE_PAT_NEXT res s pat_)
-    stepOuter gst (GO_SINGLE_PAT_NEXT fs st pat_) = do
+    stepOuter gst (SplitOnSeqSingle fs st pat) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> return $ Skip $ GO_SINGLE_PAT_WITH fs s pat_ x
-            Skip s -> return $ Skip $ GO_SINGLE_PAT_NEXT fs s pat_
+            Yield x s -> do
+                if pat == x
+                then do
+                    r <- done fs
+                    fs1 <- initial
+                    return $ Skip $ SplitOnSeqYield r (SplitOnSeqSingle fs1 s pat)
+                else do
+                    fs1 <- fstep fs x
+                    return $ Skip $ (SplitOnSeqSingle fs1 s pat)
+            Skip s -> return $ Skip $ SplitOnSeqSingle fs s pat
             Stop -> do
                 r <- done fs
-                return $ Skip $ GO_YIELD r GO_DONE
+                return $ Skip $ SplitOnSeqYield r SplitOnSeqDone
 
     ---------------------------
     -- Short Pattern - Shift Or
     ---------------------------
 
-    -- XXX mask can be omitted in most of the places?
-    stepOuter gst (GO_SHORT_PAT_ACCUM idx st wrd) = do
+    stepOuter _ (SplitOnSeqWordDone 0 fs _) = do
+        r <- done fs
+        skip $ SplitOnSeqYield r SplitOnSeqDone
+    stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
+        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        fs1 <- fstep fs (toEnum $ fromIntegral old)
+        skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
+
+    stepOuter gst (SplitOnSeqWordInit idx st wrd) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 let wrd1 = addToWord wrd x
-                if idx == maxIndex
-                then if wrd1 .&. mask == pat
-                     then do
-                         r <- initial >>= done
-                         return
-                           $ Skip
-                           $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
-                     else do
-                         ini <- initial
-                         return $ Skip $ GO_SHORT_PAT_NEXT ini s wrd1
-                else return $ Skip $ GO_SHORT_PAT_ACCUM (idx + 1) s wrd1
-            Skip s -> return $ Skip $ GO_SHORT_PAT_ACCUM idx s wrd
-            Stop -> do
-                ini <- initial
-                if idx /= 0
-                then return $ Skip $ GO_SHORT_PAT_DRAIN idx ini wrd
+                if idx /= maxIndex
+                then skip $ SplitOnSeqWordInit (idx + 1) s wrd1
                 else do
-                    r <- done ini
-                    return $ Skip $ GO_YIELD r GO_DONE
-    stepOuter _ (GO_SHORT_PAT_NEXT_WITH fs s x wrd) = do
-        let wrd1 = mask .&. addToWord wrd x
-            old = wrd `shiftR` (elemBits * (patLen - 1))
-        fres <- fstep fs (toEnum $ fromIntegral old)
-        -- XXX Removing the then branch increases the
-        -- performance by 150%
-        if wrd1 .&. mask == pat
-        then do
-            r <- done fres
-            return
-              $ Skip $ GO_YIELD r $ GO_SHORT_PAT_ACCUM 0 s (0 :: Word)
-        else return $ Skip $ GO_SHORT_PAT_NEXT fres s wrd1
-            -- If the fold terminates then the behaviour is same as if
-            -- the pattern is matched. We should not ignore the
-            -- currently stored pattern though.
-    stepOuter gst (GO_SHORT_PAT_NEXT fs st wrd) = do
+                    fs <- initial
+                    if wrd1 .&. wordMask == wordPat
+                    then do
+                        r <- done fs
+                        let next = SplitOnSeqWordInit 0 s (0 :: Word)
+                        skip $ SplitOnSeqYield r next
+                    else skip $ SplitOnSeqWordLoop fs s wrd1
+            Skip s -> skip $ SplitOnSeqWordInit idx s wrd
+            Stop -> do
+                fs <- initial
+                if idx /= 0
+                then skip $ SplitOnSeqWordDone idx fs wrd
+                else do
+                    r <- done fs
+                    skip $ SplitOnSeqYield r SplitOnSeqDone
+
+    stepOuter gst (SplitOnSeqWordLoop fs st wrd) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> return $ Skip $ GO_SHORT_PAT_NEXT_WITH fs s x wrd
-            Skip s -> return $ Skip $ GO_SHORT_PAT_NEXT fs s wrd
-            Stop -> return $ Skip $ GO_SHORT_PAT_DRAIN patLen fs wrd
-    -- XXX Check if this is correct?  Consider n == 1, fromIntegral (mask
-    -- .&. word) is considering more than one element. We should change the mask
-    -- to ignore the previous elements.
-    stepOuter _ (GO_SHORT_PAT_DRAIN 0 fs _) = do
-        r <- done fs
-        return $ Skip $ GO_YIELD r GO_DONE
-    stepOuter _ (GO_SHORT_PAT_DRAIN n fs wrd) = do
-        let old = wrd `shiftR` (elemBits * (n - 1))
-            mask1 = (1 `shiftL` (elemBits * (n - 1))) - 1 :: Word
-            wrd1 = mask1 .&. wrd
-        fres <- fstep fs (toEnum $ fromIntegral old)
-        return $ Skip $ GO_SHORT_PAT_DRAIN (n - 1) fres wrd1
+            Yield x s -> do
+                let wrd1 = wordMask .&. addToWord wrd x
+                    old = wrd `shiftR` (elemBits * (patLen - 1))
+                fs1 <- fstep fs (toEnum $ fromIntegral old)
+                if wrd1 .&. wordMask == wordPat
+                then do
+                    r <- done fs1
+                    let next = SplitOnSeqWordInit 0 s (0 :: Word)
+                    skip $ SplitOnSeqYield r next
+                else skip $ SplitOnSeqWordLoop fs1 s wrd1
+            Skip s -> skip $ SplitOnSeqWordLoop fs s wrd
+            Stop -> skip $ SplitOnSeqWordDone patLen fs wrd
 
     -------------------------------
     -- General Pattern - Karp Rabin
     -------------------------------
 
-    stepOuter gst (GO_KARP_RABIN_ACCUM idx st rb rh) = do
+    stepOuter gst (SplitOnSeqKRInit idx st rb rh) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -1991,22 +1973,30 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     if ringHash == patHash
                     then do
                         r <- initial >>= done
-                        return
-                          $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh1
+                        let next = SplitOnSeqKRInit 0 s rb rh1
+                        -- XXX We need a direct yield here otherwise GHC is not
+                        -- able to fuse the code. This GHC issue needs to be
+                        -- investigated. We should know why.
+                        return $ Yield r next
                     else do
-                        ini <- initial
-                        return $ Skip $ GO_KARP_RABIN_NEXT ini s rb rh1 ringHash
-                else return $ Skip $ GO_KARP_RABIN_ACCUM (idx + 1) s rb rh1
-            Skip s -> return $ Skip $ GO_KARP_RABIN_ACCUM idx s rb rh
+                        fs <- initial
+                        skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
+                else skip $ SplitOnSeqKRInit (idx + 1) s rb rh1
+            Skip s -> skip $ SplitOnSeqKRInit idx s rb rh
             Stop -> do
-                ini <- initial
+                fs <- initial
                 let rh1 = RB.moveBy (0 - idx) rb (rh :: Ptr a)
                 if idx /= 0
-                then return $ Skip $ GO_KARP_RABIN_DRAIN idx ini rb rh1
+                then skip $ SplitOnSeqKRDone idx fs rb rh1
                 else do
-                    r <- done ini
-                    return $ Skip $ GO_YIELD r GO_DONE
-    stepOuter gst (GO_KARP_RABIN_NEXT fs0 st0 rb rh0 cksum0) =
+                    r <- done fs
+                    skip $ SplitOnSeqYield r SplitOnSeqDone
+
+    -- XXX The recursive "go" is more efficient than the state based recursion
+    -- code commented out below. Perhaps its more efficient because of
+    -- factoring out "rb" outside the loop.
+    --
+    stepOuter gst (SplitOnSeqKRLoop fs0 st0 rb rh0 cksum0) =
         go SPEC fs0 st0 rh0 cksum0
 
         where
@@ -2017,25 +2007,50 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Yield x s -> do
                     old <- liftIO $ peek rh
                     let cksum1 = deltaCksum cksum old x
-                    fres <- fstep fs old
+                    fs1 <- fstep fs old
                     if (cksum1 == patHash)
                     then do
-                        r <- done fres
-                        return $ Skip $ GO_YIELD r $ GO_KARP_RABIN_ACCUM 0 s rb rh
+                        r <- done fs1
+                        skip $ SplitOnSeqYield r $ SplitOnSeqKRInit 0 s rb rh
                     else do
                         rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                        go SPEC fres s rh1 cksum1
+                        go SPEC fs1 s rh1 cksum1
                 Skip s -> go SPEC fs s rh cksum
-                Stop -> return $ Skip $ GO_KARP_RABIN_DRAIN patLen fs rb rh
-    stepOuter _ (GO_KARP_RABIN_DRAIN 0 fs _ _) = do
+                Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
+
+    -- XXX The following code is 5 times slower compared to the recursive loop
+    -- based code above. Need to investigate why. One possibility is that the
+    -- go loop above does not thread around the ring buffer (rb). This code may
+    -- be causing the state to bloat and getting allocated on each iteration.
+    -- We can check the cmm/asm code to confirm.  If so a good GHC solution to
+    -- such problem is needed. One way to avoid this could be to use unboxed
+    -- mutable state?
+    {-
+    stepOuter gst (SplitOnSeqKRLoop fs st rb rh cksum) = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do -- skip $ SplitOnSeqKRYield fs s rb rh cksum x
+                    old <- liftIO $ peek rh
+                    let cksum1 = deltaCksum cksum old x
+                    fs1 <- fstep fs old
+                    if (cksum1 == patHash)
+                    then do
+                        r <- done fs1
+                        skip $ SplitOnSeqYield r $ SplitOnSeqKRInit 0 s rb rh
+                    else do
+                        rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                        skip $ SplitOnSeqKRLoop fs1 s rb rh1 cksum1
+                Skip s -> skip $ SplitOnSeqKRLoop fs s rb rh cksum
+                Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
+    -}
+    stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
         r <- done fs
-        return $ Skip $ GO_YIELD r GO_DONE
-    stepOuter _ (GO_KARP_RABIN_DRAIN n fs rb rh) = do
+        skip $ SplitOnSeqYield r SplitOnSeqDone
+    stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
         old <- liftIO $ peek rh
         let rh1 = RB.advance rb rh
-        fres <- fstep fs old
-        return $ Skip $ GO_KARP_RABIN_DRAIN (n - 1) fres rb rh1
-    stepOuter _ _ = undefined
+        fs1 <- fstep fs old
+        skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
 
 data SplitOnState1 s a =
       GO_START1

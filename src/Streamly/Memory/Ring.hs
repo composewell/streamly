@@ -54,8 +54,8 @@ import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 -- structure. We should not leak out references to it for immutable use.
 --
 data Ring a = Ring
-    { ringStart :: !(ForeignPtr a) -- first address
-    , ringBound :: !(Ptr a)        -- first address beyond allocated memory
+    { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
+    , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
     }
 
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
