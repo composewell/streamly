@@ -29,6 +29,8 @@ import Test.QuickCheck
     , forAll
     , frequency
     , listOf
+    , listOf1
+    , suchThat
     , vectorOf
     , withMaxSuccess
     )
@@ -110,45 +112,49 @@ groupSplitOps desc = do
     splitOnSeq
     splitOnSuffixSeq
     -- XXX add tests with multichar separators too
-{-
+
+    let split xs ys =
+            S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
     prop (desc <> " intercalate . splitOnSeq == id (nil separator)") $
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOnSeq [] toListFL (S.fromList xs)
+                    ys <- split xs []
                     listEquals (==) (intercalate [] ys) xs
 
     prop (desc <> " intercalate . splitOnSeq == id (single element separator)") $
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
+                    ys <- split xs [0]
                     listEquals (==) (intercalate [0] ys) xs
 
-    prop (desc <> " concat . splitOnSeq . intercalate == concat (nil separator/possibly empty list)") $
+    prop (desc <> " concat . splitOnSeq . intercalate == concat "
+          <> "(nil separator/possibly empty list)") $
         forAll listsWithoutZeroes $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [] xss
-                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
+                    ys <- split xs [0]
                     listEquals (==) (concat ys) (concat xss)
 
-    prop (desc <> " concat . splitOnSeq . intercalate == concat (non-nil separator/possibly empty list)") $
+    prop (desc <> " concat . splitOnSeq . intercalate == "
+          <> "concat (non-nil separator/possibly empty list)") $
         forAll listsWithoutZeroes $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
+                    ys <- split xs [0]
                     listEquals (==) (concat ys) (concat xss)
 
-    prop (desc <> " splitOnSeq . intercalate == id (exclusive separator/non-empty list)") $
+    prop (desc <> " splitOnSeq . intercalate == id "
+          <> "(exclusive separator/non-empty list)") $
         forAll listsWithoutZeroes1 $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
+                    ys <- split xs [0]
                     listEquals (==) ys xss
--}
 
     prop (desc <> " intercalate [x] . splitOn (== x) == id") $
         forAll listWithZeroes $ \xs -> do
@@ -162,7 +168,6 @@ groupSplitOps desc = do
     listWithZeroes :: Gen [Int]
     listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
 
-{-
     listWithoutZeroes = vectorOf 4 $ suchThat arbitrary (/= 0)
 
     listsWithoutZeroes :: Gen [[Int]]
@@ -170,7 +175,6 @@ groupSplitOps desc = do
 
     listsWithoutZeroes1 :: Gen [[Int]]
     listsWithoutZeroes1 = listOf1 listWithoutZeroes
--}
 
 -- |
 -- After grouping (and folding) Int stream using @>@ operation,
