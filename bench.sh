@@ -139,6 +139,7 @@ print_help () {
   echo "       [--long]"
   echo "       [--slow]"
   echo "       [--quick]"
+  echo "       [--raw]"
   echo "       [--cabal-build-flags <flag>]"
   echo "       [--compare] [--base <commit>] [--candidate <commit>]"
   echo "       -- <gauge options or benchmarks>"
@@ -151,6 +152,8 @@ print_help () {
   echo "--long: Use much longer stream size for infinite stream benchmarks"
   echo "--slow: Slightly more accurate results at the expense of speed"
   echo "--quick: Faster results, useful for longer benchmarks"
+  echo "--raw: Run the benchmarks but don't report them. This is useful when"
+  echo "       you only want to work with the csv files generated."
   echo "--cabal-build-flags: Pass any cabal builds flags to be used for build"
   echo
   echo "When specific space complexity group is chosen then (and only then) "
@@ -552,7 +555,7 @@ fi
 
 # We need to build the report progs first at the current (latest) commit before
 # checking out any other commit for benchmarking.
-build_report_progs "$BENCHMARKS"
+build_report_progs
 
 #-----------------------------------------------------------------------------
 # Run benchmarks
