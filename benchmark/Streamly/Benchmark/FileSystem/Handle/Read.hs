@@ -448,6 +448,13 @@ splitOnSeq str inh =
 -- inspect $ 'splitOnSeq `hasNoType` ''Step
 #endif
 
+-- | Split on a word8 sequence.
+splitOnSeq100k :: Handle -> IO Int
+splitOnSeq100k inh = do
+    arr <- A.fromStream $ S.replicate 100000 123
+    (S.length $ IP.splitOnSeq arr FL.drain
+        $ S.unfold FH.read inh) -- >>= print
+
 -- | Split on suffix sequence.
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
@@ -496,6 +503,8 @@ o_1_space_reduce_read_split env =
             splitOnSeq "catcatcatcatcat" inh
         , mkBench "S.splitOnSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
             env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBench "S.splitOnSeq 100k long pattern"
+            env $ \inh _ -> splitOnSeq100k inh
         , mkBenchSmall "S.splitOnSuffixSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
             env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
