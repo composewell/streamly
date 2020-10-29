@@ -26,13 +26,13 @@ import Data.Scientific (Scientific)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Scientific as Sci
 
-import Streamly.Internal.Data.Parser.ParserD (Parser)
+import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
-import qualified Streamly.Internal.Data.Parser.ParserD as P
+import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -177,21 +177,23 @@ parseJsonNumber = do
                 Sci.scientific signedCoeff . (e +) <$> parseDecimal
         _ -> return (Sci.scientific signedCoeff e)
 
+{-# SCC parseJsonString #-}
 {-# INLINE parseJsonString #-}
 parseJsonString :: MonadCatch m => Parser m Word8 JsonString
 parseJsonString = do
     match DOUBLE_QUOTE
-    s <- P.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH) (Uni.foldUtf8With A.unsafeWrite)
+    s <- {-# SCC "takeWhileing" #-} (P.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH) $ {-# SCC "foldingUtf8" #-} (Uni.foldUtf8With A.unsafeWrite))
     w <- P.peek
     case w of
         DOUBLE_QUOTE -> skip 1 >> return s
-        BACKSLASH -> (fmap (s <>) escapeParseJsonString) <* skip 1
+        BACKSLASH -> {-# SCC "Appending" #-} ((fmap (s <>) escapeParseJsonString) <* skip 1)
         _ -> do
             P.die $ [(chr . fromIntegral) w] ++ " : String without end."
 
+{-# SCC escapeParseJsonString #-}
 {-# INLINE escapeParseJsonString #-}
 escapeParseJsonString :: MonadCatch m => Parser m Word8 JsonString
-escapeParseJsonString = P.scan startState go (escapeFoldUtf8With A.unsafeWrite)
+escapeParseJsonString = P.scan startState go $ (escapeFoldUtf8With A.unsafeWrite)
   where
     startState = False
     go s a
@@ -252,8 +254,7 @@ parseJsonArray = do
 
 {-# INLINE parseJsonEOF #-}
 parseJsonEOF :: MonadCatch m => PR.Parser m Word8 Value
-parseJsonEOF =
-    K.toParserK $ do
+parseJsonEOF = do
         v <- parseJsonValue
         skipSpace
         P.eof
@@ -261,7 +262,7 @@ parseJsonEOF =
 
 {-# INLINE parseJson #-}
 parseJson :: MonadCatch m => PR.Parser m Word8 Value
-parseJson = K.toParserK $ parseJsonValue
+parseJson = parseJsonValue
 
 {-
 
