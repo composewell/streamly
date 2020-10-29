@@ -1795,8 +1795,8 @@ data SplitOnSeqState rb rh ck w fs s b x =
     | SplitOnSeqEmpty s
     | SplitOnSeqSingle !fs s x
 
-    | SplitOnSeqWordInit Int s !w
-    | SplitOnSeqWordLoop !fs s !w
+    | SplitOnSeqWordInit s
+    | SplitOnSeqWordLoop !w s !fs
     | SplitOnSeqWordDone Int !fs !w
 
     | SplitOnSeqKRInit Int s rb !rh
@@ -1856,7 +1856,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                  return $ Skip $ SplitOnSeqSingle acc state pat
              else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
-                  then return $ Skip $ SplitOnSeqWordInit 0 state (0 :: Word)
+                  then return $ Skip $ SplitOnSeqWordInit state
                   else do
                       (rb, rhead) <- liftIO $ RB.new patLen
                       skip $ SplitOnSeqKRInit 0 state rb rhead
@@ -1917,45 +1917,58 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         fs1 <- fstep fs (toEnum $ fromIntegral old)
         skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
 
-    stepOuter gst (SplitOnSeqWordInit idx st wrd) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                let wrd1 = addToWord wrd x
-                if idx /= maxIndex
-                then skip $ SplitOnSeqWordInit (idx + 1) s wrd1
-                else do
+    stepOuter gst (SplitOnSeqWordInit st0) =
+        go SPEC 0 0 st0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !idx !wrd !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                    if idx == maxIndex
+                    then do
+                        fs <- initial
+                        if wrd1 .&. wordMask == wordPat
+                        then do
+                            r <- done fs
+                            let next = SplitOnSeqWordInit s
+                            skip $ SplitOnSeqYield r next
+                        else skip $ SplitOnSeqWordLoop wrd1 s fs
+                    else go SPEC (idx + 1) wrd1 s
+                Skip s -> go SPEC idx wrd s
+                Stop -> do
                     fs <- initial
+                    if idx /= 0
+                    then skip $ SplitOnSeqWordDone idx fs wrd
+                    else do
+                        r <- done fs
+                        skip $ SplitOnSeqYield r SplitOnSeqDone
+
+    stepOuter gst (SplitOnSeqWordLoop wrd0 st0 fs0) =
+        go SPEC wrd0 st0 fs0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !wrd !st !fs = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                        old = (wordMask .&. wrd)
+                                `shiftR` (elemBits * (patLen - 1))
+                    fs1 <- fstep fs (toEnum $ fromIntegral old)
                     if wrd1 .&. wordMask == wordPat
                     then do
-                        r <- done fs
-                        let next = SplitOnSeqWordInit 0 s (0 :: Word)
+                        r <- done fs1
+                        let next = SplitOnSeqWordInit s
                         skip $ SplitOnSeqYield r next
-                    else skip $ SplitOnSeqWordLoop fs s wrd1
-            Skip s -> skip $ SplitOnSeqWordInit idx s wrd
-            Stop -> do
-                fs <- initial
-                if idx /= 0
-                then skip $ SplitOnSeqWordDone idx fs wrd
-                else do
-                    r <- done fs
-                    skip $ SplitOnSeqYield r SplitOnSeqDone
-
-    stepOuter gst (SplitOnSeqWordLoop fs st wrd) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                let wrd1 = wordMask .&. addToWord wrd x
-                    old = wrd `shiftR` (elemBits * (patLen - 1))
-                fs1 <- fstep fs (toEnum $ fromIntegral old)
-                if wrd1 .&. wordMask == wordPat
-                then do
-                    r <- done fs1
-                    let next = SplitOnSeqWordInit 0 s (0 :: Word)
-                    skip $ SplitOnSeqYield r next
-                else skip $ SplitOnSeqWordLoop fs1 s wrd1
-            Skip s -> skip $ SplitOnSeqWordLoop fs s wrd
-            Stop -> skip $ SplitOnSeqWordDone patLen fs wrd
+                    else go SPEC wrd1 s fs1
+                Skip s -> go SPEC wrd s fs
+                Stop -> skip $ SplitOnSeqWordDone patLen fs wrd
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -2029,7 +2042,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     stepOuter gst (SplitOnSeqKRLoop fs st rb rh cksum) = do
             res <- step (adaptState gst) st
             case res of
-                Yield x s -> do -- skip $ SplitOnSeqKRYield fs s rb rh cksum x
+                Yield x s -> do
                     old <- liftIO $ peek rh
                     let cksum1 = deltaCksum cksum old x
                     fs1 <- fstep fs old
