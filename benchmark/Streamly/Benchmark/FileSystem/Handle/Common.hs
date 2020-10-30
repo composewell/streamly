@@ -42,7 +42,7 @@ import Data.IORef
 import Gauge hiding (env)
 
 scratchDir :: String
-scratchDir = "benchmark-tmp"
+scratchDir = "benchmark-tmp/"
 
 outfile :: String
 outfile = scratchDir ++ "out.txt"
