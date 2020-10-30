@@ -43,8 +43,9 @@ Run all O(1) space complexity benchmarks in `Prelude.Serial` suite:
 $ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space
 ```
 
-Anything after a `--` is passed to gauge, it basically selects all benchmarks
-starting with `Prelude.Serial/o-1-space` prefix.
+Anything after a `--` is passed to the benchmark executable,
+it basically selects all benchmarks starting with
+`Prelude.Serial/o-1-space` prefix.
 
 Run a specific benchmark in `Prelude.Serial` suite:
 
@@ -52,7 +53,18 @@ Run a specific benchmark in `Prelude.Serial` suite:
 $ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
 ```
 
-## Comparing results for regression
+Run a benchmark directly instead of running it through `bench.sh`:
+
+```
+$ cabal run bench:Prelude.Serial -- --quick Prelude.Serial/o-1-space/generation/unfoldr
+```
+
+The options after `--` are the benchmark executable options.
+
+## Comparing results of arbitrary runs
+
+Note: use `--quick` and benchmark selection if you do not intend to wait for a
+while.
 
 To compare two sets of results, first run the benchmarks at the baseline
 commit:
@@ -70,6 +82,11 @@ $ ./bench.sh --append
 
 Append just adds the next set of results in the same results file. You can keep
 appending more results and all of them will be compared with the baseline.
+
+## Comparing results of two commits
+
+Note: use `--quick` and benchmark selection if you do not intend to wait for a
+while.
 
 You can use `--compare` to compare the previous commit with the head commit:
 
@@ -102,7 +119,7 @@ $ ./bench.sh --benchmarks help
 ```
 
 You will see some benchmark suites end with `_cmp`, these are comparison
-groups. If you run a comparsion group benchmark, comparison of all the
+groups. If you run a comparison group benchmark, comparison of all the
 benchmark suites in that group will be shown in the end. For example to compare
 all array benchmark suites:
 
@@ -122,3 +139,27 @@ You can also manually edit the file to remove a set of results if you like or
 to append results from previously saved results or from some other results
 file. After editing you can run `bench.sh` with the `--no-measure` option to
 see the reports corresponding to the results.
+
+## Additional benchmark configuration
+
+### Stream size
+
+You can specify the stream size (default is 100000) to be used for
+benchmarking:
+
+```
+$ cabal run bench:Prelude.Serial -- --quick --stream-size 1000000
+```
+
+### Unicode input
+
+In the `FileSystem.Handle` benchmark you can specify the input file as an
+environment variable:
+
+```
+$ export Benchmark_FileSystem_Handle_InputFile=./gutenberg-500.txt
+$ cabal run FileSystem.Handle -- --quick FileSystem.Handle/o-1-space/reduce/read/S.splitOnSeq
+```
+
+The automatic tests do not test unicode input, this option is useful to specify
+a unicode text file manually.
