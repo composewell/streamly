@@ -138,7 +138,7 @@ enumerate count n = S.take (count + n) $ S.enumerate
 -- n ~ 1
 {-# INLINE enumerateTo #-}
 enumerateTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-enumerateTo count n = S.enumerateFrom (minBound + count + n)
+enumerateTo count n = S.enumerateTo (minBound + count + n)
 
 {-# INLINE iterate #-}
 iterate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
