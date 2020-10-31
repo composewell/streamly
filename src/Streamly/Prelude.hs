@@ -606,6 +606,11 @@ module Streamly.Prelude
     , concatForFoldableWith
 
     -- * Exceptions
+    -- | Most of these combinators inhibit stream fusion, therefore, when
+    -- possible, they should be called in an outer loop to mitigate the cost.
+    -- For example, instead of calling them on a stream of chars call them on a
+    -- stream of arrays before flattening it to a stream of chars.
+    --
     , before
     , after
     , bracket

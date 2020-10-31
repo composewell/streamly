@@ -537,6 +537,7 @@ module Streamly.Internal.Data.Stream.IsStream
     , onException
     , finally_
     , finally
+    , ghandle
     , handle
 
     -- * Generalize Inner Monad
@@ -5021,7 +5022,7 @@ classifySessionsOf interval =
 -- Exceptions
 ------------------------------------------------------------------------------
 
--- | Run a side effect before the stream yields its first element.
+-- | Run the action @m b@ before the stream yields its first element.
 --
 -- > before action xs = 'nilM' action <> xs
 --
@@ -5030,12 +5031,16 @@ classifySessionsOf interval =
 before :: (IsStream t, Monad m) => m b -> t m a -> t m a
 before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 
--- | Run a side effect at the end of the stream. The side effect won't run if
--- the stream is garbage collected before it reached the end.
+-- | Like 'after', with following differences:
+--
+-- * action @m b@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * Monad @m@ does not require any other constraints.
+-- * has slightly better performance than 'after'.
+--
+-- Same as the following, but with stream fusion:
 --
 -- > after_ action xs = xs <> 'nilM' action
---
--- This has slightly better performance than 'after'.
 --
 -- /Internal/
 --
@@ -5043,8 +5048,13 @@ before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 after_ action xs = D.fromStreamD $ D.after_ action $ D.toStreamD xs
 
--- | Run a side effect at the end of the stream or if it is garbage collected
--- even before reaching the end.
+-- | Run the action @m b@ whenever the stream @t m a@ stops normally, or if it
+-- is garbage collected after a partial lazy evaluation.
+--
+-- The semantics of the action @m b@ are similar to the semantics of cleanup
+-- action in 'bracket'.
+--
+-- /See also 'after_'/
 --
 -- @since 0.7.0
 --
@@ -5053,18 +5063,24 @@ after :: (IsStream t, MonadIO m, MonadBaseControl IO m)
     => m b -> t m a -> t m a
 after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 
--- | Run a side effect whenever the stream aborts due to an exception.
+-- | Run the action @m b@ if the stream aborts due to an exception. The
+-- exception is not caught, simply rethrown.
+--
+-- /Inhibits stream fusion/
 --
 -- @since 0.7.0
 {-# INLINE onException #-}
 onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 
--- | Run a side effect at the end of the stream or if it aborts due to an
--- exception before it could reach the end. The side effect is not run if the
--- stream is garbage collected before reaching the end.
+-- | Like 'finally' with following differences:
 --
--- This has slightly better performance than 'finally'.
+-- * action @m b@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+-- * has slightly better performance than 'finally'.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 --
@@ -5072,8 +5088,20 @@ onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
 
--- | Run a side effect at the end of the stream, or if it aborts due to an
--- exception or if it is garbage collected before it could reach the end.
+-- | Run the action @m b@ whenever the stream @t m a@ stops normally, aborts
+-- due to an exception or if it is garbage collected after a partial lazy
+-- evaluation.
+--
+-- The semantics of running the action @m b@ are similar to the cleanup action
+-- semantics described in 'bracket'.
+--
+-- @
+-- finally release = bracket (return ()) (const release)
+-- @
+--
+-- /See also 'finally_'/
+--
+-- /Inhibits stream fusion/
 --
 -- @since 0.7.0
 --
@@ -5081,13 +5109,15 @@ finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
 finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
 finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 
--- | Run the first action before the stream starts and remember its output,
--- generate a stream using the output, run the second action using the
--- remembered value as an argument whenever the stream ends normally or due to
--- an exception. The second action won't run if the stream is garbage collected
--- before it could reach the end.
+-- | Like 'bracket' but with following differences:
 --
--- This has slightly better performance than 'bracket'.
+-- * alloc action @m b@ runs with async exceptions enabled
+-- * cleanup action @b -> m c@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+-- * has slightly better performance than 'bracket'.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 --
@@ -5097,10 +5127,26 @@ bracket_ :: (IsStream t, MonadCatch m)
 bracket_ bef aft bet = D.fromStreamD $
     D.bracket_ bef aft (toStreamD . bet)
 
--- | Run the first action before the stream starts and remember its output,
--- generate a stream using the output, run the second action using the
--- remembered value as an argument whenever the stream ends normally, due to
--- an exception or if it is garbage collected after a partial lazy evaluation.
+-- | Run the alloc action @m b@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @b@ as input to @b -> t m a@ to generate an output stream.
+--
+-- @b@ is usually a resource under the state of monad @m@, e.g. a file
+-- handle, that requires a cleanup after use. The cleanup action @b -> m c@,
+-- runs whenever the stream ends normally, due to a sync or async exception or
+-- if it gets garbage collected after a partial lazy evaluation.
+--
+-- 'bracket' only guarantees that the cleanup action runs, and it runs with
+-- async exceptions enabled. The action must ensure that it can successfully
+-- cleanup the resource in the face of sync or async exceptions.
+--
+-- When the stream ends normally or on a sync exception, cleanup action runs
+-- immediately in the current thread context, whereas in other cases it runs in
+-- the GC context, therefore, cleanup may be delayed until the GC gets to run.
+--
+-- /See also: 'bracket_'/
+--
+-- /Inhibits stream fusion/
 --
 -- @since 0.7.0
 --
@@ -5110,8 +5156,30 @@ bracket :: (IsStream t, MonadAsync m, MonadCatch m)
 bracket bef aft bet = D.fromStreamD $
     D.bracket bef aft (toStreamD . bet)
 
+-- | Like 'handle' but the exception handler is also provided with the stream
+-- that generated the exception as input. The exception handler can thus
+-- re-evaluate the stream to retry the action that failed. The exception
+-- handler can again call 'ghandle' on it to retry the action multiple times.
+--
+-- This is highly experimental. In a stream of actions we can map the stream
+-- with a retry combinator to retry each action on failure.
+--
+-- /Inhibits stream fusion/
+--
+-- /Internal/
+--
+{-# INLINE ghandle #-}
+ghandle :: (IsStream t, MonadCatch m, Exception e)
+    => (e -> t m a -> t m a) -> t m a -> t m a
+ghandle handler =
+      D.fromStreamD
+    . D.ghandle (\e xs -> D.toStreamD $ handler e (D.fromStreamD xs))
+    . D.toStreamD
+
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
+--
+-- /Inhibits stream fusion/
 --
 -- @since 0.7.0
 {-# INLINE handle #-}
