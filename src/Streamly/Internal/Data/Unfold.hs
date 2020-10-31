@@ -522,7 +522,7 @@ repeatM = Unfold step return
     step x = x >>= \x1 -> return $ Yield x1 x
 
 -- | Generates an infinite stream starting with the given seed and applying the
--- given function repeteadly.
+-- given function repeatedly.
 --
 -- /Internal/
 --
@@ -1027,7 +1027,7 @@ apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 data ConcatMapState s1 s2 = ConcatMapOuter s1 | ConcatMapInner s1 s2
 
 -- | Map an unfold generating action to each element of an unfold and
--- flattern the results into a single stream.
+-- flatten the results into a single stream.
 --
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m
@@ -1061,9 +1061,14 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 -- Exceptions
 ------------------------------------------------------------------------------
 
--- | The most general bracketing and exception combinator. All other
--- combinators can be expressed in terms of this combinator. This can also be
--- used for cases which are not covered by the standard combinators.
+-- | Like 'gbracket' but with following differences:
+--
+-- * alloc action @a -> m c@ runs with async exceptions enabled
+-- * cleanup action @c -> m d@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 --
@@ -1094,6 +1099,7 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 Yield x s -> return $ Yield x (Right (s, v))
                 Skip s    -> return $ Skip (Right (s, v))
                 Stop      -> aft v >> return Stop
+            -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
                 r <- einject (v, e)
                 return $ Skip (Left r)
@@ -1104,12 +1110,22 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
             Skip s    -> return $ Skip (Left s)
             Stop      -> return Stop
 
--- | The most general bracketing and exception combinator. All other
--- combinators can be expressed in terms of this combinator. This can also be
--- used for cases which are not covered by the standard combinators.
+-- | Run the alloc action @a -> m c@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @c@ as input to @Unfold m c b@ to generate an output stream. When
+-- unfolding use the supplied @try@ operation @forall s. m s -> m (Either e s)@
+-- to catch synchronous exceptions. If an exception occurs run the exception
+-- handling unfold @Unfold m (c, e) b@.
+--
+-- The cleanup action @c -> m d@, runs whenever the stream ends normally, due
+-- to a sync or async exception or if it gets garbage collected after a partial
+-- lazy evaluation.  See 'bracket' for the semantics of the cleanup action.
+--
+-- 'gbracket' can express all other exception handling combinators.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
---
 {-# INLINE_NORMAL gbracket #-}
 gbracket
     :: (MonadIO m, MonadBaseControl IO m)
@@ -1144,6 +1160,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 Stop      -> do
                     D.runIORefFinalizer ref
                     return Stop
+            -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
                 -- Clearing of finalizer and running of exception handler must
                 -- be atomic wrt async exceptions. Otherwise if we have cleared
@@ -1167,7 +1184,8 @@ _before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _before action = gbracket_ (\x -> action x >> return x) (fmap Right)
                              (\_ -> return ()) undefined
 
--- | Run a side effect before the unfold yields its first element.
+-- | Run a side effect @a -> m c@ on the input @a@ before unfolding it using
+-- @Unfold m a b@.
 --
 -- /Internal/
 {-# INLINE_NORMAL before #-}
@@ -1192,11 +1210,11 @@ before action (Unfold step1 inject1) = Unfold step inject
 _after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _after aft = gbracket_ return (fmap Right) aft undefined
 
--- | Run a side effect whenever the unfold stops normally.
+-- | Like 'after' with following differences:
 --
--- Prefer 'after' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
--- collected.
+-- * action @a -> m c@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * Monad @m@ does not require any other constraints.
 --
 -- /Internal/
 {-# INLINE_NORMAL after_ #-}
@@ -1217,8 +1235,14 @@ after_ action (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
 
--- | Run a side effect whenever the unfold stops normally
--- or is garbage collected after a partial lazy evaluation.
+-- | Unfold the input @a@ using @Unfold m a b@, run an action on @a@ whenever
+-- the unfold stops normally, or if it is garbage collected after a partial
+-- lazy evaluation.
+--
+-- The semantics of the action @a -> m c@ are similar to the cleanup action
+-- semantics in 'bracket'.
+--
+-- /See also 'after_'/
 --
 -- /Internal/
 {-# INLINE_NORMAL after #-}
@@ -1250,7 +1274,10 @@ _onException action =
         (\_ -> return ())
         (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
--- | Run a side effect whenever the unfold aborts due to an exception.
+-- | Unfold the input @a@ using @Unfold m a b@, run the action @a -> m c@ on
+-- @a@ if the unfold aborts due to an exception.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL onException #-}
@@ -1277,12 +1304,13 @@ _finally action =
     gbracket_ return MC.try action
         (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
--- | Run a side effect whenever the unfold stops normally or aborts due to an
--- exception.
+-- | Like 'finally' with following differences:
 --
--- Prefer 'finally' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
--- collected.
+-- * action @a -> m c@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL finally_ #-}
@@ -1303,8 +1331,20 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
 
--- | Run a side effect whenever the unfold stops normally, aborts due to an
--- exception or if it is garbage collected after a partial lazy evaluation.
+-- | Unfold the input @a@ using @Unfold m a b@, run an action on @a@ whenever
+-- the unfold stops normally, aborts due to an exception or if it is garbage
+-- collected after a partial lazy evaluation.
+--
+-- The semantics of the action @a -> m c@ are similar to the cleanup action
+-- semantics in 'bracket'.
+--
+-- @
+-- finally release = bracket return release
+-- @
+--
+-- /See also 'finally_'/
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL finally #-}
@@ -1336,14 +1376,14 @@ _bracket bef aft =
     gbracket_ bef MC.try aft (nilM (\(a, e :: MC.SomeException) -> aft a >>
     MC.throwM e))
 
--- | @bracket_ before after between@ runs the @before@ action and then unfolds
--- its output using the @between@ unfold. When the @between@ unfold is done or
--- if an exception occurs then the @after@ action is run with the output of
--- @before@ as argument.
+-- | Like 'bracket' but with following differences:
 --
--- Prefer 'bracket' over this as the @after@ action in this combinator is not
--- executed if the unfold is partially evaluated lazily and then garbage
--- collected.
+-- * alloc action @a -> m c@ runs with async exceptions enabled
+-- * cleanup action @c -> m d@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL bracket_ #-}
@@ -1366,11 +1406,26 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> aft v >> return Stop
 
--- | @bracket before after between@ runs the @before@ action and then unfolds
--- its output using the @between@ unfold. When the @between@ unfold is done or
--- if an exception occurs then the @after@ action is run with the output of
--- @before@ as argument. The after action is also executed if the unfold is
--- paritally evaluated and then garbage collected.
+-- | Run the alloc action @a -> m c@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @c@ as input to @Unfold m c b@ to generate an output stream.
+--
+-- @c@ is usually a resource under the state of monad @m@, e.g. a file
+-- handle, that requires a cleanup after use. The cleanup action @c -> m d@,
+-- runs whenever the stream ends normally, due to a sync or async exception or
+-- if it gets garbage collected after a partial lazy evaluation.
+--
+-- 'bracket' only guarantees that the cleanup action runs, and it runs with
+-- async exceptions enabled. The action must ensure that it can successfully
+-- cleanup the resource in the face of sync or async exceptions.
+--
+-- When the stream ends normally or on a sync exception, cleanup action runs
+-- immediately in the current thread context, whereas in other cases it runs in
+-- the GC context, therefore, cleanup may be delayed until the GC gets to run.
+--
+-- /See also: 'bracket_', 'gbracket'/
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL bracket #-}
@@ -1400,8 +1455,10 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
                 D.runIORefFinalizer ref
                 return Stop
 
--- | When unfolding if an exception occurs, unfold the exception using the
--- exception unfold supplied as the first argument to 'handle'.
+-- | When unfolding @Unfold m a b@ if an exception @e@ occurs, unfold @e@ using
+-- @Unfold m e b@.
+--
+-- /Inhibits stream fusion/
 --
 -- /Internal/
 {-# INLINE_NORMAL handle #-}
