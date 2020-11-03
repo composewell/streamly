@@ -33,7 +33,10 @@ let haskellPackages =
                  in if inShell
                     # Avoid copying the source directory to nix store by using
                     # src = null.
-                    then orig.overrideAttrs (oldAttrs: { src = null; })
+                    then orig.overrideAttrs (oldAttrs:
+                      { src = null;
+                        doBenchmark = true;
+                      })
                     else orig;
 
     mkHaskellPackages = inShell:
@@ -83,7 +86,7 @@ let haskellPackages =
         # some dependencies of hoogle fail to build with quickcheck-2.14
         # We should use hoogle as external tool instead of building it here
         # withHoogle = true;
-        doBenchmark = true;
+        # doBenchmark = true;
         # XXX On macOS cabal2nix does not seem to generate a dependency on
         # Cocoa framework.
         buildInputs =
