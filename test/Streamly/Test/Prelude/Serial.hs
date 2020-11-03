@@ -16,6 +16,7 @@ import Data.IORef ( newIORef, readIORef, writeIORef )
 import Data.Int (Int64)
 import Data.List (intercalate)
 import Data.Maybe ( isJust, fromJust )
+import Foreign.Storable (Storable)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
@@ -23,7 +24,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
     , Property
-    , arbitrary
+    , Arbitrary(..)
     , choose
     , elements
     , forAll
@@ -106,55 +107,108 @@ splitOnSuffixSeq = do
         S.toList
              $ IS.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 
+seqSplitterProperties ::
+       forall a. (Arbitrary a, Eq a, Show a, Storable a, Enum a)
+    => a
+    -> String
+    -> Spec
+seqSplitterProperties sep desc = do
+    describe (desc <> " splitOnSeq/intercalate")
+        $ do
+            -- Empty seperator
+            intercalateSplitEqId 0
+            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 0
+
+            -- Single element seperator
+            intercalateSplitEqId 1
+            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 1
+
+            -- Shift Or
+            intercalateSplitEqId 2
+            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 2
+
+            -- Karp-Rabin
+            intercalateSplitEqId 4
+            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 4
+
+            -- Exclusive case
+            splitIntercalateEqId splitOnSeq_ intercalate
+
+    where
+
+    splitOnSeq_ xs ys =
+        S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
+
+    nonSepElem :: Gen a
+    nonSepElem = suchThat arbitrary (/= sep)
+
+    listWithSep :: Gen [a]
+    listWithSep = listOf $ frequency [(3, arbitrary), (1, elements [sep])]
+
+    listWithoutSep :: Gen [a]
+    listWithoutSep = vectorOf 4 nonSepElem
+
+    listsWithoutSep :: Gen [[a]]
+    listsWithoutSep = listOf listWithoutSep
+
+    listsWithoutSep1 :: Gen [[a]]
+    listsWithoutSep1 = listOf1 listWithoutSep
+
+    intercalateSplitEqId i =
+        let name =
+                "intercalate . splitOnSeq == id ("
+                    <> show i <> " element separator)"
+         in prop name
+                $ forAll listWithSep
+                $ \xs -> do
+                      withMaxSuccess maxTestCount
+                          $ monadicIO
+                          $ do
+                              ys <- splitOnSeq_ xs (replicate i sep)
+                              listEquals
+                                  (==)
+                                  (intercalate (replicate i sep) ys)
+                                  xs
+
+    concatSplitIntercalateEqConcat splitter intercalater i =
+        let name =
+                "concat . splitter . intercalater == "
+                    <> "concat ("
+                    <> show i <> " element separator/possibly empty list)"
+         in prop name
+                $ forAll listsWithoutSep
+                $ \xss -> do
+                      withMaxSuccess maxTestCount
+                          $ monadicIO
+                          $ do
+                              let xs = intercalater (replicate i sep) xss
+                              ys <- splitter xs (replicate i sep)
+                              listEquals (==) (concat ys) (concat xss)
+
+    splitIntercalateEqId splitter intercalater =
+        let name =
+                "splitter . intercalater == id"
+                    <> " (exclusive separator/non-empty list)"
+         in prop name
+                $ forAll listsWithoutSep1
+                $ \xss -> do
+                      withMaxSuccess maxTestCount
+                          $ monadicIO
+                          $ do
+                              let xs = intercalater [sep] xss
+                              ys <- splitter xs [sep]
+                              listEquals (==) ys xss
+
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
     splitOnSeq
     splitOnSuffixSeq
-    -- XXX add tests with multichar separators too
 
-    let split xs ys =
-            S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
-    prop (desc <> " intercalate . splitOnSeq == id (nil separator)") $
-        forAll listWithZeroes $ \xs -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    ys <- split xs []
-                    listEquals (==) (intercalate [] ys) xs
-
-    prop (desc <> " intercalate . splitOnSeq == id (single element separator)") $
-        forAll listWithZeroes $ \xs -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    ys <- split xs [0]
-                    listEquals (==) (intercalate [0] ys) xs
-
-    prop (desc <> " concat . splitOnSeq . intercalate == concat "
-          <> "(nil separator/possibly empty list)") $
-        forAll listsWithoutZeroes $ \xss -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    let xs = intercalate [] xss
-                    ys <- split xs [0]
-                    listEquals (==) (concat ys) (concat xss)
-
-    prop (desc <> " concat . splitOnSeq . intercalate == "
-          <> "concat (non-nil separator/possibly empty list)") $
-        forAll listsWithoutZeroes $ \xss -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    let xs = intercalate [0] xss
-                    ys <- split xs [0]
-                    listEquals (==) (concat ys) (concat xss)
-
-    prop (desc <> " splitOnSeq . intercalate == id "
-          <> "(exclusive separator/non-empty list)") $
-        forAll listsWithoutZeroes1 $ \xss -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    let xs = intercalate [0] xss
-                    ys <- split xs [0]
-                    listEquals (==) ys xss
+    -- seq splitting
+    seqSplitterProperties (0 :: Int) desc
+    -- XXX This will fail
+    -- seqSplitterProperties (0 :: Word8) desc
 
     prop (desc <> " intercalate [x] . splitOn (== x) == id") $
         forAll listWithZeroes $ \xs -> do
@@ -167,14 +221,6 @@ groupSplitOps desc = do
 
     listWithZeroes :: Gen [Int]
     listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
-
-    listWithoutZeroes = vectorOf 4 $ suchThat arbitrary (/= 0)
-
-    listsWithoutZeroes :: Gen [[Int]]
-    listsWithoutZeroes = listOf listWithoutZeroes
-
-    listsWithoutZeroes1 :: Gen [[Int]]
-    listsWithoutZeroes1 = listOf1 listWithoutZeroes
 
 -- |
 -- After grouping (and folding) Int stream using @>@ operation,
