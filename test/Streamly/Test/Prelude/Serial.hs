@@ -106,12 +106,34 @@ splitOnSuffixSeq = do
         S.toList
              $ IS.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 
+karpRabinTests :: Spec
+karpRabinTests = do
+    let str1 = replicate 100 (1 :: Int)
+        str2 = replicate 50 (1 :: Int)
+        str3 = replicate 20 (1 :: Int)
+        del = replicate 50 (0 :: Int)
+        str = str1 ++ del ++ str2 ++ del ++ str3 ++ del ++ del
+        resSplitSeq = [str1, str2, str3, [], []]
+        resSplitSuffSeq = [str1, str2, str3, []]
+        splitOnSeq_ xs ys =
+            S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
+        splitOnSuffixSeq_ xs ys =
+            S.toList
+                $ IS.splitOnSuffixSeq (A.fromList ys) FL.toList (S.fromList xs)
+    describe "Tests for karp rabin"
+        $ do
+            it "splitOnSeq" $ splitOnSeq_ str del `shouldReturn` resSplitSeq
+            it "splitOnSuffixSeq"
+                $ splitOnSuffixSeq_ str del `shouldReturn` resSplitSuffSeq
+
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
     splitOnSeq
     splitOnSuffixSeq
-    -- XXX add tests with multichar separators too
+
+    -- XXX add more elaborate tests with multichar separators
+    karpRabinTests
 
     let split xs ys =
             S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
