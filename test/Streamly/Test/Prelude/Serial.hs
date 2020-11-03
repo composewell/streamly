@@ -134,10 +134,36 @@ seqSplitterProperties sep desc = do
             -- Exclusive case
             splitIntercalateEqId splitOnSeq_ intercalate
 
+    describe (desc <> " splitOnSuffixSeq/intercalate")
+        $ do
+            -- Empty seperator
+            intercalateSplitEqIdNoSepEnd 0
+            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 0
+
+            -- Single element seperator
+            intercalateSplitEqIdNoSepEnd 1
+            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 1
+
+            -- Shift Or
+            intercalateSplitEqIdNoSepEnd 2
+            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 2
+
+            -- Karp-Rabin
+            intercalateSplitEqIdNoSepEnd 4
+            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 4
+
+            -- Exclusive case
+            splitIntercalateEqId splitOnSuffixSeq_ intercalateSuffix
+
     where
 
     splitOnSeq_ xs ys =
         S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
+
+    splitOnSuffixSeq_ xs ys =
+        S.toList $ IS.splitOnSuffixSeq (A.fromList ys) FL.toList (S.fromList xs)
+
+    intercalateSuffix xs yss = intercalate xs yss ++ xs
 
     nonSepElem :: Gen a
     nonSepElem = suchThat arbitrary (/= sep)
@@ -165,6 +191,23 @@ seqSplitterProperties sep desc = do
                           $ monadicIO
                           $ do
                               ys <- splitOnSeq_ xs (replicate i sep)
+                              listEquals
+                                  (==)
+                                  (intercalate (replicate i sep) ys)
+                                  xs
+
+    intercalateSplitEqIdNoSepEnd i =
+        let name =
+                "intercalate . splitOnSuffixSeq_ . (++ [x \\= sep]) == id ("
+                    <> show i <> " element separator)"
+         in prop name
+                $ forAll ((,) <$> listWithSep <*> nonSepElem)
+                $ \(xs_, nonSep) -> do
+                      let xs = xs_ ++ [nonSep]
+                      withMaxSuccess maxTestCount
+                          $ monadicIO
+                          $ do
+                              ys <- splitOnSuffixSeq_ xs (replicate i sep)
                               listEquals
                                   (==)
                                   (intercalate (replicate i sep) ys)
