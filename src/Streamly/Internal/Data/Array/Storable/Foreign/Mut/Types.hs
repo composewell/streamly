@@ -74,6 +74,7 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
     , writeNAligned
     , writeNAlignedUnmanaged
     , write
+    , unsafeWrite
     , writeAligned
 
     -- * Utilities
@@ -1182,6 +1183,30 @@ toArrayMinChunk alignSize elemCount = Fold step initial extract
     step arr x = insertElem arr x
     extract = liftIO . shrinkToFit
 
+{-# INLINE_NORMAL unsafeToArrayMinChunk #-}
+unsafeToArrayMinChunk :: forall m a. (Monad m, Storable a)
+    => Int -> Int -> Fold m a (Array a)
+-- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+unsafeToArrayMinChunk alignSize elemCount = Fold step initial extract
+
+    where
+
+    insertElem (Array start end bound) x = unsafePerformIO $ do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+
+    initial = do
+        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
+        return $ unsafePerformIO $ newArrayAligned alignSize elemCount
+    step arr@(Array start end bound) x | end == bound = do
+        let p = unsafeForeignPtrToPtr start
+            oldSize = end `minusPtr` p
+            newSize = max (oldSize * 2) 1
+        let arr1 = unsafePerformIO $ reallocAligned alignSize newSize arr
+        return $ insertElem arr1 x
+    step arr x = return $ insertElem arr x
+    extract = return . unsafePerformIO . shrinkToFit
+
 -- | Fold the whole input to a single array.
 --
 -- /Caution! Do not use this on infinite streams./
@@ -1192,6 +1217,13 @@ write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
 write = toArrayMinChunk (alignment (undefined :: a))
                         (bytesToElemCount (undefined :: a)
                         (mkChunkSize 1024))
+
+{-# INLINE unsafeWrite #-}
+unsafeWrite :: forall m a. (Monad m, Storable a) => Fold m a (Array a)
+unsafeWrite =
+    unsafeToArrayMinChunk
+        (alignment (undefined :: a))
+        (bytesToElemCount (undefined :: a) (mkChunkSize 1024))
 
 -- | Like 'write' but the array memory is aligned according to the specified
 -- alignment size. This could be useful when we have specific alignment, for

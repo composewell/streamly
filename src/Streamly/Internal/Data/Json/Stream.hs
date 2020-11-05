@@ -16,7 +16,7 @@ module Streamly.Internal.Data.Json.Stream
 where
 
 import Control.Monad (when)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (throwM, MonadCatch)
 import Data.Char (chr, ord)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
@@ -25,6 +25,8 @@ import Data.HashMap.Strict (HashMap)
 import Data.Scientific (Scientific)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Scientific as Sci
+import Foreign.Storable (Storable)
+import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array (Array)
@@ -33,6 +35,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 import qualified Streamly.Internal.Data.Parser as P
+import qualified Streamly.Internal.Data.Parser.ParserD as PD
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as FA
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -68,6 +72,11 @@ instance Enum a => Hashable (A.Array a) where
     hashWithSalt salt arr = fromIntegral $ runIdentity $
         IUF.fold A.read (IFL.rollingHashWithSalt $ fromIntegral salt) arr
 
+instance (Enum a, Storable a) => Hashable (FA.Array a) where
+    hash arr = fromIntegral $ runIdentity $ IUF.fold FA.read IFL.rollingHash arr
+    hashWithSalt salt arr = fromIntegral $ runIdentity $
+        IUF.fold FA.read (IFL.rollingHashWithSalt $ fromIntegral salt) arr
+
 {-# INLINE jsonEscapes #-}
 jsonEscapes :: Word8 -> Maybe Word8
 jsonEscapes 34  = Just 34 -- \" -> "
@@ -84,7 +93,7 @@ jsonEscapes _   = Nothing
 escapeFoldUtf8With :: Monad m => Fold m Char container -> Fold m Word8 container
 escapeFoldUtf8With = Uni.escapeFoldUtf8With 92 jsonEscapes
 
-type JsonString = Array Char
+type JsonString = FA.Array Char
 
 type JsonArray = Array Value
 
@@ -104,7 +113,7 @@ data Value
 {-# INLINE skipSpace #-}
 skipSpace :: MonadCatch m => Parser m Word8 ()
 skipSpace =
-    P.takeWhile
+    K.takeWhile
         (\w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09)
         FL.drain
 
@@ -119,7 +128,7 @@ string = P.eqBy (==) . map (fromIntegral . ord)
 
 {-# INLINE match #-}
 match :: MonadCatch m => Word8 -> Parser m Word8 ()
-match w = P.eqBy (==) [w]
+match w = (P.eqBy (==) [w])
 
 {-# SPECIALISE foldToInteger :: Monad m => Int -> Fold m Word8 Int #-}
 {-# SPECIALISE foldToInteger :: Monad m => Integer -> Fold m Word8 Integer #-}
@@ -177,23 +186,21 @@ parseJsonNumber = do
                 Sci.scientific signedCoeff . (e +) <$> parseDecimal
         _ -> return (Sci.scientific signedCoeff e)
 
-{-# SCC parseJsonString #-}
-{-# INLINE parseJsonString #-}
-parseJsonString :: MonadCatch m => Parser m Word8 JsonString
-parseJsonString = do
+{-# INLINE _parseJsonString #-}
+_parseJsonString :: MonadCatch m => Parser m Word8 JsonString
+_parseJsonString = do
     match DOUBLE_QUOTE
-    s <- {-# SCC "takeWhileing" #-} (P.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH) $ {-# SCC "foldingUtf8" #-} (Uni.foldUtf8With A.unsafeWrite))
+    s <- K.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH) $ (Uni.foldUtf8With FA.unsafeWrite)
     w <- P.peek
     case w of
         DOUBLE_QUOTE -> skip 1 >> return s
-        BACKSLASH -> {-# SCC "Appending" #-} ((fmap (s <>) escapeParseJsonString) <* skip 1)
+        BACKSLASH -> (fmap (s <>) escapeParseJsonString) <* skip 1
         _ -> do
             P.die $ [(chr . fromIntegral) w] ++ " : String without end."
 
-{-# SCC escapeParseJsonString #-}
 {-# INLINE escapeParseJsonString #-}
 escapeParseJsonString :: MonadCatch m => Parser m Word8 JsonString
-escapeParseJsonString = P.scan startState go $ (escapeFoldUtf8With A.unsafeWrite)
+escapeParseJsonString = P.scan startState go $ (escapeFoldUtf8With FA.unsafeWrite)
   where
     startState = False
     go s a
@@ -202,6 +209,42 @@ escapeParseJsonString = P.scan startState go $ (escapeFoldUtf8With A.unsafeWrite
         | otherwise =
             let a' = a == backslash
              in Just a'
+
+{-# INLINE parseJsonString #-}
+parseJsonString :: MonadCatch m => Parser m Word8 JsonString
+parseJsonString = K.toParserK $ parseJsonStringD (Uni.foldUtf8With FA.unsafeWrite)
+
+{-# ANN type ParseJsonString Fuse #-}
+data ParseJsonString s
+    = Begin !s
+    | InsideQuote !s
+    | Escape !s
+
+{-# INLINE parseJsonStringD #-}
+parseJsonStringD ::
+       forall m. MonadCatch m
+    => Fold m Word8 JsonString
+    -> PD.Parser m Word8 JsonString
+parseJsonStringD (Fold fstep finit fextract) = PD.Parser step initial extract
+  where
+    initial = Begin <$> finit
+    step (Begin fs) DOUBLE_QUOTE = return $ PD.Continue 0 (InsideQuote fs)
+    step (Begin _) _ =
+        return $ PD.Error "Json strings should begin with a double quote."
+    step (InsideQuote fs) DOUBLE_QUOTE = PD.Done 0 <$> fextract fs
+    step (InsideQuote fs) BACKSLASH =
+        return $ PD.Continue 0 (Escape fs)
+    step (InsideQuote fs) w =
+        PD.Continue 0 . InsideQuote <$> fstep fs w
+    step (Escape fs) w =
+        case jsonEscapes w of
+            Just w' ->
+                PD.Continue 0 . InsideQuote <$> fstep fs w'
+            Nothing ->
+                return $ PD.Error "Invalid escape sequence found in Json string."
+    extract (Begin _) = throwM $ PD.ParseError "Didn't begin parsing string."
+    extract (InsideQuote _) = throwM $ PD.ParseError "Json strings should end with a double quote."
+    extract (Escape _) = throwM $ PD.ParseError "Unescaped backslash found in Json string."
 
 {-# INLINE parseJsonValue #-}
 parseJsonValue :: MonadCatch m => Parser m Word8 Value

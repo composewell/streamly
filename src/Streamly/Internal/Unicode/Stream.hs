@@ -963,6 +963,7 @@ foldUtf8WithE cfm (FL.Fold arrayStep arrayInit arrayExtract) =
                         0 -> return $ FreshPoint cp sv (arrayStep aSt (unsafeChr cp))
                         _ -> return $ FreshPoint cp sv (return aSt)
 
+    {-# INLINE step' #-}
     step' table (FreshPoint codepointPtr statePtr arrayState) x =
         if statePtr == 0 && x <= 0x7f
         then do
