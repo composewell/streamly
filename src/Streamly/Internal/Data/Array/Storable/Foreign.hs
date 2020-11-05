@@ -60,6 +60,7 @@ module Streamly.Internal.Data.Array.Storable.Foreign
     , A.writeN      -- drop new
     , A.writeNAligned
     , A.write       -- full buffer
+    , A.unsafeWrite
     -- , writeLastN -- drop old (ring buffer)
 
     -- * Elimination

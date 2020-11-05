@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Parser.ParserK.Types
     , yield
     , yieldM
     , die
+    , takeWhile
 
     -- * Conversion
     , toParserK
@@ -41,9 +42,11 @@ import qualified Control.Monad.Fail as Fail
 #if !(MIN_VERSION_base(4,10,0))
 import Data.Semigroup ((<>))
 #endif
+import Prelude hiding (takeWhile)
 import Streamly.Internal.Control.Exception
 
 import qualified Streamly.Internal.Data.Parser.ParserD.Types as D
+import Streamly.Internal.Data.Fold (Fold(Fold))
 
 -- | The parse driver result. The driver may stop with a final result, pause
 -- with a continuation to resume, or fail with an error.
@@ -454,3 +457,47 @@ instance Monad m => MonadPlus (Parser m a) where
 
     {-# INLINE mplus #-}
     mplus = (<|>)
+
+{-# INLINE takeWhile #-}
+takeWhile :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeWhile predicate (Fold fstep finitial fextract) =
+    MkParser $ takeWhileC
+  where
+     takeWhileC leftover (0, _) cont =
+        return $ Continue leftover (parseCont finitial)
+      where
+        parseCont pst (Just x) = do
+            r <- pst
+            if predicate x
+                then return $ Partial 0 (parseCont (fstep r x))
+                else do
+                    b <- fextract r
+                    cont (0, 0) (Done 1 b)
+        parseCont acc Nothing = do
+            pst <- acc
+            r <- try $ fextract pst
+            case r of
+                Left (e :: D.ParseError) ->
+                    cont (0, 0) (Error (displayException e))
+                Right b -> cont (0, 0) (Done 0 b)
+     takeWhileC leftover (level, count) cont =
+        return $ Continue leftover (parseCont count finitial)
+      where
+        parseCont !cnt pst (Just x) = do
+            let !cnt1 = cnt + 1
+            r <- pst
+            if predicate x
+                then do
+                    assert (cnt1 >= 0) (return ())
+                    return $ Partial 0 (parseCont cnt1 (fstep r x))
+                else do
+                    assert (cnt1 >= 1) (return ())
+                    b <- fextract r
+                    cont (level, cnt1 - 1) (Done 1 b)
+        parseCont cnt acc Nothing = do
+            pst <- acc
+            r <- try $ fextract pst
+            let s = (level, cnt)
+            case r of
+                Left (e :: D.ParseError) -> cont s (Error (displayException e))
+                Right b -> cont s (Done 0 b)

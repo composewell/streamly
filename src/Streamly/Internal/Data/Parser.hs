@@ -60,8 +60,10 @@ module Streamly.Internal.Data.Parser
     , yieldM
     , die
     , dieM
+    , scan
 
     -- * Element parsers
+    , peekMaybe
     , peek
     , eof
     , satisfy
@@ -88,6 +90,7 @@ module Streamly.Internal.Data.Parser
     , takeWhile1
 
     , sliceSepByP
+    , sepBy
     , sliceSepBy
     , sliceSepByMax
     , sliceEndWith
@@ -287,6 +290,10 @@ die = K.toParserK . D.die
 {-# INLINE dieM #-}
 dieM :: MonadCatch m => m String -> Parser m a b
 dieM = K.toParserK . D.dieM
+
+{-# INLINE peekMaybe #-}
+peekMaybe :: MonadCatch m => Parser m a (Maybe a)
+peekMaybe = K.toParserK D.peekMaybe
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -508,6 +515,30 @@ takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 sliceSepByP :: -- MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
 sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
+
+-- /Internal/
+--
+{-# INLINE scan #-}
+scan :: MonadCatch m => s -> (s -> a -> Maybe s) -> Fold m a b -> Parser m a b
+scan s f fl = K.toParserK $ D.scan s f fl
+
+-- | @sepBy fl p sep@ collects zero or more stream elements separated by @sep@.
+--
+-- * Stops - when either of @p@ or @sep@ fails
+-- * Fails - never
+--
+-- >>> S.parse (PR.sepBy FL.toList (PR.satisfy (< 7)) (PR.satisfy (> 8))) $ S.fromList [0,9,3,10]
+-- > [0,3]
+--
+-- /Internal/
+--
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m
+      => Fold m b c
+      -> Parser m a b
+      -> Parser m a sep
+      -> Parser m a c
+sepBy fl pa = K.toParserK . D.sepBy fl (K.fromParserK pa) . K.fromParserK
 
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.

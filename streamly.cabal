@@ -500,6 +500,7 @@ library
 
                      -- Serialization/deserialization in binary format
                      , Streamly.Internal.Data.Binary.Decode
+                     , Streamly.Internal.Data.Json.Stream
 
                      -- Deprecated
                      , Streamly.Data.Unicode.Stream
@@ -528,6 +529,10 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3     && < 0.4
+
+                     , hashable
+                     , unordered-containers
+                     , scientific
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9

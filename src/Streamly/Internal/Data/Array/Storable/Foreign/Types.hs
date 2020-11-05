@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Types
     , writeNAligned
     , writeNAlignedUnmanaged
     , write
+    , unsafeWrite
     , writeAligned
 
     -- * Utilities
@@ -563,6 +564,10 @@ toArrayMinChunk alignSize elemCount =
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write
+
+{-# INLINE unsafeWrite #-}
+unsafeWrite :: forall m a. (Monad m, Storable a) => Fold m a (Array a)
+unsafeWrite = fmap unsafeFreeze MA.unsafeWrite
 
 -- | Like 'write' but the array memory is aligned according to the specified
 -- alignment size. This could be useful when we have specific alignment, for

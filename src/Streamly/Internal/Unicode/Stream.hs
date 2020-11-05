@@ -52,6 +52,8 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8ArraysD
     , decodeUtf8ArraysD'
     , decodeUtf8ArraysD_
+    , foldUtf8With
+    , escapeFoldUtf8With
 
     -- * Transformation
     , stripStart
@@ -90,6 +92,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold as FL
 
 import Prelude hiding (String, lines, words, unlines, unwords)
 
@@ -906,3 +909,201 @@ unlines = S.interposeSuffix '\n'
 {-# INLINE unwords #-}
 unwords :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
 unwords = S.interpose ' '
+
+{-# INLINE oDecode #-}
+oDecode :: Ptr Word8
+     -> DecodeState
+     -> CodePoint
+     -> Word8
+     -> Tuple' DecodeState CodePoint
+oDecode table state codep byte = do
+    -- Remember codep is Int type!
+    -- Can it be unsafe to convert the resulting to Char?
+    let !t = table `unsafePeekElemOff` fromIntegral byte
+        !codep' =
+            if state /= 0
+                then (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
+                else (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
+        !state' = table `unsafePeekElemOff` (256 + fromIntegral state + fromIntegral t)
+      in (Tuple' state' codep')
+
+data Fp m s = FreshPoint !CodePoint !DecodeState (m s)
+
+{-# INLINE_NORMAL foldUtf8WithE #-}
+foldUtf8WithE
+    :: Monad m
+    => CodingFailureMode
+    -> Fold m Char container
+    -> Fold m Word8 container
+foldUtf8WithE cfm (FL.Fold arrayStep arrayInit arrayExtract) =
+    let A.Array p _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+    in FL.Fold (step' ptr) (return $ FreshPoint 0 0 arrayInit) extract
+  where
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e arrayState =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> return $ FreshPoint 0 0 (arrayStep arrayState replacementChar)
+
+    {-# INLINE transliterateOrError1 #-}
+    transliterateOrError1 table statePtr codepointPtr e arrayState x =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> do
+                aS <- arrayState
+                aSt <- arrayStep aS replacementChar
+                if x <= 0x7f
+                    then return $ FreshPoint 0 0 (arrayStep aSt (unsafeChr (fromIntegral x)))
+                else
+                    let (Tuple' sv cp) = oDecode table statePtr codepointPtr x
+                    in
+                    case sv of
+                        12 -> transliterateOrError e aSt
+                        0 -> return $ FreshPoint cp sv (arrayStep aSt (unsafeChr cp))
+                        _ -> return $ FreshPoint cp sv (return aSt)
+
+    {-# INLINE step' #-}
+    step' table (FreshPoint codepointPtr statePtr arrayState) x =
+        if statePtr == 0 && x <= 0x7f
+        then do
+            aSt <- arrayState
+            return $ FreshPoint 0 0 (arrayStep aSt (unsafeChr (fromIntegral x)))
+        else
+            let (Tuple' sv cp) = oDecode table statePtr codepointPtr x
+            in
+            case sv of
+                12 ->
+                    transliterateOrError1
+                        table
+                        statePtr
+                        codepointPtr
+                        "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
+                        arrayState
+                        x
+                0 -> do
+                    aSt <- arrayState
+                    return $ FreshPoint cp sv (arrayStep aSt (unsafeChr cp))
+                _ -> return $ FreshPoint cp sv arrayState
+
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow arrayState =
+        case cfm of
+            ErrorOnCodingFailure ->
+                error "Streamly.Internal.Data.Stream.StreamD.foldUtf8: Input Underflow"
+            TransliterateCodingFailure -> do
+                aSt <- arrayStep arrayState replacementChar
+                arrayExtract aSt
+
+    extract (FreshPoint _ statePtr arrayState) = do
+        aSt <- arrayState
+        if statePtr /= 0 then inputUnderflow aSt else arrayExtract aSt
+
+data EscapeState m s
+    = EscapeState (m s)
+    | NotEscapeState !CodePoint !DecodeState (m s)
+
+{-# INLINE_NORMAL escapeFoldUtf8WithE #-}
+escapeFoldUtf8WithE
+    :: Monad m
+    => CodingFailureMode
+    -> Word8
+    -> (Word8 -> Maybe Word8)
+    -> Fold m Char container
+    -> Fold m Word8 container
+escapeFoldUtf8WithE cfm escape trans (FL.Fold arrayStep arrayInit arrayExtract) =
+    let A.Array p _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+    in FL.Fold (step' ptr) (return $ NotEscapeState 0 0 arrayInit) extract
+  where
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e arrayState =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure ->
+                return $ NotEscapeState 0 0 (arrayStep arrayState replacementChar)
+
+    {-# INLINE transliterateOrError1 #-}
+    transliterateOrError1 table statePtr codepointPtr e arrayState x =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> do
+                aS <- arrayState
+                aSt <- arrayStep aS replacementChar
+                if x <= 0x7f
+                    then return $ NotEscapeState 0 0 (arrayStep aSt (unsafeChr (fromIntegral x)))
+                else
+                    let (Tuple' sv cp) = oDecode table statePtr codepointPtr x
+                    in
+                    case sv of
+                        12 -> transliterateOrError e aSt
+                        0 -> return $ NotEscapeState cp sv (arrayStep aSt (unsafeChr cp))
+                        _ -> return $ NotEscapeState cp sv (return aSt)
+
+    step' _ (NotEscapeState _ _ arrayState) c
+        | c == escape = return $ EscapeState arrayState
+
+    step' table (NotEscapeState codepointPtr statePtr arrayState) x =
+        if statePtr == 0 && x <= 0x7f
+        then do
+            aSt <- arrayState
+            return $ NotEscapeState 0 0 (arrayStep aSt (unsafeChr (fromIntegral x)))
+        else
+            let (Tuple' sv cp) = oDecode table statePtr codepointPtr x
+            in
+            case sv of
+                12 ->
+                    transliterateOrError1
+                        table
+                        statePtr
+                        codepointPtr
+                        "Streamly.Streams.StreamD.escapeFoldUtf8With: Invalid UTF8 codepoint encountered"
+                        arrayState
+                        x
+                0 -> do
+                    aSt <- arrayState
+                    return $ NotEscapeState cp sv (arrayStep aSt (unsafeChr cp))
+                _ -> return $ NotEscapeState cp sv arrayState
+
+    step' _ (EscapeState arrayState) c = do
+        aSt <- arrayState
+        case trans c of
+            Just x ->
+                return $
+                NotEscapeState 0 0 (arrayStep aSt (unsafeChr (fromIntegral x)))
+            Nothing ->
+                transliterateOrError
+                    "Streamly.Streams.StreamD.escapeFoldUtf8With: Invalid UTF8 codepoint encountered"
+                    aSt
+
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow arrayState =
+        case cfm of
+            ErrorOnCodingFailure ->
+                error "Streamly.Internal.Data.Stream.StreamD.escapeFoldUtf8With: Input Underflow"
+            TransliterateCodingFailure -> do
+                aSt <- arrayStep arrayState replacementChar
+                arrayExtract aSt
+
+    extract (NotEscapeState _ statePtr arrayState) = do
+        aSt <- arrayState
+        if statePtr /= 0
+            then inputUnderflow aSt
+            else arrayExtract aSt
+
+    extract (EscapeState arrayState) = do
+        aSt <- arrayState
+        inputUnderflow aSt
+
+{-# INLINE foldUtf8With #-}
+foldUtf8With :: Monad m => Fold m Char container -> Fold m Word8 container
+foldUtf8With = foldUtf8WithE ErrorOnCodingFailure
+
+{-# INLINE escapeFoldUtf8With #-}
+escapeFoldUtf8With ::
+       Monad m
+    => Word8
+    -> (Word8 -> Maybe Word8)
+    -> Fold m Char container
+    -> Fold m Word8 container
+escapeFoldUtf8With = escapeFoldUtf8WithE ErrorOnCodingFailure
