@@ -10,7 +10,7 @@
 module Streamly.Test.Prelude.Serial where
 
 import Control.Concurrent ( threadDelay )
-import Control.Monad ( when )
+import Control.Monad ( when, forM_ )
 import Data.Function ( (&) )
 import Data.IORef ( newIORef, readIORef, writeIORef )
 import Data.Int (Int64)
@@ -115,75 +115,32 @@ seqSplitterProperties ::
 seqSplitterProperties sep desc = do
     describe (desc <> " splitOnSeq")
         $ do
-            -- Empty seperator
-            intercalateSplitEqId 0
-            intercalateSplitEqIdS 0
-            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 0
-            concatSplitIntercalateEqConcatS splitOnSeq_ IS.intercalate 0
 
-            -- Single element seperator
-            intercalateSplitEqId 1
-            intercalateSplitEqIdS 1
-            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 1
-            concatSplitIntercalateEqConcatS splitOnSeq_ IS.intercalate 1
-
-            -- Shift Or
-            intercalateSplitEqId 2
-            intercalateSplitEqIdS 2
-            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 2
-            concatSplitIntercalateEqConcatS splitOnSeq_ IS.intercalate 2
-
-            -- Karp-Rabin
-            intercalateSplitEqId 4
-            intercalateSplitEqIdS 4
-            concatSplitIntercalateEqConcat splitOnSeq_ intercalate 4
-            concatSplitIntercalateEqConcatS splitOnSeq_ IS.intercalate 4
+            forM_ [0, 1, 2, 4] $ intercalateSplitEqId
+            forM_ [0, 1, 2, 4]
+                $ concatSplitIntercalateEqConcat
+                      splitOnSeq_
+                      intercalate
+                      IS.intercalate
 
             -- Exclusive case
-            splitIntercalateEqId splitOnSeq_ intercalate
-            splitIntercalateEqIdS splitOnSeq_ IS.intercalate
+            splitIntercalateEqId splitOnSeq_ intercalate IS.intercalate
 
     describe (desc <> " splitOnSuffixSeq")
         $ do
-            -- Empty seperator
-            intercalateSplitEqIdNoSepEnd 0
-            intercalateSplitEqIdNoSepEndS 0
-            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 0
-            concatSplitIntercalateEqConcatS
-                splitOnSuffixSeq_
-                IS.intercalateSuffix
-                0
 
-            -- Single element seperator
-            intercalateSplitEqIdNoSepEnd 1
-            intercalateSplitEqIdNoSepEndS 1
-            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 1
-            concatSplitIntercalateEqConcatS
-                splitOnSuffixSeq_
-                IS.intercalateSuffix
-                1
-
-            -- Shift Or
-            intercalateSplitEqIdNoSepEnd 2
-            intercalateSplitEqIdNoSepEndS 2
-            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 2
-            concatSplitIntercalateEqConcatS
-                splitOnSuffixSeq_
-                IS.intercalateSuffix
-                2
-
-            -- Karp-Rabin
-            intercalateSplitEqIdNoSepEnd 4
-            intercalateSplitEqIdNoSepEndS 4
-            concatSplitIntercalateEqConcat splitOnSuffixSeq_ intercalateSuffix 4
-            concatSplitIntercalateEqConcatS
-                splitOnSuffixSeq_
-                IS.intercalateSuffix
-                4
+            forM_ [0, 1, 2, 4] $ intercalateSplitEqIdNoSepEnd
+            forM_ [0, 1, 2, 4]
+                $ concatSplitIntercalateEqConcat
+                      splitOnSuffixSeq_
+                      intercalateSuffix
+                      IS.intercalateSuffix
 
             -- Exclusive case
-            splitIntercalateEqId splitOnSuffixSeq_ intercalateSuffix
-            splitIntercalateEqIdS splitOnSuffixSeq_ IS.intercalateSuffix
+            splitIntercalateEqId
+                splitOnSuffixSeq_
+                intercalateSuffix
+                IS.intercalateSuffix
 
     where
 
@@ -216,34 +173,19 @@ seqSplitterProperties sep desc = do
                     <> show i <> " element separator)"
          in prop name
                 $ forAll listWithSep
-                $ \xs -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              ys <- splitOnSeq_ xs (replicate i sep)
-                              listEquals
-                                  (==)
-                                  (intercalate (replicate i sep) ys)
-                                  xs
+                $ \xs -> withMaxSuccess maxTestCount $ monadicIO $ testCase xs
 
-    intercalateSplitEqIdS i =
-        let name =
-                "S.intercalate . splitOnSeq == id ("
-                    <> show i <> " element separator)"
-         in prop name
-                $ forAll listWithSep
-                $ \xs -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              ys <- splitOnSeq_ xs (replicate i sep)
-                              zs <-
-                                  IS.toList
-                                      $ IS.intercalate
-                                      (replicate i sep)
-                                      UF.fromList
-                                      $ IS.fromList ys
-                              listEquals (==) zs xs
+        where
+
+        testCase xs = do
+            ys <- splitOnSeq_ xs (replicate i sep)
+            szs <-
+                IS.toList
+                    $ IS.intercalate (replicate i sep) UF.fromList
+                    $ IS.fromList ys
+            let lzs = intercalate (replicate i sep) ys
+            listEquals (==) szs xs
+            listEquals (==) lzs xs
 
     intercalateSplitEqIdNoSepEnd i =
         let name =
@@ -253,100 +195,60 @@ seqSplitterProperties sep desc = do
                 $ forAll ((,) <$> listWithSep <*> nonSepElem)
                 $ \(xs_, nonSep) -> do
                       let xs = xs_ ++ [nonSep]
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              ys <- splitOnSuffixSeq_ xs (replicate i sep)
-                              listEquals
-                                  (==)
-                                  (intercalate (replicate i sep) ys)
-                                  xs
+                      withMaxSuccess maxTestCount $ monadicIO $ testCase xs
 
-    intercalateSplitEqIdNoSepEndS i =
-        let name =
-                "S.intercalate . splitOnSuffixSeq_ . (++ [x \\= sep]) == id ("
-                    <> show i <> " element separator)"
-         in prop name
-                $ forAll ((,) <$> listWithSep <*> nonSepElem)
-                $ \(xs_, nonSep) -> do
-                      let xs = xs_ ++ [nonSep]
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              ys <- splitOnSuffixSeq_ xs (replicate i sep)
-                              zs <-
-                                  IS.toList
-                                      $ IS.intercalate
-                                      (replicate i sep)
-                                      UF.fromList
-                                      $ IS.fromList ys
-                              listEquals (==) zs xs
+        where
 
-    concatSplitIntercalateEqConcat splitter intercalater i =
-        let name =
-                "concat . splitter . intercalater == "
-                    <> "concat ("
-                    <> show i <> " element separator/possibly empty list)"
-         in prop name
-                $ forAll listsWithoutSep
-                $ \xss -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              let xs = intercalater (replicate i sep) xss
-                              ys <- splitter xs (replicate i sep)
-                              listEquals (==) (concat ys) (concat xss)
+        testCase xs = do
+            ys <- splitOnSuffixSeq_ xs (replicate i sep)
+            szs <-
+                IS.toList
+                    $ IS.intercalate (replicate i sep) UF.fromList
+                    $ IS.fromList ys
+            let lzs = intercalate (replicate i sep) ys
+            listEquals (==) szs xs
+            listEquals (==) lzs xs
 
-    concatSplitIntercalateEqConcatS splitter intercalater i =
+    concatSplitIntercalateEqConcat splitter lintercalater sintercalater i =
         let name =
                 "concat . splitter . S.intercalater == "
                     <> "concat ("
                     <> show i <> " element separator/possibly empty list)"
          in prop name
                 $ forAll listsWithoutSep
-                $ \xss -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              xs <-
-                                  S.toList
-                                      $ intercalater
-                                      (replicate i sep)
-                                      UF.fromList
-                                      $ S.fromList xss
-                              ys <- splitter xs (replicate i sep)
-                              listEquals (==) (concat ys) (concat xss)
+                $ \xss -> withMaxSuccess maxTestCount $ monadicIO $ testCase xss
 
-    splitIntercalateEqId splitter intercalater =
+        where
+
+        testCase xss = do
+            let lxs = lintercalater (replicate i sep) xss
+            lys <- splitter lxs (replicate i sep)
+            sxs <-
+                S.toList
+                    $ sintercalater (replicate i sep) UF.fromList
+                    $ S.fromList xss
+            sys <- splitter sxs (replicate i sep)
+            listEquals (==) (concat lys) (concat xss)
+            listEquals (==) (concat sys) (concat xss)
+
+    splitIntercalateEqId splitter lintercalater sintercalater =
         let name =
                 "splitter . intercalater == id"
                     <> " (exclusive separator/non-empty list)"
          in prop name
                 $ forAll listsWithoutSep1
                 $ \xss -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              let xs = intercalater [sep] xss
-                              ys <- splitter xs [sep]
-                              listEquals (==) ys xss
+                      withMaxSuccess maxTestCount $ monadicIO $ testCase xss
 
-    splitIntercalateEqIdS splitter intercalater =
-        let name =
-                "splitter . intercalater == id"
-                    <> " (exclusive separator/non-empty list)"
-         in prop name
-                $ forAll listsWithoutSep1
-                $ \xss -> do
-                      withMaxSuccess maxTestCount
-                          $ monadicIO
-                          $ do
-                              xs <-
-                                  S.toList
-                                      $ intercalater [sep] UF.fromList
-                                      $ S.fromList xss
-                              ys <- splitter xs [sep]
-                              listEquals (==) ys xss
+        where
+
+        testCase xss = do
+            let lxs = lintercalater [sep] xss
+            lys <- splitter lxs [sep]
+            sxs <- S.toList $ sintercalater [sep] UF.fromList $ S.fromList xss
+            sys <- splitter sxs [sep]
+            listEquals (==) lys xss
+            listEquals (==) sys xss
 
 
 groupSplitOps :: String -> Spec
