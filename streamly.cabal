@@ -665,16 +665,16 @@ test-suite Prelude.MaxRate
   else
     buildable: False
 
-test-suite array-test
+test-suite Data.Array.Storable.Foreign
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   cpp-options: -DTEST_ARRAY
 
-test-suite internal-data-fold-test
+test-suite Data.Fold
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Internal/Data/Fold.hs
+  main-is: Streamly/Test/Data/Fold.hs
 
 test-suite Data.Unfold
   import: test-options
@@ -682,41 +682,41 @@ test-suite Data.Unfold
   main-is: Streamly/Test/Data/Unfold.hs
   hs-source-dirs: test
 
-test-suite internal-data-parser-test
+test-suite Data.Parser
   import: test-options
   ghc-options: -O2
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
 
-test-suite internal-data-parser-parserd-test
+test-suite Data.Parser.ParserD
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
 
-test-suite data-array-test
+test-suite Data.Array
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
 
-test-suite smallarray-test
+test-suite Data.SmallArray
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   cpp-options: -DTEST_SMALL_ARRAY
 
-test-suite primarray-test
+test-suite Data.Array.Prim
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   cpp-options: -DDATA_ARRAY_PRIM
 
-test-suite prim-pinned-array-test
+test-suite Data.Array.Prim.Pinned
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
 
-test-suite Streamly.Test.Unicode.Stream
+test-suite Unicode.Stream
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Stream.hs
