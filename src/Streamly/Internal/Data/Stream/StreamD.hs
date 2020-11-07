@@ -1801,6 +1801,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
     | SplitOnSeqKRInit Int s rb !rh
     | SplitOnSeqKRLoop fs s rb !rh !ck
+    | SplitOnSeqKRCheck fs s rb !rh
     | SplitOnSeqKRDone Int !fs rb !rh
 
 {-# INLINE_NORMAL splitOnSeq #-}
@@ -1983,27 +1984,15 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 then do
                     let fold = RB.unsafeFoldRing (RB.ringBound rb)
                     let !ringHash = fold addCksum 0 rb
+                    fs <- initial
                     if ringHash == patHash
-                    then do
-                        r <- initial >>= done
-                        let next = SplitOnSeqKRInit 0 s rb rh1
-                        -- XXX We need a direct yield here otherwise GHC is not
-                        -- able to fuse the code. This GHC issue needs to be
-                        -- investigated. We should know why.
-                        return $ Yield r next
-                    else do
-                        fs <- initial
-                        skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
+                    then skip $ SplitOnSeqKRCheck fs s rb rh1
+                    else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
                 else skip $ SplitOnSeqKRInit (idx + 1) s rb rh1
             Skip s -> skip $ SplitOnSeqKRInit idx s rb rh
             Stop -> do
                 fs <- initial
-                let rh1 = RB.moveBy (0 - idx) rb (rh :: Ptr a)
-                if idx /= 0
-                then skip $ SplitOnSeqKRDone idx fs rb rh1
-                else do
-                    r <- done fs
-                    skip $ SplitOnSeqYield r SplitOnSeqDone
+                skip $ SplitOnSeqKRDone idx fs rb (RB.startOf rb)
 
     -- XXX The recursive "go" is more efficient than the state based recursion
     -- code commented out below. Perhaps its more efficient because of
@@ -2021,13 +2010,10 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                     old <- liftIO $ peek rh
                     let cksum1 = deltaCksum cksum old x
                     fs1 <- fstep fs old
+                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
                     if (cksum1 == patHash)
-                    then do
-                        r <- done fs1
-                        skip $ SplitOnSeqYield r $ SplitOnSeqKRInit 0 s rb rh
-                    else do
-                        rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                        go SPEC fs1 s rh1 cksum1
+                    then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                    else go SPEC fs1 s rh1 cksum1
                 Skip s -> go SPEC fs s rh cksum
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
 
@@ -2056,6 +2042,14 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 Skip s -> skip $ SplitOnSeqKRLoop fs s rb rh cksum
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
     -}
+
+    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
+        if RB.unsafeEqArray rb rh patArr
+        then do
+            r <- done fs
+            let next = SplitOnSeqKRInit 0 st rb (RB.startOf rb)
+            skip $ SplitOnSeqYield r next
+        else skip $ SplitOnSeqKRLoop fs st rb rh patHash
     stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
         r <- done fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
