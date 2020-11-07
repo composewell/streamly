@@ -14,6 +14,7 @@ module Streamly.Memory.Ring
     , new
     , advance
     , moveBy
+    , startOf
 
     -- * Modification
     , unsafeInsert
@@ -57,6 +58,10 @@ data Ring a = Ring
     { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
     , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
     }
+
+-- | Get the first address of the ring as a pointer.
+startOf :: Ring a -> Ptr a
+startOf = unsafeForeignPtrToPtr . ringStart
 
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
