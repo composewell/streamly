@@ -84,7 +84,7 @@ splitOnSeq = do
 splitOnSuffixSeq :: Spec
 splitOnSuffixSeq = do
     describe "Tests for splitOnSuffixSeq" $ do
-        it "splitSuffixOn_ \".\" \"\" [\"\"]"
+        it "splitSuffixOn_ \".\" \"\" []"
           $ splitSuffixOn_ "." "" `shouldReturn` []
         it "splitSuffixOn_ \".\" \".\" [\"\"]"
           $ splitSuffixOn_ "." "." `shouldReturn` [""]
