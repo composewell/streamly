@@ -2050,14 +2050,10 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
             let next = SplitOnSeqKRInit 0 st rb (RB.startOf rb)
             skip $ SplitOnSeqYield r next
         else skip $ SplitOnSeqKRLoop fs st rb rh patHash
-    stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
-        r <- done fs
-        skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
-        old <- liftIO $ peek rh
-        let rh1 = RB.advance rb rh
-        fs1 <- fstep fs old
-        skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
+        fs1 <- RB.unsafeFoldRingNM n rh fstep fs rb
+        r <- done fs1
+        return $ Yield r SplitOnSeqDone
 
 data SplitOnState1 s a =
       GO_START1
