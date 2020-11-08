@@ -23,6 +23,7 @@ module Streamly.Memory.Ring
     , unsafeFoldRing
     , unsafeFoldRingM
     , unsafeFoldRingFullM
+    , unsafeFoldRingNM
 
     -- * Fast Byte Comparisons
     , unsafeEqArray
@@ -209,6 +210,9 @@ unsafeFoldRingM ptr f z Ring {..} =
 -- pointer.  Assuming the supplied ringHead pointer points to the oldest item,
 -- this would fold the ring starting from the oldest item to the newest item in
 -- the ring.
+--
+-- Note, this will crash on ring of 0 size.
+--
 {-# INLINE unsafeFoldRingFullM #-}
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
@@ -222,3 +226,25 @@ unsafeFoldRingFullM rh f z rb@Ring {..} =
         if ptr == rh
             then return acc'
             else go acc' ptr
+
+-- | Fold @Int@ items in the ring starting at @Ptr a@.  Won't fold more
+-- than the length of the ring.
+--
+-- Note, this will crash on ring of 0 size.
+--
+{-# INLINE unsafeFoldRingNM #-}
+unsafeFoldRingNM :: forall m a b. (MonadIO m, Storable a)
+    => Int -> Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingNM count rh f z rb@Ring {..} =
+    withForeignPtrM ringStart $ \_ -> go count z rh
+
+    where
+
+    go 0 acc _ = return acc
+    go !n !acc !start = do
+        let !x = A.unsafeInlineIO $ peek start
+        acc' <- f acc x
+        let ptr = advance rb start
+        if ptr == rh || n == 0
+            then return acc'
+            else go (n - 1) acc' ptr
