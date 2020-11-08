@@ -320,7 +320,6 @@ import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Word (Word32)
-import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
@@ -1793,6 +1792,8 @@ data SplitOnSeqState rb rh ck w fs s b x =
     | SplitOnSeqDone
 
     | SplitOnSeqEmpty s
+
+    | SplitOnSeqSingleInit s x
     | SplitOnSeqSingle !fs s x
 
     | SplitOnSeqWordInit s
@@ -1888,6 +1889,9 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     -----------------
     -- Single Pattern
     -----------------
+
+    stepOuter _ (SplitOnSeqSingleInit _ _) =
+        error "This branch should not have hit"
 
     stepOuter gst (SplitOnSeqSingle fs st pat) = do
         res <- step (adaptState gst) st
@@ -2059,14 +2063,6 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         fs1 <- fstep fs old
         skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
 
-data SplitOnState1 s a =
-      GO_START1
-    | GO_EMPTY_PAT1 s
-    | GO_SINGLE_PAT s a
-    | GO_SHORT_PAT s
-    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
-    | GO_DONE1
-
 {-# INLINE_NORMAL splitSuffixOn #-}
 splitSuffixOn
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
@@ -2075,9 +2071,8 @@ splitSuffixOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitSuffixOn withSep patArr (Fold fstep initial done)
-                (Stream step state) =
-    Stream stepOuter GO_START1
+splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
+    Stream stepOuter SplitOnSeqInit
 
     where
 
@@ -2085,248 +2080,332 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
 
+    -- For word pattern case
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    -- For Rabin-Karp search
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    -- XXX shall we use a random starting hash or 1 instead of 0?
+    patHash = A.foldl' addCksum 0 patArr
+
+    skip = return . Skip
+
     {-# INLINE_LATE stepOuter #-}
-    stepOuter _ GO_START1 =
+    stepOuter _ SplitOnSeqInit =
         if patLen == 0
-        then return $ Skip $ GO_EMPTY_PAT1 state
+        then return $ Skip $ SplitOnSeqEmpty state
         else if patLen == 1
              then do
-                r <- liftIO $ (A.unsafeIndexIO patArr 0)
-                return $ Skip $ GO_SINGLE_PAT state r
+                 let !pat = A.unsafeIndex patArr 0
+                 return $ Skip $ SplitOnSeqSingleInit state pat
              else if sizeOf (undefined :: a) * patLen
-                    <= sizeOf (undefined :: Word)
-                  then return $ Skip $ GO_SHORT_PAT state
+                       <= sizeOf (undefined :: Word)
+                  then return $ Skip $ SplitOnSeqWordInit state
                   else do
-                    (rb, rhead) <- liftIO $ RB.new patLen
-                    return $ Skip $ GO_KARP_RABIN state rb rhead
+                      (rb, rhead) <- liftIO $ RB.new patLen
+                      skip $ SplitOnSeqKRInit 0 state rb rhead
 
-    stepOuter gst (GO_SINGLE_PAT stt pat) = do
-        -- This first part is the only difference between splitOn and
-        -- splitSuffixOn.
-        -- If the last element is a separator do not issue a blank segment.
-        res <- step (adaptState gst) stt
-        case res of
-            Yield x s -> do
-                acc <- initial
-                if pat == x
-                then do
-                    acc' <- if withSep then fstep acc x else return acc
-                    done acc' >>= \r -> return $ Yield r (GO_SINGLE_PAT s pat)
-                else fstep acc x >>= go SPEC s
-            Skip s    -> return $ Skip $ (GO_SINGLE_PAT s pat)
-            Stop      -> return Stop
+    stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
 
-        where
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
 
-        -- This is identical for splitOn and splitSuffixOn
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    if pat == x
-                    then do
-                        acc' <- if withSep then fstep acc x else return acc
-                        r <- done acc'
-                        return $ Yield r (GO_SINGLE_PAT s pat)
-                    else fstep acc x >>= go SPEC s
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE1
-
-    stepOuter gst (GO_SHORT_PAT stt) = do
-
-        -- Call "initial" only if the stream yields an element, otherwise we
-        -- may call "initial" but never yield anything. initial may produce a
-        -- side effect, therefore we will end up doing and discard a side
-        -- effect.
-
-        let idx = 0
-        let wrd = 0
-        res <- step (adaptState gst) stt
-        case res of
-            Yield x s -> do
-                acc <- initial
-                let wrd' = addToWord wrd x
-                acc' <- if withSep then fstep acc x else return acc
-                if idx == maxIndex
-                then do
-                    if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
-                    else go0 SPEC (idx + 1) wrd' s acc'
-                else go0 SPEC (idx + 1) wrd' s acc'
-            Skip s -> return $ Skip (GO_SHORT_PAT s)
-            Stop -> return Stop
-
-        where
-
-        mask :: Word
-        mask = (1 `shiftL` (elemBits * patLen)) - 1
-
-        addToWord wrd a = (wrd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
-
-        patWord :: Word
-        patWord = mask .&. A.foldl' addToWord 0 patArr
-
-        go0 !_ !idx wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                    acc' <- if withSep then fstep acc x else return acc
-                    if idx == maxIndex
-                    then do
-                        if wrd' .&. mask == patWord
-                        then do
-                            r <- done acc'
-                            return $ Yield r (GO_SHORT_PAT s)
-                        else go1 SPEC wrd' s acc'
-                    else go0 SPEC (idx + 1) wrd' s acc'
-                Skip s -> go0 SPEC idx wrd s acc
-                Stop -> do
-                    if (idx == maxIndex) && (wrd .&. mask == patWord)
-                    then return Stop
-                    else do
-                        acc' <- if idx /= 0 && not withSep
-                                then go2 wrd idx acc
-                                else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE1
-
-        {-# INLINE go1 #-}
-        go1 !_ wrd st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    let wrd' = addToWord wrd x
-                        old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-                    acc' <- if withSep
-                            then fstep acc x
-                            else fstep acc (toEnum $ fromIntegral old)
-                    if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
-                    else go1 SPEC wrd' s acc'
-                Skip s -> go1 SPEC wrd s acc
-                Stop ->
-                    -- If the last sequence is a separator do not issue a blank
-                    -- segment.
-                    if wrd .&. mask == patWord
-                    then return Stop
-                    else do
-                        acc' <- if withSep
-                                then return acc
-                                else go2 wrd patLen acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE1
-
-        go2 !wrd !n !acc | n > 0 = do
-            let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-            fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
-        go2 _ _ acc = return acc
-
-    stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
-        let idx = 0
-        res <- step (adaptState gst) stt
-        case res of
-            Yield x s -> do
-                acc <- initial
-                acc' <- if withSep then fstep acc x else return acc
-                rh' <- liftIO (RB.unsafeInsert rb rhead x)
-                if idx == maxIndex
-                then do
-                    let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                    let !ringHash = fold addCksum 0 rb
-                    if ringHash == patHash
-                    then go2 SPEC ringHash rh' s acc'
-                    else go0 SPEC (idx + 1) rh' s acc'
-                else go0 SPEC (idx + 1) rh' s acc'
-            Skip s -> return $ Skip (GO_KARP_RABIN s rb rhead)
-            Stop -> return Stop
-
-        where
-
-        k = 2891336453 :: Word32
-        coeff = k ^ patLen
-        addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
-        deltaCksum cksum old new =
-            addCksum cksum new - coeff * fromIntegral (fromEnum old)
-
-        -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' addCksum 0 patArr
-
-        -- rh == ringHead
-        go0 !_ !idx !rh st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    acc' <- if withSep then fstep acc x else return acc
-                    rh' <- liftIO (RB.unsafeInsert rb rh x)
-                    if idx == maxIndex
-                    then do
-                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                        let !ringHash = fold addCksum 0 rb
-                        if ringHash == patHash
-                        then go2 SPEC ringHash rh' s acc'
-                        else go1 SPEC ringHash rh' s acc'
-                    else go0 SPEC (idx + 1) rh' s acc'
-                Skip s -> go0 SPEC idx rh s acc
-                Stop -> do
-                    -- do not issue a blank segment when we end at pattern
-                    if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
-                    then return Stop
-                    else do
-                        !acc' <- if idx /= 0 && not withSep
-                                 then RB.unsafeFoldRingM rh fstep acc rb
-                                 else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE1
-
-        -- XXX Theoretically this code can do 4 times faster if GHC generates
-        -- optimal code. If we use just "(cksum' == patHash)" condition it goes
-        -- 4x faster, as soon as we add the "RB.unsafeEqArray rb v" condition
-        -- the generated code changes drastically and becomes 4x slower. Need
-        -- to investigate what is going on with GHC.
-        {-# INLINE go1 #-}
-        go1 !_ !cksum !rh st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    old <- liftIO $ peek rh
-                    let cksum' = deltaCksum cksum old x
-                    acc' <- if withSep
-                            then fstep acc x
-                            else fstep acc old
-
-                    if (cksum' == patHash)
-                    then do
-                        rh' <- liftIO (RB.unsafeInsert rb rh x)
-                        go2 SPEC cksum' rh' s acc'
-                    else do
-                        rh' <- liftIO (RB.unsafeInsert rb rh x)
-                        go1 SPEC cksum' rh' s acc'
-                Skip s -> go1 SPEC cksum rh s acc
-                Stop -> do
-                    if RB.unsafeEqArray rb rh patArr
-                    then return Stop
-                    else do
-                        acc' <- if withSep
-                                then return acc
-                                else RB.unsafeFoldRingFullM rh fstep acc rb
-                        done acc' >>= \r -> return $ Yield r GO_DONE1
-
-        go2 !_ !cksum' !rh' s !acc' = do
-            if RB.unsafeEqArray rb rh' patArr
-            then do
-                r <- done acc'
-                return $ Yield r (GO_KARP_RABIN s rb rhead)
-            else go1 SPEC cksum' rh' s acc'
-
-    stepOuter gst (GO_EMPTY_PAT1 st) = do
+    stepOuter gst (SplitOnSeqEmpty st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 acc <- initial
-                acc' <- fstep acc x
-                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT1 s)
-            Skip s -> return $ Skip (GO_EMPTY_PAT1 s)
+                acc1 <- fstep acc x
+                r <- done acc1
+                skip $ SplitOnSeqYield r (SplitOnSeqEmpty s)
+            Skip s -> return $ Skip (SplitOnSeqEmpty s)
             Stop -> return Stop
 
-    stepOuter _ GO_DONE1 = return Stop
+    -----------------
+    -- Done
+    -----------------
+
+    stepOuter _ SplitOnSeqDone = return Stop
+
+    -----------------
+    -- Single Pattern
+    -----------------
+
+    stepOuter gst (SplitOnSeqSingleInit st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                fs <- initial
+                if pat == x
+                then do
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        r <- done fs1
+                        let next = SplitOnSeqSingleInit s pat
+                        skip $ SplitOnSeqYield r next
+                    else do
+                        r <- done fs
+                        let next = SplitOnSeqSingleInit s pat
+                        skip $ SplitOnSeqYield r next
+                else do
+                    fs1 <- fstep fs x
+                    skip $ SplitOnSeqSingle fs1 s pat
+            Skip s -> return $ Skip $ (SplitOnSeqSingleInit s pat)
+            Stop -> return Stop
+
+    stepOuter gst (SplitOnSeqSingle fs st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                if pat == x
+                then do
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        r <- done fs1
+                        let next = SplitOnSeqSingleInit s pat
+                        skip $ SplitOnSeqYield r next
+                    else do
+                        r <- done fs
+                        let next = SplitOnSeqSingleInit s pat
+                        skip $ SplitOnSeqYield r next
+                else do
+                    fs1 <- fstep fs x
+                    return $ Skip $ (SplitOnSeqSingle fs1 s pat)
+            Skip s -> return $ Skip $ SplitOnSeqSingle fs s pat
+            Stop -> do
+                r <- done fs
+                return $ Skip $ SplitOnSeqYield r SplitOnSeqDone
+
+    ---------------------------
+    -- Short Pattern - Shift Or
+    ---------------------------
+
+    stepOuter _ (SplitOnSeqWordDone 0 fs _) = do
+        r <- done fs
+        skip $ SplitOnSeqYield r SplitOnSeqDone
+    stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
+        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        fs1 <- fstep fs (toEnum $ fromIntegral old)
+        skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
+
+    stepOuter gst (SplitOnSeqWordInit st0) = do
+        res <- step (adaptState gst) st0
+        case res of
+            Yield x s -> do
+                fs <- initial
+                let wrd = addToWord 0 x
+                if withSep
+                then do
+                    fs1 <- fstep fs x
+                    go SPEC 1 wrd s fs1
+                else go SPEC 1 wrd s fs
+            Skip s -> return $ Skip (SplitOnSeqWordInit s)
+            Stop -> return Stop
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !idx !wrd !st !fs = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        if idx == maxIndex
+                        then do
+                            if wrd1 .&. wordMask == wordPat
+                            then do
+                                r <- done fs
+                                let next = SplitOnSeqWordInit s
+                                skip $ SplitOnSeqYield r next
+                            else skip $ SplitOnSeqWordLoop wrd1 s fs1
+                        else go SPEC (idx + 1) wrd1 s fs1
+                    else do
+                        if idx == maxIndex
+                        then do
+                            if wrd1 .&. wordMask == wordPat
+                            then do
+                                r <- done fs
+                                let next = SplitOnSeqWordInit s
+                                skip $ SplitOnSeqYield r next
+                            else skip $ SplitOnSeqWordLoop wrd1 s fs
+                        else go SPEC (idx + 1) wrd1 s fs
+                Skip s -> go SPEC idx wrd s fs
+                Stop -> skip $ SplitOnSeqWordDone idx fs wrd
+
+    stepOuter gst (SplitOnSeqWordLoop wrd0 st0 fs0) =
+        go SPEC wrd0 st0 fs0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !wrd !st !fs = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                        old = (wordMask .&. wrd)
+                                `shiftR` (elemBits * (patLen - 1))
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        if wrd1 .&. wordMask == wordPat
+                        then do
+                            r <- done fs1
+                            let next = SplitOnSeqWordInit s
+                            skip $ SplitOnSeqYield r next
+                        else go SPEC wrd1 s fs1
+                    else do
+                        fs1 <- fstep fs (toEnum $ fromIntegral old)
+                        if wrd1 .&. wordMask == wordPat
+                        then do
+                            r <- done fs1
+                            let next = SplitOnSeqWordInit s
+                            skip $ SplitOnSeqYield r next
+                        else go SPEC wrd1 s fs1
+                Skip s -> go SPEC wrd s fs
+                Stop ->
+                    if wrd .&. wordMask == wordPat
+                    then return Stop
+                    else
+                        if withSep
+                        then do
+                            r <- done fs
+                            skip $ SplitOnSeqYield r SplitOnSeqDone
+                        else skip $ SplitOnSeqWordDone patLen fs wrd
+
+    -------------------------------
+    -- General Pattern - Karp Rabin
+    -------------------------------
+
+    stepOuter gst (SplitOnSeqKRInit idx0 st0 rb rh0) = do
+        res <- step (adaptState gst) st0
+        case res of
+            Yield x s -> do
+                rh1 <- liftIO $ RB.unsafeInsert rb rh0 x
+                fs <- initial
+                if withSep
+                then do
+                    fs1 <- fstep fs x
+                    go SPEC 1 rh1 s fs1
+                else go SPEC 1 rh1 s fs
+            Skip s -> skip $ SplitOnSeqKRInit idx0 s rb rh0
+            Stop -> return Stop
+
+        where
+
+        go !_ !idx !rh st !fs = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        if idx == maxIndex
+                        then do
+                            let fold = RB.unsafeFoldRing (RB.ringBound rb)
+                            let !ringHash = fold addCksum 0 rb
+                            if ringHash == patHash
+                            then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                            else skip $ SplitOnSeqKRLoop fs1 s rb rh1 ringHash
+                        else go SPEC (idx + 1) rh1 s fs1
+                    else
+                        if idx == maxIndex
+                        then do
+                            let fold = RB.unsafeFoldRing (RB.ringBound rb)
+                            let !ringHash = fold addCksum 0 rb
+                            if ringHash == patHash
+                            then skip $ SplitOnSeqKRCheck fs s rb rh1
+                            else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
+                        else go SPEC (idx + 1) rh1 s fs
+                Skip s -> go SPEC idx rh s fs
+                Stop -> do
+                    -- do not issue a blank segment when we end at pattern
+                    if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
+                    then return Stop
+                    else
+                        if withSep
+                        then do
+                            r <- done fs
+                            skip $ SplitOnSeqYield r SplitOnSeqDone
+                        else skip $ SplitOnSeqKRDone idx fs rb (RB.startOf rb)
+
+    -- XXX The recursive "go" is more efficient than the state based recursion
+    -- code commented out below. Perhaps its more efficient because of
+    -- factoring out "rb" outside the loop.
+    --
+    stepOuter gst (SplitOnSeqKRLoop fs0 st0 rb rh0 cksum0) =
+        go SPEC fs0 st0 rh0 cksum0
+
+        where
+
+        go !_ !fs !st !rh !cksum = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    old <- liftIO $ peek rh
+                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                    let cksum1 = deltaCksum cksum old x
+                    if withSep
+                    then do
+                        fs1 <- fstep fs x
+                        if (cksum1 == patHash)
+                        then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                        else go SPEC fs1 s rh1 cksum1
+                    else do
+                        fs1 <- fstep fs old
+                        if (cksum1 == patHash)
+                        then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                        else go SPEC fs1 s rh1 cksum1
+                Skip s -> go SPEC fs s rh cksum
+                Stop ->
+                    if RB.unsafeEqArray rb rh patArr
+                    then return Stop
+                    else
+                        if withSep
+                        then do
+                            r <- done fs
+                            skip $ SplitOnSeqYield r SplitOnSeqDone
+                        else skip $ SplitOnSeqKRDone patLen fs rb rh
+
+    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
+        if RB.unsafeEqArray rb rh patArr
+        then do
+            r <- done fs
+            let next = SplitOnSeqKRInit 0 st rb (RB.startOf rb)
+            skip $ SplitOnSeqYield r next
+        else skip $ SplitOnSeqKRLoop fs st rb rh patHash
+
+    stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
+        r <- done fs
+        skip $ SplitOnSeqYield r SplitOnSeqDone
+    stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
+        old <- liftIO $ peek rh
+        let rh1 = RB.advance rb rh
+        fs1 <- fstep fs old
+        skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
 
 data SplitState s arr
     = SplitInitial s
