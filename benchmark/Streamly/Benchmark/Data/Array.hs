@@ -44,7 +44,9 @@ benchIO name src f = bench name $ nfIO $
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
 benchIOSrc ::
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
        NFData a =>
+#endif
 #ifdef MEMORY_ARRAY
        Storable a =>
 #endif

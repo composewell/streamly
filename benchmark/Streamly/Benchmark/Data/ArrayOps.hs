@@ -12,7 +12,8 @@
 -- CPP:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_PRIM_ARRAY
+-- DATA_ARRAY_PRIM
+-- DATA_ARRAY_PRIM_PINNED
 -- DATA_SMALLARRAY
 
 module Streamly.Benchmark.Data.ArrayOps where
@@ -23,7 +24,7 @@ import Prelude (Bool, Int, Maybe(..), ($), (+), (.), (==), (>), undefined)
 import qualified Prelude as P
 import qualified Streamly.Prelude as S
 
-#ifndef DATA_PRIM_ARRAY
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
@@ -37,10 +38,13 @@ import qualified GHC.Exts as GHC
 import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 type Stream = A.Array
-#elif defined(DATA_PRIM_ARRAY)
-import qualified Streamly.Internal.Data.Prim.Array as A
-type Stream = A.PrimArray
-#else
+#elif defined(DATA_ARRAY_PRIM)
+import qualified Streamly.Internal.Data.Array.Prim as A
+type Stream = A.Array
+#elif defined(DATA_ARRAY_PRIM_PINNED)
+import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
+type Stream = A.Array
+#elif defined(DATA_ARRAY)
 import qualified Streamly.Internal.Data.Array as A
 type Stream = A.Array
 #endif
@@ -57,7 +61,8 @@ type Stream = A.Array
 -- CPP Common to:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_PRIM_ARRAY
+-- DATA_ARRAY_PRIM
+-- DATA_ARRAY_PRIM_PINNED
 -- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
@@ -92,7 +97,8 @@ sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
 -- CPP Common to:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_PRIM_ARRAY
+-- DATA_ARRAY_PRIM
+-- DATA_ARRAY_PRIM_PINNED
 -------------------------------------------------------------------------------
 
 -- CPP:
@@ -126,7 +132,8 @@ sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
 -- CPP Common to:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_PRIM_ARRAY
+-- DATA_ARRAY_PRIM
+-- DATA_ARRAY_PRIM_PINNED
 -- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
@@ -193,7 +200,7 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 -------------------------------------------------------------------------------
 
 -- CPP:
-#ifndef DATA_PRIM_ARRAY
+#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -221,7 +228,8 @@ foldableSum = P.sum
 -- CPP Common to:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_PRIM_ARRAY
+-- DATA_ARRAY_PRIM
+-- DATA_ARRAY_PRIM_PINNED
 -- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
