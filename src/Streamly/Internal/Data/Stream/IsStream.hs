@@ -4167,33 +4167,43 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.
 --
--- > splitSuffixOn_ pat xs = S.toList $ S.splitSuffixOn (A.fromList pat) (FL.toList) (S.fromList xs)
+-- > splitOnSuffixSeq_ pat xs = S.toList $ S.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 --
--- >>> splitSuffixOn_ "." ""
+-- >>> splitOnSuffixSeq_ "." ""
 -- []
 --
--- >>> splitSuffixOn_ "." "."
+-- >>> splitOnSuffixSeq_ "." "."
 -- [""]
 --
--- >>> splitSuffixOn_ "." "a"
+-- >>> splitOnSuffixSeq_ "." "a"
 -- ["a"]
 --
--- >>> splitSuffixOn_ "." ".a"
+-- >>> splitOnSuffixSeq_ "." ".a"
 -- > ["","a"]
 --
--- >>> splitSuffixOn_ "." "a."
+-- >>> splitOnSuffixSeq_ "." "a."
 -- > ["a"]
 --
--- >>> splitSuffixOn_ "." "a.b"
+-- >>> splitOnSuffixSeq_ "." "a.b"
 -- > ["a","b"]
 --
--- >>> splitSuffixOn_ "." "a.b."
+-- >>> splitOnSuffixSeq_ "." "a.b."
 -- > ["a","b"]
 --
--- >>> splitSuffixOn_ "." "a..b.."
+-- >>> splitOnSuffixSeq_ "." "a..b.."
 -- > ["a","","b",""]
 --
--- > lines = splitSuffixOn "\n"
+-- > lines = splitOnSuffixSeq "\n"
+--
+-- 'splitOnSuffixSeq' is an inverse of 'intercalateSuffix'. The following law
+-- always holds:
+--
+-- > intercalateSuffix . splitOnSuffixSeq == id
+--
+-- The following law holds when the separator is non-empty and contains none of
+-- the elements present in the input lists:
+--
+-- > splitSuffixOn . intercalateSuffix == id
 --
 -- /Internal/
 {-# INLINE splitOnSuffixSeq #-}
@@ -4201,7 +4211,7 @@ splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
-    D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
+    D.fromStreamD $ D.splitOnSuffixSeq False patt f (D.toStreamD m)
 
 {-
 -- | Like 'splitOn' but drops any empty splits.
@@ -4254,32 +4264,32 @@ splitBySeq
 splitBySeq patt f m =
     intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m
 
--- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
+-- | Like 'splitOnSuffixSeq' but keeps the suffix intact in the splits.
 --
--- > splitSuffixOn'_ pat xs = S.toList $ FL.splitSuffixOn' (A.fromList pat) (FL.toList) (S.fromList xs)
+-- > splitWithSuffixSeq'_ pat xs = S.toList $ S.splitWithSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 --
--- >>> splitSuffixOn'_ "." ""
+-- >>> splitWithSuffixSeq' "." ""
 -- [""]
 --
--- >>> splitSuffixOn'_ "." "."
+-- >>> splitWithSuffixSeq' "." "."
 -- ["."]
 --
--- >>> splitSuffixOn'_ "." "a"
+-- >>> splitWithSuffixSeq' "." "a"
 -- ["a"]
 --
--- >>> splitSuffixOn'_ "." ".a"
+-- >>> splitWithSuffixSeq' "." ".a"
 -- > [".","a"]
 --
--- >>> splitSuffixOn'_ "." "a."
+-- >>> splitWithSuffixSeq' "." "a."
 -- > ["a."]
 --
--- >>> splitSuffixOn'_ "." "a.b"
+-- >>> splitWithSuffixSeq' "." "a.b"
 -- > ["a.","b"]
 --
--- >>> splitSuffixOn'_ "." "a.b."
+-- >>> splitWithSuffixSeq' "." "a.b."
 -- > ["a.","b."]
 --
--- >>> splitSuffixOn'_ "." "a..b.."
+-- >>> splitWithSuffixSeq' "." "a..b.."
 -- > ["a.",".","b.","."]
 --
 -- /Internal/
@@ -4288,16 +4298,16 @@ splitWithSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
-    D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
+    D.fromStreamD $ D.splitOnSuffixSeq True patt f (D.toStreamD m)
 
 {-
 -- This can be implemented easily using Rabin Karp
 -- | Split post any one of the given patterns.
-{-# INLINE splitSuffixOnAny #-}
-splitSuffixOnAny
+{-# INLINE splitOnSuffixSeqAny #-}
+splitOnSuffixSeqAny
     :: (IsStream t, Monad m, Storable a, Integral a)
     => [Array a] -> Fold m a b -> t m a -> t m b
-splitSuffixOnAny subseq f m = undefined
+splitOnSuffixSeqAny subseq f m = undefined
     -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
 -}
 
