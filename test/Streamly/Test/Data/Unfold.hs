@@ -350,11 +350,7 @@ concatMapM =
     let unfInF b =
             modify (+ 1)
                 >> return
-                      (UF.lmap
-                           (\() -> undefined)
-                           (UF.supply
-                                (UF.replicateM 10)
-                                (modify (+ 1) >> return b)))
+                      (UF.supply (UF.replicateM 10) (modify (+ 1) >> return b))
         listInF b = replicate 10 b
         unfOut = UF.enumerateFromToIntegral 10
         unf = UF.concatMapM unfInF unfOut

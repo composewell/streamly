@@ -1031,7 +1031,7 @@ data ConcatMapState s1 s2 = ConcatMapOuter s1 | ConcatMapInner s1 s2
 --
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m
-    => (b -> m (Unfold m () c)) -> Unfold m a b -> Unfold m a c
+    => (b -> m (Unfold m Void c)) -> Unfold m a b -> Unfold m a c
 concatMapM f (Unfold step1 inject1) = Unfold step inject
     where
     inject x = do
@@ -1044,7 +1044,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
         case r of
             Yield x s -> do
                 Unfold step2 inject2 <- f x
-                innerSt <- inject2 ()
+                innerSt <- inject2 undefined
                 return $ Skip (ConcatMapInner s (Stream (\_ ss -> step2 ss)
                                                         innerSt))
             Skip s    -> return $ Skip (ConcatMapOuter s)
