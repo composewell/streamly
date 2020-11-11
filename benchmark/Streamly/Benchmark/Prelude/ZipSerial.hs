@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Prelude hiding (zip)
+import Prelude hiding (zipWith)
 
 import Streamly.Prelude (MonadAsync)
 import qualified Streamly.Prelude  as S
@@ -54,9 +54,9 @@ sourceUnfoldrM count start = S.unfoldrM step start
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE zip #-}
-zip :: Int -> Int -> IO ()
-zip count n =
+{-# INLINE zipWith #-}
+zipWith :: Int -> Int -> IO ()
+zipWith count n =
     S.drain $
     S.zipWith
         (,)
@@ -64,14 +64,14 @@ zip count n =
         (S.serially $ sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zip
-inspect $ 'zip `hasNoType` ''SPEC
-inspect $ 'zip `hasNoType` ''D.Step
+inspect $ hasNoTypeClasses 'zipWith
+inspect $ 'zipWith `hasNoType` ''SPEC
+inspect $ 'zipWith `hasNoType` ''D.Step
 #endif
 
-{-# INLINE zipM #-}
-zipM :: Int -> Int -> IO ()
-zipM count n =
+{-# INLINE zipWithM #-}
+zipWithM :: Int -> Int -> IO ()
+zipWithM count n =
     S.drain $
     S.zipWithM
         (curry return)
@@ -79,16 +79,16 @@ zipM count n =
         (sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zipM
-inspect $ 'zipM `hasNoType` ''SPEC
-inspect $ 'zipM `hasNoType` ''D.Step
+inspect $ hasNoTypeClasses 'zipWithM
+inspect $ 'zipWithM `hasNoType` ''SPEC
+inspect $ 'zipWithM `hasNoType` ''D.Step
 #endif
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
-        [ benchIOSrc1 "zip (2,x/2)" (zip (value `div` 2))
-        , benchIOSrc1 "zipM (2,x/2)" (zipM (value `div` 2))
+        [ benchIOSrc1 "zip (2,x/2)" (zipWith (value `div` 2))
+        , benchIOSrc1 "zipM (2,x/2)" (zipWithM (value `div` 2))
         ]
     ]
 

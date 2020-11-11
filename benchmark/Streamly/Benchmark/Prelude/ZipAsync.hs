@@ -22,14 +22,14 @@ moduleName = "Prelude.ZipAsync"
 -- Zipping
 -------------------------------------------------------------------------------
 
-{-# INLINE zipAsync #-}
-zipAsync :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
-zipAsync count n =
+{-# INLINE zipAsyncWith #-}
+zipAsyncWith :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
+zipAsyncWith count n =
     S.zipAsyncWith (,) (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
-{-# INLINE zipAsyncM #-}
-zipAsyncM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
-zipAsyncM count n =
+{-# INLINE zipAsyncWithM #-}
+zipAsyncWithM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
+zipAsyncWithM count n =
     S.zipAsyncWithM
         (curry return)
         (sourceUnfoldrM count n)
@@ -44,8 +44,10 @@ zipAsyncAp count n =
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
-        [ benchIOSrc serially "zipAsync (2,x/2)" (zipAsync (value `div` 2))
-        , benchIOSrc serially "zipAsyncM (2,x/2)" (zipAsyncM (value `div` 2))
+        [ benchIOSrc serially "zipAsyncWith (2,x/2)" (zipAsyncWith
+                                                      (value `div` 2))
+        , benchIOSrc serially "zipAsyncWithM (2,x/2)" (zipAsyncWithM
+                                                       (value `div` 2))
         , benchIOSrc serially "zipAsyncAp (2,x/2)" (zipAsyncAp (value `div` 2))
         , benchIOSink value "fmap zipAsyncly" $ fmapN S.zipAsyncly 1
         ]
