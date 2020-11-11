@@ -437,9 +437,9 @@ foldrMElem e =
                  else xs)
         (return P.False)
 
-{-# INLINE foldrMToStream #-}
-foldrMToStream :: Monad m => SerialT m Int -> m (SerialT Identity Int)
-foldrMToStream = S.foldr S.cons S.nil
+{-# INLINE foldrToStream #-}
+foldrToStream :: Monad m => SerialT m Int -> m (SerialT Identity Int)
+foldrToStream = S.foldr S.cons S.nil
 
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => SerialT m Int -> m [Int]
@@ -573,8 +573,8 @@ o_1_space_elimination_folds value =
                   ]
             , bgroup "Identity"
                   [ benchIdentitySink value "foldrMElem" (foldrMElem value)
-                  , benchIdentitySink value "foldrMToStreamLength"
-                        (S.length . runIdentity . foldrMToStream)
+                  , benchIdentitySink value "foldrToStreamLength"
+                        (S.length . runIdentity . foldrToStream)
                   , benchPureSink value "foldrMToListLength"
                         (P.length . runIdentity . foldrMBuild)
                   ]
@@ -855,9 +855,9 @@ o_n_space_traversable value =
 -- maps and scans
 -------------------------------------------------------------------------------
 
-{-# INLINE scan #-}
-scan :: MonadIO m => Int -> SerialT m Int -> m ()
-scan n = composeN n $ S.scanl' (+) 0
+{-# INLINE scanl' #-}
+scanl' :: MonadIO m => Int -> SerialT m Int -> m ()
+scanl' n = composeN n $ S.scanl' (+) 0
 
 {-# INLINE scanlM' #-}
 scanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -949,7 +949,7 @@ o_1_space_mapping value =
         , benchIOSink value "timestamped" timestamped
 
         -- Scanning
-        , benchIOSink value "scanl'" (scan 1)
+        , benchIOSink value "scanl'" (scanl' 1)
         , benchIOSink value "scanl1'" (scanl1' 1)
         , benchIOSink value "scanlM'" (scanlM' 1)
         , benchIOSink value "postscanl'" (postscanl' 1)
@@ -965,7 +965,7 @@ o_1_space_mappingX4 value =
         , benchIOSink value "mapM" (mapM serially 4)
         , benchIOSink value "trace" (trace 4)
 
-        , benchIOSink value "scan" (scan 4)
+        , benchIOSink value "scanl'" (scanl' 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
         , benchIOSink value "scanlM'" (scanlM' 4)
         , benchIOSink value "postscanl'" (postscanl' 4)
