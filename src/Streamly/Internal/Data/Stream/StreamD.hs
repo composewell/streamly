@@ -169,7 +169,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , splitSuffixBy'
 
     , splitOnSeq
-    , splitSuffixOn
+    , splitOnSuffixSeq
 
     , splitInnerBy
     , splitInnerBySuffix
@@ -2080,15 +2080,15 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
     | SplitOnSuffixSeqKRCheck fs s rb !rh
     | SplitOnSuffixSeqKRDone Int !fs rb !rh
 
-{-# INLINE_NORMAL splitSuffixOn #-}
-splitSuffixOn
+{-# INLINE_NORMAL splitOnSuffixSeq #-}
+splitOnSuffixSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitSuffixOn withSep patArr (Fold fstep initial done) (Stream step state) =
+splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
     Stream stepOuter SplitOnSuffixSeqInit
 
     where
