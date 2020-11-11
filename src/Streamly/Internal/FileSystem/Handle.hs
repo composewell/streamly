@@ -105,7 +105,7 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import System.IO (Handle, hGetBufSome, hPutBuf)
+import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
 import Streamly.Internal.BaseCompat
@@ -257,9 +257,32 @@ readChunksWithBufferOf = Unfold step return
 --
 --
 {-# INLINE_NORMAL readChunksFromToWith #-}
-readChunksFromToWith :: -- MonadIO m =>
+readChunksFromToWith :: MonadIO m =>
     Unfold m (Int, Int, Int, Handle) (Array Word8)
-readChunksFromToWith = undefined
+readChunksFromToWith = Unfold step inject
+
+    where
+
+    inject (from, to, buffSize, h) = do
+        liftIO $ hSeek h AbsoluteSeek $ fromIntegral from
+        return (to - from + 1, buffSize, h)
+
+    {-# INLINE_LATE step #-}
+    step (remaining, buffSize, h) =
+        if remaining <= 0
+        then return D.Stop
+        else
+            do
+            arr <- getChunk (min buffSize remaining) h
+            return $
+                case A.length arr of
+                    0 -> D.Stop
+                    len ->
+                        if (remaining - len) >= 0
+                        then
+                            D.Yield arr (remaining - len, buffSize, h)
+                        else
+                            error "Bug: getChunk returned array length more than expected"
 
 -- XXX read 'Array a' instead of Word8
 --

@@ -79,6 +79,7 @@ module Streamly.FileSystem.Handle
     , readWithBufferOf
     , readChunks
     , readChunksWithBufferOf
+    , readChunksFromToWith
 
     -- ** Writing
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the

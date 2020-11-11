@@ -61,6 +61,9 @@ testData = "This is the test data for FileSystem.Handle ??`!@#$%^&*~~))`]"
 testDataLarge :: String
 testDataLarge = concat $ replicate 6000 testData
 
+testBinData :: String
+testBinData = "01234567890123456789012345678901234567890123456789"
+
 executor :: (Handle -> SerialT IO Char) -> IO (SerialT IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
@@ -152,6 +155,53 @@ testWriteWithChunk =
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
+
+testReadChunksFromToWith :: Int -> Int -> Int -> String -> Property
+testReadChunksFromToWith from to buffSize expRes =
+    monadicIO $ do
+        res <- run go
+        assert res
+
+        where
+
+        go =
+            withSystemTempDirectory "fs_handle" $ \fp -> do
+                let fpathRead = fp </> "tmp_read.txt"
+                writeFile fpathRead testBinData
+                h <- openFile fpathRead ReadMode
+                ls <- Stream.toList $
+                    Stream.unfold
+                    Handle.readChunksFromToWith
+                    (from, to, buffSize, h)
+                return ( expRes == show ls)
+
+-- Test for first byte
+testReadChunksFromToWithFirstByte :: Property
+testReadChunksFromToWithFirstByte = testReadChunksFromToWith 0 0 15 "[[48]]"
+
+-- Test for second byte
+testReadChunksFromToWithSecondByte :: Property
+testReadChunksFromToWithSecondByte = testReadChunksFromToWith 1 1 15 "[[49]]"
+
+-- Test for second to 10th bytes
+testReadChunksFromToWithSecondToTenthBytes :: Property
+testReadChunksFromToWithSecondToTenthBytes =
+    testReadChunksFromToWith 1 10 15 "[[49,50,51,52,53,54,55,56,57,48]]"
+
+-- Test for offset of buffer size
+testReadChunksFromToWithBuffSizeOffset :: Property
+testReadChunksFromToWithBuffSizeOffset =
+    testReadChunksFromToWith 15 25 15 "[[53,54,55,56,57,48,49,50,51,52,53]]"
+
+-- Test with multi buffer size
+testReadChunksFromToWithMultiBuff :: Property
+testReadChunksFromToWithMultiBuff =
+    testReadChunksFromToWith
+    5 22 5 "[[53,54,55,56,57],[48,49,50,51,52],[53,54,55,56,57],[48,49,50]]"
+
+testReadChunksFromToWithRangeInvalid :: Property
+testReadChunksFromToWithRangeInvalid = testReadChunksFromToWith 15 5 15 "[]"
+
 moduleName :: String
 moduleName = "FileSystem.Handle"
 
@@ -166,6 +216,12 @@ main =
             prop "readWithBufferOf" $ testRead readWithBufferFromHandle
             prop "readChunks" $ testRead readChunksFromHandle
             prop "readChunksWithBufferOf" $ testRead readChunksWithBuffer
+            prop "readChunksFromToWithFirstByte" testReadChunksFromToWithFirstByte
+            prop "readChunksFromToWithSecondByte" testReadChunksFromToWithSecondByte
+            prop "readChunksFromToWithSecondToTenthBytes" testReadChunksFromToWithSecondToTenthBytes
+            prop "readChunksFromToWithBuffSizeOffset" testReadChunksFromToWithBuffSizeOffset
+            prop "readChunksFromToWithMultiBuff" testReadChunksFromToWithMultiBuff
+            prop "readChunksFromToWithRangeInvalid" testReadChunksFromToWithRangeInvalid
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
             prop "writeWithBufferOf" $ testWrite $ Handle.writeWithBufferOf 1024
