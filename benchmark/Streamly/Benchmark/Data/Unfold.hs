@@ -393,7 +393,6 @@ concatMapM size start =
 
     unfoldInGen i =
         return
-            $ UF.lmap (\() -> undefined)
             $ UF.supply (UF.enumerateFromToIntegral (i + sizeInner)) i
 
     unfoldOut = UF.enumerateFromToIntegral (start + sizeOuter)
