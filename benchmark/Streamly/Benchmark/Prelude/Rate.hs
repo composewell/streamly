@@ -38,28 +38,28 @@ avgRateThreads1 value rate_ =
 -- XXX arbitrarily large rate should be the same as rate Nothing
 o_1_space_async_avgRate :: Int -> [Benchmark]
 o_1_space_async_avgRate value =
-    [ bgroup "asyncly"
-        [ bgroup "avgRate"
-            -- benchIO "unfoldr" $ toNull asyncly
-            -- benchIOSrc asyncly "unfoldrM" (sourceUnfoldrM value)
-            [ benchIOSrc asyncly "Nothing" $ rateNothing value
-            , benchIOSrc asyncly "1M" $ avgRate value 1000000
-            , benchIOSrc asyncly "3M" $ avgRate value 3000000
-            , benchIOSrc asyncly "10M/maxThreads1"
-                  $ avgRateThreads1 value 10000000
-            , benchIOSrc asyncly "10M" $ avgRate value 10000000
-            , benchIOSrc asyncly "20M" $ avgRate value 20000000
-            ]
-        ]
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "avgRate"
+                -- benchIO "unfoldr" $ toNull asyncly
+                -- benchIOSrc asyncly "unfoldrM" (sourceUnfoldrM value)
+                [ benchIOSrc asyncly "Nothing" $ rateNothing value
+                , benchIOSrc asyncly "1M" $ avgRate value 1000000
+                , benchIOSrc asyncly "3M" $ avgRate value 3000000
+                , benchIOSrc asyncly "10M/maxThreads1"
+                      $ avgRateThreads1 value 10000000
+                , benchIOSrc asyncly "10M" $ avgRate value 10000000
+                , benchIOSrc asyncly "20M" $ avgRate value 20000000
+                ]
+          ]
     ]
 
 o_1_space_ahead_avgRate :: Int -> [Benchmark]
 o_1_space_ahead_avgRate value =
-    [ bgroup "aheadly"
-        [ bgroup "avgRate"
-            [ benchIOSrc aheadly "1M" $ avgRate value 1000000
-            ]
-        ]
+    [ bgroup
+          "aheadly"
+          [bgroup "avgRate" [benchIOSrc aheadly "1M" $ avgRate value 1000000]]
     ]
 
 -------------------------------------------------------------------------------
@@ -74,8 +74,9 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_async_avgRate value
-            , o_1_space_ahead_avgRate value
-            ]
+        [ bgroup (o_1_space_prefix moduleName)
+              $ concat
+                    [ o_1_space_async_avgRate value
+                    , o_1_space_ahead_avgRate value
+                    ]
         ]
