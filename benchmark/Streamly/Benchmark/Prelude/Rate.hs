@@ -35,9 +35,21 @@ avgRateThreads1 :: (MonadAsync m, IsStream t) => Int -> Double -> Int -> t m Int
 avgRateThreads1 value rate_ =
     maxThreads 1 . S.avgRate rate_ . sourceUnfoldrM value
 
+{-# INLINE minRate #-}
+minRate :: (MonadAsync m, IsStream t) => Int -> Double -> Int -> t m Int
+minRate value rate_ = S.minRate rate_ . sourceUnfoldrM value
+
+{-# INLINE maxRate #-}
+maxRate :: (MonadAsync m, IsStream t) => Int -> Double -> Int -> t m Int
+maxRate value rate_ = S.minRate rate_ . sourceUnfoldrM value
+
+{-# INLINE constRate #-}
+constRate :: (MonadAsync m, IsStream t) => Int -> Double -> Int -> t m Int
+constRate value rate_ = S.constRate rate_ . sourceUnfoldrM value
+
 -- XXX arbitrarily large rate should be the same as rate Nothing
-o_1_space_async_avgRate :: Int -> [Benchmark]
-o_1_space_async_avgRate value =
+o_1_space_async :: Int -> [Benchmark]
+o_1_space_async value =
     [ bgroup
           "asyncly"
           [ bgroup
@@ -52,14 +64,35 @@ o_1_space_async_avgRate value =
                 , benchIOSrc asyncly "10M" $ avgRate value 10000000
                 , benchIOSrc asyncly "20M" $ avgRate value 20000000
                 ]
+          , bgroup
+                "minRate"
+                [ benchIOSrc asyncly "1M" $ minRate value 1000000
+                , benchIOSrc asyncly "10M" $ minRate value 10000000
+                , benchIOSrc asyncly "20M" $ minRate value 20000000
+                ]
+          , bgroup
+                "maxRate"
+                [ -- benchIOSrc asyncly "10K" $ maxRate value 10000
+                  benchIOSrc asyncly "10M" $ maxRate value 10000000
+                ]
+          , bgroup
+                "constRate"
+                [ -- benchIOSrc asyncly "10K" $ constRate value 10000
+                  benchIOSrc asyncly "1M" $ constRate value 1000000
+                , benchIOSrc asyncly "10M" $ constRate value 10000000
+                ]
           ]
     ]
 
-o_1_space_ahead_avgRate :: Int -> [Benchmark]
-o_1_space_ahead_avgRate value =
+o_1_space_ahead :: Int -> [Benchmark]
+o_1_space_ahead value =
     [ bgroup
           "aheadly"
-          [bgroup "avgRate" [benchIOSrc aheadly "1M" $ avgRate value 1000000]]
+          [ benchIOSrc aheadly "avgRate/1M" $ avgRate value 1000000
+          , benchIOSrc aheadly "minRate/1M" $ minRate value 1000000
+          , benchIOSrc aheadly "maxRate/1M" $ maxRate value 1000000
+          , benchIOSrc asyncly "constRate/1M" $ constRate value 1000000
+          ]
     ]
 
 -------------------------------------------------------------------------------
@@ -75,8 +108,5 @@ main = do
 
     allBenchmarks value =
         [ bgroup (o_1_space_prefix moduleName)
-              $ concat
-                    [ o_1_space_async_avgRate value
-                    , o_1_space_ahead_avgRate value
-                    ]
+              $ concat [o_1_space_async value, o_1_space_ahead value]
         ]
