@@ -7,7 +7,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Main (main) where
+
+-- This is a common array test module that gets included in different
+-- Array test modules with the corresponding macro defined.
 
 import Foreign.Storable (Storable(..))
 

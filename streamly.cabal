@@ -151,6 +151,7 @@ extra-source-files:
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
+    test/Streamly/Test/Common/Array.hs
     stack.yaml
 
 extra-tmp-files:
@@ -334,6 +335,7 @@ common test-options
 
   ghc-options:  -O0
                 -fno-ignore-asserts
+  include-dirs: test
   -- XXX we need -O for plugin to work
   -- if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
   --   ghc-options: -fplugin Fusion.Plugin
@@ -668,8 +670,8 @@ test-suite Prelude.MaxRate
 test-suite Data.Array.Storable.Foreign
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Array.hs
-  cpp-options: -DTEST_ARRAY
+  main-is: Streamly/Test/Data/Array/Storable/Foreign.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Storable.Foreign.main
 
 test-suite Data.Fold
   import: test-options
@@ -696,25 +698,26 @@ test-suite Data.Parser.ParserD
 test-suite Data.Array
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Array.hs
+  main-is: Streamly/Test/Data/Array.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.main
 
 test-suite Data.SmallArray
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Array.hs
-  cpp-options: -DTEST_SMALL_ARRAY
+  main-is: Streamly/Test/Data/SmallArray.hs
+  ghc-options: -main-is Streamly.Test.Data.SmallArray.main
 
 test-suite Data.Array.Prim
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Array.hs
-  cpp-options: -DDATA_ARRAY_PRIM
+  main-is: Streamly/Test/Data/Array/Prim.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Prim.main
 
 test-suite Data.Array.Prim.Pinned
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Array.hs
-  cpp-options: -DDATA_ARRAY_PRIM_PINNED
+  main-is: Streamly/Test/Data/Array/Prim/Pinned.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Prim.Pinned.main
 
 test-suite Unicode.Stream
   import: test-options
