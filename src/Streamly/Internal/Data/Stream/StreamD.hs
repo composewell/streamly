@@ -1853,7 +1853,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         else if patLen == 1
              then do
                  acc <- initial
-                 let !pat = A.unsafeIndex patArr 0
+                 pat <- liftIO $ A.unsafeIndexIO patArr 0
                  return $ Skip $ SplitOnSeqSingle acc state pat
              else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
@@ -2109,6 +2109,19 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
 
+    -- For single element pattern case
+    {-# INLINE processYieldSingle #-}
+    processYieldSingle pat x s fs =
+        if pat == x
+        then do
+            fs1 <- if withSep then fstep fs x else return fs
+            r <- done fs1
+            let next = SplitOnSuffixSeqSingleInit s pat
+            skip $ SplitOnSuffixSeqYield r next
+        else do
+            fs1 <- fstep fs x
+            skip $ SplitOnSuffixSeqSingle fs1 s pat
+
     -- For Rabin-Karp search
     k = 2891336453 :: Word32
     coeff = k ^ patLen
@@ -2126,14 +2139,14 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ SplitOnSuffixSeqInit =
         if patLen == 0
-        then return $ Skip $ SplitOnSuffixSeqEmpty state
+        then skip $ SplitOnSuffixSeqEmpty state
         else if patLen == 1
              then do
-                 let !pat = A.unsafeIndex patArr 0
-                 return $ Skip $ SplitOnSuffixSeqSingleInit state pat
+                 pat <- liftIO $ A.unsafeIndexIO patArr 0
+                 skip $ SplitOnSuffixSeqSingleInit state pat
              else if sizeOf (undefined :: a) * patLen
                        <= sizeOf (undefined :: Word)
-                  then return $ Skip $ SplitOnSuffixSeqWordInit state
+                  then skip $ SplitOnSuffixSeqWordInit state
                   else do
                       (rb, rhead) <- liftIO $ RB.new patLen
                       skip $ SplitOnSuffixSeqKRInit 0 state rb rhead
@@ -2152,7 +2165,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                 acc1 <- fstep acc x
                 r <- done acc1
                 skip $ SplitOnSuffixSeqYield r (SplitOnSuffixSeqEmpty s)
-            Skip s -> return $ Skip (SplitOnSuffixSeqEmpty s)
+            Skip s -> skip (SplitOnSuffixSeqEmpty s)
             Stop -> return Stop
 
     -----------------
@@ -2168,49 +2181,18 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
     stepOuter gst (SplitOnSuffixSeqSingleInit st pat) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> do
-                fs <- initial
-                if pat == x
-                then do
-                    if withSep
-                    then do
-                        fs1 <- fstep fs x
-                        r <- done fs1
-                        let next = SplitOnSuffixSeqSingleInit s pat
-                        skip $ SplitOnSuffixSeqYield r next
-                    else do
-                        r <- done fs
-                        let next = SplitOnSuffixSeqSingleInit s pat
-                        skip $ SplitOnSuffixSeqYield r next
-                else do
-                    fs1 <- fstep fs x
-                    skip $ SplitOnSuffixSeqSingle fs1 s pat
-            Skip s -> return $ Skip $ (SplitOnSuffixSeqSingleInit s pat)
+            Yield x s -> initial >>= processYieldSingle pat x s
+            Skip s -> skip $ SplitOnSuffixSeqSingleInit s pat
             Stop -> return Stop
 
     stepOuter gst (SplitOnSuffixSeqSingle fs st pat) = do
         res <- step (adaptState gst) st
         case res of
-            Yield x s -> do
-                if pat == x
-                then do
-                    if withSep
-                    then do
-                        fs1 <- fstep fs x
-                        r <- done fs1
-                        let next = SplitOnSuffixSeqSingleInit s pat
-                        skip $ SplitOnSuffixSeqYield r next
-                    else do
-                        r <- done fs
-                        let next = SplitOnSuffixSeqSingleInit s pat
-                        skip $ SplitOnSuffixSeqYield r next
-                else do
-                    fs1 <- fstep fs x
-                    return $ Skip $ (SplitOnSuffixSeqSingle fs1 s pat)
-            Skip s -> return $ Skip $ SplitOnSuffixSeqSingle fs s pat
+            Yield x s -> processYieldSingle pat x s fs
+            Skip s -> skip $ SplitOnSuffixSeqSingle fs s pat
             Stop -> do
                 r <- done fs
-                return $ Skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
+                skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
 
     ---------------------------
     -- Short Pattern - Shift Or
@@ -2230,12 +2212,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 fs <- initial
                 let wrd = addToWord 0 x
-                if withSep
-                then do
-                    fs1 <- fstep fs x
-                    go SPEC 1 wrd s fs1
-                else go SPEC 1 wrd s fs
-            Skip s -> return $ Skip (SplitOnSuffixSeqWordInit s)
+                fs1 <- if withSep then fstep fs x else return fs
+                go SPEC 1 wrd s fs1
+            Skip s -> skip (SplitOnSuffixSeqWordInit s)
             Stop -> return Stop
 
         where
@@ -2246,28 +2225,15 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             case res of
                 Yield x s -> do
                     let wrd1 = addToWord wrd x
-                    if withSep
-                    then do
-                        fs1 <- fstep fs x
-                        if idx == maxIndex
-                        then do
-                            if wrd1 .&. wordMask == wordPat
-                            then do
-                                r <- done fs
-                                let next = SplitOnSuffixSeqWordInit s
-                                skip $ SplitOnSuffixSeqYield r next
-                            else skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                        else go SPEC (idx + 1) wrd1 s fs1
+                    fs1 <- if withSep then fstep fs x else return fs
+                    if idx /= maxIndex
+                    then go SPEC (idx + 1) wrd1 s fs1
+                    else if wrd1 .&. wordMask /= wordPat
+                    then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
                     else do
-                        if idx == maxIndex
-                        then do
-                            if wrd1 .&. wordMask == wordPat
-                            then do
-                                r <- done fs
-                                let next = SplitOnSuffixSeqWordInit s
-                                skip $ SplitOnSuffixSeqYield r next
-                            else skip $ SplitOnSuffixSeqWordLoop wrd1 s fs
-                        else go SPEC (idx + 1) wrd1 s fs
+                        r <- done fs
+                        let next = SplitOnSuffixSeqWordInit s
+                        skip $ SplitOnSuffixSeqYield r next
                 Skip s -> go SPEC idx wrd s fs
                 Stop -> skip $ SplitOnSuffixSeqWordDone idx fs wrd
 
@@ -2284,33 +2250,25 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     let wrd1 = addToWord wrd x
                         old = (wordMask .&. wrd)
                                 `shiftR` (elemBits * (patLen - 1))
-                    if withSep
+                    fs1 <-
+                        if withSep
+                        then fstep fs x
+                        else fstep fs (toEnum $ fromIntegral old)
+                    if wrd1 .&. wordMask == wordPat
                     then do
-                        fs1 <- fstep fs x
-                        if wrd1 .&. wordMask == wordPat
-                        then do
-                            r <- done fs1
-                            let next = SplitOnSuffixSeqWordInit s
-                            skip $ SplitOnSuffixSeqYield r next
-                        else go SPEC wrd1 s fs1
-                    else do
-                        fs1 <- fstep fs (toEnum $ fromIntegral old)
-                        if wrd1 .&. wordMask == wordPat
-                        then do
-                            r <- done fs1
-                            let next = SplitOnSuffixSeqWordInit s
-                            skip $ SplitOnSuffixSeqYield r next
-                        else go SPEC wrd1 s fs1
+                        r <- done fs1
+                        let next = SplitOnSuffixSeqWordInit s
+                        skip $ SplitOnSuffixSeqYield r next
+                    else go SPEC wrd1 s fs1
                 Skip s -> go SPEC wrd s fs
                 Stop ->
                     if wrd .&. wordMask == wordPat
                     then return Stop
-                    else
-                        if withSep
-                        then do
-                            r <- done fs
-                            skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                        else skip $ SplitOnSuffixSeqWordDone patLen fs wrd
+                    else if withSep
+                    then do
+                        r <- done fs
+                        skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
+                    else skip $ SplitOnSuffixSeqWordDone patLen fs wrd
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -2322,16 +2280,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 rh1 <- liftIO $ RB.unsafeInsert rb rh0 x
                 fs <- initial
-                if withSep
-                then do
-                    fs1 <- fstep fs x
-                    skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
-                else skip $ SplitOnSuffixSeqKRInit1 fs s rb rh1
+                fs1 <- if withSep then fstep fs x else return fs
+                skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
             Skip s -> skip $ SplitOnSuffixSeqKRInit idx0 s rb rh0
             Stop -> return Stop
 
     stepOuter gst (SplitOnSuffixSeqKRInit1 fs0 st0 rb rh0) = do
-        go SPEC (1 :: Int) rh0 st0 fs0
+        go SPEC 1 rh0 st0 fs0
 
         where
 
@@ -2340,45 +2295,26 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             case res of
                 Yield x s -> do
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                    if withSep
-                    then do
-                        fs1 <- fstep fs x
-                        if idx == maxIndex
-                        then do
-                            let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                            let !ringHash = fold addCksum 0 rb
-                            if ringHash == patHash
-                            then skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
-                            else skip $ SplitOnSuffixSeqKRLoop
-                                            fs1 s rb rh1 ringHash
-                        else go SPEC (idx + 1) rh1 s fs1
-                    else
-                        if idx == maxIndex
-                        then do
-                            let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                            let !ringHash = fold addCksum 0 rb
-                            if ringHash == patHash
-                            then skip $ SplitOnSuffixSeqKRCheck fs s rb rh1
-                            else skip $ SplitOnSuffixSeqKRLoop
-                                            fs s rb rh1 ringHash
-                        else go SPEC (idx + 1) rh1 s fs
+                    fs1 <- if withSep then fstep fs x else return fs
+                    if idx /= maxIndex
+                    then go SPEC (idx + 1) rh1 s fs1
+                    else skip $
+                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
+                            !ringHash = fold addCksum 0 rb
+                         in if ringHash == patHash
+                            then SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                            else SplitOnSuffixSeqKRLoop fs1 s rb rh1 ringHash
                 Skip s -> go SPEC idx rh s fs
                 Stop -> do
                     -- do not issue a blank segment when we end at pattern
                     if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
                     then return Stop
-                    else
-                        if withSep
-                        then do
-                            r <- done fs
-                            skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                        else skip $ SplitOnSuffixSeqKRDone
-                                        idx fs rb (RB.startOf rb)
+                    else if withSep
+                    then do
+                        r <- done fs
+                        skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
+                    else skip $ SplitOnSuffixSeqKRDone idx fs rb (RB.startOf rb)
 
-    -- XXX The recursive "go" is more efficient than the state based recursion
-    -- code commented out below. Perhaps its more efficient because of
-    -- factoring out "rb" outside the loop.
-    --
     stepOuter gst (SplitOnSuffixSeqKRLoop fs0 st0 rb rh0 cksum0) =
         go SPEC fs0 st0 rh0 cksum0
 
@@ -2391,27 +2327,19 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     old <- liftIO $ peek rh
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
                     let cksum1 = deltaCksum cksum old x
-                    if withSep
-                    then do
-                        fs1 <- fstep fs x
-                        if (cksum1 == patHash)
-                        then skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
-                        else go SPEC fs1 s rh1 cksum1
-                    else do
-                        fs1 <- fstep fs old
-                        if (cksum1 == patHash)
-                        then skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
-                        else go SPEC fs1 s rh1 cksum1
+                    fs1 <- if withSep then fstep fs x else fstep fs old
+                    if (cksum1 /= patHash)
+                    then go SPEC fs1 s rh1 cksum1
+                    else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
                 Skip s -> go SPEC fs s rh cksum
                 Stop ->
                     if RB.unsafeEqArray rb rh patArr
                     then return Stop
-                    else
-                        if withSep
-                        then do
-                            r <- done fs
-                            skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                        else skip $ SplitOnSuffixSeqKRDone patLen fs rb rh
+                    else if withSep
+                    then do
+                        r <- done fs
+                        skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
+                    else skip $ SplitOnSuffixSeqKRDone patLen fs rb rh
 
     stepOuter _ (SplitOnSuffixSeqKRCheck fs st rb rh) = do
         if RB.unsafeEqArray rb rh patArr
