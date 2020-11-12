@@ -497,6 +497,10 @@ or value = S.or . S.map (> (value + 1))
 find :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
 find value = S.find (== (value + 1))
 
+{-# INLINE findM #-}
+findM :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+findM value = S.findM (\z -> return $ z == (value + 1))
+
 {-# INLINE findIndex #-}
 findIndex :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
 findIndex value = S.findIndex (== (value + 1))
@@ -606,6 +610,7 @@ o_1_space_elimination_folds value =
 
         , bench "the" $ nfIO $ randomRIO (1,1) >>= the . repeat value
         , benchIOSink value "find" (find value)
+        , benchIOSink value "findM" (findM value)
         -- , benchIOSink value "lookupFirst" (lookup 1)
         , benchIOSink value "lookupNever" (lookup (value + 1))
         , benchIOSink value "(!!)" ((!!) value)
@@ -867,6 +872,10 @@ scanlM' n = composeN n $ S.scanlM' (\b a -> return $ b + a) (return 0)
 scanl1' :: MonadIO m => Int -> SerialT m Int -> m ()
 scanl1' n = composeN n $ S.scanl1' (+)
 
+{-# INLINE scanl1M' #-}
+scanl1M' :: MonadIO m => Int -> SerialT m Int -> m ()
+scanl1M' n = composeN n $ S.scanl1M' (\b a -> return $ b + a)
+
 {-# INLINE postscanl' #-}
 postscanl' :: MonadIO m => Int -> SerialT m Int -> m ()
 postscanl' n = composeN n $ S.postscanl' (+) 0
@@ -952,6 +961,7 @@ o_1_space_mapping value =
         , benchIOSink value "scanl'" (scanl' 1)
         , benchIOSink value "scanl1'" (scanl1' 1)
         , benchIOSink value "scanlM'" (scanlM' 1)
+        , benchIOSink value "scanl1M'" (scanl1M' 1)
         , benchIOSink value "postscanl'" (postscanl' 1)
         , benchIOSink value "postscanlM'" (postscanlM' 1)
 
@@ -968,6 +978,7 @@ o_1_space_mappingX4 value =
         , benchIOSink value "scanl'" (scanl' 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
         , benchIOSink value "scanlM'" (scanlM' 4)
+        , benchIOSink value "scanl1M'" (scanl1M' 4)
         , benchIOSink value "postscanl'" (postscanl' 4)
         , benchIOSink value "postscanlM'" (postscanlM' 4)
 
@@ -1752,6 +1763,13 @@ concatMap outer inner n =
         (\_ -> sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
+{-# INLINE concatMapM #-}
+concatMapM :: Int -> Int -> Int -> IO ()
+concatMapM outer inner n =
+    S.drain $ S.concatMapM
+        (\_ -> return $ sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
+
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
 inspect $ 'concatMap `hasNoType` ''SPEC
@@ -1841,6 +1859,13 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMap sqrtVal sqrtVal)
         , benchIOSrc1 "concatMap (1 of n)"
             (concatMap 1 value)
+
+        , benchIOSrc1 "concatMapM (n of 1)"
+            (concatMapM value 1)
+        , benchIOSrc1 "concatMapM (sqrt n of sqrt n)"
+            (concatMapM sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapM (1 of n)"
+            (concatMapM 1 value)
 
         -- This is for comparison with foldMapWith
         , benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"

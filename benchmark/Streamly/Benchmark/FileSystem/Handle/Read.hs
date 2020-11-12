@@ -418,6 +418,19 @@ inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'splitOnSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
+-- | Split suffix with line feed.
+splitWithSuffix :: Handle -> IO Int
+splitWithSuffix inh =
+    (S.length $ S.splitWithSuffix (== lf) FL.drain
+        $ S.unfold FH.read inh) -- >>= print
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'splitWithSuffix
+inspect $ 'splitWithSuffix `hasNoType` ''Step
+inspect $ 'splitWithSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitWithSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
+#endif
+
 -- | Split on line feed.
 parseManySepBy :: Handle -> IO Int
 parseManySepBy inh =
@@ -477,6 +490,8 @@ o_1_space_reduce_read_split env =
             splitOn inh
         , mkBench "S.splitOnSuffix (== lf) FL.drain" env $ \inh _ ->
             splitOnSuffix inh
+        , mkBench "S.splitWithSuffix (== lf) FL.drain" env $ \inh _ ->
+            splitWithSuffix inh
         , mkBench "S.splitOnSeq \"\" FL.drain" env $ \inh _ ->
             splitOnSeq "" inh
         , mkBench "S.splitOnSuffixSeq \"\" FL.drain" env $ \inh _ ->
