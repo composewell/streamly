@@ -315,11 +315,15 @@ sequence (Fold step initial extract) = Fold step initial extract'
 mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
 mapM f = sequence . fmap f
 
--- | @(mapMaybe f fold)@ maps a 'Maybe' returning function @f@ on the input of the fold,
--- filter out the 'Nothing' elements, and return a values extracted from 'Just'.
--- >>> S.fold (FL.mapMaybe (\x -> case x of  5 -> Just x ; _ -> Nothing) FL.sum) 
--- (S.enumerateFromTo 1 10) 
--- 5
+-- | @mapMaybe f fold@ maps a 'Maybe' returning function @f@ on the input of
+-- the fold, filters out 'Nothing' elements, and return the values extracted
+-- from 'Just'.
+--
+-- >>> f x = if even x then Just x else Nothing
+-- >>> fld = Fold.mapMaybe f Fold.toList
+-- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
+-- [2,4,6,8]
+--
 -- /Internal/
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
