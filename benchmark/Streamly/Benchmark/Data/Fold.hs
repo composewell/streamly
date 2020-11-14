@@ -11,22 +11,16 @@ module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Data.Monoid (Last(..), Sum(..))
-
 import System.Random (randomRIO)
-import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
-                (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=), concat, seq, Either(..), odd)
-
-import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Pipe as Pipe
-
-import qualified Streamly.Internal.Data.Sink as Sink
 
 import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
 import qualified Streamly.Internal.Data.Fold as IFL
+import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Sink as Sink
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Prelude  as S
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -159,13 +153,9 @@ o_1_space_serial_transformation value =
     [ bgroup "serially"
         [ bgroup "transformation"
             [ benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
-            , benchIOSink 
-                value 
-                "mapMaybe" 
-                (S.fold 
-                    (IFL.mapMaybe 
-                        (\x -> case x of  1 -> Just x ; _ -> Nothing) 
-                            FL.drain))
+            , let f x = if even x then Just x else Nothing
+                  fld = IFL.mapMaybe f FL.drain
+               in benchIOSink value "mapMaybe" (S.fold fld)
             , benchIOSink
                   value
                   "sequence"
