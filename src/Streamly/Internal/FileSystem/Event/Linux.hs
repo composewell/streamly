@@ -99,6 +99,8 @@ module Streamly.Internal.FileSystem.Event.Linux
     , setAllEvents
 
     -- ** Watch APIs
+    -- XXX watchPaths is redundant now because we can use watchTrees with
+    -- setRecursiveMode False. Perhaps we can use a common "watch" API.
     , watchPathsWith
     , watchPaths
     , watchTreesWith
@@ -107,7 +109,7 @@ module Streamly.Internal.FileSystem.Event.Linux
     , removeFromWatch
 
     -- * Handling Events
-    , Event
+    , Event(..)
     , getRoot
     , getRelPath
     , getCookie
@@ -142,19 +144,17 @@ module Streamly.Internal.FileSystem.Event.Linux
 
     -- * Debugging
     , showEvent
-    , showEventShort
     )
 where
 
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Bifunctor (bimap)
 import Data.Bits ((.|.), (.&.), complement)
+import Data.Char (ord)
 import Data.Foldable (foldlM)
 import Data.Functor.Identity (runIdentity)
 import Data.IntMap.Lazy (IntMap)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.Function ((&))
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8, Word32)
 import Foreign.C.Error (throwErrnoIfMinus1)
@@ -168,7 +168,6 @@ import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
-import System.FilePath ((</>))
 import System.IO (Handle, hClose, IOMode(ReadMode))
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
@@ -201,7 +200,7 @@ import qualified Streamly.Internal.Unicode.Stream as U
 --
 data Config = Config
     { watchRec :: Bool
-    , createFlags :: Word32 
+    , createFlags :: Word32
     }
 
 -------------------------------------------------------------------------------
@@ -229,56 +228,19 @@ setFlag mask status cfg@Config{..} =
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
-splitPath :: (MonadIO m) => FilePath -> FilePath -> m [FilePath]
-splitPath pat xs = S.toList
-    $ S.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 
-pathDiff :: (MonadIO m) => FilePath -> FilePath -> m FilePath
-pathDiff pat xs =  do
-    splits <- splitPath pat xs
-    let j = case length splits of
-                0 -> ""
-                _ -> last splits
-        t = case length j of
-                0 -> ""
-                _ -> tail j
-    return t
-
-dirListing :: String -> SerialT IO (Either String String)
-dirListing s = do
-    S.filter dirFilter
-        $ S.iterateMapLeftsWith S.ahead listDir (S.yield $ (Left s))
-
-    where
-
-    dirFilter x =
-        case x of
-            Left _ -> True
-            Right _ -> False
-
-    listDir dir =
-        Dir.toEither dir            -- SerialT IO (Either String String)
-        & S.map (bimap prefix prefix) -- SerialT IO (Either String String)
-        
-        where
-        
-        prefix x = dir ++ "/" ++ x
-
-toPathList :: String -> IO [String]
-toPathList root = do
-  S.toList $ S.map toStr $ dirListing root
-
-    where
-
-    toStr x =
-        case x of
-            Left d -> d
-            Right d -> d
+-- XXX we really do not know the path encoding, all we know is that it is "/"
+-- separated bytes. So these may fail or convert the path in an unexpected
+-- manner. We should ultimately remove all usage of these.
 
 toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
 
--- | Set watch event on directory recursively.
+utf8ToString :: Array Word8 -> String
+utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
+
+-- | Watch the whole directory tree recursively instead of watching just one
+-- level of directory.
 --
 -- /default: Off/
 --
@@ -571,14 +533,23 @@ defaultConfig :: Config
 defaultConfig =
       setWhenExists AddIfExists
     $ setAllEvents On
-    $ Config {watchRec = False, createFlags = 0}
+    $ Config {watchRec = True, createFlags = 0}
 
 -------------------------------------------------------------------------------
 -- Open an event stream
 -------------------------------------------------------------------------------
 
 -- | A handle for a watch.
-data Watch = Watch Handle (IORef (IntMap (Array Word8, Array Word8)))
+data Watch =
+    Watch
+        Handle                  -- File handle for the watch
+        (IORef
+            (IntMap             -- Key is the watch descriptor
+                ( Array Word8   -- Absolute path of the watch root
+                , Array Word8   -- Path of subdir relative to watch root
+                )
+            )
+        )
 
 -- Instead of using the watch descriptor we can provide APIs that use the path
 -- itself to identify the watch. That will require us to maintain a map from wd
@@ -615,15 +586,13 @@ createWatch = do
            ReadMode
            True    -- use non-blocking IO
            Nothing -- TextEncoding (binary)
-    emptyMapRef <- newIORef Map.empty       
+    emptyMapRef <- newIORef Map.empty
     return $ Watch h emptyMapRef
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_add_watch" c_inotify_add_watch
         :: CInt -> CString -> CUInt -> IO CInt
 
-utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
 
 #if !MIN_VERSION_base(4,10,0)
 -- | Turn an existing Handle into a file descriptor. This function throws an
@@ -643,72 +612,105 @@ handleToFd h = case h of
       InappropriateType "handleToFd" msg Nothing Nothing
 #endif
 
--- | Given a 'Config' and a @path@ supplied as a UTF-8 encoded byte array, add
--- the path to the list of paths being monitored by the given watch 'Handle'.
--- Returns a "watch descriptor" which is used as an idenitfier in the events
--- generated for this particular path and also to remove the path from this
--- watch.
+-- | Add a trailing "/" at the end of the path if there is none. Do not add a
+-- "/" if the path is empty.
+--
+ensureTrailingSlash :: Array Word8 -> Array Word8
+ensureTrailingSlash path =
+    if A.length path /= 0
+    then
+        let mx = A.readIndex path (A.length path - 1)
+         in case mx of
+            Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
+            Just x ->
+                if x /= fromIntegral (ord '/')
+                then path <> A.fromCString# "/"#
+                else path
+    else path
+
+-- | @addToWatch cfg watch root subpath@ adds @subpath@ to the list of paths
+-- being monitored under @root@ via the watch handle @watch@.  @root@ must be
+-- an absolute path and @subpath@ must be relative to @root@.
 --
 -- /Internal/
 --
-addToWatchExecutor ::
-       Config
-    -> Watch
-    -> Array Word8
-    -> Array Word8
-    -> IO (Config, Watch)
-addToWatchExecutor cfg@Config{..} (Watch handle wdMap) pathArr root =  do
+addToWatch :: Config -> Watch -> Array Word8 -> Array Word8 -> IO ()
+addToWatch cfg@Config{..} watch@(Watch handle wdMap) root0 path0 = do
+    -- XXX do not add if the path is already added
+    -- XXX if the watch is added by the scan and not via an event we can
+    -- generate a create event assuming that the create may have been lost. We
+    -- can also mark in the map that this entry was added by the scan. So if an
+    -- actual create event later comes and tries to add this again then we can
+    -- ignore that and drop the create event to avoid duplicate create, because
+    -- we have already emitted it.
+    --
+    -- When a directory is added by the scan we should also emit create events
+    -- for files that may have got added to the dir. However, such create
+    -- events may get duplicated because of a race between the scan generated
+    -- versus real events.
+    --
+    -- Or we may distinguish between scan generated events and real events so
+    -- that the application can assume that other events may been lost and
+    -- handle it. For example, if it is a dir create the application can read
+    -- the dir to scan the files in it.
+    --
+    let root = ensureTrailingSlash root0
+        path = ensureTrailingSlash path0
+        absPath = root <> path
     fd <- handleToFd handle
-    wd <- A.asCString pathArr $ \pathPtr ->
-            throwErrnoIfMinus1 ("addToWatch " ++ utf8ToString pathArr) $
-                c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
-    km <- readIORef wdMap
-    let k = (Map.insert (fromIntegral wd) (root, pathArr) km)
-    writeIORef wdMap k
-    return $ (cfg, Watch handle wdMap) 
 
-addToWatch :: Config -> Watch -> Array Word8 -> IO (Config, Watch)
-addToWatch cfg@Config{..} (Watch handle wdMap) path = do
-    fd <- handleToFd handle
-    wd <- A.asCString path $ \pathPtr ->
-            throwErrnoIfMinus1 ("addToWatch " ++ utf8ToString path) $
+    -- XXX we need to tolerate an error where we are adding a watch for a
+    -- non-existing file because the file may have got deleted by the time we
+    -- added the watch. Perhaps we can have a flag in config for this and keep
+    -- the default value to tolerate the error.
+    --
+    -- XXX The file may have even got deleted and then recreated which we will
+    -- never get to know, document this.
+    wd <- A.asCString absPath $ \pathPtr ->
+            throwErrnoIfMinus1 ("addToWatch: " ++ utf8ToString absPath) $
                 c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
-    km <- readIORef wdMap
-    let k = (Map.insert (fromIntegral wd) (path, path) km)
-    writeIORef wdMap k
-    return $ (cfg, Watch handle wdMap)
 
-addToWatchRec :: Config -> Watch -> FilePath -> FilePath -> IO (Config, Watch)
-addToWatchRec cfg watch path origRoot= do 
-    subdirs <- toPathList path
-    pathArrList <- mapM toUtf8 subdirs
-    rootArr <- toUtf8 origRoot
-    foldlM (\(cfg1, w1) pathArr -> addToWatchExecutor cfg1 w1 pathArr rootArr)
-        (cfg, watch) pathArrList
+    -- We add the parent first so that we start getting events for any new
+    -- creates and add the new subdirectories on creates while we are adding
+    -- the children.
+    modifyIORef wdMap (Map.insert (fromIntegral wd) (root, path))
+
+    -- Now add the children. If we missed any creates while we were adding the
+    -- parent, this will make sure they are added too.
+    --
+    -- XXX Ensure that we generate events that we may have missed while we were
+    -- adding the dirs.
+    --
+    -- XXX toDirs currently uses paths as String, we need to convert it
+    -- to "/" separated by byte arrays.
+    when watchRec $ do
+        S.mapM_ (\p -> addToWatch cfg watch root (path <> p))
+            $ S.mapM toUtf8
+            $ Dir.toDirs $ utf8ToString absPath
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch
         :: CInt -> CInt -> IO CInt
 
--- | Remove a path from a 'Watch', if a path was moved after adding you need to
--- need to provide the original path which was used to add the Watch.
+-- | Remove an absolute root path from a 'Watch', if a path was moved after
+-- adding you need to provide the original path which was used to add the
+-- Watch.
 --
 -- /Internal/
 --
-removeFromWatch :: Watch -> Array Word8 -> IO Watch
+removeFromWatch :: Watch -> Array Word8 -> IO ()
 removeFromWatch (Watch handle wdMap) path = do
     fd <- handleToFd handle
     km <- readIORef wdMap
     wdMap1 <- foldlM (step fd) Map.empty (Map.toList km)
     writeIORef wdMap wdMap1
-    return $ Watch handle wdMap
 
     where
 
     step fd newMap (wd, v) = do
         if (fst v) == path
         then do
-            let err = "removeFromWatch " ++ show (utf8ToString path)
+            let err = "removeFromWatch: " ++ show (utf8ToString path)
                 rm = c_inotify_rm_watch (fdFD fd) (fromIntegral wd)
             void $ throwErrnoIfMinus1 err rm
             return newMap
@@ -720,32 +722,18 @@ removeFromWatch (Watch handle wdMap) path = do
 --
 -- /Internal/
 --
-openWatch ::
-       Config
-    -> NonEmpty (Array Word8)
-    -> IO (Config, Watch)
+openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
 openWatch cfg paths = do
-    let pathList = NonEmpty.toList paths
     w <- createWatch
-    foldlM (\(cfg1, w1) path -> addToWatch cfg1 w1 path)
-        (cfg, w) pathList
-
-openWatchRec ::
-       Config
-    -> NonEmpty (Array Word8)
-    -> IO (Config, Watch)
-openWatchRec cfg paths = do
-    let pathList = map utf8ToString $ NonEmpty.toList paths
-    w <- createWatch
-    foldlM (\(cfg1, w1) path -> addToWatchRec cfg1 w1 path path)
-        (cfg, w) pathList
+    mapM_ (\p -> addToWatch cfg w p (A.fromList [])) $ NonEmpty.toList paths
+    return w
 
 -- | Close a 'Watch' handle.
 --
 -- /Internal/
 --
-closeWatch :: (Config, Watch) -> IO ()
-closeWatch (_, Watch h _) = hClose h
+closeWatch :: Watch -> IO ()
+closeWatch (Watch h _) = hClose h
 
 -------------------------------------------------------------------------------
 -- Raw events read from the watch file handle
@@ -788,8 +776,6 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.
-    -- PR.yieldM $ print ("Flag1 = " ++ show eflags)
-    -- PR.yieldM $ print ("pathLen = " ++ show pathLen)
     path <-
         if pathLen /= 0
         then do
@@ -798,30 +784,33 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
             -- takeP
             pth <- PR.sliceSepByMax (== 0) pathLen (A.writeN pathLen)
             let remaining = pathLen - A.length pth - 1
-            -- PR.yieldM $ print ("remaining = " ++ show remaining)
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
-            -- PR.yieldM $ print ("takeEQ = " ++ show remaining)
             return pth
         else return $ A.fromList []
-    -- PR.yieldM $ print ("Flag2 = " ++ show eflags)    
-    xm <- PR.yieldM $ readIORef wdMap           
-    let base = case Map.lookup (fromIntegral ewd) xm of
-                    Just path1 -> path1   
-                    Nothing -> (path, path)
-    let xpath = utf8ToString (snd base) </> utf8ToString  path
-    _ <- if eflags .&. iN_CREATE /= 0 && eflags .&. iN_ISDIR /= 0
-         then   
-             processEvent cfg wt xpath (utf8ToString $ fst base)  
-         else return (cfg, wt)
-    rm2 <- PR.yieldM $ readIORef wdMap
-    pdiff <- PR.yieldM $ pathDiff (utf8ToString $ fst base) xpath
-    relPath <- PR.yieldM $ toUtf8 (pdiff)
+    wdm <- PR.yieldM $ readIORef wdMap
+    let (root, sub) =
+            case Map.lookup (fromIntegral ewd) wdm of
+                    Just pair -> pair
+                    Nothing ->
+                        error $ "readOneEvent: "
+                                  <> "Unknown watch descriptor: "
+                                  <> show ewd
+    let -- "sub" is guaranteed to have a trailing "/"
+        sub1 = sub <> path
+        -- Check for "ISDIR" first because it is less likely
+        isDirCreate = eflags .&. iN_ISDIR /= 0 && eflags .&. iN_CREATE /= 0
+    when (watchRec cfg && isDirCreate)
+        $ PR.yieldM $ addToWatch cfg wt root sub1
+    -- XXX Handle IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM,
+    -- IN_MOVED_TO
+    -- What if a large dir tree gets moved in to our hierarchy? Do we get a
+    -- single event for the top level dir in this case?
     return $ Event
         { eventWd = (fromIntegral ewd)
         , eventFlags = eflags
         , eventCookie = cookie
-        , eventRelPath = relPath
-        , eventMap = rm2
+        , eventRelPath = sub1
+        , eventMap = wdm
         }
 
     where
@@ -834,21 +823,8 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
         pathLen :: Word32 <- peekByteOff ptr (len + 8)
         return (ewd, eflags, cookie, fromIntegral pathLen)
 
-    processEvent ::
-           Config
-        -> Watch
-        -> FilePath
-        -> FilePath  
-        -> Parser IO Word8 (Config, Watch)
-    processEvent cfg1@Config{..} wt1 xpath root = do
-            if watchRec
-            then
-                PR.yieldM $ addToWatchRec cfg1 wt1 xpath root
-            else
-                PR.yieldM $ return (cfg1, wt1)       
-        
-watchToStream :: (Config, Watch) -> SerialT IO Event
-watchToStream (cfg, wt@(Watch handle _)) = do
+watchToStream :: Config -> Watch -> SerialT IO Event
+watchToStream cfg wt@(Watch handle _) = do
     -- Do not use too small a buffer. As per inotify man page:
     --
     -- The behavior when the buffer given to read(2) is too small to return
@@ -879,12 +855,7 @@ watchToStream (cfg, wt@(Watch handle _)) = do
 --
 watchPathsWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
-watchPathsWith f paths = S.bracket before after watchToStream
-
-    where
-
-    before = liftIO $ openWatch (f defaultConfig) paths
-    after = liftIO . closeWatch
+watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
 
 -- | Like 'watchPathsWith' but uses the 'defaultConfig' options.
 --
@@ -897,22 +868,40 @@ watchPathsWith f paths = S.bracket before after watchToStream
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
 watchPaths = watchPathsWith id
 
+-- XXX We should not go across the mount points of network file systems or file
+-- systems that are known to not generate any events.
+--
 -- | Start monitoring a list of file system paths for file system events with
 -- the supplied configuration operation over the 'defaultConfig'. The
 -- paths could be files or directories.  When the path is a directory, the
 -- whole directory tree under it is watched recursively. Monitoring starts from
 -- the current time onwards.
 --
+-- Note that recrusive watch on a large directory tree could be expensive. When
+-- starting a watch, the whole tree must be read and watches are started on
+-- each directory in the tree. The initial time to start the watch as well as
+-- the memory required is proportional to the number of directories in the
+-- tree.
+--
+-- When new directories are created under the tree they are added to the watch
+-- on receiving the directory create event. However, the creation of a dir and
+-- adding a watch for it is not atomic.  The implementation takes care of this
+-- and makes sure that watches are added for all directories.  However, In the
+-- mean time, the directory may have received more events which may get lost.
+-- Handling of any such lost events is yet to be implemented.
+--
+-- See the Linux __inotify__ man page for more details.
+--
 -- /Internal/
 --
 watchTreesWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
-watchTreesWith f paths = S.bracket before after watchToStream
+watchTreesWith f paths = S.bracket before after (watchToStream cfg)
 
     where
 
-    before = liftIO 
-        $ openWatchRec (f $ setRecursiveMode True defaultConfig) paths
+    cfg = f defaultConfig
+    before = liftIO $ openWatch cfg paths
     after = liftIO . closeWatch
 
 -- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
@@ -928,11 +917,12 @@ watchTrees = watchTreesWith id
 -- Examine event stream
 -------------------------------------------------------------------------------
 
--- | Get the watch descriptor corresponding to the 'Event'. A watch descriptor
--- identifies which of the paths being monitored has generated this event.
+-- | Get the watch root corresponding to the 'Event'.
 --
 -- Note that if a path was moved after adding to the watch, this will give the
 -- original path and not the new path after moving.
+--
+-- TBD: we can possibly update the watch root on a move self event.
 --
 -- /Internal/
 --
@@ -1188,12 +1178,6 @@ isDir = getFlag iN_ISDIR
 -------------------------------------------------------------------------------
 -- Debugging
 -------------------------------------------------------------------------------
-showEventShort :: Event -> String
-showEventShort ev@Event{..} = (utf8ToString $ getRelPath ev) 
-    ++ "_" ++ show eventFlags
-    ++ showev isDir "Dir"
-
-    where showev f str = if f ev then "_" ++ str else ""
 
 -- | Convert an 'Event' record to a String representation.
 showEvent :: Event -> String

@@ -1,20 +1,32 @@
+-- |
+-- Module      : Streamly.Test.FileSystem.Event
+-- Copyright   : (c) 2020 Composewell Technologies
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+--
+module Main (main) where
+
 import Control.Concurrent (MVar, newEmptyMVar, putMVar, takeMVar, threadDelay)
 import Control.Monad.IO.Class (MonadIO)
-import Data.List.NonEmpty (NonEmpty)
+import Data.Char (ord)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
-import System.Directory ( createDirectoryIfMissing
-                        , removeFile
-                        , removeDirectory
-                        , removePathForcibly
-                        , renameDirectory
-                        , renamePath
-                        )
+import System.Directory
+    ( createDirectoryIfMissing
+    , removeFile
+    , removeDirectory
+    , removePathForcibly
+    , renameDirectory
+    , renamePath
+    )
 import System.FilePath ((</>))
 import System.IO (BufferMode(..), hSetBuffering, stdout)
 import System.IO.Temp (withSystemTempDirectory)
-import Streamly.Prelude (SerialT)
+import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
+
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
@@ -39,6 +51,7 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 import Data.Functor.Identity (runIdentity)
 import qualified Streamly.Internal.Unicode.Stream as U
 #endif
+
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
@@ -50,15 +63,13 @@ utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.toList . U.decodeUtf8' . Array.toStream
 #endif
 
-watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event.Event
-watchPaths = Event.watchTrees
-
 timeout :: IO String
 timeout = threadDelay 5000000 >> return "Timeout"
 
 fseventDir :: String
 fseventDir = "fsevent_dir"
 
+-- XXX Make the getRelPath type same on windows and other platforms
 eventPredicate :: Event.Event -> Bool
 eventPredicate ev =
 #if defined(CABAL_OS_WINDOWS)
@@ -72,6 +83,9 @@ eventPredicate ev =
 -------------------------------------------------------------------------------
 -- Event lists to be matched with
 -------------------------------------------------------------------------------
+
+-- XXX Use a tuple (path, flags) instead of a string with flags
+
 #if defined(CABAL_OS_WINDOWS)
 
 singleDirCreateEvents :: [String]
@@ -144,6 +158,10 @@ renameFileNestedDirEvents =
     , "dir1\\dir2\\dir3\\FileCreated.txt_4"
     , "dir1\\dir2\\dir3\\FileRenamed.txt_5"
     ]
+
+-- | Convert an 'Event' record to a short representation for unit test.
+showEventShort :: Event -> String
+showEventShort ev@Event{..} = getRelPath ev ++ "_" ++ show eventFlags
 
 #else
 
@@ -222,11 +240,37 @@ renameFileNestedDirEvents =
     [ "dir1/dir2/dir3/FileCreated.txt_64"
     , "dir1/dir2/dir3/FileRenamed.txt_128"
     ]
+
+removeTrailingSlash :: Array Word8 -> Array Word8
+removeTrailingSlash path =
+    if Array.length path == 0
+    then path
+    else
+        let mx = Array.readIndex path (Array.length path - 1)
+         in case mx of
+            Nothing -> error "removeTrailingSlash: Bug: Invalid index"
+            Just x ->
+                if x == fromIntegral (ord '/')
+                -- XXX need array slicing
+                then unsafePerformIO
+                        $ Array.fromStreamN (Array.length path - 1)
+                        $ Array.toStream path
+                else path
+
+showEventShort :: Event.Event -> String
+showEventShort ev@Event.Event{..} =
+    (utf8ToString $ removeTrailingSlash $ Event.getRelPath ev)
+        ++ "_" ++ show eventFlags
+        ++ showev Event.isDir "Dir"
+
+    where showev f str = if f ev then "_" ++ str else ""
+
 #endif
 
 -------------------------------------------------------------------------------
 -- Event Watcher
 -------------------------------------------------------------------------------
+
 checkEvents :: FilePath -> MVar () -> [String] -> IO String
 checkEvents rootPath m matchList = do
     let args = [rootPath]
@@ -234,20 +278,25 @@ checkEvents rootPath m matchList = do
     putStrLn ("Watch started !!!! on Path " ++ rootPath)
     events <- S.parse (PR.takeWhile eventPredicate FL.toList)
         $ S.before (putMVar m ())
-        $ watchPaths (NonEmpty.fromList paths)
-    let eventStr =  map Event.showEventShort events
-    putStrLn $ show (eventStr)
+        $ Event.watchTrees (NonEmpty.fromList paths)
+    let eventStr =  map showEventShort events
     let baseSet = Set.fromList matchList
         resultSet = Set.fromList eventStr
     if (baseSet `Set.isSubsetOf` resultSet)
     then
         return "PASS"
-    else
+    else do
+        putStrLn $ "baseSet " ++ show matchList
+        putStrLn $ "resultSet " ++ show eventStr
         return "Mismatch"
 
 -------------------------------------------------------------------------------
 -- FS Event Generators
 -------------------------------------------------------------------------------
+
+-- XXX Factor out common code from all these functions. The specific operation
+-- can be passed to a common function.
+
 fsOpsCreateSingleDir :: FilePath -> MVar () -> IO ()
 fsOpsCreateSingleDir fp m = do
     takeMVar m
@@ -319,7 +368,7 @@ fsOpsRemoveFileInRootDir fp m = do
     takeMVar m
     let tpath = (fp </> "FileCreated.txt")
     putStrLn ("Remove a File  on " ++ fp)
-    threadDelay 200000 
+    threadDelay 200000
         >> removeFile tpath
         >> threadDelay 200000
         >> createDirectoryIfMissing True (fp </> "EOTask")
@@ -366,7 +415,6 @@ fsOpsRenameFileInNestedDir fp m = do
         >> threadDelay 200000
         >> createDirectoryIfMissing True (fp </> "EOTask")
 
-
 checker :: S.IsStream t =>
                 FilePath -> MVar () -> [String] -> t IO String
 checker rootPath synch matchList =
@@ -383,6 +431,10 @@ driverInit = do
 -------------------------------------------------------------------------------
 -- Test Drivers
 -------------------------------------------------------------------------------
+
+-- XXX Factor out common code from all these. Pass a specific fsops function to
+-- a common functions.
+
 driverCreateSingleDir :: IO String
 driverCreateSingleDir = do
     sync <- driverInit
@@ -553,6 +605,10 @@ driverRenameFileInNestedDir = do
 -------------------------------------------------------------------------------
 -- Test Cases
 -------------------------------------------------------------------------------
+
+-- XXX These can either be directly inlined instead of creating a wrapper
+-- function or the wrapper could be common passing the function being checked.
+
 testCreateSingleDir :: Expectation
 testCreateSingleDir = driverCreateSingleDir `shouldReturn` "PASS"
 
@@ -592,6 +648,7 @@ testRenameFileInNestedDir = driverRenameFileInNestedDir `shouldReturn` "PASS"
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
+
 main :: IO ()
 main = hspec $ do
     prop "Create a single directory" testCreateSingleDir

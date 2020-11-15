@@ -207,11 +207,6 @@ flag use-c-malloc
   manual: True
   default: False
 
-flag manual-tests
-  description: Builds tests that are to be run manually
-  manual: True
-  default: False
-
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -329,8 +324,8 @@ common test-dependencies
     , transformers      >= 0.4   && < 0.6
     , QuickCheck        >= 2.13  && < 2.15
     , directory         >= 1.2.2 && < 1.4
-    , filepath          >= 1.4.1
-    , temporary         >= 1.3
+    , filepath          >= 1.4.1 && < 1.5
+    , temporary         >= 1.3   && < 1.4
 
 -- Compilation for coverage builds on CI machines takes too long without -O0
 -- XXX we should use coverage flag for that, -O0 may take too long to run tests
@@ -389,7 +384,6 @@ library
 
     if os(linux)
       exposed-modules: Streamly.Internal.FileSystem.Event.Linux
-      build-depends: unix >= 2.7.2, filepath  >= 1.4.1
 
     hs-source-dirs:    src
     other-modules:
@@ -741,7 +735,7 @@ test-suite FileSystem.Event
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Event.hs
-  hs-source-dirs: test  
+  hs-source-dirs: test
   default-language: Haskell2010
   if os(darwin)
     buildable: False

@@ -48,7 +48,7 @@ module Streamly.Internal.FileSystem.Event.Windows
 
     -- ** Default configuration
       Config
-    , Event
+    , Event (..)
     , Toggle (..)
     , setFlag
     , defaultConfig
@@ -89,7 +89,6 @@ module Streamly.Internal.FileSystem.Event.Windows
 
     -- * Debugging
     , showEvent
-    , showEventShort
     )
 where
 
@@ -540,9 +539,6 @@ isOverflow Event{..} = totalBytes == 0
 -------------------------------------------------------------------------------
 -- Debugging
 -------------------------------------------------------------------------------
--- | Convert an 'Event' record to a short representation for unit test.
-showEventShort :: Event -> String
-showEventShort ev@Event{..} = getRelPath ev ++ "_" ++ show eventFlags    
 
 -- | Convert an 'Event' record to a String representation.
 showEvent :: Event -> String
