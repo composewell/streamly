@@ -1840,10 +1840,10 @@ isInfixOf infx stream = do
 isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
 isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 
--- | Strip prefix if present and tell whether it was stripped or not. Returns
--- 'Nothing' if the stream does not start with the given prefix, stripped
--- stream otherwise. Returns @Just nil@ when the prefix is the same as the
--- stream.
+-- | @stripPrefix prefix stream@ strips @prefix@ from @stream@ if it is a
+-- prefix of stream. Returns 'Nothing' if the stream does not start with the
+-- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
+-- is the same as the stream.
 --
 -- Space: @O(1)@
 --
