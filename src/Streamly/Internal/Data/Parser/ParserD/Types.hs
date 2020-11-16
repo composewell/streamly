@@ -507,21 +507,25 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         pure (Tuple3' ps (0 :: Int) (Left fs))
 
     {-# INLINE step #-}
-    -- XXX We need to backtrack if the fold does not consume any elements
-    step (Tuple3' st _ (Left fs)) a = do
+    step (Tuple3' st cnt (Left fs)) a = do
         r <- step1 st a
+        let cnt1 = cnt + 1
         case r of
-            Partial n s -> return $ Continue n (Tuple3' s 0 (Left fs))
-            Continue n s -> return $ Continue n (Tuple3' s 0 (Left fs))
+            Partial n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
+            Continue n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Partial1 s1 -> Partial n (Tuple3' s 0 (Right s1))
+                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
-                        FL.Done1 b1 -> Done n b1
+                        FL.Done1 b1 -> Done cnt1 b1
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
@@ -540,7 +544,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Partial1 s1 -> Partial cnt (Tuple3' s 0 (Right s1))
+                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
                         FL.Done1 b1 -> Done cnt1 b1
             Error _ -> Done cnt1 <$> fextract fs
