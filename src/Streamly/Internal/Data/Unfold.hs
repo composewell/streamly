@@ -278,24 +278,30 @@ swap = lmap Tuple.swap
 fold :: Monad m => Unfold m a b -> Fold m b c -> a -> m c
 fold (Unfold ustep inject) (Fold fstep initial extract) a =
     initial >>= \x -> inject a >>= go SPEC x
-  where
-    -- XXX !acc?
-    {-# INLINE_LATE go #-}
-    goWith !_ !acc st x = do
-        acc' <- fstep acc x
-        case acc' of
-            FL.Partial acc'' -> go SPEC acc'' st
-            FL.Partial1 acc'' -> goWith SPEC acc'' st x
-            FL.Done c -> return c
-            FL.Done1 c -> return c
 
-    -- XXX Get rid of seq
-    go !_ acc st = acc `seq` do
+    where
+
+    {-# INLINE_LATE go #-}
+    go !_ !fs st = do
         r <- ustep st
         case r of
-            Yield x s -> goWith SPEC acc s x
-            Skip s -> go SPEC acc s
-            Stop   -> extract acc
+            Yield x s -> do
+                res <- fstep fs x
+                case res of
+                    FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Partial1 fs1 -> goBuf SPEC fs1 s x
+                    FL.Done c -> return c
+                    FL.Done1 c -> return c
+            Skip s -> go SPEC fs s
+            Stop -> extract fs
+
+    goBuf !_ !fs st x = do
+        res <- fstep fs x
+        case res of
+            FL.Partial fs1 -> go SPEC fs1 st
+            FL.Partial1 fs1 -> goBuf SPEC fs1 st x
+            FL.Done c -> return c
+            FL.Done1 c -> return c
 
 {-# INLINE_NORMAL map #-}
 map :: Monad m => (b -> c) -> Unfold m a b -> Unfold m a c
