@@ -3909,6 +3909,7 @@ scanlMx' fstep begin done s =
 
 data PostScanState fsM s a = PostScan s !fsM | PostScanWith s !fsM a
 
+-- XXX Refactor this.
 {-# INLINE_NORMAL postscanOnce #-}
 postscanOnce :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
@@ -3925,9 +3926,8 @@ postscanOnce (FL.Fold fstep begin done) (Stream step state) =
             FL.Partial sres -> do
                 !v <- done sres
                 return $ Yield v $ PostScan st (return sres)
-            FL.Partial1 sres -> do
-                !v <- done sres
-                return $ Yield v $ PostScanWith st (return sres) x
+            FL.Partial1 sres ->
+                return $ Skip $ PostScanWith st (return sres) x
             FL.Done _ -> return $ Stop
             FL.Done1 _ -> return $ Stop
     step' gst (PostScan st acc) = do
@@ -4161,6 +4161,7 @@ data TapState sv st a
     = TapInit | Tapping sv st | TappingWith sv st a | TapDone st
 
 -- XXX Multiple yield points
+-- XXX Refactor this.
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
 tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
@@ -4175,7 +4176,7 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
         return
           $ case acc1 of
                 FL.Partial sres -> Yield x (Tapping sres st)
-                FL.Partial1 sres -> Yield x (TappingWith sres st x)
+                FL.Partial1 sres -> Skip (TappingWith sres st x)
                 FL.Done _ -> Yield x (TapDone st)
                 FL.Done1 _ -> Yield x (TapDone st)
     step' gst (Tapping acc st) =
@@ -4203,6 +4204,7 @@ data TapOffState fs s a n
     | TapOffDone s
 
 -- XXX Multiple yield points
+-- Refactor this
 {-# INLINE_NORMAL tapOffsetEvery #-}
 tapOffsetEvery :: Monad m
     => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
