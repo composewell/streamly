@@ -411,15 +411,7 @@ watchPathsWith ::
        (Config -> Config)
     -> NonEmpty (Array Word8)
     -> SerialT IO Event
-watchPathsWith f paths =
-    S.bracket before after (S.concatMapWith parallel eventStreamAggr)
-
-    where
-
-    before =
-        let cfg = f $ setRecursiveMode False defaultConfig
-         in return $ pathsToHandles (utf8ToStringList paths) cfg
-    after = liftIO . closePathHandleStream
+watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
 
 -- | Like 'watchPathsWith' but uses the 'defaultConfig' options.
 --
@@ -432,6 +424,14 @@ watchPathsWith f paths =
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
 watchPaths = watchPathsWith id
 
+-- XXX
+-- Document the path treatment for Linux/Windows/macOS modules.
+-- Remove the utf-8 encoding requirement of paths? It can be encoding agnostic
+-- "\" separated bytes, the application can decide what encoding to use.
+-- Instead of always using widechar (-W) APIs can we call the underlying APIs
+-- based on the configured code page?
+-- https://docs.microsoft.com/en-us/windows/uwp/design/globalizing/use-utf8-code-page
+--
 -- | Start monitoring a list of file system paths for file system events with
 -- the supplied configuration operation over the 'defaultConfig'. The
 -- paths could be files or directories.  When the path is a directory, the
