@@ -10,7 +10,9 @@ module Main (main) where
 
 import Control.Concurrent (MVar, newEmptyMVar, putMVar, takeMVar, threadDelay)
 import Control.Monad.IO.Class (MonadIO)
+#if !defined(CABAL_OS_WINDOWS)
 import Data.Char (ord)
+#endif
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
 import System.Directory
@@ -24,7 +26,9 @@ import System.Directory
 import System.FilePath ((</>))
 import System.IO (BufferMode(..), hSetBuffering, stdout)
 import System.IO.Temp (withSystemTempDirectory)
+#if !defined(CABAL_OS_WINDOWS)
 import System.IO.Unsafe (unsafePerformIO)
+#endif
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 
 import Test.Hspec
@@ -160,8 +164,8 @@ renameFileNestedDirEvents =
     ]
 
 -- | Convert an 'Event' record to a short representation for unit test.
-showEventShort :: Event -> String
-showEventShort ev@Event{..} = getRelPath ev ++ "_" ++ show eventFlags
+showEventShort :: Event.Event -> String
+showEventShort ev@Event.Event{..} = Event.getRelPath ev ++ "_" ++ show eventFlags
 
 #else
 

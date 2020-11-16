@@ -156,6 +156,10 @@ import Data.Functor.Identity (runIdentity)
 import Data.IntMap.Lazy (IntMap)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.List.NonEmpty (NonEmpty)
+
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Word (Word8, Word32)
 import Foreign.C.Error (throwErrnoIfMinus1)
 import Foreign.C.String (CString)
