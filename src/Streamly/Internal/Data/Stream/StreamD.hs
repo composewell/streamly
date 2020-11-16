@@ -4166,11 +4166,11 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 -- Tapping/Distributing
 ------------------------------------------------------------------------------
 
-data TapState sv st a
-    = TapInit | Tapping sv st | TappingWith sv st a | TapDone st
+data TapState fs st a
+    = TapInit | Tapping !fs st | TappingWith !fs st a | TapDone st
 
 -- XXX Multiple yield points
--- XXX Refactor this.
+-- XXX TappingWith can be eliminated with a abstracting Yield
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
 tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
@@ -4183,28 +4183,34 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
     step' _ (TappingWith !acc st x) = do
         acc1 <- fstep acc x
         return
-          $ case acc1 of
-                FL.Partial sres -> Yield x (Tapping sres st)
-                FL.Partial1 sres -> Skip (TappingWith sres st x)
-                FL.Done _ -> Yield x (TapDone st)
-                FL.Done1 _ -> Yield x (TapDone st)
-    step' gst (Tapping acc st) =
-        -- XXX Get rid of seq
-        acc `seq` do
-            r <- step gst st
-            case r of
-                Yield x s -> return $ Skip $ TappingWith acc s x
-                Skip s -> return $ Skip (Tapping acc s)
-                Stop -> do
-                    void $ extract acc
-                    return $ Stop
+            $ case acc1 of
+                  FL.Partial sres -> Yield x (Tapping sres st)
+                  FL.Partial1 sres -> Skip (TappingWith sres st x)
+                  FL.Done _ -> Yield x (TapDone st)
+                  FL.Done1 _ -> Yield x (TapDone st)
+    step' gst (Tapping acc st) = do
+        r <- step gst st
+        case r of
+            -- XXX Abstract Yield?
+            Yield x s -> do
+                acc1 <- fstep acc x
+                return
+                    $ case acc1 of
+                          FL.Partial sres -> Yield x (Tapping sres s)
+                          FL.Partial1 sres -> Skip (TappingWith sres s x)
+                          FL.Done _ -> Yield x (TapDone s)
+                          FL.Done1 _ -> Yield x (TapDone s)
+            Skip s -> return $ Skip (Tapping acc s)
+            Stop -> do
+                void $ extract acc
+                return $ Stop
     step' gst (TapDone st) = do
         r <- step gst st
         return
-          $ case r of
-                Yield x s -> Yield x (TapDone s)
-                Skip s -> Skip (TapDone s)
-                Stop -> Stop
+            $ case r of
+                  Yield x s -> Yield x (TapDone s)
+                  Skip s -> Skip (TapDone s)
+                  Stop -> Stop
 
 data TapOffState fs s a n
     = TapOffInit
@@ -4213,7 +4219,7 @@ data TapOffState fs s a n
     | TapOffDone s
 
 -- XXX Multiple yield points
--- Refactor this
+-- XXX TapOffTappingWith can be eliminated
 {-# INLINE_NORMAL tapOffsetEvery #-}
 tapOffsetEvery :: Monad m
     => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
@@ -4229,22 +4235,31 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
     step' _ (TapOffTappingWith acc st x) = do
         acc1 <- fstep acc x
         return
-          $ case acc1 of
-                FL.Partial sres ->
-                    Yield x $ TapOffTapping sres st (n - 1)
-                FL.Partial1 sres ->
-                    -- XXX Is this a natural behaviour?
-                    Skip $ TapOffTappingWith sres st x
-                FL.Done _ -> Yield x (TapOffDone st)
-                FL.Done1 _ -> Yield x (TapOffDone st)
+            $ case acc1 of
+                  FL.Partial sres -> Yield x $ TapOffTapping sres st (n - 1)
+                  FL.Partial1 sres ->
+                      -- XXX Is this a natural behaviour?
+                      Skip $ TapOffTappingWith sres st x
+                  FL.Done _ -> Yield x (TapOffDone st)
+                  FL.Done1 _ -> Yield x (TapOffDone st)
     step' gst (TapOffTapping acc st count) = do
         r <- step gst st
         case r of
             Yield x s ->
-                return
-                    $ if count <= 0
-                      then Skip $ TapOffTappingWith acc s x
-                      else Yield x $ TapOffTapping acc s (count - 1)
+                if count <= 0
+                -- XXX Abstract the then branch?
+                then do
+                    acc1 <- fstep acc x
+                    return
+                        $ case acc1 of
+                              FL.Partial sres ->
+                                  Yield x $ TapOffTapping sres s (n - 1)
+                              FL.Partial1 sres ->
+                                  -- XXX Is this a natural behaviour?
+                                  Skip $ TapOffTappingWith sres s x
+                              FL.Done _ -> Yield x (TapOffDone s)
+                              FL.Done1 _ -> Yield x (TapOffDone s)
+                else return $ Yield x $ TapOffTapping acc s (count - 1)
             Skip s -> return $ Skip (TapOffTapping acc s count)
             Stop -> do
                 void $ extract acc
@@ -4252,10 +4267,10 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
     step' gst (TapOffDone st) = do
         r <- step gst st
         return
-          $ case r of
-                Yield x s -> Yield x (TapOffDone s)
-                Skip s -> Skip (TapOffDone s)
-                Stop -> Stop
+            $ case r of
+                  Yield x s -> Yield x (TapOffDone s)
+                  Skip s -> Skip (TapOffDone s)
+                  Stop -> Stop
 
 {-# INLINE_NORMAL pollCounts #-}
 pollCounts
