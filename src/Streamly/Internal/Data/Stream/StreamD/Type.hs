@@ -589,8 +589,8 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
-    | GroupConsume s fs a
-    | GroupBuffer s fs
+    | GroupConsume s !fs a
+    | GroupBuffer s !fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
@@ -621,7 +621,19 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
+            -- XXX Move Yield to a common function
+            Yield x s -> do
+                fs' <- fstep fs x
+                case fs' of
+                    FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
+                    FL.Partial ps -> return $ Skip (GroupBuffer s ps)
+                    -- XXX This will lead to an infinite loop most of the time.
+                    -- But it may terminate as it is an effectful step
+                    -- function. If possible, we should somehow warn the user.
+                    FL.Partial1 ps -> return $ Skip (GroupConsume s ps x)
+                    FL.Done1 b -> do
+                        fi <- initial
+                        return $ Skip (GroupYield b (GroupConsume s fi x))
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
@@ -659,7 +671,16 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
+            -- XXX Move Yield to a common function
+            Yield x s -> do
+                fs' <- fstep fs x
+                case fs' of
+                    FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
+                    FL.Done1 b -> do
+                           fi <- initial
+                           return $ Skip (GroupYield b (GroupConsume s fi x))
+                    FL.Partial1 ps -> return $ Skip (GroupConsume s ps x)
+                    FL.Partial ps -> return $ Skip (GroupBuffer s ps)
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
