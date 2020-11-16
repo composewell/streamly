@@ -614,7 +614,7 @@ removeFromWatch (Watch handle wdMap) path = do
             return newMap
         else return $ Map.insert wd v newMap
 
--- | Given a 'Config' and list of @paths@ (UTF-8 encoded byte arrays) start
+-- | Given a 'Config' and list of @paths@ ("/" separated byte arrays) start
 -- monitoring the paths for file system events. Returns a 'Watch' handle which
 -- can then be used to read the event stream or to close the watch.
 --
@@ -721,7 +721,7 @@ watchToStream (Watch handle wdMap) =
 -- paths could be files or directories. When the path is a directory, only the
 -- files and directories directly under the watched directory are monitored,
 -- contents of subdirectories are not monitored.  Monitoring starts from the
--- current time onwards. The paths are specified as UTF-8 encoded 'Array' of
+-- current time onwards. The paths are specified as "/" separated 'Array' of
 -- 'Word8'.
 --
 -- @
@@ -778,7 +778,7 @@ getRoot Event{..} =
 
 -- XXX should we use a Maybe here?
 -- | Get the file system object path for which the event is generated, relative
--- to the watched root. The path is a UTF-8 encoded array of bytes.
+-- to the watched root. The path is a "/" separated array of bytes.
 --
 -- /Internal/
 --
