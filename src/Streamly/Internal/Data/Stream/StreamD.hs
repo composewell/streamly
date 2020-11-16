@@ -3909,7 +3909,7 @@ scanlMx' fstep begin done s =
 
 data PostScanState fsM s a = PostScan s !fsM | PostScanWith s !fsM a
 
--- XXX Refactor this.
+-- XXX PostScanWith is can be eliminated if we abstract Yield
 {-# INLINE_NORMAL postscanOnce #-}
 postscanOnce :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
@@ -3926,17 +3926,26 @@ postscanOnce (FL.Fold fstep begin done) (Stream step state) =
             FL.Partial sres -> do
                 !v <- done sres
                 return $ Yield v $ PostScan st (return sres)
-            FL.Partial1 sres ->
-                return $ Skip $ PostScanWith st (return sres) x
+            FL.Partial1 sres -> return $ Skip $ PostScanWith st (return sres) x
             FL.Done _ -> return $ Stop
             FL.Done1 _ -> return $ Stop
     step' gst (PostScan st acc) = do
         r <- step (adaptState gst) st
-        return
-            $ case r of
-                  Yield x s -> Skip $ PostScanWith s acc x
-                  Skip s -> Skip $ PostScan s acc
-                  Stop -> Stop
+        case r of
+            -- XXX Move Yield to a common function
+            Yield x s -> do
+                old <- acc
+                y <- fstep old x
+                case y of
+                    FL.Partial sres -> do
+                        !v <- done sres
+                        return $ Yield v $ PostScan s (return sres)
+                    FL.Partial1 sres ->
+                        return $ Skip $ PostScanWith s (return sres) x
+                    FL.Done _ -> return $ Stop
+                    FL.Done1 _ -> return $ Stop
+            Skip s -> return $ Skip $ PostScan s acc
+            Stop -> return Stop
 
 {-# INLINE scanOnce #-}
 scanOnce :: Monad m
