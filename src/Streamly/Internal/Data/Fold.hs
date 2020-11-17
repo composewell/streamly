@@ -416,7 +416,7 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 -- @since 0.7.0
 {-# INLINABLE last #-}
 last :: Monad m => Fold m a (Maybe a)
-last = _Fold1 (flip const)
+last = _Fold1 (\_ x -> x)
 
 ------------------------------------------------------------------------------
 -- To Summary
