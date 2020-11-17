@@ -1549,7 +1549,7 @@ splitSuffixBy predicate f = foldMany1 (FL.sliceSepBy predicate f)
 
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-wordsBy predicate f = foldMany (FL.wordBy predicate f)
+wordsBy predicate f = foldMany1 (FL.wordBy predicate f)
 
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
