@@ -187,11 +187,12 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
 
     step s a = do
         res <- fstep s a
-        case res of
-            FL.Partial s1 -> return $ Partial 0 s1
-            FL.Partial1 s1 -> return $ Partial 1 s1
-            FL.Done b -> return $ Done 0 b
-            FL.Done1 b -> return $ Done 1 b
+        return
+            $ case res of
+                  FL.Partial s1 -> Partial 0 s1
+                  FL.Partial1 s1 -> Partial 1 s1
+                  FL.Done b -> Done 0 b
+                  FL.Done1 b -> Done 1 b
 
 
 -------------------------------------------------------------------------------
