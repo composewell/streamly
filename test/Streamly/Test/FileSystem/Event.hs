@@ -298,99 +298,81 @@ checkEvents rootPath m matchList = do
 -------------------------------------------------------------------------------
 -- FS Event Generators
 -------------------------------------------------------------------------------
-fsOpsPreTask :: FilePath -> MVar () -> String -> IO ()
-fsOpsPreTask fp m msg = do
+fsOpsPreTask :: MVar () -> IO ()
+fsOpsPreTask m = do
     takeMVar m
-    putStrLn (msg ++ fp)
     threadDelay 200000
 
 fsOpsPostTask :: FilePath -> IO ()
 fsOpsPostTask fp =
     threadDelay 200000 >> createDirectoryIfMissing True (fp </> "EOTask")
 
+dispatch :: FilePath -> MVar () -> IO () -> IO ()
+dispatch fp m act =
+    fsOpsPreTask m >> act >> fsOpsPostTask fp
+
 -- XXX Factor out common code from all these functions. The specific operation
 -- can be passed to a common function.
 
 fsOpsCreateSingleDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateSingleDir fp m = do
-    fsOpsPreTask fp m "Create a Single Dir on : "
-        >> createDirectoryIfMissing True (fp </> "dir1Single")
-        >> fsOpsPostTask fp
+fsOpsCreateSingleDir fp m =
+    dispatch fp m (createDirectoryIfMissing True (fp </> "dir1Single"))
 
 fsOpsRemoveSingleDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveSingleDir fp m = do
-    fsOpsPreTask fp m "Remove Single Directory on : "
-        >> removeDirectory (fp </> "dir1Single")
-        >> fsOpsPostTask fp
+fsOpsRemoveSingleDir fp m =
+    dispatch fp m (removeDirectory (fp </> "dir1Single"))
 
 fsOpsRenameSingleDir :: FilePath -> MVar () -> IO ()
 fsOpsRenameSingleDir fp m = do
-    fsOpsPreTask fp m "Rename a Single Directory on : "
-        >> renameDirectory (fp </> "dir1Single") (fp </> "dir1SingleRenamed")
-        >> fsOpsPostTask fp
+    let spath = fp </> "dir1Single"
+        tpath = fp </> "dir1SingleRenamed"
+    dispatch fp m (renameDirectory spath tpath)
 
 fsOpsCreateNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateNestedDir fp m = do
-    fsOpsPreTask fp m "Create Nested Directory on : "
-        >> createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-        >> fsOpsPostTask fp
+fsOpsCreateNestedDir fp m =
+    dispatch fp m (createDirectoryIfMissing
+        True (fp </> "dir1" </> "dir2" </> "dir3"))
 
 fsOpsRemoveNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveNestedDir fp m = do
-    fsOpsPreTask fp m "Remove Nested Directory on : "
-        >> removePathForcibly (fp </> "dir1")
-        >> fsOpsPostTask fp
+fsOpsRemoveNestedDir fp m =
+    dispatch fp m (removePathForcibly (fp </> "dir1"))
 
 fsOpsRenameNestedDir :: FilePath -> MVar () -> IO ()
 fsOpsRenameNestedDir fp m = do
-    fsOpsPreTask fp m "Rename Nested Directory on : "
-        >> renameDirectory
-            (fp </> "dir1" </> "dir2" </> "dir3")
-            (fp </> "dir1" </> "dir2" </> "dir3Renamed")
-        >> fsOpsPostTask fp
+    let spath = fp </> "dir1" </> "dir2" </> "dir3"
+        tpath = fp </> "dir1" </> "dir2" </> "dir3Renamed"
+    dispatch fp m (renameDirectory spath tpath)
 
 fsOpsCreateFileInRootDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateFileInRootDir fp m = do
-    fsOpsPreTask fp m "Create a File  on : "
-        >> writeFile (fp </> "FileCreated.txt") "Test Data"
-        >> fsOpsPostTask fp
+fsOpsCreateFileInRootDir fp m =
+    dispatch fp m (writeFile (fp </> "FileCreated.txt") "Test Data")
 
 fsOpsRemoveFileInRootDir :: FilePath -> MVar () -> IO ()
 fsOpsRemoveFileInRootDir fp m = do
     let tpath = (fp </> "FileCreated.txt")
-    fsOpsPreTask fp m "Remove a File  on : "
-        >> removeFile tpath
-        >> fsOpsPostTask fp
+    dispatch fp m (removeFile tpath)
 
 fsOpsRenameFileInRootDir :: FilePath -> MVar () -> IO ()
 fsOpsRenameFileInRootDir fp m = do
     let spath = (fp </> "FileCreated.txt")
         tpath = (fp </> "FileRenamed.txt")
-    fsOpsPreTask fp m "Rename a File  on : "
-        >> renamePath spath tpath
-        >> fsOpsPostTask fp
+    dispatch fp m (renamePath spath tpath)
 
 fsOpsCreateFileInNestedDir :: FilePath -> MVar () -> IO ()
 fsOpsCreateFileInNestedDir fp m = do
     let tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
-    fsOpsPreTask fp m "create a File  in nested dir on : "
-        >> writeFile tpath "Test Data"
-        >> fsOpsPostTask fp
+    dispatch fp m (writeFile tpath "Test Data")
 
 fsOpsRemoveFileInNestedDir :: FilePath -> MVar () -> IO ()
 fsOpsRemoveFileInNestedDir fp m = do
     let tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
-    fsOpsPreTask fp m "Remove a File  in nested dir on : "
-        >> removeFile tpath
-        >> fsOpsPostTask fp
+    dispatch fp m (removeFile tpath)
 
 fsOpsRenameFileInNestedDir :: FilePath -> MVar () -> IO ()
 fsOpsRenameFileInNestedDir fp m = do
     let spath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
         tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileRenamed.txt")
-    fsOpsPreTask fp m "Rename a File  in nested on : "
-        >> renamePath spath tpath
-        >> fsOpsPostTask fp
+    dispatch fp m (renamePath spath tpath)
 
 checker :: S.IsStream t =>
                 FilePath -> MVar () -> [String] -> t IO String
