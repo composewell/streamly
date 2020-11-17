@@ -319,27 +319,27 @@ take n fld = fromFold $ FL.ltake n fld
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeEQ cnt (Fold step initial extract) = Parser step' initial' extract'
+takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
     n = max cnt 0
 
-    initial' = Tuple' 0 <$> initial
+    initial = Tuple' 0 <$> finitial
 
-    step' (Tuple' i r) a
+    step (Tuple' i r) a
         | i < n = do
-            res <- step r a
+            res <- fstep r a
             return
               $ case res of
                     FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
                     FL.Partial1 s -> Continue 1 $ Tuple' i s
                     FL.Done _ -> Error $ err (i + 1)
                     FL.Done1 _ -> Error $ err (i + 1)
-        | otherwise = Done 1 <$> extract r
+        | otherwise = Done 1 <$> fextract r
 
-    extract' (Tuple' i r)
-        | i == n = extract r
+    extract (Tuple' i r)
+        | i == n = fextract r
         | otherwise = throwM $ ParseError $ err i
 
     err i =
@@ -352,16 +352,16 @@ takeEQ cnt (Fold step initial extract) = Parser step' initial' extract'
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeGE cnt (Fold step initial extract) = Parser step' initial' extract'
+takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
     n = max cnt 0
-    initial' = Tuple' 0 <$> initial
+    initial = Tuple' 0 <$> finitial
 
-    step' (Tuple' i r) a
+    step (Tuple' i r) a
         | i < n = do
-            res <- step r a
+            res <- fstep r a
             return
               $ case res of
                     FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
@@ -369,7 +369,7 @@ takeGE cnt (Fold step initial extract) = Parser step' initial' extract'
                     FL.Done _ -> Error $ err (i + 1)
                     FL.Done1 _ -> Error $ err (i + 1)
         | otherwise = do
-            res <- step r a
+            res <- fstep r a
             return
               $ case res of
                     FL.Partial s -> Partial 0 $ Tuple' (i + 1) s
@@ -377,8 +377,8 @@ takeGE cnt (Fold step initial extract) = Parser step' initial' extract'
                     FL.Done b -> Done 0 b
                     FL.Done1 b -> Done 1 b
 
-    extract' (Tuple' i b)
-        | i >= n = extract b
+    extract (Tuple' i b)
+        | i >= n = fextract b
         | otherwise = throwM $ ParseError $ err i
 
     err i =
