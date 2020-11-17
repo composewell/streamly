@@ -738,24 +738,28 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         Partial s1 -> Partial (Tuple' s s1)
+                        Done b1 -> Done b1
                         -- XXX This is not correct, we need to backtrack all the
                         -- elements consumed to produce `b` but that is not
                         -- possible. We could probably return an error here.
-                        Partial1 s1 -> Partial1 (Tuple' s s1)
-                        Done b1 -> Done b1
-                        -- XXX This is not correct.
-                        Done1 b1 -> Done b1
+                        -- Partial1 s1 -> Partial1 (Tuple' s s1)
+                        -- Done1 b1 -> Done b1
+                        Partial1 _ -> error errMsg
+                        Done1 _ -> error errMsg
             Done1 b -> do
                 s <- initial1
                 fs1 <- fstep fs b
                 -- XXX Move return out
                 case fs1 of
                     Partial s1 -> return $ Partial1 (Tuple' s s1)
-                    -- XXX This is not correct.
-                    Partial1 s1 -> return $ Partial1 (Tuple' s s1)
                     Done b1 -> return $ Done1 b1
                     -- XXX This is not correct.
-                    Done1 b1 -> return $ Done1 b1
+                    -- Partial1 s1 -> return $ Partial1 (Tuple' s s1)
+                    -- Done1 b1 -> return $ Done1 b1
+                    Partial1 _ -> error errMsg
+                    Done1 _ -> error errMsg
+
+    errMsg = "The collecting fold cannot be partial."
 
     extract (Tuple' s fs) = do
         b <- extract1 s
