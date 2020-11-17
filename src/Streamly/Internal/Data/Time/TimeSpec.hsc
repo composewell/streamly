@@ -24,6 +24,9 @@ module Streamly.Internal.Data.Time.TimeSpec
 where
 
 import Data.Int (Int64)
+#if i386_HOST_ARCH
+import Data.Int (Int32)
+#endif
 import Foreign.Storable (Storable(..), peek)
 
 #ifdef HS_CLOCK_GHCJS
