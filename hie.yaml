@@ -69,6 +69,8 @@ cradle:
               component: "test:internal-data-parser-parserd-test"
             - path: "./test/Streamly/Test/Unicode/Stream.hs"
               component: "test:Streamly.Test.Unicode.Stream"
+            - path: "./test/Streamly/Test/FileSystem/Event.hs"
+              component: "test:FileSystem.Event"
             - path: "./test/version-bounds.hs"
               component: "test:version-bounds"
 
