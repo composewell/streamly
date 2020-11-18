@@ -87,7 +87,7 @@ eventPredicate ev =
 -------------------------------------------------------------------------------
 -- Event matching utilities
 -------------------------------------------------------------------------------
-
+#if defined(CABAL_OS_LINUX)
 removeTrailingSlash :: Array Word8 -> Array Word8
 removeTrailingSlash path =
     if Array.length path == 0
@@ -103,6 +103,7 @@ removeTrailingSlash path =
                         $ Array.fromStreamN (Array.length path - 1)
                         $ Array.toStream path
                 else path
+#endif
 
 -- XXX Return a tuple (path, flags) instead of appending flags to path. And
 -- then check the flags using an event mask.
