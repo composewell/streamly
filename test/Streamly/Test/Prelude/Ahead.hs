@@ -55,6 +55,10 @@ main = hspec
 
     describe "Construction" $ do
         aheadOps    $ prop "aheadly replicateM" . constructWithReplicateM
+        aheadOps $ prop "aheadly cons" . constructWithCons S.cons
+        aheadOps $ prop "aheadly consM" . constructWithConsM S.consM id
+        aheadOps $ prop "aheadly (.:)" . constructWithCons (S..:)
+        aheadOps $ prop "aheadly (|:)" . constructWithConsM (S.|:) id
 
     describe "Functor operations" $ do
         aheadOps     $ functorOps S.fromFoldable "aheadly" (==)
@@ -121,7 +125,7 @@ main = hspec
     describe "Stream serial elimination operations" $ do
         aheadOps     $ eliminationOpsOrdered S.fromFoldable "aheadly"
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
-    
+
     describe "Composed MonadThrow aheadly" $ composeWithMonadThrow S.aheadly
 
     -- Ad-hoc tests

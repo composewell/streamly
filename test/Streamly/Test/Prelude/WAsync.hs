@@ -40,6 +40,10 @@ main = hspec
     describe "Construction" $ do
         wAsyncOps $ prop "wAsyncly replicateM" . constructWithReplicateM
         -- XXX add tests for fromIndices
+        wAsyncOps $ prop "wAsyncly cons" . constructWithCons S.cons
+        wAsyncOps $ prop "wAsyncly consM" . constructWithConsM S.consM sort
+        wAsyncOps $ prop "wAsyncly (.:)" . constructWithCons (S..:)
+        wAsyncOps $ prop "wAsyncly (|:)" . constructWithConsM (S.|:) sort
 
     describe "Functor operations" $ do
         wAsyncOps $ functorOps S.fromFoldable "wAsyncly" sortEq
@@ -93,7 +97,7 @@ main = hspec
         wAsyncOps $ eliminationOps folded "wAsyncly folded"
         wAsyncOps $ eliminationOpsWord8 S.fromFoldable "wAsyncly"
         wAsyncOps $ eliminationOpsWord8 folded "wAsyncly folded"
-    
+
     -- describe "WAsync interleaved (<>) ordering check" $
     --     interleaveCheck wAsyncly (<>)
     -- describe "WAsync interleaved mappend ordering check" $

@@ -36,6 +36,10 @@ main = hspec
 
     describe "Construction" $ do
         asyncOps    $ prop "asyncly replicateM" . constructWithReplicateM
+        asyncOps $ prop "asyncly cons" . constructWithCons S.cons
+        asyncOps $ prop "asyncly consM" . constructWithConsM S.consM sort
+        asyncOps $ prop "asyncly (.:)" . constructWithCons (S..:)
+        asyncOps $ prop "asyncly (|:)" . constructWithConsM (S.|:) sort
 
     describe "Functor operations" $ do
         asyncOps     $ functorOps S.fromFoldable "asyncly" sortEq

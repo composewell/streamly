@@ -71,6 +71,10 @@ main = hspec
 
     describe "Construction" $ do
         wSerialOps  $ prop "wSerially replicateM" . constructWithReplicateM
+        wSerialOps $ prop "wSerially cons" . constructWithCons S.cons
+        wSerialOps $ prop "wSerially consM" . constructWithConsM S.consM id
+        wSerialOps $ prop "wSerially (.:)" . constructWithCons (S..:)
+        wSerialOps $ prop "wSerially (|:)" . constructWithConsM (S.|:) id
 
     describe "Functor operations" $ do
         wSerialOps   $ functorOps S.fromFoldable "wSerially" (==)

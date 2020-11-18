@@ -40,6 +40,10 @@ main = hspec
 
     describe "Construction" $ do
         parallelOps $ prop "parallely replicateM" . constructWithReplicateM
+        parallelOps $ prop "parallely cons" . constructWithCons S.cons
+--      parallelOps $ prop "parallely consM" . constructWithConsM S.consM sort
+        parallelOps $ prop "parallely (.:)" . constructWithCons (S..:)
+--      parallelOps $ prop "parallely (|:)" . constructWithConsM (S.|:) sort
 
     describe "Functor operations" $ do
         parallelOps $ functorOps S.fromFoldable "parallely" sortEq

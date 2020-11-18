@@ -470,6 +470,10 @@ main = hspec
         serialOps   $ prop "serially iterateM" . constructWithIterateM
         serialOps $ prop "serially fromIndices" . constructWithFromIndices
         serialOps $ prop "serially fromIndicesM" . constructWithFromIndicesM
+        serialOps $ prop "serially cons" . constructWithCons S.cons
+        serialOps $ prop "serially consM" . constructWithConsM S.consM id
+        serialOps $ prop "serially (.:)" . constructWithCons (S..:)
+        serialOps $ prop "serially (|:)" . constructWithConsM (S.|:) id
 
         describe "From Generators" $ do
             prop "unfold" unfold

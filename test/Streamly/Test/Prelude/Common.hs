@@ -20,6 +20,8 @@ module Streamly.Test.Prelude.Common
     , constructWithIterateM
     , constructWithFromIndices
     , constructWithFromIndicesM
+    , constructWithCons
+    , constructWithConsM
     -- * Applicative operations
     , applicativeOps
     , applicativeOps1
@@ -250,6 +252,39 @@ constructWithFromIndicesM op len =
             S.take (fromIntegral len) $ S.fromIndicesM (addIndex mvl)
         streamEffect <- run $ readIORef mvl
         listEquals (==) streamEffect list
+
+constructWithCons ::
+       IsStream t
+    => (Int -> t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithCons cons op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            S.toList . op . S.take (fromIntegral len) $
+            foldr cons S.nil (repeat 0)
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) strm list
+
+constructWithConsM ::
+       IsStream t
+    => (IO Int -> t IO Int -> t IO Int)
+    -> ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithConsM consM listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            S.toList . op . S.take (fromIntegral len) $
+            foldr consM S.nil (repeat (return 0))
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) (listT strm) list
 
 -------------------------------------------------------------------------------
 -- Applicative operations
