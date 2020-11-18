@@ -58,6 +58,7 @@ import qualified Streamly.Internal.Unicode.Stream as U
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
+
 toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = Array.fromStream . Unicode.encodeUtf8' . S.fromList
 
@@ -84,7 +85,7 @@ eventPredicate ev =
     else True
 
 -------------------------------------------------------------------------------
--- Event lists to be matched with
+-- Event matching utilities
 -------------------------------------------------------------------------------
 
 removeTrailingSlash :: Array Word8 -> Array Word8
@@ -149,19 +150,6 @@ checkEvents rootPath m matchList = do
 -- FS Event Generators
 -------------------------------------------------------------------------------
 
-fsOpsPreTask :: MVar () -> IO ()
-fsOpsPreTask m = do
-    takeMVar m
-    threadDelay 200000
-
-fsOpsPostTask :: FilePath -> IO ()
-fsOpsPostTask fp =
-    threadDelay 200000 >> createDirectoryIfMissing True (fp </> "EOTask")
-
-dispatch :: FilePath -> MVar () -> IO () -> IO ()
-dispatch fp m act =
-    fsOpsPreTask m >> act >> fsOpsPostTask fp
-
 checker :: S.IsStream t =>
                 FilePath -> MVar () -> [String] -> t IO String
 checker rootPath synch matchList =
@@ -169,31 +157,9 @@ checker rootPath synch matchList =
     `S.parallelFst`
     S.yieldM timeout
 
-driverInit :: IO (MVar ())
-driverInit = do
-    hSetBuffering stdout NoBuffering
-    pre <- newEmptyMVar
-    return pre
-
 -------------------------------------------------------------------------------
 -- Test Drivers
 -------------------------------------------------------------------------------
-
-eventProcessor
-    :: FilePath
-    -> MVar ()
-    -> [String]
-    -> (FilePath -> MVar () -> IO ())
-    -> IO String
-eventProcessor fp sync evts func = do
-    res <- S.head
-        $ (checker fp sync evts)
-        `S.parallelFst`
-        S.yieldM  -- this message should follow checker
-        (func fp sync
-            >> threadDelay 10000000
-            >> return "fOps Done")
-    return $ fromJust res
 
 driver ::
        ( String
@@ -202,13 +168,26 @@ driver ::
        , [String]
        )
     -> SpecWith ()
-driver (desc, pre, ops, events) =
-    it desc $ do
-        sync <- driverInit
+driver (desc, pre, ops, events) = it desc $ runTest `shouldReturn` "PASS"
+
+    where
+
+    runTest = do
+        sync <- newEmptyMVar
         withSystemTempDirectory fseventDir $ \fp -> do
             pre fp
-            eventProcessor fp sync events (\p m -> dispatch p m (ops fp))
-    `shouldReturn` "PASS"
+            let eventStream = checker fp sync events
+                fsOps = S.yieldM $ runFSOps fp sync
+            fmap fromJust $ S.head $ eventStream `S.parallelFst` fsOps
+
+    runFSOps fp sync = do
+        _ <- takeMVar sync
+        threadDelay 200000
+        ops fp
+        threadDelay 200000 -- Why this delay?
+        createDirectoryIfMissing True (fp </> "EOTask")
+        threadDelay 10000000
+        error "fs ops timed out"
 
 -------------------------------------------------------------------------------
 -- Main
@@ -414,4 +393,6 @@ testDesc =
     ]
 
 main :: IO ()
-main = hspec $ sequence_ $ map driver testDesc
+main = do
+    hSetBuffering stdout NoBuffering
+    hspec $ sequence_ $ map driver testDesc
