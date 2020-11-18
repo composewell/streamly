@@ -298,6 +298,7 @@ checkEvents rootPath m matchList = do
 -------------------------------------------------------------------------------
 -- FS Event Generators
 -------------------------------------------------------------------------------
+
 fsOpsPreTask :: MVar () -> IO ()
 fsOpsPreTask m = do
     takeMVar m
@@ -410,130 +411,98 @@ eventProcessor fp sync evts func = do
             >> return "fOps Done")
     return $ fromJust res
 
-driverCreateSingleDir :: IO String
-driverCreateSingleDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp ->
-        eventProcessor
-            fp sync singleDirCreateEvents fsOpsCreateSingleDir
-
-driverRemoveSingleDir :: IO String
-driverRemoveSingleDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        createDirectoryIfMissing True (fp </> "dir1Single")
-        eventProcessor
-            fp sync singleDirRemoveEvents fsOpsRemoveSingleDir
-
-driverRenameSingleDir :: IO String
-driverRenameSingleDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        createDirectoryIfMissing True (fp </> "dir1Single")
-        eventProcessor
-            fp sync singleDirRenameEvents fsOpsRenameSingleDir
-
-driverCreateNestedDir :: IO String
-driverCreateNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp ->
-        eventProcessor
-            fp sync nestedDirCreateEvents fsOpsCreateNestedDir
-
-driverRemoveNestedDir :: IO String
-driverRemoveNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-        eventProcessor
-            fp sync nestedDirRemoveEvents fsOpsRemoveNestedDir
-
-driverRenameNestedDir :: IO String
-driverRenameNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-        eventProcessor
-            fp sync nestedDirRenameEvents fsOpsRenameNestedDir
-
-driverCreateFileInRootDir :: IO String
-driverCreateFileInRootDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        eventProcessor
-            fp sync createFileRootDirEvents fsOpsCreateFileInRootDir
-
-driverRemoveFileInRootDir :: IO String
-driverRemoveFileInRootDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        writeFile (fp </> "FileCreated.txt") "Test Data"
-        eventProcessor
-            fp sync removeFileRootDirEvents fsOpsRemoveFileInRootDir
-
-driverRenameFileInRootDir :: IO String
-driverRenameFileInRootDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        writeFile (fp </> "FileCreated.txt") "Test Data"
-        eventProcessor
-            fp sync renameFileRootDirEvents fsOpsRenameFileInRootDir
-
-driverCreateFileInNestedDir :: IO String
-driverCreateFileInNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-        eventProcessor
-            fp sync createFileNestedDirEvents fsOpsCreateFileInNestedDir
-
-driverRemoveFileInNestedDir :: IO String
-driverRemoveFileInNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        let nestedDir = fp </> "dir1" </> "dir2" </> "dir3"
-            fpath = nestedDir </> "FileCreated.txt"
-        createDirectoryIfMissing True nestedDir >> writeFile fpath "Test Data"
-        eventProcessor
-            fp sync removeFileNestedDirEvents fsOpsRemoveFileInNestedDir
-
-driverRenameFileInNestedDir :: IO String
-driverRenameFileInNestedDir = do
-    sync <- driverInit
-    withSystemTempDirectory fseventDir $ \fp -> do
-        let nestedDir = fp </> "dir1" </> "dir2" </> "dir3"
-            fpath = nestedDir </> "FileCreated.txt"
-        createDirectoryIfMissing True nestedDir >> writeFile fpath "Test Data"
-        eventProcessor
-            fp sync renameFileNestedDirEvents fsOpsRenameFileInNestedDir
+driver ::
+       (String, FilePath -> IO (), FilePath -> MVar () -> IO (), [String])
+    -> SpecWith ()
+driver (desc, pre, ops, events) =
+    it desc $ do
+        sync <- driverInit
+        withSystemTempDirectory fseventDir $ \fp -> do
+            pre fp
+            eventProcessor fp sync events ops
+    `shouldReturn` "PASS"
 
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
+testDesc :: [([Char], FilePath -> IO (), FilePath -> MVar () -> IO (), [String])]
+testDesc =
+    [
+      ( "Create a single directory"
+      , const (return ())
+      , fsOpsCreateSingleDir
+      , singleDirCreateEvents
+      )
+    , ( "Remove a single directory"
+      , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
+      , fsOpsRemoveSingleDir
+      , singleDirRemoveEvents
+      )
+    , ( "Rename a single directory"
+      , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
+      , fsOpsRenameSingleDir
+      , singleDirRenameEvents
+      )
+    , ( "Create a nested directory"
+      , const (return ())
+      , fsOpsCreateNestedDir
+      , nestedDirCreateEvents
+      )
+    , ( "Remove a nested directory"
+      , \fp -> createDirectoryIfMissing True
+                (fp </> "dir1" </> "dir2" </> "dir3")
+      , fsOpsRemoveNestedDir
+      , nestedDirRemoveEvents
+      )
+    , ( "Rename a nested directory"
+      , \fp -> createDirectoryIfMissing True
+                (fp </> "dir1" </> "dir2" </> "dir3")
+      , fsOpsRenameNestedDir
+      , nestedDirRenameEvents
+      )
+    , ( "Create a file in root Dir"
+      , const (return ())
+      , fsOpsCreateFileInRootDir
+      , createFileRootDirEvents
+      )
+    , ( "Remove a file in root Dir"
+      , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
+      , fsOpsRemoveFileInRootDir
+      , removeFileRootDirEvents
+      )
+    , ( "Rename a file in root Dir"
+      , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
+      , fsOpsRenameFileInRootDir
+      , renameFileRootDirEvents
+      )
+    , ( "Create a file in a nested Dir"
+      , \fp -> createDirectoryIfMissing True
+                    (fp </> "dir1" </> "dir2" </> "dir3")
+      , fsOpsCreateFileInNestedDir
+      , createFileNestedDirEvents
+      )
+    , ( "Remove a file in a nested Dir"
+      , \fp ->
+            let nestedDir = fp </> "dir1" </> "dir2" </> "dir3"
+                fpath = nestedDir </> "FileCreated.txt"
+            in do
+                createDirectoryIfMissing True nestedDir
+                writeFile fpath "Test Data"
+      , fsOpsRemoveFileInNestedDir
+      , removeFileNestedDirEvents
+      )
+    , ( "Rename a file in a nested Dir"
+      , \fp ->
+            let nestedDir = fp </> "dir1" </> "dir2" </> "dir3"
+                fpath = nestedDir </> "FileCreated.txt"
+            in do
+                createDirectoryIfMissing True nestedDir
+                writeFile fpath "Test Data"
+      , fsOpsRenameFileInNestedDir
+      , renameFileNestedDirEvents
+      )
+    ]
+
 main :: IO ()
-main = hspec $ do
-    prop "Create a single directory"
-        $ driverCreateSingleDir `shouldReturn` "PASS"
-    prop "Remove a single directory"
-        $ driverRemoveSingleDir `shouldReturn` "PASS"
-    prop "Rename a single directory"
-        $ driverRenameSingleDir `shouldReturn` "PASS"
-    prop "Create a nested directory"
-        $ driverCreateNestedDir `shouldReturn` "PASS"
-    prop "Remove a nested directory"
-        $ driverRemoveNestedDir `shouldReturn` "PASS"
-    prop "Rename a nested directory"
-        $ driverRenameNestedDir `shouldReturn` "PASS"
-    prop "Create a file in root Dir"
-        $ driverCreateFileInRootDir `shouldReturn` "PASS"
-    prop "Remove a file in root Dir"
-        $ driverRemoveFileInRootDir `shouldReturn` "PASS"
-    prop "Rename a file in root Dir"
-        $ driverRenameFileInRootDir `shouldReturn` "PASS"
-    prop "Create a file in a nested Dir"
-        $ driverCreateFileInNestedDir `shouldReturn` "PASS"
-    prop "Remove a file in a nested Dir"
-        $ driverRemoveFileInNestedDir `shouldReturn` "PASS"
-    prop "Rename a file in a nested Dir"
-        $ driverRenameFileInNestedDir `shouldReturn` "PASS"
+main = hspec $ sequence_ $ map driver testDesc
