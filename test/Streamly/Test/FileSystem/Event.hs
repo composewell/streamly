@@ -87,164 +87,6 @@ eventPredicate ev =
 -- Event lists to be matched with
 -------------------------------------------------------------------------------
 
--- XXX Use a tuple (path, flags) instead of a string with flags
-
-#if defined(CABAL_OS_WINDOWS)
-
-singleDirCreateEvents :: [String]
-singleDirCreateEvents =
-    [ "dir1Single_1" ]
-
-singleDirRemoveEvents :: [String]
-singleDirRemoveEvents =
-    [ "dir1Single_2" ]
-
-singleDirRenameEvents :: [String]
-singleDirRenameEvents =
-    [ "dir1Single_4"
-    , "dir1SingleRenamed_5"
-    ]
-
-nestedDirCreateEvents :: [String]
-nestedDirCreateEvents =
-    [ "dir1_1"
-    , "dir1\\dir2_1"
-    , "dir1\\dir2\\dir3_1"
-    ]
-
-nestedDirRemoveEvents :: [String]
-nestedDirRemoveEvents =
-    [ "dir1_3"
-    , "dir1\\dir2_3"
-    , "dir1\\dir2\\dir3_2"
-    , "dir1\\dir2_2","dir1_2"
-    ]
-
-nestedDirRenameEvents :: [String]
-nestedDirRenameEvents =
-    [ "dir1\\dir2_3"
-    , "dir1\\dir2\\dir3_4"
-    , "dir1\\dir2\\dir3Renamed_5"
-    , "dir1\\dir2_3"
-    ]
-
-createFileRootDirEvents :: [String]
-createFileRootDirEvents =
-    [ "FileCreated.txt_1"
-    , "FileCreated.txt_3"
-    , "FileCreated.txt_3"
-    ]
-
-removeFileRootDirEvents :: [String]
-removeFileRootDirEvents =
-    [ "FileCreated.txt_2" ]
-
-renameFileRootDirEvents :: [String]
-renameFileRootDirEvents =
-    [ "FileCreated.txt_4"
-    , "FileRenamed.txt_5"
-    ]
-
-createFileNestedDirEvents :: [String]
-createFileNestedDirEvents =
-    [ "dir1\\dir2\\dir3\\FileCreated.txt_1"
-    , "dir1\\dir2\\dir3\\FileCreated.txt_3"
-    ]
-
-removeFileNestedDirEvents :: [String]
-removeFileNestedDirEvents =
-    ["dir1\\dir2\\dir3\\FileCreated.txt_2"]
-
-renameFileNestedDirEvents :: [String]
-renameFileNestedDirEvents =
-    [ "dir1\\dir2\\dir3_3"
-    , "dir1\\dir2\\dir3\\FileCreated.txt_4"
-    , "dir1\\dir2\\dir3\\FileRenamed.txt_5"
-    ]
-
--- | Convert an 'Event' record to a short representation for unit test.
-showEventShort :: Event.Event -> String
-showEventShort ev@Event.Event{..} =
-    Event.getRelPath ev ++ "_" ++ show eventFlags
-
-#else
-
-singleDirCreateEvents :: [String]
-singleDirCreateEvents =
-    [ "dir1Single_1073742080_Dir"
-    , "dir1Single_1073741856_Dir"
-    , "dir1Single_1073741825_Dir"
-    , "dir1Single_1073741840_Dir"
-    ]
-
-singleDirRemoveEvents :: [String]
-singleDirRemoveEvents =
-    [ "dir1Single_1024"
-    , "dir1Single_32768"
-    ]
-
-singleDirRenameEvents :: [String]
-singleDirRenameEvents =
-    [ "dir1Single_1073741888_Dir"
-    , "dir1SingleRenamed_1073741952_Dir"
-    ]
-
-nestedDirCreateEvents :: [String]
-nestedDirCreateEvents =
-    [ "dir1_1073742080_Dir"
-    , "dir1_1073741856_Dir"
-    , "dir1_1073741825_Dir"
-    , "dir1_1073741840_Dir"
-    ]
-
-nestedDirRemoveEvents :: [String]
-nestedDirRemoveEvents =
-    [ "dir1/dir2/dir3_1073742336_Dir"
-    , "dir1/dir2_1073742336_Dir"
-    , "dir1_1073742336_Dir"
-    ]
-
-nestedDirRenameEvents :: [String]
-nestedDirRenameEvents =
-    [ "dir1/dir2/dir3_1073741888_Dir"
-    , "dir1/dir2/dir3Renamed_1073741952_Dir"
-    ]
-
-createFileRootDirEvents :: [String]
-createFileRootDirEvents =
-    [ "FileCreated.txt_256"
-    , "FileCreated.txt_32"
-    , "FileCreated.txt_2"
-    ]
-
-removeFileRootDirEvents :: [String]
-removeFileRootDirEvents =
-    ["FileCreated.txt_512"]
-
-renameFileRootDirEvents :: [String]
-renameFileRootDirEvents =
-    [ "FileCreated.txt_64"
-    , "FileRenamed.txt_128"
-    ]
-
-createFileNestedDirEvents :: [String]
-createFileNestedDirEvents =
-    [ "dir1/dir2/dir3/FileCreated.txt_256"
-    , "dir1/dir2/dir3/FileCreated.txt_32"
-    , "dir1/dir2/dir3/FileCreated.txt_2"
-    , "dir1/dir2/dir3/FileCreated.txt_8"
-    ]
-
-removeFileNestedDirEvents :: [String]
-removeFileNestedDirEvents =
-    ["dir1/dir2/dir3/FileCreated.txt_512"]
-
-renameFileNestedDirEvents :: [String]
-renameFileNestedDirEvents =
-    [ "dir1/dir2/dir3/FileCreated.txt_64"
-    , "dir1/dir2/dir3/FileRenamed.txt_128"
-    ]
-
 removeTrailingSlash :: Array Word8 -> Array Word8
 removeTrailingSlash path =
     if Array.length path == 0
@@ -261,14 +103,23 @@ removeTrailingSlash path =
                         $ Array.toStream path
                 else path
 
+-- XXX Return a tuple (path, flags) instead of appending flags to path. And
+-- then check the flags using an event mask.
+
 showEventShort :: Event.Event -> String
+#if defined(CABAL_OS_WINDOWS)
+-- | Convert an 'Event' record to a short representation for unit test.
+showEventShort ev@Event.Event{..} =
+    Event.getRelPath ev ++ "_" ++ show eventFlags
+#elif defined(CABAL_OS_LINUX)
 showEventShort ev@Event.Event{..} =
     (utf8ToString $ removeTrailingSlash $ Event.getRelPath ev)
         ++ "_" ++ show eventFlags
         ++ showev Event.isDir "Dir"
 
     where showev f str = if f ev then "_" ++ str else ""
-
+#else
+#error "Unsupported OS
 #endif
 
 -------------------------------------------------------------------------------
@@ -374,12 +225,26 @@ testDesc =
       ( "Create a single directory"
       , const (return ())
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
-      , singleDirCreateEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1Single_1" ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1Single_1073742080_Dir"
+        , "dir1Single_1073741856_Dir"
+        , "dir1Single_1073741825_Dir"
+        , "dir1Single_1073741840_Dir"
+        ]
+#endif
       )
     , ( "Remove a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
       , \fp -> removeDirectory (fp </> "dir1Single")
-      , singleDirRemoveEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1Single_2" ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1Single_1024"
+        , "dir1Single_32768"
+        ]
+#endif
       )
     , ( "Rename a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
@@ -387,19 +252,49 @@ testDesc =
             let spath = fp </> "dir1Single"
                 tpath = fp </> "dir1SingleRenamed"
             in renameDirectory spath tpath
-      , singleDirRenameEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1Single_4"
+        , "dir1SingleRenamed_5"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1Single_1073741888_Dir"
+        , "dir1SingleRenamed_1073741952_Dir"
+        ]
+#endif
       )
     , ( "Create a nested directory"
       , const (return ())
       , \fp ->
             createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-      , nestedDirCreateEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1_1"
+        , "dir1\\dir2_1"
+        , "dir1\\dir2\\dir3_1"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1_1073742080_Dir"
+        , "dir1_1073741856_Dir"
+        , "dir1_1073741825_Dir"
+        , "dir1_1073741840_Dir"
+        ]
+#endif
       )
     , ( "Remove a nested directory"
       , \fp ->
             createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
       , \fp -> removePathForcibly (fp </> "dir1")
-      , nestedDirRemoveEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1_3"
+        , "dir1\\dir2_3"
+        , "dir1\\dir2\\dir3_2"
+        , "dir1\\dir2_2","dir1_2"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1/dir2/dir3_1073742336_Dir"
+        , "dir1/dir2_1073742336_Dir"
+        , "dir1_1073742336_Dir"
+        ]
+#endif
       )
     , ( "Rename a nested directory"
       , \fp -> createDirectoryIfMissing True
@@ -408,17 +303,41 @@ testDesc =
             let spath = fp </> "dir1" </> "dir2" </> "dir3"
                 tpath = fp </> "dir1" </> "dir2" </> "dir3Renamed"
             in renameDirectory spath tpath
-      , nestedDirRenameEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1\\dir2_3"
+        , "dir1\\dir2\\dir3_4"
+        , "dir1\\dir2\\dir3Renamed_5"
+        , "dir1\\dir2_3"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1/dir2/dir3_1073741888_Dir"
+        , "dir1/dir2/dir3Renamed_1073741952_Dir"
+        ]
+#endif
       )
     , ( "Create a file in root Dir"
       , const (return ())
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
-      , createFileRootDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "FileCreated.txt_1"
+        , "FileCreated.txt_3"
+        , "FileCreated.txt_3"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "FileCreated.txt_256"
+        , "FileCreated.txt_32"
+        , "FileCreated.txt_2"
+        ]
+#endif
       )
     , ( "Remove a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
       , \fp -> removeFile (fp </> "FileCreated.txt")
-      , removeFileRootDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "FileCreated.txt_2" ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "FileCreated.txt_512" ]
+#endif
       )
     , ( "Rename a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
@@ -426,7 +345,15 @@ testDesc =
             let spath = (fp </> "FileCreated.txt")
                 tpath = (fp </> "FileRenamed.txt")
             in renamePath spath tpath
-      , renameFileRootDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "FileCreated.txt_4"
+        , "FileRenamed.txt_5"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "FileCreated.txt_64"
+        , "FileRenamed.txt_128"
+        ]
+#endif
       )
     , ( "Create a file in a nested Dir"
       , \fp ->
@@ -434,7 +361,17 @@ testDesc =
       , \fp ->
             let p = fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt"
             in writeFile p "Test Data"
-      , createFileNestedDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1\\dir2\\dir3\\FileCreated.txt_1"
+        , "dir1\\dir2\\dir3\\FileCreated.txt_3"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1/dir2/dir3/FileCreated.txt_256"
+        , "dir1/dir2/dir3/FileCreated.txt_32"
+        , "dir1/dir2/dir3/FileCreated.txt_2"
+        , "dir1/dir2/dir3/FileCreated.txt_8"
+        ]
+#endif
       )
     , ( "Remove a file in a nested Dir"
       , \fp ->
@@ -446,7 +383,11 @@ testDesc =
       , \fp ->
             let p = fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt"
             in removeFile p
-      , removeFileNestedDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , ["dir1\\dir2\\dir3\\FileCreated.txt_2"]
+#elif defined(CABAL_OS_LINUX)
+      , ["dir1/dir2/dir3/FileCreated.txt_512"]
+#endif
       )
     , ( "Rename a file in a nested Dir"
       , \fp ->
@@ -459,7 +400,16 @@ testDesc =
             let s = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
                 t = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileRenamed.txt")
             in renamePath s t
-      , renameFileNestedDirEvents
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1\\dir2\\dir3_3"
+        , "dir1\\dir2\\dir3\\FileCreated.txt_4"
+        , "dir1\\dir2\\dir3\\FileRenamed.txt_5"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1/dir2/dir3/FileCreated.txt_64"
+        , "dir1/dir2/dir3/FileRenamed.txt_128"
+        ]
+#endif
       )
     ]
 
