@@ -32,7 +32,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 
 import Test.Hspec
-import Test.Hspec.QuickCheck
 
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
@@ -312,69 +311,6 @@ dispatch :: FilePath -> MVar () -> IO () -> IO ()
 dispatch fp m act =
     fsOpsPreTask m >> act >> fsOpsPostTask fp
 
--- XXX Factor out common code from all these functions. The specific operation
--- can be passed to a common function.
-
-fsOpsCreateSingleDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateSingleDir fp m =
-    dispatch fp m (createDirectoryIfMissing True (fp </> "dir1Single"))
-
-fsOpsRemoveSingleDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveSingleDir fp m =
-    dispatch fp m (removeDirectory (fp </> "dir1Single"))
-
-fsOpsRenameSingleDir :: FilePath -> MVar () -> IO ()
-fsOpsRenameSingleDir fp m = do
-    let spath = fp </> "dir1Single"
-        tpath = fp </> "dir1SingleRenamed"
-    dispatch fp m (renameDirectory spath tpath)
-
-fsOpsCreateNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateNestedDir fp m =
-    dispatch fp m (createDirectoryIfMissing
-        True (fp </> "dir1" </> "dir2" </> "dir3"))
-
-fsOpsRemoveNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveNestedDir fp m =
-    dispatch fp m (removePathForcibly (fp </> "dir1"))
-
-fsOpsRenameNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsRenameNestedDir fp m = do
-    let spath = fp </> "dir1" </> "dir2" </> "dir3"
-        tpath = fp </> "dir1" </> "dir2" </> "dir3Renamed"
-    dispatch fp m (renameDirectory spath tpath)
-
-fsOpsCreateFileInRootDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateFileInRootDir fp m =
-    dispatch fp m (writeFile (fp </> "FileCreated.txt") "Test Data")
-
-fsOpsRemoveFileInRootDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveFileInRootDir fp m = do
-    let tpath = (fp </> "FileCreated.txt")
-    dispatch fp m (removeFile tpath)
-
-fsOpsRenameFileInRootDir :: FilePath -> MVar () -> IO ()
-fsOpsRenameFileInRootDir fp m = do
-    let spath = (fp </> "FileCreated.txt")
-        tpath = (fp </> "FileRenamed.txt")
-    dispatch fp m (renamePath spath tpath)
-
-fsOpsCreateFileInNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsCreateFileInNestedDir fp m = do
-    let tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
-    dispatch fp m (writeFile tpath "Test Data")
-
-fsOpsRemoveFileInNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsRemoveFileInNestedDir fp m = do
-    let tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
-    dispatch fp m (removeFile tpath)
-
-fsOpsRenameFileInNestedDir :: FilePath -> MVar () -> IO ()
-fsOpsRenameFileInNestedDir fp m = do
-    let spath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
-        tpath = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileRenamed.txt")
-    dispatch fp m (renamePath spath tpath)
-
 checker :: S.IsStream t =>
                 FilePath -> MVar () -> [String] -> t IO String
 checker rootPath synch matchList =
@@ -392,9 +328,6 @@ driverInit = do
 -- Test Drivers
 -------------------------------------------------------------------------------
 
--- XXX Factor out common code from all these. Pass a specific fsops function to
--- a common functions.
-
 eventProcessor
     :: FilePath
     -> MVar ()
@@ -405,81 +338,102 @@ eventProcessor fp sync evts func = do
     res <- S.head
         $ (checker fp sync evts)
         `S.parallelFst`
-        S.yieldM  -- ^ this message should follow checker
+        S.yieldM  -- this message should follow checker
         (func fp sync
             >> threadDelay 10000000
             >> return "fOps Done")
     return $ fromJust res
 
 driver ::
-       (String, FilePath -> IO (), FilePath -> MVar () -> IO (), [String])
+       ( String
+       , FilePath -> IO ()
+       , FilePath -> IO ()
+       , [String]
+       )
     -> SpecWith ()
 driver (desc, pre, ops, events) =
     it desc $ do
         sync <- driverInit
         withSystemTempDirectory fseventDir $ \fp -> do
             pre fp
-            eventProcessor fp sync events ops
+            eventProcessor fp sync events (\p m -> dispatch p m (ops fp))
     `shouldReturn` "PASS"
 
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
-testDesc :: [([Char], FilePath -> IO (), FilePath -> MVar () -> IO (), [String])]
+testDesc ::
+    [ ( String                       -- test description
+      , FilePath -> IO ()            -- pre test operation
+      , FilePath -> IO ()            -- file system actions
+      , [String])                    -- expected events
+    ]
 testDesc =
     [
       ( "Create a single directory"
       , const (return ())
-      , fsOpsCreateSingleDir
+      , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
       , singleDirCreateEvents
       )
     , ( "Remove a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
-      , fsOpsRemoveSingleDir
+      , \fp -> removeDirectory (fp </> "dir1Single")
       , singleDirRemoveEvents
       )
     , ( "Rename a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
-      , fsOpsRenameSingleDir
+      , \fp ->
+            let spath = fp </> "dir1Single"
+                tpath = fp </> "dir1SingleRenamed"
+            in renameDirectory spath tpath
       , singleDirRenameEvents
       )
     , ( "Create a nested directory"
       , const (return ())
-      , fsOpsCreateNestedDir
+      , \fp ->
+            createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
       , nestedDirCreateEvents
       )
     , ( "Remove a nested directory"
-      , \fp -> createDirectoryIfMissing True
-                (fp </> "dir1" </> "dir2" </> "dir3")
-      , fsOpsRemoveNestedDir
+      , \fp ->
+            createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
+      , \fp -> removePathForcibly (fp </> "dir1")
       , nestedDirRemoveEvents
       )
     , ( "Rename a nested directory"
       , \fp -> createDirectoryIfMissing True
                 (fp </> "dir1" </> "dir2" </> "dir3")
-      , fsOpsRenameNestedDir
+      , \fp ->
+            let spath = fp </> "dir1" </> "dir2" </> "dir3"
+                tpath = fp </> "dir1" </> "dir2" </> "dir3Renamed"
+            in renameDirectory spath tpath
       , nestedDirRenameEvents
       )
     , ( "Create a file in root Dir"
       , const (return ())
-      , fsOpsCreateFileInRootDir
+      , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
       , createFileRootDirEvents
       )
     , ( "Remove a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
-      , fsOpsRemoveFileInRootDir
+      , \fp -> removeFile (fp </> "FileCreated.txt")
       , removeFileRootDirEvents
       )
     , ( "Rename a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
-      , fsOpsRenameFileInRootDir
+      , \fp ->
+            let spath = (fp </> "FileCreated.txt")
+                tpath = (fp </> "FileRenamed.txt")
+            in renamePath spath tpath
       , renameFileRootDirEvents
       )
     , ( "Create a file in a nested Dir"
-      , \fp -> createDirectoryIfMissing True
-                    (fp </> "dir1" </> "dir2" </> "dir3")
-      , fsOpsCreateFileInNestedDir
+      , \fp ->
+            createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
+      , \fp ->
+            let p = fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt"
+            in writeFile p "Test Data"
       , createFileNestedDirEvents
       )
     , ( "Remove a file in a nested Dir"
@@ -489,7 +443,9 @@ testDesc =
             in do
                 createDirectoryIfMissing True nestedDir
                 writeFile fpath "Test Data"
-      , fsOpsRemoveFileInNestedDir
+      , \fp ->
+            let p = fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt"
+            in removeFile p
       , removeFileNestedDirEvents
       )
     , ( "Rename a file in a nested Dir"
@@ -499,7 +455,10 @@ testDesc =
             in do
                 createDirectoryIfMissing True nestedDir
                 writeFile fpath "Test Data"
-      , fsOpsRenameFileInNestedDir
+      , \fp ->
+            let s = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileCreated.txt")
+                t = (fp </> "dir1" </> "dir2" </> "dir3" </> "FileRenamed.txt")
+            in renamePath s t
       , renameFileNestedDirEvents
       )
     ]
