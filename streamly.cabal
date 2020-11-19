@@ -118,6 +118,8 @@ extra-source-files:
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/streamly-benchmarks.cabal
     bin/bench-exec-one.sh
+    bin/mk-hscope.sh
+    bin/mk-tags.sh
     cabal.project.ci
     charts-0/streamly-vs-list-time.svg
     configure
