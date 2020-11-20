@@ -15,53 +15,101 @@
 -- == Accumulators
 --
 -- These are the simplest folds that never fail and never terminate, they
--- accumulate the input values forever and always remain @partial@ and
--- @complete@ at the same time. It means that we can keep adding more input to
--- them or at any time retrieve a consistent result. A
+-- accumulate the input values forever and can always accept new inputs (never
+-- terminate) and always have a valid result value.  A
 -- 'Streamly.Internal.Data.Fold.sum' operation is an example of an accumulator.
+-- Traditional Haskell left folds like 'foldl' are accumulators.
 --
 -- We can distribute an input stream to two or more accumulators using a @tee@
 -- style composition.  Accumulators cannot be applied on a stream one after the
--- other, which we call a @split@ style composition, as the first one itself
--- will never terminate, therefore, the next one will never get to run.
+-- other, which we call a @serial@ append style composition of folds. This is
+-- because accumulators never terminate, since the first accumulator in a
+-- series will never terminate, the next one will never get to run.
 --
--- == Splitters
+-- == Terminating Folds
 --
--- Splitters are accumulators that can terminate. When applied on a stream
--- splitters consume part of the stream, thereby, splitting it.  Splitters can
--- be used in a @split@ style composition where one splitter can be applied
--- after the other on an input stream. We can apply a splitter repeatedly on an
--- input stream splitting and consuming it in fragments.  Splitters never fail,
--- therefore, they do not need backtracking, but they can lookahead and return
--- unconsumed input. The 'Streamly.Internal.Data.Parser.take' operation is an
--- example of a splitter. It terminates after consuming @n@ items. Coupled with
--- an accumulator it can be used to split the stream into chunks of fixed size.
+-- Terminating folds are accumulators that can terminate. Once a fold
+-- terminates it no longer accepts any more inputs.  Terminating folds can be
+-- used in a @serial@ append style composition where one fold can be applied
+-- after the other on an input stream. We can apply a terminating fold
+-- repeatedly on an input stream, splitting the stream and consuming it in
+-- fragments.  Terminating folds never fail, therefore, they do not need
+-- backtracking.
 --
--- Consider the example of @takeWhile@ operation, it needs to inspect an
--- element for termination decision. However, it does not consume the element
--- on which it terminates. To implement @takeWhile@ a splitter will have to
--- implement a way to return unconsumed input to the driver.
+-- The 'Streamly.Internal.Data.Fold.take' operation is an example of a
+-- terminating fold  It terminates after consuming @n@ items. Coupled with an
+-- accumulator (e.g. sum) it can be used to split and process the stream into
+-- chunks of fixed size.
+--
+-- == Terminating Folds with Leftovers
+--
+-- The next upgrade after terminating folds is terminating folds with leftover
+-- inputs.  Consider the example of @takeWhile@ operation, it needs to inspect
+-- an element for termination decision. However, it does not consume the
+-- element on which it terminates. To implement @takeWhile@ a terminating fold
+-- will have to implement a way to return unconsumed input to the fold driver.
+--
+-- Single element leftover case is the most common and its easy to implement it
+-- in terminating folds using a @Done1@ constructor in the 'Step' type which
+-- indicates that the last element was not consumed by the fold. The following
+-- additional operations can be implemented as terminating folds if we do that.
+--
+-- @
+-- takeWhile
+-- groupBy
+-- wordBy
+-- @
+--
+-- However, it creates several complications.  The 'many' combinator  requires
+-- a @Partial1@ ('Partial' with leftover) to handle a @Done1@ from the top
+-- level fold, for efficient implementation.  If the collecting fold in "many"
+-- returns a @Partial1@ or @Done1@ then what to do with all the elements that
+-- have been consumed?
+--
+-- Similarly, in distribute, if one fold consumes a value and others say its a
+-- leftover then what do we do?  Folds like "many" require the leftover to be
+-- fed to it again. So in a distribute operation those folds which gave a
+-- leftover will have to be fed the leftover while the folds that consumed will
+-- have to be fed the next input.  This is very complicated to implement. We
+-- have the same issue in backtracking parsers being used in a distribute
+-- operation.
+--
+-- To avoid these issues we want to enforce by typing that the collecting folds
+-- can never return a leftover. So we need a fold type without @Done1@ or
+-- @Partial1@. This leads us to design folds to never return a leftover and the
+-- use cases of single leftover are transferred to parsers where we have
+-- general backtracking mechanism and single leftover is just a special case of
+-- backtracking.
+--
+-- This means: takeWhile, groupBy, wordBy would be implemented as parsers.
+-- "take 0" can implemented as a fold if we make initial return @Step@ type.
+-- "takeByTime" can be implemented without @Done1@.
 --
 -- == Parsers
 --
--- Parsers are splitters that can fail and backtrack. Parsers can be composed
--- using an @alternative@ style composition where they can backtrack and apply
--- another parser if one parser fails. 'Streamly.Internal.Data.Parser.satisfy'
--- is a simple example of a parser, it would succeed if the condition is
--- satisfied and it would fail otherwise, on failure an alternative parser can
--- be used on the same input.
+-- The next upgrade after terminating folds with a leftover are parsers.
+-- Parsers are terminating folds that can fail and backtrack. Parsers can be
+-- composed using an @alternative@ style composition where they can backtrack
+-- and apply another parser if one parser fails.
+-- 'Streamly.Internal.Data.Parser.satisfy' is a simple example of a parser, it
+-- would succeed if the condition is satisfied and it would fail otherwise, on
+-- failure an alternative parser can be used on the same input.
 --
 -- = Types for Stream Consumers
 --
--- We use the 'Fold' type to implement the Accumulator and Splitter
--- functionality.  Parsers are represented by the
--- 'Streamly.Internal.Data.Parser.Parser' type.  This is a sweet spot to
--- balance ease of use, type safety and performance.  Using separate
--- Accumulator and Splitter types would encode more information in types but it
--- would make ease of use, implementation, maintenance effort worse. Combining
--- Accumulator, Splitter and Parser into a single
--- 'Streamly.Internal.Data.Parser.Parser' type would make ease of use even
--- better but type safety and performance worse.
+-- In streamly, there is no separate type for accumulators. Terminating folds
+-- are a superset of accumulators and to avoid too many types we represent both
+-- using the same type, 'Fold'.
+--
+-- We do not club the leftovers functionality with terminating folds because of
+-- the reasons explained earlier. Instead combinators that require leftovers
+-- are implemented as the 'Streamly.Internal.Data.Parser.Parser' type.  This is
+-- a sweet spot to balance ease of use, type safety and performance.  Using
+-- separate Accumulator and terminating fold types would encode more
+-- information in types but it would make ease of use, implementation,
+-- maintenance effort worse. Combining Accumulator, terminating folds and
+-- Parser into a single 'Streamly.Internal.Data.Parser.Parser' type would make
+-- ease of use even better but type safety and performance worse.
 --
 -- One of the design requirements that we have placed for better ease of use
 -- and code reuse is that 'Streamly.Internal.Data.Parser.Parser' type should be
