@@ -1,8 +1,5 @@
 # CAUTION! a spelling mistake in arg string is ignored silently.
 #
-# To include benchmark deps use:
-# nix-shell --argstr c2nix "--benchmark --flag fusion-plugin"
-#
 # To build the chart executable for running bench.sh use:
 # nix-shell --argstr c2nix "--flag dev" --run "cabal build chart --flag dev"
 #
@@ -36,6 +33,8 @@ let haskellPackages =
                     then orig.overrideAttrs (oldAttrs: { src = null; })
                     else orig;
 
+    flags = "--benchmark --flag fusion-plugin " + c2nix;
+
     mkHaskellPackages = inShell:
         haskellPackages.override {
             # We could disbale doCheck on all like this, but it would make the
@@ -48,10 +47,10 @@ let haskellPackages =
             overrides = self: super:
                 with nixpkgs.haskell.lib;
                 {
-                    streamly = mkPackage super "streamly" ./. c2nix inShell;
+                    streamly = mkPackage super "streamly" ./. flags inShell;
                     streamly-benchmarks =
                         mkPackage super "streamly-benchmarks"
-                            ./benchmark c2nix inShell;
+                            ./benchmark flags inShell;
 
                     # Example to Use a different version of a package
                     #QuickCheck = self.QuickCheck_2_14;
