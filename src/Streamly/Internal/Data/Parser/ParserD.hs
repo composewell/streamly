@@ -163,6 +163,8 @@ import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Internal.Data.Fold.Types as FL
+
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 import Streamly.Internal.Data.Parser.ParserD.Tee
@@ -182,7 +184,11 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
 
     where
 
-    step s a = Partial 0 <$> fstep s a
+    step s a = toParserState <$> fstep s a
+
+    {-# INLINE toParserState #-}
+    toParserState (FL.Partial s) = Partial 0 s
+    toParserState (FL.Done b) = Done 0 b
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
@@ -317,12 +323,15 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
 
     step (Tuple' i r) a
         | i < n = do
-            res <- fstep r a
-            let i1 = i + 1
-                s1 = Tuple' i1 res
-            if i1 < n
-            then return $ Partial 0 s1
-            else Done 0 <$> fextract res
+            sfs <- fstep r a
+            case sfs of
+                FL.Partial res -> do
+                    let i1 = i + 1
+                        s1 = Tuple' i1 res
+                    if i1 < n
+                    then return $ Partial 0 s1
+                    else Done 0 <$> fextract res
+                FL.Done b -> return $ Done 0 b
         | otherwise = Done 1 <$> fextract r
 
     extract (Tuple' _ r) = fextract r
@@ -343,24 +352,30 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     step (Tuple' i r) a
       | i < n = do
-          res <- fstep r a
+          sfs <- fstep r a
           let i1 = i + 1
-              s1 = Tuple' i1 res
-          if i1 < n
-          then return (Continue 0 s1)
-          else Done 0 <$> fextract res
+          case sfs of
+              FL.Partial res -> do
+                  let s1 = Tuple' i1 res
+                  if i1 < n
+                  then return (Continue 0 s1)
+                  else Done 0 <$> fextract res
+              FL.Done b ->
+                  if i1 < n
+                  then return $ Error $ err i1
+                  else return $ Done 0 b
       | otherwise = Done 1 <$> fextract r
 
     extract (Tuple' i r) =
         if n == i
         then fextract r
-        else throwM $ ParseError err
+        else throwM $ ParseError $ err i
 
         where
 
-        err =
-               "takeEQ: Expecting exactly " ++ show n
-            ++ " elements, got " ++ show i
+    err i =
+           "takeEQ: Expecting exactly " ++ show n
+        ++ " elements, got " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeGE'.
 --
@@ -376,26 +391,32 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
     initial = Tuple' 0 <$> finitial
 
     step (Tuple' i r) a = do
-        res <- fstep r a
+        sfs <- fstep r a
         let i1 = i + 1
-            s1 = Tuple' i1 res
-        return $
-            if i1 < n
-            then Continue 0 s1
-            else Partial 0 s1
+        case sfs of
+            FL.Partial res -> do
+                let s1 = Tuple' i1 res
+                return $
+                    if i1 < n
+                    then Continue 0 s1
+                    else Partial 0 s1
+            FL.Done b ->
+                if i1 < n
+                then return $ Error $ err i1
+                else return $ Done 0 b
 
     extract (Tuple' i r) = fextract r >>= f
 
         where
 
-        err =
-              "takeGE: Expecting at least " ++ show n
-           ++ " elements, got only " ++ show i
-
         f x =
             if i >= n
             then return x
-            else throwM $ ParseError err
+            else throwM $ ParseError $ err i
+
+    err i =
+          "takeGE: Expecting at least " ++ show n
+       ++ " elements, got only " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
@@ -412,8 +433,12 @@ takeWhile predicate (Fold fstep finitial fextract) =
 
     step s a =
         if predicate a
-        then Partial 0 <$> fstep s a
+        then toParserState <$> fstep s a
         else Done 1 <$> fextract s
+
+    {-# INLINE toParserState #-}
+    toParserState (FL.Partial s) = Partial 0 s
+    toParserState (FL.Done b) = Done 0 b
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
@@ -432,14 +457,18 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
         if predicate a
         then do
             s <- finitial
-            r <- fstep s a
-            return $ Partial 0 (Just r)
+            sr <- fstep s a
+            case sr of
+                FL.Partial r -> return $ Partial 0 (Just r)
+                FL.Done b -> return $ Done 0 b
         else return $ Error "takeWhile1: empty"
     step (Just s) a =
         if predicate a
         then do
-            r <- fstep s a
-            return $ Partial 0 (Just r)
+            sr <- fstep s a
+            case sr of
+                FL.Partial r -> return $ Partial 0 (Just r)
+                FL.Done b -> return $ Done 0 b
         else do
             b <- fextract s
             return $ Done 1 b
@@ -461,8 +490,12 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
     initial = finitial
     step s a =
         if not (predicate a)
-        then Partial 0 <$> fstep s a
+        then toParserState <$> fstep s a
         else Done 0 <$> fextract s
+
+    {-# INLINE toParserState #-}
+    toParserState (FL.Partial s) = Partial 0 s
+    toParserState (FL.Done b) = Done 0 b
 
 -- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --
@@ -502,10 +535,13 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
         | not (predicate a) =
             if i < cnt
             then do
-                res <- fstep r a
-                let i1 = i + 1
-                    s1 = Tuple' i1 res
-                return $ Partial 0 s1
+                sfs <- fstep r a
+                case sfs of
+                    FL.Partial res -> do
+                        let i1 = i + 1
+                            s1 = Tuple' i1 res
+                        return $ Partial 0 s1
+                    FL.Done b -> return $ Done 0 b
             else Done 1 <$> fextract r
         | otherwise = Done 0 <$> fextract r
 
@@ -721,10 +757,18 @@ manyTill (Fold fstep finitial fextract)
             Partial n s -> return $ Partial n (ManyTillL fs s)
             Continue n s -> return $ Continue n (ManyTillL fs s)
             Done n b -> do
-                fs1 <- fstep fs b
-                l <- initialR
-                return $ Partial n (ManyTillR 0 fs1 l)
+                sfs <- fstep fs b
+                case sfs of
+                    FL.Partial fs1 -> do
+                        l <- initialR
+                        return $ Partial n (ManyTillR 0 fs1 l)
+                    FL.Done fb -> return $ Done n fb
             Error err -> return $ Error err
 
-    extract (ManyTillL fs sR) = extractL sR >>= fstep fs >>= fextract
+    extract (ManyTillL fs sR) = do
+        res <- extractL sR
+        sfs <- fstep fs res
+        case sfs of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done b -> return b
     extract (ManyTillR _ fs _) = fextract fs

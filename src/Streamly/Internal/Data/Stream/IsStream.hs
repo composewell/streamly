@@ -1994,7 +1994,7 @@ toHandle h = go
 -- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ f . (x `K.cons`))
+toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
                 (return id)
                 (return . ($ K.nil))
 
@@ -2012,7 +2012,8 @@ toStream = Fold (\f x -> return $ f . (x `K.cons`))
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = Fold (\xs x -> return $ x `K.cons` xs) (return K.nil) return
+toStreamRev =
+    Fold (\xs x -> return $ FL.Partial $ x `K.cons` xs) (return K.nil) return
 
 -- | Convert a stream to a pure stream.
 --
@@ -2353,14 +2354,14 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan (Fold step begin done) = P.scanlMx' step begin done
+scan = P.scanFold
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan (Fold step begin done) = P.postscanlMx' step begin done
+postscan = P.postscanFold
 
 ------------------------------------------------------------------------------
 -- Stateful Transformations
@@ -4710,7 +4711,7 @@ classifySessionsBy
     -> Double         -- ^ session timeout in seconds
     -> Bool           -- ^ reset the timeout when an event is received
     -> (Int -> m Bool) -- ^ predicate to eject sessions based on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> Fold m a b  -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick tmout reset ejectPred
@@ -4756,18 +4757,16 @@ classifySessionsBy tick tmout reset ejectPred
         -- better performance.
         --
         let curTime = max sessionEventTime timestamp
-            accumulate v = do
-                old <- case v of
+            extractOld v =
+                case v of
                     Nothing -> initial
                     Just (Tuple' _ acc) -> return acc
-                new <- step old value
-                return $ Tuple' timestamp new
             mOld = Map.lookup key sessionKeyValueMap
 
-        acc@(Tuple' _ fres) <- accumulate mOld
-        res <- extract fres
+        fs <- extractOld mOld
+        res <- step fs value
         case res of
-            Left x -> do
+            FL.Done fb -> do
                 -- deleting a key from the heap is expensive, so we never
                 -- delete a key from heap, we just purge it from the Map and it
                 -- gets purged from the heap on timeout. We just need an extra
@@ -4783,9 +4782,10 @@ classifySessionsBy tick tmout reset ejectPred
                     , sessionEventTime = curTime
                     , sessionCount = cnt
                     , sessionKeyValueMap = mp
-                    , sessionOutputStream = yield (key, x)
+                    , sessionOutputStream = yield (key, fb)
                     }
-            Right _ -> do
+            FL.Partial fs1 -> do
+                let acc = Tuple' timestamp fs1
                 (hp1, mp1, out1, cnt1) <- do
                         let vars = (sessionTimerHeap, sessionKeyValueMap,
                                            K.nil, sessionCount)
@@ -4836,15 +4836,10 @@ classifySessionsBy tick tmout reset ejectPred
             , sessionOutputStream = out
             }
 
-    fromEither e =
-        case e of
-            Left  x -> x
-            Right x -> x
-
     -- delete from map and output the fold accumulator
     ejectEntry hp mp out cnt acc key = do
         sess <- extract acc
-        let out1 = (key, fromEither sess) `K.cons` out
+        let out1 = (key, sess) `K.cons` out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)
 
@@ -4945,7 +4940,7 @@ classifyKeepAliveSessions
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ session inactive timeout
     -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
+    -> Fold m a b -- ^ Fold to be applied to session payload data
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
 classifyKeepAliveSessions tmout =
@@ -5012,7 +5007,7 @@ classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
     -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
-    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> Fold m a b -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
 classifySessionsOf interval =

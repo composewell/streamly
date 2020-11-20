@@ -64,7 +64,9 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -583,10 +585,10 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-data GroupState s fs
+data GroupState s fs fb
     = GroupStart s
     | GroupBuffer s fs Int
-    | GroupYield fs (GroupState s fs)
+    | GroupYield fb (GroupState s fs fb)
     | GroupFinish
 
 {-# INLINE_NORMAL groupsOf #-}
@@ -617,17 +619,22 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                !fs' <- fstep fs x
-                let i' = i + 1
-                return $
-                    if i' >= n
-                    then Skip (GroupYield fs' (GroupStart s))
-                    else Skip (GroupBuffer s fs' i')
+                !sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> do
+                        let i1 = i + 1
+                        if i1 >= n
+                        then do
+                            fb <- extract fs1
+                            return $ Skip (GroupYield fb (GroupStart s))
+                        else return $ Skip (GroupBuffer s fs1 i1)
+                    FL.Done fb -> return $ Skip (GroupYield fb (GroupStart s))
             Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
+            Stop -> do
+                fb <- extract fs
+                return $ Skip (GroupYield fb GroupFinish)
 
-    step' _ (GroupYield fs next) = do
-        r <- extract fs
+    step' _ (GroupYield r next) =
         return $ Yield r next
 
     step' _ GroupFinish = return Stop

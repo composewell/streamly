@@ -22,6 +22,7 @@ module Streamly.Internal.Data.Tuple.Strict
       Tuple' (..)
     , Tuple3' (..)
     , Tuple4' (..)
+    , Tuple5' (..)
     )
 where
 
@@ -33,3 +34,6 @@ data Tuple3' a b c = Tuple3' !a !b !c deriving Show
 
 -- | A strict '(,,,)'
 data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+
+-- | A strict '(,,,,)'
+data Tuple5' a b c d e = Tuple5' !a !b !c !d !e deriving Show

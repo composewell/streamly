@@ -146,10 +146,10 @@ writeNAligned align limit = Fold step initial extract
         return (marr, 0)
 
     step (marr, i) x
-        | i == limit = return (marr, i)
+        | i == limit = FL.Done <$> extract (marr, i)
         | otherwise = do
             unsafeWriteIndex marr i x
-            return (marr, i + 1)
+            return $ FL.Partial (marr, i + 1)
 
     extract (marr, len) = shrinkArray marr len >> return marr
 

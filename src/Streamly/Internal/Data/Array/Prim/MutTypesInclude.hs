@@ -10,8 +10,8 @@ import Data.Primitive.Types (Prim(..), sizeOf)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import GHC.Exts
 import Control.Monad.Primitive
@@ -135,7 +135,7 @@ shrinkArray (Array arr#) (I# n#) =
 -- /Internal/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
-write = Fold step initial extract
+write = FL.mkAccumM step initial extract
 
     where
 
@@ -169,11 +169,11 @@ writeN limit = Fold step initial extract
         marr <- newArray limit
         return $ Tuple' marr 0
 
-    step (Tuple' marr i) x
-        | i == limit = return $ Tuple' marr i
+    step s@(Tuple' marr i) x
+        | i == limit = FL.Done <$> extract s
         | otherwise = do
             unsafeWriteIndex marr i x
-            return $ Tuple' marr (i + 1)
+            return $ FL.Partial $ Tuple' marr (i + 1)
 
     extract (Tuple' marr len) = shrinkArray marr len >> return marr
 
@@ -200,7 +200,7 @@ writeNUnsafe n = Fold step initial extract
         return $ ArrayUnsafe arr 0
     step (ArrayUnsafe marr i) x = do
         unsafeWriteIndex marr i x
-        return $ ArrayUnsafe marr (i + 1)
+        return $ FL.Partial $ ArrayUnsafe marr (i + 1)
     extract (ArrayUnsafe marr i) = shrinkArray marr i >> return marr
 
 {-# INLINE_NORMAL fromStreamDN #-}
@@ -212,13 +212,9 @@ fromStreamDN limit str = do
     shrinkArray marr n
     return marr
 
-{-# INLINE runFold #-}
-runFold :: (Monad m) => Fold m a b -> D.Stream m a -> m b
-runFold (Fold step begin done) = D.foldlMx' step begin done
-
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Prim a) => D.Stream m a -> m (Array a)
-fromStreamD str = runFold write str
+fromStreamD str = D.runFold write str
 
 {-# INLINABLE fromListNM #-}
 fromListNM :: (MonadIO m, Prim a) => Int -> [a] -> m (Array a)
@@ -372,18 +368,24 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
-        r <- step1 r1 buf
-        extract1 r
+        sr <- step1 r1 buf
+        case sr of
+            FL.Partial ps -> extract1 ps
+            FL.Done _ -> return ()
+
 
     step (Tuple' Nothing r1) arr = do
             len <- byteLength arr
             if len >= n
             then do
-                r <- step1 r1 arr
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just arr) r1)
+                sr <- step1 r1 arr
+                case sr of
+                    FL.Partial r -> do
+                        extract1 r
+                        r1' <- initial1
+                        return $ FL.Partial (Tuple' Nothing r1')
+                    FL.Done _ -> return $ FL.Done ()
+            else return $ FL.Partial (Tuple' (Just arr) r1)
 
     step (Tuple' (Just buf) r1) arr = do
             blen <- byteLength buf
@@ -393,8 +395,11 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 
             if len >= n
             then do
-                r <- step1 r1 buf'
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just buf') r1)
+                sr <- step1 r1 buf'
+                case sr of
+                    FL.Partial r -> do
+                        extract1 r
+                        r1' <- initial1
+                        return $ FL.Partial (Tuple' Nothing r1')
+                    FL.Done _ -> return $ FL.Done ()
+            else return $ FL.Partial (Tuple' (Just buf') r1)

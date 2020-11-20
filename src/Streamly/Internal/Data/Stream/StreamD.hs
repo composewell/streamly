@@ -225,6 +225,9 @@ module Streamly.Internal.Data.Stream.StreamD
     , scanlMx'
     , scanlx'
 
+    , scanFold
+    , postscanFold
+
     -- * Filtering
     , filter
     , filterM
@@ -1528,11 +1531,14 @@ splitSuffixBy' predicate f (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                acc <- initial
-                acc' <- fstep acc x
-                if (predicate x)
-                then done acc' >>= \val -> return $ Yield val (Just s)
-                else go SPEC s acc'
+                fs <- initial
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 ->
+                        if (predicate x)
+                        then done fs1 >>= \val -> return $ Yield val (Just s)
+                        else go SPEC s fs1
+                    FL.Done fb -> return $ Yield fb (Just s)
 
             Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
@@ -1543,10 +1549,14 @@ splitSuffixBy' predicate f (Stream step state) =
             res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
-                    acc' <- fstep acc x
-                    if (predicate x)
-                    then done acc' >>= \val -> return $ Yield val (Just s)
-                    else go SPEC s acc'
+                    sfs <- fstep acc x
+                    case sfs of
+                        FL.Partial fs1 ->
+                            if (predicate x)
+                            then done fs1 >>= \val -> return $ Yield val (Just s)
+                            else go SPEC s fs1
+                        FL.Done fb -> return $ Yield fb (Just s)
+
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \val -> return $ Yield val Nothing
 
@@ -1567,9 +1577,11 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                acc <- initial
-                acc' <- fstep acc x
-                go SPEC x s acc'
+                fs <- initial
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> go SPEC x s fs1
+                    FL.Done fb -> return $ Yield fb (Just s, Just x)
 
             Skip s    -> return $ Skip $ (Just s, Nothing)
             Stop      -> return Stop
@@ -1582,16 +1594,20 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                 Yield x s -> do
                     if cmp x prev
                     then do
-                        acc' <- fstep acc x
-                        go SPEC prev s acc'
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC prev s fs1
+                            FL.Done fb -> return $ Yield fb (Just s, Just x)
                     else done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC prev s acc
                 Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
     stepOuter (Fold fstep initial done) gst (Just st, Just prev) = do
-        acc <- initial
-        acc' <- fstep acc prev
-        go SPEC st acc'
+        fs <- initial
+        sfs <- fstep fs prev
+        case sfs of
+            FL.Partial fs1 -> go SPEC st fs1
+            FL.Done fb -> return $ Yield fb (Just st, Nothing)
 
         where
 
@@ -1602,8 +1618,10 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                 Yield x s -> do
                     if cmp x prev
                     then do
-                        acc' <- fstep acc x
-                        go SPEC s acc'
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC s fs1
+                            FL.Done fb -> return $ Yield fb (Just s, Just x)
                     else done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
@@ -1625,9 +1643,11 @@ groupsRollingBy cmp f (Stream step state) =
           res <- step (adaptState gst) st
           case res of
               Yield x s -> do
-                  acc <- initial
-                  acc' <- fstep acc x
-                  go SPEC x s acc'
+                  fs <- initial
+                  sfs <- fstep fs x
+                  case sfs of
+                      FL.Partial fs1 -> go SPEC x s fs1
+                      FL.Done fb -> return $ Yield fb (Just s, Just x)
 
               Skip s    -> return $ Skip $ (Just s, Nothing)
               Stop      -> return Stop
@@ -1639,17 +1659,21 @@ groupsRollingBy cmp f (Stream step state) =
                   Yield x s -> do
                       if cmp prev x
                         then do
-                          acc' <- fstep acc x
-                          go SPEC x s acc'
+                          sfs <- fstep acc x
+                          case sfs of
+                              FL.Partial fs1 -> go SPEC x s fs1
+                              FL.Done fb -> return $ Yield fb (Just s, Just x)
                         else
                           done acc >>= \r -> return $ Yield r (Just s, Just x)
                   Skip s -> go SPEC prev s acc
                   Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
       stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
-          acc <- initial
-          acc' <- fstep acc prev'
-          go SPEC prev' st acc'
+          fs <- initial
+          sfs <- fstep fs prev'
+          case sfs of
+              FL.Partial fs1 -> go SPEC prev' st fs1
+              FL.Done fb -> return $ Yield fb (Just st, Nothing)
 
         where
           go !_ prevv stt !acc = do
@@ -1658,8 +1682,10 @@ groupsRollingBy cmp f (Stream step state) =
                   Yield x s -> do
                       if cmp prevv x
                       then do
-                          acc' <- fstep acc x
-                          go SPEC x s acc'
+                          sfs <- fstep acc x
+                          case sfs of
+                              FL.Partial fs1 -> go SPEC x s fs1
+                              FL.Done fb -> return $ Yield fb (Just s, Just x)
                       else done acc >>= \r -> return $ Yield r (Just s, Just x)
                   Skip s -> go SPEC prevv s acc
                   Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
@@ -1684,8 +1710,10 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
                     if predicate x
                     then done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
-                        go SPEC s acc'
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC s fs1
+                            FL.Done fb -> return $ Yield fb (Just s)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r Nothing
 
@@ -1708,8 +1736,10 @@ splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
                 if predicate x
                 then done acc >>= \val -> return $ Yield val (Just s)
                 else do
-                    acc' <- fstep acc x
-                    go SPEC s acc'
+                    sfs <- fstep acc x
+                    case sfs of
+                        FL.Partial fs1 -> go SPEC s fs1
+                        FL.Done fb -> return $ Yield fb (Just s)
 
             Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
@@ -1723,8 +1753,10 @@ splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
                     if predicate x
                     then done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
-                        go SPEC s acc'
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC s fs1
+                            FL.Done fb -> return $ Yield fb (Just s)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r Nothing
 
@@ -1744,9 +1776,11 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
                 if predicate x
                 then return $ Skip (Just s)
                 else do
-                    acc <- initial
-                    acc' <- fstep acc x
-                    go SPEC s acc'
+                    fs <- initial
+                    sfs <- fstep fs x
+                    case sfs of
+                        FL.Partial fs1 -> go SPEC s fs1
+                        FL.Done fb -> return $ Yield fb (Just s)
 
             Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
@@ -1760,8 +1794,10 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
                     if predicate x
                     then done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
-                        go SPEC s acc'
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC s fs1
+                            FL.Done fb -> return $ Yield fb (Just s)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r Nothing
 
@@ -1873,9 +1909,13 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         case res of
             Yield x s -> do
                 acc <- initial
-                acc1 <- fstep acc x
-                r <- done acc1
-                skip $ SplitOnSeqYield r (SplitOnSeqEmpty s)
+                sfs <- fstep acc x
+                case sfs of
+                    FL.Partial acc1 -> do
+                        r <- done acc1
+                        skip $ SplitOnSeqYield r (SplitOnSeqEmpty s)
+                    FL.Done fb -> skip $ SplitOnSeqYield fb (SplitOnSeqEmpty s)
+
             Skip s -> return $ Skip (SplitOnSeqEmpty s)
             Stop -> return Stop
 
@@ -1899,8 +1939,12 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                     fs1 <- initial
                     return $ Skip $ SplitOnSeqYield r (SplitOnSeqSingle fs1 s pat)
                 else do
-                    fs1 <- fstep fs x
-                    return $ Skip $ (SplitOnSeqSingle fs1 s pat)
+                    sfs <- fstep fs x
+                    case sfs of
+                        FL.Partial fs1 -> skip $ (SplitOnSeqSingle fs1 s pat)
+                        FL.Done fb -> do
+                            fs1 <- initial
+                            skip $ SplitOnSeqYield fb (SplitOnSeqSingle fs1 s pat)
             Skip s -> return $ Skip $ SplitOnSeqSingle fs s pat
             Stop -> do
                 r <- done fs
@@ -1915,8 +1959,13 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
         let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
-        fs1 <- fstep fs (toEnum $ fromIntegral old)
-        skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
+        sfs <- fstep fs (toEnum $ fromIntegral old)
+        case sfs of
+            FL.Partial fs1 -> skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
+            FL.Done r -> do
+                fs1 <- initial
+                let next = SplitOnSeqWordDone (n - 1) fs1 wrd
+                skip $ SplitOnSeqYield r next
 
     stepOuter gst (SplitOnSeqWordInit st0) =
         go SPEC 0 0 st0
@@ -1961,13 +2010,18 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                     let wrd1 = addToWord wrd x
                         old = (wordMask .&. wrd)
                                 `shiftR` (elemBits * (patLen - 1))
-                    fs1 <- fstep fs (toEnum $ fromIntegral old)
-                    if wrd1 .&. wordMask == wordPat
-                    then do
-                        r <- done fs1
-                        let next = SplitOnSeqWordInit s
-                        skip $ SplitOnSeqYield r next
-                    else go SPEC wrd1 s fs1
+                    sfs <- fstep fs (toEnum $ fromIntegral old)
+                    case sfs of
+                        FL.Partial fs1 -> do
+                            if wrd1 .&. wordMask == wordPat
+                            then do
+                                r <- done fs1
+                                let next = SplitOnSeqWordInit s
+                                skip $ SplitOnSeqYield r next
+                            else go SPEC wrd1 s fs1
+                        FL.Done r ->
+                               let next = SplitOnSeqWordInit s
+                                in skip $ SplitOnSeqYield r next
                 Skip s -> go SPEC wrd s fs
                 Stop -> skip $ SplitOnSeqWordDone patLen fs wrd
 
@@ -2009,11 +2063,16 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 Yield x s -> do
                     old <- liftIO $ peek rh
                     let cksum1 = deltaCksum cksum old x
-                    fs1 <- fstep fs old
-                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                    if (cksum1 == patHash)
-                    then skip $ SplitOnSeqKRCheck fs1 s rb rh1
-                    else go SPEC fs1 s rh1 cksum1
+                    sfs <- fstep fs old
+                    case sfs of
+                        FL.Partial fs1 -> do
+                            rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                            if (cksum1 == patHash)
+                            then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                            else go SPEC fs1 s rh1 cksum1
+                        FL.Done r ->
+                            let next = SplitOnSeqKRInit 0 s rb (RB.startOf rb)
+                             in skip $ SplitOnSeqYield r next
                 Skip s -> go SPEC fs s rh cksum
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
 
@@ -2056,8 +2115,13 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
         old <- liftIO $ peek rh
         let rh1 = RB.advance rb rh
-        fs1 <- fstep fs old
-        skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
+        sfs <- fstep fs old
+        case sfs of
+            FL.Partial fs1 -> skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
+            FL.Done r -> do
+                fs1 <- initial
+                let next = SplitOnSeqKRDone (n - 1) fs1 rb rh1
+                skip $ SplitOnSeqYield r next
 
 {-# ANN type SplitOnSuffixSeqState Fuse #-}
 data SplitOnSuffixSeqState rb rh ck w fs s b x =
@@ -2114,13 +2178,22 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
     processYieldSingle pat x s fs =
         if pat == x
         then do
-            fs1 <- if withSep then fstep fs x else return fs
-            r <- done fs1
-            let next = SplitOnSuffixSeqSingleInit s pat
-            skip $ SplitOnSuffixSeqYield r next
+            sfs <- if withSep then fstep fs x else return $ FL.Partial fs
+            case sfs of
+                FL.Partial fs1 -> do
+                    r <- done fs1
+                    let next = SplitOnSuffixSeqSingleInit s pat
+                    skip $ SplitOnSuffixSeqYield r next
+                FL.Done r ->
+                    let next = SplitOnSuffixSeqSingleInit s pat
+                     in skip $ SplitOnSuffixSeqYield r next
         else do
-            fs1 <- fstep fs x
-            skip $ SplitOnSuffixSeqSingle fs1 s pat
+            sfs <- fstep fs x
+            case sfs of
+                FL.Partial fs1 -> skip $ SplitOnSuffixSeqSingle fs1 s pat
+                FL.Done r ->
+                    let next = SplitOnSuffixSeqSingleInit s pat
+                     in skip $ SplitOnSuffixSeqYield r next
 
     -- For Rabin-Karp search
     k = 2891336453 :: Word32
@@ -2162,9 +2235,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
         case res of
             Yield x s -> do
                 acc <- initial
-                acc1 <- fstep acc x
-                r <- done acc1
-                skip $ SplitOnSuffixSeqYield r (SplitOnSuffixSeqEmpty s)
+                sfs <- fstep acc x
+                case sfs of
+                    FL.Partial acc1 -> do
+                        r <- done acc1
+                        skip $ SplitOnSuffixSeqYield r (SplitOnSuffixSeqEmpty s)
+                    FL.Done r ->
+                        skip $ SplitOnSuffixSeqYield r (SplitOnSuffixSeqEmpty s)
             Skip s -> skip (SplitOnSuffixSeqEmpty s)
             Stop -> return Stop
 
@@ -2203,8 +2280,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqWordDone n fs wrd) = do
         let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
-        fs1 <- fstep fs (toEnum $ fromIntegral old)
-        skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
+        sfs <- fstep fs (toEnum $ fromIntegral old)
+        case sfs of
+            FL.Partial fs1 -> skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
+            FL.Done r -> do
+                fs1 <- initial
+                let next = SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
+                skip $ SplitOnSuffixSeqYield r next
 
     stepOuter gst (SplitOnSuffixSeqWordInit st0) = do
         res <- step (adaptState gst) st0
@@ -2212,8 +2294,12 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 fs <- initial
                 let wrd = addToWord 0 x
-                fs1 <- if withSep then fstep fs x else return fs
-                go SPEC 1 wrd s fs1
+                sfs <- if withSep then fstep fs x else return $ FL.Partial fs
+                case sfs of
+                    FL.Partial fs1 -> go SPEC 1 wrd s fs1
+                    FL.Done r -> do
+                        let next = SplitOnSuffixSeqWordInit s
+                         in skip $ SplitOnSuffixSeqYield r next
             Skip s -> skip (SplitOnSuffixSeqWordInit s)
             Stop -> return Stop
 
@@ -2225,15 +2311,20 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             case res of
                 Yield x s -> do
                     let wrd1 = addToWord wrd x
-                    fs1 <- if withSep then fstep fs x else return fs
-                    if idx /= maxIndex
-                    then go SPEC (idx + 1) wrd1 s fs1
-                    else if wrd1 .&. wordMask /= wordPat
-                    then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                    else do
-                        r <- done fs
-                        let next = SplitOnSuffixSeqWordInit s
-                        skip $ SplitOnSuffixSeqYield r next
+                    sfs <- if withSep then fstep fs x else return $ FL.Partial fs
+                    case sfs of
+                        FL.Partial fs1 ->
+                            if idx /= maxIndex
+                            then go SPEC (idx + 1) wrd1 s fs1
+                            else if wrd1 .&. wordMask /= wordPat
+                            then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
+                            else do
+                                r <- done fs
+                                let next = SplitOnSuffixSeqWordInit s
+                                skip $ SplitOnSuffixSeqYield r next
+                        FL.Done r ->
+                            let next = SplitOnSuffixSeqWordInit s
+                             in skip $ SplitOnSuffixSeqYield r next
                 Skip s -> go SPEC idx wrd s fs
                 Stop -> skip $ SplitOnSuffixSeqWordDone idx fs wrd
 
@@ -2250,16 +2341,21 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     let wrd1 = addToWord wrd x
                         old = (wordMask .&. wrd)
                                 `shiftR` (elemBits * (patLen - 1))
-                    fs1 <-
+                    sfs <-
                         if withSep
                         then fstep fs x
                         else fstep fs (toEnum $ fromIntegral old)
-                    if wrd1 .&. wordMask == wordPat
-                    then do
-                        r <- done fs1
-                        let next = SplitOnSuffixSeqWordInit s
-                        skip $ SplitOnSuffixSeqYield r next
-                    else go SPEC wrd1 s fs1
+                    case sfs of
+                        FL.Partial fs1 ->
+                            if wrd1 .&. wordMask == wordPat
+                            then do
+                                r <- done fs1
+                                let next = SplitOnSuffixSeqWordInit s
+                                skip $ SplitOnSuffixSeqYield r next
+                            else go SPEC wrd1 s fs1
+                        FL.Done r ->
+                            let next = SplitOnSuffixSeqWordInit s
+                             in skip $ SplitOnSuffixSeqYield r next
                 Skip s -> go SPEC wrd s fs
                 Stop ->
                     if wrd .&. wordMask == wordPat
@@ -2280,8 +2376,12 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 rh1 <- liftIO $ RB.unsafeInsert rb rh0 x
                 fs <- initial
-                fs1 <- if withSep then fstep fs x else return fs
-                skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
+                sfs <- if withSep then fstep fs x else return $ FL.Partial fs
+                case sfs of
+                    FL.Partial fs1 -> skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
+                    FL.Done r ->
+                        let next = SplitOnSuffixSeqKRInit 0 s rb (RB.startOf rb)
+                         in skip $ SplitOnSuffixSeqYield r next
             Skip s -> skip $ SplitOnSuffixSeqKRInit idx0 s rb rh0
             Stop -> return Stop
 
@@ -2295,15 +2395,20 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             case res of
                 Yield x s -> do
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
-                    fs1 <- if withSep then fstep fs x else return fs
-                    if idx /= maxIndex
-                    then go SPEC (idx + 1) rh1 s fs1
-                    else skip $
-                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
-                            !ringHash = fold addCksum 0 rb
-                         in if ringHash == patHash
-                            then SplitOnSuffixSeqKRCheck fs1 s rb rh1
-                            else SplitOnSuffixSeqKRLoop fs1 s rb rh1 ringHash
+                    sfs <- if withSep then fstep fs x else return $ FL.Partial fs
+                    case sfs of
+                        FL.Partial fs1 ->
+                            if idx /= maxIndex
+                            then go SPEC (idx + 1) rh1 s fs1
+                            else skip $
+                                let fold = RB.unsafeFoldRing (RB.ringBound rb)
+                                    !ringHash = fold addCksum 0 rb
+                                 in if ringHash == patHash
+                                    then SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                                    else SplitOnSuffixSeqKRLoop fs1 s rb rh1 ringHash
+                        FL.Done r ->
+                            let next = SplitOnSuffixSeqKRInit 0 st rb (RB.startOf rb)
+                             in skip $ SplitOnSuffixSeqYield r next
                 Skip s -> go SPEC idx rh s fs
                 Stop -> do
                     -- do not issue a blank segment when we end at pattern
@@ -2327,10 +2432,15 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     old <- liftIO $ peek rh
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
                     let cksum1 = deltaCksum cksum old x
-                    fs1 <- if withSep then fstep fs x else fstep fs old
-                    if (cksum1 /= patHash)
-                    then go SPEC fs1 s rh1 cksum1
-                    else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                    sfs <- if withSep then fstep fs x else fstep fs old
+                    case sfs of
+                        FL.Partial fs1 ->
+                            if (cksum1 /= patHash)
+                            then go SPEC fs1 s rh1 cksum1
+                            else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                        FL.Done r ->
+                            let next = SplitOnSuffixSeqKRInit 0 st rb (RB.startOf rb)
+                             in skip $ SplitOnSuffixSeqYield r next
                 Skip s -> go SPEC fs s rh cksum
                 Stop ->
                     if RB.unsafeEqArray rb rh patArr
@@ -2355,8 +2465,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
     stepOuter _ (SplitOnSuffixSeqKRDone n fs rb rh) = do
         old <- liftIO $ peek rh
         let rh1 = RB.advance rb rh
-        fs1 <- fstep fs old
-        skip $ SplitOnSuffixSeqKRDone (n - 1) fs1 rb rh1
+        sfs <- fstep fs old
+        case sfs of
+            FL.Partial fs1 -> skip $ SplitOnSuffixSeqKRDone (n - 1) fs1 rb rh1
+            FL.Done r -> do
+                fs1 <- initial
+                let next = SplitOnSuffixSeqKRDone (n - 1) fs1 rb rh1
+                skip $ SplitOnSuffixSeqYield r next
 
 data SplitState s arr
     = SplitInitial s
@@ -3926,6 +4041,39 @@ scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))
 
 ------------------------------------------------------------------------------
+-- Scanning with a Fold
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL postscanFold #-}
+postscanFold :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+postscanFold (FL.Fold fstep begin done) (Stream step state) =
+    Stream step1 (state, begin)
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst (st, !mfs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                fs <- mfs
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> do
+                        !v <- done fs1
+                        return $ Yield v $ (s, return fs1)
+                    FL.Done _ -> return $ Stop
+            Skip s -> return $ Skip (s, mfs)
+            Stop -> return Stop
+
+{-# INLINE scanFold #-}
+scanFold :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+scanFold fld@(FL.Fold _ begin done) s =
+    (begin >>= \x -> x `seq` done x) `consM` postscanFold fld s
+
+------------------------------------------------------------------------------
 -- Stateful map/scan
 ------------------------------------------------------------------------------
 
@@ -3959,59 +4107,88 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 -- Tapping/Distributing
 ------------------------------------------------------------------------------
 
+data TapState fs st
+    = TapInit
+    | Tapping !fs st
+    | TapDone st
+
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
-tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
+tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
 
     where
 
-    step' _ Nothing = do
-        r <- initial
-        return $ Skip (Just (r, state))
+    step' _ TapInit = do
+        fs <- initial
+        return $ Skip (Tapping fs state)
 
-    step' gst (Just (acc, st)) = acc `seq` do
+    step' gst (Tapping fs st) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                acc' <- fstep acc x
-                return $ Yield x (Just (acc', s))
-            Skip s    -> return $ Skip (Just (acc, s))
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> return $ Yield x (Tapping fs1 s)
+                    FL.Done _ -> return $ Yield x (TapDone s)
+            Skip s    -> return $ Skip (Tapping fs s)
             Stop      -> do
-                void $ extract acc
+                void $ extract fs
                 return $ Stop
+
+    step' gst (TapDone st) = do
+        r <- step gst st
+        return $ case r of
+            Yield x s -> Yield x (TapDone s)
+            Skip s    -> Skip (TapDone s)
+            Stop      -> Stop
+
+
+data TapOffState fs s
+    = TapOffInit
+    | TapOffTapping fs s Int
+    | TapOffDone s
 
 {-# INLINE_NORMAL tapOffsetEvery #-}
 tapOffsetEvery :: Monad m
     => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
 tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
-    Stream step' Nothing
+    Stream step' TapOffInit
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ Nothing = do
-        r <- initial
-        return $ Skip (Just (r, state, offset `mod` n))
+    step' _ TapOffInit = do
+        fs <- initial
+        return $ Skip (TapOffTapping fs state (offset `mod` n))
 
-    step' gst (Just (acc, st, count)) | count <= 0 = do
+    step' gst (TapOffTapping acc st count) | count <= 0 = do
         r <- step gst st
         case r of
             Yield x s -> do
-                !acc' <- fstep acc x
-                return $ Yield x (Just (acc', s, n - 1))
-            Skip s    -> return $ Skip (Just (acc, s, count))
+                sfs <- fstep acc x
+                return $ case sfs of
+                    FL.Partial fs1 -> Yield x (TapOffTapping fs1 s (n - 1))
+                    FL.Done _ -> Yield x (TapOffDone s)
+            Skip s    -> return $ Skip (TapOffTapping acc s count)
             Stop      -> do
                 void $ extract acc
                 return $ Stop
 
-    step' gst (Just (acc, st, count)) = do
+    step' gst (TapOffTapping acc st count) = do
         r <- step gst st
         case r of
-            Yield x s -> return $ Yield x (Just (acc, s, count - 1))
-            Skip s    -> return $ Skip (Just (acc, s, count))
+            Yield x s -> return $ Yield x (TapOffTapping acc s (count - 1))
+            Skip s    -> return $ Skip (TapOffTapping acc s count)
             Stop      -> do
                 void $ extract acc
                 return $ Stop
+
+    step' gst (TapOffDone st) = do
+        r <- step gst st
+        return $ case r of
+            Yield x s -> Yield x (TapOffDone s)
+            Skip s    -> Skip (TapOffDone s)
+            Stop      -> Stop
 
 {-# INLINE_NORMAL pollCounts #-}
 pollCounts
@@ -4539,7 +4716,22 @@ the (Stream step state) = go state
 
 {-# INLINE runFold #-}
 runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
-runFold (Fold step begin done) = foldlMx' step begin done
+runFold (Fold fstep begin done) (Stream step state) =
+    begin >>= \x -> go SPEC x state
+
+    where
+
+    {-# INLINE_LATE go #-}
+    go !_ !fs st = do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Done fb -> return fb
+            Skip s -> go SPEC fs s
+            Stop -> done fs
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold
@@ -4693,8 +4885,6 @@ newFoldSVar stt f = do
     {-# NOINLINE work #-}
     work sv = void $ runFold f $ fromProducer sv
 
-data TapState sv st = TapInit | Tapping sv st | TapDone st
-
 {-# INLINE_NORMAL tapAsync #-}
 tapAsync :: MonadAsync m => Fold m a b -> Stream m a -> Stream m a
 tapAsync f (Stream step1 state1) = Stream step TapInit
@@ -4753,7 +4943,7 @@ lastN n
   where
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a
-        return $ Tuple3' rb rh1 (i + 1)
+        return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
     initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
         arr <- liftIO $ MA.newArray n

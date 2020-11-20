@@ -163,6 +163,7 @@ import System.Mem (performMajorGC)
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -284,8 +285,10 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
         r <- ustep st
         case r of
             Yield x s -> do
-                acc' <- fstep acc x
-                go SPEC acc' s
+                sfs <- fstep acc x
+                case sfs of
+                    FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Done fb -> return fb
             Skip s -> go SPEC acc s
             Stop   -> extract acc
 

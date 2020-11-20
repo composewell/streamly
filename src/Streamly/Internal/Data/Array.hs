@@ -60,6 +60,7 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 {-# NOINLINE bottomElement #-}
@@ -111,10 +112,10 @@ writeN limit = Fold step initial extract
         marr <- liftIO $ newArray limit bottomElement
         return (marr, 0)
     step (marr, i) x
-        | i == limit = return (marr, i)
+        | i == limit = FL.Done <$> extract (marr, i)
         | otherwise = do
             liftIO $ writeArray marr i x
-            return (marr, i + 1)
+            return $ FL.Partial (marr, i + 1)
     extract (marr, len) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL write #-}
@@ -130,10 +131,10 @@ write = Fold step initial extract
              in do newMarr <- liftIO $ newArray newCapacity bottomElement
                    liftIO $ copyMutableArray newMarr 0 marr 0 i
                    liftIO $ writeArray newMarr i x
-                   return (newMarr, i + 1, newCapacity)
+                   return $ FL.Partial (newMarr, i + 1, newCapacity)
         | otherwise = do
             liftIO $ writeArray marr i x
-            return (marr, i + 1, capacity)
+            return $ FL.Partial (marr, i + 1, capacity)
     extract (marr, len, _) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
