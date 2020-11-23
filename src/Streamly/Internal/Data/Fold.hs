@@ -225,7 +225,6 @@ import Data.Semigroup (Semigroup((<>)))
 #endif
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
--- import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
@@ -242,7 +241,6 @@ import Prelude hiding
        , span, splitAt, break, mapM)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Fold.Types
-
 
 ------------------------------------------------------------------------------
 -- Smart constructors
@@ -398,9 +396,10 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
         -- XXX use SPEC?
         go acc (Pipe.Yield b (Consume ps')) = do
             sfs <- fstep acc b
-            case sfs of
-                Partial fs1 -> return $ Partial $ Tuple' ps' fs1
-                Done fb -> return $ Done fb
+            return
+                $ case sfs of
+                      Partial fs1 -> Partial $ Tuple' ps' fs1
+                      Done fb -> Done fb
         go acc (Pipe.Yield b (Produce ps')) = do
             sfs <- fstep acc b
             r <- pstep2 ps'
@@ -408,7 +407,8 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
                 Partial fs1 -> go fs1 r
                 Done fb -> return $ Done fb
 
-        go acc (Pipe.Continue (Consume ps')) = return $ Partial (Tuple' ps' acc)
+        go acc (Pipe.Continue (Consume ps')) =
+            return $ Partial (Tuple' ps' acc)
 
         go acc (Pipe.Continue (Produce ps')) = do
             r <- pstep2 ps'
@@ -521,6 +521,7 @@ sum = Fold (\x a -> return $ Partial $ x + a) (return 0) return
 -- > product = fmap getProduct $ FL.foldMap Product
 --
 -- @since 0.7.0
+-- /since 0.8.0 (Added 'Eq' constraint)/
 {-# INLINABLE product #-}
 product :: (Monad m, Num a, Eq a) => Fold m a a
 product = Fold step (return 1) return
@@ -1562,6 +1563,8 @@ partition = partitionBy id
 -- This is the consumer side dual of the producer side 'mux' operation (XXX to
 -- be implemented).
 
+-- XXX Use alterF and for checking the terminating condition maybe we can
+-- maintain a count in an IORef.
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold collecting the results in a map from the keys to the results.
 -- Useful for cases like protocol handlers to handle different type of packets
@@ -1631,6 +1634,7 @@ demux = demuxWith id
 
 data DemuxState s m1 m2 = DemuxingWithDefault !s !m1 !m2 | DemuxingOnlyMap !m2
 
+-- XXX Reduce code duplication
 {-# INLINE demuxWithDefault_ #-}
 demuxWithDefault_ :: (Monad m, Ord k)
     => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m (k, a') b -> Fold m a ()
@@ -1702,6 +1706,7 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
     extract (DemuxingOnlyMap mp) = do
         Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
 
+-- XXX Compare performance (and replace) with demuxWithDefault_
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold without collecting the results. Useful for cases like protocol
 -- handlers to handle different type of packets.

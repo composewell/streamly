@@ -174,14 +174,13 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 
 -- | This is the intermediate state in the workflow of a @Fold@. @Partial@
 -- represents a new intermediate value available to be extracted. @Done@
--- represents that the fold has been terminated and no won't be processed
--- further.
+-- represents that the fold has been terminated and won't be processed further.
 data Step s b
     = Partial !s
     | Done !b
 
 -- | A bifunctor instance on 'Step'. @first@ maps on the value held by 'Partial'
--- and @second@ maps on the reult held by 'Done'.
+-- and @second@ maps on the result held by 'Done'.
 instance Bifunctor Step where
     {-# INLINE bimap #-}
     bimap f _ (Partial a) = Partial (f a)
@@ -596,7 +595,7 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
             Partial s1 -> fextract s1
             Done x -> return x
 
--- If i <= 0 then ltake consumes an input element silently.
+-- XXX If i <= 0 then ltake consumes an input element silently.
 -- | Take first @n@ elements from the stream and discard the rest.
 --
 -- @since 0.7.0

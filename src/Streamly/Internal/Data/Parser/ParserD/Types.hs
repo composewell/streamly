@@ -460,9 +460,10 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Done n b -> do
                 s <- initial1
                 sfs <- fstep fs b
-                case sfs of
-                    FL.Partial fs1 -> return $ Partial n (Tuple3' s 0 fs1)
-                    FL.Done fb -> return $ Done n fb
+                return
+                    $ case sfs of
+                          FL.Partial fs1 -> Partial n (Tuple3' s 0 fs1)
+                          FL.Done fb -> Done n fb
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
