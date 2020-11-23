@@ -171,8 +171,10 @@ module Streamly.Internal.Data.Fold
 
     -- * Partitioning
 
-    -- , partitionByM
-    -- , partitionBy
+    , partitionByM
+    , partitionByFstM
+    , partitionByMinM
+    , partitionBy
     , partition
 
     -- * Demultiplexing
@@ -1381,7 +1383,9 @@ distribute_ fs = Fold step initial extract
 ------------------------------------------------------------------------------
 
 -- | Partition the input over two folds using an 'Either' partitioning
--- predicate.
+-- predicate. This fold terminates when both the folds terminate.
+--
+-- See also: 'partitionByFstM' and 'partitionByMinM'.
 --
 -- @
 --
@@ -1481,6 +1485,24 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     done (RunRight bL sR) = do
         bR <- doneR sR
         return (bL, bR)
+
+-- | Similar to 'partitionByM' but terminates when the first fold terminates.
+--
+-- /Unimplemented/
+--
+{-# INLINE partitionByFstM #-}
+partitionByFstM :: -- Monad m =>
+       (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+partitionByFstM = undefined
+
+-- | Similar to 'partitionByM' but terminates when any fold terminates.
+--
+-- /Unimplemented/
+--
+{-# INLINE partitionByMinM #-}
+partitionByMinM :: -- Monad m =>
+       (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+partitionByMinM = undefined
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
