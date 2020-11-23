@@ -1521,46 +1521,7 @@ reverse' m =
 {-# INLINE_NORMAL splitSuffixWith #-}
 splitSuffixWith :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixWith predicate f (Stream step state) =
-    Stream (stepOuter f) (Just state)
-
-    where
-
-    {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                fs <- initial
-                sfs <- fstep fs x
-                case sfs of
-                    FL.Partial fs1 ->
-                        if (predicate x)
-                        then done fs1 >>= \val -> return $ Yield val (Just s)
-                        else go SPEC s fs1
-                    FL.Done fb -> return $ Yield fb (Just s)
-
-            Skip s    -> return $ Skip $ Just s
-            Stop      -> return Stop
-
-        where
-
-        go !_ stt !acc = do
-            res <- step (adaptState gst) stt
-            case res of
-                Yield x s -> do
-                    sfs <- fstep acc x
-                    case sfs of
-                        FL.Partial fs1 ->
-                            if (predicate x)
-                            then done fs1 >>= \val -> return $ Yield val (Just s)
-                            else go SPEC s fs1
-                        FL.Done fb -> return $ Yield fb (Just s)
-
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \val -> return $ Yield val Nothing
-
-    stepOuter _ _ Nothing = return Stop
+splitSuffixWith predicate f = foldMany1 (FL.sliceSepWith predicate f)
 
 {-# INLINE_NORMAL groupsBy #-}
 groupsBy :: Monad m
@@ -1694,73 +1655,13 @@ groupsRollingBy cmp f (Stream step state) =
 
 {-# INLINE_NORMAL splitBy #-}
 splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' (Fold fstep initial done) gst (Just st) = initial >>= go SPEC st
-
-        where
-
-        go !_ stt !acc = do
-            res <- step (adaptState gst) stt
-            case res of
-                Yield x s -> do
-                    if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
-                    else do
-                        sfs <- fstep acc x
-                        case sfs of
-                            FL.Partial fs1 -> go SPEC s fs1
-                            FL.Done fb -> return $ Yield fb (Just s)
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
-
-    step' _ _ Nothing = return Stop
+splitBy predicate f = foldMany (FL.sliceSepBy predicate f)
 
 -- XXX requires -funfolding-use-threshold=150 in lines-unlines benchmark
 {-# INLINE_NORMAL splitSuffixBy #-}
 splitSuffixBy :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' (Fold fstep initial done) gst (Just st) = do
-        res <- step (adaptState gst) st
-        case res of
-            Yield x s -> do
-                acc <- initial
-                if predicate x
-                then done acc >>= \val -> return $ Yield val (Just s)
-                else do
-                    sfs <- fstep acc x
-                    case sfs of
-                        FL.Partial fs1 -> go SPEC s fs1
-                        FL.Done fb -> return $ Yield fb (Just s)
-
-            Skip s    -> return $ Skip $ Just s
-            Stop      -> return Stop
-
-        where
-
-        go !_ stt !acc = do
-            res <- step (adaptState gst) stt
-            case res of
-                Yield x s -> do
-                    if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
-                    else do
-                        sfs <- fstep acc x
-                        case sfs of
-                            FL.Partial fs1 -> go SPEC s fs1
-                            FL.Done fb -> return $ Yield fb (Just s)
-                Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
-
-    step' _ _ Nothing = return Stop
+splitSuffixBy predicate f = foldMany1 (FL.sliceSepBy predicate f)
 
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
