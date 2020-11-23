@@ -196,7 +196,8 @@ module Streamly.Internal.Data.Fold
     -- These can be expressed using lmap/lmapM and unzip
     , unzipWith
     , unzipWithM
-
+    , unzipWithFstM
+    , unzipWithMinM
 
     -- * Nested Folds
     -- , concatMap
@@ -1887,6 +1888,24 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     done (RunBoth sL sR) = (,) <$> doneL sL <*> doneR sR
     done (RunLeft sL bR) = (,) <$> doneL sL <*> return bR
     done (RunRight bL sR) = (,) bL <$> doneR sR
+
+-- | Similar to 'unzipWithM' but terminates when the first fold terminates.
+--
+-- /Unimplemented/
+--
+{-# INLINE unzipWithFstM #-}
+unzipWithFstM :: -- Monad m =>
+     (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
+unzipWithFstM = undefined
+
+-- | Similar to 'unzipWithM' but terminates when any fold terminates.
+--
+-- /Unimplemented/
+--
+{-# INLINE unzipWithMinM #-}
+unzipWithMinM :: -- Monad m =>
+     (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
+unzipWithMinM = undefined
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
