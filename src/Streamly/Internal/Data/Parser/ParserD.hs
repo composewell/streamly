@@ -190,9 +190,7 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
         return
             $ case res of
                   FL.Partial s1 -> Partial 0 s1
-                  FL.Partial1 s1 -> Partial 1 s1
                   FL.Done b -> Done 0 b
-                  FL.Done1 b -> Done 1 b
 
 
 -------------------------------------------------------------------------------
@@ -333,9 +331,7 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
             return
               $ case res of
                     FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                    FL.Partial1 s -> Continue 1 $ Tuple' i s
                     FL.Done _ -> Error $ err (i + 1)
-                    FL.Done1 _ -> Error $ err (i + 1)
         | otherwise = Done 1 <$> fextract r
 
     extract (Tuple' i r)
@@ -365,17 +361,13 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
             return
               $ case res of
                     FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                    FL.Partial1 s -> Continue 1 $ Tuple' i s
                     FL.Done _ -> Error $ err (i + 1)
-                    FL.Done1 _ -> Error $ err (i + 1)
         | otherwise = do
             res <- fstep r a
             return
               $ case res of
                     FL.Partial s -> Partial 0 $ Tuple' (i + 1) s
-                    FL.Partial1 s -> Partial 1 $ Tuple' i s
                     FL.Done b -> Done 0 b
-                    FL.Done1 b -> Done 1 b
 
     extract (Tuple' i b)
         | i >= n = fextract b
@@ -415,9 +407,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             return
               $ case sr of
                     FL.Partial r -> Partial 0 (Just r)
-                    FL.Partial1 r -> Partial 1 (Just r)
                     FL.Done b -> Done 0 b
-                    FL.Done1 _ -> Error err
         else return $ Error err
     step (Just s) a =
         if predicate a
@@ -425,9 +415,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             sr <- fstep s a
             case sr of
                 FL.Partial r -> return $ Partial 0 (Just r)
-                FL.Partial1 r -> return $ Partial 1 (Just r)
                 FL.Done b -> return $ Done 0 b
-                FL.Done1 b -> return $ Done 1 b
         else do
             b <- fextract s
             return $ Done 1 b
@@ -698,22 +686,12 @@ manyTill (Fold fstep finitial fextract)
                     FL.Partial fs1 -> do
                         l <- initialR
                         return $ Partial n (ManyTillR 0 fs1 l)
-                    -- XXX Recheck the behaviour
-                    FL.Partial1 fs1 -> do
-                        assert (cnt + 1 - n >= 0) (return ())
-                        l <- initialR
-                        return $ Partial (cnt + 1) (ManyTillR 0 fs1 l)
                     FL.Done fb -> return $ Done n fb
-                    FL.Done1 fb -> do
-                        assert (cnt + 1 - n >= 0) (return ())
-                        return $ Done (cnt + 1) fb
             Error err -> return $ Error err
 
     extract (ManyTillL _ fs sR) = do
         res <- extractL sR >>= fstep fs
         case res of
             FL.Partial sres -> fextract sres
-            FL.Partial1 sres -> fextract sres
             FL.Done bres -> return bres
-            FL.Done1 bres -> return bres
     extract (ManyTillR _ fs _) = fextract fs

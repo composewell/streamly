@@ -289,19 +289,9 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
                 res <- fstep fs x
                 case res of
                     FL.Partial fs1 -> go SPEC fs1 s
-                    FL.Partial1 fs1 -> goBuf SPEC fs1 s x
                     FL.Done c -> return c
-                    FL.Done1 c -> return c
             Skip s -> go SPEC fs s
             Stop -> extract fs
-
-    goBuf !_ !fs st x = do
-        res <- fstep fs x
-        case res of
-            FL.Partial fs1 -> go SPEC fs1 st
-            FL.Partial1 fs1 -> goBuf SPEC fs1 st x
-            FL.Done c -> return c
-            FL.Done1 c -> return c
 
 {-# INLINE_NORMAL map #-}
 map :: Monad m => (b -> c) -> Unfold m a b -> Unfold m a c

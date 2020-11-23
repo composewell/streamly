@@ -468,9 +468,7 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
-                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 s1)
                         FL.Done b1 -> Done n b1
-                        FL.Done1 b1 -> Done cnt1 b1
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -484,9 +482,7 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fextract s1
-                    FL.Partial1 s1 -> fextract s1
                     FL.Done b1 -> return b1
-                    FL.Done1 b1 -> return b1
 
 -- XXX Unwrap Either into their own constructors?
 -- XXX I think haskell automatically does this though. Need to check.
@@ -523,9 +519,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
-                        FL.Done1 b1 -> Done cnt1 b1
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
@@ -544,9 +538,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return
                   $ case fs1 of
                         FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Partial1 s1 -> Partial cnt1 (Tuple3' s 0 (Right s1))
                         FL.Done b1 -> Done n b1
-                        FL.Done1 b1 -> Done cnt1 b1
             Error _ -> Done cnt1 <$> fextract fs
     -- XXX The "try" may impact performance if this parser is used as a scan
 
@@ -555,9 +547,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         fs1 <- fstep fs b
         case fs1 of
             FL.Partial s1 -> fextract s1
-            FL.Partial1 s1 -> fextract s1
             FL.Done b1 -> return b1
-            FL.Done1 b1 -> return b1
     extract (Tuple3' s _ (Right fs)) = do
         r <- try $ extract1 s
         case r of
@@ -566,9 +556,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fextract s1
-                    FL.Partial1 s1 -> fextract s1
                     FL.Done b1 -> return b1
-                    FL.Done1 b1 -> return b1
 
 -- | See 'Streamly.Internal.Data.Parser.die'.
 --

@@ -372,9 +372,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> extract1 rr
-            FL.Partial1 rr -> extract1 rr
             FL.Done () -> return ()
-            FL.Done1 () -> return ()
 
     step (Tuple' Nothing r1) arr = do
         len <- byteLength arr
@@ -383,15 +381,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
             r <- step1 r1 arr
             case r of
                 FL.Done () -> return $ FL.Done ()
-                FL.Done1 () -> return $ FL.Done1 ()
                 FL.Partial s -> do
                     extract1 s
                     r1' <- initial1
                     return $ FL.Partial $ Tuple' Nothing r1'
-                FL.Partial1 s -> do
-                    extract1 s
-                    r1' <- initial1
-                    return $ FL.Partial1 $ Tuple' Nothing r1'
         else return $ FL.Partial $ Tuple' (Just arr) r1
     step (Tuple' (Just buf) r1) arr = do
         blen <- byteLength buf
@@ -403,13 +396,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
             r <- step1 r1 buf'
             case r of
                 FL.Done () -> return $ FL.Done ()
-                FL.Done1 () -> return $ FL.Done ()
                 FL.Partial s -> do
                     extract1 s
                     r1' <- initial1
                     return $ FL.Partial $ Tuple' Nothing r1'
-                FL.Partial1 s -> do
-                    extract1 s
-                    r1' <- initial1
-                    return $ FL.Partial1 $ Tuple' Nothing r1'
         else return $ FL.Partial $ Tuple' (Just buf') r1

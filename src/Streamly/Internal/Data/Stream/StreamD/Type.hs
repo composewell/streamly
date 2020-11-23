@@ -611,13 +611,6 @@ foldMany (Fold fstep initial extract) (Stream step state) =
         case fs' of
             FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
             FL.Partial ps -> return $ Skip (GroupBuffer st ps)
-            -- XXX This will lead to an infinite loop most of the time.  But
-            -- it may terminate as it is an effectful step function. If
-            -- possible, we should somehow warn the user.
-            FL.Partial1 ps -> return $ Skip (GroupConsume st ps x)
-            FL.Done1 b -> do
-                fi <- initial
-                return $ Skip (GroupYield b (GroupConsume st fi x))
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -627,13 +620,6 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                 case fs' of
                     FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
                     FL.Partial ps -> return $ Skip (GroupBuffer s ps)
-                    -- XXX This will lead to an infinite loop most of the time.
-                    -- But it may terminate as it is an effectful step
-                    -- function. If possible, we should somehow warn the user.
-                    FL.Partial1 ps -> return $ Skip (GroupConsume s ps x)
-                    FL.Done1 b -> do
-                        fi <- initial
-                        return $ Skip (GroupYield b (GroupConsume s fi x))
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
@@ -663,10 +649,6 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
         fs' <- fstep fs x
         case fs' of
             FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
-            FL.Done1 b -> do
-                   fi <- initial
-                   return $ Skip (GroupYield b (GroupConsume st fi x))
-            FL.Partial1 ps -> return $ Skip (GroupConsume st ps x)
             FL.Partial ps -> return $ Skip (GroupBuffer st ps)
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
@@ -676,10 +658,6 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
                 fs' <- fstep fs x
                 case fs' of
                     FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
-                    FL.Done1 b -> do
-                           fi <- initial
-                           return $ Skip (GroupYield b (GroupConsume s fi x))
-                    FL.Partial1 ps -> return $ Skip (GroupConsume s ps x)
                     FL.Partial ps -> return $ Skip (GroupBuffer s ps)
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do

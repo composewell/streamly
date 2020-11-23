@@ -682,9 +682,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> extract1 rr
-            FL.Partial1 rr -> extract1 rr
             FL.Done _ -> return ()
-            FL.Done1 _ -> return ()
 
     step (Tuple' Nothing r1) arr =
             let len = byteLength arr
@@ -693,15 +691,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     r <- step1 r1 arr
                     case r of
                         FL.Done _ -> return $ FL.Done ()
-                        FL.Done1 _ -> return $ FL.Done1 ()
                         FL.Partial s -> do
                             extract1 s
                             r1' <- initial1
                             return $ FL.Partial $ Tuple' Nothing r1'
-                        FL.Partial1 s -> do
-                            extract1 s
-                            r1' <- initial1
-                            return $ FL.Partial1 $ Tuple' Nothing r1'
                 else return $ FL.Partial $ Tuple' (Just arr) r1
 
     step (Tuple' (Just buf) r1) arr = do
@@ -716,15 +709,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 r <- step1 r1 buf''
                 case r of
                     FL.Done _ -> return $ FL.Done ()
-                    FL.Done1 _ -> return $ FL.Done1 ()
                     FL.Partial s -> do
                         extract1 s
                         r1' <- initial1
                         return $ FL.Partial $ Tuple' Nothing r1'
-                    FL.Partial1 s -> do
-                        extract1 s
-                        r1' <- initial1
-                        return $ FL.Partial1 $ Tuple' Nothing r1'
             else return $ FL.Partial $ Tuple' (Just buf'') r1
 
 #if !defined(mingw32_HOST_OS)

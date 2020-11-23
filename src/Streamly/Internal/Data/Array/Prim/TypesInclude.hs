@@ -612,9 +612,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         r <- step1 r1 (slice nArr 0 boff)
         case r of
             FL.Partial rr -> extract1 rr
-            FL.Partial1 rr -> extract1 rr
             FL.Done _ -> return ()
-            FL.Done1 _ -> return ()
 
     step (Tuple3' Nothing' _ r1) arr =
             if length arr >= nElem
@@ -622,15 +620,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 r <- step1 r1 arr
                 case r of
                     FL.Done _ -> return $ FL.Done ()
-                    FL.Done1 _ -> return $ FL.Done1 ()
                     FL.Partial s -> do
                         extract1 s
                         r1' <- initial1
                         return $ FL.Partial $ Tuple3' Nothing' 0 r1'
-                    FL.Partial1 s -> do
-                        extract1 s
-                        r1' <- initial1
-                        return $ FL.Partial1 $ Tuple3' Nothing' 0 r1'
             else do
                 buf <- MA.newArray nElem
                 noff <- spliceInto buf 0 arr
@@ -645,15 +638,10 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 r <- step1 r1 (slice nArr 0 noff)
                 case r of
                     FL.Done _ -> return $ FL.Done ()
-                    FL.Done1 _ -> return $ FL.Done1 ()
                     FL.Partial s -> do
                         extract1 s
                         r1' <- initial1
                         return $ FL.Partial $ Tuple3' Nothing' 0 r1'
-                    FL.Partial1 s -> do
-                        extract1 s
-                        r1' <- initial1
-                        return $ FL.Partial1 $ Tuple3' Nothing' 0 r1'
             else return $ FL.Partial $ Tuple3' (Just' buf) noff r1
 
 data SplitState s arr
