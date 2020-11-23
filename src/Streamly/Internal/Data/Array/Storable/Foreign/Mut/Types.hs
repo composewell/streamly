@@ -427,9 +427,9 @@ fromStreamD m = do
     len <- K.foldl' (+) 0 (K.map length buffered)
     fromStreamDN len $ flattenArrays $ D.fromStreamK buffered
 {-
-fromStreamD m = runFold write m
+fromStreamD m = foldOnce write m
     where
-    runFold (Fold step begin done) = D.foldlMx' step begin done
+    foldOnce (Fold step begin done) = D.foldlMx' step begin done
 -}
 
 

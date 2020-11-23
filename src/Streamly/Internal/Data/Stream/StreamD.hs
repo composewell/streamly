@@ -102,7 +102,7 @@ module Streamly.Internal.Data.Stream.StreamD
 
     , foldlx'
     , foldlMx'
-    , runFold
+    , foldOnce
 
     , parselMx'
     , parseMany
@@ -166,7 +166,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , splitBy
     , splitSuffixBy
     , wordsBy
-    , splitSuffixBy'
+    , splitSuffixWith
 
     , splitOnSeq
     , splitOnSuffixSeq
@@ -225,8 +225,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , scanlMx'
     , scanlx'
 
-    , scanFold
-    , postscanFold
+    , scanOnce
+    , postscanOnce
 
     -- * Filtering
     , filter
@@ -1518,10 +1518,10 @@ reverse' m =
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL splitSuffixBy' #-}
-splitSuffixBy' :: Monad m
+{-# INLINE_NORMAL splitSuffixWith #-}
+splitSuffixWith :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixBy' predicate f (Stream step state) =
+splitSuffixWith predicate f (Stream step state) =
     Stream (stepOuter f) (Just state)
 
     where
@@ -4044,10 +4044,10 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -- Scanning with a Fold
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL postscanFold #-}
-postscanFold :: Monad m
+{-# INLINE_NORMAL postscanOnce #-}
+postscanOnce :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-postscanFold (FL.Fold fstep begin done) (Stream step state) =
+postscanOnce (FL.Fold fstep begin done) (Stream step state) =
     Stream step1 (state, begin)
 
     where
@@ -4067,11 +4067,11 @@ postscanFold (FL.Fold fstep begin done) (Stream step state) =
             Skip s -> return $ Skip (s, mfs)
             Stop -> return Stop
 
-{-# INLINE scanFold #-}
-scanFold :: Monad m
+{-# INLINE scanOnce #-}
+scanOnce :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-scanFold fld@(FL.Fold _ begin done) s =
-    (begin >>= \x -> x `seq` done x) `consM` postscanFold fld s
+scanOnce fld@(FL.Fold _ begin done) s =
+    (begin >>= \x -> x `seq` done x) `consM` postscanOnce fld s
 
 ------------------------------------------------------------------------------
 -- Stateful map/scan
@@ -4208,7 +4208,7 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
         -- However, an Int on a 32-bit machine may overflow quickly.
         countVar <- liftIO $ Prim.newIORef (0 :: Int)
         tid <- forkManaged
-            $ void $ runFold fld
+            $ void $ foldOnce fld
             $ transf $ fromPrimIORef countVar
         return $ Skip (Just (countVar, tid, state))
 
@@ -4714,9 +4714,9 @@ the (Stream step state) = go state
             Skip s -> go' n s
             Stop   -> return (Just n)
 
-{-# INLINE runFold #-}
-runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
-runFold (Fold fstep begin done) (Stream step state) =
+{-# INLINE foldOnce #-}
+foldOnce :: (Monad m) => Fold m a b -> Stream m a -> m b
+foldOnce (Fold fstep begin done) (Stream step state) =
     begin >>= \x -> go SPEC x state
 
     where
@@ -4770,10 +4770,10 @@ toSVarParallel st sv xs =
     where
 
     {-# NOINLINE work #-}
-    work info = (runFold (FL.toParallelSVar sv info) xs)
+    work info = (foldOnce (FL.toParallelSVar sv info) xs)
 
     {-# NOINLINE workLim #-}
-    workLim info = runFold (FL.toParallelSVarLimited sv info) xs
+    workLim info = foldOnce (FL.toParallelSVarLimited sv info) xs
 
     {-# NOINLINE forkWithDiag #-}
     forkWithDiag = do
@@ -4883,7 +4883,7 @@ newFoldSVar stt f = do
     where
 
     {-# NOINLINE work #-}
-    work sv = void $ runFold f $ fromProducer sv
+    work sv = void $ foldOnce f $ fromProducer sv
 
 {-# INLINE_NORMAL tapAsync #-}
 tapAsync :: MonadAsync m => Fold m a b -> Stream m a -> Stream m a

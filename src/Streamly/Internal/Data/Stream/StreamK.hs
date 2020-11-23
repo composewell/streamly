@@ -89,7 +89,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldlx'
     , foldlMx'
 
-    , runFold
+    , foldOnce
 
     -- ** Specialized Folds
     , drain
@@ -464,9 +464,9 @@ foldlT step begin m = go begin m
             Just (h, t) -> go (step acc h) t
             Nothing -> acc
 
-{-# INLINABLE runFold #-}
-runFold :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> m b
-runFold (FL.Fold step begin done) m = go begin m
+{-# INLINABLE foldOnce #-}
+foldOnce :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> m b
+foldOnce (FL.Fold step begin done) m = go begin m
     where
     go !acc m1 =
         let stop = acc >>= done

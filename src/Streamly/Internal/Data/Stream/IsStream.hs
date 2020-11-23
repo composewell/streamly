@@ -1418,7 +1418,7 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- @since 0.7.0
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SerialT m a -> m b
-fold = P.runFold
+fold = P.foldOnce
 
 ------------------------------------------------------------------------------
 -- Running a sink
@@ -2354,14 +2354,14 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan = P.scanFold
+scan = P.scanOnce
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan = P.postscanFold
+postscan = P.postscanOnce
 
 ------------------------------------------------------------------------------
 -- Stateful Transformations
@@ -4066,7 +4066,7 @@ splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitWithSuffix predicate f m =
-    D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
+    D.fromStreamD $ D.splitSuffixWith predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Split on a delimiter sequence

@@ -150,7 +150,7 @@ fromStreamDN limit str = do
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
-fromStreamD = D.runFold write
+fromStreamD = D.foldOnce write
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -186,7 +186,7 @@ toStreamRev = D.fromStreamD . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> Array a -> m b
-fold f arr = D.runFold f (toStreamD arr)
+fold f arr = D.foldOnce f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
