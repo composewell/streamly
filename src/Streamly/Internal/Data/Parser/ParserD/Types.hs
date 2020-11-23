@@ -504,9 +504,10 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Done n b -> do
                 s <- initial1
                 sfs <- fstep fs b
-                return $ case sfs of
-                    FL.Partial fs1 -> Partial n (Tuple3' s 0 (Right fs1))
-                    FL.Done fb -> Done n fb
+                return
+                    $ case sfs of
+                          FL.Partial fs1 -> Partial n (Tuple3' s 0 (Right fs1))
+                          FL.Done fb -> Done n fb
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
@@ -521,9 +522,10 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Done n b -> do
                 s <- initial1
                 sfs <- fstep fs b
-                return $ case sfs of
-                    FL.Partial fs1 -> Partial n (Tuple3' s 0 (Right fs1))
-                    FL.Done fb -> Done n fb
+                return
+                    $ case sfs of
+                          FL.Partial fs1 -> Partial n (Tuple3' s 0 (Right fs1))
+                          FL.Done fb -> Done n fb
             Error _ -> Done cnt1 <$> fextract fs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
