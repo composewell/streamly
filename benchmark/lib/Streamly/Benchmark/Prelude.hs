@@ -130,6 +130,14 @@ absTimes :: (S.IsStream t, S.MonadAsync m, Functor (t m))
 absTimes value _ = S.take value Internal.absTimes
 
 -------------------------------------------------------------------------------
+-- Buffering
+-------------------------------------------------------------------------------
+
+{-# INLINE mkAsync #-}
+mkAsync :: (S.MonadAsync m, S.IsStream t) => (t m a -> S.SerialT m a) -> t m a -> m ()
+mkAsync adapter = S.drain . adapter . S.mkAsync
+
+-------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 

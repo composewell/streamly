@@ -64,6 +64,14 @@ o_1_space_mapping value =
     ]
 
 -------------------------------------------------------------------------------
+-- Size conserving transformations (reordering, buffering, etc.)
+-------------------------------------------------------------------------------
+
+o_n_heap_buffering :: Int -> [Benchmark]
+o_n_heap_buffering value =
+    [bgroup "buffered" [benchIOSink value "mkAsync" (mkAsync asyncly)]]
+
+-------------------------------------------------------------------------------
 -- Joining
 -------------------------------------------------------------------------------
 
@@ -190,5 +198,6 @@ main = do
             , o_1_space_outerProduct value
             , o_1_space_joining value
             ]
+        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_outerProduct value)
         ]
