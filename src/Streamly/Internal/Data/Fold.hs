@@ -958,10 +958,6 @@ or = any (== True)
 --
 -- XXX These would just be applicative compositions of terminating folds.
 
-data SplitAtState bl fl fr
-    = SplitAtLeft Int !fl !fr
-    | SplitAtRight !bl !fr
-
 -- | @splitAt n f1 f2@ composes folds @f1@ and @f2@ such that first @n@
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
 -- is consumed by fold @f2@.
@@ -998,34 +994,7 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
-
-    where
-
-    initial = SplitAtLeft n <$> initialL <*> initialR
-
-    step (SplitAtLeft i fl fr) input =
-        if i > 0
-        then do
-            resL <- stepL fl input
-            case resL of
-                Partial fl1 -> return $ Partial $ SplitAtLeft (i - 1) fl1 fr
-                Done bl -> return $ Partial $ SplitAtRight bl fr
-        else do
-            bl <- extractL fl
-            resR <- stepR fr input
-            case resR of
-                Partial fr1 -> return $ Partial $ SplitAtRight bl fr1
-                Done br -> return $ Done (bl, br)
-    step (SplitAtRight bl fr) input = do
-        resR <- stepR fr input
-        case resR of
-            Partial fr1 -> return $ Partial $ SplitAtRight bl fr1
-            Done br -> return $ Done (bl, br)
-
-    extract (SplitAtLeft _ a b) = (,) <$> extractL a <*> extractR b
-    extract (SplitAtRight a b) = (a,) <$> extractR b
+splitAt n fld1 fld2 = splitWith (,) (ltake n fld1) fld2
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
