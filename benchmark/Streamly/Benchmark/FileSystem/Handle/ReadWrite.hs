@@ -26,6 +26,7 @@ where
 import Control.Exception (SomeException)
 import System.IO (Handle, hClose, hPutChar)
 import Prelude hiding (last, length)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (defaultChunkSize)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Unicode.Stream as SS
@@ -291,11 +292,92 @@ inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arra
 inspect $ 'readFromBytesNull `hasNoType` ''D.GroupState
 #endif
 
+-- | Send the file contents ('defaultChunkSize') to /dev/null
+readWithBufferOfFromBytesNull :: Handle -> Handle -> IO ()
+readWithBufferOfFromBytesNull inh devNull =
+    IFH.fromBytes devNull
+        $ S.unfold FH.readWithBufferOf (defaultChunkSize, inh)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWithBufferOfFromBytesNull
+inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''Step
+inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''AT.SpliceState
+inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''D.GroupState
+#endif
+
+-- | Send the chunk content ('defaultChunkSize') to /dev/null
+-- Implicitly benchmarked via 'readFromBytesNull'
+_readChunks :: Handle -> Handle -> IO ()
+_readChunks inh devNull = IUF.fold unf fld inh
+
+    where
+
+    fld = FH.write devNull
+    unf = IUF.concat FH.readChunks A.read
+
+-- | Send the chunk content to /dev/null
+-- Implicitly benchmarked via 'readWithBufferOfFromBytesNull'
+_readChunksWithBufferOf :: Handle -> Handle -> IO ()
+_readChunksWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
+
+    where
+
+    fld = FH.write devNull
+    unf = IUF.concat FH.readChunksWithBufferOf A.read
+
+
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =
     [ bgroup "copy/fromBytes"
         [ mkBench "rawToNull" env $ \inh _ ->
             readFromBytesNull inh (nullH env)
+        , mkBench "FH.readWithBufferOf" env $ \inh _ ->
+            readWithBufferOfFromBytesNull inh (nullH env)
+        ]
+    ]
+
+-- | Send the file contents ('defaultChunkSize') to /dev/null
+writeReadWithBufferOf :: Handle -> Handle -> IO ()
+writeReadWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
+
+    where
+
+    fld = FH.writeWithBufferOf defaultChunkSize devNull
+    unf = FH.readWithBufferOf
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'writeReadWithBufferOf
+inspect $ 'writeReadWithBufferOf `hasNoType` ''Step
+inspect $ 'writeReadWithBufferOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'writeReadWithBufferOf `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'writeReadWithBufferOf `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+#endif
+
+-- | Send the file contents ('AT.defaultChunkSize') to /dev/null
+writeRead :: Handle -> Handle -> IO ()
+writeRead inh devNull = IUF.fold unf fld inh
+
+    where
+
+    fld = FH.write devNull
+    unf = FH.read
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'writeRead
+inspect $ 'writeRead `hasNoType` ''Step
+inspect $ 'writeRead `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'writeRead `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'writeRead `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+#endif
+
+o_1_space_copy :: BenchEnv -> [Benchmark]
+o_1_space_copy env =
+    [ bgroup "copy"
+        [ mkBench "FH.write . FH.read" env $ \inh _ ->
+            writeRead inh (nullH env)
+        , mkBench "FH.writeWithBufferOf . FH.readWithBufferOf" env $ \inh _ ->
+            writeReadWithBufferOf inh (nullH env)
         ]
     ]
 
@@ -631,6 +713,7 @@ allBenchmarks env = Prelude.concat
     , o_1_space_copy_exceptions_toChunks env
     , o_1_space_copy_read env
     , o_1_space_copy_fromBytes env
+    , o_1_space_copy env
     , o_1_space_copy_read_exceptions env
     , o_1_space_copy_stream_exceptions env
     , o_1_space_copy_toChunks_group_ungroup env
