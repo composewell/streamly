@@ -54,6 +54,7 @@ module Streamly.Test.Prelude.Common
     -- * Zip operations
     , zipApplicative
     , zipMonadic
+    , zipAsyncApplicative
     , zipAsyncMonadic
     -- * MonadThrow operations
     , composeWithMonadThrow
@@ -97,6 +98,7 @@ import Data.List
     , scanl'
     , sort
     , stripPrefix
+    , unfoldr
     )
 import Data.Maybe (mapMaybe)
 #if !(MIN_VERSION_base(4,11,0))
@@ -185,6 +187,21 @@ constructWithIntFromThenTo op l =
         let list len = take len [from,next..to]
             stream len = S.take len $ S.enumerateFromThenTo from next to
         in constructWithLen stream list op l
+
+constructWithRepeat, constructWithRepeatM
+    :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithRepeat = constructWithLenM stream list
+  where
+    stream n = S.take n $ S.repeat 1
+    list n = return $ take n $ repeat 1
+
+constructWithRepeatM = constructWithLenM stream list
+  where
+    stream n = S.take n $ S.repeatM (return 1)
+    list n = return $ take n $ repeat 1
 
 #if __GLASGOW_HASKELL__ >= 806
 -- XXX try very small steps close to 0
@@ -285,6 +302,125 @@ constructWithConsM consM listT op len =
             foldr consM S.nil (repeat (return 0))
         let list = replicate (fromIntegral len) 0
         listEquals (==) (listT strm) list
+
+constructWithEnumerate ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithEnumerate listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <- run $ S.toList . op . S.take (fromIntegral len) $ S.enumerate
+        let list = take (fromIntegral len) (enumFrom minBound)
+        listEquals (==) (listT strm) list
+
+constructWithEnumerateTo ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithEnumerateTo listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <- run $ S.toList . op $ S.enumerateTo (fromIntegral len)
+        let list = enumFromTo minBound (fromIntegral len)
+        listEquals (==) (listT strm) list
+
+constructWithFromList ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithFromList listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <- run $ S.toList . op . S.fromList $ [0 .. fromIntegral len]
+        let list = [0 .. fromIntegral len]
+        listEquals (==) (listT strm) list
+
+constructWithFromListM ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithFromListM listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            S.toList . op . S.fromListM . fmap pure $ [0 .. fromIntegral len]
+        let list = [0 .. fromIntegral len]
+        listEquals (==) (listT strm) list
+
+constructWithUnfoldr ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithUnfoldr listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <- run $ S.toList . op $ S.unfoldr unfoldStep 0
+        let list = unfoldr unfoldStep 0
+        listEquals (==) (listT strm) list
+  where
+    unfoldStep seed =
+        if seed > fromIntegral len
+            then Nothing
+            else Just (seed, seed + 1)
+
+constructWithYield ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithYield listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            S.toList . op . S.take (fromIntegral len) $
+            foldMap S.yield (repeat 0)
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) (listT strm) list
+
+constructWithYieldM ::
+       IsStream t
+    => ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithYieldM listT op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            S.toList . op . S.take (fromIntegral len) $
+            foldMap S.yieldM (repeat (return 0))
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) (listT strm) list
+
+simpleProps ::
+       IsStream t
+    => (Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
+    -> Int
+    -> Property
+simpleProps constr op a = monadicIO $ do
+  strm <- run $ S.toList . op . constr $ a
+  listEquals (==) strm [a]
+
+simpleOps :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
+simpleOps op = do
+  prop "yield a = a" $ simpleProps S.yield op
+  prop "yieldM a = a" $ simpleProps (S.yieldM . return) op
 
 -------------------------------------------------------------------------------
 -- Applicative operations
@@ -413,6 +549,22 @@ eliminationOps constr desc t = do
     prop (desc <> " length") $ eliminateOp constr length $ S.length . t
     prop (desc <> " sum") $ eliminateOp constr sum $ S.sum . t
     prop (desc <> " product") $ eliminateOp constr product $ S.product . t
+    prop (desc <> " mapM_ sumIORef") $
+        eliminateOp constr sum $
+        (\strm -> do
+             ioRef <- newIORef 0
+             let sumInRef a = modifyIORef' ioRef (a +)
+             S.mapM_ sumInRef strm
+             readIORef ioRef) .
+        t
+    prop (desc <> "trace sumIORef") $
+        eliminateOp constr sum $
+        (\strm -> do
+             ioRef <- newIORef 0
+             let sumInRef a = modifyIORef' ioRef (a +)
+             S.drain $ S.trace sumInRef strm
+             readIORef ioRef) .
+        t
 
     prop (desc <> " maximum") $
         eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
@@ -443,14 +595,18 @@ eliminationOps constr desc t = do
         eliminateOp constr (wrapOutOfBounds (!!) 0) $ (S.!! 0) . t
 
     prop (desc <> " find") $ eliminateOp constr (find even) $ S.find even . t
+    prop (desc <> " findM") $ eliminateOp constr (find even) $ S.findM (return . even) . t
     prop (desc <> " lookup") $
         eliminateOp constr (lookup 3 . flip zip [1..]) $
             S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
     prop (desc <> " the") $ eliminateOp constr wrapThe $ S.the . t
 
     -- Multi-stream eliminations
-    -- Add eqBy, cmpBy
     -- XXX Write better tests for substreams.
+    prop (desc <> " eqBy (==) t t") $
+        eliminateOp constr (\s -> s == s) $ (\s -> S.eqBy (==) s s) . t
+    prop (desc <> " cmpBy (==) t t") $
+        eliminateOp constr (\s -> compare s s) $ (\s -> S.cmpBy compare s s) . t
     prop (desc <> " isPrefixOf 10") $ eliminateOp constr (isPrefixOf [1..10]) $
         S.isPrefixOf (S.fromList [(1::Int)..10]) . t
     prop (desc <> " isSubsequenceOf 10") $
@@ -958,19 +1114,25 @@ transformCombineOpsCommon constr desc eq t = do
     prop (desc <> " mapM (+1)") $
         transform (fmap (+1)) t (S.mapM (\x -> return (x + 1)))
 
-    prop (desc <> " scanl'") $ transform (scanl' (flip const) 0) t
-                                       (S.scanl' (flip const) 0)
-    prop (desc <> " scanlM'") $ transform (scanl' (flip const) 0) t
+    prop (desc <> " scanl'") $ transform (scanl' (const id) 0) t
+                                       (S.scanl' (const id) 0)
+    prop (desc <> " postscanl'") $ transform (tail . scanl' (const id) 0) t
+                                       (S.postscanl' (const id) 0)
+    prop (desc <> " scanlM'") $ transform (scanl' (const id) 0) t
                                        (S.scanlM' (\_ a -> return a) (return 0))
-    prop (desc <> " scanl") $ transform (scanl' (flip const) 0) t
-                                       (S.scanl' (flip const) 0)
-    prop (desc <> " scanl1'") $ transform (scanl1 (flip const)) t
-                                         (S.scanl1' (flip const))
-    prop (desc <> " scanl1M'") $ transform (scanl1 (flip const)) t
+    prop (desc <> " postscanlM'") $ transform (tail . scanl' (const id) 0) t
+                                       (S.postscanlM' (\_ a -> return a) (return 0))
+    prop (desc <> " scanl") $ transform (scanl' (const id) 0) t
+                                       (S.scanl' (const id) 0)
+    prop (desc <> " scanl1'") $ transform (scanl1 (const id)) t
+                                         (S.scanl1' (const id))
+    prop (desc <> " scanl1M'") $ transform (scanl1 (const id)) t
                                           (S.scanl1M' (\_ a -> return a))
 
     let f x = if odd x then Just (x + 100) else Nothing
     prop (desc <> " mapMaybe") $ transform (mapMaybe f) t (S.mapMaybe f)
+    prop (desc <> " mapMaybeM") $
+        transform (mapMaybe f) t (S.mapMaybeM (return . f))
 
     -- tap
     prop (desc <> " tap FL.sum . map (+1)") $ \a b ->
@@ -995,6 +1157,9 @@ transformCombineOpsCommon constr desc eq t = do
     prop (desc <> " intersperseM") $
         forAll (choose (minBound, maxBound)) $ \n ->
             transform (intersperse n) t (S.intersperseM $ return n)
+    prop (desc <> " intersperse") $
+        forAll (choose (minBound, maxBound)) $ \n ->
+            transform (intersperse n) t (S.intersperse n)
     prop (desc <> " insertBy 0") $
         forAll (choose (minBound, maxBound)) $ \n ->
             transform (insertBy compare n) t (S.insertBy compare n)
@@ -1033,12 +1198,16 @@ transformCombineOpsOrdered constr desc eq t = do
 
     prop (desc <> " takeWhile > 0") $
         transform (takeWhile (> 0)) t (S.takeWhile (> 0))
+    prop (desc <> " takeWhileM > 0") $
+        transform (takeWhile (> 0)) t (S.takeWhileM (return . (> 0)))
 
     prop (desc <> " drop 1") $ transform (drop 1) t (S.drop 1)
     prop (desc <> " drop 10") $ transform (drop 10) t (S.drop 10)
 
     prop (desc <> " dropWhile > 0") $
         transform (dropWhile (> 0)) t (S.dropWhile (> 0))
+    prop (desc <> " dropWhileM > 0") $
+        transform (dropWhile (> 0)) t (S.dropWhileM (return . (> 0)))
     prop (desc <> " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
 
     prop (desc <> " uniq") $ transform referenceUniq t S.uniq
@@ -1148,6 +1317,22 @@ zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
         listEquals eq stream2 list
+
+zipAsyncApplicative
+    :: IsStream t
+    => ([Int] -> t IO Int)
+    -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
+    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> ([Int], [Int])
+    -> Property
+zipAsyncApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <-
+            run
+                ((S.toList . t)
+                     (S.zipAsyncWith (,) (constr a) (constr b)))
+        let list = getZipList $ (,) <$> ZipList a <*> ZipList b
+        listEquals eq stream list
 
 ---------------------------------------------------------------------------
 -- Semigroup/Monoidal Composition strict ordering checks
