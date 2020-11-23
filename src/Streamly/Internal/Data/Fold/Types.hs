@@ -666,16 +666,10 @@ initialize (Fold step initial extract) = do
 -- | Run one step of a fold and store the accumulator as an initial value in
 -- the returned fold.
 {-# INLINABLE runStep #-}
-runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
-runStep (Fold step initial extract) a = do
-    i <- initial
-    res <- step i a
-    return $ case res of
-        Partial s -> Fold step (return s) extract
-        Done b ->
-            let step1 _ _ = return $ Done b
-                extract1 _ = return b
-             in Fold step1 (return i) extract1
+runStep ::
+    -- Monad m =>
+    Fold m a b -> a -> m (Fold m a b)
+runStep _ _ = undefined
 
 ------------------------------------------------------------------------------
 -- Parsing
