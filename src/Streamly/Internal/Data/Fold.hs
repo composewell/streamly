@@ -180,26 +180,28 @@ module Streamly.Internal.Data.Fold
     -- * Demultiplexing
 
     , demux
-    -- , demuxWith
+    , demuxWith
     , demux_
     , demuxDefault_
-    -- , demuxWith_
+    , demuxWith_
     , demuxWithDefault_
 
     -- * Classifying
 
     , classify
-    -- , classifyWith
+    , classifyWith
 
     -- * Unzipping
     , unzip
     -- These can be expressed using lmap/lmapM and unzip
-    -- , unzipWith
-    -- , unzipWithM
+    , unzipWith
+    , unzipWithM
+
 
     -- * Nested Folds
     -- , concatMap
-    , foldChunks
+
+    , many
     , duplicate
 
     -- * Running Folds
@@ -1930,22 +1932,10 @@ lconcatMap s f1 f2 = undefined
 
 -- All the grouping transformation that we apply to a stream can also be
 -- applied to a fold input stream. groupBy et al can be written as terminating
--- folds and then we can apply foldChunks to use those repeatedly on a stream.
-
--- | Apply a terminating fold repeatedly to the input of another fold.
---
--- Compare with: Streamly.Prelude.concatMap, Streamly.Prelude.foldChunks
---
--- /Unimplemented/
---
-{-# INLINABLE foldChunks #-}
-foldChunks ::
-    -- Monad m =>
-    Fold m a b -> Fold m b c -> Fold m a c
-foldChunks = undefined
+-- folds and then we can apply many to use those repeatedly on a stream.
 
 {-
--- XXX this would be an application of foldChunks using a terminating fold.
+-- XXX this would be an application of many using a terminating fold.
 --
 -- | Group the input stream into groups of elements between @low@ and @high@.
 -- Collection starts in chunks of @low@ and then keeps doubling until we reach
