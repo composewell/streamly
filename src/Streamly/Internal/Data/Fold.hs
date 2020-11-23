@@ -1076,6 +1076,7 @@ data SpanByState a bl fl fr
 --
 -- /Internal/
 --
+{-# INLINE spanBy #-}
 spanBy
     :: Monad m
     => (a -> a -> Bool)
@@ -1131,7 +1132,7 @@ data SpanState bl fl fr
 -- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
 -- input.
 --
--- > let span_ p xs = S.fold (S.span p FL.toList FL.toList) $ S.fromList xs
+-- > let span_ p xs = S.fold (FL.span p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> span_ (< 1) [1,2,3]
 -- > ([],[1,2,3])
@@ -1305,7 +1306,7 @@ breakOn pat f m = undefined
 -- @since 0.7.0
 {-# INLINE tee #-}
 tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
-tee f1 f2 = (,) <$> f1 <*> f2
+tee f1 f2 = teeWith (,) f1 f2
 
 {-# INLINE foldNil #-}
 foldNil :: Monad m => Fold m a [b]
