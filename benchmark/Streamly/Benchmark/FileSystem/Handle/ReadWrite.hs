@@ -190,11 +190,28 @@ inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
 #endif
 
--- | Copy file
+-- | Copy file (encodeLatin1')
+copyStreamLatin1' :: Handle -> Handle -> IO ()
+copyStreamLatin1' inh outh =
+   S.fold (FH.write outh)
+     $ SS.encodeLatin1'
+     $ SS.decodeLatin1
+     $ S.unfold FH.read inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'copyStreamLatin1'
+inspect $ 'copyStreamLatin1' `hasNoType` ''Step
+inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStreamLatin1' `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'copyStreamLatin1' `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStreamLatin1' `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
+#endif
+
+-- | Copy file (encodeLatin1)
 copyStreamLatin1 :: Handle -> Handle -> IO ()
 copyStreamLatin1 inh outh =
    S.fold (FH.write outh)
-     $ SS.encodeLatin1'
+     $ SS.encodeLatin1
      $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
@@ -246,6 +263,8 @@ o_1_space_copy_read env =
             copyStream inh outh
         -- This needs an ascii file, as decode just errors out.
         , mkBench "SS.encodeLatin1' . SS.decodeLatin1" env $ \inh outh ->
+            copyStreamLatin1' inh outh
+        , mkBench "SS.encodeLatin1 . SS.decodeLatin1" env $ \inh outh ->
             copyStreamLatin1 inh outh
 #ifdef DEVBUILD
         , mkBench "copyUtf8" env $ \inh outh ->
