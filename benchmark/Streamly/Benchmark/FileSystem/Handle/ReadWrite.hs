@@ -285,6 +285,7 @@ o_1_space_copy_fromBytes env =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteOnExceptionUnfold #-}
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
     let readEx = IUF.onException (\_ -> hClose inh) FH.read
@@ -296,6 +297,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteHandleExceptionUnfold #-}
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
@@ -308,6 +310,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteFinally_Unfold #-}
 readWriteFinally_Unfold :: Handle -> Handle -> IO ()
 readWriteFinally_Unfold inh devNull =
     let readEx = IUF.finally_ (\_ -> hClose inh) FH.read
@@ -318,12 +321,14 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 -- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
 #endif
 
+{-# NOINLINE readWriteFinallyUnfold #-}
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
     let readEx = IUF.finally (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteBracket_Unfold #-}
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
 readWriteBracket_Unfold inh devNull =
     let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.read
@@ -334,6 +339,7 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 -- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
 #endif
 
+{-# NOINLINE readWriteBracketUnfold #-}
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
 readWriteBracketUnfold inh devNull =
     let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
@@ -362,12 +368,14 @@ o_1_space_copy_read_exceptions env =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteOnExceptionStream #-}
 readWriteOnExceptionStream :: Handle -> Handle -> IO ()
 readWriteOnExceptionStream inh devNull =
     let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteHandleExceptionStream #-}
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) = S.yieldM (hClose inh >> return 10)
@@ -375,17 +383,20 @@ readWriteHandleExceptionStream inh devNull =
     in S.fold (FH.write devNull) $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE readWriteFinally_Stream #-}
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
     let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
+{-# NOINLINE readWriteFinallyStream #-}
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
     let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
+{-# NOINLINE fromToBytesBracket_Stream #-}
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
     let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
@@ -397,12 +408,14 @@ inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 -- inspect $ 'fromToBytesBracketStream `hasNoType` ''Step
 #endif
 
+{-# NOINLINE fromToBytesBracketStream #-}
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
     in IFH.fromBytes devNull $ readEx
 
+{-# NOINLINE readWriteBeforeAfterStream #-}
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
@@ -410,11 +423,13 @@ readWriteBeforeAfterStream inh devNull =
                 $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
+{-# NOINLINE readWriteAfterStream #-}
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
     let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
+{-# NOINLINE readWriteAfter_Stream #-}
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
     let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
