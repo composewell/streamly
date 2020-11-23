@@ -466,9 +466,9 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return
-                  $ case fs1 of
-                        FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
-                        FL.Done b1 -> Done n b1
+                    $ case fs1 of
+                          FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
+                          FL.Done b1 -> Done n b1
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -517,9 +517,9 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 s <- initial1
                 fs1 <- fstep fs b
                 return
-                  $ case fs1 of
-                        FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Done b1 -> Done n b1
+                    $ case fs1 of
+                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
+                          FL.Done b1 -> Done n b1
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
@@ -536,12 +536,12 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 fs1 <- fstep fs b
                 assert (cnt1 - n >= 0) (return ())
                 return
-                  $ case fs1 of
-                        FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                        FL.Done b1 -> Done n b1
+                    $ case fs1 of
+                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
+                          FL.Done b1 -> Done n b1
             Error _ -> Done cnt1 <$> fextract fs
-    -- XXX The "try" may impact performance if this parser is used as a scan
 
+    -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ (Left fs)) = do
         b <- extract1 s
         fs1 <- fstep fs b

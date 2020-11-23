@@ -1542,9 +1542,8 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                 case sfs of
                     FL.Partial fs1 -> go SPEC x s fs1
                     FL.Done fb -> return $ Yield fb (Just s, Just x)
-
-            Skip s    -> return $ Skip $ (Just s, Nothing)
-            Stop      -> return Stop
+            Skip s -> return $ Skip $ (Just s, Nothing)
+            Stop -> return Stop
 
         where
 
@@ -1561,7 +1560,6 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                     else done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC prev s acc
                 Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
-
     stepOuter (Fold fstep initial done) gst (Just st, Just prev) = do
         fs <- initial
         sfs <- fstep fs prev
@@ -1585,8 +1583,7 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                     else done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
-
-    stepOuter _ _ (Nothing,_) = return Stop
+    stepOuter _ _ (Nothing, _) = return Stop
 
 {-# INLINE_NORMAL groupsRollingBy #-}
 groupsRollingBy :: Monad m
@@ -1596,61 +1593,60 @@ groupsRollingBy :: Monad m
     -> Stream m b
 groupsRollingBy cmp f (Stream step state) =
     Stream (stepOuter f) (Just state, Nothing)
+
     where
 
-      {-# INLINE_LATE stepOuter #-}
-      stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
-          res <- step (adaptState gst) st
-          case res of
-              Yield x s -> do
-                  fs <- initial
-                  sfs <- fstep fs x
-                  case sfs of
-                      FL.Partial fs1 -> go SPEC x s fs1
-                      FL.Done fb -> return $ Yield fb (Just s, Just x)
-
-              Skip s    -> return $ Skip $ (Just s, Nothing)
-              Stop      -> return Stop
-
-        where
-          go !_ prev stt !acc = do
-              res <- step (adaptState gst) stt
-              case res of
-                  Yield x s -> do
-                      if cmp prev x
-                        then do
-                          sfs <- fstep acc x
-                          case sfs of
-                              FL.Partial fs1 -> go SPEC x s fs1
-                              FL.Done fb -> return $ Yield fb (Just s, Just x)
-                        else
-                          done acc >>= \r -> return $ Yield r (Just s, Just x)
-                  Skip s -> go SPEC prev s acc
-                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
-
-      stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
-          fs <- initial
-          sfs <- fstep fs prev'
-          case sfs of
-              FL.Partial fs1 -> go SPEC prev' st fs1
-              FL.Done fb -> return $ Yield fb (Just st, Nothing)
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                fs <- initial
+                sfs <- fstep fs x
+                case sfs of
+                    FL.Partial fs1 -> go SPEC x s fs1
+                    FL.Done fb -> return $ Yield fb (Just s, Just x)
+            Skip s -> return $ Skip $ (Just s, Nothing)
+            Stop -> return Stop
 
         where
-          go !_ prevv stt !acc = do
-              res <- step (adaptState gst) stt
-              case res of
-                  Yield x s -> do
-                      if cmp prevv x
-                      then do
-                          sfs <- fstep acc x
-                          case sfs of
-                              FL.Partial fs1 -> go SPEC x s fs1
-                              FL.Done fb -> return $ Yield fb (Just s, Just x)
-                      else done acc >>= \r -> return $ Yield r (Just s, Just x)
-                  Skip s -> go SPEC prevv s acc
-                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
-      stepOuter _ _ (Nothing, _) = return Stop
+        go !_ prev stt !acc = do
+            res <- step (adaptState gst) stt
+            case res of
+                Yield x s -> do
+                    if cmp prev x
+                    then do
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC x s fs1
+                            FL.Done fb -> return $ Yield fb (Just s, Just x)
+                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                Skip s -> go SPEC prev s acc
+                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+    stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
+        fs <- initial
+        sfs <- fstep fs prev'
+        case sfs of
+            FL.Partial fs1 -> go SPEC prev' st fs1
+            FL.Done fb -> return $ Yield fb (Just st, Nothing)
+
+        where
+
+        go !_ prevv stt !acc = do
+            res <- step (adaptState gst) stt
+            case res of
+                Yield x s -> do
+                    if cmp prevv x
+                    then do
+                        sfs <- fstep acc x
+                        case sfs of
+                            FL.Partial fs1 -> go SPEC x s fs1
+                            FL.Done fb -> return $ Yield fb (Just s, Just x)
+                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                Skip s -> go SPEC prevv s acc
+                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+    stepOuter _ _ (Nothing, _) = return Stop
 
 {-# INLINE_NORMAL splitBy #-}
 splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -4627,7 +4623,7 @@ foldOnce (Fold fstep begin done) (Stream step state) =
                     FL.Done b -> return b
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
-            Stop   -> done fs
+            Stop -> done fs
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold

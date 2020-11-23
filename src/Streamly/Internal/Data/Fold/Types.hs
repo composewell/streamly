@@ -173,11 +173,17 @@ import Prelude hiding (concatMap)
 -- Monadic left folds
 ------------------------------------------------------------------------------
 
+-- | This is the intermediate state in the workflow of a @Fold@. @Partial@
+-- represents a new intermediate value available to be extracted. @Done@
+-- represents that the fold has been terminated and won't be processed
+-- further.
 -- {-# ANN type Step Fuse #-}
 data Step s b
     = Partial !s
     | Done !b
 
+-- | A bifunctor instance on 'Step'. @first@ maps on the value held by 'Partial'
+-- and @second@ maps on the result held by 'Done'.
 instance Bifunctor Step where
     {-# INLINE bimap #-}
     bimap f _ (Partial a) = Partial (f a)
@@ -191,6 +197,10 @@ instance Bifunctor Step where
     second _ (Partial x) = Partial x
     second f (Done a) = Done (f a)
 
+-- | Maps the function over the result held by 'Done'.
+-- @
+-- fmap = 'second'
+-- @
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
@@ -266,9 +276,9 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (SeqFoldR f st) a = do
         r <- stepR st a
         return
-          $ case r of
-                Partial s -> Partial (SeqFoldR f s)
-                Done b -> Done (f b)
+            $ case r of
+                  Partial s -> Partial (SeqFoldR f s)
+                  Done b -> Done (f b)
 
     extract (SeqFoldR f sR) = fmap f (extractR sR)
     extract (SeqFoldL sL) = do
@@ -315,27 +325,27 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         case resL of
             Partial sL1 ->
                 return
-                  $ Partial
-                  $ case resR of
-                        Partial sR1 -> RunBoth sL1 sR1
-                        Done bR -> RunLeft sL1 bR
+                    $ Partial
+                    $ case resR of
+                          Partial sR1 -> RunBoth sL1 sR1
+                          Done bR -> RunLeft sL1 bR
             Done bL ->
                 return
-                  $ case resR of
-                        Partial sR1 -> Partial $ RunRight bL sR1
-                        Done bR -> Done $ f bL bR
+                    $ case resR of
+                          Partial sR1 -> Partial $ RunRight bL sR1
+                          Done bR -> Done $ f bL bR
     step (RunLeft sL bR) a = do
         resL <- stepL sL a
         return
-          $ case resL of
-                Partial sL1 -> Partial $ RunLeft sL1 bR
-                Done bL -> Done $ f bL bR
+            $ case resL of
+                  Partial sL1 -> Partial $ RunLeft sL1 bR
+                  Done bL -> Done $ f bL bR
     step (RunRight bL sR) a = do
         resR <- stepR sR a
         return
-          $ case resR of
-                Partial sR1 -> Partial $ RunRight bL sR1
-                Done bR -> Done $ f bL bR
+            $ case resR of
+                  Partial sR1 -> Partial $ RunRight bL sR1
+                  Done bR -> Done $ f bL bR
 
     done (RunBoth sL sR) = do
         bL <- doneL sL
@@ -547,6 +557,7 @@ lcatMaybes = lfilter isJust . lmap fromJust
 -- Parsing
 ------------------------------------------------------------------------------
 
+-- XXX Incorrect implementation when i <= 0
 -- | Take first @n@ elements from the stream and discard the rest.
 --
 -- @since 0.7.0
@@ -578,8 +589,7 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE takeSepBy #-}
 takeSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-takeSepBy predicate (Fold fstep finitial fextract) =
-    Fold step finitial fextract
+takeSepBy predicate (Fold fstep finitial fextract) = Fold step finitial fextract
 
     where
 
@@ -604,7 +614,6 @@ takeSepBy predicate (Fold fstep finitial fextract) =
 -- > 465
 --
 -- @since 0.7.0
--- XXX Is this correct?
 {-# INLINABLE duplicate #-}
 duplicate ::
     -- Monad m =>
@@ -665,9 +674,9 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
                 s <- initial1
                 fs1 <- fstep fs b
                 return
-                  $ case fs1 of
-                        Partial s1 -> Partial (Tuple' s s1)
-                        Done b1 -> Done b1
+                    $ case fs1 of
+                          Partial s1 -> Partial (Tuple' s s1)
+                          Done b1 -> Done b1
 
     extract (Tuple' s fs) = do
         b <- extract1 s
@@ -748,9 +757,9 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
         else do
             res <- step s a
             return
-              $ case res of
-                    Partial sres -> Partial $ Tuple3' sres mv t
-                    Done bres -> Done bres
+                $ case res of
+                      Partial sres -> Partial $ Tuple3' sres mv t
+                      Done bres -> Done bres
 
     done' (Tuple3' s _ t) = liftIO (killThread t) >> done s
     -- XXX thread should be killed at cleanup

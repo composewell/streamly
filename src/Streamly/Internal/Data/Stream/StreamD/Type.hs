@@ -594,6 +594,7 @@ data GroupState s fs b a
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
+-- XXX Remove GroupConsume
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
@@ -627,7 +628,7 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
 
-
+-- XXX Remove GroupConsume
 {-# INLINE_NORMAL foldMany1 #-}
 foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany1 (Fold fstep initial extract) (Stream step state) =
@@ -641,8 +642,8 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                 fi <- initial
-                 return $ Skip $ GroupConsume s fi x
+                fi <- initial
+                return $ Skip $ GroupConsume s fi x
             Skip s -> return $ Skip (GroupStart s)
             Stop -> return $ Stop
     step' _ (GroupConsume st fs x) = do

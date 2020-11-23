@@ -329,9 +329,9 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
         | i < n = do
             res <- fstep r a
             return
-              $ case res of
-                    FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                    FL.Done _ -> Error $ err (i + 1)
+                $ case res of
+                      FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
+                      FL.Done _ -> Error $ err (i + 1)
         | otherwise = Done 1 <$> fextract r
 
     extract (Tuple' i r)
@@ -359,15 +359,15 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
         | i < n = do
             res <- fstep r a
             return
-              $ case res of
-                    FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                    FL.Done _ -> Error $ err (i + 1)
+                $ case res of
+                      FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
+                      FL.Done _ -> Error $ err (i + 1)
         | otherwise = do
             res <- fstep r a
             return
-              $ case res of
-                    FL.Partial s -> Partial 0 $ Tuple' (i + 1) s
-                    FL.Done b -> Done 0 b
+                $ case res of
+                      FL.Partial s -> Partial 0 $ Tuple' (i + 1) s
+                      FL.Done b -> Done 0 b
 
     extract (Tuple' i b)
         | i >= n = fextract b
@@ -375,7 +375,7 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     err i =
         "takeGE: Expecting at least "
-          ++ show n ++ " elements, got only " ++ show i
+            ++ show n ++ " elements, got only " ++ show i
 
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
@@ -421,9 +421,9 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             s <- finitial
             sr <- fstep s a
             return
-              $ case sr of
-                    FL.Partial r -> Partial 0 (Just r)
-                    FL.Done b -> Done 0 b
+                $ case sr of
+                      FL.Partial r -> Partial 0 (Just r)
+                      FL.Done b -> Done 0 b
         else return $ Error err
     step (Just s) a =
         if predicate a
@@ -516,22 +516,22 @@ eqBy cmp str = Parser step initial extract
     step [] _ = return $ Done 0 ()
     step [x] a =
         return
-          $ if x `cmp` a
-            then Done 0 ()
-            else Error "eqBy: failed, yet to match the last element"
+            $ if x `cmp` a
+              then Done 0 ()
+              else Error "eqBy: failed, yet to match the last element"
     step (x:xs) a =
         return
-          $ if x `cmp` a
-            then Continue 0 xs
-            else Error
-                   $ "eqBy: failed, yet to match "
-                   ++ show (length xs + 1) ++ " elements"
+            $ if x `cmp` a
+              then Continue 0 xs
+              else Error
+                       $ "eqBy: failed, yet to match "
+                       ++ show (length xs + 1) ++ " elements"
 
     extract xs =
         throwM
-          $ ParseError
-          $ "eqBy: end of input, yet to match "
-          ++ show (length xs) ++ " elements"
+            $ ParseError
+            $ "eqBy: end of input, yet to match "
+            ++ show (length xs) ++ " elements"
 
 -------------------------------------------------------------------------------
 -- nested parsers
@@ -553,19 +553,20 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
         r <- step1 st a
         let cnt1 = cnt + 1
         return
-          $ case r of
-                Partial n s -> Continue n (Tuple' (cnt1 - n) s)
-                Continue n s -> Continue n (Tuple' (cnt1 - n) s)
-                Done _ b -> Done cnt1 b
-                Error err -> Error err
+            $ case r of
+                  Partial n s -> Continue n (Tuple' (cnt1 - n) s)
+                  Continue n s -> Continue n (Tuple' (cnt1 - n) s)
+                  Done _ b -> Done cnt1 b
+                  Error err -> Error err
 
     -- XXX returning an error let's us backtrack.  To implement it in a way so
     -- that it terminates on eof without an error then we need a way to
     -- backtrack on eof, that will require extract to return 'Step' type.
     extract (Tuple' n _) =
         throwM
-          $ ParseError
-          $ "lookAhead: end of input after consuming " ++ show n ++ " elements"
+            $ ParseError
+            $ "lookAhead: end of input after consuming "
+            ++ show n ++ " elements"
 
 -------------------------------------------------------------------------------
 -- Interleaving

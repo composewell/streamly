@@ -456,30 +456,22 @@ longestPass =
 
 longestPassLeft :: Property
 longestPassLeft =
-    property
-        (case S.parseD
-                  (P.shortest (P.die "die") (P.yield (1 :: Int)))
-                  (S.fromList [1 :: Int]) of
-             Right r -> r == 1
-             Left _ -> False)
+    property (case S.parseD (P.shortest (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
 
 longestPassRight :: Property
 longestPassRight =
-    property
-        (case S.parseD
-                  (P.shortest (P.yield (1 :: Int)) (P.die "die"))
-                  (S.fromList [1 :: Int]) of
-             Right r -> r == 1
-             Left _ -> False)
+    property (case S.parseD (P.shortest (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
 
 longestFailBoth :: Property
 longestFailBoth =
     property
-        (case S.parseD
-                  (P.shortest (P.die "die") (P.die "die"))
-                  (S.fromList [1 :: Int]) of
-             Right _ -> False
-             Left _ -> True)
+        (case S.parseD (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
 
 many :: Property
 many =
@@ -496,16 +488,15 @@ many =
 
 many_empty :: Property
 many_empty =
-    property
-        (case S.parseD (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
-             Right res_list -> checkListEqual res_list ([] :: [Int])
-             Left _ -> property False)
+    property (case S.parseD (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+        Right res_list -> checkListEqual res_list ([] :: [Int])
+        Left _ -> property False)
 
 some :: Property
 some =
     forAll (listOf (chooseInt (0, 1)))
       $ \ls ->
-            let fldstp conL currL = return $ FL.Partial $ conL ++ curL
+            let fldstp conL currL = return $ FL.Partial $ conL ++ currL
                 concatFold = FL.Fold fldstp (return []) return
                 prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
              in case S.parseD prsr (S.fromList ls) of
@@ -514,10 +505,9 @@ some =
 
 someFail :: Property
 someFail =
-    property
-        (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
-             Right _ -> False
-             Left _ -> True)
+    property (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
 
 -------------------------------------------------------------------------------
 -- Instances
