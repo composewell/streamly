@@ -132,7 +132,7 @@ module Streamly.Internal.Data.Fold.Types
     , lfilterM
     , lcatMaybes
     , ltake
-    , ltakeWhile
+    , takeSepBy
 
     , teeWith
     , teeWithFst
@@ -587,10 +587,9 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
 -- | Takes elements from the input as long as the predicate succeeds.
 --
 -- @since 0.7.0
-{-# INLINE ltakeWhile #-}
-ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-ltakeWhile predicate (Fold fstep finitial fextract) =
-    Fold step finitial fextract
+{-# INLINE takeSepBy #-}
+takeSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+takeSepBy predicate (Fold fstep finitial fextract) = Fold step finitial fextract
 
     where
 

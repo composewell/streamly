@@ -384,7 +384,23 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-takeWhile predicate fld = fromFold (FL.ltakeWhile predicate fld)
+takeWhile predicate (Fold fstep finitial fextract) =
+    Parser step initial fextract
+
+    where
+
+    initial = finitial
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      FL.Partial s1 -> Partial 0 s1
+                      FL.Done b -> Done 0 b
+        else Done 1 <$> fextract s
+
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --

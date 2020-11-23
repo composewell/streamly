@@ -70,7 +70,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Partial Folds
     , drainN
-    , drainWhile
+    , drainSepBy
     -- , lastN
     -- , (!!)
     -- , genericIndex
@@ -131,7 +131,7 @@ module Streamly.Internal.Data.Fold
     -- ** Trimming
     , ltake
     -- , lrunFor -- time
-    , ltakeWhile
+    , takeSepBy
     {-
     , ltakeWhileM
     , ldrop
@@ -818,9 +818,9 @@ drainN n = ltake n drain
 
 -- | A fold that drains elements of its input as long as the predicate succeeds,
 -- running the effects and discarding the results.
-{-# INLINABLE drainWhile #-}
-drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
-drainWhile p = ltakeWhile p drain
+{-# INLINABLE drainSepBy #-}
+drainSepBy :: Monad m => (a -> Bool) -> Fold m a ()
+drainSepBy p = takeSepBy p drain
 
 ------------------------------------------------------------------------------
 -- To Elements
