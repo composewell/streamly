@@ -472,8 +472,8 @@ sliceSepByMax =
 many :: Property
 many =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        let
-            concatFold = FL.Fold (\concatList curr_list -> return $ FL.Partial $ concatList ++ curr_list) (return []) return
+        let fldstp conL currL = return $ FL.Partial $ conL ++ currL
+            concatFold = FL.Fold fldstp (return []) return
             prsr = P.many concatFold $ P.sliceSepBy (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
