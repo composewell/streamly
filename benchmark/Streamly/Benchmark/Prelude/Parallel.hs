@@ -116,6 +116,24 @@ o_n_heap_mapping value =
         ]
     ]
 
+
+-------------------------------------------------------------------------------
+-- Joining
+-------------------------------------------------------------------------------
+
+{-# INLINE parallel2 #-}
+parallel2 :: Int -> Int -> IO ()
+parallel2 count n =
+    S.drain $
+        (sourceUnfoldrM count n) `parallel` (sourceUnfoldrM count (n + 1))
+
+o_1_space_joining :: Int -> [Benchmark]
+o_1_space_joining value =
+    [ bgroup "joining"
+        [ benchIOSrc1 "parallel (2 of n/2)" (parallel2 (value `div` 2))
+        ]
+    ]
+
 -------------------------------------------------------------------------------
 -- Concat
 -------------------------------------------------------------------------------
@@ -197,7 +215,10 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_merge_app_tap value)
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_merge_app_tap value
+            , o_1_space_joining value
+            ]
         , bgroup (o_n_heap_prefix moduleName) $ concat
             [ o_n_heap_generation value
             , o_n_heap_mapping value

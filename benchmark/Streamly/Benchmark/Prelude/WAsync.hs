@@ -50,6 +50,43 @@ o_1_space_mapping value =
     ]
 
 -------------------------------------------------------------------------------
+-- Joining
+-------------------------------------------------------------------------------
+
+{-# INLINE wAsync2 #-}
+wAsync2 :: Int -> Int -> IO ()
+wAsync2 count n =
+    S.drain $
+        (sourceUnfoldrM count n) `wAsync` (sourceUnfoldrM count (n + 1))
+
+{-# INLINE wAsync4 #-}
+wAsync4 :: Int -> Int -> IO ()
+wAsync4 count n =
+    S.drain $
+                  (sourceUnfoldrM count (n + 0))
+        `wAsync` (sourceUnfoldrM count (n + 1))
+        `wAsync` (sourceUnfoldrM count (n + 2))
+        `wAsync` (sourceUnfoldrM count (n + 3))
+
+{-# INLINE wAsync2n2 #-}
+wAsync2n2 :: Int -> Int -> IO ()
+wAsync2n2 count n =
+    S.drain $
+        ((sourceUnfoldrM count (n + 0))
+            `wAsync` (sourceUnfoldrM count (n + 1)))
+        `wAsync` ((sourceUnfoldrM count (n + 2))
+            `wAsync` (sourceUnfoldrM count (n + 3)))
+
+o_1_space_joining :: Int -> [Benchmark]
+o_1_space_joining value =
+    [ bgroup "joining"
+        [ benchIOSrc1 "wAsync (2 of n/2)" (wAsync2 (value `div` 2))
+        , benchIOSrc1 "wAsync (4 of n/4)" (wAsync4 (value `div` 4))
+        , benchIOSrc1 "wAsync (2 of (2 of n/4)" (wAsync2n2 (value `div` 4))
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Concat
 -------------------------------------------------------------------------------
 
@@ -140,6 +177,7 @@ main = do
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_generation value
             , o_1_space_mapping value
+            , o_1_space_joining value
             , o_1_space_concatFoldable value
             , o_1_space_concatMap value
             ]
