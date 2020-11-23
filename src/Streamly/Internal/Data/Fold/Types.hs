@@ -139,6 +139,7 @@ module Streamly.Internal.Data.Fold.Types
     , splitWith
     , many
 
+    , takeByTime
     , lsessionsOf
     , lchunksOf
     , lchunksOf2
@@ -153,10 +154,9 @@ where
 
 import Control.Applicative (liftA2)
 import Control.Concurrent (threadDelay, forkIO, killThread)
-import Control.Concurrent.MVar (MVar, newMVar, takeMVar, putMVar, modifyMVar_)
+import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
-import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
 import Data.Bifunctor (Bifunctor(..))
@@ -164,7 +164,7 @@ import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..), Tuple5'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 -- import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
@@ -691,44 +691,7 @@ runStep (Fold step initial extract) a = do
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
-
-    where
-
-    initial' = Tuple3' 0 <$> initial1 <*> initial2
-
-    {-# INLINE splitter #-}
-    splitter i a r1 r2 = do
-        res <- step1 r1 a
-        case res of
-            Partial ss -> return $ Partial $ Tuple3' (i + 1) ss r2
-            Done bs -> do
-                acc2 <- step2 r2 bs
-                case acc2 of
-                    Partial sc -> do
-                        i1 <- initial1
-                        return $ Partial $ Tuple3' 0 i1 sc
-                    Done bc -> return $ Done bc
-
-    step' (Tuple3' i r1 r2) a =
-        if i < n
-        then splitter i a r1 r2
-        else do
-            res <- extract1 r1
-            acc2 <- step2 r2 res
-            case acc2 of
-                Partial sc -> do
-                    i1 <- initial1
-                    splitter 0 a i1 sc
-                Done bc -> return $ Done bc
-
-    extract' (Tuple3' _ r1 r2) = do
-        res <- extract1 r1
-        acc2 <- step2 r2 res
-        case acc2 of
-            Partial sc -> extract2 sc
-            Done bs -> return bs
+lchunksOf n split collect = many collect (ltake n split)
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
@@ -763,6 +726,53 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
         acc2 <- step2 r2 res
         extract2 acc2
 
+-- XXX zip the streams with timestamps
+{-# INLINE takeByTime #-}
+takeByTime :: MonadAsync m => Double -> Fold m a b -> Fold m a b
+takeByTime n (Fold step initial done) = Fold step' initial' done'
+
+    where
+
+    initial' = do
+        s <- initial
+        mv <- liftIO $ newMVar False
+        t <-
+            control $ \run ->
+                mask $ \restore -> do
+                    tid <-
+                        forkIO
+                            $ catch
+                                  (restore $ void $ run (timerThread mv))
+                                  (handleChildException mv)
+                    run (return tid)
+        return $ Tuple3' s mv t
+
+    step' (Tuple3' s mv t) a = do
+        val <- liftIO $ readMVar mv
+        if val
+        then do
+            res <- step s a
+            case res of
+                Partial sres -> Done <$> done sres
+                Done bres -> return $ Done bres
+        else do
+            res <- step s a
+            return
+                $ case res of
+                      Partial sres -> Partial $ Tuple3' sres mv t
+                      Done bres -> Done bres
+
+    done' (Tuple3' s _ t) = liftIO (killThread t) >> done s
+    -- XXX thread should be killed at cleanup
+
+    timerThread mv = do
+        liftIO $ threadDelay (round $ n * 1000000)
+        -- Use IORef + CAS? instead of MVar since its a Bool?
+        liftIO $ void $ swapMVar mv True
+
+    handleChildException :: MVar Bool -> SomeException -> IO ()
+    handleChildException mv _ = void $ swapMVar mv True
+
 -- XXX We need to think about a more better solution. Using a timer to update a
 -- flag gives wrong results on a termination condition.
 -- XXX This does not even handle an MVar exception
@@ -780,79 +790,4 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 -- @
 {-# INLINE lsessionsOf #-}
 lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-lsessionsOf n (Fold stepS initialS extractS) (Fold stepC initialC extractC) =
-    Fold step initial extract
-
-    where
-
-    timerThread mv =
-        liftIO
-            $ do
-                threadDelay (round $ n * 1000000)
-                modifyMVar_ mv (return . fmap not)
-
-    handleChildException ::
-        MVar (Either SomeException a) -> SomeException -> IO ()
-    handleChildException mv e = do
-        er <- takeMVar mv
-        let er1 = case er of
-                    Left _ -> er
-                    Right _ -> Left e
-        putMVar mv er1
-
-    -- XXX MVar may be expensive we need a cheaper synch mechanism here
-    initial = do
-        fs <- initialS
-        fc <- initialC
-        mv <- liftIO $ newMVar (Right False)
-        t <-
-            control $ \run ->
-                mask $ \restore -> do
-                    tid <- forkIO $ catch (restore $ void $ run $ timerThread mv)
-                                          (handleChildException mv)
-                    run (return tid)
-        return $ Tuple5' True t mv fs fc
-
-    {-# INLINE splitter #-}
-    splitter !p !t !mv !a !fs !fc = do
-        sfs <- stepS fs a
-        case sfs of
-            Partial fs1 -> return $ Partial $ Tuple5' p t mv fs1 fc
-            Done bs -> do
-                sfc <- stepC fc bs
-                case sfc of
-                    Partial fc1 -> do
-                        fs1 <- initialS
-                        return $ Partial $ Tuple5' p t mv fs1 fc1
-                    Done bc -> do
-                        liftIO $ killThread t
-                        return $ Done bc
-
-    step (Tuple5' p t mv fs fc) a = do
-        mp0 <- liftIO $ takeMVar mv
-        case mp0 of
-            Right p0 ->
-                if p0 /= p
-                then splitter p t mv a fs fc
-                else do
-                    bs <- extractS fs
-                    sfc <- stepC fc bs
-                    case sfc of
-                        Partial fc1 -> do
-                           fs1 <- initialS
-                           splitter (not p) t mv a fs1 fc1
-                        Done bc -> do
-                           liftIO $ killThread t
-                           return $ Done bc
-            Left _ -> do
-                -- XXX throwM e
-                liftIO $ killThread t
-                bc <- extractC fc
-                return $ Done bc
-
-    extract (Tuple5' _ t mv _ fc) = do
-        er <- liftIO $ takeMVar mv
-        liftIO $ killThread t
-        case er of
-            Right _ -> extractC fc
-            Left e -> throwM e
+lsessionsOf n split collect = many collect (takeByTime n split)
