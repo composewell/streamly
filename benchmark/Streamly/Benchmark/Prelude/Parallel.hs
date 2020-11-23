@@ -9,6 +9,7 @@
 
 import Prelude hiding (mapM)
 
+import Data.Function ((&))
 import Streamly.Prelude
        ( SerialT, parallely, parallel, serially, maxBuffer, maxThreads)
 
@@ -57,6 +58,14 @@ parAppMap src = S.drain $ S.map (+1) S.|$ src
 parAppSum :: S.MonadAsync m => SerialT m Int -> m ()
 parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
 
+{-# INLINE (|&) #-}
+(|&) :: S.MonadAsync m => SerialT m Int -> m ()
+(|&) src = src S.|& S.map (+ 1) & S.drain
+
+{-# INLINE (|&.) #-}
+(|&.) :: S.MonadAsync m => SerialT m Int -> m ()
+(|&.) src = (src S.|&. S.sum) >>= \x -> seq x (return ())
+
 -------------------------------------------------------------------------------
 -- Tapping
 -------------------------------------------------------------------------------
@@ -79,6 +88,8 @@ o_1_space_merge_app_tap value =
         -- Parallel stages in a pipeline
         , benchIOSink value "parAppMap" parAppMap
         , benchIOSink value "parAppSum" parAppSum
+        , benchIOSink value "(|&)" (|&)
+        , benchIOSink value "(|&.)" (|&.)
         , benchIOSink value "tapAsync" (tapAsync 1)
         , benchIOSink value "tapAsyncS" (tapAsyncS 1)
         ]
