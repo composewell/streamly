@@ -77,9 +77,9 @@ all value = IP.fold (FL.all (<= value))
 take :: Monad m => Int -> SerialT m a -> m ()
 take value = IP.fold (FL.ltake value FL.drain)
 
-{-# INLINE takeWhile #-}
-takeWhile :: Monad m => Int -> SerialT m Int -> m ()
-takeWhile value = IP.fold (FL.ltakeWhile (<= value) FL.drain)
+{-# INLINE takeSepBy #-}
+takeSepBy :: Monad m => Int -> SerialT m Int -> m ()
+takeSepBy value = IP.fold (FL.takeSepBy (<= value) FL.drain)
 
 {-# INLINE many #-}
 many :: Monad m => SerialT m Int -> m Int
@@ -180,12 +180,12 @@ o_1_space_serial_elimination value =
             , benchIOSink value "drainN" (S.fold (FL.drainN value))
             , benchIOSink
                   value
-                  "drainWhileTrue"
-                  (S.fold (FL.drainWhile $ (<=) (value + 1)))
+                  "drainSepByTrue"
+                  (S.fold (FL.drainSepBy $ (<=) (value + 1)))
             , benchIOSink
                   value
-                  "drainWhileFalse"
-                  (S.fold (FL.drainWhile $ (>=) (value + 1)))
+                  "drainSepByFalse"
+                  (S.fold (FL.drainSepBy $ (>=) (value + 1)))
             , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
             , benchIOSink value "last" (S.fold FL.last)
             , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
@@ -252,7 +252,7 @@ o_1_space_serial_elimination value =
             , benchIOSink value "all" $ all value
             , benchIOSink value "any" $ any value
             , benchIOSink value "take" $ take value
-            , benchIOSink value "takeWhile" $ takeWhile value
+            , benchIOSink value "takeSepBy" $ takeSepBy value
             , benchIOSink
                   value
                   "and"
