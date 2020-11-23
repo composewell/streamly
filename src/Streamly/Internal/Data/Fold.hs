@@ -1444,40 +1444,31 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     step (RunBoth sL sR) a = do
         r <- f a
         case r of
-            Left b -> do
-                res <- stepL sL b
-                return
-                    $ Partial
-                    $ case res of
-                          Partial sres -> RunBoth sres sR
-                          Done bres -> RunRight bres sR
-            Right c -> do
-                res <- stepR sR c
-                return
-                    $ Partial
-                    $ case res of
-                          Partial sres -> RunBoth sL sres
-                          Done bres -> RunLeft sL bres
+            Left b ->
+                let pfunc x = RunBoth x sR
+                    dfunc x = RunRight x sR
+                 in running stepL sL b pfunc dfunc Partial
+            Right c ->
+                let pfunc = RunBoth sL
+                    dfunc = RunLeft sL
+                 in running stepR sR c pfunc dfunc Partial
     step (RunLeft sL bR) a = do
         r <- f a
         case r of
-            Left b -> do
-                res <- stepL sL b
-                return
-                    $ case res of
-                          Partial sres -> Partial $ RunLeft sres bR
-                          Done bres -> Done (bres, bR)
+            Left b -> running stepL sL b (\sL1 -> RunLeft sL1 bR) (, bR) Done
             Right _ -> return $ Partial $ RunLeft sL bR
     step (RunRight bL sR) a = do
         r <- f a
         case r of
             Left _ -> return $ Partial $ RunRight bL sR
-            Right c -> do
-                res <- stepR sR c
-                return
-                    $ case res of
-                          Partial sres -> Partial $ RunRight bL sres
-                          Done bres -> Done (bL, bres)
+            Right c -> running stepR sR c (RunRight bL) (bL, ) Done
+
+    running stp st a pfunc dfunc dcons = do
+        res <- stp st a
+        return
+            $ case res of
+                  Partial fs -> Partial $ pfunc fs
+                  Done b -> dcons $ dfunc b
 
     done (RunBoth sL sR) = do
         bL <- doneL sL
