@@ -130,7 +130,7 @@ module Streamly.Internal.Data.Fold.Types
     , lfilterM
     , lcatMaybes
     , ltake
-    , ltakeWhile
+    , takeSepBy
 
     , teeWith
     , teeWithFst
@@ -621,12 +621,12 @@ ltake n (Fold step initial done) = Fold step' initial' done'
         else Done <$> done r
     done' (Tuple' _ r) = done r
 
--- | Takes elements from the input as long as the predicate succeeds.
---
--- @since 0.7.0
-{-# INLINABLE ltakeWhile #-}
-ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-ltakeWhile predicate (Fold step initial done) = Fold step' initial done
+--- | Takes elements from the input as long as the predicate succeeds.
+---
+--- @since 0.7.0
+{-# INLINABLE takeSepBy #-}
+takeSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+takeSepBy predicate (Fold step initial done) = Fold step' initial done
     where
     step' s a =
         if predicate a

@@ -70,7 +70,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Partial Folds
     , drainN
-    , drainWhile
+    , drainSepBy
     -- , lastN
     -- , (!!)
     -- , genericIndex
@@ -131,7 +131,7 @@ module Streamly.Internal.Data.Fold
     -- ** Trimming
     , ltake
     -- , lrunFor -- time
-    , ltakeWhile
+    , takeSepBy
     {-
     , ltakeWhileM
     , ldrop
@@ -156,6 +156,8 @@ module Streamly.Internal.Data.Fold
     -- , breakAround
     , spanBy
     , spanByRolling
+    , sliceSepBy
+    , sliceSepWith
 
     -- By sequences
     -- , breakOnSeq
@@ -761,9 +763,9 @@ drainN n = ltake n drain
 
 -- | A fold that drains elements of its input as long as the predicate succeeds,
 -- running the effects and discarding the results.
-{-# INLINABLE drainWhile #-}
-drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
-drainWhile p = ltakeWhile p drain
+{-# INLINABLE drainSepBy #-}
+drainSepBy :: Monad m => (a -> Bool) -> Fold m a ()
+drainSepBy p = takeSepBy p drain
 
 ------------------------------------------------------------------------------
 -- To Elements
@@ -1003,6 +1005,65 @@ splitAt n fld1 fld2 = splitWith (,) (ltake n fld1) fld2
 ------------------------------------------------------------------------------
 -- Binary APIs
 ------------------------------------------------------------------------------
+
+-- | Stops the fold at an infixed separator element, dropping the separator.
+--
+-- The first part is the result of the fold and the second part is rest of the
+-- stream.
+--
+-- @
+-- "--.--" => "--" "--"
+-- "--."   => "--" ""
+-- ".--"   => ""   "--"
+-- @
+--
+-- * Stops - when the predicate succeeds.
+--
+-- /Internal/
+{-# INLINE sliceSepBy #-}
+sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+sliceSepBy predicate (Fold fstep finitial fextract) = Fold step initial fextract
+
+    where
+
+    initial = finitial
+
+    step s a =
+        if not (predicate a)
+        then fstep s a
+        else Done <$> fextract s
+
+-- | Like 'sliceSepBy' but does not drop the seperator element.
+--
+-- The first part is the result of the fold and the second part is rest of the
+-- stream.
+--
+-- @
+-- "--.--" => "--." "--"
+-- "--."   => "--." ""
+-- ".--"   => "."   "--"
+-- @
+--
+-- * Stops - when the predicate succeeds.
+--
+-- /Internal/
+{-# INLINE sliceSepWith #-}
+sliceSepWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+sliceSepWith predicate (Fold fstep finitial fextract) =
+    Fold step initial fextract
+
+    where
+
+    initial = finitial
+
+    step s a =
+        if not (predicate a)
+        then fstep s a
+        else do
+            res <- fstep s a
+            case res of
+                Partial sres -> Done <$> fextract sres
+                Done bres -> return $ Done bres
 
 data SpanByState a bl fl fr
     = SpanByLeft0 !fl !fr

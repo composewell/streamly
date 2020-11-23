@@ -70,12 +70,12 @@ o_1_space_serial_elimination value =
             , benchIOSink value "drainN" (S.fold (IFL.drainN value))
             , benchIOSink
                   value
-                  "drainWhileTrue"
-                  (S.fold (IFL.drainWhile $ (<=) (value + 1)))
+                  "drainSepByTrue"
+                  (S.fold (IFL.drainSepBy $ (<=) (value + 1)))
             , benchIOSink
                   value
-                  "drainWhileFalse"
-                  (S.fold (IFL.drainWhile $ (>=) (value + 1)))
+                  "drainSepByFalse"
+                  (S.fold (IFL.drainSepBy $ (>=) (value + 1)))
             , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
             , benchIOSink value "last" (S.fold FL.last)
             , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
