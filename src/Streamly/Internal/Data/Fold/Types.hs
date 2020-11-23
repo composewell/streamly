@@ -137,6 +137,7 @@ module Streamly.Internal.Data.Fold.Types
     , teeWithMin
 
     , splitWith
+    , many
 
     , lsessionsOf
     , lchunksOf
@@ -550,6 +551,50 @@ lcatMaybes = lfilter isJust . lmap fromJust
 ------------------------------------------------------------------------------
 -- Parsing
 ------------------------------------------------------------------------------
+
+-- All the grouping transformation that we apply to a stream can also be
+-- applied to a fold input stream. groupBy et al can be written as terminating
+-- folds and then we can apply "many" to use those repeatedly on a stream.
+
+-- | Collect zero or more applications of a fold.  @many collect split@ applies
+-- the @split@ fold repeatedly on the input stream and accumulates zero or more
+-- fold results using @collect@.
+--
+-- /Internal/
+--
+-- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
+--
+{-# INLINE many #-}
+many :: Monad m => Fold m b c -> Fold m a b -> Fold m a c
+many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
+    Fold step initial extract
+
+    where
+
+    initial = do
+        ps <- initial1
+        fs <- finitial
+        pure (Tuple' ps fs)
+
+    {-# INLINE step #-}
+    step (Tuple' st fs) a = do
+        r <- step1 st a
+        case r of
+            Partial s -> return $ Partial (Tuple' s fs)
+            Done b -> do
+                s <- initial1
+                fs1 <- fstep fs b
+                return
+                    $ case fs1 of
+                          Partial s1 -> Partial (Tuple' s s1)
+                          Done b1 -> Done b1
+
+    extract (Tuple' s fs) = do
+        b <- extract1 s
+        acc <- fstep fs b
+        case acc of
+            Partial s1 -> fextract s1
+            Done x -> return x
 
 -- If i <= 0 then ltake consumes an input element silently.
 -- | Take first @n@ elements from the stream and discard the rest.
