@@ -130,6 +130,10 @@ o_n_heap_concatFoldable value =
             (sourceFoldMapWithStream value)
         , benchIOSrc parallely "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
+        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+            (concatFoldableWith value)
+        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+            (concatForFoldableWith value)
         , benchIOSrc parallely "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]

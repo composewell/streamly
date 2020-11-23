@@ -23,6 +23,7 @@ import GHC.Exception (ErrorCall)
 import System.Random (randomRIO)
 
 import qualified Data.Foldable as F
+import qualified Data.List as List
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -286,6 +287,23 @@ transformZipMapM t n =
 sourceFoldMapWith :: (S.IsStream t, Semigroup (t m Int))
     => Int -> Int -> t m Int
 sourceFoldMapWith value n = S.concatMapFoldableWith (<>) S.yield [n..n+value]
+
+{-# INLINE concatForFoldableWith #-}
+concatForFoldableWith :: (S.IsStream t, Semigroup (t m Int))
+    => Int -> Int -> t m Int
+concatForFoldableWith value n =
+    S.concatForFoldableWith (<>) [n..n+value] S.yield
+
+{-# INLINE concatFoldableWith #-}
+concatFoldableWith :: (S.IsStream t, Semigroup (t m Int))
+    => Int -> Int -> t m Int
+concatFoldableWith value n =
+    let step x =
+            if x <= n + value
+            then Just (S.yield x, x + 1)
+            else Nothing
+        list = List.unfoldr step n
+     in S.concatFoldableWith (<>) list
 
 {-# INLINE sourceFoldMapWithStream #-}
 sourceFoldMapWithStream :: (S.IsStream t, Semigroup (t m Int))

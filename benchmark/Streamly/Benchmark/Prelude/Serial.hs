@@ -1746,6 +1746,10 @@ o_1_space_concatFoldable value =
             (sourceFoldMapWithStream value)
         , benchIOSrc serially "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
+        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+            (concatFoldableWith value)
+        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+            (concatForFoldableWith value)
         , benchIOSrc serially "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
