@@ -1405,7 +1405,7 @@ o_1_space_indexingX4 value =
     ]
 
 -------------------------------------------------------------------------------
--- Reordering
+-- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
 {-# INLINE reverse #-}
@@ -1416,13 +1416,15 @@ reverse n = composeN n S.reverse
 reverse' :: MonadIO m => Int -> SerialT m Int -> m ()
 reverse' n = composeN n Internal.reverse'
 
-o_n_heap_reordering :: Int -> [Benchmark]
-o_n_heap_reordering value =
+o_n_heap_buffering :: Int -> [Benchmark]
+o_n_heap_buffering value =
     [ bgroup "buffered"
         [
         -- Reversing/sorting a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
+
+        , benchIOSink value "mkAsync" (mkAsync serially)
         ]
     ]
 
@@ -2130,7 +2132,7 @@ main = do
             , o_n_heap_elimination_buffered size
 
             -- transformation
-            , o_n_heap_reordering size
+            , o_n_heap_buffering size
             , o_n_heap_transformer size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
