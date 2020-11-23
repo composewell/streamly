@@ -876,6 +876,10 @@ scanl1' n = composeN n $ S.scanl1' (+)
 scanl1M' :: MonadIO m => Int -> SerialT m Int -> m ()
 scanl1M' n = composeN n $ S.scanl1M' (\b a -> return $ b + a)
 
+{-# INLINE scan #-}
+scan :: MonadIO m => Int -> SerialT m Int -> m ()
+scan n = composeN n $ S.scan FL.sum
+
 {-# INLINE postscanl' #-}
 postscanl' :: MonadIO m => Int -> SerialT m Int -> m ()
 postscanl' n = composeN n $ S.postscanl' (+) 0
@@ -883,6 +887,10 @@ postscanl' n = composeN n $ S.postscanl' (+) 0
 {-# INLINE postscanlM' #-}
 postscanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
 postscanlM' n = composeN n $ S.postscanlM' (\b a -> return $ b + a) (return 0)
+
+{-# INLINE postscan #-}
+postscan :: MonadIO m => Int -> SerialT m Int -> m ()
+postscan n = composeN n $ S.postscan FL.sum
 
 {-# INLINE sequence #-}
 sequence ::
@@ -965,6 +973,8 @@ o_1_space_mapping value =
         , benchIOSink value "postscanl'" (postscanl' 1)
         , benchIOSink value "postscanlM'" (postscanlM' 1)
 
+        , benchIOSink value "scan" (scan 1)
+        , benchIOSink value "postscan" (postscan 1)
         ]
     ]
 
