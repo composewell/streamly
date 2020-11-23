@@ -136,6 +136,8 @@ module Streamly.Internal.Data.Fold.Types
     , teeWithFst
     , teeWithMin
 
+    , splitWith
+
     , lsessionsOf
     , lchunksOf
     , lchunksOf2
@@ -236,6 +238,50 @@ instance Functor m => Functor (Fold m a) where
         where
         done' x = fmap f $! done x
         step1 x a = fmap (second f) $! step x a
+
+-- {-# ANN type Step Fuse #-}
+-- data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
+data SeqFoldState sl f sr = SeqFoldL sl | SeqFoldR f sr
+
+-- | Sequential fold application. Apply two folds sequentially to an input
+-- stream.  The input is provided to the first fold, when it is done the
+-- remaining input is provided to the second fold. When the second fold is
+-- done, the outputs of the two folds are combined using the supplied function.
+--
+-- Note: This is a folding dual of appending streams using
+-- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
+-- the results. This has the same caveats as ParseD's @splitWith@
+--
+-- /Internal/
+--
+{-# INLINE splitWith #-}
+splitWith :: Monad m =>
+    (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+
+    initial = SeqFoldL <$> initialL
+
+    step (SeqFoldL st) a = do
+        r <- stepL st a
+        case r of
+            Partial s -> return $ Partial (SeqFoldL s)
+            Done b -> Partial <$> (SeqFoldR (func b) <$> initialR)
+    step (SeqFoldR f st) a = do
+        r <- stepR st a
+        return
+          $ case r of
+                Partial s -> Partial (SeqFoldR f s)
+                Done b -> Done (f b)
+
+    extract (SeqFoldR f sR) = fmap f (extractR sR)
+    extract (SeqFoldL sL) = do
+        rL <- extractL sL
+        sR <- initialR
+        rR <- extractR sR
+        return $ func rL rR
 
 -- | The fold resulting from '<*>' distributes its input to both the argument
 -- folds and combines their output using the supplied function.
