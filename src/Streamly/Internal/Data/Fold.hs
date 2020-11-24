@@ -1936,6 +1936,8 @@ classify fld = classifyWith fst (lmap snd fld)
 
 -- | Like 'unzipWith' but with a monadic splitter function.
 --
+-- -- @unzipWithM f fld1 fld2 = lmapM f (unzip fld1 fld2)@
+--
 -- @since 0.7.0
 {-# INLINE unzipWithM #-}
 unzipWithM :: Monad m
@@ -2002,6 +2004,8 @@ unzipWithMinM = undefined
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
+--
+-- @unzipWith f fld1 fld2 = lmap f (unzip fld1 fld2)@
 --
 -- This fold terminates when both the input folds terminate.
 --
