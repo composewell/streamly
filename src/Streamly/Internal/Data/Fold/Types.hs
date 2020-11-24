@@ -618,6 +618,7 @@ takeSepBy predicate (Fold fstep finitial fextract) = Fold step finitial fextract
 duplicate ::
     -- Monad m =>
     Fold m a b -> Fold m a (Fold m a b)
+-- XXX This should change once we have step type in the initial element
 duplicate _ = undefined
 
 -- | Run the initialization effect of a fold. The returned fold would use the
@@ -635,6 +636,7 @@ initialize (Fold step initial extract) = do
 runStep ::
     -- Monad m =>
     Fold m a b -> a -> m (Fold m a b)
+-- XXX This should change once we have step type in the initial element
 runStep _ _ = undefined
 
 ------------------------------------------------------------------------------

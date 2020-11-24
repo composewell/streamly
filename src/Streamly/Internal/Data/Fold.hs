@@ -1670,7 +1670,9 @@ demuxWith f kv = Fold step initial extract
                                    in if Map.size mp1 == 0
                                       then Done bmp1
                                       else Partial $ Tuple' bmp1 mp1
-        else return $ Done bmp
+        -- XXX This state is reached even for an empty Map. That will change
+        -- once we have Step in the initial value
+        else error "Illegal state"
 
     extract (Tuple' bmp mp) = do
         mpe <- Prelude.mapM (\(Fold _ i d) -> i >>= d) mp
@@ -1744,7 +1746,9 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                                                  dacc
                                                  (Set.insert k bst)
                                                  (Map.delete k mp)
-        else return $ Done ()
+        -- XXX This state is reached even for an empty Map. That will change
+        -- once we have Step in the initial value
+        else error "Illegal state"
     -- XXX Reduce code duplication?
     step (DemuxingOnlyMap mp) a =
         if Map.size mp > 0
@@ -1769,7 +1773,9 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
                                   then Done ()
                                   else Partial
                                            $ DemuxingOnlyMap $ Map.delete k mp
-        else return $ Done ()
+        -- XXX This state is reached even for an empty Map. That will change
+        -- once we have Step in the initial value
+        else error "Illegal state"
 
     extract (DemuxingWithDefault dacc _ mp) = do
         void $ dextract dacc
