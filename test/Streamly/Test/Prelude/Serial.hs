@@ -296,6 +296,13 @@ testGroups =
             r <- run $ S.toList $ S.groups FL.toList $ S.fromList vec
             assert $ r == group vec
 
+testGroupsByRolling :: Property
+testGroupsByRolling =
+    forAll (choose (0, maxStreamLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
+            r <- run $ S.toList $ S.groupsByRolling (==) FL.toList $ S.fromList vec
+            assert $ r == group vec
+
 -- |
 -- If the list is empty, returns Nothing,
 -- else wraps the minimum value of the list in Just.
@@ -323,6 +330,13 @@ testGroupsBySep =
                 $ S.groupsBy (>) FL.toList
                 $ S.fromList vec
             assert $ decreasing a == True
+
+groupingOps :: Spec
+groupingOps = do
+    prop "groupsBy" testGroupsBy
+    prop "S.groups = groups" testGroups
+    prop "S.groupsByRolling = groups" testGroupsByRolling
+    prop "testGroupsBySep" testGroupsBySep
 
 associativityCheck
     :: String
@@ -567,10 +581,7 @@ main = hspec
         serialOps    $ eliminationOpsOrdered S.fromFoldable "serially"
         serialOps    $ eliminationOpsOrdered folded "serially folded"
 
-    describe "Tests for S.groupsBy" $ do
-        prop "testGroupsBy" testGroupsBy
-        prop "S.groups = groups" testGroups
-        prop "testGroupsBySep" testGroupsBySep
+    describe "Tests for S.groupsBy" groupingOps
 
     describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
 
