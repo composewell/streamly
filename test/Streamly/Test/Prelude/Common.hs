@@ -127,6 +127,7 @@ import Streamly.Prelude
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Unfold as UF
 
 import Streamly.Test.Common
 
@@ -1178,6 +1179,15 @@ transformCombineOpsCommon constr desc eq t = do
         forAll (choose (0, 100)) $ \n ->
             transform (concatMap (const [1..n]))
                 t (S.concatMap (const (S.fromList [1..n])))
+    prop (desc <> " concatMapM") $
+        forAll (choose (0, 100)) $ \n ->
+            transform (concatMap (const [1..n]))
+                t (S.concatMapM (const (return $ S.fromList [1..n])))
+    prop (desc <> " concatUnfold") $
+        forAll (choose (0, 100)) $ \n ->
+            transform (concatMap (const [1..n]))
+                t (S.concatUnfold (UF.lmap (const undefined)
+                                   $ UF.supply UF.fromList [1..n]))
 
 toListFL :: Monad m => FL.Fold m a [a]
 toListFL = FL.toList
