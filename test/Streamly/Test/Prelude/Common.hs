@@ -10,7 +10,9 @@
 module Streamly.Test.Prelude.Common
     (
     -- * Construction operations
-      constructWithReplicate
+      constructWithRepeat
+    , constructWithRepeatM 
+    , constructWithReplicate
     , constructWithReplicateM
     , constructWithIntFromThenTo
 #if __GLASGOW_HASKELL__ >= 806
@@ -18,10 +20,18 @@ module Streamly.Test.Prelude.Common
 #endif
     , constructWithIterate
     , constructWithIterateM
+    , constructWithEnumerate
+    , constructWithEnumerateTo
     , constructWithFromIndices
     , constructWithFromIndicesM
+    , constructWithFromList
+    , constructWithFromListM
+    , constructWithUnfoldr
     , constructWithCons
     , constructWithConsM
+    , constructWithYield
+    , constructWithYieldM
+    , simpleOps
     -- * Applicative operations
     , applicativeOps
     , applicativeOps1
@@ -196,12 +206,12 @@ constructWithRepeat, constructWithRepeatM
 constructWithRepeat = constructWithLenM stream list
   where
     stream n = S.take n $ S.repeat 1
-    list n = return $ take n $ repeat 1
+    list n = return $ replicate n 1
 
 constructWithRepeatM = constructWithLenM stream list
   where
     stream n = S.take n $ S.repeatM (return 1)
-    list n = return $ take n $ repeat 1
+    list n = return $ replicate n 1
 
 #if __GLASGOW_HASKELL__ >= 806
 -- XXX try very small steps close to 0
@@ -408,8 +418,7 @@ constructWithYieldM listT op len =
         listEquals (==) (listT strm) list
 
 simpleProps ::
-       IsStream t
-    => (Int -> t IO Int)
+       (Int -> t IO Int)
     -> (t IO Int -> SerialT IO Int)
     -> Int
     -> Property

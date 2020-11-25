@@ -14,7 +14,7 @@ import Control.Monad ( when, forM_ )
 import Data.Function ( (&) )
 import Data.IORef ( newIORef, readIORef, writeIORef )
 import Data.Int (Int64)
-import Data.List (intercalate)
+import Data.List (group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Foreign.Storable (Storable)
 #if __GLASGOW_HASKELL__ < 808
@@ -287,7 +287,14 @@ testGroupsBy =
                     (x:_) -> x == minimum ls)
                 $ S.groupsBy (>) FL.toList
                 $ S.fromList vec
-            assert $ r == True
+            assert r
+
+testGroups :: Property
+testGroups =
+    forAll (choose (0, maxStreamLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
+            r <- run $ S.toList $ S.groups FL.toList $ S.fromList vec
+            assert $ r == group vec
 
 -- |
 -- If the list is empty, returns Nothing,
@@ -562,6 +569,7 @@ main = hspec
 
     describe "Tests for S.groupsBy" $ do
         prop "testGroupsBy" testGroupsBy
+        prop "S.groups = groups" testGroups
         prop "testGroupsBySep" testGroupsBySep
 
     describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
