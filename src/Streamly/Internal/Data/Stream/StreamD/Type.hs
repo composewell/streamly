@@ -589,8 +589,8 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
-    | GroupConsume s !fs a
-    | GroupBuffer s !fs
+    | GroupConsume s fs a
+    | GroupBuffer s fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
@@ -615,12 +615,7 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            -- XXX Move Yield to a common function
-            Yield x s -> do
-                fs' <- fstep fs x
-                case fs' of
-                    FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
-                    FL.Partial ps -> return $ Skip (GroupBuffer s ps)
+            Yield x s -> return $ Skip $ GroupConsume s fs x
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
@@ -628,7 +623,6 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
 
--- XXX Remove GroupConsume
 {-# INLINE_NORMAL foldMany1 #-}
 foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany1 (Fold fstep initial extract) (Stream step state) =
@@ -654,12 +648,7 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            -- XXX Move Yield to a common function
-            Yield x s -> do
-                fs' <- fstep fs x
-                case fs' of
-                    FL.Done b -> return $ Skip (GroupYield b (GroupStart s))
-                    FL.Partial ps -> return $ Skip (GroupBuffer s ps)
+            Yield x s -> return $ Skip $ GroupConsume s fs x
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
