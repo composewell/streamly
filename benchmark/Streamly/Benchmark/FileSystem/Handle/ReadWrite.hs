@@ -561,7 +561,7 @@ copyChunksSplitInterposeSuffix inh outh =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Storable]
--- inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
+inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 #endif
 
 -- | Words and unwords
@@ -575,7 +575,7 @@ copyChunksSplitInterpose inh outh =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Storable]
--- inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
+inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 #endif
 
 o_1_space_copy_toChunks_group_ungroup :: BenchEnv -> [Benchmark]
