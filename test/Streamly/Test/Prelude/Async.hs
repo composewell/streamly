@@ -101,6 +101,7 @@ main = hspec
     describe "Async mappend time order check" $ parallelCheck asyncly mappend
 #endif
 
+    describe "Tests for exceptions" $ asyncOps $ exceptionOps "asyncly"
     describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
 
     -- Ad-hoc tests

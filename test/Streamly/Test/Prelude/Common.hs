@@ -66,6 +66,8 @@ module Streamly.Test.Prelude.Common
     , zipMonadic
     , zipAsyncApplicative
     , zipAsyncMonadic
+    -- * Exception operations
+    , exceptionOps
     -- * MonadThrow operations
     , composeWithMonadThrow
     -- * Cleanup tests
@@ -1371,6 +1373,33 @@ parallelCheck t f = do
             `shouldReturn` [1..4]
 
     where event n = S.yieldM (threadDelay (n * 200000)) >> return n
+
+-------------------------------------------------------------------------------
+-- Exception ops
+-------------------------------------------------------------------------------
+
+exceptionOps :: IsStream t => String -> (t IO Int -> SerialT IO Int) -> Spec
+exceptionOps desc t = do
+    prop (desc <> " before") $ beforeProp t
+    prop (desc <> " after") $ afterProp t
+
+beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+beforeProp t vec = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef False
+        strm <- run $ S.toList . t $ S.before (writeIORef ioRef True) (S.fromList vec)
+        refValue <- run $ readIORef ioRef
+        assert refValue
+        assert $ sort strm == sort vec
+ 
+afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+afterProp t vec = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef False
+        strm <- run $ S.toList . t $ S.after (writeIORef ioRef True) (S.fromList vec)
+        refValue <- run $ readIORef ioRef
+        assert refValue
+        assert $ sort strm == sort vec
 
 -------------------------------------------------------------------------------
 -- Compose with MonadThrow

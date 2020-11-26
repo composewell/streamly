@@ -105,6 +105,7 @@ main = hspec
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 #endif
 
+    describe "Tests for exceptions" $ parallelOps $ exceptionOps "parallely"
     describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
 
 #ifdef DEVBUILD

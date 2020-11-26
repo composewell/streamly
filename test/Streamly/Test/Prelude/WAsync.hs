@@ -109,6 +109,7 @@ main = hspec
     -- describe "WAsync mappend time order check" $
     --     parallelCheck wAsyncly mappend
 
+    describe "Tests for exceptions" $ wAsyncOps $ exceptionOps "wAsyncly"
     describe "Composed MonadThrow wAsyncly" $ composeWithMonadThrow wAsyncly
 
     -- Ad-hoc tests

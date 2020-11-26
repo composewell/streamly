@@ -583,6 +583,8 @@ main = hspec
 
     describe "Tests for S.groupsBy" groupingOps
 
+    describe "Tests for exceptions" $ serialOps $ exceptionOps "serially"
+
     describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
 
     it "fromCallback" $ testFromCallback `shouldReturn` (50*101)

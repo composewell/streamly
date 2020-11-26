@@ -153,4 +153,5 @@ main = hspec
     describe "WSerial interleaved mappend ordering check" $
         interleaveCheck wSerially mappend
 
+    describe "Tests for exceptions" $ wSerialOps $ exceptionOps "wSerially"
     describe "Composed MonadThrow wSerially" $ composeWithMonadThrow wSerially

@@ -126,6 +126,7 @@ main = hspec
         aheadOps     $ eliminationOpsOrdered S.fromFoldable "aheadly"
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
 
+    describe "Tests for exceptions" $ aheadOps $ exceptionOps "aheadly"
     describe "Composed MonadThrow aheadly" $ composeWithMonadThrow S.aheadly
 
     -- Ad-hoc tests
