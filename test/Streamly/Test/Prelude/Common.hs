@@ -1529,6 +1529,22 @@ onExceptionProp t =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
+handleProp ::
+       IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> [Int]
+    -> Property
+handleProp t vec =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        res <-
+            run $
+            S.toList . t $
+            S.handle
+                (\(ExampleException i) -> read i `S.cons` S.fromList vec)
+                (S.serially $ S.fromList vec <> throwM (ExampleException "0"))
+        assert $ res == vec ++ [0] ++ vec
+
 exceptionOps ::
        (IsStream t, MonadThrow (t IO))
     => String
@@ -1544,6 +1560,7 @@ exceptionOps desc t = do
     prop (desc <> " finally end of stream") $ finallyProp t
     -- prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
     prop (desc <> " finally exception in stream") $ finallyExceptionProp t
+    prop (desc <> " handle") $ handleProp t
 
 -------------------------------------------------------------------------------
 -- Compose with MonadThrow
