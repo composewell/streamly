@@ -73,6 +73,8 @@ main = hspec
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
      do
+        wAsyncOps $ prop "zip applicative wAsyncly" . zipAsyncApplicative S.fromFoldable (==)
+        wAsyncOps $ prop "zip applicative wAsyncly folded" . zipAsyncApplicative folded (==)
         wAsyncOps $
             prop "zip monadic wAsyncly" . zipAsyncMonadic S.fromFoldable (==)
         wAsyncOps $ prop "zip monadic wAsyncly folded" . zipAsyncMonadic folded (==)

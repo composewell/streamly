@@ -94,6 +94,8 @@ main = hspec
         -- We test only the serial zip with serial streams and the parallel
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
+        aheadOps    $ prop "zip applicative aheadly" . zipAsyncApplicative S.fromFoldable (==)
+        aheadOps    $ prop "zip applicative aheadly folded" . zipAsyncApplicative folded (==)
         aheadOps    $ prop "zip monadic aheadly" . zipAsyncMonadic S.fromFoldable (==)
         aheadOps    $ prop "zip monadic aheadly folded" . zipAsyncMonadic folded (==)
 
