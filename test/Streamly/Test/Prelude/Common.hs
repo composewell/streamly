@@ -391,7 +391,11 @@ constructWithUnfoldr listT op len =
             else Just (seed, seed + 1)
 
 constructWithYield ::
-       IsStream t
+       (IsStream t
+#if __GLASGOW_HASKELL__ < 806
+       , Monoid (t IO Int)
+#endif
+       )
     => ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Word8
@@ -407,7 +411,11 @@ constructWithYield listT op len =
         listEquals (==) (listT strm) list
 
 constructWithYieldM ::
-       IsStream t
+       (IsStream t
+#if __GLASGOW_HASKELL__ < 806
+       , Monoid (t IO Int)
+#endif
+       )
     => ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Word8
@@ -1067,7 +1075,11 @@ transformCombineFromList constr eq listOp t op a b c =
 -- transformCombineOpsOrdered work only for ordered stream types i.e. excluding
 -- the Async type.
 transformCombineOpsCommon
-    :: (IsStream t, Semigroup (t IO Int))
+    :: (IsStream t, Semigroup (t IO Int)
+#if __GLASGOW_HASKELL__ < 806
+       , Functor (t IO)
+#endif
+       )
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
@@ -1404,7 +1416,7 @@ afterProp t vec =
         assert refValue
         assert $ sort strm == sort vec
 
-bracketProp :: (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+bracketProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 bracketProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -1444,7 +1456,11 @@ _bracketPartialStreamProp t vec =
                 assert $ refValue == 1
 
 bracketExceptionProp ::
-       (IsStream t, MonadThrow (t IO))
+       (IsStream t, MonadThrow (t IO)
+#if __GLASGOW_HASKELL__ < 806
+       , Semigroup (t IO Int)
+#endif
+       )
     => (t IO Int -> SerialT IO Int)
     -> Property
 bracketExceptionProp t =
@@ -1496,7 +1512,11 @@ _finallyPartialStreamProp t vec =
                 assert $ refValue == 1
 
 finallyExceptionProp ::
-       (IsStream t, MonadThrow (t IO))
+       (IsStream t, MonadThrow (t IO)
+#if __GLASGOW_HASKELL__ < 806
+       , Semigroup (t IO Int)
+#endif
+       )
     => (t IO Int -> SerialT IO Int)
     -> Property
 finallyExceptionProp t =
@@ -1514,7 +1534,11 @@ finallyExceptionProp t =
         assert $ refValue == 1
 
 onExceptionProp ::
-       (IsStream t, MonadThrow (t IO))
+       (IsStream t, MonadThrow (t IO)
+#if __GLASGOW_HASKELL__ < 806
+       , Semigroup (t IO Int)
+#endif
+       )
     => (t IO Int -> SerialT IO Int)
     -> Property
 onExceptionProp t =
@@ -1548,7 +1572,11 @@ handleProp t vec =
         assert $ res == vec ++ [0] ++ vec
 
 exceptionOps ::
-       (IsStream t, MonadThrow (t IO))
+       (IsStream t, MonadThrow (t IO)
+#if __GLASGOW_HASKELL__ < 806
+       , Semigroup (t IO Int)
+#endif
+       )
     => String
     -> (t IO Int -> SerialT IO Int)
     -> Spec
