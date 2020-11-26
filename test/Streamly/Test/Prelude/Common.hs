@@ -11,7 +11,7 @@ module Streamly.Test.Prelude.Common
     (
     -- * Construction operations
       constructWithRepeat
-    , constructWithRepeatM 
+    , constructWithRepeatM
     , constructWithReplicate
     , constructWithReplicateM
     , constructWithIntFromThenTo
@@ -1378,28 +1378,99 @@ parallelCheck t f = do
 -- Exception ops
 -------------------------------------------------------------------------------
 
-exceptionOps :: IsStream t => String -> (t IO Int -> SerialT IO Int) -> Spec
+beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+beforeProp t vec =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef False
+        strm <-
+            run $
+            S.toList . t $ S.before (writeIORef ioRef True) (S.fromList vec)
+        refValue <- run $ readIORef ioRef
+        assert refValue
+        assert $ sort strm == sort vec
+
+afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+afterProp t vec =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef False
+        strm <-
+            run $
+            S.toList . t $ S.after (writeIORef ioRef True) (S.fromList vec)
+        refValue <- run $ readIORef ioRef
+        assert refValue
+        assert $ sort strm == sort vec
+
+bracketProp :: (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+bracketProp t vec =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef (0 :: Int)
+        run $
+            S.drain . t $
+            S.bracket
+                (return ioRef)
+                (`writeIORef` 1)
+                (\ioref ->
+                     S.mapM
+                         (\a -> writeIORef ioref 2 >> return a)
+                         (S.fromList []))
+        refValue <- run $ readIORef ioRef
+        assert $ refValue == 1
+
+-- XXX This test fails
+_bracketPartialStreamProp ::
+       (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+_bracketPartialStreamProp t vec =
+    forAll (choose (0, length vec)) $ \len -> do
+        withMaxSuccess maxTestCount $
+            monadicIO $ do
+                ioRef <- run $ newIORef (0 :: Int)
+                run $
+                    S.drain . t $
+                    S.take len $
+                    S.bracket
+                        (return ioRef)
+                        (`writeIORef` 1)
+                        (\ioref ->
+                             S.mapM
+                                 (\a -> writeIORef ioref 2 >> return a)
+                                 (S.fromList vec))
+                run performMajorGC
+                refValue <- run $ readIORef ioRef
+                assert $ refValue == 1
+
+bracketExceptionProp ::
+       (IsStream t, MonadThrow (t IO))
+    => (t IO Int -> SerialT IO Int)
+    -> Property
+bracketExceptionProp t =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef (0 :: Int)
+        res <-
+            run $
+            try . S.drain . t $
+            S.bracket
+                (return ioRef)
+                (`writeIORef` 1)
+                (const $ throwM (ExampleException "E") <> S.nil)
+        assert $ res == Left (ExampleException "E")
+        refValue <- run $ readIORef ioRef
+        assert $ refValue == 1
+
+exceptionOps ::
+       (IsStream t, MonadThrow (t IO))
+    => String
+    -> (t IO Int -> SerialT IO Int)
+    -> Spec
 exceptionOps desc t = do
     prop (desc <> " before") $ beforeProp t
     prop (desc <> " after") $ afterProp t
-
-beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
-beforeProp t vec = withMaxSuccess maxTestCount $
-    monadicIO $ do
-        ioRef <- run $ newIORef False
-        strm <- run $ S.toList . t $ S.before (writeIORef ioRef True) (S.fromList vec)
-        refValue <- run $ readIORef ioRef
-        assert refValue
-        assert $ sort strm == sort vec
- 
-afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
-afterProp t vec = withMaxSuccess maxTestCount $
-    monadicIO $ do
-        ioRef <- run $ newIORef False
-        strm <- run $ S.toList . t $ S.after (writeIORef ioRef True) (S.fromList vec)
-        refValue <- run $ readIORef ioRef
-        assert refValue
-        assert $ sort strm == sort vec
+    prop (desc <> " bracket end of stream") $ bracketProp t
+    -- prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
+    prop (desc <> " bracket exception in stream") $ bracketExceptionProp t
 
 -------------------------------------------------------------------------------
 -- Compose with MonadThrow
