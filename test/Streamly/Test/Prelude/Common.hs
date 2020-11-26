@@ -1415,7 +1415,7 @@ bracketProp t vec =
                 (\ioref ->
                      S.mapM
                          (\a -> writeIORef ioref 2 >> return a)
-                         (S.fromList []))
+                         (S.fromList vec))
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
@@ -1460,6 +1460,75 @@ bracketExceptionProp t =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
+finallyProp :: (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+finallyProp t vec =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef (0 :: Int)
+        run $
+            S.drain . t $
+            S.finally
+                (writeIORef ioRef 1)
+                (S.mapM (\a -> writeIORef ioRef 2 >> return a) (S.fromList vec))
+        refValue <- run $ readIORef ioRef
+        assert $ refValue == 1
+
+-- XXX This test fails
+_finallyPartialStreamProp ::
+       (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+_finallyPartialStreamProp t vec =
+    forAll (choose (0, length vec)) $ \len -> do
+        withMaxSuccess maxTestCount $
+            monadicIO $ do
+                ioRef <- run $ newIORef (0 :: Int)
+                run $
+                    S.drain . t $
+                    S.take len $
+                    S.finally
+                        (writeIORef ioRef 1)
+                        (S.mapM
+                             (\a -> writeIORef ioRef 2 >> return a)
+                             (S.fromList vec))
+                run performMajorGC
+                refValue <- run $ readIORef ioRef
+                assert $ refValue == 1
+
+finallyExceptionProp ::
+       (IsStream t, MonadThrow (t IO))
+    => (t IO Int -> SerialT IO Int)
+    -> Property
+finallyExceptionProp t =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef (0 :: Int)
+        res <-
+            run $
+            try . S.drain . t $
+            S.finally
+                (writeIORef ioRef 1)
+                (throwM (ExampleException "E") <> S.nil)
+        assert $ res == Left (ExampleException "E")
+        refValue <- run $ readIORef ioRef
+        assert $ refValue == 1
+
+onExceptionProp ::
+       (IsStream t, MonadThrow (t IO))
+    => (t IO Int -> SerialT IO Int)
+    -> Property
+onExceptionProp t =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        ioRef <- run $ newIORef (0 :: Int)
+        res <-
+            run $
+            try . S.drain . t $
+            S.onException
+                (writeIORef ioRef 1)
+                (throwM (ExampleException "E") <> S.nil)
+        assert $ res == Left (ExampleException "E")
+        refValue <- run $ readIORef ioRef
+        assert $ refValue == 1
+
 exceptionOps ::
        (IsStream t, MonadThrow (t IO))
     => String
@@ -1471,6 +1540,10 @@ exceptionOps desc t = do
     prop (desc <> " bracket end of stream") $ bracketProp t
     -- prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
     prop (desc <> " bracket exception in stream") $ bracketExceptionProp t
+    prop (desc <> " onException") $ onExceptionProp t
+    prop (desc <> " finally end of stream") $ finallyProp t
+    -- prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
+    prop (desc <> " finally exception in stream") $ finallyExceptionProp t
 
 -------------------------------------------------------------------------------
 -- Compose with MonadThrow
