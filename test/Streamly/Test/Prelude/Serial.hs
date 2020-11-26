@@ -478,6 +478,9 @@ main = hspec
         --     (toListSerial mzero) `shouldReturn` ([] :: [Int])
 
     describe "Construction" $ do
+        -- Add all the construction tests for all stream types.
+        serialOps   $ prop "serially repeat" . constructWithRepeat
+        serialOps   $ prop "serially repeatM" . constructWithRepeatM
         serialOps   $ prop "serially replicate" . constructWithReplicate
         serialOps   $ prop "serially replicateM" . constructWithReplicateM
         serialOps   $ prop "serially intFromThenTo" .
@@ -489,8 +492,15 @@ main = hspec
         serialOps   $ prop "serially iterate" . constructWithIterate
         -- XXX test for all types of streams
         serialOps   $ prop "serially iterateM" . constructWithIterateM
+        serialOps $ prop "serially enumerate" . constructWithEnumerate id
+        serialOps $ prop "serially enumerateTo" . constructWithEnumerateTo id
         serialOps $ prop "serially fromIndices" . constructWithFromIndices
         serialOps $ prop "serially fromIndicesM" . constructWithFromIndicesM
+        serialOps $ prop "serially fromList" . constructWithFromList id
+        serialOps $ prop "serially fromListM" . constructWithFromListM id
+        serialOps $ prop "serially unfoldr" . constructWithUnfoldr id
+        serialOps $ prop "serially yield" . constructWithYield id
+        serialOps $ prop "serially yieldM" . constructWithYieldM id
         serialOps $ prop "serially cons" . constructWithCons S.cons
         serialOps $ prop "serially consM" . constructWithConsM S.consM id
         serialOps $ prop "serially (.:)" . constructWithCons (S..:)
@@ -499,6 +509,8 @@ main = hspec
         describe "From Generators" $ do
             prop "unfold" unfold
             prop "unfold0" unfold0
+
+    describe "Simple Operations" $ serialOps simpleOps
 
     describe "Functor operations" $ do
         serialOps    $ functorOps S.fromFoldable "serially" (==)

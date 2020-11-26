@@ -70,6 +70,9 @@ main = hspec
 #endif
 
     describe "Construction" $ do
+        wSerialOps  $ prop "wSerially repeat" . constructWithRepeat
+        wSerialOps  $ prop "wSerially repeatM" . constructWithRepeatM
+        wSerialOps  $ prop "wSerially replicateM" . constructWithReplicate
         wSerialOps  $ prop "wSerially replicateM" . constructWithReplicateM
         wSerialOps $ prop "wSerially cons" . constructWithCons S.cons
         wSerialOps $ prop "wSerially consM" . constructWithConsM S.consM id

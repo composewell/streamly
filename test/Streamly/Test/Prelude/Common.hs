@@ -338,8 +338,10 @@ constructWithEnumerateTo ::
 constructWithEnumerateTo listT op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
-        strm <- run $ S.toList . op $ S.enumerateTo (fromIntegral len)
-        let list = enumFromTo minBound (fromIntegral len)
+        -- It takes forever to enumerate from minBound to len, so
+        -- instead we just do till len elements
+        strm <- run $ S.toList . op $ S.enumerateTo (minBound + fromIntegral len)
+        let list = enumFromTo minBound (minBound + fromIntegral len)
         listEquals (==) (listT strm) list
 
 constructWithFromList ::
