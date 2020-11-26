@@ -12,7 +12,7 @@ module Streamly.Test.Prelude.Serial where
 import Control.Concurrent ( threadDelay )
 import Control.Monad ( when, forM_ )
 import Data.Function ( (&) )
-import Data.IORef ( newIORef, readIORef, writeIORef )
+import Data.IORef ( newIORef, readIORef, writeIORef, modifyIORef' )
 import Data.Int (Int64)
 import Data.List (group, intercalate)
 import Data.Maybe ( isJust, fromJust )
@@ -574,6 +574,18 @@ main = hspec
         serialOps    $ eliminationOps folded "serially folded"
         serialOps    $ eliminationOpsWord8 S.fromFoldable "serially"
         serialOps    $ eliminationOpsWord8 folded "serially folded"
+        serialOps $ \t ->
+            prop "drainWhile (> 0)" $ \n ->
+                withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    let xs = [1..n]
+                    ioRef <- run $ newIORef ([] :: [Int])
+                    run $
+                        S.drainWhile (> 0) . t $
+                        S.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
+                        S.fromList xs
+                    strm <- run $ readIORef ioRef
+                    listEquals (==) (reverse strm) (takeWhile (> 0) xs)
 
     -- XXX Add a test where we chain all transformation APIs and make sure that
     -- the state is being passed through all of them.
