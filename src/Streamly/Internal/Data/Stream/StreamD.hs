@@ -2368,6 +2368,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                 let next = SplitOnSuffixSeqKRDone (n - 1) fs1 rb rh1
                 skip $ SplitOnSuffixSeqYield r next
 
+{-# ANN type SplitState Fuse #-}
 data SplitState s arr
     = SplitInitial s
     | SplitBuffering s arr
@@ -3004,6 +3005,7 @@ gintercalateSuffix
     step _ (ICUSecondOnly _s2) = undefined
     step _ (ICUSecondOnlyInner _s2 _i2) = undefined
 
+{-# ANN type InterposeSuffixState Fuse #-}
 data InterposeSuffixState s1 i1 =
       InterposeSuffixFirst s1
     -- | InterposeSuffixFirstYield s1 i1
@@ -3186,6 +3188,7 @@ gintercalate
         return $ Yield x (ICALFirstInner s1 s2 i1 i2)
     -}
 
+{-# ANN type InterposeState Fuse #-}
 data InterposeState s1 i1 a =
       InterposeFirst s1
     -- | InterposeFirstYield s1 i1

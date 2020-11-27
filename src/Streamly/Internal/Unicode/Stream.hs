@@ -74,6 +74,7 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Storable (Storable(..))
+import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (assert, unsafeChr)
 import GHC.ForeignPtr (ForeignPtr (..))
 import GHC.IO.Encoding.Failure (isSurrogate)
@@ -248,6 +249,7 @@ decode1 table state codep byte =
 --
 data DecodeError = DecodeError !DecodeState !CodePoint deriving Show
 
+{-# ANN type FreshPoint Fuse #-}
 data FreshPoint s a
     = FreshPointDecodeInit s
     | FreshPointDecodeInit1 s Word8
@@ -441,6 +443,7 @@ decodeUtf8EitherD :: Monad m
     => Stream m Word8 -> Stream m (Either DecodeError Char)
 decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 
+{-# ANN type FlattenState Fuse #-}
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s (ForeignPtr a) !(Ptr a) !(Ptr a)
@@ -579,6 +582,7 @@ decodeUtf8ArraysD_ ::
     -> Stream m Char
 decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
 
+{-# ANN type EncodeState Fuse #-}
 data EncodeState s = EncodeState s !WList
 
 -- More yield points improve performance, but I am not sure if they can cause
