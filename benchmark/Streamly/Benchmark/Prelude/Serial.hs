@@ -1318,9 +1318,8 @@ groupsByGT = S.drain . S.groupsBy (>) FL.drain
 
 {-# INLINE groupsByEq #-}
 groupsByEq :: MonadIO m => SerialT m Int -> m ()
-groupsByEq = S.drain . S.groupsBy (>) FL.drain
+groupsByEq = S.drain . S.groupsBy (==) FL.drain
 
--- XXX Change this test when the order of comparison is later changed
 {-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: MonadIO m => SerialT m Int -> m ()
 groupsByRollingLT =
@@ -1329,11 +1328,10 @@ groupsByRollingLT =
 {-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: MonadIO m => SerialT m Int -> m ()
 groupsByRollingEq =
-    S.drain . S.groupsByRolling (>) FL.drain
+    S.drain . S.groupsByRolling (==) FL.drain
 
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
-    -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
         [ benchIOSink value "groups" groups
         , benchIOSink value "groupsByGT" groupsByGT
@@ -2108,6 +2106,9 @@ main = do
             , o_1_space_transformations_mixedX4 size
             , o_1_space_indexing size
             , o_1_space_indexingX4 size
+
+            -- grouping
+            , o_1_space_grouping size
 
             -- pipes
             , o_1_space_pipes size
