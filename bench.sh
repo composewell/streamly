@@ -195,7 +195,7 @@ set_benchmarks() {
 find_report_prog() {
     local prog_name="chart"
     hash -r
-    local prog_path=$($WHICH_COMMAND $prog_name)
+    local prog_path=$($WHICH_COMMAND_REPORT $prog_name)
     if test -x "$prog_path"
     then
       echo $prog_path
@@ -206,7 +206,7 @@ find_report_prog() {
 
 build_report_prog() {
     local prog_name="chart"
-    local prog_path=$($WHICH_COMMAND $prog_name)
+    local prog_path=$($WHICH_COMMAND_REPORT $prog_name)
 
     hash -r
     if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
@@ -437,8 +437,37 @@ CABAL_BUILD_FLAGS=""
 
 GHC_VERSION=$(ghc --numeric-version)
 
+CABAL_EXECUTABLE=cabal
+
+# Use branch specific builds if git-cabal is present in PATH
+BUILD_DIR=dist-newstyle
+if which git-cabal 2>/dev/null
+then
+  echo "Using git-cabal for branch specific builds"
+  CABAL_EXECUTABLE=git-cabal
+  BUILD_DIR=$(git-cabal show-builddir)
+fi
+
+# $1: builddir
+# $2: command to find
+cabal_which_builddir() {
+  find $1 -type f -path "*${GHC_VERSION}/streamly-benchmarks*/$2" 2>/dev/null
+}
+
 cabal_which() {
-  find dist-newstyle -type f -path "*${GHC_VERSION}/streamly-benchmarks*/$1"
+  cabal_which_builddir $BUILD_DIR $1
+}
+
+# chart is expensive to build and usually not required to be rebuilt,
+# use master branch as fallback
+cabal_which_report() {
+  local path=$(cabal_which $1)
+  if test -z "$path"
+  then
+    cabal_which_builddir dist-newstyle $1
+  else
+    echo $path
+  fi
 }
 
 #-----------------------------------------------------------------------------
@@ -537,6 +566,7 @@ echo "Using benchmark suites [$BENCHMARKS]"
 if test "$USE_STACK" = "1"
 then
   WHICH_COMMAND="stack exec which"
+  WHICH_COMMAND_REPORT="stack exec which"
   BUILD_CHART_EXE="stack build --flag streamly:dev"
   GET_BENCH_PROG=stack_bench_prog
   BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
@@ -544,9 +574,10 @@ else
   # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
   #WHICH_COMMAND="cabal v2-exec which"
   WHICH_COMMAND=cabal_which
-  BUILD_CHART_EXE="cabal v2-build --flags dev chart"
+  WHICH_COMMAND_REPORT=cabal_which_report
+  BUILD_CHART_EXE="$CABAL_EXECUTABLE v2-build --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
-  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
+  BUILD_BENCH="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
 fi
 
 #-----------------------------------------------------------------------------
