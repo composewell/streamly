@@ -3,7 +3,24 @@ cradle:
     - path: "./benchmark"
       config:
         cradle:
-          none:
+          cabal:
+            - path: "./benchmark/lib/"
+              component: "lib:streamly-benchmarks"
+
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Elimination.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Generation.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Nested.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Transformation1.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Transformation2.hs"
+              component: "bench:Prelude.Serial"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Transformation3.hs"
+              component: "bench:Prelude.Serial"
     - path: "./examples"
       config:
         cradle:

@@ -115,6 +115,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
     benchmark/Streamly/Benchmark/Prelude/*.hs
+    benchmark/Streamly/Benchmark/Prelude/Serial/*.hs
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/streamly-benchmarks.cabal
     bin/bench-exec-one.sh

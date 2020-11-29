@@ -50,10 +50,16 @@ bench_rts_opts_specific () {
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
 
+    # XXX These should be moved to o-n-space?
+    Prelude.Serial/o-n-heap/grouping/classifySessionsOf) echo -n "-K1M -M32M" ;;
+    Prelude.Serial/o-n-heap/Functor/*) echo -n "-K4M -M32M" ;;
+    Prelude.Serial/o-n-heap/transformer/*) echo -n "-K8M -M64M" ;;
+
     Prelude.Serial/o-n-space/Functor/*) echo -n "-K4M -M64M" ;;
     Prelude.Serial/o-n-space/Applicative/*) echo -n "-K8M -M128M" ;;
     Prelude.Serial/o-n-space/Monad/*) echo -n "-K8M -M64M" ;;
-    Prelude.Serial/o-n-heap/transformer/*) echo -n "-K8M -M64M" ;;
+
+    # Use -K4M for o-n-space except for grouping
     Prelude.Serial/o-n-space/grouping/*) echo -n "" ;;
     Prelude.Serial/o-n-space/*) echo -n "-K4M" ;;
 
