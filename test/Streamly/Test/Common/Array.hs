@@ -16,12 +16,10 @@ import Foreign.Storable (Storable(..))
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
-
 import Test.Hspec as H
 
 import Streamly.Prelude (SerialT)
 import qualified Streamly.Prelude as S
-
 #ifdef TEST_SMALL_ARRAY
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
@@ -125,12 +123,31 @@ testFromStreamNUnfold = genericTestFromTo A.fromStreamN (S.unfold A.read) (==)
 testFromStreamNToStream :: Property
 testFromStreamNToStream = genericTestFromTo A.fromStreamN A.toStream (==)
 
+testFromListN :: Property
+testFromListN =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (choose (0, len)) $ \n ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromListN n list
+                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    assert (xs == take n list)
+
 #ifndef TEST_SMALL_ARRAY
 testFromStreamToStream :: Property
 testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
 
 testFoldUnfold :: Property
 testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
+
+testFromList :: Property
+testFromList =
+    forAll (choose (0, maxArrLen)) $ \len ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromList list
+                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    assert (xs == list)
 #endif
 
 #if defined(TEST_ARRAY) ||\
@@ -202,10 +219,13 @@ main =
             prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
             prop "read . fromStreamN === id" testFromStreamNUnfold
             prop "toStream . fromStreamN === id" testFromStreamNToStream
+            prop "First N elements of a list" testFromListN
+
 #ifndef TEST_SMALL_ARRAY
             prop "length . fromStream === n" testLengthFromStream
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
+            prop "From a list" testFromList
 #endif
 
 #if defined(TEST_ARRAY) ||\
