@@ -232,7 +232,7 @@ benchmark Prelude.WAsync
 benchmark Prelude.Parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M1000M -RTS
+  ghc-options: +RTS -M2000M -RTS
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Parallel.hs
   if impl(ghcjs)
