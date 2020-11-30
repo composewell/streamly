@@ -446,19 +446,21 @@ unfoldrM next state = Stream step state
 unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
 unfoldr f = unfoldrM (return . f)
 
+data UnfoldState s = UnfoldNothing | UnfoldJust s
+
 -- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
 --
 {-# INLINE_NORMAL unfold #-}
 unfold :: Monad m => Unfold m a b -> a -> Stream m b
-unfold (Unfold ustep inject) seed = Stream step Nothing
+unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
   where
     {-# INLINE_LATE step #-}
-    step _ Nothing = inject seed >>= return . Skip . Just
-    step _ (Just st) = do
+    step _ UnfoldNothing = inject seed >>= return . Skip . UnfoldJust
+    step _ (UnfoldJust st) = do
         r <- ustep st
         return $ case r of
-            Yield x s -> Yield x (Just s)
-            Skip s    -> Skip (Just s)
+            Yield x s -> Yield x (UnfoldJust s)
+            Skip s    -> Skip (UnfoldJust s)
             Stop      -> Stop
 
 ------------------------------------------------------------------------------
@@ -1657,27 +1659,30 @@ splitSuffixBy :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitSuffixBy predicate f = foldMany1 (FL.sliceSepBy predicate f)
 
+data WordsByState s = WordsByJust s | WordsByNothing
+
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+wordsBy predicate f (Stream step state) =
+    Stream (stepOuter f) (WordsByJust state)
 
     where
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st) = do
+    stepOuter (Fold fstep initial done) gst (WordsByJust st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 if predicate x
-                then return $ Skip (Just s)
+                then return $ Skip (WordsByJust s)
                 else do
                     fs <- initial
                     sfs <- fstep fs x
                     case sfs of
                         FL.Partial fs1 -> go SPEC s fs1
-                        FL.Done fb -> return $ Yield fb (Just s)
+                        FL.Done fb -> return $ Yield fb (WordsByJust s)
 
-            Skip s    -> return $ Skip $ Just s
+            Skip s    -> return $ Skip $ WordsByJust s
             Stop      -> return Stop
 
         where
@@ -1687,16 +1692,16 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
+                    then done acc >>= \r -> return $ Yield r (WordsByJust s)
                     else do
                         sfs <- fstep acc x
                         case sfs of
                             FL.Partial fs1 -> go SPEC s fs1
-                            FL.Done fb -> return $ Yield fb (Just s)
+                            FL.Done fb -> return $ Yield fb (WordsByJust s)
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
+                Stop -> done acc >>= \r -> return $ Yield r WordsByNothing
 
-    stepOuter _ _ Nothing = return Stop
+    stepOuter _ _ WordsByNothing = return Stop
 
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
