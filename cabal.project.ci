@@ -8,4 +8,4 @@ package streamly
 
 package streamly-benchmarks
   ghc-options: -Werror
-  flags: inspection
+  flags: inspection fusion-plugin
