@@ -88,7 +88,7 @@ module Streamly.Test.Prelude.Common
 import Control.Applicative (ZipList(..), liftA2)
 import Control.Exception (Exception, try)
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Data.Function ((&))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
@@ -1433,10 +1433,9 @@ bracketProp t vec =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
--- XXX This test fails
-_bracketPartialStreamProp ::
+bracketPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
-_bracketPartialStreamProp t vec =
+bracketPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
         withMaxSuccess maxTestCount $
             monadicIO $ do
@@ -1445,15 +1444,18 @@ _bracketPartialStreamProp t vec =
                     S.drain . t $
                     S.take len $
                     S.bracket
-                        (return ioRef)
-                        (`writeIORef` 1)
+                        (writeIORef ioRef 1 >> return ioRef)
+                        (`writeIORef` 3)
                         (\ioref ->
                              S.mapM
                                  (\a -> writeIORef ioref 2 >> return a)
                                  (S.fromList vec))
-                run performMajorGC
+                run $ do
+                    performMajorGC
+                    threadDelay 10000
                 refValue <- run $ readIORef ioRef
-                assert $ refValue == 1
+                when (refValue /= 0 && refValue /= 3) $
+                    error $ "refValue == " ++ show refValue
 
 bracketExceptionProp ::
        (IsStream t, MonadThrow (t IO)
@@ -1491,10 +1493,9 @@ finallyProp t vec =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
--- XXX This test fails
-_finallyPartialStreamProp ::
+finallyPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
-_finallyPartialStreamProp t vec =
+finallyPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
         withMaxSuccess maxTestCount $
             monadicIO $ do
@@ -1503,13 +1504,16 @@ _finallyPartialStreamProp t vec =
                     S.drain . t $
                     S.take len $
                     S.finally
-                        (writeIORef ioRef 1)
+                        (writeIORef ioRef 2)
                         (S.mapM
-                             (\a -> writeIORef ioRef 2 >> return a)
+                             (\a -> writeIORef ioRef 1 >> return a)
                              (S.fromList vec))
-                run performMajorGC
+                run $ do
+                    performMajorGC
+                    threadDelay 10000
                 refValue <- run $ readIORef ioRef
-                assert $ refValue == 1
+                when (refValue /= 0 && refValue /= 2) $
+                    error $ "refValue == " ++ show refValue
 
 finallyExceptionProp ::
        (IsStream t, MonadThrow (t IO)
@@ -1584,11 +1588,11 @@ exceptionOps desc t = do
     prop (desc <> " before") $ beforeProp t
     prop (desc <> " after") $ afterProp t
     prop (desc <> " bracket end of stream") $ bracketProp t
-    -- prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
+    prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
     prop (desc <> " bracket exception in stream") $ bracketExceptionProp t
     prop (desc <> " onException") $ onExceptionProp t
     prop (desc <> " finally end of stream") $ finallyProp t
-    -- prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
+    prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
     prop (desc <> " finally exception in stream") $ finallyExceptionProp t
     prop (desc <> " handle") $ handleProp t
 
