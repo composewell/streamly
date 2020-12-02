@@ -156,8 +156,7 @@ import Data.Functor.Identity (runIdentity)
 import Data.IntMap.Lazy (IntMap)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.List.NonEmpty (NonEmpty)
-
-#if __GLASGOW_HASKELL__ < 808
+#if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8, Word32)
@@ -230,18 +229,8 @@ setFlag mask status cfg@Config{..} =
     in cfg {createFlags = flags}
 
 -------------------------------------------------------------------------------
--- Utilities
+-- Settings
 -------------------------------------------------------------------------------
-
--- XXX we really do not know the path encoding, all we know is that it is "/"
--- separated bytes. So these may fail or convert the path in an unexpected
--- manner. We should ultimately remove all usage of these.
-
-toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
-
-utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
 
 -- | Watch the whole directory tree recursively instead of watching just one
 -- level of directory.
@@ -252,10 +241,6 @@ utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
 --
 setRecursiveMode :: Bool -> Config -> Config
 setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
-
--------------------------------------------------------------------------------
--- Settings
--------------------------------------------------------------------------------
 
 foreign import capi
     "sys/inotify.h value IN_DONT_FOLLOW" iN_DONT_FOLLOW :: Word32
@@ -537,7 +522,10 @@ defaultConfig :: Config
 defaultConfig =
       setWhenExists AddIfExists
     $ setAllEvents On
-    $ Config {watchRec = True, createFlags = 0}
+    $ Config
+        { watchRec = True
+        , createFlags = 0
+        }
 
 -------------------------------------------------------------------------------
 -- Open an event stream
@@ -597,6 +585,15 @@ foreign import ccall unsafe
     "sys/inotify.h inotify_add_watch" c_inotify_add_watch
         :: CInt -> CString -> CUInt -> IO CInt
 
+-- XXX we really do not know the path encoding, all we know is that it is "/"
+-- separated bytes. So these may fail or convert the path in an unexpected
+-- manner. We should ultimately remove all usage of these.
+
+toUtf8 :: MonadIO m => String -> m (Array Word8)
+toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
+
+utf8ToString :: Array Word8 -> String
+utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
 
 #if !MIN_VERSION_base(4,10,0)
 -- | Turn an existing Handle into a file descriptor. This function throws an

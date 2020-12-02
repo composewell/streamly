@@ -31,8 +31,6 @@ import System.IO.Unsafe (unsafePerformIO)
 #endif
 import Streamly.Internal.Data.Array.Storable.Foreign (Array)
 
-import Test.Hspec
-
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
 import qualified Streamly.Unicode.Stream as Unicode
@@ -54,6 +52,8 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 import Data.Functor.Identity (runIdentity)
 import qualified Streamly.Internal.Unicode.Stream as U
 #endif
+
+import Test.Hspec
 
 -------------------------------------------------------------------------------
 -- Utilities
