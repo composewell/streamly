@@ -164,6 +164,7 @@ import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
@@ -177,7 +178,7 @@ import Prelude hiding (concatMap)
 -- represents a new intermediate value available to be extracted. @Done@
 -- represents that the fold has been terminated and won't be processed
 -- further.
--- {-# ANN type Step Fuse #-}
+{-# ANN type Step Fuse #-}
 data Step s b
     = Partial !s
     | Done !b
