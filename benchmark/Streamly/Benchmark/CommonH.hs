@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Handle.Common
+module Streamly.Benchmark.CommonH
     ( BenchEnv (..)
     , RefHandles (..)
     , scratchDir
@@ -30,6 +30,7 @@ module Handle.Common
     , mkBenchSmall
     , isSpace
     , isSp
+    , mkBenchEnv
     )
 where
 
@@ -40,6 +41,12 @@ import System.IO (openFile, IOMode(..), Handle, hClose)
 
 import Data.IORef
 import Gauge hiding (env)
+
+import System.Directory (getFileSize)
+import System.Environment (lookupEnv)
+-- import System.IO (openFile, IOMode(..))
+import System.Process.Typed (shell, runProcess_)
+import Prelude hiding (last, length)
 
 scratchDir :: String
 scratchDir = "benchmark-tmp/"
@@ -152,3 +159,58 @@ isSpace c
 {-# INLINE isSp #-}
 isSp :: Word8 -> Bool
 isSp = isSpace . chr . fromIntegral
+
+smallFileSize :: Int
+smallFileSize = 10 * 1024 * 1024
+
+bigFileSize :: Int
+bigFileSize = 100 * 1024 * 1024
+
+-- Function to create a BenchEnv
+mkBenchEnv :: String -> IO BenchEnv
+mkBenchEnv envName = do
+    r <- lookupEnv envName
+    (small, big) <-
+        case r of
+            Just inFileName -> return (inFileName, inFileName)
+            Nothing -> do
+                -- XXX will this work on windows/msys?
+                let cmd infile size =
+                        "mkdir -p " ++ scratchDir
+                            ++ "; test -e " ++ infile
+                            ++ " || { echo \"creating input file " ++ infile
+                            ++ "\" && head -c " ++ show size
+                            ++ " </dev/urandom >" ++ infile
+                            ++ ";}"
+                runProcess_ (shell (cmd inFileSmall smallFileSize))
+                runProcess_ (shell (cmd inFileBig bigFileSize))
+                return (inFileSmall, inFileBig)
+
+    putStrLn $ "Using small input file: " ++ small
+    smallHandle <- openFile small ReadMode
+
+    putStrLn $ "Using big input file: " ++ big
+    bigHandle <- openFile big ReadMode
+
+    putStrLn $ "Using output file: " ++ outfile
+    outHandle <- openFile outfile WriteMode
+    devNull <- openFile "/dev/null" WriteMode
+
+    ssize <- fromIntegral <$> getFileSize small
+    bsize <- fromIntegral <$> getFileSize big
+
+    ref <- newIORef $ RefHandles
+        { smallInH = smallHandle
+        , bigInH = bigHandle
+        , outputH = outHandle
+        }
+
+    let env = BenchEnv
+            { href = ref
+            , smallSize = ssize
+            , bigSize = bsize
+            , nullH = devNull
+            , smallInFile = small
+            , bigInFile = big
+            }
+    return env

@@ -156,7 +156,7 @@ common bench-options-threaded
 benchmark Prelude.Serial
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
+  hs-source-dirs: . Streamly/Benchmark/Prelude 
   main-is: Serial.hs
   other-modules:
         Serial.Generation
@@ -165,10 +165,16 @@ benchmark Prelude.Serial
       , Serial.Transformation2
       , Serial.Transformation3
       , Serial.Nested
+      , Serial.Exceptions
+      ,Streamly.Benchmark.CommonH
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
+ build-depends:
+      typed-process     >= 0.2.3 && < 0.3
+    , directory         >= 1.2.2 && < 1.4
+    , ghc-prim          >= 0.4   && < 0.7 
 
 benchmark Prelude.WSerial
   import: bench-options
@@ -248,10 +254,15 @@ benchmark Data.Unfold
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unfold.hs
   other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
+                ,Streamly.Benchmark.CommonH
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
+  build-depends:
+      typed-process     >= 0.2.3 && < 0.3
+    , directory         >= 1.2.2 && < 1.4
+    , ghc-prim          >= 0.4   && < 0.7 
 
 benchmark Data.Fold
   import: bench-options
@@ -438,12 +449,13 @@ benchmark FileSystem.Handle
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: +RTS -M3000M -RTS
-  hs-source-dirs: Streamly/Benchmark/FileSystem
+  hs-source-dirs: . Streamly/Benchmark/FileSystem
   main-is: Handle.hs
   other-modules:
       Handle.Read
     , Handle.ReadWrite
-    , Handle.Common
+    -- , Handle.Common
+    , Streamly.Benchmark.CommonH
   build-depends:
       typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
