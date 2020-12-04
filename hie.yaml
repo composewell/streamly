@@ -7,6 +7,9 @@ cradle:
             - path: "./benchmark/lib/"
               component: "lib:streamly-benchmarks"
 
+            - path: "./benchmark/Streamly/Benchmark/Data/Fold.hs"
+              component: "bench:Data.Fold"
+
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial.hs"
               component: "bench:Prelude.Serial"
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Elimination.hs"
