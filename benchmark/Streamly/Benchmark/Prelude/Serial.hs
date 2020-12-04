@@ -17,9 +17,12 @@ import qualified Serial.Transformation1 as Transformation1
 import qualified Serial.Transformation2 as Transformation2
 import qualified Serial.Transformation3 as Transformation3
 import qualified Serial.Nested as Nested
+import qualified Serial.Exceptions as Exceptions
 
 import Gauge
 import Streamly.Benchmark.Common
+
+import Streamly.Benchmark.CommonH
 
 moduleName :: String
 moduleName = "Prelude.Serial"
@@ -34,8 +37,9 @@ moduleName = "Prelude.Serial"
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
-
+    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value <>
+                                                Exceptions.allBenchmarks env)
     where
 
     allBenchmarks size = Prelude.concat

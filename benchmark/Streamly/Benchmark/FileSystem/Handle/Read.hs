@@ -50,7 +50,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
-import Handle.Common
+-- import Handle.Common
+import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
