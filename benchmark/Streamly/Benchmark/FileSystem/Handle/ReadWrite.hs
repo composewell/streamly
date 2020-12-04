@@ -41,7 +41,8 @@ import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
-import Handle.Common
+-- import Handle.Common
+import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
@@ -90,87 +91,6 @@ o_1_space_copy_chunked env =
             copyChunks inH outH
         , mkBenchSmall "decodeEncodeUtf8Lenient" env $ \inH outH ->
             copyCodecUtf8ArraysLenient inH outH
-        ]
-    ]
-
--- TBD reading with unfold
-
--------------------------------------------------------------------------------
--- Exceptions readChunks
--------------------------------------------------------------------------------
-
--- | Send the file contents to /dev/null with exception handling
-readChunksOnException :: Handle -> Handle -> IO ()
-readChunksOnException inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readChunksOnException
--- inspect $ 'readChunksOnException `hasNoType` ''Step
-#endif
-
--- | Send the file contents to /dev/null with exception handling
-readChunksBracket_ :: Handle -> Handle -> IO ()
-readChunksBracket_ inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readChunksBracket_
--- inspect $ 'readChunksBracket `hasNoType` ''Step
-#endif
-
-readChunksBracket :: Handle -> Handle -> IO ()
-readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
-
-o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_readChunks env =
-    [ bgroup "copy/readChunks/exceptions"
-        [ mkBench "UF.onException" env $ \inH _ ->
-            readChunksOnException inH (nullH env)
-        , mkBench "UF.bracket_" env $ \inH _ ->
-            readChunksBracket_ inH (nullH env)
-        , mkBench "UF.bracket" env $ \inH _ ->
-            readChunksBracket inH (nullH env)
-        ]
-    ]
-
--------------------------------------------------------------------------------
--- Exceptions toChunks
--------------------------------------------------------------------------------
-
--- | Send the file contents to /dev/null with exception handling
-toChunksBracket_ :: Handle -> Handle -> IO ()
-toChunksBracket_ inh devNull =
-    let readEx = IP.bracket_
-            (return ())
-            (\_ -> hClose inh)
-            (\_ -> IFH.toChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksBracket_
--- inspect $ 'toChunksBracket `hasNoType` ''Step
-#endif
-
-toChunksBracket :: Handle -> Handle -> IO ()
-toChunksBracket inh devNull =
-    let readEx = S.bracket
-            (return ())
-            (\_ -> hClose inh)
-            (\_ -> IFH.toChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
-
-o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "copy/toChunks/exceptions"
-        [ mkBench "S.bracket_" env $ \inH _ ->
-            toChunksBracket_ inH (nullH env)
-        , mkBench "S.bracket" env $ \inH _ ->
-            toChunksBracket inH (nullH env)
         ]
     ]
 
@@ -384,185 +304,6 @@ o_1_space_copy env =
     ]
 
 -------------------------------------------------------------------------------
--- unfold exceptions
--------------------------------------------------------------------------------
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteOnExceptionUnfold #-}
-readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteOnExceptionUnfold inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
--- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''Step
-#endif
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteHandleExceptionUnfold #-}
-readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteHandleExceptionUnfold inh devNull =
-    let handler (_e :: SomeException) = hClose inh >> return 10
-        readEx = IUF.handle (IUF.singletonM handler) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
--- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''Step
-#endif
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteFinally_Unfold #-}
-readWriteFinally_Unfold :: Handle -> Handle -> IO ()
-readWriteFinally_Unfold inh devNull =
-    let readEx = IUF.finally_ (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
--- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
-#endif
-
-{-# NOINLINE readWriteFinallyUnfold #-}
-readWriteFinallyUnfold :: Handle -> Handle -> IO ()
-readWriteFinallyUnfold inh devNull =
-    let readEx = IUF.finally (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteBracket_Unfold #-}
-readWriteBracket_Unfold :: Handle -> Handle -> IO ()
-readWriteBracket_Unfold inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
--- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
-#endif
-
-{-# NOINLINE readWriteBracketUnfold #-}
-readWriteBracketUnfold :: Handle -> Handle -> IO ()
-readWriteBracketUnfold inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
-o_1_space_copy_read_exceptions env =
-    [ bgroup "copy/read/exceptions"
-       [ mkBenchSmall "UF.onException" env $ \inh _ ->
-           readWriteOnExceptionUnfold inh (nullH env)
-       , mkBenchSmall "UF.handle" env $ \inh _ ->
-           readWriteHandleExceptionUnfold inh (nullH env)
-       , mkBenchSmall "UF.finally_" env $ \inh _ ->
-           readWriteFinally_Unfold inh (nullH env)
-       , mkBenchSmall "UF.finally" env $ \inh _ ->
-           readWriteFinallyUnfold inh (nullH env)
-       , mkBenchSmall "UF.bracket_" env $ \inh _ ->
-           readWriteBracket_Unfold inh (nullH env)
-       , mkBenchSmall "UF.bracket" env $ \inh _ ->
-           readWriteBracketUnfold inh (nullH env)
-        ]
-    ]
-
--------------------------------------------------------------------------------
--- stream exceptions
--------------------------------------------------------------------------------
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteOnExceptionStream #-}
-readWriteOnExceptionStream :: Handle -> Handle -> IO ()
-readWriteOnExceptionStream inh devNull =
-    let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteHandleExceptionStream #-}
-readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
-readWriteHandleExceptionStream inh devNull =
-    let handler (_e :: SomeException) = S.yieldM (hClose inh >> return 10)
-        readEx = S.handle handler (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
-
--- | Send the file contents to /dev/null with exception handling
-{-# NOINLINE readWriteFinally_Stream #-}
-readWriteFinally_Stream :: Handle -> Handle -> IO ()
-readWriteFinally_Stream inh devNull =
-    let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) readEx
-
-{-# NOINLINE readWriteFinallyStream #-}
-readWriteFinallyStream :: Handle -> Handle -> IO ()
-readWriteFinallyStream inh devNull =
-    let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) readEx
-
--- | Send the file contents to /dev/null with exception handling
-fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
-fromToBytesBracket_Stream inh devNull =
-    let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toBytes inh)
-    in IFH.fromBytes devNull $ readEx
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
--- inspect $ 'fromToBytesBracketStream `hasNoType` ''Step
-#endif
-
-fromToBytesBracketStream :: Handle -> Handle -> IO ()
-fromToBytesBracketStream inh devNull =
-    let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toBytes inh)
-    in IFH.fromBytes devNull $ readEx
-
-{-# NOINLINE readWriteBeforeAfterStream #-}
-readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
-readWriteBeforeAfterStream inh devNull =
-    let readEx =
-            IP.after (hClose inh)
-                $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
-
-{-# NOINLINE readWriteAfterStream #-}
-readWriteAfterStream :: Handle -> Handle -> IO ()
-readWriteAfterStream inh devNull =
-    let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
-
-{-# NOINLINE readWriteAfter_Stream #-}
-readWriteAfter_Stream :: Handle -> Handle -> IO ()
-readWriteAfter_Stream inh devNull =
-    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
-
-o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
-o_1_space_copy_stream_exceptions env =
-    [ bgroup "copy/read/exceptions"
-       [ mkBenchSmall "S.onException" env $ \inh _ ->
-           readWriteOnExceptionStream inh (nullH env)
-       , mkBenchSmall "S.handle" env $ \inh _ ->
-           readWriteHandleExceptionStream inh (nullH env)
-       , mkBenchSmall "S.finally_" env $ \inh _ ->
-           readWriteFinally_Stream inh (nullH env)
-       , mkBenchSmall "S.finally" env $ \inh _ ->
-           readWriteFinallyStream inh (nullH env)
-       , mkBenchSmall "S.after . S.before" env $ \inh _ ->
-           readWriteBeforeAfterStream inh (nullH env)
-       , mkBenchSmall "S.after" env $ \inh _ ->
-           readWriteAfterStream inh (nullH env)
-       , mkBenchSmall "S.after_" env $ \inh _ ->
-           readWriteAfter_Stream inh (nullH env)
-       ]
-    , bgroup "copy/fromToBytes/exceptions"
-       [ mkBenchSmall "S.bracket_" env $ \inh _ ->
-           fromToBytesBracket_Stream inh (nullH env)
-       , mkBenchSmall "S.bracket" env $ \inh _ ->
-           fromToBytesBracketStream inh (nullH env)
-        ]
-    ]
-
--------------------------------------------------------------------------------
 -- copy with group/ungroup transformations
 -------------------------------------------------------------------------------
 
@@ -725,13 +466,9 @@ o_1_space_copy_read_group_ungroup env =
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env = Prelude.concat
     [ o_1_space_copy_chunked env
-    , o_1_space_copy_exceptions_readChunks env
-    , o_1_space_copy_exceptions_toChunks env
     , o_1_space_copy_read env
     , o_1_space_copy_fromBytes env
     , o_1_space_copy env
-    , o_1_space_copy_read_exceptions env
-    , o_1_space_copy_stream_exceptions env
     , o_1_space_copy_toChunks_group_ungroup env
     , o_1_space_copy_read_group_ungroup env
     ]

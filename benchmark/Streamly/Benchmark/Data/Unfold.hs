@@ -6,6 +6,17 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
 
 module Main (main) where
 
@@ -20,6 +31,14 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Benchmark.Data.NestedUnfoldOps as Nested
+
+-- For Unfold Exception Benchmarks
+import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Prelude as SP
+import Streamly.Benchmark.CommonH
+import System.IO (Handle, hClose, hPutChar)
+import Control.Exception (SomeException)
 
 import Streamly.Benchmark.Common
 import Gauge
@@ -409,6 +428,7 @@ _apDiscardFst = undefined
 _apDiscardSnd :: Int -> Int -> m ()
 _apDiscardSnd = undefined
 
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -533,13 +553,92 @@ o_n_space_nested size =
     ]
 
 -------------------------------------------------------------------------------
+-- Unfold Exception Benchmarks
+-------------------------------------------------------------------------------
+-- | Send the file contents to /dev/null with exception handling
+readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
+readWriteOnExceptionUnfold inh devNull =
+    let readEx = IUF.onException (\_ -> hClose inh) FH.read
+    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
+-- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
+readWriteHandleExceptionUnfold inh devNull =
+    let handler (_e :: SomeException) = hClose inh >> return 10
+        readEx = IUF.handle (IUF.singletonM handler) FH.read
+    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
+-- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+readWriteFinally_Unfold :: Handle -> Handle -> IO ()
+readWriteFinally_Unfold inh devNull =
+    let readEx = IUF.finally_ (\_ -> hClose inh) FH.read
+    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
+-- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
+#endif
+
+readWriteFinallyUnfold :: Handle -> Handle -> IO ()
+readWriteFinallyUnfold inh devNull =
+    let readEx = IUF.finally (\_ -> hClose inh) FH.read
+    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+
+-- | Send the file contents to /dev/null with exception handling
+readWriteBracket_Unfold :: Handle -> Handle -> IO ()
+readWriteBracket_Unfold inh devNull =
+    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.read
+    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
+-- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
+#endif
+
+readWriteBracketUnfold :: Handle -> Handle -> IO ()
+readWriteBracketUnfold inh devNull =
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
+    in SP.fold (FH.write devNull) $ S.unfold readEx inh
+
+o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
+o_1_space_copy_read_exceptions env =
+    [ bgroup "copy/read/exceptions"
+       [ mkBenchSmall "UF.onException" env $ \inh _ ->
+           readWriteOnExceptionUnfold inh (nullH env)
+       , mkBenchSmall "UF.handle" env $ \inh _ ->
+           readWriteHandleExceptionUnfold inh (nullH env)
+       , mkBenchSmall "UF.finally_" env $ \inh _ ->
+           readWriteFinally_Unfold inh (nullH env)
+       , mkBenchSmall "UF.finally" env $ \inh _ ->
+           readWriteFinallyUnfold inh (nullH env)
+       , mkBenchSmall "UF.bracket_" env $ \inh _ ->
+           readWriteBracket_Unfold inh (nullH env)
+       , mkBenchSmall "UF.bracket" env $ \inh _ ->
+           readWriteBracketUnfold inh (nullH env)
+        ]
+    ]
+
+
+-------------------------------------------------------------------------------
 -- Driver
 -------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
     (size, cfg, benches) <- parseCLIOpts defaultStreamSize
-    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size)
+    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size <>
+                                                allBenchmarks' env)
 
     where
 
@@ -552,7 +651,11 @@ main = do
                   , o_1_space_filtering size
                   , o_1_space_zip size
                   , o_1_space_nested size
+                  -- I have to pass BenchEnv instead of size here
+                  -- DONE
+                  -- , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)
             $ Prelude.concat [o_n_space_nested size]
         ]
+    allBenchmarks' = o_1_space_copy_read_exceptions
