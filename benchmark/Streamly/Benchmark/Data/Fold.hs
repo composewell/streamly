@@ -173,149 +173,141 @@ moduleName = "Data.Fold"
 
 o_1_space_serial_elimination :: Int -> [Benchmark]
 o_1_space_serial_elimination value =
-    [ bgroup "serially"
-        [ bgroup "elimination"
-            [ benchIOSink value "drain" (S.fold FL.drain)
-            , benchIOSink value "drainBy" (S.fold (FL.drainBy return))
-            , benchIOSink value "drainN" (S.fold (FL.drainN value))
-            , benchIOSink
-                  value
-                  "drainSepByTrue"
-                  (S.fold (FL.drainSepBy $ (<=) (value + 1)))
-            , benchIOSink
-                  value
-                  "drainSepByFalse"
-                  (S.fold (FL.drainSepBy $ (>=) (value + 1)))
-            , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
-            , benchIOSink value "last" (S.fold FL.last)
-            , benchIOSink value "length" (S.fold FL.length)
-            , benchIOSink value "sum" (S.fold FL.sum)
-            , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
-            , benchIOSink value "product" (S.fold FL.product)
-            , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
-            , benchIOSink value "maximum" (S.fold FL.maximum)
-            , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
-            , benchIOSink value "minimum" (S.fold FL.minimum)
-            , benchIOSink
-                  value
-                  "mean"
-                  (\s ->
-                       S.fold
-                           FL.mean
-                           (S.map (fromIntegral :: Int -> Double) s))
-            , benchIOSink
-                  value
-                  "variance"
-                  (\s ->
-                       S.fold
-                           FL.variance
-                           (S.map (fromIntegral :: Int -> Double) s))
-            , benchIOSink
-                  value
-                  "stdDev"
-                  (\s ->
-                       S.fold
-                           FL.stdDev
-                           (S.map (fromIntegral :: Int -> Double) s))
-            , benchIOSink
-                  value
-                  "mconcat"
-                  (S.fold FL.mconcat . (S.map (Last . Just)))
-            , benchIOSink
-                  value
-                  "foldMap"
-                  (S.fold (FL.foldMap (Last . Just)))
-            , benchIOSink
-                  value
-                  "foldMapM"
-                  (S.fold (FL.foldMapM (return . Last . Just)))
-            , benchIOSink value "index" (S.fold (FL.index (value + 1)))
-            , benchIOSink value "head" (S.fold FL.head)
-            , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
-            , benchIOSink
-                  value
-                  "lookup"
-                  (S.fold (FL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
-            , benchIOSink
-                  value
-                  "findIndex"
-                  (S.fold (FL.findIndex (== (value + 1))))
-            , benchIOSink
-                  value
-                  "elemIndex"
-                  (S.fold (FL.elemIndex (value + 1)))
-            , benchIOSink value "null" (S.fold FL.null)
-            , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
-            , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
-            , benchIOSink value "all" $ all value
-            , benchIOSink value "any" $ any value
-            , benchIOSink value "take" $ take value
-            , benchIOSink value "takeSepBy" $ takeSepBy value
-            , benchIOSink
-                  value
-                  "and"
-                  (\s -> S.fold FL.and (S.map (<= (value + 1)) s))
-            , benchIOSink
-                  value
-                  "or"
-                  (\s -> S.fold FL.or (S.map (> (value + 1)) s))
-            ]
+    [ bgroup "elimination"
+        [ benchIOSink value "drain" (S.fold FL.drain)
+        , benchIOSink value "drainBy" (S.fold (FL.drainBy return))
+        , benchIOSink value "drainN" (S.fold (FL.drainN value))
+        , benchIOSink
+              value
+              "drainSepByTrue"
+              (S.fold (FL.drainSepBy $ (<=) (value + 1)))
+        , benchIOSink
+              value
+              "drainSepByFalse"
+              (S.fold (FL.drainSepBy $ (>=) (value + 1)))
+        , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
+        , benchIOSink value "last" (S.fold FL.last)
+        , benchIOSink value "length" (S.fold FL.length)
+        , benchIOSink value "sum" (S.fold FL.sum)
+        , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
+        , benchIOSink value "product" (S.fold FL.product)
+        , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
+        , benchIOSink value "maximum" (S.fold FL.maximum)
+        , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
+        , benchIOSink value "minimum" (S.fold FL.minimum)
+        , benchIOSink
+              value
+              "mean"
+              (\s ->
+                   S.fold
+                       FL.mean
+                       (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink
+              value
+              "variance"
+              (\s ->
+                   S.fold
+                       FL.variance
+                       (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink
+              value
+              "stdDev"
+              (\s ->
+                   S.fold
+                       FL.stdDev
+                       (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink
+              value
+              "mconcat"
+              (S.fold FL.mconcat . (S.map (Last . Just)))
+        , benchIOSink
+              value
+              "foldMap"
+              (S.fold (FL.foldMap (Last . Just)))
+        , benchIOSink
+              value
+              "foldMapM"
+              (S.fold (FL.foldMapM (return . Last . Just)))
+        , benchIOSink value "index" (S.fold (FL.index (value + 1)))
+        , benchIOSink value "head" (S.fold FL.head)
+        , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
+        , benchIOSink
+              value
+              "lookup"
+              (S.fold (FL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
+        , benchIOSink
+              value
+              "findIndex"
+              (S.fold (FL.findIndex (== (value + 1))))
+        , benchIOSink
+              value
+              "elemIndex"
+              (S.fold (FL.elemIndex (value + 1)))
+        , benchIOSink value "null" (S.fold FL.null)
+        , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
+        , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
+        , benchIOSink value "all" $ all value
+        , benchIOSink value "any" $ any value
+        , benchIOSink value "take" $ take value
+        , benchIOSink value "takeSepBy" $ takeSepBy value
+        , benchIOSink
+              value
+              "and"
+              (\s -> S.fold FL.and (S.map (<= (value + 1)) s))
+        , benchIOSink
+              value
+              "or"
+              (\s -> S.fold FL.or (S.map (> (value + 1)) s))
         ]
     ]
 
-
 o_1_space_serial_transformation :: Int -> [Benchmark]
 o_1_space_serial_transformation value =
-    [ bgroup "serially"
-        [ bgroup "transformation"
-            [ benchIOSink value "lmap" (S.fold (FL.lmap (+ 1) FL.drain))
-            , let f x = if even x then Just x else Nothing
-                  fld = FL.mapMaybe f FL.drain
-               in benchIOSink value "mapMaybe" (S.fold fld)
-            , benchIOSink
-                  value
-                  "sequence"
-                  (S.fold (FL.sequence (return <$> FL.drain)))
-            , benchIOSink value "mapM" (S.fold (FL.mapM return FL.drain))
-            , benchIOSink
-                  value
-                  "pipe-mapM"
-                  (S.fold
-                       (FL.transform
-                            (Pipe.mapM (\x -> return $ x + 1))
-                            FL.drain))
-            ]
+    [ bgroup "transformation"
+        [ benchIOSink value "lmap" (S.fold (FL.lmap (+ 1) FL.drain))
+        , let f x = if even x then Just x else Nothing
+              fld = FL.mapMaybe f FL.drain
+           in benchIOSink value "mapMaybe" (S.fold fld)
+        , benchIOSink
+              value
+              "sequence"
+              (S.fold (FL.sequence (return <$> FL.drain)))
+        , benchIOSink value "mapM" (S.fold (FL.mapM return FL.drain))
+        , benchIOSink
+              value
+              "pipe-mapM"
+              (S.fold
+                   (FL.transform
+                        (Pipe.mapM (\x -> return $ x + 1))
+                        FL.drain))
         ]
     ]
 
 o_1_space_serial_composition :: Int -> [Benchmark]
 o_1_space_serial_composition value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "composition"
-                -- Applicative
-                [ benchIOSink value "tee (all, any)" $ teeAllAny value
-                , benchIOSink value "tee (sum, length)" $ teeSumLength
-                -- , benchIOSink value "applicative (all, any)"
-                --       $ applicativeAllAny value
-                -- , benchIOSink value "applicative (sum, length)"
-                --       $ applicativeSumLength
-                , benchIOSink value "distribute_ [sum, length]" $ distribute_
-                , benchIOSink value "distribute [sum, length]" $ distribute
-                , benchIOSink value "partition (sum, length)" $ partition
-                , benchIOSink value "unzip (sum, length)" $ unzip
-                , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
-                , benchIOSink value "demuxWith_ [sum, length]"
-                      $ demuxWith_ fn mp
-                , benchIOSink value "demuxWithDefault_ [sum, length] sum"
-                      $ demuxWithDefault_ fn mp
-                , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
-                , benchIOSink value "many length sum" many
-                , benchIOSink value "split (all, any)" $ splitAllAny value
-                ]
-          ]
-    ]
+      [ bgroup
+            "composition"
+            -- Applicative
+            [ benchIOSink value "tee (all, any)" $ teeAllAny value
+            , benchIOSink value "tee (sum, length)" $ teeSumLength
+            -- , benchIOSink value "applicative (all, any)"
+            --       $ applicativeAllAny value
+            -- , benchIOSink value "applicative (sum, length)"
+            --       $ applicativeSumLength
+            , benchIOSink value "distribute_ [sum, length]" $ distribute_
+            , benchIOSink value "distribute [sum, length]" $ distribute
+            , benchIOSink value "partition (sum, length)" $ partition
+            , benchIOSink value "unzip (sum, length)" $ unzip
+            , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
+            , benchIOSink value "demuxWith_ [sum, length]"
+                  $ demuxWith_ fn mp
+            , benchIOSink value "demuxWithDefault_ [sum, length] sum"
+                  $ demuxWithDefault_ fn mp
+            , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+            , benchIOSink value "many length sum" many
+            , benchIOSink value "split (all, any)" $ splitAllAny value
+            ]
+      ]
 
     where
 
@@ -325,15 +317,13 @@ o_1_space_serial_composition value =
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
-    [ bgroup "serially"
-        [ bgroup "elimination"
-          -- Left folds for building a structure are inherently non-streaming
-          -- as the structure cannot be lazily consumed until fully built.
-                [
-                  benchIOSink value "toList" (S.fold FL.toList)
-                , benchIOSink value "toListRevF" (S.fold FL.toListRevF)
-                ]
-        ]
+    [ bgroup "elimination"
+      -- Left folds for building a structure are inherently non-streaming
+      -- as the structure cannot be lazily consumed until fully built.
+            [
+              benchIOSink value "toList" (S.fold FL.toList)
+            , benchIOSink value "toListRevF" (S.fold FL.toListRevF)
+            ]
     ]
 
 -------------------------------------------------------------------------------
