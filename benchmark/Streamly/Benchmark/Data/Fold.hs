@@ -188,8 +188,6 @@ o_1_space_serial_elimination value =
                   (S.fold (FL.drainSepBy $ (>=) (value + 1)))
             , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
             , benchIOSink value "last" (S.fold FL.last)
-            , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
-            , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
             , benchIOSink value "length" (S.fold FL.length)
             , benchIOSink value "sum" (S.fold FL.sum)
             , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
@@ -328,18 +326,14 @@ o_1_space_serial_composition value =
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [ bgroup "serially"
-          [ bgroup "elimination"
+        [ bgroup "elimination"
           -- Left folds for building a structure are inherently non-streaming
           -- as the structure cannot be lazily consumed until fully built.
-                [ benchIOSink value "toStream" (S.fold IP.toStream)
-                , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
-                , benchIOSink value "toList" (S.fold FL.toList)
+                [
+                  benchIOSink value "toList" (S.fold FL.toList)
                 , benchIOSink value "toListRevF" (S.fold FL.toListRevF)
-          -- Converting the stream to an array
-                , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
-                , benchIOSink value "writeN" (S.fold (A.writeN value))
                 ]
-          ]
+        ]
     ]
 
 -------------------------------------------------------------------------------
