@@ -18,8 +18,9 @@ import qualified Serial.Transformation2 as Transformation2
 import qualified Serial.Transformation3 as Transformation3
 import qualified Serial.Nested as Nested
 import qualified Serial.Exceptions as Exceptions
+import qualified Serial.Split as Split
 
-import Gauge
+import Gauge hiding (env)
 import Streamly.Benchmark.Common
 
 import Streamly.Benchmark.CommonH
@@ -39,7 +40,8 @@ main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
     value `seq` runMode (mode cfg) cfg benches (allBenchmarks value <>
-                                                Exceptions.allBenchmarks env)
+                                                Exceptions.allBenchmarks env <>
+                                                Split.allBenchmarks env)
     where
 
     allBenchmarks size = Prelude.concat
