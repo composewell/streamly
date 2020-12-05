@@ -166,6 +166,7 @@ benchmark Prelude.Serial
       , Serial.Transformation3
       , Serial.Nested
       , Serial.Exceptions
+      , Serial.Split
       ,Streamly.Benchmark.CommonH
   if impl(ghcjs)
     buildable: False
