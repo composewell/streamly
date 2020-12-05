@@ -6,11 +6,15 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
+import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
+import qualified Streamly.Prelude  as S
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
@@ -66,6 +70,26 @@ benchIO' name src f = bench name $ nfIO $
 benchIOSink :: NFData b => Int -> String -> (Ops.Stream Int -> IO b) -> Benchmark
 benchIOSink value name f = benchIO' name (Ops.sourceIntFromTo value) f
 
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM value n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+{-# INLINE source #-}
+source :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+source = sourceUnfoldrM
+
+ -- | Takes a fold method, and uses it with a default source.
+{-# INLINE benchIOSinkF #-}
+benchIOSinkF
+    :: (S.IsStream t, NFData b)
+    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIOSinkF value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source value
+
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup
@@ -115,6 +139,8 @@ o_1_space_elimination value =
         , benchIOSink value "foldl'" Ops.pureFoldl'
         , benchIOSink value "read" Ops.unfoldReadDrain
         , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
+        , benchIOSinkF value "lastN.1" (S.fold (IA.lastN 1))
+        , benchIOSinkF value "lastN.10" (S.fold (IA.lastN 10))
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
@@ -123,6 +149,16 @@ o_1_space_elimination value =
 #endif
         ]
       ]
+
+o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial value =
+    [ bgroup "elimination"
+        [
+        -- Converting the stream to an array
+              benchIOSinkF value "lastN.Max" (S.fold (IA.lastN (value + 1)))
+            , benchIOSinkF value "writeN" (S.fold (A.writeN value))
+         ]
+    ]
 
 o_1_space_transformation :: Int -> [Benchmark]
 o_1_space_transformation value =
@@ -176,5 +212,6 @@ main = do
             , o_1_space_elimination size
             , o_1_space_transformation size
             , o_1_space_transformationX4 size
+            , o_n_heap_serial size
             ]
         ]
