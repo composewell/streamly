@@ -121,6 +121,7 @@ extra-source-files:
     bin/bench-exec-one.sh
     bin/mk-hscope.sh
     bin/mk-tags.sh
+    cabal.project
     cabal.project.ci
     charts-0/streamly-vs-list-time.svg
     configure
