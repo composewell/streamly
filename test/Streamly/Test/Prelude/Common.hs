@@ -90,10 +90,10 @@ import Control.Exception (Exception, try)
 import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM, when)
 import Control.Monad.Catch (throwM, MonadThrow)
-import Data.Function ((&))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List
-    ( deleteBy
+    ( delete
+    , deleteBy
     , elemIndex
     , elemIndices
     , find
@@ -101,7 +101,7 @@ import Data.List
     , findIndices
     , foldl'
     , foldl1'
-    , insertBy
+    , insert
     , intersperse
     , isPrefixOf
     , isSubsequenceOf
@@ -470,7 +470,7 @@ applicativeOps constr desc eq t = do
         [(1, 3), (2, 3)]
     prop (desc <> " Apply - composed second argument") $
         sort <$>
-        (S.toList . t) ((,) <$> pure 1 <*> (pure 2 <> pure 3)) `shouldReturn`
+        (S.toList . t) (pure ((,) 1) <*> (pure 2 <> pure 3)) `shouldReturn`
         [(1, 2), (1, 3)]
 
 -- XXX we can combine this with applicativeOps by making the type sufficiently
@@ -594,13 +594,13 @@ eliminationOps constr desc t = do
         eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
 
     prop (desc <> " maximumBy compare") $
-        eliminateOp constr (wrapMaybe $ maximumBy compare) $
+        eliminateOp constr (wrapMaybe maximum) $
         S.maximumBy compare . t
     prop (desc <> " maximumBy flip compare") $
         eliminateOp constr (wrapMaybe $ maximumBy $ flip compare) $
         S.maximumBy (flip compare) . t
     prop (desc <> " minimumBy compare") $
-        eliminateOp constr (wrapMaybe $ minimumBy compare) $
+        eliminateOp constr (wrapMaybe minimum) $
         S.minimumBy compare . t
     prop (desc <> " minimumBy flip compare") $
         eliminateOp constr (wrapMaybe $ minimumBy $ flip compare) $
@@ -955,7 +955,7 @@ nestTwoStreamsApp desc streamListT listT t =
     it ("Nests two streams using applicative " <> desc <> " composition") $ do
     let s1 = S.concatMapFoldableWith (<>) return [1..4]
         s2 = S.concatMapFoldableWith (<>) return [5..8]
-        r  = (S.toList . t) $ ((+) <$> s1 <*> s2)
+        r  = (S.toList . t) ((+) <$> s1 <*> s2)
     streamListT <$> r
         `shouldReturn` listT [6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12]
 
@@ -1134,7 +1134,7 @@ transformCombineOpsCommon constr desc eq t = do
     prop (desc <> " deleteBy (<=) maxBound") $
         transform (deleteBy (<=) maxBound) t (S.deleteBy (<=) maxBound)
     prop (desc <> " deleteBy (==) 4") $
-        transform (deleteBy (==) 4) t (S.deleteBy (==) 4)
+        transform (delete 4) t (S.deleteBy (==) 4)
 
     -- transformation
     prop (desc <> " mapM (+1)") $
@@ -1188,7 +1188,7 @@ transformCombineOpsCommon constr desc eq t = do
             transform (intersperse n) t (S.intersperse n)
     prop (desc <> " insertBy 0") $
         forAll (choose (minBound, maxBound)) $ \n ->
-            transform (insertBy compare n) t (S.insertBy compare n)
+            transform (insert n) t (S.insertBy compare n)
 
     -- multi-stream
     prop (desc <> " concatMap") $
@@ -1261,7 +1261,7 @@ transformCombineOpsOrdered constr desc eq t = do
 
     -- XXX this does not fail when the SVar is shared, need to fix.
     prop (desc <> " concurrent application") $
-        transform (& fmap (+1)) t (|& S.map (+1))
+        transform (fmap (+1)) t (|& S.map (+1))
 
 -------------------------------------------------------------------------------
 -- Monad operations

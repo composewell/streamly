@@ -79,7 +79,7 @@ splitOnSeq = do
     where
 
     splitOnSeq' pat xs =
-        S.toList $ IS.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+        S.toList $ IS.splitOnSeq (A.fromList pat) FL.toList (S.fromList xs)
 
 splitOnSuffixSeq :: Spec
 splitOnSuffixSeq = do
@@ -105,7 +105,7 @@ splitOnSuffixSeq = do
 
     splitSuffixOn_ pat xs =
         S.toList
-             $ IS.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+             $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
 
 seqSplitterProperties ::
        forall a. (Arbitrary a, Eq a, Show a, Storable a, Enum a)
@@ -116,7 +116,7 @@ seqSplitterProperties sep desc = do
     describe (desc <> " splitOnSeq")
         $ do
 
-            forM_ [0, 1, 2, 4] $ intercalateSplitEqId
+            forM_ [0, 1, 2, 4] intercalateSplitEqId
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSeq_
@@ -129,7 +129,7 @@ seqSplitterProperties sep desc = do
     describe (desc <> " splitOnSuffixSeq")
         $ do
 
-            forM_ [0, 1, 2, 4] $ intercalateSplitEqIdNoSepEnd
+            forM_ [0, 1, 2, 4] intercalateSplitEqIdNoSepEnd
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSuffixSeq_
@@ -329,7 +329,7 @@ testGroupsBySep =
                 $ S.map maybeMinimum
                 $ S.groupsBy (>) FL.toList
                 $ S.fromList vec
-            assert $ decreasing a == True
+            assert $ decreasing a
 
 groupingOps :: Spec
 groupingOps = do
