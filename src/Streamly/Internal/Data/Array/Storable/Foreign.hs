@@ -319,7 +319,9 @@ lastN n
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a
         return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
-    initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
+    initial =
+        let f (a, b) = FL.Partial $ Tuple3' a b (0 :: Int)
+         in fmap f $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
         arr <- liftIO $ MA.newArray n
         foldFunc i rh snoc' arr rb

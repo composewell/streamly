@@ -759,9 +759,7 @@ toHandle h = go
 -- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
-                (return id)
-                (return . ($ K.nil))
+toStream = FL.mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -777,7 +775,7 @@ toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = Fold (\xs x -> return $ FL.Partial $ x `K.cons` xs) (return K.nil) return
+toStreamRev = FL.mkAccum_ (flip K.cons) K.nil
 
 -- | Convert a stream to a pure stream.
 --

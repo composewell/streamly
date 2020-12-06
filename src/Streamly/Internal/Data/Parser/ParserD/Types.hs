@@ -443,8 +443,12 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     initial = do
         ps <- initial1 -- parse state
-        fs <- finitial -- fold state
-        pure (Tuple3' ps (0 :: Int) fs)
+        res <- finitial -- fold state
+        return
+            $ case res of
+                  FL.Partial fs -> Tuple3' ps (0 :: Int) fs
+                  FL.Done _ ->
+                    error "splitMany: Done in initial not implemented"
 
     {-# INLINE step #-}
     step (Tuple3' st cnt fs) a = do
@@ -493,8 +497,12 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     initial = do
         ps <- initial1 -- parse state
-        fs <- finitial -- fold state
-        pure (Tuple3' ps (0 :: Int) (Left fs))
+        res <- finitial -- fold state
+        return
+            $ case res of
+                  FL.Partial fs -> Tuple3' ps (0 :: Int) (Left fs)
+                  FL.Done _ ->
+                    error "splitSome: Done/Error in initial not implemented"
 
     {-# INLINE step #-}
     step (Tuple3' st cnt (Left fs)) a = do
