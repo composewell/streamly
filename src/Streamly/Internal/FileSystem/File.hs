@@ -357,13 +357,16 @@ writeChunks path = Fold step initial extract
         h <- liftIO (openFile path WriteMode)
         fld <- FL.initialize (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
-        return (fld, h)
+        return $ FL.Partial (fld, h)
     step (fld, h) x = do
         r <- FL.runStep fld x `MC.onException` liftIO (hClose h)
         return $ FL.Partial (r, h)
     extract (Fold _ initial1 extract1, h) = do
         liftIO $ hClose h
-        initial1 >>= extract1
+        res <- initial1
+        case res of
+            FL.Partial fs -> extract1 fs
+            FL.Done fb -> return fb
 
 -- | @writeWithBufferOf chunkSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk

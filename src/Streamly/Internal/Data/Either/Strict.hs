@@ -19,8 +19,36 @@
 --
 module Streamly.Internal.Data.Either.Strict
     ( Either' (..)
+    , isLeft'
+    , isRight'
+    , fromLeft'
+    , fromRight'
     )
 where
 
 -- | A strict 'Either'
 data Either' a b = Left' !a | Right' !b deriving Show
+
+-- | Return True if the given value is a Left'-value, False otherwise.
+{-# INLINABLE isLeft' #-}
+isLeft' :: Either' a b -> Bool
+isLeft' (Left'  _) = True
+isLeft' (Right' _) = False
+
+-- | Return True if the given value is a Right'-value, False otherwise.
+{-# INLINABLE isRight' #-}
+isRight' :: Either' a b -> Bool
+isRight' (Left'  _) = False
+isRight' (Right' _) = True
+
+-- | Return the contents of a Left'-value or errors out.
+{-# INLINABLE fromLeft' #-}
+fromLeft' :: Either' a b -> a
+fromLeft' (Left' a) = a
+fromLeft' _ = error "fromLeft' expecting a Left'-value"
+
+-- | Return the contents of a Right'-value or errors out.
+{-# INLINABLE fromRight' #-}
+fromRight' :: Either' a b -> b
+fromRight' (Right' b) = b
+fromRight' _ = error "fromRight' expecting a Right'-value"

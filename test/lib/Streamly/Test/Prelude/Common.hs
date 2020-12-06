@@ -1168,7 +1168,8 @@ transformCombineOpsCommon constr desc eq t = do
         monadicIO $ do
             cref <- run $ newIORef 0
             let fldstp _ e = FL.Partial <$> modifyIORef' cref (e+)
-                sumfoldinref = FL.Fold fldstp (return ()) (const $ return ())
+                sumfoldinref =
+                    FL.Fold fldstp (return (FL.Partial ())) (const $ return ())
                 op = S.tap sumfoldinref . S.mapM (\x -> return (x+1))
                 listOp = fmap (+1)
             stream <- run ((S.toList . t) $ op (constr a <> constr b))

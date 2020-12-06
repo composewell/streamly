@@ -20,6 +20,8 @@
 module Streamly.Internal.Data.Maybe.Strict
     ( Maybe' (..)
     , toMaybe
+    , isJust'
+    , fromJust'
     )
 where
 
@@ -31,3 +33,16 @@ data Maybe' a = Just' !a | Nothing' deriving Show
 toMaybe :: Maybe' a -> Maybe a
 toMaybe  Nothing' = Nothing
 toMaybe (Just' a) = Just a
+
+-- | Extract the element out of a Just' and throws an error if its argument is
+-- Nothing'.
+{-# INLINABLE fromJust' #-}
+fromJust' :: Maybe' a -> a
+fromJust' (Just' a) = a
+fromJust' Nothing' = error "fromJust' cannot be run in Nothing'"
+
+-- | Returns True iff its argument is of the form "Just' _".
+{-# INLINABLE isJust' #-}
+isJust' :: Maybe' a -> Bool
+isJust' (Just' _) = True
+isJust' Nothing' = False

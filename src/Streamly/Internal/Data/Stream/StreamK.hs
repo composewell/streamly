@@ -436,20 +436,23 @@ foldlMx' step begin done m = go begin m
 
 {-# INLINABLE foldOnce #-}
 foldOnce :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> m b
-foldOnce (FL.Fold step begin done) = go begin
+foldOnce (FL.Fold step begin done) m = do
+    res <- begin
+    case res of
+        FL.Partial fs -> go fs m
+        FL.Done fb -> return fb
+
     where
     go !acc m1 =
-        let stop = acc >>= done
-            single a = acc
-              >>= \b -> step b a
-              >>= \case
-                        FL.Partial s -> done s
-                        FL.Done b1 -> return b1
-            yieldk a r = acc
-              >>= \b -> step b a
-              >>= \case
-                        FL.Partial s -> go (return s) r
-                        FL.Done b1 -> return b1
+        let stop = done acc
+            single a = step acc a
+              >>= \x -> case x of
+                            FL.Partial s -> done s
+                            FL.Done b1 -> return b1
+            yieldk a r = step acc a
+              >>= \x -> case x of
+                            FL.Partial s -> go s r
+                            FL.Done b1 -> return b1
          in foldStream defState yieldk single stop m1
 
 -- | Like 'foldl'' but with a monadic step function.

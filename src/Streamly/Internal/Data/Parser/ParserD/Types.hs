@@ -135,7 +135,6 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold (Fold(..), toList)
-import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Streamly.Internal.Data.Fold as FL
 
@@ -430,6 +429,8 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     extract (AltParseR sR) = extractR sR
     extract (AltParseL _ sL) = extractL sL
 
+data SplitManyState ps fs b = ManyDo !ps !Int !fs | ManyStop !b
+
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Internal/
@@ -443,34 +444,39 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     initial = do
         ps <- initial1 -- parse state
-        fs <- finitial -- fold state
-        pure (Tuple3' ps (0 :: Int) fs)
+        res <- finitial -- fold state
+        return
+            $ case res of
+                  FL.Partial fs -> ManyDo ps (0 :: Int) fs
+                  FL.Done b -> ManyStop b
 
     {-# INLINE step #-}
-    step (Tuple3' st cnt fs) a = do
+    step (ManyDo st cnt fs) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (ManyDo s (cnt1 - n) fs)
             Continue n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (ManyDo s (cnt1 - n) fs)
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
                 assert (cnt1 - n >= 0) (return ())
                 return
                     $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
+                          FL.Partial s1 -> Partial n (ManyDo s 0 s1)
                           FL.Done b1 -> Done n b1
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
+    step (ManyStop b) _ = return $ Done 1 b
 
     -- XXX The "try" may impact performance if this parser is used as a scan
-    extract (Tuple3' s _ fs) = do
+    extract (ManyStop b) = return b
+    extract (ManyDo s _ fs) = do
         r <- try $ extract1 s
         case r of
             Left (_ :: ParseError) -> fextract fs
@@ -479,6 +485,8 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 case fs1 of
                     FL.Partial s1 -> fextract s1
                     FL.Done b1 -> return b1
+
+data SplitSomeState ps fs b = SomeTodo !ps !Int | SomeDo !ps !Int !fs
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
@@ -493,58 +501,67 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     initial = do
         ps <- initial1 -- parse state
-        fs <- finitial -- fold state
-        pure (Tuple3' ps (0 :: Int) (Left fs))
+        return $ SomeTodo ps (0 :: Int)
 
     {-# INLINE step #-}
-    step (Tuple3' st cnt (Left fs)) a = do
+    step (SomeTodo st cnt) a = do
         r <- step1 st a
-        -- In the Left state, count is used only for the assert
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
+                return $ Continue n (SomeTodo s (cnt1 - n))
             Continue n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
+                return $ Continue n (SomeTodo s (cnt1 - n))
             Done n b -> do
                 assert (cnt1 - n >= 0) (return ())
                 s <- initial1
-                fs1 <- fstep fs b
-                return
-                    $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                          FL.Done b1 -> Done n b1
+                res <- finitial -- fold state
+                case res of
+                    FL.Done fb -> do
+                         assert (cnt1 - n >= 0) (return ())
+                         return $ Done cnt1 fb
+                    FL.Partial fs -> do
+                        fs1 <- fstep fs b
+                        return
+                            $ case fs1 of
+                                  FL.Partial s1 -> Partial n (SomeDo s 0 s1)
+                                  FL.Done b1 -> Done n b1
             Error err -> return $ Error err
-    step (Tuple3' st cnt (Right fs)) a = do
+
+    step (SomeDo st cnt fs) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Partial n (Tuple3' s (cnt1 - n) (Right fs))
+                return $ Partial n (SomeDo s (cnt1 - n) fs)
             Continue n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
+                return $ Continue n (SomeDo s (cnt1 - n) fs)
             Done n b -> do
                 assert (cnt1 - n >= 0) (return ())
                 s <- initial1
                 fs1 <- fstep fs b
                 return
                     $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
+                          FL.Partial s1 -> Partial n (SomeDo s 0 s1)
                           FL.Done b1 -> Done n b1
             Error _ -> Done cnt1 <$> fextract fs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
-    extract (Tuple3' s _ (Left fs)) = do
+    extract (SomeTodo s _) = do
         b <- extract1 s
-        fs1 <- fstep fs b
-        case fs1 of
-            FL.Partial s1 -> fextract s1
-            FL.Done b1 -> return b1
-    extract (Tuple3' s _ (Right fs)) = do
+        res <- finitial -- fold state
+        case res of
+            FL.Done fb -> return fb
+            FL.Partial fs -> do
+                fs1 <- fstep fs b
+                case fs1 of
+                    FL.Partial s1 -> fextract s1
+                    FL.Done b1 -> return b1
+    extract (SomeDo s _ fs) = do
         r <- try $ extract1 s
         case r of
             Left (_ :: ParseError) -> fextract fs

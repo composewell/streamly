@@ -588,11 +588,13 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
+    | GroupStart1 fs s
     | GroupConsume s fs a
     | GroupBuffer s fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
+-- The behaviour of 'foldMany' should be consistent with 'many'.
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
@@ -603,15 +605,22 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     {-# INLINE_LATE step' #-}
     step' _ (GroupStart st) = do
         -- fs = fold state
-        fs <- initial
-        return $ Skip (GroupBuffer st fs)
+        fr <- initial
+        return
+            $ case fr of
+                  FL.Done b ->
+                      let next = GroupStart st
+                       in Skip (GroupYield b next)
+                  FL.Partial fs -> Skip (GroupBuffer st fs)
     -- This state is not strictly required but it helps the compiler fuse the
     -- code.
     step' _ (GroupConsume st fs x) = do
         fs' <- fstep fs x
-        case fs' of
-            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
-            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
+        return
+            $ Skip
+            $ case fs' of
+                  FL.Done b -> GroupYield b (GroupStart st)
+                  FL.Partial ps -> GroupBuffer st ps
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -622,7 +631,11 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                 return $ Skip (GroupYield b GroupFinish)
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
+    -- XXX GroupStart1 is unused here. Prehaps we should use a new type for
+    -- foldMany and foldMany1.
+    step' _ _ = error "foldMany: Unimplemented action reached"
 
+-- The behaviour of 'foldMany1' should be consistent with respect to 'foldMany'.
 {-# INLINE_NORMAL foldMany1 #-}
 foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany1 (Fold fstep initial extract) (Stream step state) =
@@ -631,19 +644,28 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     where
 
     {-# INLINE_LATE step' #-}
-    step' gst (GroupStart st) = do
+    step' _ (GroupStart st) = do
+        fr <- initial
+        return
+            $ case fr of
+                  FL.Done b ->
+                      let next = GroupStart st
+                       in Skip (GroupYield b next)
+                  FL.Partial fs -> Skip (GroupStart1 fs st)
+    step' gst (GroupStart1 fs st) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                fi <- initial
-                return $ Skip $ GroupConsume s fi x
+                return $ Skip $ GroupConsume s fs x
             Skip s -> return $ Skip (GroupStart s)
-            Stop -> return $ Stop
+            Stop -> return Stop
     step' _ (GroupConsume st fs x) = do
         fs' <- fstep fs x
-        case fs' of
-            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
-            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
+        return
+            $ Skip
+            $ case fs' of
+                  FL.Done b -> GroupYield b (GroupStart st)
+                  FL.Partial ps -> GroupBuffer st ps
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
