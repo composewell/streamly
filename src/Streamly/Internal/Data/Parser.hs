@@ -408,8 +408,9 @@ take n = K.toParserK . D.take n
 
 -- | Stops after taking exactly @n@ input elements.
 --
--- * Stops - after @n@ elements.
--- * Fails - if the stream ends before it can collect @n@ elements.
+-- * Stops - after consuming @n@ elements.
+-- * Fails - if the stream or the collecting fold ends before it can collect
+--           exactly @n@ elements.
 --
 -- >>> S.parse (PR.takeEQ 4 FL.toList) $ S.fromList [1,0,1]
 -- > "takeEQ: Expecting exactly 4 elements, got 3"

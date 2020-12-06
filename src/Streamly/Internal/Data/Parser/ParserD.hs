@@ -310,7 +310,6 @@ either parser = Parser step initial extract
 take :: Monad m => Int -> Fold m a b -> Parser m a b
 take n fld = fromFold $ FL.ltake n fld
 
--- XXX We are purposefully ignoring the input here
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
 -- /Internal/
@@ -326,21 +325,35 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
     initial = Tuple' 0 <$> finitial
 
     step (Tuple' i r) a
-        | i < n = do
+        | i1 < n = do
             res <- fstep r a
             return
                 $ case res of
-                      FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                      FL.Done _ -> Error $ err (i + 1)
+                    FL.Partial s -> Continue 0 $ Tuple' i1 s
+                    FL.Done _ ->
+                        Error
+                            $ "takeEQ: the collecting fold terminated after "
+                                ++ "consuming" ++ show i1 ++ " elements"
+        | i1 == n = do
+            res <- fstep r a
+            Done 0
+                <$> case res of
+                        FL.Partial s -> fextract s
+                        FL.Done b -> return b
+        -- reachable only when n == 0
         | otherwise = Done 1 <$> fextract r
 
+        where
+
+        i1 = i + 1
+
     extract (Tuple' i r)
-        | i == n = fextract r
-        | otherwise = throwM $ ParseError $ err i
-
-    err i =
-        "takeEQ: Expecting exactly " ++ show n ++ " elements, got " ++ show i
-
+        | i == 0 && n == 0 = fextract r
+        | otherwise =
+            throwM
+                $ ParseError
+                $ "takeEQ: Expecting exactly "
+                    ++ show n ++ " elements, got " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeGE'.
 --
