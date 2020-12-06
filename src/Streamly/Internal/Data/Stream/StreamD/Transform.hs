@@ -258,12 +258,15 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
     where
 
     step' _ TapInit = do
-        r <- initial
-        return $ Skip (Tapping r state)
+        res <- initial
+        return
+            $ Skip
+            $ case res of
+                  FL.Partial s -> Tapping s state
+                  FL.Done _ -> TapDone state
     step' gst (Tapping acc st) = do
         r <- step gst st
         case r of
-            -- XXX Abstract Yield?
             Yield x s -> do
                 res <- fstep acc x
                 return
@@ -299,8 +302,12 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 
     {-# INLINE_LATE step' #-}
     step' _ TapOffInit = do
-        r <- initial
-        return $ Skip $ TapOffTapping r state (offset `mod` n)
+        res <- initial
+        return
+            $ Skip
+            $ case res of
+                  FL.Partial s -> TapOffTapping s state (offset `mod` n)
+                  FL.Done _ -> TapOffDone state
     step' gst (TapOffTapping acc st count) = do
         r <- step gst st
         case r of
@@ -478,35 +485,65 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
 -- Scanning with a Fold
 ------------------------------------------------------------------------------
 
-data PostScanState s f = PostScan s !f
+data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
 {-# INLINE_NORMAL postscanOnce #-}
 postscanOnce :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscanOnce (FL.Fold fstep begin done) (Stream step state) =
-    Stream step' (PostScan state begin)
+postscanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
+    Stream step (ScanInit state)
 
     where
 
-    {-# INLINE_LATE step' #-}
-    step' gst (PostScan st acc) = do
-        r <- step (adaptState gst) st
-        case r of
+    {-# INLINE_LATE step #-}
+    step _ (ScanInit st) = do
+        res <- initial
+        return
+            $ case res of
+                  FL.Partial fs -> Skip $ ScanDo st fs
+                  FL.Done b -> Yield b ScanDone
+    step gst (ScanDo st fs) = do
+        res <- sstep (adaptState gst) st
+        case res of
             Yield x s -> do
-                old <- acc
-                res <- fstep old x
-                case res of
-                    FL.Partial fs -> do
-                        !v <- done fs
-                        return $ Yield v $ PostScan s (return fs)
-                    FL.Done _ -> return Stop
-            Skip s -> return $ Skip $ PostScan s acc
+                r <- fstep fs x
+                case r of
+                    FL.Partial fs1 -> do
+                        !b <- extract fs1
+                        return $ Yield b $ ScanDo s fs1
+                    FL.Done b -> return $ Yield b ScanDone
+            Skip s -> return $ Skip $ ScanDo s fs
             Stop -> return Stop
+    step _ ScanDone = return Stop
 
 {-# INLINE scanOnce #-}
 scanOnce :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-scanOnce fld@(FL.Fold _ begin done) s =
-    (begin >>= \x -> x `seq` done x) `consM` postscanOnce fld s
+scanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
+    Stream step (ScanInit state)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ (ScanInit st) = do
+        res <- initial
+        case res of
+            FL.Partial fs -> do
+                !b <- extract fs
+                return $ Yield b $ ScanDo st fs
+            FL.Done b -> return $ Yield b ScanDone
+    step gst (ScanDo st fs) = do
+        res <- sstep (adaptState gst) st
+        case res of
+            Yield x s -> do
+                r <- fstep fs x
+                case r of
+                    FL.Partial fs1 -> do
+                        !b <- extract fs1
+                        return $ Yield b $ ScanDo s fs1
+                    FL.Done b -> return $ Yield b ScanDone
+            Skip s -> return $ Skip $ ScanDo s fs
+            Stop -> return Stop
+    step _ ScanDone = return Stop
 
 ------------------------------------------------------------------------------
 -- Scanning - Prescans

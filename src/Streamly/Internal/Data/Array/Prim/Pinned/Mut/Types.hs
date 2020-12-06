@@ -143,7 +143,7 @@ writeNAligned align limit = Fold step initial extract
 
     initial = do
         marr <- newAlignedArray limit align
-        return $ Tuple' marr 0
+        return $ FL.Partial $ Tuple' marr 0
 
     extract (Tuple' marr len) = shrinkArray marr len >> return marr
 

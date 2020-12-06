@@ -112,7 +112,7 @@ writeN limit = Fold step initial extract
 
     initial = do
         marr <- liftIO $ newSmallArray limit bottomElement
-        return (Tuple' marr 0)
+        return $ FL.Partial (Tuple' marr 0)
 
     step st@(Tuple' marr i) x
         | i == limit = FL.Done <$> extract st

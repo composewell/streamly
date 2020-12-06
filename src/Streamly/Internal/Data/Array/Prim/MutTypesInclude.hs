@@ -6,6 +6,7 @@
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Primitive.Types (Prim(..), sizeOf)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
@@ -168,7 +169,7 @@ writeN limit = Fold step initial extract
 
     initial = do
         marr <- newArray limit
-        return $ Tuple' marr 0
+        return $ FL.Partial $ Tuple' marr 0
 
     extract (Tuple' marr len) = shrinkArray marr len >> return marr
 
@@ -367,8 +368,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
               ++ "packArraysChunksOf: the size of arrays ["
               ++ show n
               ++ "] must be a natural number"
-        r1 <- initial1
-        return (Tuple' Nothing r1)
+        res <- initial1
+        return $ first (Tuple' Nothing) res
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
@@ -386,8 +387,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 FL.Done () -> return $ FL.Done ()
                 FL.Partial s -> do
                     extract1 s
-                    r1' <- initial1
-                    return $ FL.Partial $ Tuple' Nothing r1'
+                    res <- initial1
+                    return $ first (Tuple' Nothing) res
         else return $ FL.Partial $ Tuple' (Just arr) r1
     step (Tuple' (Just buf) r1) arr = do
         blen <- byteLength buf
@@ -401,6 +402,6 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 FL.Done () -> return $ FL.Done ()
                 FL.Partial s -> do
                     extract1 s
-                    r1' <- initial1
-                    return $ FL.Partial $ Tuple' Nothing r1'
+                    res <- initial1
+                    return $ first (Tuple' Nothing) res
         else return $ FL.Partial $ Tuple' (Just buf') r1

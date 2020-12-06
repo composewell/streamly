@@ -93,6 +93,7 @@ import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -674,8 +675,9 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             -- XXX we can pass the module string from the higher level API
             error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
-        r1 <- initial1
-        return (Tuple' Nothing r1)
+
+        r <- initial1
+        return $ first (Tuple' Nothing) r
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
@@ -693,8 +695,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                         FL.Done _ -> return $ FL.Done ()
                         FL.Partial s -> do
                             extract1 s
-                            r1' <- initial1
-                            return $ FL.Partial $ Tuple' Nothing r1'
+                            res <- initial1
+                            return $ first (Tuple' Nothing) res
                 else return $ FL.Partial $ Tuple' (Just arr) r1
 
     step (Tuple' (Just buf) r1) arr = do
@@ -712,8 +714,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     FL.Done _ -> return $ FL.Done ()
                     FL.Partial s -> do
                         extract1 s
-                        r1' <- initial1
-                        return $ FL.Partial $ Tuple' Nothing r1'
+                        res <- initial1
+                        return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf'') r1
 
 #if !defined(mingw32_HOST_OS)
@@ -1090,7 +1092,7 @@ writeNAllocWith alloc n = Fold step initial extract
 
     where
 
-    initial = liftIO $ alloc (max n 0)
+    initial = FL.Partial <$> liftIO (alloc (max n 0))
     step arr@(Array _ end bound) _ | end == bound = return $ FL.Done arr
     step (Array start end bound) x = do
         liftIO $ poke end x
@@ -1150,7 +1152,7 @@ writeNUnsafe n = Fold step initial extract
 
     initial = do
         (Array start end _) <- liftIO $ newArray (max n 0)
-        return $ ArrayUnsafe start end
+        return $ FL.Partial $ ArrayUnsafe start end
 
     step (ArrayUnsafe start end) x = do
         liftIO $ poke end x
