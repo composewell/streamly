@@ -1148,8 +1148,6 @@ transformCombineOpsCommon constr desc eq t = do
                                        (S.scanlM' (\_ a -> return a) (return 0))
     prop (desc <> " postscanlM'") $ transform (tail . scanl' (const id) 0) t
                                        (S.postscanlM' (\_ a -> return a) (return 0))
-    prop (desc <> " scanl") $ transform (scanl' (const id) 0) t
-                                       (S.scanl' (const id) 0)
     prop (desc <> " scanl1'") $ transform (scanl1 (const id)) t
                                          (S.scanl1' (const id))
     prop (desc <> " scanl1M'") $ transform (scanl1 (const id)) t
