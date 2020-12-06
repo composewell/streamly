@@ -111,7 +111,7 @@ writeN limit = Fold step initial extract
   where
     initial = do
         marr <- liftIO $ newArray limit bottomElement
-        return (Tuple' marr 0)
+        return $ FL.Partial (Tuple' marr 0)
     step st@(Tuple' marr i) x
         | i == limit = fmap FL.Done $ extract st
         | otherwise = do
@@ -125,7 +125,7 @@ write = Fold step initial extract
   where
     initial = do
         marr <- liftIO $ newArray 0 bottomElement
-        return (Tuple3' marr 0 0)
+        return $ FL.Partial (Tuple3' marr 0 0)
     step (Tuple3' marr i capacity) x
         | i == capacity =
             let newCapacity = max (capacity * 2) 1

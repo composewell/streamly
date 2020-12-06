@@ -1802,14 +1802,7 @@ classifySessionsBy tick tmout reset ejectPred
         --
         let curTime = max sessionEventTime timestamp
             mOld = Map.lookup key sessionKeyValueMap
-
-        fs <-
-            case mOld of
-                Nothing -> initial
-                Just (Tuple' _ acc) -> return acc
-        res <- step fs value
-        case res of
-            FL.Done fb -> do
+        let done fb = do
                 -- deleting a key from the heap is expensive, so we never
                 -- delete a key from heap, we just purge it from the Map and it
                 -- gets purged from the heap on timeout. We just need an extra
@@ -1827,7 +1820,7 @@ classifySessionsBy tick tmout reset ejectPred
                     , sessionKeyValueMap = mp
                     , sessionOutputStream = yield (key, fb)
                     }
-            FL.Partial fs1 -> do
+            partial fs1 = do
                 let acc = Tuple' timestamp fs1
                 (hp1, mp1, out1, cnt1) <- do
                         let vars = (sessionTimerHeap, sessionKeyValueMap,
@@ -1858,6 +1851,17 @@ classifySessionsBy tick tmout reset ejectPred
                     , sessionKeyValueMap = mp2
                     , sessionOutputStream = out1
                     }
+        res0 <- do
+            case mOld of
+                Nothing -> initial
+                Just (Tuple' _ acc) -> return $ FL.Partial acc
+        case res0 of
+            FL.Done fb -> done fb
+            FL.Partial fs -> do
+                res <- step fs value
+                case res of
+                    FL.Done fb -> done fb
+                    FL.Partial fs1 -> partial fs1
 
     -- Got a timer tick event
     sstep sessionState@SessionState{..} Nothing =

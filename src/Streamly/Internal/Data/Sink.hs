@@ -80,7 +80,7 @@ import qualified Data.Map.Strict as Map
 toFold :: Monad m => Sink m a -> Fold m a ()
 toFold (Sink f) = Fold step begin done
     where
-    begin = return ()
+    begin = return $ Partial ()
     step _ a = Partial <$> f a
     done _ = return ()
 
