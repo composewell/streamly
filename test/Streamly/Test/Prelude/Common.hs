@@ -88,9 +88,13 @@ module Streamly.Test.Prelude.Common
 import Control.Applicative (ZipList(..), liftA2)
 import Control.Exception (Exception, try)
 import Control.Concurrent (threadDelay)
-import Control.Monad (replicateM, when)
+import Control.Monad (replicateM)
+#ifdef DEVBUILD
+import Control.Monad (when)
+#endif
 import Control.Monad.Catch (throwM, MonadThrow)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.IORef ( IORef, atomicModifyIORef', modifyIORef', newIORef
+                  , readIORef, writeIORef)
 import Data.List
     ( delete
     , deleteBy
@@ -1398,7 +1402,8 @@ beforeProp t vec =
         run
             $ S.drain . t
             $ S.before (writeIORef ioRef [0])
-            $ S.mapM (\a -> modifyIORef' ioRef (++ [a]) >> return a)
+            $ S.mapM (\a -> do atomicModifyIORef' ioRef (\xs -> (xs ++ [a], ()))
+                               return a)
             $ S.fromList vec
         refValue <- run $ readIORef ioRef
         listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
@@ -1411,7 +1416,8 @@ afterProp t vec =
         run
             $ S.drain . t
             $ S.after (modifyIORef' ioRef (0:))
-            $ S.mapM (\a -> modifyIORef' ioRef (a:) >> return a)
+            $ S.mapM (\a -> do atomicModifyIORef' ioRef (\xs -> (a:xs, ()))
+                               return a)
             $ S.fromList vec
         refValue <- run $ readIORef ioRef
         listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
@@ -1433,6 +1439,7 @@ bracketProp t vec =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
+#ifdef DEVBUILD
 bracketPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 bracketPartialStreamProp t vec =
@@ -1456,6 +1463,7 @@ bracketPartialStreamProp t vec =
                 refValue <- run $ readIORef ioRef
                 when (refValue /= 0 && refValue /= 3) $
                     error $ "refValue == " ++ show refValue
+#endif
 
 bracketExceptionProp ::
        (IsStream t, MonadThrow (t IO)
@@ -1493,6 +1501,7 @@ finallyProp t vec =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
+#ifdef DEVBUILD
 finallyPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 finallyPartialStreamProp t vec =
@@ -1514,6 +1523,7 @@ finallyPartialStreamProp t vec =
                 refValue <- run $ readIORef ioRef
                 when (refValue /= 0 && refValue /= 2) $
                     error $ "refValue == " ++ show refValue
+#endif
 
 finallyExceptionProp ::
        (IsStream t, MonadThrow (t IO)
@@ -1588,11 +1598,15 @@ exceptionOps desc t = do
     prop (desc <> " before") $ beforeProp t
     prop (desc <> " after") $ afterProp t
     prop (desc <> " bracket end of stream") $ bracketProp t
+#ifdef DEVBUILD
     prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
+#endif
     prop (desc <> " bracket exception in stream") $ bracketExceptionProp t
     prop (desc <> " onException") $ onExceptionProp t
     prop (desc <> " finally end of stream") $ finallyProp t
+#ifdef DEVBUILD
     prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
+#endif
     prop (desc <> " finally exception in stream") $ finallyExceptionProp t
     prop (desc <> " handle") $ handleProp t
 
