@@ -293,9 +293,9 @@ constructWithCons cons op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
         strm <-
-            run $
-            S.toList . op . S.take (fromIntegral len) $
-            foldr cons S.nil (repeat 0)
+            run
+               $ S.toList . op . S.take (fromIntegral len)
+               $ foldr cons S.nil (repeat 0)
         let list = replicate (fromIntegral len) 0
         listEquals (==) strm list
 
@@ -387,8 +387,8 @@ constructWithUnfoldr listT op len =
   where
     unfoldStep seed =
         if seed > fromIntegral len
-            then Nothing
-            else Just (seed, seed + 1)
+        then Nothing
+        else Just (seed, seed + 1)
 
 constructWithYield ::
        (IsStream t
@@ -404,9 +404,9 @@ constructWithYield listT op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
         strm <-
-            run $
-            S.toList . op . S.take (fromIntegral len) $
-            foldMap S.yield (repeat 0)
+            run
+                $ S.toList . op . S.take (fromIntegral len)
+                $ foldMap S.yield (repeat 0)
         let list = replicate (fromIntegral len) 0
         listEquals (==) (listT strm) list
 
@@ -424,9 +424,9 @@ constructWithYieldM listT op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
         strm <-
-            run $
-            S.toList . op . S.take (fromIntegral len) $
-            foldMap S.yieldM (repeat (return 0))
+            run
+                $ S.toList . op . S.take (fromIntegral len)
+                $ foldMap S.yieldM (repeat (return 0))
         let list = replicate (fromIntegral len) 0
         listEquals (==) (listT strm) list
 
