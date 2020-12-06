@@ -108,6 +108,8 @@ common bench-depends
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
     , transformers        >= 0.4   && < 0.6
+    , containers          >= 0.5   && < 0.7
+
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
@@ -232,7 +234,7 @@ benchmark Prelude.WAsync
 benchmark Prelude.Parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M1000M -RTS
+  ghc-options: +RTS -M2000M -RTS
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Parallel.hs
   if impl(ghcjs)

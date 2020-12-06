@@ -11,7 +11,8 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import GHC.Exts
 import Control.Monad.Primitive
@@ -135,7 +136,7 @@ shrinkArray (Array arr#) (I# n#) =
 -- /Internal/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
-write = Fold step initial extract
+write = FL.mkAccumM step initial extract
 
     where
 
@@ -169,13 +170,13 @@ writeN limit = Fold step initial extract
         marr <- newArray limit
         return $ Tuple' marr 0
 
-    step (Tuple' marr i) x
-        | i == limit = return $ Tuple' marr i
+    extract (Tuple' marr len) = shrinkArray marr len >> return marr
+
+    step s@(Tuple' marr i) x
+        | i == limit = FL.Done <$> extract s
         | otherwise = do
             unsafeWriteIndex marr i x
-            return $ Tuple' marr (i + 1)
-
-    extract (Tuple' marr len) = shrinkArray marr len >> return marr
+            return $ FL.Partial $ Tuple' marr (i + 1)
 
 -- Use Tuple' instead?
 data ArrayUnsafe a = ArrayUnsafe
@@ -191,7 +192,7 @@ data ArrayUnsafe a = ArrayUnsafe
 -- /Internal/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeNUnsafe n = Fold step initial extract
+writeNUnsafe n = FL.mkAccumM step initial extract
 
     where
 
@@ -212,13 +213,9 @@ fromStreamDN limit str = do
     shrinkArray marr n
     return marr
 
-{-# INLINE runFold #-}
-runFold :: (Monad m) => Fold m a b -> D.Stream m a -> m b
-runFold (Fold step begin done) = D.foldlMx' step begin done
-
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Prim a) => D.Stream m a -> m (Array a)
-fromStreamD str = runFold write str
+fromStreamD str = D.foldOnce write str
 
 {-# INLINABLE fromListNM #-}
 fromListNM :: (MonadIO m, Prim a) => Int -> [a] -> m (Array a)
@@ -357,44 +354,50 @@ packArraysChunksOf n (D.Stream step state) =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf ::
        (MonadIO m, Prim a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) =
-    Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
 
     initial = do
-        when (n <= 0) $
+        when (n <= 0)
+          $ error
+          $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
+          ++ "arrays [" ++ show n ++ "] must be a natural number"
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
-                 ++ "arrays [" ++ show n ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple' Nothing r1)
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
         r <- step1 r1 buf
-        extract1 r
+        case r of
+            FL.Partial rr -> extract1 rr
+            FL.Done () -> return ()
 
     step (Tuple' Nothing r1) arr = do
-            len <- byteLength arr
-            if len >= n
-            then do
-                r <- step1 r1 arr
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just arr) r1)
-
+        len <- byteLength arr
+        if len >= n
+        then do
+            r <- step1 r1 arr
+            case r of
+                FL.Done () -> return $ FL.Done ()
+                FL.Partial s -> do
+                    extract1 s
+                    r1' <- initial1
+                    return $ FL.Partial $ Tuple' Nothing r1'
+        else return $ FL.Partial $ Tuple' (Just arr) r1
     step (Tuple' (Just buf) r1) arr = do
-            blen <- byteLength buf
-            alen <- byteLength arr
-            let len = blen + alen
-            buf' <- spliceTwo buf arr
-
-            if len >= n
-            then do
-                r <- step1 r1 buf'
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just buf') r1)
+        blen <- byteLength buf
+        alen <- byteLength arr
+        let len = blen + alen
+        buf' <- spliceTwo buf arr
+        if len >= n
+        then do
+            r <- step1 r1 buf'
+            case r of
+                FL.Done () -> return $ FL.Done ()
+                FL.Partial s -> do
+                    extract1 s
+                    r1' <- initial1
+                    return $ FL.Partial $ Tuple' Nothing r1'
+        else return $ FL.Partial $ Tuple' (Just buf') r1

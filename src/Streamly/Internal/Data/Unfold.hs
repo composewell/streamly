@@ -165,6 +165,7 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Streamly.Internal.Data.SVar
 import Prelude
@@ -277,17 +278,20 @@ swap = lmap Tuple.swap
 fold :: Monad m => Unfold m a b -> Fold m b c -> a -> m c
 fold (Unfold ustep inject) (Fold fstep initial extract) a =
     initial >>= \x -> inject a >>= go SPEC x
-  where
-    -- XXX !acc?
+
+    where
+
     {-# INLINE_LATE go #-}
-    go !_ acc st = acc `seq` do
+    go !_ !fs st = do
         r <- ustep st
         case r of
             Yield x s -> do
-                acc' <- fstep acc x
-                go SPEC acc' s
-            Skip s -> go SPEC acc s
-            Stop   -> extract acc
+                res <- fstep fs x
+                case res of
+                    FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Done c -> return c
+            Skip s -> go SPEC fs s
+            Stop -> extract fs
 
 {-# INLINE_NORMAL map #-}
 map :: Monad m => (b -> c) -> Unfold m a b -> Unfold m a c
@@ -454,7 +458,7 @@ const m = Unfold step inject
 fromList :: Monad m => Unfold m [a] a
 fromList = Unfold step inject
   where
-    inject x = return x
+    inject = return
     {-# INLINE_LATE step #-}
     step (x:xs) = return $ Yield x xs
     step []     = return Stop
@@ -464,7 +468,7 @@ fromList = Unfold step inject
 fromListM :: Monad m => Unfold m [m a] a
 fromListM = Unfold step inject
   where
-    inject x = return x
+    inject = return
     {-# INLINE_LATE step #-}
     step (x:xs) = x >>= \r -> return $ Yield r xs
     step []     = return Stop
