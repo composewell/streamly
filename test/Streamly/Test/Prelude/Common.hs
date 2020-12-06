@@ -1394,25 +1394,27 @@ beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 beforeProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
-        ioRef <- run $ newIORef False
-        strm <-
-            run $
-            S.toList . t $ S.before (writeIORef ioRef True) (S.fromList vec)
+        ioRef <- run $ newIORef []
+        run
+            $ S.drain . t
+            $ S.before (writeIORef ioRef [0])
+            $ S.mapM (\a -> modifyIORef' ioRef (++ [a]) >> return a)
+            $ S.fromList vec
         refValue <- run $ readIORef ioRef
-        assert refValue
-        assert $ sort strm == sort vec
+        listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
 
 afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 afterProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
-        ioRef <- run $ newIORef False
-        strm <-
-            run $
-            S.toList . t $ S.after (writeIORef ioRef True) (S.fromList vec)
+        ioRef <- run $ newIORef []
+        run
+            $ S.drain . t
+            $ S.after (modifyIORef' ioRef (0:))
+            $ S.mapM (\a -> modifyIORef' ioRef (a:) >> return a)
+            $ S.fromList vec
         refValue <- run $ readIORef ioRef
-        assert refValue
-        assert $ sort strm == sort vec
+        listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
 
 bracketProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 bracketProp t vec =
