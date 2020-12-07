@@ -23,7 +23,6 @@ module Handle.Read
     (allBenchmarks)
 where
 
-import Data.Char (ord)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import GHC.Magic (inline)
@@ -389,6 +388,4 @@ allBenchmarks env = Prelude.concat
     , o_1_space_reduce_read env
     , o_1_space_reduce_toBytes env
     , o_1_space_reduce_read_grouped env
-    -- , o_1_space_reduce_read_split env
-    -- , o_1_space_reduce_toChunks_split env
     ]

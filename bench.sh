@@ -80,6 +80,7 @@ all_grp="\
     $prelude_concurrent_grp \
     $array_grp \
     $parser_grp \
+    Unicode.Stream \
     Data.Unfold \
     FileSystem.Handle"
 
