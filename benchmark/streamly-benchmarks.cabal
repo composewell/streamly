@@ -463,6 +463,22 @@ benchmark FileSystem.Handle
     , ghc-prim          >= 0.4   && < 0.7
 
 -------------------------------------------------------------------------------
+-- Unicode Benchmarks
+-------------------------------------------------------------------------------
+benchmark Unicode.Stream
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: +RTS -M3000M -RTS
+  hs-source-dirs: . Streamly/Benchmark/Unicode
+  main-is: Stream.hs
+  other-modules:
+      Streamly.Benchmark.CommonH
+  build-depends:
+      typed-process     >= 0.2.3 && < 0.3
+    , directory         >= 1.2.2 && < 1.4
+    , ghc-prim          >= 0.4   && < 0.7
+ 
+-------------------------------------------------------------------------------
 -- benchmark comparison and presentation
 -------------------------------------------------------------------------------
 

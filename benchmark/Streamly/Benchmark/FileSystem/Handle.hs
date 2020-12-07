@@ -20,22 +20,14 @@
 #endif
 
 #if __GLASGOW_HASKELL__ >= 800
-import System.Directory (getFileSize)
 #endif
-import System.Environment (lookupEnv)
-import System.IO (openFile, IOMode(..))
-import System.Process.Typed (shell, runProcess_)
 import Prelude hiding (last, length)
 
 import qualified Handle.ReadWrite as RW
 import qualified Handle.Read as RO
 
-import Data.IORef
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
--- TBD Change it to point to Common in parent directory
--- Done
--- import Handle.Common
 import Streamly.Benchmark.CommonH
 
 -------------------------------------------------------------------------------
@@ -49,65 +41,10 @@ moduleName = "FileSystem.Handle"
 --
 -------------------------------------------------------------------------------
 
--- smallFileSize :: Int
--- smallFileSize = 10 * 1024 * 1024
-
--- bigFileSize :: Int
--- bigFileSize = 100 * 1024 * 1024
-
--------------------------------------------------------------------------------
---
--------------------------------------------------------------------------------
-
 main :: IO ()
 main = do
     (_, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
-    -- r <- lookupEnv "Benchmark_FileSystem_Handle_InputFile"
-    -- (small, big) <-
-    --     case r of
-    --         Just inFileName -> return (inFileName, inFileName)
-    --         Nothing -> do
-    --             -- XXX will this work on windows/msys?
-    --             let cmd infile size =
-    --                     "mkdir -p " ++ scratchDir
-    --                         ++ "; test -e " ++ infile
-    --                         ++ " || { echo \"creating input file " ++ infile
-    --                         ++ "\" && head -c " ++ show size
-    --                         ++ " </dev/urandom >" ++ infile
-    --                         ++ ";}"
-    --             runProcess_ (shell (cmd inFileSmall smallFileSize))
-    --             runProcess_ (shell (cmd inFileBig bigFileSize))
-    --             return (inFileSmall, inFileBig)
-
-    -- putStrLn $ "Using small input file: " ++ small
-    -- smallHandle <- openFile small ReadMode
-
-    -- putStrLn $ "Using big input file: " ++ big
-    -- bigHandle <- openFile big ReadMode
-
-    -- putStrLn $ "Using output file: " ++ outfile
-    -- outHandle <- openFile outfile WriteMode
-    -- devNull <- openFile "/dev/null" WriteMode
-
-    -- ssize <- fromIntegral <$> getFileSize small
-    -- bsize <- fromIntegral <$> getFileSize big
-
-    -- ref <- newIORef $ RefHandles
-    --     { smallInH = smallHandle
-    --     , bigInH = bigHandle
-    --     , outputH = outHandle
-    --     }
-
-    -- let env = BenchEnv
-    --         { href = ref
-    --         , smallSize = ssize
-    --         , bigSize = bsize
-    --         , nullH = devNull
-    --         , smallInFile = small
-    --         , bigInFile = big
-    --         }
-
     runMode (mode cfg) cfg benches (allBenchmarks env)
 
     where
