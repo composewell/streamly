@@ -31,8 +31,6 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 
 import qualified Streamly.Internal.Data.Sink as Sink
 
-import qualified Streamly.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
