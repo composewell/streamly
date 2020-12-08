@@ -37,11 +37,11 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Prelude as SP
 import Streamly.Benchmark.CommonH
-import System.IO (Handle, hClose, hPutChar)
+import System.IO (Handle, hClose)
 import Control.Exception (SomeException)
 
 import Streamly.Benchmark.Common
-import Gauge
+import Gauge hiding (env)
 import Prelude hiding (concat, take, filter, zipWith, map, mapM, takeWhile)
 
 {-# INLINE benchIO #-}

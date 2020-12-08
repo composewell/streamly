@@ -24,37 +24,24 @@ module Serial.Split
 where
 
 import Data.Char (ord)
-import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
-import GHC.Magic (inline)
-#if __GLASGOW_HASKELL__ >= 802
-import GHC.Magic (noinline)
-#else
-#define noinline
-#endif
 import System.IO (Handle)
 import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
--- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
-import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
--- import Handle.Common
 import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Streamly.Internal.Data.Unfold as IUF
 

@@ -26,18 +26,11 @@ where
 import Control.Exception (SomeException)
 import System.IO (Handle, hClose, hPutChar)
 import Prelude hiding (last, length)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (defaultChunkSize)
 
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.Unicode.Array.Char as IUA
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
