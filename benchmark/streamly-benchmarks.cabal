@@ -382,6 +382,7 @@ benchmark Prelude.Adaptive
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Adaptive.hs
+  ghc-options: +RTS -M3000M -RTS
   if impl(ghcjs)
     buildable: False
   else
