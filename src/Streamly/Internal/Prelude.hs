@@ -4514,8 +4514,24 @@ data SessionState t m k a b = SessionState
 -- /Internal/
 --
 
+-- XXX use (AbsTime, (k, a)), if we have to map we usually have to map on a.
+-- this will also be consistent with timestamped etc.
+--
+-- We can use modular, separate stages for the heap and the map. To share the
+-- map between the two stages we can either use StateT (preferably) or an IORef
+-- or PrimVar. We need can force SerialT on these so that we do not run the two
+-- stages in parallel, else we will need atomicModifyIORef.
+--
+-- Ejection based on count could be yet another stage sharing the map. Total
+-- count can either be emitted in the stream or set in StateT.
+--
+-- We can use IsEvent (Abs/Rel) to get the timestamp from the value "a". That
+-- way we can use a common classify function and add the timer based handling
+-- just on top of that. And count based ejection as well to either time based
+-- classify or to regular classify.
+--
 -- XXX Perhaps we should use an "Event a" type to represent timestamped data.
-{-# INLINABLE classifySessionsBy #-}
+{-# INLINE classifySessionsBy #-}
 classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ timer tick in seconds
@@ -4734,8 +4750,12 @@ classifySessionsBy tick tmout reset ejectPred
                     return (hp, mp, out, cnt)
 
     -- merge timer events in the stream
+    -- this is slow, because it does not fuse, can we do something about it?
+    -- we can also throw async exception to a thread at time ticks to interrupt
+    -- the thread but that may be error prone?
     stream = Serial.map Just str `Par.parallelFst` repeatM timer
     timer = do
+        -- XXX use RTC instead to avoid any skew
         liftIO $ threadDelay (round $ tick * 1000000)
         return Nothing
 
@@ -4819,7 +4839,7 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 --
 -- /Internal/
 --
-{-# INLINABLE classifySessionsOf #-}
+{-# INLINE classifySessionsOf #-}
 classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
