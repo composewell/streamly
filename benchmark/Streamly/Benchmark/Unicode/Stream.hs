@@ -19,10 +19,8 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Control.Exception (SomeException)
-import System.IO (Handle, hClose, hPutChar)
+import System.IO (Handle)
 import Prelude hiding (last, length)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (defaultChunkSize)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Unicode.Stream as SS
@@ -42,7 +40,6 @@ import Streamly.Benchmark.Common
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
