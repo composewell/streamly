@@ -18,9 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Exceptions
-    (allBenchmarks)
-where
+module Serial.Exceptions (benchmarks) where
 
 import Control.Exception (SomeException)
 import System.IO (Handle, hClose, hPutChar)
@@ -33,7 +31,8 @@ import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
-import Streamly.Benchmark.CommonH
+import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Test.Inspection
@@ -104,7 +103,7 @@ readWriteAfter_Stream inh devNull =
 
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
-    [ bgroup "copy/read/exceptions"
+    [ bgroup "exceptions"
        [ mkBenchSmall "S.onException" env $ \inh _ ->
            readWriteOnExceptionStream inh (nullH env)
        , mkBenchSmall "S.handle" env $ \inh _ ->
@@ -120,7 +119,7 @@ o_1_space_copy_stream_exceptions env =
        , mkBenchSmall "S.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
        ]
-    , bgroup "copy/fromToBytes/exceptions"
+    , bgroup "exceptions/fromToBytes"
        [ mkBenchSmall "S.bracket_" env $ \inh _ ->
            fromToBytesBracket_Stream inh (nullH env)
        , mkBenchSmall "S.bracket" env $ \inh _ ->
@@ -161,7 +160,7 @@ readChunksBracket inh devNull =
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
-    [ bgroup "copy/readChunks/exceptions"
+    [ bgroup "exceptions/readChunks"
         [ mkBench "UF.onException" env $ \inH _ ->
             readChunksOnException inH (nullH env)
         , mkBench "UF.bracket_" env $ \inH _ ->
@@ -199,7 +198,7 @@ toChunksBracket inh devNull =
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "copy/toChunks/exceptions"
+    [ bgroup "exceptions/toChunks"
         [ mkBench "S.bracket_" env $ \inH _ ->
             toChunksBracket_ inH (nullH env)
         , mkBench "S.bracket" env $ \inH _ ->
@@ -208,9 +207,11 @@ o_1_space_copy_exceptions_toChunks env =
     ]
 
 
-allBenchmarks :: BenchEnv -> [Benchmark]
-allBenchmarks env = Prelude.concat
-    [ o_1_space_copy_exceptions_readChunks env
-    , o_1_space_copy_exceptions_toChunks env
-    , o_1_space_copy_stream_exceptions env
-    ]
+benchmarks :: String -> BenchEnv -> [Benchmark]
+benchmarks moduleName env =
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_copy_exceptions_readChunks env
+            , o_1_space_copy_exceptions_toChunks env
+            , o_1_space_copy_stream_exceptions env
+            ]
+        ]

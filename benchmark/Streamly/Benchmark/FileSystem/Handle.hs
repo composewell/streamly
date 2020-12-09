@@ -21,13 +21,14 @@
 #if __GLASGOW_HASKELL__ >= 800
 #endif
 
+import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
+
 import qualified Handle.ReadWrite as RW
 import qualified Handle.Read as RO
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.CommonH
 
 -------------------------------------------------------------------------------
 --
@@ -43,7 +44,7 @@ moduleName = "FileSystem.Handle"
 main :: IO ()
 main = do
     (_, cfg, benches) <- parseCLIOpts defaultStreamSize
-    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
+    env <- mkHandleBenchEnv
     runMode (mode cfg) cfg benches (allBenchmarks env)
 
     where

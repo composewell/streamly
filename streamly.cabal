@@ -109,7 +109,6 @@ extra-source-files:
     bench.sh
     benchmark/*.hs
     benchmark/README.md
-    benchmark/Streamly/Benchmark/CommonH.hs
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
@@ -119,6 +118,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Prelude/Serial/*.hs
     benchmark/Streamly/Benchmark/Unicode/*.hs
     benchmark/lib/Streamly/Benchmark/*.hs
+    benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
     bin/bench-exec-one.sh
     bin/mk-hscope.sh

@@ -47,7 +47,7 @@ import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
-import Streamly.Benchmark.CommonH
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)

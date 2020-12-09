@@ -1,8 +1,7 @@
  -- |
--- Module      : Streamly.Benchmark.Prelude.System.Split
+-- Module      : Streamly.Benchmark.Prelude.Serial.Split
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -19,9 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Split
-    (allBenchmarks)
-where
+module Serial.Split (benchmarks) where
 
 import Data.Char (ord)
 import Data.Word (Word8)
@@ -38,7 +35,8 @@ import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
-import Streamly.Benchmark.CommonH
+import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
@@ -147,7 +145,7 @@ splitOnSuffixSeq str inh =
 
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
-    [ bgroup "reduce/read"
+    [ bgroup "split"
         [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
         , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
@@ -200,7 +198,7 @@ splitOnSeqUtf8 str inh =
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
-    [ bgroup "reduce/toChunks"
+    [ bgroup "split/toChunks"
         [ mkBenchSmall ("S.splitOnSeqUtf8 \"abcdefgh\" FL.drain "
             ++ ". US.decodeUtf8Arrays") env $ \inh _ ->
                 splitOnSeqUtf8 "abcdefgh" inh
@@ -208,9 +206,12 @@ o_1_space_reduce_toChunks_split env =
             env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
-allBenchmarks :: BenchEnv -> [Benchmark]
-allBenchmarks env = Prelude.concat
-    [ o_1_space_reduce_read_split env
-    , o_1_space_reduce_toChunks_split env
-    ]
+
+benchmarks :: String -> BenchEnv -> [Benchmark]
+benchmarks moduleName env =
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_reduce_read_split env
+            , o_1_space_reduce_toChunks_split env
+            ]
+        ]
 
