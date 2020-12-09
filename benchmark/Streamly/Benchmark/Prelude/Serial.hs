@@ -11,18 +11,17 @@
 
 module Main (main) where
 
-import qualified Serial.Generation as Generation
 import qualified Serial.Elimination as Elimination
+import qualified Serial.Exceptions as Exceptions
+import qualified Serial.Generation as Generation
+import qualified Serial.Nested as Nested
+import qualified Serial.Split as Split
 import qualified Serial.Transformation1 as Transformation1
 import qualified Serial.Transformation2 as Transformation2
 import qualified Serial.Transformation3 as Transformation3
-import qualified Serial.Nested as Nested
-import qualified Serial.Exceptions as Exceptions
-import qualified Serial.Split as Split
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
-
 import Streamly.Benchmark.CommonH
 
 moduleName :: String

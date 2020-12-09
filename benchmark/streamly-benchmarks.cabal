@@ -167,7 +167,8 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-      ,Streamly.Benchmark.CommonH
+      , Streamly.Benchmark.CommonH
+  ghc-options: +RTS -M1000M -RTS
   if impl(ghcjs)
     buildable: False
   else
@@ -176,6 +177,7 @@ benchmark Prelude.Serial
       typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
     , ghc-prim          >= 0.4   && < 0.7 
+    , inspection-testing >= 0.4   && < 0.5
 
 benchmark Prelude.WSerial
   import: bench-options
@@ -254,8 +256,8 @@ benchmark Data.Unfold
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unfold.hs
-  other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
-                ,Streamly.Benchmark.CommonH
+  other-modules:  Streamly.Benchmark.Data.NestedUnfoldOps
+                , Streamly.Benchmark.CommonH
   if impl(ghcjs)
     buildable: False
   else
@@ -382,7 +384,6 @@ benchmark Prelude.Adaptive
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Adaptive.hs
-  ghc-options: +RTS -M3000M -RTS
   if impl(ghcjs)
     buildable: False
   else
@@ -456,7 +457,6 @@ benchmark FileSystem.Handle
   other-modules:
       Handle.Read
     , Handle.ReadWrite
-    -- , Handle.Common
     , Streamly.Benchmark.CommonH
   build-depends:
       typed-process     >= 0.2.3 && < 0.3
@@ -469,7 +469,6 @@ benchmark FileSystem.Handle
 benchmark Unicode.Stream
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M3000M -RTS
   hs-source-dirs: . Streamly/Benchmark/Unicode
   main-is: Stream.hs
   other-modules:
