@@ -21,28 +21,29 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
-import System.Random (randomRIO)
+import Control.Exception (SomeException)
+import System.IO (Handle, hClose)
 import Streamly.Internal.Data.Unfold (Unfold)
+import System.Random (randomRIO)
 
 import qualified Prelude
+import qualified Streamly.Benchmark.Data.NestedUnfoldOps as Nested
+import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Benchmark.Data.NestedUnfoldOps as Nested
-
--- For Unfold Exception Benchmarks
-import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Prelude as SP
-import Streamly.Benchmark.CommonH
-import System.IO (Handle, hClose)
-import Control.Exception (SomeException)
 
-import Streamly.Benchmark.Common
 import Gauge hiding (env)
 import Prelude hiding (concat, take, filter, zipWith, map, mapM, takeWhile)
+import Streamly.Benchmark.Common
+import Streamly.Benchmark.CommonH
+
+#ifdef INSPECTION
+import Test.Inspection
+#endif
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -428,7 +429,6 @@ _apDiscardFst = undefined
 _apDiscardSnd :: Int -> Int -> m ()
 _apDiscardSnd = undefined
 
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -558,7 +558,7 @@ o_n_space_nested size =
 -- | Send the file contents to /dev/null with exception handling
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.read
+    let readEx = UF.onException (\_ -> hClose inh) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 #ifdef INSPECTION
@@ -570,7 +570,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
-        readEx = IUF.handle (IUF.singletonM handler) FH.read
+        readEx = UF.handle (UF.singletonM handler) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 #ifdef INSPECTION
@@ -581,7 +581,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Unfold :: Handle -> Handle -> IO ()
 readWriteFinally_Unfold inh devNull =
-    let readEx = IUF.finally_ (\_ -> hClose inh) FH.read
+    let readEx = UF.finally_ (\_ -> hClose inh) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 #ifdef INSPECTION
@@ -591,13 +591,13 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
-    let readEx = IUF.finally (\_ -> hClose inh) FH.read
+    let readEx = UF.finally (\_ -> hClose inh) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
 readWriteBracket_Unfold inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.read
+    let readEx = UF.bracket_ return (\_ -> hClose inh) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 #ifdef INSPECTION
@@ -607,7 +607,7 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
 readWriteBracketUnfold inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
+    let readEx = UF.bracket return (\_ -> hClose inh) FH.read
     in SP.fold (FH.write devNull) $ S.unfold readEx inh
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
@@ -651,9 +651,6 @@ main = do
                   , o_1_space_filtering size
                   , o_1_space_zip size
                   , o_1_space_nested size
-                  -- I have to pass BenchEnv instead of size here
-                  -- DONE
-                  -- , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)
             $ Prelude.concat [o_n_space_nested size]

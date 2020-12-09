@@ -1,8 +1,7 @@
 -- |
 -- Module      : Streamly.Benchmark.Prelude.Serial.Exceptions
--- Copyright   : (c) 2020 Composewell Technologies
---
--- License     : BSD3
+-- Copyright   : (c) 2019 Composewell Technologies
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -25,7 +24,6 @@ where
 
 import Control.Exception (SomeException)
 import System.IO (Handle, hClose, hPutChar)
-import Prelude hiding (last, length)
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -34,18 +32,10 @@ import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
--- import Handle.Common
+import Prelude hiding (last, length)
 import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
-import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
-
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
-
 import Test.Inspection
 #endif
 

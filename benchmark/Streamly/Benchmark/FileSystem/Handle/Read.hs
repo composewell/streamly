@@ -1,8 +1,7 @@
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -32,12 +31,10 @@ import GHC.Magic (noinline)
 #define noinline
 #endif
 import System.IO (Handle)
-import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
--- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Unicode.Stream as IUS
@@ -49,7 +46,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
--- import Handle.Common
+import Prelude hiding (last, length)
 import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
