@@ -1,7 +1,6 @@
 -- |
 -- Module      : Streamly.Benchmark.Data.Fold
 -- Copyright   : (c) 2018 Composewell
---
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
@@ -22,8 +21,8 @@ module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Exception (SomeException)
-import System.IO (Handle, hClose)
 import Streamly.Internal.Data.Unfold (Unfold)
+import System.IO (Handle, hClose)
 import System.Random (randomRIO)
 
 import qualified Prelude
@@ -39,7 +38,7 @@ import qualified Streamly.Prelude as SP
 import Gauge hiding (env)
 import Prelude hiding (concat, take, filter, zipWith, map, mapM, takeWhile)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.CommonH
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Test.Inspection
@@ -612,7 +611,7 @@ readWriteBracketUnfold inh devNull =
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =
-    [ bgroup "copy/read/exceptions"
+    [ bgroup "copy/exceptions"
        [ mkBenchSmall "UF.onException" env $ \inh _ ->
            readWriteOnExceptionUnfold inh (nullH env)
        , mkBenchSmall "UF.handle" env $ \inh _ ->
@@ -636,13 +635,12 @@ o_1_space_copy_read_exceptions env =
 main :: IO ()
 main = do
     (size, cfg, benches) <- parseCLIOpts defaultStreamSize
-    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
-    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size <>
-                                                allBenchmarks' env)
+    env <- mkHandleBenchEnv
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size env)
 
     where
 
-    allBenchmarks size =
+    allBenchmarks size env =
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
                   [ o_1_space_transformation_input size
@@ -651,8 +649,8 @@ main = do
                   , o_1_space_filtering size
                   , o_1_space_zip size
                   , o_1_space_nested size
+                  , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)
             $ Prelude.concat [o_n_space_nested size]
         ]
-    allBenchmarks' = o_1_space_copy_read_exceptions

@@ -130,7 +130,12 @@ library
     import: lib-options, bench-depends
     hs-source-dirs: lib
     exposed-modules: Streamly.Benchmark.Common
+                   , Streamly.Benchmark.Common.Handle
                    , Streamly.Benchmark.Prelude
+    build-depends:
+          typed-process     >= 0.2.3 && < 0.3
+        , directory         >= 1.2.2 && < 1.4
+        , ghc-prim          >= 0.4   && < 0.7 
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -167,7 +172,6 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-      , Streamly.Benchmark.CommonH
   ghc-options: +RTS -M1000M -RTS
   if impl(ghcjs)
     buildable: False
@@ -256,8 +260,7 @@ benchmark Data.Unfold
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unfold.hs
-  other-modules:  Streamly.Benchmark.Data.NestedUnfoldOps
-                , Streamly.Benchmark.CommonH
+  other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
   if impl(ghcjs)
     buildable: False
   else
@@ -457,7 +460,6 @@ benchmark FileSystem.Handle
   other-modules:
       Handle.Read
     , Handle.ReadWrite
-    , Streamly.Benchmark.CommonH
   build-depends:
       typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
@@ -471,8 +473,6 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: . Streamly/Benchmark/Unicode
   main-is: Stream.hs
-  other-modules:
-      Streamly.Benchmark.CommonH
   build-depends:
       typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
