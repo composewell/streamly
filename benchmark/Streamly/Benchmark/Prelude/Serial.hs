@@ -11,6 +11,8 @@
 
 module Main (main) where
 
+import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
+
 import qualified Serial.Elimination as Elimination
 import qualified Serial.Exceptions as Exceptions
 import qualified Serial.Generation as Generation
@@ -22,7 +24,6 @@ import qualified Serial.Transformation3 as Transformation3
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.CommonH
 
 moduleName :: String
 moduleName = "Prelude.Serial"
@@ -37,15 +38,15 @@ moduleName = "Prelude.Serial"
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value <>
-                                                Exceptions.allBenchmarks env <>
-                                                Split.allBenchmarks env)
+    env <- mkHandleBenchEnv
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value env)
     where
 
-    allBenchmarks size = Prelude.concat
+    allBenchmarks size env = Prelude.concat
         [ Generation.benchmarks moduleName size
         , Elimination.benchmarks moduleName size
+        , Exceptions.benchmarks moduleName env
+        , Split.benchmarks moduleName env
         , Transformation1.benchmarks moduleName size
         , Transformation2.benchmarks moduleName size
         , Transformation3.benchmarks moduleName size

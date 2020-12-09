@@ -34,7 +34,7 @@ import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
-import Streamly.Benchmark.CommonH
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)

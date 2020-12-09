@@ -1,8 +1,7 @@
 -- |
--- Module      : Streamly.Benchmark.FileSystem.Handle
+-- Module      : Streamly.Benchmark.Common.Handle
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -19,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Streamly.Benchmark.CommonH
+module Streamly.Benchmark.Common.Handle
     ( BenchEnv (..)
     , RefHandles (..)
     , scratchDir
@@ -30,23 +29,22 @@ module Streamly.Benchmark.CommonH
     , mkBenchSmall
     , isSpace
     , isSp
-    , mkBenchEnv
+    , mkHandleBenchEnv
     )
 where
 
 import Control.DeepSeq (NFData(rnf))
 import Data.Char (ord, chr)
 import Data.Word (Word8)
-import System.IO (openFile, IOMode(..), Handle, hClose)
-
-import Data.IORef
-import Gauge hiding (env)
-
 import System.Directory (getFileSize)
 import System.Environment (lookupEnv)
--- import System.IO (openFile, IOMode(..))
+import System.IO (openFile, IOMode(..), Handle, hClose)
 import System.Process.Typed (shell, runProcess_)
+
+import Data.IORef
 import Prelude hiding (last, length)
+import Gauge hiding (env)
+
 
 scratchDir :: String
 scratchDir = "benchmark-tmp/"
@@ -166,10 +164,9 @@ smallFileSize = 10 * 1024 * 1024
 bigFileSize :: Int
 bigFileSize = 100 * 1024 * 1024
 
--- Function to create a BenchEnv
-mkBenchEnv :: String -> IO BenchEnv
-mkBenchEnv envName = do
-    r <- lookupEnv envName
+mkHandleBenchEnv :: IO BenchEnv
+mkHandleBenchEnv = do
+    r <- lookupEnv "Benchmark_FileSystem_Handle_InputFile"
     (small, big) <-
         case r of
             Just inFileName -> return (inFileName, inFileName)

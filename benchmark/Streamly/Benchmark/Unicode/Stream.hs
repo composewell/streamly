@@ -1,8 +1,7 @@
 -- |
 -- Module      : Streamly.Unicode.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -19,8 +18,8 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import System.IO (Handle)
 import Prelude hiding (last, length)
+import System.IO (Handle)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Unicode.Stream as SS
@@ -34,8 +33,8 @@ import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
-import Streamly.Benchmark.CommonH
 import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
@@ -65,7 +64,7 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 
 o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
 o_1_space_copy_chunked env =
-    [ bgroup "copy/toChunks"
+    [ bgroup "decode-encode/toChunks"
         [
         mkBenchSmall "decodeEncodeUtf8Lenient" env $ \inH outH ->
             copyCodecUtf8ArraysLenient inH outH
@@ -169,7 +168,7 @@ wordsUnwordsCharArrayCopy inh outh =
 
 o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_group_ungroup env =
-    [ bgroup "copy/read/group-ungroup"
+    [ bgroup "ungroup-group"
         [ mkBenchSmall "US.unlines . S.splitOnSuffix ([Word8])" env
             $ \inh outh -> linesUnlinesCopy inh outh
         , mkBenchSmall "S.interposeSuffix . S.splitOnSuffix(Array Word8)" env
@@ -256,7 +255,7 @@ inspect $ hasNoTypeClasses 'copyStreamUtf8
 
 o_1_space_copy_read :: BenchEnv -> [Benchmark]
 o_1_space_copy_read env =
-    [ bgroup "copy/read"
+    [ bgroup "decode-encode"
         [
         -- This needs an ascii file, as decode just errors out.
           mkBench "SS.encodeLatin1' . SS.decodeLatin1" env $ \inh outh ->
@@ -275,7 +274,7 @@ o_1_space_copy_read env =
 main :: IO ()
 main = do
     (_, cfg, benches) <- parseCLIOpts defaultStreamSize
-    env <- mkBenchEnv "Benchmark_FileSystem_Handle_InputFile"
+    env <- mkHandleBenchEnv
     runMode (mode cfg) cfg benches (allBenchmarks env)
 
     where
