@@ -26,7 +26,6 @@ where
 import Data.Char (ord)
 import Data.Word (Word8)
 import System.IO (Handle)
-import Prelude hiding (last, length)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.FileSystem.Handle as FH
@@ -38,6 +37,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
+import Prelude hiding (last, length)
 import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION

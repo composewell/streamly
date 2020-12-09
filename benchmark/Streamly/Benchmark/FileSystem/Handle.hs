@@ -1,8 +1,7 @@
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -21,12 +20,12 @@
 
 #if __GLASGOW_HASKELL__ >= 800
 #endif
-import Prelude hiding (last, length)
 
 import qualified Handle.ReadWrite as RW
 import qualified Handle.Read as RO
 
 import Gauge hiding (env)
+import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.CommonH
 

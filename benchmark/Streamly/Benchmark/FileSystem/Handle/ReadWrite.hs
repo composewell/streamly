@@ -1,8 +1,7 @@
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
 -- Copyright   : (c) 2019 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -35,7 +34,6 @@ import qualified Streamly.Data.Array.Storable.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
--- import Handle.Common
 import Streamly.Benchmark.CommonH
 
 #ifdef INSPECTION
