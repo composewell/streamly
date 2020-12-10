@@ -317,6 +317,23 @@ groupBy =
         | null lst = []
         | otherwise = head $ List.groupBy cmp lst
 
+
+wordBy :: Property
+wordBy =
+    forAll (listOf (elements [' ', 's']))
+        $ \ls ->
+              case S.parse parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (words' ls)
+                  Left _ -> property False
+
+    where
+
+    predicate = (== ' ')
+    parser = P.many FL.toList (P.wordBy predicate FL.toList)
+    words' lst =
+        let wrds = words lst
+         in if wrds == [] then [""] else wrds
+
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -627,6 +644,7 @@ main =
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
+        prop "many (P.wordBy ' ') = words'" wordBy
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
         -- prop "" splitWithFailRight

@@ -323,6 +323,23 @@ sliceSepByMax =
             where
                 predicate = (== 1)
 
+wordBy :: Property
+wordBy =
+    forAll (listOf (elements [' ', 's']))
+        $ \ls ->
+              case S.parseD parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (words' ls)
+                  Left _ -> property False
+
+    where
+
+    predicate = (== ' ')
+    parser = P.many FL.toList (P.wordBy predicate FL.toList)
+    words' lst =
+        let wrds = words lst
+         in if wrds == [] then [""] else wrds
+
+
 splitWith :: Property
 splitWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -657,6 +674,7 @@ main =
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
+        prop "many (P.wordBy ' ') = words'" wordBy
         prop "parse 0, then 1, else fail" splitWith
         prop "fail due to die as left parser" splitWithFailLeft
         prop "fail due to die as right parser" splitWithFailRight
