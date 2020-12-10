@@ -3884,6 +3884,7 @@ groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD 
 -- > [[1,1],[2,2]]
 --
 -- @since 0.7.0
+{-# INLINE groups #-}
 groups :: (IsStream t, Monad m, Eq a) => Fold m a b -> t m a -> t m b
 groups = groupsBy (==)
 
