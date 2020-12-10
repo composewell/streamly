@@ -17,11 +17,12 @@ module Serial.Transformation2 (benchmarks) where
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 
-import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.IsStream as Internal
+import qualified Streamly.Prelude  as S
 
 import Gauge
 import Streamly.Prelude (SerialT, serially)
@@ -131,6 +132,22 @@ groupsByRollingEq :: MonadIO m => SerialT m Int -> m ()
 groupsByRollingEq =
     S.drain . S.groupsByRolling (==) FL.drain
 
+{-# INLINE foldMany #-}
+foldMany :: Monad m => SerialT m Int -> m ()
+foldMany =
+      S.drain
+    . S.map getSum
+    . Internal.foldMany (FL.ltake 2 FL.mconcat)
+    . S.map Sum
+
+{-# INLINE _foldIterate #-}
+_foldIterate :: Monad m => SerialT m Int -> m ()
+_foldIterate =
+      S.drain
+    . S.map getSum
+    . Internal.foldIterate (FL.ltake 2 . FL.sconcat) (Sum 0)
+    . S.map Sum
+
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
@@ -140,6 +157,8 @@ o_1_space_grouping value =
         , benchIOSink value "groupsByEq" groupsByEq
         , benchIOSink value "groupsByRollingLT" groupsByRollingLT
         , benchIOSink value "groupsByRollingEq" groupsByRollingEq
+        , benchIOSink value "foldMany" foldMany
+     -- , benchIOSink value "foldIterate" foldIterate
         ]
     ]
 

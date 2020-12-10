@@ -48,7 +48,6 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , GroupState (..) -- for inspection testing
     , foldMany
     , foldMany1
-    , groupsOf
     , groupsOf2
     )
 where
@@ -66,8 +65,8 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -589,12 +588,10 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
-    | GroupConsume s fs a
     | GroupBuffer s fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
--- XXX Remove GroupConsume
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
@@ -607,15 +604,16 @@ foldMany (Fold fstep initial extract) (Stream step state) =
         -- fs = fold state
         fs <- initial
         return $ Skip (GroupBuffer st fs)
-    step' _ (GroupConsume st fs x) = do
-        fs' <- fstep fs x
-        case fs' of
-            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
-            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
+            Yield x s -> do
+                res <- fstep fs x
+                return
+                    $ Skip
+                    $ case res of
+                          FL.Done b -> GroupYield b (GroupStart s)
+                          FL.Partial ps -> GroupBuffer s ps
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
@@ -630,36 +628,32 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
 
     where
 
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> GroupYield b (GroupStart s)
+                  FL.Partial ps -> GroupBuffer s ps
+
     {-# INLINE_LATE step' #-}
     step' gst (GroupStart st) = do
-        -- fs = fold state
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> do
-                fi <- initial
-                return $ Skip $ GroupConsume s fi x
+            Yield x s -> initial >>= consume x s
             Skip s -> return $ Skip (GroupStart s)
-            Stop -> return $ Stop
-    step' _ (GroupConsume st fs x) = do
-        fs' <- fstep fs x
-        case fs' of
-            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
-            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
+            Stop -> return Stop
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
+            Yield x s -> consume x s fs
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
                 return $ Skip (GroupYield b GroupFinish)
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
-
--- XXX Investigate performance
-{-# INLINE groupsOf #-}
-groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-groupsOf n fld = foldMany (FL.ltake n fld)
 
 data GroupState2 s fs
     = GroupStart2 s
