@@ -67,6 +67,10 @@ drainWhile p = PR.takeWhile p FL.drain
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
 
+{-# INLINE groupBy #-}
+groupBy :: MonadThrow m => SerialT m Int -> m ()
+groupBy = IP.parseD (PR.groupBy (<=) FL.drain)
+
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
 many = IP.parseD (PR.many FL.length (PR.satisfy (> 0)))
@@ -195,6 +199,7 @@ moduleName = "Data.Parser.ParserD"
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
