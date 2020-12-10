@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Streamly.Test.Common (checkListEqual)
 import Prelude hiding (maximum, minimum, elem, notElem, null, product, sum, head, last)
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Prelude as S
@@ -7,7 +8,8 @@ import qualified Streamly.Data.Fold as FL
 
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
+import Test.QuickCheck
+    (Property, property, forAll, Gen, vectorOf, arbitrary, choose, listOf)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 maxStreamLen :: Int
@@ -18,6 +20,15 @@ intMin = minBound
 
 intMax :: Int
 intMax = maxBound
+
+min_value :: Int
+min_value = 0
+
+max_value :: Int
+max_value = 10000
+
+chooseInt :: (Int, Int) -> Gen Int
+chooseInt = choose
 
 {-# INLINE maxStreamLen #-}
 {-# INLINE intMin #-}
@@ -192,6 +203,32 @@ and ls = S.fold FL.and (S.fromList ls) `shouldReturn` Prelude.and ls
 or :: [Bool] -> Expectation
 or ls = S.fold FL.or (S.fromList ls) `shouldReturn` Prelude.or ls
 
+ltake :: [Int] -> Property
+ltake ls =
+    forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
+            S.fold (F.ltake n FL.toList) (S.fromList ls)
+                `shouldReturn` Prelude.take n ls
+
+sliceSepBy :: Property
+sliceSepBy =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let p = (== 1)
+            f = F.sliceSepBy p FL.toList
+            ys = Prelude.takeWhile (not . p) ls
+         in case S.fold f (S.fromList ls) of
+            Right xs -> checkListEqual xs ys
+            Left _ -> property False
+
+sliceSepByMax :: Property
+sliceSepByMax =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            let p = (== 1)
+                f = F.sliceSepByMax p n FL.toList
+                ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
+             in case S.fold f (S.fromList ls) of
+                    Right xs -> checkListEqual xs ys
+                    Left _ -> property False
 
 main :: IO ()
 main = hspec $
@@ -219,3 +256,6 @@ main = hspec $
         prop "And" Main.and
         prop "Or" Main.or
         prop "mapMaybe" mapMaybe
+        prop "ltake" ltake
+        prop "sliceSepBy" sliceSepBy
+        prop "sliceSepByMax" sliceSepByMax
