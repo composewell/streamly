@@ -10,11 +10,12 @@ import Test.QuickCheck
         property, listOf, vectorOf, (.&&.), Gen, suchThat)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Data.List as List
+import qualified Prelude
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Prelude
 import qualified Test.Hspec as H
 
 import Prelude hiding (sequence)
@@ -286,6 +287,22 @@ takeWhile1 =
                 (x : _) -> property (not $ predicate x)
         where
             predicate = (== 0)
+
+groupBy :: Property
+groupBy =
+    forAll (listOf (chooseInt (0, 1)))
+        $ \ls ->
+              case S.parseD parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (groupByLF ls)
+                  Left _ -> property False
+
+    where
+
+    cmp = (==)
+    parser = P.groupBy cmp FL.toList
+    groupByLF lst
+        | null lst = []
+        | otherwise = head $ List.groupBy cmp lst
 
 sliceSepBy :: Property
 sliceSepBy =
@@ -637,6 +654,7 @@ main =
         prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
         prop "parse 0, then 1, else fail" splitWith

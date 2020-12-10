@@ -457,15 +457,36 @@ wordBy ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy = undefined
 
+data GroupByState a s
+    = GroupByInit !s
+    | GroupByGrouping !a !s
+
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
--- /Unimplemented/
---
-{-# INLINABLE groupBy #-}
-groupBy ::
-    -- Monad m =>
-    (a -> a -> Bool) -> Fold m a b -> Parser m a b
-groupBy = undefined
+{-# INLINE groupBy #-}
+groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    {-# INLINE grouper #-}
+    grouper s a0 a = do
+        res <- fstep s a
+        return
+            $ case res of
+                  FL.Done b -> Done 0 b
+                  FL.Partial s1 -> Partial 0 (GroupByGrouping a0 s1)
+
+    initial = GroupByInit <$> finitial
+
+    step (GroupByInit s) a = grouper s a a
+    step (GroupByGrouping a0 s) a =
+        if cmp a0 a
+        then grouper s a0 a
+        else Done 1 <$> fextract s
+
+    extract (GroupByInit s) = fextract s
+    extract (GroupByGrouping _ s) = fextract s
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
