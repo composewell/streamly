@@ -301,8 +301,6 @@ module Streamly.Internal.Data.Stream.StreamD
     , mkParallel
     , mkParallelD
     , newCallbackStream
-
-    , lastN
     )
 where
 
@@ -339,13 +337,11 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -4832,26 +4828,6 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
             Yield a s -> Yield a (TapDone s)
             Skip s    -> Skip (TapDone s)
             Stop      -> Stop
-
--- XXX Exported from Array again as this fold is specific to Array
--- | Take last 'n' elements from the stream and discard the rest.
-{-# INLINE lastN #-}
-lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
-lastN n
-    | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = A.unsafeFreeze <$> Fold step initial done
-  where
-    step (Tuple3' rb rh i) a = do
-        rh1 <- liftIO $ RB.unsafeInsert rb rh a
-        return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
-    initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
-    done (Tuple3' rb rh i) = do
-        arr <- liftIO $ MA.newArray n
-        foldFunc i rh snoc' arr rb
-    snoc' b a = liftIO $ MA.unsafeSnoc b a
-    foldFunc i
-        | i < n = RB.unsafeFoldRingM
-        | otherwise = RB.unsafeFoldRingFullM
 
 ------------------------------------------------------------------------------
 -- Time related
