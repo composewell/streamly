@@ -71,6 +71,15 @@ takeWhile value = IP.parseD (drainWhile (<= value))
 groupBy :: MonadThrow m => SerialT m Int -> m ()
 groupBy = IP.parseD (PR.groupBy (<=) FL.drain)
 
+{-# INLINE wordBy #-}
+wordBy :: MonadThrow m => Int -> SerialT m Int -> m ()
+wordBy value = IP.parseD (PR.wordBy (>= value) FL.drain)
+
+{-# INLINE manyWordByEven #-}
+manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
+manyWordByEven =
+    IP.parseD (PR.many FL.drain (PR.wordBy (Prelude.even) FL.drain))
+
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
 many = IP.parseD (PR.many FL.length (PR.satisfy (> 0)))
@@ -200,8 +209,10 @@ o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "groupBy" $ groupBy
+    , benchIOSink value "wordBy" $ wordBy value
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
+    , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
     , benchIOSink value "manyTill" $ manyTill value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
