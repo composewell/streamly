@@ -12,12 +12,13 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
+import qualified Data.List as List
+import qualified Prelude
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Test.Hspec as H
-import qualified Prelude
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -299,6 +300,22 @@ takeWhile1 =
                 (x : _) -> property (not $ predicate x)
         where
             predicate = (== 0)
+
+groupBy :: Property
+groupBy =
+    forAll (listOf (chooseInt (0, 1)))
+        $ \ls ->
+              case S.parse parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (groupByLF ls)
+                  Left _ -> property False
+
+    where
+
+    cmp = (==)
+    parser = P.groupBy cmp FL.toList
+    groupByLF lst
+        | null lst = []
+        | otherwise = head $ List.groupBy cmp lst
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -609,6 +626,7 @@ main =
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
         -- prop "" splitWithFailRight

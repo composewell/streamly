@@ -573,10 +573,8 @@ wordBy = undefined
 -- /Unimplemented/
 --
 {-# INLINABLE groupBy #-}
-groupBy ::
-    -- Monad m =>
-    (a -> a -> Bool) -> Fold m a b -> Parser m a b
-groupBy = undefined
+groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupBy cmp = K.toParserK . D.groupBy cmp
 
 -- | Match the given sequence of elements using the given comparison function.
 --
