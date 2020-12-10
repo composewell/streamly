@@ -135,7 +135,7 @@ module Streamly.Internal.Data.Array.Storable.Foreign
     , fold
 
     -- * Folds with Array as the container
-    , D.lastN
+    , lastN
     )
 where
 
@@ -157,17 +157,21 @@ import GHC.Ptr (Ptr(..))
 import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), length)
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Memory.Ring as RB
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -300,6 +304,29 @@ null arr = length arr == 0
 {-# INLINE last #-}
 last :: Storable a => Array a -> Maybe a
 last arr = readIndex arr (length arr - 1)
+
+-------------------------------------------------------------------------------
+-- Folds with Array as the container
+-------------------------------------------------------------------------------
+
+-- | Take last 'n' elements from the stream and discard the rest.
+{-# INLINE lastN #-}
+lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+lastN n
+    | n <= 0 = fmap (const mempty) FL.drain
+    | otherwise = A.unsafeFreeze <$> Fold step initial done
+  where
+    step (Tuple3' rb rh i) a = do
+        rh1 <- liftIO $ RB.unsafeInsert rb rh a
+        return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
+    initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
+    done (Tuple3' rb rh i) = do
+        arr <- liftIO $ MA.newArray n
+        foldFunc i rh snoc' arr rb
+    snoc' b a = liftIO $ MA.unsafeSnoc b a
+    foldFunc i
+        | i < n = RB.unsafeFoldRingM
+        | otherwise = RB.unsafeFoldRingFullM
 
 -------------------------------------------------------------------------------
 -- Random Access
