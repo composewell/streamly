@@ -1,14 +1,21 @@
 ## Unreleased
 
-### Enhancements
+### Behavioral changes
 
-* New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
-  are added, these routines fail when they encounter any invalid characters.
+* `Streamly.Prelude.fold` can now terminate early without consuming the entire
+  stream. For example, `fold Fold.head stream` would now terminate immediately
+  after consuming the head element from `stream`.
+* Change the associativity of combinators `serial`, `wSerial`,
+  `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
+* `encodeUtf8`, `decodeUtf8` now replace any invalid character encountered
+  during encoding/decoding with the Unicode replacement character. Use
+  `encodeUtf8'`, `decodeUtf8'` to recover the previous functionality.
+* `encodeLatin1` now silently truncates any character beyond 255 to incorrect
+  characters in the input stream. Use `encodeLatin1'` to recover previous
+  functionality.
 
 ### Breaking changes
 
-* Deprecate `Streamly.Memory.Array` in favor of `Streamly.Data.Array.Storable.Foreign`
-* Deprecate `Streamly.Data.Unicode.Stream` in favor of `Streamly.Unicode.Stream`
 * Change the signature of `foldlM'` to make the initial value of the
   accumulator monadic.
 * Change the signature of `scanlM'`, `postscanlM'` to make the initial value of
@@ -19,19 +26,15 @@
   require an additional `MonadAsync` constraint. Several other
   functions that used these functions also now require the additional
   constraint.
-* Change the associativity of combinators `serial`, `wSerial`,
-  `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
-* `encodeUtf8`, `decodeUtf8` now replace any invalid character encountered
-  during encoding/decoding with the Unicode replacement character. Use
-  `encodeUtf8'`, `decodeUtf8'` to recover the previous functionality.
-* `encodeLatin1` now silently truncates any character beyond 255 to incorrect
-  characters in the input stream. Use `encodeLatin1'` to recover previous
-  functionality.
-* Drop support for GHC 7.10.3.
+
+### Enhancements
+
+* New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
+  are added, these routines fail when they encounter any invalid characters.
 
 ### Bug Fixes
 
-* The monadic state for the stream is now propogated across threads. Please
+* The monadic state for the stream is now propagated across threads. Please
   refer to [#369](https://github.com/composewell/streamly/issues/369) for
   more info.
 * `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`
@@ -43,6 +46,10 @@
 
 ### Deprecations
 
+* Deprecate `Streamly.Memory.Array` in favor of
+  `Streamly.Data.Array.Storable.Foreign`
+* Deprecate `Streamly.Data.Unicode.Stream` in favor of
+  `Streamly.Unicode.Stream`
 * The `Streamly` module is now deprecated, its functionality is subsumed
   by `Streamly.Prelude`.
 * Some functions from `Streamly` module have been renamed in `Streamly.Prelude` module:
@@ -53,6 +60,22 @@
     * `encodeUtf8Lax` to `encodeUtf8`
     * `encodeLatin1Lax` to `encodeLatin1`
     * `decodeUtf8Lenient` to `decodeUtf8`
+* Drop support for GHC 7.10.3.
+
+### Internal APIs
+
+* `Streamly.Internal.Prelude` renamed to `Streamly.Internal.Data.Stream.IsStream`
+* Parser functionality is added via `Streamly.Internal.Data.Parser` module
+* `Streamly.Internal.Data.Binary.Decode` module added for decoding Haskell
+   values from binary data.
+* FileSystem event notification (fsnotify/inotify) functionality added via
+  `Streamly.Internal.FileSystem.Event.*` modules.
+* The `Fold` type has changed to accomodate terminating folds.
+* Added `use-c-malloc` build flag to use the c library `malloc` for array
+  allocations.
+* A bug was fixed in the conversion of MicroSecond64 and MilliSecond64
+  (commit e5119626)
+* Bug fix: classifySessionsBy now flushes sessions at the end and terminates.
 
 ## 0.7.2
 
