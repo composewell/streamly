@@ -24,13 +24,13 @@ import Data.Char (ord)
 import Data.Word (Word8)
 import System.IO (Handle)
 
-import qualified Streamly.Data.Fold as FL
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Unicode.Stream as IUS
-import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.FileSystem.Handle as IFH
+import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
@@ -96,10 +96,22 @@ inspect $ 'splitWithSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split on line feed.
+foldManySepBy :: Handle -> IO Int
+foldManySepBy inh =
+    (S.length
+        $ IP.foldMany
+            (FL.sliceSepBy (== lf) FL.drain)
+            (S.unfold FH.read inh)
+    ) -- >>= print
+
+-- | Split on line feed.
 parseManySepBy :: Handle -> IO Int
 parseManySepBy inh =
-    (S.length $ IP.parseMany (PR.sliceSepBy (== lf) FL.drain)
-                             (S.unfold FH.read inh)) -- >>= print
+    (S.length
+        $ IP.parseMany
+            (PR.fromFold $ FL.sliceSepBy (== lf) FL.drain)
+            (S.unfold FH.read inh)
+    ) -- >>= print
 
 -- | Words by space
 wordsBy :: Handle -> IO Int
@@ -146,7 +158,9 @@ splitOnSuffixSeq str inh =
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
     [ bgroup "split"
-        [ mkBench "S.parseMany (PR.sliceSepBy (== lf) FL.drain)" env
+        [ mkBench "S.foldMany (FL.sliceSepBy (== lf) FL.drain)" env
+            $ \inh _ -> foldManySepBy inh
+        , mkBench "S.parseMany (FL.sliceSepBy (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
         , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
             wordsBy inh

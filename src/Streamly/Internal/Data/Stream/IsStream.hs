@@ -136,10 +136,22 @@ module Streamly.Internal.Data.Stream.IsStream
     , foldlM'
 
     -- ** Composable Left Folds
+    -- | See "Streamly.Internal.Data.Fold"
     , fold
+    , foldMany
+    , foldSequence
+    , foldIterate
+
+    -- ** Parsers
+    -- | See "Streamly.Internal.Data.Parser"
     , parse
     , parseK
     , parseD
+    , parseMany
+    , parseManyD
+    , parseManyTill
+    , parseSequence
+    , parseIterate
 
     -- ** Concurrent Folds
     , foldAsync
@@ -318,12 +330,6 @@ module Streamly.Internal.Data.Stream.IsStream
     -- ** Reordering
     , reverse
     , reverse'
-
-    -- ** Parsing
-    , parseMany
-    , parseManyD
-    , parseManyTill
-    , parseIterate
 
     -- ** Trimming
     , take
@@ -643,8 +649,7 @@ import Streamly.Internal.Data.IORef.Prim (Prim, IORef)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -1410,7 +1415,10 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- Running a Fold
 ------------------------------------------------------------------------------
 
--- | Fold a stream using the supplied left fold.
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
 --
 -- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
 -- 5050
@@ -1461,6 +1469,7 @@ parse = parseD . PRK.fromParserK
 
 -- |
 -- > drain = mapM_ (\_ -> return ())
+-- > drain = fold Fold.drain
 --
 -- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
@@ -1483,6 +1492,7 @@ runStream = drain
 
 -- |
 -- > drainN n = drain . take n
+-- > drainN n = fold (Fold.ltake n Fold.drain)
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
@@ -1504,6 +1514,7 @@ runN = drainN
 
 -- |
 -- > drainWhile p = drain . takeWhile p
+-- > drainWhile p = fold (Fold.sliceSepBy (not . p) Fold.drain)
 --
 -- Run a stream as long as the predicate holds true.
 --
@@ -1525,6 +1536,8 @@ runWhile = drainWhile
 
 -- | Determine whether the stream is empty.
 --
+-- > null = fold Fold.null
+--
 -- @since 0.1.1
 {-# INLINE null #-}
 null :: Monad m => SerialT m a -> m Bool
@@ -1533,6 +1546,7 @@ null = S.null . toStreamS
 -- | Extract the first element of the stream, if any.
 --
 -- > head = (!! 0)
+-- > head = fold Fold.head
 --
 -- @since 0.1.0
 {-# INLINE head #-}
@@ -1568,6 +1582,7 @@ init m = K.init (K.adapt m)
 -- | Extract the last element of the stream, if any.
 --
 -- > last xs = xs !! (length xs - 1)
+-- > last = fold Fold.last
 --
 -- @since 0.1.1
 {-# INLINE last #-}
@@ -1576,12 +1591,16 @@ last m = S.last $ toStreamS m
 
 -- | Determine whether an element is present in the stream.
 --
+-- > elem = fold Fold.elem
+--
 -- @since 0.1.0
 {-# INLINE elem #-}
 elem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
 elem e m = S.elem e (toStreamS m)
 
 -- | Determine whether an element is not present in the stream.
+--
+-- > notElem = fold Fold.notElem
 --
 -- @since 0.1.0
 {-# INLINE notElem #-}
@@ -1590,12 +1609,16 @@ notElem e m = S.notElem e (toStreamS m)
 
 -- | Determine the length of the stream.
 --
+-- > notElem = fold Fold.length
+--
 -- @since 0.1.0
 {-# INLINE length #-}
 length :: Monad m => SerialT m a -> m Int
 length = foldl' (\n _ -> n + 1) 0
 
 -- | Determine whether all elements of a stream satisfy a predicate.
+--
+-- > all = fold Fold.all
 --
 -- @since 0.1.0
 {-# INLINE all #-}
@@ -1604,6 +1627,8 @@ all p m = S.all p (toStreamS m)
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
+-- > any = fold Fold.any
+--
 -- @since 0.1.0
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
@@ -1611,12 +1636,16 @@ any p m = S.any p (toStreamS m)
 
 -- | Determines if all elements of a boolean stream are True.
 --
+-- > and = fold Fold.and
+--
 -- @since 0.5.0
 {-# INLINE and #-}
 and :: Monad m => SerialT m Bool -> m Bool
 and = all (==True)
 
 -- | Determines whether at least one element of a boolean stream is True.
+--
+-- > or = fold Fold.or
 --
 -- @since 0.5.0
 {-# INLINE or #-}
@@ -1627,6 +1656,8 @@ or = any (==True)
 -- the stream is empty. Note that this is not numerically stable for floating
 -- point numbers.
 --
+-- > sum = fold Fold.sum
+--
 -- @since 0.1.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => SerialT m a -> m a
@@ -1635,12 +1666,16 @@ sum = foldl' (+) 0
 -- | Determine the product of all elements of a stream of numbers. Returns @1@
 -- when the stream is empty.
 --
+-- > product = fold Fold.product
+--
 -- @since 0.1.1
 {-# INLINE product #-}
 product :: (Monad m, Num a) => SerialT m a -> m a
 product = foldl' (*) 1
 
 -- | Fold a stream of monoid elements by appending them.
+--
+-- > mconcat = fold Fold.mconcat
 --
 -- /Internal/
 {-# INLINE mconcat #-}
@@ -1650,6 +1685,7 @@ mconcat = foldr mappend mempty
 -- |
 -- @
 -- minimum = 'minimumBy' compare
+-- minimum = fold Fold.minimum
 -- @
 --
 -- Determine the minimum element in a stream.
@@ -1662,6 +1698,8 @@ minimum m = S.minimum (toStreamS m)
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
 --
+-- > minimumBy = fold Fold.minimumBy
+--
 -- @since 0.6.0
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> SerialT m a -> m (Maybe a)
@@ -1670,6 +1708,7 @@ minimumBy cmp m = S.minimumBy cmp (toStreamS m)
 -- |
 -- @
 -- maximum = 'maximumBy' compare
+-- maximum = fold Fold.maximum
 -- @
 --
 -- Determine the maximum element in a stream.
@@ -1681,6 +1720,8 @@ maximum = P.maximum
 
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
+--
+-- > maximumBy = fold Fold.maximumBy
 --
 -- @since 0.6.0
 {-# INLINE maximumBy #-}
@@ -1698,6 +1739,7 @@ m !! i = toStreamS m S.!! i
 -- first pair where the key equals the given value @a@.
 --
 -- > lookup = snd <$> find ((==) . fst)
+-- > lookup = fold Fold.lookup
 --
 -- @since 0.5.0
 {-# INLINE lookup #-}
@@ -1707,6 +1749,7 @@ lookup a m = S.lookup a (toStreamS m)
 -- | Like 'findM' but with a non-monadic predicate.
 --
 -- > find p = findM (return . p)
+-- > find = fold Fold.find
 --
 -- @since 0.5.0
 {-# INLINE find #-}
@@ -1714,6 +1757,8 @@ find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
 find p m = S.find p (toStreamS m)
 
 -- | Returns the first element that satisfies the given predicate.
+--
+-- > findM = fold Fold.findM
 --
 -- @since 0.6.0
 {-# INLINE findM #-}
@@ -1723,12 +1768,16 @@ findM p m = S.findM p (toStreamS m)
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
+-- > findIndices = fold Fold.findIndices
+--
 -- @since 0.5.0
 {-# INLINE findIndices #-}
 findIndices :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m Int
 findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 
 -- | Returns the first index that satisfies the given predicate.
+--
+-- > findIndex = fold Fold.findIndex
 --
 -- @since 0.5.0
 {-# INLINE findIndex #-}
@@ -1738,10 +1787,12 @@ findIndex p = head . findIndices p
 -- | Find all the indices where the value of the element in the stream is equal
 -- to the given value.
 --
+-- > elemIndices a = findIndices (== a)
+--
 -- @since 0.5.0
 {-# INLINE elemIndices #-}
 elemIndices :: (IsStream t, Eq a, Monad m) => a -> t m a -> t m Int
-elemIndices a = findIndices (==a)
+elemIndices a = findIndices (== a)
 
 -- | Returns the first index where a given value is found in the stream.
 --
@@ -3636,7 +3687,7 @@ iterateMapLeftsWith
 iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 
 ------------------------------------------------------------------------------
--- Parsing
+-- Folding/Parsing chunks in a stream
 ------------------------------------------------------------------------------
 
 -- Splitting operations that take a predicate and a Fold can be
@@ -3644,6 +3695,67 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 -- can be expressed using parseMany when used with an appropriate Parser.
 --
 -- XXX We need takeGE/takeBetween to implement "some" using "many".
+
+-- | Apply a 'Fold' repeatedly on a stream and emit the parsed values in the
+-- output stream.
+--
+-- This is the streaming dual of the 'Streamly.Internal.Data.Fold.many'
+-- parse combinator.
+--
+-- >>> f = Fold.ltake 2 Fold.sum
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- >>> f = Fold.sliceEndWith Fold.toList
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList "hello\nworld"
+-- > ["hello\n","world"]
+--
+-- /Internal/
+--
+{-# INLINE foldMany #-}
+foldMany
+    :: (IsStream t, Monad m)
+    => Fold m a b
+    -> t m a
+    -> t m b
+foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
+
+-- | Apply a stream of folds to an input stream and emit the results in the
+-- output stream.
+--
+-- /Internal/
+--
+{-# INLINE foldSequence #-}
+foldSequence
+       :: -- (IsStream t, Monad m) =>
+       t m (Fold m a b)
+    -> t m a
+    -> t m b
+foldSequence _f _m = undefined
+
+-- | Iterate a fold generator on a stream. The initial value @b@ is used to
+-- generate the first fold, the fold is applied on the stream and the result of
+-- the fold is used to generate the next fold and so on.
+--
+-- >>> f x = Fold.ltake 2 (Fold.mconcatTo x)
+-- >>> s = Stream.map Sum $ Stream.fromList [1..10]
+-- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
+-- > [3,10,21,36,55,55]
+--
+-- This is the streaming equivalent of monad like sequenced application of
+-- folds where next fold is dependent on the previous fold.
+--
+-- /Internal/
+--
+{-# INLINE foldIterate #-}
+foldIterate
+    :: -- (IsStream t, Monad m) =>
+       (b -> Fold m a b)
+    -> b
+    -> t m a
+    -> t m b
+foldIterate _f _i _m = undefined
+-- D.fromStreamD $ D.foldIterate f i (D.toStreamD m)
 
 -- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
 -- output stream.
@@ -3657,7 +3769,7 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 -- >>> S.toList $ S.parseMany (PR.line FL.toList) $ S.fromList "hello\nworld"
 -- > ["hello\n","world"]
 --
--- /Internal
+-- /Internal/
 --
 {-# INLINE parseMany #-}
 parseMany
@@ -3676,6 +3788,19 @@ parseManyD
     -> t m b
 parseManyD p m =
     D.fromStreamD $ D.parseMany p (D.toStreamD m)
+
+-- | Apply a stream of parsers to an input stream and emit the results in the
+-- output stream.
+--
+-- /Internal/
+--
+{-# INLINE parseSequence #-}
+parseSequence
+       :: -- (IsStream t, Monad m) =>
+       t m (Parser m a b)
+    -> t m a
+    -> t m b
+parseSequence _f _m = undefined
 
 -- | @parseManyTill collect test stream@ tries the parser @test@ on the input,
 -- if @test@ fails it backtracks and tries @collect@, after @collect@ succeeds
@@ -3786,7 +3911,7 @@ groupScan split fold m = undefined
 chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+chunksOf n f = foldMany (FL.ltake n f)
 
 -- |
 --
@@ -3831,8 +3956,6 @@ intervalsOf n f xs =
 -- N-ary APIs
 ------------------------------------------------------------------------------
 
--- XXX We should probably change the order of the comparision and update the
--- docs accordingly.
 -- | @groupsBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
 -- first group, if @b \`cmp` a@ is 'True' then @b@ is also assigned to the same
 -- group.  If @c \`cmp` a@ is 'True' then @c@ is also assigned to the same
@@ -3945,8 +4068,7 @@ groups = groupsBy (==)
 splitOn
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitOn predicate f m =
-    D.fromStreamD $ D.splitBy predicate f (D.toStreamD m)
+splitOn predicate f = foldMany (FL.sliceSepBy predicate f)
 
 -- | Like 'splitOn' but the separator is considered as suffixed to the segments
 -- in the stream. A missing suffix at the end is allowed. A separator at the
@@ -3998,7 +4120,7 @@ splitOnSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitOnSuffix predicate f m =
-    D.fromStreamD $ D.splitSuffixBy predicate f (D.toStreamD m)
+    D.fromStreamD $ D.foldMany1 (FL.sliceSepBy predicate f) (D.toStreamD m)
 
 -- | Like 'splitOn' after stripping leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ with '.' as the separator would be parsed as
@@ -4068,7 +4190,7 @@ splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitWithSuffix predicate f m =
-    D.fromStreamD $ D.splitSuffixWith predicate f (D.toStreamD m)
+    D.fromStreamD $ D.foldMany1 (FL.sliceEndWith predicate f) (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Split on a delimiter sequence
@@ -4758,13 +4880,12 @@ classifySessionsBy tick tmout reset ejectPred
         -- better performance.
         --
         let curTime = max sessionEventTime timestamp
-            extractOld v =
-                case v of
-                    Nothing -> initial
-                    Just (Tuple' _ acc) -> return acc
             mOld = Map.lookup key sessionKeyValueMap
 
-        fs <- extractOld mOld
+        fs <-
+            case mOld of
+                Nothing -> initial
+                Just (Tuple' _ acc) -> return acc
         res <- step fs value
         case res of
             FL.Done fb -> do

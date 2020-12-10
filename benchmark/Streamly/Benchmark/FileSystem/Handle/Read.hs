@@ -32,18 +32,17 @@ import GHC.Magic (noinline)
 #endif
 import System.IO (Handle)
 
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Unicode.Stream as IUS
-import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.FileSystem.Handle as IFH
+import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Prelude as S
+import qualified Streamly.Unicode.Stream as SS
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
@@ -52,6 +51,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
 
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as IUF
 
 import Test.Inspection
@@ -309,9 +309,14 @@ o_1_space_reduce_toBytes env =
 chunksOfSum :: Int -> Handle -> IO Int
 chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.read inh)
 
+foldManyChunksOfSum :: Int -> Handle -> IO Int
+foldManyChunksOfSum n inh =
+    S.length $ IP.foldMany (FL.ltake n FL.sum) (S.unfold FH.read inh)
+
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
-    S.length $ IP.parseMany (PR.take n FL.sum) (S.unfold FH.read inh)
+    S.length
+        $ IP.parseMany (PR.fromFold $ FL.ltake n FL.sum) (S.unfold FH.read inh)
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 -- Even though allocations remain the same in both cases inlining improves time
@@ -333,25 +338,6 @@ inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'chunksOf `hasNoType` ''A.ReadUState  -- FH.read/A.read
 #endif
 
--- This is to make sure that the concatMap in FH.read, groupsOf and foldlM'
--- together can fuse.
---
--- | Slice in chunks of size n and get the count of chunks.
-_chunksOfD :: Int -> Handle -> IO Int
-_chunksOfD n inh =
-    D.foldlM' (\i _ -> return $ i + 1) (return 0)
-        $ D.groupsOf n (AT.writeNUnsafe n)
-        $ D.fromStreamK (S.unfold FH.read inh)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses '_chunksOfD
-inspect $ '_chunksOfD `hasNoType` ''Step
-inspect $ '_chunksOfD `hasNoType` ''GroupState
-inspect $ '_chunksOfD `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
-inspect $ '_chunksOfD `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ '_chunksOfD `hasNoType` ''A.ReadUState  -- FH.read/A.read
-#endif
-
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
     [ bgroup "reduce/read/chunks"
@@ -363,11 +349,22 @@ o_1_space_reduce_read_grouped env =
 
         -- XXX investigate why we need inline/noinline in these cases (GHC)
         -- Chunk using parsers
-        , mkBenchSmall ("S.parseMany (PR.take " ++ show (bigSize env) ++ " FL.sum)")
-            env $ \inh _ ->
-                noinline parseManyChunksOfSum (bigSize env) inh
-        , mkBench "S.parseMany (PR.take 1 FL.sum)" env $ \inh _ ->
-                inline parseManyChunksOfSum 1 inh
+        , mkBenchSmall
+            ("S.foldMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+            env
+            $ \inh _ -> noinline foldManyChunksOfSum (bigSize env) inh
+        , mkBench
+            "S.foldMany (FL.take 1 FL.sum)"
+            env
+            $ \inh _ -> inline foldManyChunksOfSum 1 inh
+        , mkBenchSmall
+            ("S.parseMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+            env
+            $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
+        , mkBench
+            "S.parseMany (FL.take 1 FL.sum)"
+            env
+            $ \inh _ -> inline parseManyChunksOfSum 1 inh
 
         -- folding chunks to arrays
         , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
