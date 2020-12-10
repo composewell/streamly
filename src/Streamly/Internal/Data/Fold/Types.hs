@@ -108,7 +108,7 @@
 -- However, removing extract altogether may lead to less optimal code in some
 -- cases because the driver of the fold needs to thread around the intermediate
 -- output to return it if the stream stops before the fold could @Done@.  When
--- using this approach, the @splitParse (FL.take filesize)@ benchmark shows a
+-- using this approach, the @parseMany (FL.take filesize)@ benchmark shows a
 -- 2x worse performance even after ensuring everything fuses.  So we keep the
 -- "extract" approach to ensure better perf in all cases.
 --
@@ -118,7 +118,9 @@
 -- completes.
 
 module Streamly.Internal.Data.Fold.Types
-    ( Step (..)
+    (
+    -- * Types
+      Step (..)
     , Fold (..)
 
     , Fold2 (..)
@@ -126,6 +128,11 @@ module Streamly.Internal.Data.Fold.Types
     , toListRevF  -- experimental
     -- $toListRevF
 
+    -- * Generators
+    , yield
+    , yieldM
+
+    -- * Transformations
     , lmap
     , lmapM
     , lfilter
@@ -133,13 +140,22 @@ module Streamly.Internal.Data.Fold.Types
     , lcatMaybes
     , ltake
     , takeSepBy
+    , takeByTime
 
+    -- * Distributing
     , teeWith
     , teeWithFst
     , teeWithMin
+    , shortest
+    , longest
+
+    -- * Serial Application
     , splitWith
+    , split_
+
+    -- * Nested Application
+    , concatMap
     , many
-    , takeByTime
     , lsessionsOf
     , lchunksOf
     , lchunksOf2
@@ -148,6 +164,7 @@ module Streamly.Internal.Data.Fold.Types
     , initialize
     , runStep
 
+    -- * Misc
     , GenericRunner(..) -- Is used in multiple step functions
     )
 where
@@ -174,10 +191,13 @@ import Prelude hiding (concatMap)
 -- Monadic left folds
 ------------------------------------------------------------------------------
 
--- | This is the intermediate state in the workflow of a @Fold@. @Partial@
--- represents a new intermediate value available to be extracted. @Done@
--- represents that the fold has been terminated and won't be processed
--- further.
+-- | Represents the result of the @step@ of a 'Fold'.  'Partial' returns an
+-- intermediate state of the fold, the fold step can be called again with the
+-- state or the driver can use @extract@ on the state to get the result out.
+-- 'Done' returns the final result and the fold cannot be driven further.
+--
+-- /Internal/
+--
 {-# ANN type Step Fuse #-}
 data Step s b
     = Partial !s
@@ -185,6 +205,9 @@ data Step s b
 
 -- | A bifunctor instance on 'Step'. @first@ maps on the value held by 'Partial'
 -- and @second@ maps on the result held by 'Done'.
+--
+-- /Internal/
+--
 instance Bifunctor Step where
     {-# INLINE bimap #-}
     bimap f _ (Partial a) = Partial (f a)
@@ -202,17 +225,24 @@ instance Bifunctor Step where
 -- @
 -- fmap = 'second'
 -- @
+--
+-- /Internal/
+--
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
 
--- | Represents a left fold over an input stream of values of type @a@ to a
--- single value of type @b@ in 'Monad' @m@.
+-- | The type @Fold m a b@ having constructor @Fold step initial extract@
+-- represents a left fold over an input stream of values of type @a@ to a
+-- single value of type @b@ in 'Monad' @m@. The constructor is not exposed via
+-- exposed modules, smart constructors are provided to create folds.
 --
--- The fold uses an intermediate state @s@ as accumulator. The @step@ function
--- updates the state and returns the new state. When the fold is done
--- the final result of the fold is extracted from the intermediate state
--- using the @extract@ function.
+-- The fold uses an intermediate state @s@ as accumulator, the type @s@ is
+-- specific to the fold. The initial value of the fold state @s@ is returned by
+-- @initial@. The @step@ function consumes an input and either returns the
+-- final result @b@ if the fold is done or the next intermediate state (see
+-- 'Step'). At any point the fold driver can extract the result from the
+-- intermediate state using the @extract@ function.
 --
 -- @since 0.7.0
 
@@ -244,14 +274,37 @@ instance Functor m => Functor (Fold m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
--- {-# ANN type Step Fuse #-}
--- data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
+-- This is the dual of stream "yield".
+--
+-- | A fold that always yields a pure value without consuming any input.
+--
+-- /Unimplemented/
+--
+{-# INLINE yield #-}
+yield :: -- Monad m =>
+    b -> Fold m a b
+yield = undefined
+
+-- This is the dual of stream "yieldM".
+--
+-- | A fold that always yields the result of an effectful action without
+-- consuming any input.
+--
+-- /Unimplemented/
+--
+{-# INLINE yieldM #-}
+yieldM :: -- Monad m =>
+    m b -> Fold m a b
+yieldM = undefined
+
+{-# ANN type Step Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL sl | SeqFoldR f sr
 
 -- | Sequential fold application. Apply two folds sequentially to an input
 -- stream.  The input is provided to the first fold, when it is done the
--- remaining input is provided to the second fold. When the second fold is
--- done, the outputs of the two folds are combined using the supplied function.
+-- remaining input is provided to the second fold. When the second fold is done
+-- or if the input stream is over, the outputs of the two folds are combined
+-- using the supplied function.
 --
 -- Note: This is a folding dual of appending streams using
 -- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
@@ -260,8 +313,7 @@ data SeqFoldState sl f sr = SeqFoldL sl | SeqFoldR f sr
 -- /Internal/
 --
 {-# INLINE splitWith #-}
-splitWith :: Monad m =>
-    (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+splitWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
@@ -288,7 +340,17 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
         rR <- extractR sR
         return $ func rL rR
 
--- {-# ANN type GenericRunner Fuse #-}
+-- | Same as applicative '*>'. Run two folds serially one after the other
+-- discarding the result of the first.
+--
+-- /Unimplemented/
+--
+{-# INLINE split_ #-}
+split_ :: -- Monad m =>
+    Fold m x a -> Fold m x b -> Fold m x b
+split_ _f1 _f2 = undefined
+
+{-# ANN type GenericRunner Fuse #-}
 data GenericRunner sL sR bL bR
     = RunBoth !sL !sR
     | RunLeft !sL !bR
@@ -299,17 +361,17 @@ data GenericRunner sL sR bL bR
 instance Monad m => Applicative (Fold m a) where
     {-# INLINE pure #-}
     pure b = Fold (\() _ -> pure $ Done b) (pure ()) (\() -> pure b)
-    -- XXX deprecate this?
+
     {-# INLINE (<*>) #-}
     (<*>) = teeWith ($)
 
--- | @teeWith f f1 f2@ distributes its input to both @f1@ and @f2@ until both
--- of them terminate and combines their output using @f@.
+-- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
+-- of them terminate and combines their output using @k@.
 --
 -- /Internal/
 --
 {-# INLINE teeWith #-}
-teeWith :: Monad m => (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
+teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     Fold step begin done
 
@@ -374,6 +436,42 @@ teeWithFst = undefined
 {-# INLINE teeWithMin #-}
 teeWithMin :: (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
 teeWithMin = undefined
+
+-- | Shortest alternative. Apply both folds in parallel but choose the result
+-- from the one which consumed least input i.e. take the shortest succeeding
+-- fold.
+--
+-- /Unimplemented/
+--
+{-# INLINE shortest #-}
+shortest :: -- Monad m =>
+    Fold m x a -> Fold m x a -> Fold m x a
+shortest _f1 _f2 = undefined
+
+-- | Longest alternative. Apply both folds in parallel but choose the result
+-- from the one which consumed more input i.e. take the longest succeeding
+-- fold.
+--
+-- /Unimplemented/
+--
+{-# INLINE longest #-}
+longest :: -- Monad m =>
+    Fold m x a -> Fold m x a -> Fold m x a
+longest _f1 _f2 = undefined
+
+-- | Map a 'Fold' returning function on the result of a 'Fold'.
+--
+-- Compare with 'Monad' instance method '>>='. This implementation allows
+-- stream fusion but has quadratic complexity. This can fuse with other
+-- operations and can be much faster than 'Monad' instance for small number
+-- (less than 8) of compositions.
+--
+-- /Unimplemented/
+--
+{-# INLINE concatMap #-}
+concatMap :: -- Monad m =>
+    (b -> Fold m a c) -> Fold m a b -> Fold m a c
+concatMap _func _fld = undefined
 
 -- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
 -- instances.
@@ -558,8 +656,15 @@ lcatMaybes = lfilter isJust . lmap fromJust
 -- Parsing
 ------------------------------------------------------------------------------
 
--- XXX Incorrect implementation when i <= 0
--- | Take first @n@ elements from the stream and discard the rest.
+-- | Take at most @n@ input elements and fold them using the supplied fold.
+--
+-- >>> Stream.fold (Fold.ltake 1 Fold.toList) $ Stream.fromList [1]
+-- [1]
+--
+-- >>> Stream.fold (Fold.ltake (-1) Fold.toList) $ Stream.fromList [1]
+-- []
+--
+-- /Internal/
 --
 -- @since 0.7.0
 {-# INLINE ltake #-}
@@ -581,6 +686,7 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
                     then return $ Partial s1
                     else Done <$> fextract sres
                 Done bres -> return $ Done bres
+        -- XXX take 0 case is broken currently
         | otherwise = Done <$> fextract r
 
     extract (Tuple' _ r) = fextract r
@@ -652,6 +758,8 @@ runStep _ _ = undefined
 -- the @split@ fold repeatedly on the input stream and accumulates zero or more
 -- fold results using @collect@.
 --
+-- Stops when @collect@ stops.
+--
 -- /Internal/
 --
 -- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
@@ -663,10 +771,7 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
 
     where
 
-    initial = do
-        ps <- initial1
-        fs <- finitial
-        pure (Tuple' ps fs)
+    initial = Tuple' <$> initial1 <*> finitial
 
     {-# INLINE step #-}
     step (Tuple' st fs) a = do
@@ -688,11 +793,15 @@ many (Fold fstep finitial fextract) (Fold step1 initial1 extract1) =
             Partial s1 -> fextract s1
             Done x -> return x
 
--- XXX Replace this with the previous implementation using `many`
--- XXX The only difference from the previous implementation is that the `if`
--- statement encompasses `collect` rather then the other way around.
--- | For every n input items, apply the first fold and supply the result to the
--- next fold.
+-- | @lchunksOf n split collect@ repeatedly applies the @split@ fold to chunks
+-- of @n@ items in the input stream and supplies the result to the @collect@
+-- fold.
+--
+-- > lchunksOf n split collect = many collect (ltake n split)
+--
+-- Stops when @collect@ stops.
+--
+-- /Internal/
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
@@ -712,7 +821,7 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
         then do
             res <- step1 r1 a
             case res of
-                Partial sres -> return $ Tuple3' (i + 1) sres r2
+                Partial s -> return $ Tuple3' (i + 1) s r2
                 Done b -> do
                     s <- initial1
                     r21 <- step2 r2 b
@@ -728,7 +837,13 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
         acc2 <- step2 r2 res
         extract2 acc2
 
--- XXX zip the streams with timestamps
+-- | @takeByTime n fold@ uses @fold@ to fold the input items arriving within a
+-- window of first @n@ seconds.
+--
+-- Stops when @fold@ stops or when the timeout occurs.
+--
+-- /Internal/
+--
 {-# INLINE takeByTime #-}
 takeByTime :: MonadAsync m => Double -> Fold m a b -> Fold m a b
 takeByTime n (Fold step initial done) = Fold step' initial' done'
@@ -785,6 +900,11 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
+--
+-- > lsessionsOf n split collect = many collect (takeByTime n split)
+--
+-- /Internal/
+--
 {-# INLINE lsessionsOf #-}
 lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
 lsessionsOf n split collect = many collect (takeByTime n split)
