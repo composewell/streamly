@@ -759,13 +759,11 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
                 Done bres -> return $ Done bres
         else do
             res <- step s a
-            return
-                $ case res of
-                      Partial sres -> Partial $ Tuple3' sres mv t
-                      Done bres -> Done bres
+            case res of
+                Partial fs -> return $ Partial $ Tuple3' fs mv t
+                Done b -> liftIO (killThread t) >> return (Done b)
 
-    done' (Tuple3' s _ t) = liftIO (killThread t) >> done s
-    -- XXX thread should be killed at cleanup
+    done' (Tuple3' s _ _) = done s
 
     timerThread mv = do
         liftIO $ threadDelay (round $ n * 1000000)
