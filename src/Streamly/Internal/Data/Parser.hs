@@ -54,8 +54,6 @@ module Streamly.Internal.Data.Parser
     -- First order parsers
     -- * Accumulators
     , fromFold
-    , any
-    , all
     , yield
     , yieldM
     , die
@@ -75,8 +73,7 @@ module Streamly.Internal.Data.Parser
 
     -- | Grab a sequence of input elements without inspecting them
     , takeBetween
-    , take   -- takeBetween 0 n
-    -- $take
+    -- , take   -- takeBetween 0 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
 
@@ -86,11 +83,9 @@ module Streamly.Internal.Data.Parser
     , takeWhile
     -- $takeWhile
     , takeWhile1
+    , drainWhile
 
-    , sliceSepByP
     , sliceSepBy
-    , sliceSepByMax
-    , sliceEndWith
     , sliceBeginWith
     , sliceSepWith
     , escapedSliceSepBy
@@ -134,7 +129,7 @@ module Streamly.Internal.Data.Parser
 
     -- * N-ary Combinators
     -- ** Sequential Collection
-    , sequence
+    , concatSequence
     , concatMap
 
     -- ** Sequential Repetition
@@ -206,6 +201,7 @@ import Prelude
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Types (Parser)
 
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 
@@ -225,22 +221,6 @@ fromFold = K.toParserK . D.fromFold
 -- Terminating but not failing folds
 -------------------------------------------------------------------------------
 --
--- |
--- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
--- > True
---
-{-# INLINE any #-}
-any :: MonadCatch m => (a -> Bool) -> Parser m a Bool
-any = K.toParserK . D.any
-
--- |
--- >>> S.parse (PR.all (== 0)) $ S.fromList [1,0,1]
--- > False
---
-{-# INLINE all #-}
-all :: MonadCatch m => (a -> Bool) -> Parser m a Bool
-all = K.toParserK . D.all
-
 -- This is the dual of stream "yield".
 --
 -- | A parser that always yields a pure value without consuming any input.
@@ -377,35 +357,6 @@ takeBetween :: -- MonadCatch m =>
     Int -> Int -> Fold m a b -> Parser m a b
 takeBetween _m _n = undefined -- K.toParserK . D.takeBetween m n
 
---
--- $take
--- Note: this is called takeP in some parser libraries.
---
--- TODO Once we have terminating folds, this Parse should get replaced by Fold.
--- Alternatively, we can name it "chunkOf" and the corresponding time domain
--- combinator as "intervalOf" or even "chunk" and "interval".
-
--- | Take at most @n@ input elements and fold them using the supplied fold.
---
--- Stops after @n@ elements.
--- Never fails.
---
--- >>> S.parse (PR.take 1 FL.toList) $ S.fromList [1]
--- [1]
---
--- >>> S.parse (PR.take (-1) FL.toList) $ S.fromList [1]
--- []
---
--- @
--- S.chunksOf n f = S.parseMany (FL.take n f)
--- @
---
--- /Internal/
---
-{-# INLINE take #-}
-take :: MonadCatch m => Int -> Fold m a b -> Parser m a b
-take n = K.toParserK . D.take n
-
 -- | Stops after taking exactly @n@ input elements.
 --
 -- * Stops - after consuming @n@ elements.
@@ -423,8 +374,9 @@ takeEQ n = K.toParserK . D.takeEQ n
 
 -- | Take at least @n@ input elements, but can collect more.
 --
--- * Stops - never.
--- * Fails - if the stream end before producing @n@ elements.
+-- * Stops - when the collecting fold stops.
+-- * Fails - if the stream or the collecting fold ends before producing @n@
+--           elements.
 --
 -- >>> S.parse (PR.takeGE 4 FL.toList) $ S.fromList [1,0,1]
 -- > "takeGE: Expecting at least 4 elements, got only 3"
@@ -465,7 +417,7 @@ takeWhileP _cond = undefined -- K.toParserK . D.takeWhileP cond
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
 --
--- * Stops - when the predicate fails.
+-- * Stops - when the predicate fails or the collecting fold stops.
 -- * Fails - never.
 --
 -- >>> S.parse (PR.takeWhile (== 0) FL.toList) $ S.fromList [0,0,1,0,1]
@@ -491,9 +443,19 @@ takeWhile cond = K.toParserK . D.takeWhile cond
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 
--- | Like 'sliceSepBy' but uses a 'Parser' instead of a 'Fold' to collect the
--- input. @sliceSepByP cond parser@ parses a slice of the input using @parser@
--- until @cond@ succeeds or the parser stops.
+-- | Drain the input as long as the predicate succeeds, running the effects and
+-- discarding the results.
+--
+-- This is also called @skipWhile@ in some parsing libraries.
+--
+-- /Internal/
+--
+{-# INLINE drainWhile #-}
+drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
+drainWhile p = takeWhile p FL.drain
+
+-- | @sliceSepBy cond parser@ parses a slice of the input using @parser@ until
+-- @cond@ succeeds or the parser stops.
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
@@ -505,59 +467,10 @@ takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 --
 -- /Unimplemented/
 --
-{-# INLINABLE sliceSepByP #-}
-sliceSepByP :: -- MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
-
--- Note: Keep this consistent with S.splitOn. In fact we should eliminate
--- S.splitOn in favor of the parser.
---
--- | Split on an infixed separator element, dropping the separator. Splits the
--- stream on separator elements determined by the supplied predicate, separator
--- is considered as infixed between two segments, if one side of the separator
--- is missing then it is parsed as an empty stream.  The supplied 'Fold' is
--- applied on the split segments. With '-' representing non-separator elements
--- and '.' as separator, 'splitOn' splits as follows:
---
--- @
--- "--.--" => "--" "--"
--- "--."   => "--" ""
--- ".--"   => ""   "--"
--- @
---
--- @PR.sliceSepBy (== x)@ is an inverse of @S.intercalate (S.yield x)@
---
--- Let's use the following definition for illustration:
---
--- > splitOn p = PR.many FL.toList $ PR.sliceSepBy p (FL.toList)
--- > splitOn' p = S.parse (splitOn p) . S.fromList
---
--- >>> splitOn' (== '.') ""
--- [""]
---
--- >>> splitOn' (== '.') "."
--- ["",""]
---
--- >>> splitOn' (== '.') ".a"
--- > ["","a"]
---
--- >>> splitOn' (== '.') "a."
--- > ["a",""]
---
--- >>> splitOn' (== '.') "a.b"
--- > ["a","b"]
---
--- >>> splitOn' (== '.') "a..b"
--- > ["a","","b"]
---
--- * Stops - when the predicate succeeds.
--- * Fails - never.
---
--- /Internal/
 {-# INLINABLE sliceSepBy #-}
-sliceSepBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepBy cond = K.toParserK . D.sliceSepBy cond
+sliceSepBy :: -- MonadCatch m =>
+    (a -> Bool) -> Parser m a b -> Parser m a b
+sliceSepBy _cond = undefined -- K.toParserK . D.sliceSepBy cond
 
 -- | Like 'sliceSepBy' but does not drop the separator element, instead
 -- separator is emitted as a separate element in the output.
@@ -567,23 +480,6 @@ sliceSepBy cond = K.toParserK . D.sliceSepBy cond
 sliceSepWith :: -- MonadCatch m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
-
--- | Collect stream elements until an element succeeds the predicate. Also take
--- the element on which the predicate succeeded. The succeeding element is
--- treated as a suffix separator which is kept in the output segement.
---
--- * Stops - when the predicate succeeds.
--- * Fails - never.
---
--- S.splitWithSuffix pred f = S.parseMany (PR.sliceEndWith pred f)
---
--- /Unimplemented/
---
-{-# INLINABLE sliceEndWith #-}
-sliceEndWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceEndWith = undefined
 
 -- | Collect stream elements until an elements passes the predicate, return the
 -- last element on which the predicate succeeded back to the input stream.  If
@@ -603,44 +499,6 @@ sliceBeginWith ::
     -- Monad m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
-
--- | Like 'sliceSepBy' but terminates a parse even before the separator
--- is encountered if its size exceeds the specified maximum limit.
---
--- > take n = PR.sliceSepByMax (const True) n
--- > sliceSepBy p = PR.sliceSepByMax p maxBound
---
--- Let's use the following definitions for illustration:
---
--- > splitOn p n = PR.many FL.toList $ PR.sliceSepByMax p n (FL.toList)
--- > splitOn' p n = S.parse (splitOn p n) . S.fromList
---
--- >>> splitOn' (== '.') 0 ""
--- [""]
---
--- >>> splitOn' (== '.') 0 "a"
--- infinite list of empty strings
---
--- >>> splitOn' (== '.') 3 "hello.world"
--- ["hel","lo","wor","ld"]
---
--- If the separator is found and the limit is reached at the same time then it
--- behaves just like 'sliceSepBy' i.e. the separator is dropped.
---
--- >>> splitOn' (== '.') 0 "."
--- ["",""]
---
--- >>> splitOn' (== '.') 0 ".."
--- ["","",""]
---
--- * Stops - when the predicate succeeds or the limit is reached.
--- * Fails - never.
---
--- /Internal/
-{-# INLINABLE sliceSepByMax #-}
-sliceSepByMax :: MonadCatch m
-    => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
-sliceSepByMax cond cnt = K.toParserK . D.sliceSepByMax cond cnt
 
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
 -- escape char determined by the second predicate.
@@ -911,18 +769,19 @@ deintercalate = undefined
 -- Sequential Collection
 -------------------------------------------------------------------------------
 --
--- | @sequence f t@ collects sequential parses of parsers in the container @t@
--- using the fold @f@. Fails if the input ends or any of the parsers fail.
+-- | @concatSequence f t@ collects sequential parses of parsers in the
+-- container @t@ using the fold @f@. Fails if the input ends or any of the
+-- parsers fail.
 --
 -- This is same as 'Data.Traversable.sequence' but more efficient.
 --
 -- /Unimplemented/
 --
-{-# INLINE sequence #-}
-sequence ::
+{-# INLINE concatSequence #-}
+concatSequence ::
     -- Foldable t =>
     Fold m b c -> t (Parser m a b) -> Parser m a c
-sequence _f _p = undefined
+concatSequence _f _p = undefined
 
 -- | Map a 'Parser' returning function on the result of a 'Parser'.
 --
@@ -974,10 +833,11 @@ manyP :: -- MonadCatch m =>
     Parser m b c -> Parser m a b -> Parser m a c
 manyP _f _p = undefined -- K.toParserK $ D.manyP f (K.fromParserK p)
 
--- | Collect zero or more parses. Apply the parser repeatedly on the input
--- stream, stop when the parser fails, accumulate zero or more parse results
--- using the supplied 'Fold'. This parser never fails, in case the first
--- application of parser fails it returns an empty result.
+-- | Collect zero or more parses. Apply the supplied parser repeatedly on the
+-- input stream and push the parse results to a downstream fold.
+--
+--  Stops: when the downstream fold stops or the parser fails.
+--  Fails: never, produces zero or more results.
 --
 -- Compare with 'Control.Applicative.many'.
 --
@@ -988,10 +848,15 @@ many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 many f p = K.toParserK $ D.many f (K.fromParserK p)
 -- many = countBetween 0 maxBound
 
+-- Note: many1 would perhaps be a better name for this and consistent with
+-- other names like takeWhile1. But we retain the name "some" for
+-- compatibility.
+--
 -- | Collect one or more parses. Apply the supplied parser repeatedly on the
--- input stream and accumulate the parse results as long as the parser
--- succeeds, stop when it fails.  This parser fails if not even one result is
--- collected.
+-- input stream and push the parse results to a downstream fold.
+--
+--  Stops: when the downstream fold stops or the parser fails.
+--  Fails: if it stops without producing a single result.
 --
 -- @some fld parser = many (takeGE 1 fld) parser@
 --
@@ -1053,6 +918,8 @@ manyTillP _f _p1 _p2 = undefined
 -- tried again and so on. The parser stops when @test@ succeeds.  The output of
 -- @test@ is discarded and the output of @collect@ is accumulated by the
 -- supplied fold. The parser fails if @collect@ fails.
+--
+-- Stops when the fold @f@ stops.
 --
 -- /Internal/
 --

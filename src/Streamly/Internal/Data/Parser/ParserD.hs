@@ -19,8 +19,6 @@ module Streamly.Internal.Data.Parser.ParserD
     -- First order parsers
     -- * Accumulators
     , fromFold
-    , any
-    , all
     , yield
     , yieldM
     , die
@@ -45,7 +43,6 @@ module Streamly.Internal.Data.Parser.ParserD
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
     --
     -- Grab a sequence of input elements without inspecting them
-    , take
     -- , takeBetween
     -- , takeLE -- take   -- takeBetween 0 n
     -- , takeLE1 -- take1 -- takeBetween 1 n
@@ -57,9 +54,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile
     , takeWhile1
     , sliceSepBy
-    , sliceSepByMax
     -- , sliceSepByBetween
-    , sliceEndWith
     , sliceBeginWith
     -- , sliceSepWith
     --
@@ -164,7 +159,6 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Types as FL
-import qualified Streamly.Internal.Data.Fold as FL
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either)
@@ -191,19 +185,6 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
             $ case res of
                   FL.Partial s1 -> Partial 0 s1
                   FL.Done b -> Done 0 b
-
-
--------------------------------------------------------------------------------
--- Terminating but not failing folds
--------------------------------------------------------------------------------
---
-{-# INLINE any #-}
-any :: Monad m => (a -> Bool) -> Parser m a Bool
-any predicate = fromFold $ FL.any predicate
-
-{-# INLINABLE all #-}
-all :: Monad m => (a -> Bool) -> Parser m a Bool
-all predicate = fromFold $ FL.all predicate
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -300,16 +281,6 @@ either parser = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 
--- It will be inconsistent with other takeish combinators.
--- This is takeLE
--- | See 'Streamly.Internal.Data.Parser.take'.
---
--- /Internal/
---
-{-# INLINE take #-}
-take :: Monad m => Int -> Fold m a b -> Parser m a b
-take n fld = fromFold $ FL.ltake n fld
-
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
 -- /Internal/
@@ -340,6 +311,7 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
                 <$> case res of
                         FL.Partial s -> fextract s
                         FL.Done b -> return b
+        -- XXX we should not reach here when initial returns Step type
         -- reachable only when n == 0
         | otherwise = Done 1 <$> fextract r
 
@@ -420,7 +392,6 @@ takeWhile predicate (Fold fstep finitial fextract) =
                       FL.Done b -> Done 0 b
         else Done 1 <$> fextract s
 
-
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
 -- /Internal/
@@ -443,7 +414,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
                 $ case sr of
                       FL.Partial r -> Partial 0 (Just r)
                       FL.Done b -> Done 0 b
-        else return $ Error err
+        else return $ Error "takeWhile1: predicate failed on first element"
     step (Just s) a =
         if predicate a
         then do
@@ -455,28 +426,16 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             b <- fextract s
             return $ Done 1 b
 
-    extract Nothing = throwM $ ParseError err
+    extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
-
-    err = "takeWhile1: end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepBy'.
 --
 -- /Internal/
 --
-{-# INLINABLE sliceSepBy #-}
-sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepBy predicate fld = fromFold $ FL.sliceSepBy predicate fld
-
--- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
---
--- /Unimplemented/
---
-{-# INLINABLE sliceEndWith #-}
-sliceEndWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceEndWith = undefined
+sliceSepBy :: -- MonadCatch m =>
+    (a -> Bool) -> Parser m a b -> Parser m a b
+sliceSepBy _cond = undefined
 
 -- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
@@ -487,15 +446,6 @@ sliceBeginWith ::
     -- Monad m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
-
--- | See 'Streamly.Internal.Data.Parser.sliceSepByMax'.
---
--- /Internal/
---
-{-# INLINABLE sliceSepByMax #-}
-sliceSepByMax :: Monad m
-    => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
-sliceSepByMax p n = sliceSepBy p . FL.ltake n
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
@@ -709,6 +659,7 @@ manyTill (Fold fstep finitial fextract)
             Error _ -> do
                 rR <- initialL
                 return $ Continue (cnt + 1) (ManyTillL 0 fs rR)
+    -- XXX the cnt is being used only by the assert
     step (ManyTillL cnt fs st) a = do
         r <- stepL st a
         case r of
@@ -717,17 +668,17 @@ manyTill (Fold fstep finitial fextract)
                 assert (cnt + 1 - n >= 0) (return ())
                 return $ Continue n (ManyTillL (cnt + 1 - n) fs s)
             Done n b -> do
-                sfs1 <- fstep fs b
-                case sfs1 of
-                    FL.Partial fs1 -> do
+                fs1 <- fstep fs b
+                case fs1 of
+                    FL.Partial s -> do
                         l <- initialR
-                        return $ Partial n (ManyTillR 0 fs1 l)
-                    FL.Done fb -> return $ Done n fb
+                        return $ Partial n (ManyTillR 0 s l)
+                    FL.Done b1 -> return $ Done n b1
             Error err -> return $ Error err
 
     extract (ManyTillL _ fs sR) = do
         res <- extractL sR >>= fstep fs
         case res of
-            FL.Partial sres -> fextract sres
-            FL.Done bres -> return bres
+            FL.Partial s -> fextract s
+            FL.Done b -> return b
     extract (ManyTillR _ fs _) = fextract fs

@@ -69,30 +69,6 @@ benchIOSink value name f =
 satisfy :: MonadCatch m => (a -> Bool) -> PR.Parser m a a
 satisfy = PR.toParserK . PRD.satisfy
 
-{-# INLINE any #-}
-any :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
-any = PR.toParserK . PRD.any
-
-{-# INLINE anyK #-}
-anyK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
-anyK value = PARSE_OP (any (> value))
-
-{-# INLINE all #-}
-all :: MonadCatch m => (a -> Bool) -> PR.Parser m a Bool
-all = PR.toParserK . PRD.all
-
-{-# INLINE allK #-}
-allK :: (MonadCatch m, Ord a) => a -> SerialT m a -> m Bool
-allK value = PARSE_OP (all (<= value))
-
-{-# INLINE take #-}
-take :: MonadCatch m => Int -> PR.Parser m a ()
-take value = PR.toParserK $ PRD.take value FL.drain
-
-{-# INLINE takeK #-}
-takeK :: MonadCatch m => Int -> SerialT m a -> m ()
-takeK value = PARSE_OP (take value)
-
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
 takeWhile p = PR.toParserK $ PRD.takeWhile p FL.drain
@@ -103,9 +79,9 @@ takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
 splitApp :: MonadCatch m
-    => Int -> SerialT m Int -> m (Bool, Bool)
+    => Int -> SerialT m Int -> m ((), ())
 splitApp value =
-    PARSE_OP ((,) <$> any (>= (value `div` 2)) <*> any (> value))
+    PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
 sequenceA :: MonadCatch m => Int -> SerialT m Int -> m Int
@@ -157,10 +133,7 @@ moduleName = "Data.Parser.ParserK"
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "any" $ anyK value
-    , benchIOSink value "all" $ allK value
-    , benchIOSink value "take" $ takeK value
-    , benchIOSink value "takeWhile" $ takeWhileK value
+    [ benchIOSink value "takeWhile" $ takeWhileK value
     , benchIOSink value "splitApp" $ splitApp value
     ]
 
@@ -187,10 +160,6 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_serial value
-            ]
-        , bgroup (o_n_heap_prefix moduleName) $ concat
-            [ o_n_heap_serial value
-            ]
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
+        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
