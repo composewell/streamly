@@ -548,13 +548,9 @@ escapedFrameBy _begin _end _escape _p = undefined
 -- S.wordsBy pred f = S.parseMany (PR.wordBy pred f)
 -- @
 --
--- /Unimplemented/
---
-{-# INLINABLE wordBy #-}
-wordBy ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-wordBy = undefined
+{-# INLINE wordBy #-}
+wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+wordBy f = K.toParserK . D.wordBy f
 
 -- | @groupBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
 -- first group, then if @a \`cmp` b@ is 'True' @b@ is also assigned to the same

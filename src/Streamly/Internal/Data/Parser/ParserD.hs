@@ -447,15 +447,46 @@ sliceBeginWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
 
+data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
+
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
--- /Unimplemented/
 --
-{-# INLINABLE wordBy #-}
-wordBy ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-wordBy = undefined
+{-# INLINE wordBy #-}
+wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    {-# INLINE worder #-}
+    worder s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                  FL.Partial s1 -> Partial 0 $ WBWord s1
+                  FL.Done b -> Done 0 b
+
+    initial = WBLeft <$> finitial
+
+    step (WBLeft s) a =
+        if not (predicate a)
+        then worder s a
+        else return $ Partial 0 $ WBLeft s
+    step (WBWord s) a =
+        if not (predicate a)
+        then worder s a
+        else do
+            b <- fextract s
+            return $ Partial 0 $ WBRight b
+    step (WBRight b) a =
+        return
+            $ if not (predicate a)
+              then Done 1 b
+              else Partial 0 $ WBRight b
+
+    extract (WBLeft s) = fextract s
+    extract (WBWord s) = fextract s
+    extract (WBRight b) = return b
 
 data GroupByState a s
     = GroupByInit !s
