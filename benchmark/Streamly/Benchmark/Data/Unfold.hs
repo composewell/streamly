@@ -611,7 +611,7 @@ readWriteBracketUnfold inh devNull =
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =
-    [ bgroup "copy/exceptions"
+    [ bgroup "exceptions"
        [ mkBenchSmall "UF.onException" env $ \inh _ ->
            readWriteOnExceptionUnfold inh (nullH env)
        , mkBenchSmall "UF.handle" env $ \inh _ ->

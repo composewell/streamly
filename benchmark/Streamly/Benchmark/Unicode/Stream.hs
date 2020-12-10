@@ -62,8 +62,8 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 -- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''Step
 #endif
 
-o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
-o_1_space_copy_chunked env =
+o_1_space_decode_encode_chunked :: BenchEnv -> [Benchmark]
+o_1_space_decode_encode_chunked env =
     [ bgroup "decode-encode/toChunks"
         [
         mkBenchSmall "decodeEncodeUtf8Lenient" env $ \inH outH ->
@@ -253,8 +253,8 @@ inspect $ hasNoTypeClasses 'copyStreamUtf8
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
-o_1_space_copy_read :: BenchEnv -> [Benchmark]
-o_1_space_copy_read env =
+o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
+o_1_space_decode_encode_read env =
     [ bgroup "decode-encode"
         [
         -- This needs an ascii file, as decode just errors out.
@@ -281,8 +281,8 @@ main = do
 
     allBenchmarks env =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat $
-            [ o_1_space_copy_chunked env
-            , o_1_space_copy_read_group_ungroup env
-            , o_1_space_copy_read env
+            [ o_1_space_copy_read_group_ungroup env
+            , o_1_space_decode_encode_chunked env
+            , o_1_space_decode_encode_read env
             ]
         ]

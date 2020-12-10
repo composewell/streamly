@@ -109,6 +109,9 @@ common bench-depends
     , gauge               >= 0.2.4 && < 0.3
     , transformers        >= 0.4   && < 0.6
     , containers          >= 0.5   && < 0.7
+    , typed-process     >= 0.2.3 && < 0.3
+    , directory         >= 1.2.2 && < 1.4
+    , ghc-prim          >= 0.4   && < 0.7
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:
@@ -132,10 +135,6 @@ library
     exposed-modules: Streamly.Benchmark.Common
                    , Streamly.Benchmark.Common.Handle
                    , Streamly.Benchmark.Prelude
-    build-depends:
-          typed-process     >= 0.2.3 && < 0.3
-        , directory         >= 1.2.2 && < 1.4
-        , ghc-prim          >= 0.4   && < 0.7 
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -161,7 +160,7 @@ common bench-options-threaded
 benchmark Prelude.Serial
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: . Streamly/Benchmark/Prelude 
+  hs-source-dirs: Streamly/Benchmark/Prelude 
   main-is: Serial.hs
   other-modules:
         Serial.Generation
@@ -172,16 +171,11 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-  ghc-options: +RTS -M1000M -RTS
+  ghc-options: +RTS -M750M -RTS
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
- build-depends:
-      typed-process     >= 0.2.3 && < 0.3
-    , directory         >= 1.2.2 && < 1.4
-    , ghc-prim          >= 0.4   && < 0.7 
-    , inspection-testing >= 0.4   && < 0.5
 
 benchmark Prelude.WSerial
   import: bench-options
@@ -265,10 +259,6 @@ benchmark Data.Unfold
     buildable: False
   else
     buildable: True
-  build-depends:
-      typed-process     >= 0.2.3 && < 0.3
-    , directory         >= 1.2.2 && < 1.4
-    , ghc-prim          >= 0.4   && < 0.7 
 
 benchmark Data.Fold
   import: bench-options
@@ -454,16 +444,11 @@ benchmark Memory.Array
 benchmark FileSystem.Handle
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M3000M -RTS
-  hs-source-dirs: . Streamly/Benchmark/FileSystem
+  hs-source-dirs: Streamly/Benchmark/FileSystem
   main-is: Handle.hs
   other-modules:
       Handle.Read
     , Handle.ReadWrite
-  build-depends:
-      typed-process     >= 0.2.3 && < 0.3
-    , directory         >= 1.2.2 && < 1.4
-    , ghc-prim          >= 0.4   && < 0.7
 
 -------------------------------------------------------------------------------
 -- Unicode Benchmarks
@@ -471,12 +456,8 @@ benchmark FileSystem.Handle
 benchmark Unicode.Stream
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: . Streamly/Benchmark/Unicode
+  hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
-  build-depends:
-      typed-process     >= 0.2.3 && < 0.3
-    , directory         >= 1.2.2 && < 1.4
-    , ghc-prim          >= 0.4   && < 0.7
  
 -------------------------------------------------------------------------------
 -- benchmark comparison and presentation
