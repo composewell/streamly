@@ -6,9 +6,8 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
-
--- Also see the "Streamly.Internal.Data.Sink" module that provides specialized
--- left folds that discard the outputs.
+--
+-- See "Streamly.Data.Fold" for an overview.
 --
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 
@@ -18,13 +17,7 @@ module Streamly.Internal.Data.Fold
       Step (..)
     , Fold (..)
 
-    , hoist
-    , generally
-
-    -- , tail
-    -- , init
-
-    -- * Fold Creation Utilities
+    -- * Creating
     , mkAccum
     , mkAccum_
     , mkAccumM
@@ -34,19 +27,23 @@ module Streamly.Internal.Data.Fold
     , mkFoldM
     , mkFoldM_
 
-    -- ** Full Folds
+    -- * Generators
+    , yield
+    , yieldM
+
+    -- * Accumulators
+    -- ** Semigroups and Monoids
+    , sconcat
+    , mconcat
+    , foldMap
+    , foldMapM
+
+    -- ** Reducers
     , drain
     , drainBy
     , drainBy2
     , last
     , length
-    , sum
-    , product
-    , maximumBy
-    , maximum
-    , minimumBy
-    , minimum
-    -- , the
     , mean
     , variance
     , stdDev
@@ -55,22 +52,24 @@ module Streamly.Internal.Data.Fold
     , rollingHashFirstN
     -- , rollingHashLastN
 
-    -- ** Fold Semigroups
-    , sconcat
+    -- ** Saturating Reducers
+    -- | 'product' terminates if it becomes 0. Other folds can theoretically
+    -- saturate on bounded types, and therefore terminate, however, they will
+    -- run forever on unbounded types like Integer/Double.
+    , sum
+    , product
+    , maximumBy
+    , maximum
+    , minimumBy
+    , minimum
 
-    -- ** Full Folds (Monoidal)
-    , mconcat
-    , foldMap
-    , foldMapM
-
-    -- ** Full Folds (To Containers)
-
+    -- ** Collectors
     , toList
     , toListRevF  -- experimental
+    , toParallelSVar
 
-    -- ** Partial Folds
+    -- * Terminating Folds
     , drainN
-    , drainSepBy
     -- , lastN
     -- , (!!)
     -- , genericIndex
@@ -84,17 +83,26 @@ module Streamly.Internal.Data.Fold
     , null
     , elem
     , notElem
-    -- XXX these are slower than right folds even when full input is used
     , all
     , any
     , and
     , or
+    -- , the
+    , toParallelSVarLimited
 
-    -- * Transformations
+    -- * Adapting
+    , hoist
+    , generally
 
-    -- ** Covariant Operations
+    -- * Running Incrementally
+    , initialize
+    , runStep
+
+    -- * Output Transformations
     , sequence
     , mapM
+
+    -- * Input Transformations
 
     -- ** Mapping
     , transform
@@ -127,37 +135,35 @@ module Streamly.Internal.Data.Fold
     , lreverse
     -}
 
-    -- * Parsing
     -- ** Trimming
     , ltake
-    -- , lrunFor -- time
-    , takeSepBy
+    , takeByTime
+    -- By elements
+    , sliceSepBy
+    -- , breakOn
+    , sliceSepByMax
+    , sliceEndWith
+    -- , breakAfter
     {-
-    , ltakeWhileM
     , ldrop
     , ldropWhile
     , ldropWhileM
     -}
 
-    , lsessionsOf
-    , lchunksOf
-
-    -- ** Breaking
+    -- * Splitting
 
     -- Binary
+    -- , tail
+    -- , init
     , splitAt -- spanN
     -- , splitIn -- sessionN
 
-    -- By elements
+    -- XXX To be moved to parsers
     , span  -- spanWhile
     , break -- breakBefore
-    -- , breakAfter
-    -- , breakOn
     -- , breakAround
     , spanBy
     , spanByRolling
-    , sliceSepBy
-    , sliceSepWith
 
     -- By sequences
     -- , breakOnSeq
@@ -166,8 +172,12 @@ module Streamly.Internal.Data.Fold
     -- * Distributing
 
     , tee
+    , teeWith
+    , teeWithFst
+    , teeWithMin
     , distribute
-    , distribute_
+    -- , distributeFst
+    -- , distributeMin
 
     -- * Partitioning
 
@@ -179,17 +189,19 @@ module Streamly.Internal.Data.Fold
 
     -- * Demultiplexing
 
-    , demux
+    , demux        -- XXX rename this to demux_
     , demuxWith
-    , demux_
-    , demuxDefault_
-    , demuxWith_
-    , demuxWithDefault_
+    , demuxDefault -- XXX rename this to demux
+    , demuxDefaultWith
+    -- , demuxWithSel
+    -- , demuxWithMin
 
     -- * Classifying
 
     , classify
     , classifyWith
+    -- , classifyWithSel
+    -- , classifyWithMin
 
     -- * Unzipping
     , unzip
@@ -198,18 +210,15 @@ module Streamly.Internal.Data.Fold
     , unzipWithFstM
     , unzipWithMinM
 
-    -- * Nested Folds
-    -- , concatMap
+    -- * Nesting
     , many
+    , lsessionsOf
+    , lchunksOf
+    , chunksBetween
+
+    , concatSequence
+    , concatMap
     , duplicate
-
-    -- * Running Folds
-    , initialize
-    , runStep
-
-    -- * Folding to SVar
-    , toParallelSVar
-    , toParallelSVarLimited
     )
 where
 
@@ -222,15 +231,14 @@ import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
+import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Either.Strict (Either'(..))
 
+import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Prelude
 
 import Prelude hiding
@@ -542,7 +550,7 @@ sum = Fold (\x a -> return $ Partial $ x + a) (return 0) return
 -- > product = fmap getProduct $ FL.foldMap Product
 --
 -- @since 0.7.0
--- /since 0.8.0 (Added 'Eq' constraint)/
+-- /Since 0.8.0 (Added 'Eq' constraint)/
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Fold m a a
 product = Fold step (return 1) return
@@ -758,7 +766,7 @@ mconcat = sconcat mempty
 -- @since 0.7.0
 {-# INLINABLE foldMap #-}
 foldMap :: (Monad m, Monoid b
-#if __GLASGOW_HASKELL__ < 804
+#if !MIN_VERSION_base(4,11,0)
     , Semigroup b
 #endif
     ) => (a -> b) -> Fold m a b
@@ -815,12 +823,6 @@ toList = Fold (\f x -> return $ Partial $ f . (x :))
 {-# INLINABLE drainN #-}
 drainN :: Monad m => Int -> Fold m a ()
 drainN n = ltake n drain
-
--- | A fold that drains elements of its input as long as the predicate succeeds,
--- running the effects and discarding the results.
-{-# INLINABLE drainSepBy #-}
-drainSepBy :: Monad m => (a -> Bool) -> Fold m a ()
-drainSepBy p = takeSepBy p drain
 
 ------------------------------------------------------------------------------
 -- To Elements
@@ -932,11 +934,14 @@ elemIndex a = findIndex (a ==)
 null :: Monad m => Fold m a Bool
 null = Fold (\() _ -> return $ Done False) (return ()) (\() -> return True)
 
--- |
+--
 -- > any p = lmap p or
 -- > any p = fmap getAny . FL.foldMap (Any . p)
 --
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
+--
+-- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
+-- > True
 --
 -- @since 0.7.0
 {-# INLINE any #-}
@@ -962,11 +967,14 @@ any predicate = Fold step initial return
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
 
--- |
+--
 -- > all p = lmap p and
 -- > all p = fmap getAll . FL.foldMap (All . p)
 --
 -- | Returns 'True' if all elements of a stream satisfy a predicate.
+--
+-- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
+-- > False
 --
 -- @since 0.7.0
 {-# INLINABLE all #-}
@@ -1050,11 +1058,10 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- > ([1,2,3],[])
 --
+-- > splitAt n f1 f2 = splitWith (,) (ltake n f1) f2
+--
 -- /Internal/
 
--- This can be considered as a two-fold version of 'ltake' where we take both
--- the segments instead of discarding the leftover.
---
 {-# INLINE splitAt #-}
 splitAt
     :: Monad m
@@ -1062,7 +1069,7 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n fld1 = splitWith (,) (ltake n fld1)
+splitAt n fld = splitWith (,) (ltake n fld)
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1072,7 +1079,18 @@ splitAt n fld1 = splitWith (,) (ltake n fld1)
 -- Binary APIs
 ------------------------------------------------------------------------------
 
--- | Stops the fold at an infixed separator element, dropping the separator.
+-- Note: Keep this consistent with S.splitOn. In fact we should eliminate
+-- S.splitOn in favor of the fold.
+--
+-- | Consume the input until it encounters an infixed separator element (i.e.
+-- when the supplied predicate succeeds), dropping the separator.
+--
+-- Repeated applications of 'sliceSepBy' splits the stream on separator
+-- elements determined by the supplied predicate, separator is considered as
+-- infixed between two segments, if one side of the separator is missing then
+-- it is parsed as an empty stream.  The supplied 'Fold' is applied on the
+-- split segments. With '-' representing non-separator elements and '.' as
+-- separator, repeated 'sliceSepBy' splits the stream as follows:
 --
 -- @
 -- "--.--" => "--" "--"
@@ -1080,12 +1098,41 @@ splitAt n fld1 = splitWith (,) (ltake n fld1)
 -- ".--"   => ""   "--"
 -- @
 --
--- * Stops - when the predicate succeeds.
+-- Repeated applications of @Fold.sliceSepBy (== x)@ on the input stream gives us
+-- an inverse of @Stream.intercalate (Stream.yield x)@
+--
+-- > Stream.splitOn pred f = Stream.foldMany (Fold.sliceSepBy pred f)
+--
+-- Let's use the following definition for illustration:
+--
+-- > splitOn p = Stream.foldMany (Fold.sliceSepBy pred Fold.toList)
+-- > splitOn' p = Stream.toList . splitOn p . Stream.fromList
+--
+-- >>> splitOn' (== '.') ""
+-- [""]
+--
+-- >>> splitOn' (== '.') "."
+-- ["",""]
+--
+-- >>> splitOn' (== '.') ".a"
+-- > ["","a"]
+--
+-- >>> splitOn' (== '.') "a."
+-- > ["a",""]
+--
+-- >>> splitOn' (== '.') "a.b"
+-- > ["a","b"]
+--
+-- >>> splitOn' (== '.') "a..b"
+-- > ["a","","b"]
+--
+-- Stops - when the predicate succeeds.
 --
 -- /Internal/
 {-# INLINE sliceSepBy #-}
 sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-sliceSepBy predicate (Fold fstep finitial fextract) = Fold step initial fextract
+sliceSepBy predicate (Fold fstep finitial fextract) =
+    Fold step initial fextract
 
     where
 
@@ -1096,20 +1143,56 @@ sliceSepBy predicate (Fold fstep finitial fextract) = Fold step initial fextract
         then fstep s a
         else Done <$> fextract s
 
--- | Like 'sliceSepBy' but does not drop the seperator element.
+-- | Like 'sliceSepBy' but terminates a parse even before the separator
+-- is encountered if its size exceeds the specified maximum limit.
 --
--- @
--- "--.--" => "--." "--"
--- "--."   => "--." ""
--- ".--"   => "."   "--"
--- @
+-- > take n = PR.sliceSepByMax (const True) n
+-- > sliceSepBy p = PR.sliceSepByMax p maxBound
+--
+-- Let's use the following definitions for illustration:
+--
+-- > splitOn p n = PR.many FL.toList $ PR.sliceSepByMax p n (FL.toList)
+-- > splitOn' p n = S.parse (splitOn p n) . S.fromList
+--
+-- >>> splitOn' (== '.') 0 ""
+-- [""]
+--
+-- >>> splitOn' (== '.') 0 "a"
+-- infinite list of empty strings
+--
+-- >>> splitOn' (== '.') 3 "hello.world"
+-- ["hel","lo","wor","ld"]
+--
+-- If the separator is found and the limit is reached at the same time then it
+-- behaves just like 'sliceSepBy' i.e. the separator is dropped.
+--
+-- >>> splitOn' (== '.') 0 "."
+-- ["",""]
+--
+-- >>> splitOn' (== '.') 0 ".."
+-- ["","",""]
+--
+-- Stops - when the predicate succeeds or the limit is reached.
+--
+-- /Internal/
+{-# INLINABLE sliceSepByMax #-}
+sliceSepByMax :: Monad m
+    => (a -> Bool) -> Int -> Fold m a b -> Fold m a b
+sliceSepByMax p n = sliceSepBy p . ltake n
+
+-- | Collect stream elements until an element succeeds the predicate. Also take
+-- the element on which the predicate succeeded. The succeeding element is
+-- treated as a suffix separator which is kept in the output segement.
 --
 -- * Stops - when the predicate succeeds.
 --
+-- > Stream.splitWithSuffix pred f = Stream.foldMany (Fold.sliceEndWith pred f)
+--
 -- /Internal/
-{-# INLINE sliceSepWith #-}
-sliceSepWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-sliceSepWith predicate (Fold fstep finitial fextract) =
+--
+{-# INLINE sliceEndWith #-}
+sliceEndWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+sliceEndWith predicate (Fold fstep finitial fextract) =
     Fold step initial fextract
 
     where
@@ -1375,7 +1458,6 @@ foldNil = Fold step begin done  where
   step _ _ = return $ Partial []
   done = return
 
--- XXX How is the performance?
 {-# INLINE foldCons #-}
 foldCons :: Monad m => Fold m a b -> Fold m a [b] -> Fold m a [b]
 foldCons = teeWith (:)
@@ -1401,58 +1483,19 @@ foldCons = teeWith (:)
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 --
+-- Stops when all the folds stop.
+--
 -- @since 0.7.0
 {-# INLINE distribute #-}
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
 distribute = foldr foldCons foldNil
-
--- XXX This is 2x times faster wiithout the terminating condition.
--- | Like 'distribute' but for folds that return (), this can be more efficient
--- than 'distribute' as it does not need to maintain state. This fold terminates
--- when all the folds terminate.
---
-{-# INLINE distribute_ #-}
-distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
-distribute_ fs = Fold step initial extract
-
-    where
-
-    initial = Prelude.mapM initialize fs
-
-    -- XXX This itself can be a recursive function but we might face inlining
-    -- problems.
-    step [] _ = return $ Done ()
-    step ss a = do
-        !ss1 <- go ss a
-        return
-          $ if Prelude.null ss1
-            then Done ()
-            else Partial ss1
-
-    go [] _ = return []
-    go ((Fold s i d):ss) a = do
-        i1 <- i
-        res <- s i1 a
-        case res of
-            Partial i2 -> do
-                rst <- go ss a
-                let fld = Fold s (return i2) d
-                return $ fld : rst
-            Done () -> go ss a
-
-    extract ss = go1 ss
-
-    go1 [] = return ()
-    go1 ((Fold _ i d):ss) = (i >>= d) >> go1 ss
 
 ------------------------------------------------------------------------------
 -- Partitioning
 ------------------------------------------------------------------------------
 
 -- | Partition the input over two folds using an 'Either' partitioning
--- predicate. This fold terminates when both the folds terminate.
---
--- See also: 'partitionByFstM' and 'partitionByMinM'.
+-- predicate.
 --
 -- @
 --
@@ -1490,6 +1533,13 @@ distribute_ fs = Fold step initial extract
 --
 -- This is the consumer side dual of the producer side 'mergeBy' operation.
 --
+-- When one fold is done, any input meant for it is ignored until the other
+-- fold is also done.
+--
+-- Stops when both the folds stop.
+--
+-- /See also: 'partitionByFstM' and 'partitionByMinM'./
+--
 -- @since 0.7.0
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
@@ -1499,10 +1549,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 
     where
 
-    begin = do
-        sL <- beginL
-        sR <- beginR
-        return $ RunBoth sL sR
+    begin = RunBoth <$> beginL <*> beginR
 
     step (RunBoth sL sR) a = do
         r <- f a
@@ -1542,16 +1589,9 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                         Partial sres -> Partial $ RunRight bL sres
                         Done bres -> Done (bL, bres)
 
-    done (RunBoth sL sR) = do
-        bL <- doneL sL
-        bR <- doneR sR
-        return (bL, bR)
-    done (RunLeft sL bR) = do
-        bL <- doneL sL
-        return (bL, bR)
-    done (RunRight bL sR) = do
-        bR <- doneR sR
-        return (bL, bR)
+    done (RunBoth sL sR) = (,) <$> doneL sL <*> doneR sR
+    done (RunLeft sL bR) = (,bR) <$> doneL sL
+    done (RunRight bL sR) = (bL,) <$> doneR sR
 
 -- | Similar to 'partitionByM' but terminates when the first fold terminates.
 --
@@ -1639,44 +1679,16 @@ partition = partitionBy id
 --                                       ...
 -- @
 --
--- @since 0.7.0
+-- Any input that does not map to a fold in the input Map is silently ignored.
+--
+-- > demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
+--
+-- /Internal/
+--
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
     => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a (Map k b)
-demuxWith f kv = Fold step initial extract
-
-    where
-
-    initial = Tuple' Map.empty <$> Prelude.mapM initialize kv
-
-    step (Tuple' bmp mp) a =
-        if Map.size mp > 0
-        then do
-            let (k, a') = f a
-            case Map.lookup k mp of
-                Nothing -> return $ Partial $ Tuple' bmp mp
-                Just (Fold stp ini dn) -> do
-                    !st <- ini
-                    !res <- stp st a'
-                    return
-                        $ case res of
-                              Partial sres ->
-                                  let fld = Fold stp (return sres) dn
-                                      mp1 = Map.insert k fld mp
-                                   in Partial $ Tuple' bmp mp1
-                              Done bres ->
-                                  let mp1 = Map.delete k mp
-                                      bmp1 = Map.insert k bres bmp
-                                   in if Map.size mp1 == 0
-                                      then Done bmp1
-                                      else Partial $ Tuple' bmp1 mp1
-        -- XXX This state is reached even for an empty Map. That will change
-        -- once we have Step in the initial value
-        else error "Illegal state"
-
-    extract (Tuple' bmp mp) = do
-        mpe <- Prelude.mapM (\(Fold _ i d) -> i >>= d) mp
-        return $ bmp `Map.union` mpe
+demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1695,164 +1707,119 @@ demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
 demux = demuxWith id
 
--- data DemuxState m s = DemuxP !m !s | DemuxingOnlyMap !m
-data DemuxState s m1 m2 = DemuxingWithDefault !s !m1 !m2 | DemuxingOnlyMap !m2
+data DemuxState s b rMap kvMap =
+      DemuxMapWithDefault !s !rMap !kvMap
+    | DemuxMap b !rMap !kvMap
+    | DemuxDefault s !rMap
 
-{-# INLINE demuxWithDefault_ #-}
-demuxWithDefault_ :: (Monad m, Ord k)
-    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m (k, a') b -> Fold m a ()
-demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
+-- | Like 'demuxWith' but uses a default catchall fold to handle inputs which
+-- do not have a specific fold in the map to handle them.
+--
+-- If any fold in the map stops, inputs meant for that fold are sent to the
+-- catchall fold. If the catchall fold stops then inputs that do not match any
+-- fold are ignored.
+--
+-- Stops when all the folds, including the catchall fold, stop.
+--
+-- /Internal/
+--
+{-# INLINE demuxDefaultWith #-}
+demuxDefaultWith :: (Monad m, Ord k)
+    => (a -> (k, a'))
+    -> Map k (Fold m a' b)
+    -> Fold m (k, a') c
+    -> Fold m a (Map k b, c)
+demuxDefaultWith f kv (Fold dstep dinitial dextract) =
     Fold step initial extract
 
     where
 
-    initial = do
-        ini <- dinitial
-        mp <- Prelude.mapM initialize kv
-        return $ DemuxingWithDefault ini Set.empty mp
+    initial =
+        DemuxMapWithDefault
+            <$> dinitial
+            <*> return Map.empty
+            <*> Prelude.mapM initialize kv
 
-    -- XXX Some code can probably be abstracted
-    step (DemuxingWithDefault dacc bst mp) a =
-        if Map.size mp > 0
+    step (DemuxMapWithDefault dacc results kvMap) a =
+        if Map.size kvMap > 0
         then do
             let (k, a1) = f a
-            case Map.lookup k mp of
-                Nothing ->
-                    if k `Set.member` bst
-                    then return $ Partial $ DemuxingWithDefault dacc bst mp
-                    else do
-                        res <- dstep dacc (k, a1)
-                        return
-                            $ Partial
-                            $ case res of
-                                  Partial sres ->
-                                      DemuxingWithDefault sres bst mp
-                                  Done _ -> DemuxingOnlyMap mp
-                Just (Fold stp ini dn) -> do
-                    !st <- ini
-                    !res <- stp st a1
+            case Map.lookup k kvMap of
+                Nothing -> do
+                    res <- dstep dacc (k, a1)
+                    return
+                        $ Partial
+                        $ case res of
+                              Partial s -> DemuxMapWithDefault s results kvMap
+                              Done b -> DemuxMap b results kvMap
+                Just (Fold step1 initial1 extract1) -> do
+                    !st <- initial1
+                    !res <- step1 st a1
                     return
                         $ case res of
-                              Partial sres ->
-                                  let fld = Fold stp (return sres) dn
-                                      mp1 = Map.insert k fld mp
-                                   in Partial $ DemuxingWithDefault dacc bst mp1
-                              Done _ ->
-                                  -- XXX We can skip the check here
-                                  if Map.size mp == 1
-                                  then Done ()
-                                  else Partial
-                                           $ DemuxingWithDefault
-                                                 dacc
-                                                 (Set.insert k bst)
-                                                 (Map.delete k mp)
-        -- XXX This state is reached even for an empty Map. That will change
-        -- once we have Step in the initial value
-        else error "Illegal state"
-    -- XXX Reduce code duplication?
-    step (DemuxingOnlyMap mp) a =
-        if Map.size mp > 0
+                              Partial s ->
+                                  let fld = Fold step1 (return s) extract1
+                                      kvMap1 = Map.insert k fld kvMap
+                                   in Partial
+                                        $ DemuxMapWithDefault
+                                            dacc results kvMap1
+                              Done b ->
+                                  let kvMap1 = Map.delete k kvMap
+                                      results1 = Map.insert k b results
+                                   in Partial
+                                        $ if Map.size kvMap1 == 0
+                                          then DemuxDefault dacc results1
+                                          else DemuxMapWithDefault
+                                                    dacc results1 kvMap1
+        -- XXX Remove this when we have Step in the initial value
+        else error "demuxDefaultWith: empty key-value Map"
+    step (DemuxMap dval results kvMap) a =
+        if Map.size kvMap > 0
         then do
             let (k, a1) = f a
-            case Map.lookup k mp of
-                Nothing -> return $ Partial $ DemuxingOnlyMap mp
-                Just (Fold stp ini dn) -> do
-                    !st <- ini
-                    !res <- stp st a1
+            case Map.lookup k kvMap of
+                Nothing -> return $ Partial $ DemuxMap dval results kvMap
+                Just (Fold step1 initial1 extract1) -> do
+                    !st <- initial1
+                    !res <- step1 st a1
                     return
                         $ case res of
-                              Partial sres ->
-                                  Partial
-                                      $ DemuxingOnlyMap
-                                      $ Map.insert
-                                            k
-                                            (Fold stp (return sres) dn)
-                                            mp
-                              Done _ ->
-                                  if Map.size mp == 1
-                                  then Done ()
-                                  else Partial
-                                           $ DemuxingOnlyMap $ Map.delete k mp
-        -- XXX This state is reached even for an empty Map. That will change
-        -- once we have Step in the initial value
-        else error "Illegal state"
+                              Partial s ->
+                                  let fld = Fold step1 (return s) extract1
+                                      kvMap1 = Map.insert k fld kvMap
+                                   in Partial $ DemuxMap dval results kvMap1
+                              Done b ->
+                                  let kvMap1 = Map.delete k kvMap
+                                      results1 = Map.insert k b results
+                                   in if Map.size kvMap1 == 0
+                                      then Done (results1, dval)
+                                      else Partial
+                                            $ DemuxMap dval results1 kvMap1
+        -- XXX Remove this when we have Step in the initial value
+        else error "demuxDefaultWith: empty key-value Map"
+    step (DemuxDefault dacc results) a = do
+        let (k, a1) = f a
+        res <- dstep dacc (k, a1)
+        return
+            $ case res of
+                  Partial s -> Partial $ DemuxDefault s results
+                  Done b -> Done (results, b)
 
-    extract (DemuxingWithDefault dacc _ mp) = do
-        void $ dextract dacc
-        Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
-    extract (DemuxingOnlyMap mp) = do
-        Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
+    extract (DemuxMapWithDefault dacc results kvMap) = do
+        b <- dextract dacc
+        kvMap1 <- Prelude.mapM (\(Fold _ i d) -> i >>= d) kvMap
+        return (results `Map.union` kvMap1, b)
+    extract (DemuxMap dval results kvMap) = do
+        kvMap1 <- Prelude.mapM (\(Fold _ i d) -> i >>= d) kvMap
+        return (results `Map.union` kvMap1, dval)
+    extract (DemuxDefault dacc results) = do
+        b <- dextract dacc
+        return (results, b)
 
--- | Split the input stream based on a key field and fold each split using a
--- specific fold without collecting the results. Useful for cases like protocol
--- handlers to handle different type of packets.
---
--- @
---
---                             |-------Fold m a ()
--- -----stream m a-----Map-----|
---                             |-------Fold m a ()
---                             |
---                                       ...
--- @
---
---
--- @since 0.7.0
-
--- demuxWith_ can be slightly faster than demuxWith because we do not need to
--- update the Map in this case. This may be significant only if the map is
--- large.
-{-# INLINE demuxWith_ #-}
-demuxWith_ :: (Monad m, Ord k)
-    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a ()
-demuxWith_ f kv = Fold step initial extract
-
-    where
-
-    initial = Tuple' (Map.size kv) <$> Prelude.mapM initialize kv
-
-    step (Tuple' n mp) a
-        | (k, a') <- f a =
-            case Map.lookup k mp of
-                Nothing -> return $ Partial $ Tuple' n mp
-                Just (Fold stp ini dn) -> do
-                    !st <- ini
-                    !res <- stp st a'
-                    let n1 = n - 1
-                    return
-                        $ case res of
-                              Partial sres ->
-                                  let fld = Fold stp (return sres) dn
-                                   in Partial $ Tuple' n $ Map.insert k fld mp
-                              Done _ ->
-                                  if n1 == 0
-                                  then Done ()
-                                  else Partial $ Tuple' n1 $ Map.delete k mp
-
-    extract (Tuple' _ mp) = do
-        Prelude.mapM_ (\(Fold _ i d) -> i >>= d) mp
-
--- | Given a stream of key value pairs and a map from keys to folds, fold the
--- values for each key using the corresponding folds, discarding the outputs.
---
--- @
--- > let prn = FL.drainBy print
--- > let table = Data.Map.fromList [(\"ONE", prn), (\"TWO", prn)]
---       input = S.fromList [(\"ONE",1),(\"TWO",2)]
---   in S.fold (FL.demux_ table) input
--- One 1
--- Two 2
--- @
---
--- @since 0.7.0
-{-# INLINE demux_ #-}
-demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
-demux_ = demuxWith_ id
-
-{-# INLINE demuxDefault_ #-}
-demuxDefault_ :: (Monad m, Ord k)
-    => Map k (Fold m a ()) -> Fold m (k, a) () -> Fold m (k, a) ()
-demuxDefault_ = demuxWithDefault_ id
+{-# INLINE demuxDefault #-}
+demuxDefault :: (Monad m, Ord k)
+    => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
+demuxDefault = demuxDefaultWith id
 
 -- TODO If the data is large we may need a map/hashmap in pinned memory instead
 -- of a regular Map. That may require a serializable constraint though. We can
@@ -1868,7 +1835,13 @@ demuxDefault_ = demuxWithDefault_ id
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --
--- @since 0.7.0
+-- If the classifier fold stops for a particular key any further inputs in that
+-- bucket are ignored.
+--
+-- /Stops: never/
+--
+-- /Internal/
+--
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
 classifyWith f (Fold step initial extract) = Fold step' initial' extract'
@@ -1936,7 +1909,7 @@ classify fld = classifyWith fst (lmap snd fld)
 
 -- | Like 'unzipWith' but with a monadic splitter function.
 --
--- -- @unzipWithM f fld1 fld2 = lmapM f (unzip fld1 fld2)@
+-- -- @unzipWithM k f1 f2 = lmapM k (unzip f1 f2)@
 --
 -- @since 0.7.0
 {-# INLINE unzipWithM #-}
@@ -1981,8 +1954,8 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                   Done bresR -> Done (bL, bresR)
 
     done (RunBoth sL sR) = (,) <$> doneL sL <*> doneR sR
-    done (RunLeft sL bR) = (,) <$> doneL sL <*> return bR
-    done (RunRight bL sR) = (,) bL <$> doneR sR
+    done (RunLeft sL bR) = (,bR) <$> doneL sL
+    done (RunRight bL sR) = (bL,) <$> doneR sR
 
 -- | Similar to 'unzipWithM' but terminates when the first fold terminates.
 --
@@ -2037,10 +2010,17 @@ unzip = unzipWith id
 -- Nesting
 ------------------------------------------------------------------------------
 
-
-{-
--- XXX this would be an application of "many" using a terminating fold.
+-- | @concatSequence f t@ applies folds from stream @t@ sequentially and
+-- collects the results using the fold @f@.
 --
+-- /Unimplemented/
+--
+{-# INLINE concatSequence #-}
+concatSequence ::
+    -- IsStream t =>
+    Fold m b c -> t (Fold m a b) -> Fold m a c
+concatSequence _f _p = undefined
+
 -- | Group the input stream into groups of elements between @low@ and @high@.
 -- Collection starts in chunks of @low@ and then keeps doubling until we reach
 -- @high@. Each chunk is folded using the provided fold function.
@@ -2049,16 +2029,14 @@ unzip = unzipWith id
 -- size to a stream of arrays and we want to minimize the number of
 -- allocations.
 --
--- @
+-- NOTE: this would be an application of "many" using a terminating fold.
 --
--- XXX we should be able to implement it with parsers/terminating folds.
+-- /Unimplemented/
 --
-{-# INLINE lchunksInRange #-}
-lchunksInRange :: Monad m
-    => Int -> Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksInRange low high (Fold step1 initial1 extract1)
-                        (Fold step2 initial2 extract2) = undefined
--}
+{-# INLINE chunksBetween #-}
+chunksBetween :: -- Monad m =>
+       Int -> Int -> Fold m a b -> Fold m b c -> Fold m a c
+chunksBetween _low _high _f1 _f2 = undefined
 
 ------------------------------------------------------------------------------
 -- Fold to a Parallel SVar

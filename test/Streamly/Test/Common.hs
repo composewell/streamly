@@ -10,6 +10,8 @@
 module Streamly.Test.Common
     ( equals
     , listEquals
+    , checkListEqual
+    , chooseInt
     ) where
 
 import Control.Monad (when)
@@ -18,8 +20,8 @@ import Data.List ((\\))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
-import Test.QuickCheck (counterexample)
-import Test.QuickCheck.Monadic (PropertyM, assert, monitor)
+import Test.QuickCheck (Property, Gen, choose, counterexample)
+import Test.QuickCheck.Monadic (PropertyM, assert, monitor, monadicIO)
 
 equals
     :: (Show a, Monad m)
@@ -51,3 +53,9 @@ listEquals eq stream list = do
              <> "\nlist \\\\ stream " <> show (list \\ stream)
              )
     assert (stream `eq` list)
+
+checkListEqual :: (Show a, Eq a) => [a] -> [a] -> Property
+checkListEqual ls_1 ls_2 = monadicIO (listEquals (==) ls_1 ls_2)
+
+chooseInt :: (Int, Int) -> Gen Int
+chooseInt = choose
