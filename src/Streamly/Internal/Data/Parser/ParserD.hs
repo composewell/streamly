@@ -369,27 +369,33 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
     initial = Tuple' 0 <$> finitial
 
     step (Tuple' i r) a
-        | i < n = do
+        | i1 < n = do
             res <- fstep r a
             return
                 $ case res of
-                      FL.Partial s -> Continue 0 $ Tuple' (i + 1) s
-                      FL.Done _ -> Error $ err (i + 1)
+                      FL.Partial s -> Continue 0 $ Tuple' i1 s
+                      FL.Done _ ->
+                        Error
+                            $ "takeGE: the collecting fold terminated after "
+                                ++ "consuming " ++ show i1 ++ " elements"
         | otherwise = do
             res <- fstep r a
             return
                 $ case res of
-                      FL.Partial s -> Partial 0 $ Tuple' (i + 1) s
+                      FL.Partial s -> Partial 0 $ Tuple' i1 s
                       FL.Done b -> Done 0 b
 
-    extract (Tuple' i b)
-        | i >= n = fextract b
-        | otherwise = throwM $ ParseError $ err i
+        where
 
-    err i =
-        "takeGE: Expecting at least "
-            ++ show n ++ " elements, got only " ++ show i
+        i1 = i + 1
 
+    extract (Tuple' i r)
+        | i >= n = fextract r
+        | otherwise =
+            throwM
+                $ ParseError
+                $ "takeGE: Expecting at least "
+                    ++ show n ++ " elements, got " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
