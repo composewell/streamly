@@ -122,8 +122,8 @@ module Streamly.Internal.Data.Parser.ParserD.Types
 
     , die
     , dieM
-    , splitSome
-    , splitMany
+    , splitSome -- parseSome?
+    , splitMany -- parseMany?
     , alt
     , concatMap
     )
@@ -274,14 +274,14 @@ yieldM b = Parser (\_ _ -> Done 1 <$> b) -- step
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
+-- | See 'Streamly.Internal.Data.Parser.splitWith'.
+--
 -- Note: this implementation of splitWith is fast because of stream fusion but
 -- has quadratic time complexity, because each composition adds a new branch
 -- that each subsequent parse's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions. After around 100
 -- compositions the performance starts dipping rapidly beyond a CPS style
 -- unfused implementation.
---
--- | See 'Streamly.Internal.Data.Parser.splitWith'.
 --
 -- /Internal/
 --
@@ -430,7 +430,6 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     extract (AltParseR sR) = extractR sR
     extract (AltParseL _ sL) = extractL sL
 
--- XXX We are ignoring the Error?
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Internal/
@@ -453,17 +452,14 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
-                -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Continue n s -> do
-                -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
-                -- XXX Combine assert with the next statement
                 assert (cnt1 - n >= 0) (return ())
                 return
                     $ case fs1 of
@@ -484,8 +480,6 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                     FL.Partial s1 -> fextract s1
                     FL.Done b1 -> return b1
 
--- XXX Unwrap Either into their own constructors?
--- XXX I think haskell automatically does this though. Need to check.
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
 -- /Internal/
@@ -505,6 +499,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
     {-# INLINE step #-}
     step (Tuple3' st cnt (Left fs)) a = do
         r <- step1 st a
+        -- In the Left state, count is used only for the assert
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
@@ -514,6 +509,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
             Done n b -> do
+                assert (cnt1 - n >= 0) (return ())
                 s <- initial1
                 fs1 <- fstep fs b
                 return
@@ -532,9 +528,9 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
             Done n b -> do
+                assert (cnt1 - n >= 0) (return ())
                 s <- initial1
                 fs1 <- fstep fs b
-                assert (cnt1 - n >= 0) (return ())
                 return
                     $ case fs1 of
                           FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))

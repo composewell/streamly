@@ -1,16 +1,14 @@
 module Main (main) where
 
 import Control.Exception (SomeException(..), displayException)
-import Control.Monad (when)
-import Control.Monad.IO.Class (MonadIO(..))
-import Data.List ((\\))
 import Data.Word (Word8, Word32, Word64)
+import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-       (arbitrary, forAll, choose, elements, Property, property, listOf,
-        vectorOf, counterexample, Gen, suchThat)
-import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor, run)
+       (arbitrary, forAll, elements, Property, property, listOf,
+        vectorOf, Gen, suchThat)
+import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
@@ -52,30 +50,6 @@ max_value = 10000
 max_length :: Int
 max_length = 1000
 
-listEquals :: (Show a, Eq a, MonadIO m)
-    => ([a] -> [a] -> Bool) -> [a] -> [a] -> PropertyM m ()
-listEquals eq parsed_list list = do
-    when (not $ parsed_list `eq` list) $ liftIO $ putStrLn $
-                  "parsed list " ++ show parsed_list
-             ++ "\nlist   " ++ show list
-             ++ "\nparsed list \\\\ list " ++ show (parsed_list \\ list)
-             ++ "\nlist \\\\ parsed list " ++ show (list \\ parsed_list)
-    when (not $ parsed_list `eq` list) $
-        monitor
-            (counterexample $
-                  "parsed list " ++ show parsed_list
-             ++ "\nlist   " ++ show list
-             ++ "\nparsed list \\\\ list " ++ show (parsed_list \\ list)
-             ++ "\nlist \\\\ parsed list " ++ show (list \\ parsed_list)
-             )
-    assert (parsed_list `eq` list)
-
-checkListEqual :: (Show a, Eq a) => [a] -> [a] -> Property
-checkListEqual ls_1 ls_2 = monadicIO (listEquals (==) ls_1 ls_2)
-
-chooseInt :: (Int, Int) -> Gen Int
-chooseInt = choose
-
 -- Accumulator Tests
 
 fromFold :: Property
@@ -83,20 +57,6 @@ fromFold =
     forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
         case (==) <$> (S.parse (P.fromFold FL.sum) (S.fromList ls)) <*> (S.fold FL.sum (S.fromList ls)) of
             Right is_equal -> is_equal
-            Left _ -> False
-
-any :: Property
-any =
-    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
-        case S.parse (P.any (> mid_value)) (S.fromList ls) of
-            Right r -> r == (Prelude.any (> mid_value) ls)
-            Left _ -> False
-
-all :: Property
-all =
-    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
-        case S.parse (P.all (> mid_value)) (S.fromList ls) of
-            Right r -> r == (Prelude.all (> mid_value) ls)
             Left _ -> False
 
 yield :: Property
@@ -195,14 +155,6 @@ satisfy =
 
 -- Sequence Parsers Tests
 
-take :: Property
-take =
-    forAll (chooseInt (min_value, max_value)) $ \n ->
-        forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            case S.parse (P.take n FL.toList) (S.fromList ls) of
-                Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
-                Left _ -> property False
-
 takeEQPass :: Property
 takeEQPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -268,8 +220,6 @@ nLessThanEqual0 tk ltk =
 takeProperties :: Spec
 takeProperties =
     describe "take combinators when n <= 0/" $ do
-        prop "take n FL.toList = []" $
-            nLessThanEqual0 P.take (\_ -> const [])
         prop "takeEQ n FL.toList = []" $
             nLessThanEqual0 P.takeEQ (\_ -> const [])
         prop "takeGE n FL.toList xs = xs" $
@@ -349,25 +299,6 @@ takeWhile1 =
                 (x : _) -> property (not $ predicate x)
         where
             predicate = (== 0)
-
-sliceSepBy :: Property
-sliceSepBy =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parse (P.sliceSepBy predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile (not . predicate) ls)
-            Left _ -> property False
-        where
-            predicate = (== 1)
-
-sliceSepByMax :: Property
-sliceSepByMax =
-    forAll (chooseInt (min_value, max_value)) $ \n ->
-        forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parse (P.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
-                Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
-                Left _ -> property False
-            where
-                predicate = (== 1)
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -474,7 +405,8 @@ many =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return []) return
-            prsr = P.many concatFold $ P.sliceSepBy (== 1) FL.toList
+            prsr = P.many concatFold
+                        $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> checkListEqual res_list (Prelude.filter (== 0) ls)
@@ -492,7 +424,8 @@ some =
         let
             ls = 0 : genLs
             concatFold = FL.Fold (\concatList curr_list -> return $ FL.Partial $ concatList ++ curr_list) (return []) return
-            prsr = P.some concatFold $ P.sliceSepBy (== 1) FL.toList
+            prsr = P.some concatFold
+                        $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls
@@ -515,9 +448,9 @@ applicative =
     forAll (listOf (chooseAny :: Gen Int) `suchThat` (\x -> length x > 0)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser =
-                        (,)
-                            <$> P.take (length list1) FL.toList
-                            <*> P.take (length list2) FL.toList
+                    (,)
+                        <$> P.fromFold (FL.ltake (length list1) FL.toList)
+                        <*> P.fromFold (FL.ltake (length list2) FL.toList)
              in monadicIO $ do
                     (olist1, olist2) <-
                         run $ S.parse parser (S.fromList $ list1 ++ list2)
@@ -529,11 +462,11 @@ applicative =
 sequence :: Property
 sequence =
     forAll (vectorOf 11 (listOf (chooseAny :: Gen Int) `suchThat` (\x -> length x > 0))) $ \ ins ->
-        let parsers = fmap (\xs -> P.take (length xs) FL.toList) ins
+        let p xs = P.fromFold (FL.ltake (length xs) FL.toList)
          in monadicIO $ do
                 outs <- run $
                         S.parse
-                            (Prelude.sequence parsers)
+                            (Prelude.sequence $ fmap p ins)
                             (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
@@ -544,9 +477,9 @@ monad =
     forAll (listOf (chooseAny :: Gen Int) `suchThat` (\x -> length x > 0)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser = do
-                            olist1 <- P.take (length list1) FL.toList
-                            olist2 <- P.take (length list2) FL.toList
-                            return (olist1, olist2)
+                    olist1 <- P.fromFold (FL.ltake (length list1) FL.toList)
+                    olist2 <- P.fromFold (FL.ltake (length list2) FL.toList)
+                    return (olist1, olist2)
              in monadicIO $ do
                     (olist1, olist2) <-
                         run $ S.parse parser (S.fromList $ list1 ++ list2)
@@ -562,12 +495,11 @@ parseMany =
     forAll (chooseInt (1,100)) $ \len ->
         forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
             monadicIO $ do
-                outs <-
-                    ( run
-                    $ S.toList
-                    $ S.parseMany
-                        (P.take len FL.toList) (S.fromList $ concat ins)
-                    )
+                outs <- do
+                    let p = P.fromFold $ FL.ltake len FL.toList
+                    run
+                        $ S.toList
+                        $ S.parseMany p (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
 -------------------------------------------------------------------------------
@@ -653,8 +585,6 @@ main =
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
-        prop "P.any = Prelude.any" Main.any
-        prop "P.all = Prelude.all" Main.all
         prop "yield value provided" yield
         prop "yield monadic value provided" yieldM
         prop "fail err = Left (SomeException (ParseError err))" parserFail
@@ -670,7 +600,6 @@ main =
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
-        prop "P.take = Prelude.take" Main.take
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
@@ -680,8 +609,6 @@ main =
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
-        prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
-        prop "P.sliceSepByMax n predicate = Prelude.take n (Prelude.takeWhile (not . predicate))" sliceSepByMax
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
         -- prop "" splitWithFailRight

@@ -695,11 +695,13 @@ test-suite Data.Parser
   ghc-options: -O2
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
+  other-modules: Streamly.Test.Common
 
 test-suite Data.Parser.ParserD
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
+  other-modules: Streamly.Test.Common
 
 test-suite Data.Array
   import: test-options

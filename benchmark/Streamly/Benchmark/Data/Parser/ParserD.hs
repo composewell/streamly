@@ -16,6 +16,7 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Foldable (asum)
+import Data.Functor (($>))
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
@@ -58,21 +59,13 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE any #-}
-any :: (MonadThrow m, Ord a) => a -> SerialT m a -> m Bool
-any value = IP.parseD (PR.any (> value))
-
-{-# INLINE all #-}
-all :: (MonadThrow m, Ord a) => a -> SerialT m a -> m Bool
-all value = IP.parseD (PR.all (<= value))
-
-{-# INLINE take #-}
-take :: MonadThrow m => Int -> SerialT m a -> m ()
-take value = IP.parseD (PR.take value FL.drain)
+{-# INLINE drainWhile #-}
+drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
+drainWhile p = PR.takeWhile p FL.drain
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
-takeWhile value = IP.parseD (PR.takeWhile (<= value) FL.drain)
+takeWhile value = IP.parseD (drainWhile (<= value))
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
@@ -103,33 +96,53 @@ manyTill value =
 
 {-# INLINE splitAllAny #-}
 splitAllAny :: MonadThrow m
-    => Int -> SerialT m Int -> m (Bool, Bool)
+    => Int -> SerialT m Int -> m ((), ())
 splitAllAny value =
-    IP.parseD ((,) <$> PR.all (<= (value `div` 2)) <*> PR.any (> value))
+    IP.parseD
+        ((,)
+            <$> drainWhile (<= (value `div` 2))
+            <*> drainWhile (<= value)
+        )
 
 {-# INLINE teeAllAny #-}
-teeAllAny :: (MonadThrow m, Ord a)
-    => a -> SerialT m a -> m (Bool, Bool)
+teeAllAny :: MonadThrow m
+    => Int -> SerialT m Int -> m ((), ())
 teeAllAny value =
-    IP.parseD (PR.teeWith (,) (PR.all (<= value)) (PR.any (> value)))
+    IP.parseD
+        (PR.teeWith (,)
+            (drainWhile (<= value))
+            (drainWhile (<= value))
+        )
 
 {-# INLINE teeFstAllAny #-}
-teeFstAllAny :: (MonadThrow m, Ord a)
-    => a -> SerialT m a -> m (Bool, Bool)
+teeFstAllAny :: MonadThrow m
+    => Int -> SerialT m Int -> m ((), ())
 teeFstAllAny value =
-    IP.parseD (PR.teeWithFst (,) (PR.all (<= value)) (PR.any (> value)))
+    IP.parseD
+        (PR.teeWithFst (,)
+            (drainWhile (<= value))
+            (drainWhile (<= value))
+        )
 
 {-# INLINE shortestAllAny #-}
-shortestAllAny :: (MonadThrow m, Ord a)
-    => a -> SerialT m a -> m Bool
+shortestAllAny :: MonadThrow m
+    => Int -> SerialT m Int -> m ()
 shortestAllAny value =
-    IP.parseD (PR.shortest (PR.all (<= value)) (PR.any (> value)))
+    IP.parseD
+        (PR.shortest
+            (drainWhile (<= value))
+            (drainWhile (<= value))
+        )
 
 {-# INLINE longestAllAny #-}
-longestAllAny :: (MonadCatch m, Ord a)
-    => a -> SerialT m a -> m Bool
+longestAllAny :: MonadCatch m
+    => Int -> SerialT m Int -> m ()
 longestAllAny value =
-    IP.parseD (PR.longest (PR.all (<= value)) (PR.any (> value)))
+    IP.parseD
+        (PR.longest
+            (drainWhile (<= value))
+            (drainWhile (<= value))
+        )
 
 -------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
@@ -142,7 +155,7 @@ longestAllAny value =
 {-# INLINE lookAhead #-}
 lookAhead :: MonadThrow m => Int -> SerialT m Int -> m ()
 lookAhead value =
-    IP.parseD (PR.lookAhead (PR.takeWhile (<= value) FL.drain) *> pure ())
+    IP.parseD (PR.lookAhead (PR.takeWhile (<= value) FL.drain) $> ())
 
 {-# INLINE sequenceA_ #-}
 sequenceA_ :: MonadThrow m => Int -> SerialT m Int -> m ()
@@ -181,10 +194,7 @@ moduleName = "Data.Parser.ParserD"
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "any" $ any value
-    , benchIOSink value "all" $ all value
-    , benchIOSink value "take" $ take value
-    , benchIOSink value "takeWhile" $ takeWhile value
+    [ benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
@@ -228,16 +238,7 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [
-              o_1_space_serial value
-            ]
-        , bgroup (o_n_heap_prefix moduleName) $ concat
-            [
-              o_n_heap_serial value
-            ]
-        , bgroup (o_n_space_prefix moduleName) $ concat
-            [
-              o_n_space_serial value
-            ]
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
+        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
