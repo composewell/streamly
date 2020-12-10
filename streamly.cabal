@@ -398,6 +398,7 @@ library
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
+                     , Streamly.FileSystem.Event
 
     exposed-modules:
                        Streamly.Prelude
@@ -533,7 +534,7 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3     && < 0.4
-
+                     , filepath          >= 1.4.1 && < 1.5
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
