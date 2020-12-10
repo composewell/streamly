@@ -139,7 +139,6 @@ module Streamly.Internal.Data.Fold.Types
     , lfilterM
     , lcatMaybes
     , ltake
-    , takeSepBy
     , takeByTime
 
     -- * Distributing
@@ -690,20 +689,6 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
         | otherwise = Done <$> fextract r
 
     extract (Tuple' _ r) = fextract r
-
--- | Takes elements from the input as long as the predicate succeeds.
---
--- @since 0.7.0
-{-# INLINE takeSepBy #-}
-takeSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-takeSepBy predicate (Fold fstep finitial fextract) = Fold step finitial fextract
-
-    where
-
-    step s a =
-        if predicate a
-        then fstep s a
-        else Done <$> fextract s
 
 ------------------------------------------------------------------------------
 -- Nesting

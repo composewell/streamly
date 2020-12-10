@@ -1522,7 +1522,7 @@ reverse' m =
 {-# INLINE_NORMAL splitSuffixWith #-}
 splitSuffixWith :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixWith predicate f = foldMany1 (FL.sliceSepWith predicate f)
+splitSuffixWith predicate f = foldMany1 (FL.sliceEndWith predicate f)
 
 {-# INLINE_NORMAL groupsBy #-}
 groupsBy :: Monad m

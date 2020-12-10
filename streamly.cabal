@@ -679,6 +679,7 @@ test-suite Data.Fold
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Fold.hs
+  other-modules: Streamly.Test.Common
 
 test-suite Data.Unfold
   import: test-options
