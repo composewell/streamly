@@ -625,7 +625,7 @@ main =
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
-        prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
