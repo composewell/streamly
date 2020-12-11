@@ -354,16 +354,19 @@ packArraysChunksOf n (D.Stream step state) =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf ::
        (MonadIO m, Prim a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) = Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 extract1) =
+    Fold step initial extract
 
     where
 
     initial = do
         when (n <= 0)
-          $ error
-          $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
-          ++ "arrays [" ++ show n ++ "] must be a natural number"
             -- XXX we can pass the module string from the higher level API
+          $ error
+          $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types."
+              ++ "packArraysChunksOf: the size of arrays ["
+              ++ show n
+              ++ "] must be a natural number"
         r1 <- initial1
         return (Tuple' Nothing r1)
 

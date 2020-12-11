@@ -49,20 +49,20 @@ import Control.DeepSeq (NFData(..))
 #endif
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
-import GHC.IO (unsafePerformIO)
-import GHC.Base (Int(..))
 import Data.Functor.Identity (runIdentity)
 import Data.Primitive.Array hiding (fromList, fromListN)
+import GHC.Base (Int(..))
+import GHC.IO (unsafePerformIO)
 import qualified GHC.Exts as Exts
 
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a

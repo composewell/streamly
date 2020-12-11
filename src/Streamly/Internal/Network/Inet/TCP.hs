@@ -103,15 +103,15 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
-import Streamly.Prelude (MonadAsync)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (fork)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), defaultChunkSize, writeNUnsafe)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Prelude (MonadAsync)
 
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net

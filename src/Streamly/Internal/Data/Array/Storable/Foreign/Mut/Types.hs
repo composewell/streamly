@@ -119,11 +119,11 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
-import qualified Streamly.Internal.Foreign.Malloc as Malloc
+import qualified GHC.Exts as Exts
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified GHC.Exts as Exts
+import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
@@ -704,6 +704,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     else return buf
             buf'' <- spliceWith buf' arr
 
+            -- XXX this is common in both the equations of step
             if len >= n
             then do
                 r <- step1 r1 buf''
