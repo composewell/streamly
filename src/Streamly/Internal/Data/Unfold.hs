@@ -163,9 +163,9 @@ import System.Mem (performMajorGC)
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Streamly.Internal.Data.SVar
 import Prelude
