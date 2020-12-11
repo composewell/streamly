@@ -107,16 +107,18 @@ splitOnSuffixSeq = do
         S.toList
              $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
 
-seqSplitterProperties ::
+splitterProperties ::
        forall a. (Arbitrary a, Eq a, Show a, Storable a, Enum a)
     => a
     -> String
     -> Spec
-seqSplitterProperties sep desc = do
+splitterProperties sep desc = do
     describe (desc <> " splitOnSeq")
         $ do
 
-            forM_ [0, 1, 2, 4] intercalateSplitEqId
+            forM_ [0, 1, 2, 4]
+                $ intercalateSplitEqId splitOnSeq_ intercalate IS.intercalate
+
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSeq_
@@ -126,10 +128,26 @@ seqSplitterProperties sep desc = do
             -- Exclusive case
             splitIntercalateEqId splitOnSeq_ intercalate IS.intercalate
 
+    describe (desc <> " splitOn")
+        $ do
+
+            intercalateSplitEqId splitOn_ intercalate IS.intercalate 1
+
+            concatSplitIntercalateEqConcat
+                splitOn_ intercalate IS.intercalate 1
+
+            -- Exclusive case
+            splitIntercalateEqId splitOn_ intercalate IS.intercalate
+
     describe (desc <> " splitOnSuffixSeq")
         $ do
 
-            forM_ [0, 1, 2, 4] intercalateSplitEqIdNoSepEnd
+            forM_ [0, 1, 2, 4]
+                $ intercalateSplitEqIdNoSepEnd
+                      splitOnSuffixSeq_
+                      intercalate
+                      IS.intercalate
+
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSuffixSeq_
@@ -142,6 +160,19 @@ seqSplitterProperties sep desc = do
                 intercalateSuffix
                 IS.intercalateSuffix
 
+    describe (desc <> " splitOnSuffix")
+        $ do
+
+            intercalateSplitEqIdNoSepEnd
+                splitOnSuffix_ intercalate IS.intercalate 1
+
+            concatSplitIntercalateEqConcat
+                splitOnSuffix_ intercalateSuffix IS.intercalateSuffix 1
+
+            -- Exclusive case
+            splitIntercalateEqId
+                splitOnSuffix_ intercalateSuffix IS.intercalateSuffix
+
     where
 
     splitOnSeq_ xs ys =
@@ -149,6 +180,12 @@ seqSplitterProperties sep desc = do
 
     splitOnSuffixSeq_ xs ys =
         S.toList $ IS.splitOnSuffixSeq (A.fromList ys) FL.toList (S.fromList xs)
+
+    splitOn_ xs ys =
+        S.toList $ IS.splitOn (== (head ys)) FL.toList (S.fromList xs)
+
+    splitOnSuffix_ xs ys =
+        S.toList $ IS.splitOnSuffix (== (head ys)) FL.toList (S.fromList xs)
 
     intercalateSuffix xs yss = intercalate xs yss ++ xs
 
@@ -167,9 +204,9 @@ seqSplitterProperties sep desc = do
     listsWithoutSep1 :: Gen [[a]]
     listsWithoutSep1 = listOf1 listWithoutSep
 
-    intercalateSplitEqId i =
+    intercalateSplitEqId splitter lIntercalater sIntercalater i =
         let name =
-                "intercalate . splitOnSeq == id ("
+                "intercalater . splitter == id ("
                     <> show i <> " element separator)"
          in prop name
                 $ forAll listWithSep
@@ -178,18 +215,18 @@ seqSplitterProperties sep desc = do
         where
 
         testCase xs = do
-            ys <- splitOnSeq_ xs (replicate i sep)
+            ys <- splitter xs (replicate i sep)
             szs <-
                 IS.toList
-                    $ IS.intercalate (replicate i sep) UF.fromList
+                    $ sIntercalater (replicate i sep) UF.fromList
                     $ IS.fromList ys
-            let lzs = intercalate (replicate i sep) ys
+            let lzs = lIntercalater (replicate i sep) ys
             listEquals (==) szs xs
             listEquals (==) lzs xs
 
-    intercalateSplitEqIdNoSepEnd i =
+    intercalateSplitEqIdNoSepEnd splitter lIntercalater sIntercalater i =
         let name =
-                "intercalate . splitOnSuffixSeq_ . (++ [x \\= sep]) == id ("
+                "intercalater . splitter . (++ [x \\= sep]) == id ("
                     <> show i <> " element separator)"
          in prop name
                 $ forAll ((,) <$> listWithSep <*> nonSepElem)
@@ -200,16 +237,16 @@ seqSplitterProperties sep desc = do
         where
 
         testCase xs = do
-            ys <- splitOnSuffixSeq_ xs (replicate i sep)
+            ys <- splitter xs (replicate i sep)
             szs <-
                 IS.toList
-                    $ IS.intercalate (replicate i sep) UF.fromList
+                    $ sIntercalater (replicate i sep) UF.fromList
                     $ IS.fromList ys
-            let lzs = intercalate (replicate i sep) ys
+            let lzs = lIntercalater (replicate i sep) ys
             listEquals (==) szs xs
             listEquals (==) lzs xs
 
-    concatSplitIntercalateEqConcat splitter lintercalater sintercalater i =
+    concatSplitIntercalateEqConcat splitter lIntercalater sIntercalater i =
         let name =
                 "concat . splitter . S.intercalater == "
                     <> "concat ("
@@ -221,17 +258,17 @@ seqSplitterProperties sep desc = do
         where
 
         testCase xss = do
-            let lxs = lintercalater (replicate i sep) xss
+            let lxs = lIntercalater (replicate i sep) xss
             lys <- splitter lxs (replicate i sep)
             sxs <-
                 S.toList
-                    $ sintercalater (replicate i sep) UF.fromList
+                    $ sIntercalater (replicate i sep) UF.fromList
                     $ S.fromList xss
             sys <- splitter sxs (replicate i sep)
             listEquals (==) (concat lys) (concat xss)
             listEquals (==) (concat sys) (concat xss)
 
-    splitIntercalateEqId splitter lintercalater sintercalater =
+    splitIntercalateEqId splitter lIntercalater sIntercalater =
         let name =
                 "splitter . intercalater == id"
                     <> " (exclusive separator/non-empty list)"
@@ -243,9 +280,9 @@ seqSplitterProperties sep desc = do
         where
 
         testCase xss = do
-            let lxs = lintercalater [sep] xss
+            let lxs = lIntercalater [sep] xss
             lys <- splitter lxs [sep]
-            sxs <- S.toList $ sintercalater [sep] UF.fromList $ S.fromList xss
+            sxs <- S.toList $ sIntercalater [sep] UF.fromList $ S.fromList xss
             sys <- splitter sxs [sep]
             listEquals (==) lys xss
             listEquals (==) sys xss
@@ -257,10 +294,10 @@ groupSplitOps desc = do
     splitOnSeq
     splitOnSuffixSeq
 
-    -- seq splitting
-    seqSplitterProperties (0 :: Int) desc
+    -- splitting properties
+    splitterProperties (0 :: Int) desc
     -- XXX This will fail
-    -- seqSplitterProperties (0 :: Word8) desc
+    -- splitterProperties (0 :: Word8) desc
 
     prop (desc <> " intercalate [x] . splitOn (== x) == id") $
         forAll listWithZeroes $ \xs -> do
