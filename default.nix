@@ -33,7 +33,7 @@ let haskellPackages =
                     then orig.overrideAttrs (oldAttrs: { src = null; })
                     else orig;
 
-    flags = "--benchmark --flag fusion-plugin " + c2nix;
+    flags = "--benchmark --flag fusion-plugin" + " " + c2nix;
 
     mkHaskellPackages = inShell:
         haskellPackages.override {
@@ -86,9 +86,11 @@ let haskellPackages =
         # XXX On macOS cabal2nix does not seem to generate a dependency on
         # Cocoa framework.
         buildInputs =
-            if builtins.currentSystem == "x86_64-darwin"
-            then [nixpkgs.darwin.apple_sdk.frameworks.Cocoa]
-            else [];
+            [nixpkgs.haskellPackages.inspection-testing] ++
+            (if builtins.currentSystem == "x86_64-darwin"
+             then [nixpkgs.darwin.apple_sdk.frameworks.Cocoa]
+             else []
+            );
         # Use a better prompt
         shellHook = ''
           if test -n "$PS_SHELL"
