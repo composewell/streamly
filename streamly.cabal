@@ -564,12 +564,12 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
-test-suite Data.List
+test-suite Data.List.Base
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
 
-test-suite Streamly.Test.Data.List
+test-suite Data.List
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
