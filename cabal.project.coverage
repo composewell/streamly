@@ -17,3 +17,6 @@ package streamly
 package streamly-benchmarks
   ghc-options: -Werror
   flags: inspection
+
+package streamly-tests
+  ghc-options: -Werror

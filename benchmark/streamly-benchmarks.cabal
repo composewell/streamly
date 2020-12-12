@@ -9,8 +9,8 @@ description: Benchmarks are separated from the main package because we
   for serial, async, ahead style streams, therefore, we need to use
   the common code in several benchmarks, just changing the type of
   the stream. It takes a long time to compile this file and it gets
-  compiled for each benchmarks once if we do not have a library.  Cabal
-  does no support internal libraries without per-component builds and
+  compiled for each benchmark once if we do not have a library.  Cabal
+  does not support internal libraries without per-component builds and
   per-component builds are not supported with Configure, so we are not
   left with any other choice.
 
@@ -43,6 +43,11 @@ flag no-charts
   description: Disable benchmark charts in development build
   manual: True
   default: False
+
+flag opt
+  description: off=-O0 (faster builds), on=-O2
+  manual: True
+  default: True
 
 -------------------------------------------------------------------------------
 -- Common stanzas
@@ -78,19 +83,16 @@ common compile-options
       ghc-options:    -fno-ignore-asserts
 
 common optimization-options
-  ghc-options: -O2
-               -fdicts-strict
-               -fspec-constr-recursive=16
-               -fmax-worker-args=16
-  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
-    ghc-options: -fplugin Fusion.Plugin
+  if flag(opt)
+    ghc-options: -O2
+                 -fdicts-strict
+                 -fspec-constr-recursive=16
+                 -fmax-worker-args=16
+    if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+      ghc-options: -fplugin Fusion.Plugin
+  else
+    ghc-options: -O0
 
--- We need optimization options here to optimize internal (non-inlined)
--- versions of functions. Also, we have some benchmarking inspection tests
--- part of the library when built with --benchmarks flag. Thos tests fail
--- if we do not use optimization options here. It was observed that due to
--- -O2 here some concurrent/nested benchmarks improved and others regressed.
--- We can investigate a bit more here why the regression occurred.
 common lib-options
   import: compile-options, optimization-options
 

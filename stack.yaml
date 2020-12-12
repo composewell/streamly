@@ -2,6 +2,7 @@ resolver: lts-16.12
 packages:
 - '.'
 - './benchmark'
+- './test'
 extra-deps:
 - SDL-0.6.7.0@sha256:9d6ba75c0cab575ec38468c8277803983e985f9622437aeca6a53e6a7337a7d5,2045
 - QuickCheck-2.14.1@sha256:01e46d7b0a8d3148288ec977625f62d5516ebb5031a50c63f0453863301b4a79,7736

@@ -193,6 +193,7 @@ jobs:
             command: |
               apt-get install -y ghc-8.2.2
               apt-get install -y cabal-install-3.2
+              apt-get install libtinfo-dev
               bash -c "$PACKCHECK $BUILD"
         - *save
   cabal-ghc-8_0_2:

@@ -1,11 +1,77 @@
-## Running Benchmarks
+## Building a single benchmark suite
+
+```
+$ cabal build streamly-benchmarks:Prelude.Serial
+```
+
+or:
+
+```
+$ cabal build --enable-benchmarks bench:Prelude.Serial
+```
+
+## Building all benchmarks suites
+
+```
+$ cabal build --enable-benchmarks streamly-benchmarks
+```
+
+or:
+
+```
+$ cabal build --enable-benchmarks all
+```
+
+Disable optimization, quick build:
+
+```
+$ cabal build --flag "-opt" ...
+```
+
+## Build and run single benchmarks:
+
+For quick results you may have to use `--quick` and possibly some other
+`gauge` options, or better use `bench.sh --quick` as described in the
+following sections.
+
+```
+$ cabal run bench:Prelude.Serial -- --quick
+```
+
+`cabal bench` can be used but you cannot pass arguments (like --quick):
+
+```
+$ cabal bench Prelude.Serial
+```
+
+## Build and run all benchmarks
+
+Don't try this, it will take too long, use the `bench.sh` method instead.
+
+```
+$ cabal bench all
+```
+
+or:
+
+```
+$ cd benchmark; cabal bench
+```
+
+or this, note this command does not work from "benchmark" dir:
+
+```
+$ cabal bench streamly-benchmarks
+```
+
+## Building and Running Benchmarks with bench.sh
 
 `bench.sh` script at the root of the repo is the top level driver for running
 benchmarks. It runs the requested benchmarks and then creates a report from the
 results using the `bench-show` package. Try `bench.sh --help` for available
 options to run it.
 
-## Quick start
+## bench.sh: Quick start
 
 You must be in the repo root directory to run these commands.
 

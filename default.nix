@@ -51,6 +51,9 @@ let haskellPackages =
                     streamly-benchmarks =
                         mkPackage super "streamly-benchmarks"
                             ./benchmark flags inShell;
+                    streamly-tests =
+                        mkPackage super "streamly-tests"
+                            ./test flags inShell;
 
                     # Example to Use a different version of a package
                     #QuickCheck = self.QuickCheck_2_14;
@@ -78,6 +81,7 @@ let haskellPackages =
         packages = p:
           [ p.streamly
             p.streamly-benchmarks
+            p.streamly-tests
           ];
         # some dependencies of hoogle fail to build with quickcheck-2.14
         # We should use hoogle as external tool instead of building it here
