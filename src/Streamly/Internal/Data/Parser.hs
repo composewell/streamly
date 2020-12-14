@@ -337,8 +337,30 @@ either = K.toParserK . D.either
 -- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
 -- elements and folds them using the supplied fold.
 --
--- Stops after @n@ elements.
--- Fails if the stream ends before @m@ elements could be taken.
+-- Stops after @m@ elements.
+-- Fails if the stream ends before @n@ elements could be taken.
+--
+-- Examples: -
+--
+-- @
+-- takeBetween' low high ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.takeBetween low high FL.toList
+-- @
+--
+-- >>> takeBetween' 2 4 [1, 2, 3, 4, 5]
+-- > [1,2,3,4]
+--
+-- >>> takeBetween' 2 4 [1, 2]
+-- > [1,2]
+--
+-- >>> takeBetween' 2 4 [1]
+-- > ParseError "takeBetween: Expecting alteast 2 elements, got 1"
+--
+-- >>> takeBetween' 0 0 [1, 2]
+-- > []
+--
+-- >>> takeBetween' 0 1 []
+-- > []
 --
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
@@ -350,12 +372,12 @@ either = K.toParserK . D.either
 -- takeGE = takeBetween n maxBound
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE takeBetween #-}
-takeBetween :: -- MonadCatch m =>
+takeBetween ::  MonadCatch m =>
     Int -> Int -> Fold m a b -> Parser m a b
-takeBetween _m _n = undefined -- K.toParserK . D.takeBetween m n
+takeBetween m n = K.toParserK . D.takeBetween m n
 
 -- | Stops after taking exactly @n@ input elements.
 --
