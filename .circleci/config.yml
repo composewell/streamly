@@ -140,6 +140,7 @@ jobs:
               BUILD: "stack"
               RESOLVER: "lts-16.12"
               SDIST_OPTIONS: "--ignore-check"
+              STACK_BUILD_OPTIONS: "--flag streamly-benchmarks:-opt"
             command: |
               apt-get build-dep -y ghc-8.8.4
               apt-get install -y cabal-install-3.2
@@ -379,8 +380,8 @@ workflows:
   build:
     jobs:
       #- cabal-ghc-8.6.5
-      - cabal-ghc-8_4_4:
-          name: GHC 8.4.4 + x86 + debug
+      #- cabal-ghc-8_4_4:
+      #    name: GHC 8.4.4 + x86 + debug
       - cabal-ghc-8_2_2:
           name: GHC 8.2.2 + no-test + no-bench + no-docs
       - cabal-ghc-8_0_2:

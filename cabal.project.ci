@@ -1,4 +1,4 @@
-packages: 
+packages:
   ./
   benchmark
 
@@ -9,3 +9,7 @@ package streamly
 package streamly-benchmarks
   ghc-options: -Werror
   flags: inspection fusion-plugin
+
+package streamly-tests
+  ghc-options: -Werror
+  flags: opt fusion-plugin
