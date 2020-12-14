@@ -242,6 +242,12 @@ $ cabal repl
 Ok, modules loaded: Main.
 *Main>
 ```
+NOTE : If you get the following error:
+```
+Error: bytecode compiler can't handle some foreign calling conventions
+Workaround: use -fobject-code, or compile this module to .o separately.
+```
+Use `cabal repl --ghc-options "-fobject-code"`
 
 ### Using `streamly` in a standalone program
 
