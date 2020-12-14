@@ -43,7 +43,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
     --
     -- Grab a sequence of input elements without inspecting them
-    -- , takeBetween
+    , takeBetween
     -- , takeLE -- take   -- takeBetween 0 n
     -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
@@ -280,6 +280,59 @@ either parser = Parser step initial extract
 -------------------------------------------------------------------------------
 -- Taking elements
 -------------------------------------------------------------------------------
+
+-- | See 'Streamly.Internal.Data.Parser.takeBetween'.
+--
+-- /Internal/
+--
+{-# INLINE takeBetween #-}
+takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
+takeBetween low high (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial = Tuple' 0 <$> finitial
+
+    step (Tuple' i s) a
+        | low > high = throwM $ ParseError
+                        $ "takeBetween: lower bound - " ++ show low
+                            ++ " is greater than higher bound - " ++ show high
+        | high <= 0 = Done 1 <$> fextract s
+        | i1 < low = do
+            res <- fstep s a
+            return
+                $ case res of
+                    FL.Partial s' -> Continue 0 $ Tuple' i1 s'
+                    FL.Done _ ->
+                        Error
+                            $ "takeBetween: the collecting fold terminated after"
+                                ++ " consuming" ++ show i1 ++ " elements"
+        | otherwise = do
+            res <- fstep s a
+            case res of
+                FL.Partial s' ->
+                    if i1 >= high
+                    then Done 0 <$> fextract s'
+                    else return $ Partial 0 $ Tuple' i1 s'
+                FL.Done b -> return $ Done 0 b
+
+        where
+
+        i1 = i +1
+
+    extract (Tuple' i s)
+        | i >= low && i <= high = fextract s
+        | otherwise = throwM $ ParseError err
+
+        where
+
+        err =
+               "takeBetween: Expecting alteast " ++ show low
+            ++ " elements, got " ++ show i
+
+
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
