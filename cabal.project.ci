@@ -1,6 +1,7 @@
 packages:
   ./
   benchmark
+  test
 
 package streamly
   ghc-options: -Werror
