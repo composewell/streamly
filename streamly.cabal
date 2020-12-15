@@ -459,6 +459,10 @@ library
 
                      -- Higher level streams
                      , Streamly.Internal.Data.Stream.IsStream
+                     , Streamly.Internal.Data.Stream.IsStream.Generate
+                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
+                     , Streamly.Internal.Data.Stream.IsStream.Transform
+                     , Streamly.Internal.Data.Stream.IsStream.Exceptions
                      , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
