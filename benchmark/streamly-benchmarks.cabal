@@ -173,7 +173,7 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-  ghc-options: +RTS -M750M -RTS
+  ghc-options: +RTS -M1000M -RTS
   if impl(ghcjs)
     buildable: False
   else
@@ -314,6 +314,7 @@ benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+  ghc-options: +RTS -M750M -RTS
   main-is: Parser.hs
   if impl(ghcjs)
     buildable: False

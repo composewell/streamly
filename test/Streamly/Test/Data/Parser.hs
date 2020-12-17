@@ -155,6 +155,54 @@ satisfy =
             predicate = (>= mid_value)
 
 -- Sequence Parsers Tests
+takeBetweenPass :: Property
+takeBetweenPass =
+    forAll (chooseInt (min_value, max_value)) $ \m ->
+        forAll (chooseInt (m, max_value)) $ \n ->
+            forAll (chooseInt (m, max_value)) $ \list_length ->
+                forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+                    case S.parse (P.takeBetween m n FL.toList) (S.fromList ls) of
+                        Right parsed_list ->
+                            let lpl = Prelude.length parsed_list
+                            in checkListEqual parsed_list (Prelude.take lpl ls)
+                        Left _ -> property False
+
+takeBetween :: Property
+takeBetween =
+    forAll (chooseInt (min_value, max_value)) $ \m ->
+        forAll (chooseInt (min_value, max_value)) $ \n ->
+                forAll (listOf(chooseInt (min_value, max_value))) $ \ls ->
+                let
+                    list_length = Prelude.length ls
+                in
+                    case S.parse (P.takeBetween m n FL.toList) (S.fromList ls) of
+                        Right parsed_list ->
+                            if m <= list_length && n >= list_length
+                            then
+                                let lpl = Prelude.length parsed_list
+                                in checkListEqual parsed_list (Prelude.take
+                                    lpl ls)
+                            else property False
+                        Left _ -> property (m > n || list_length < m)
+
+
+-- takeBetween :: Property
+-- takeBetween =
+--     forAll (chooseInt (min_value, max_value)) $ \m ->
+--         forAll (chooseInt (min_value, max_value)) $ \n ->
+--             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+--                 let
+--                     list_length = Prelude.length ls
+--                 in
+--                     case S.parseD (P.takeBetween m n FL.toList) (S.fromList ls) of
+--                         Right parsed_list ->
+--                             if m <= list_length && n >= list_length
+--                             then
+--                                 let lpl = Prelude.length parsed_list
+--                                 in checkListEqual parsed_list (Prelude.take
+--                                     lpl ls)
+--                             else property False
+--                         Left _ -> property (m > n || list_length < m)
 
 takeEQPass :: Property
 takeEQPass =
@@ -634,6 +682,11 @@ main =
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
+        prop "P.takeBetween = Prelude.take when len >= m and len <= n"
+            takeBetweenPass
+        prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
+              ++ "otherwise fail") Main.takeBetween
+
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
