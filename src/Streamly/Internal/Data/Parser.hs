@@ -337,8 +337,8 @@ either = K.toParserK . D.either
 -- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
 -- elements and folds them using the supplied fold.
 --
--- Stops after @m@ elements.
--- Fails if the stream ends before @n@ elements could be taken.
+-- Stops after @n@ elements.
+-- Fails if the stream ends before @m@ elements could be taken.
 --
 -- Examples: -
 --
