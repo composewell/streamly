@@ -101,6 +101,10 @@ Step function of a stream or unfold:
   it is called. More states means more jumps and may affect code locality, and
   efficiency of low level code (e.g. register allocation) because of
   independent placement of the code blocks in different states.
+
+  In some cases we may have to go against the above guideline and introduce a
+  separate state even though it is not necessary. See the GroupConsume state in
+  foldMany for an example.
 * Keep minimum possible data in state. More variables in state may lead
   to poor performance because the state may not fit into registers and the
   spill may cause allocations on each iteration of the loop. Mutable state

@@ -588,6 +588,7 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
+    | GroupConsume s fs a
     | GroupBuffer s fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
@@ -604,16 +605,17 @@ foldMany (Fold fstep initial extract) (Stream step state) =
         -- fs = fold state
         fs <- initial
         return $ Skip (GroupBuffer st fs)
+    -- This state is not strictly required but it helps the compiler fuse the
+    -- code.
+    step' _ (GroupConsume st fs x) = do
+        fs' <- fstep fs x
+        case fs' of
+            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
+            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> do
-                res <- fstep fs x
-                return
-                    $ Skip
-                    $ case res of
-                          FL.Done b -> GroupYield b (GroupStart s)
-                          FL.Partial ps -> GroupBuffer s ps
+            Yield x s -> return $ Skip $ GroupConsume s fs x
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
@@ -628,26 +630,24 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
 
     where
 
-    {-# INLINE consume #-}
-    consume x s fs = do
-        res <- fstep fs x
-        return
-            $ Skip
-            $ case res of
-                  FL.Done b -> GroupYield b (GroupStart s)
-                  FL.Partial ps -> GroupBuffer s ps
-
     {-# INLINE_LATE step' #-}
     step' gst (GroupStart st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> initial >>= consume x s
+            Yield x s -> do
+                fi <- initial
+                return $ Skip $ GroupConsume s fi x
             Skip s -> return $ Skip (GroupStart s)
-            Stop -> return Stop
+            Stop -> return $ Stop
+    step' _ (GroupConsume st fs x) = do
+        fs' <- fstep fs x
+        case fs' of
+            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
+            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> consume x s fs
+            Yield x s -> return $ Skip $ GroupConsume s fs x
             Skip s -> return $ Skip (GroupBuffer s fs)
             Stop -> do
                 b <- extract fs
