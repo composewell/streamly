@@ -92,7 +92,12 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , bytesToElemCount
     , memcpy
     , memcmp
+<<<<<<< HEAD:src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
     , c_memchr
+=======
+    , bytesToElemCount
+    , writeNUnsafeMaybe
+>>>>>>> 7e73b7af (Add combinators for Timeout Buffered writer stream):src/Streamly/Internal/Data/Array/Storable/Foreign/Mut/Types.hs
     )
 where
 
@@ -106,6 +111,7 @@ import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Data.Maybe (isJust, fromJust)
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.ForeignPtr (touchForeignPtr)
@@ -1157,3 +1163,35 @@ toStreamD_ size Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` size)
 #endif
+<<<<<<< HEAD:src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
+=======
+    Array a
+nil = Array nullForeignPtr (Ptr nullAddr#) (Ptr nullAddr#)
+
+instance Storable a => Monoid (Array a) where
+    {-# INLINE mempty #-}
+    mempty = nil
+    {-# INLINE mappend #-}
+    mappend = (<>)
+
+{-# INLINE_NORMAL writeNUnsafeMaybe #-}
+writeNUnsafeMaybe :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m (Maybe a) (Array a)
+writeNUnsafeMaybe n = Fold step initial extract
+
+    where
+
+    initial = do
+        (Array start end _) <- liftIO $ newArray (max n 0)
+        return $ ArrayUnsafe start end
+
+    step (ArrayUnsafe start end) x = do            
+        if isJust x
+        then  do 
+            liftIO $ poke end (fromJust x)
+            return $ FL.Partial $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+        else do
+            return $ FL.Done $ Array start end end    
+
+    extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit 
+>>>>>>> 7e73b7af (Add combinators for Timeout Buffered writer stream):src/Streamly/Internal/Data/Array/Storable/Foreign/Mut/Types.hs
