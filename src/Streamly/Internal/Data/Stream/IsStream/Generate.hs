@@ -80,14 +80,16 @@ import Streamly.Internal.Data.IORef.Prim (Prim, IORef)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D (toStreamK)
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Prelude
 import qualified System.IO as IO
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S (toStreamK)
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as S
 #endif
 
 import Prelude hiding

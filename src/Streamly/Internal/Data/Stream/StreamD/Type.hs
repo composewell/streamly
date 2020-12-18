@@ -567,6 +567,8 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
         Skip s2'  -> cmp_null s2'
         Stop      -> return EQ
 
+-- XXX The take/drop combinators above should be moved to filtering section.
+
 {-# INLINE_NORMAL take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
 take n (Stream step state) = n `seq` Stream step' (state, 0)
