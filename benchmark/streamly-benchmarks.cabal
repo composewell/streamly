@@ -431,7 +431,7 @@ benchmark Data.Array.Prim.Pinned
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
 
-benchmark Memory.Array
+benchmark Data.Array.Storable.Foreign
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .

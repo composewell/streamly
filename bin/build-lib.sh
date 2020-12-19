@@ -1,0 +1,207 @@
+# $1: message
+die () {
+  >&2 echo -e "Error: $1"
+  exit 1
+}
+
+# $1: command
+function run_verbose() {
+  echo "$*"
+  bash -c "$*"
+}
+
+has_item () {
+  for i in $1
+  do
+    if test "$i" = "$2"
+    then
+      echo "$i"
+      break
+    fi
+  done
+}
+
+#------------------------------------------------------------------------------
+# target groups
+#------------------------------------------------------------------------------
+
+test_only () {
+  if test -n "$RUNNING_TESTS"
+  then
+    echo $1
+  fi
+}
+
+bench_only () {
+  if test -n "$RUNNING_BENCHMARKS"
+  then
+    echo $1
+  fi
+}
+
+dev_build () {
+  if test -n "$RUNNING_DEVBUILD"
+  then
+    echo $1
+  fi
+}
+
+# A group consisting of all known individual targets
+all_grp () {
+  { for i in $GROUP_TARGETS
+    do
+      eval "echo \$$i"
+    done
+    echo $INDIVIDUAL_TARGETS
+  } | sort | uniq
+}
+
+# All groups including all_grp
+all_target_groups () {
+  echo all_grp
+  echo $GROUP_TARGETS
+}
+
+# XXX pass as arg
+list_targets ()  {
+  echo "Individual targets:"
+  for i in $(all_grp)
+  do
+    echo "$i"
+  done
+  echo
+}
+
+# XXX pass as arg
+list_target_groups ()  {
+  echo "Target groups:"
+  for i in $(all_target_groups)
+  do
+    echo -n "$i ["
+    eval "echo -n \$$i"
+    echo "]"
+  done
+  echo
+}
+
+# XXX pass as arg
+set_targets() {
+  if test -z "$TARGETS"
+  then
+    echo $DEFAULT_TARGETS
+  else
+    for i in $(echo $TARGETS)
+    do
+        case $i in
+          *_grp) eval "echo -n \$${i}" ;;
+          *_cmp) eval "echo -n \$${i} $i" ;;
+          *) echo -n $i ;;
+        esac
+        echo -n " "
+    done
+  fi
+}
+
+# We run the benchmarks in isolation in a separate process so that different
+# benchmarks do not interfere with other. To enable that we need to pass the
+# benchmark exe path to gauge as an argument. Unfortunately it cannot find its
+# own path currently.
+
+# The path is dependent on the architecture and cabal version.
+
+# $1: package name
+# $2: target
+cabal_target_prog () {
+  local target_prog=`$WHICH_COMMAND $1 $2`
+  if test -x "$target_prog"
+  then
+    echo $target_prog
+  else
+    return 1
+  fi
+}
+
+set_common_vars () {
+  SLOW=0
+  QUICK_MODE=0
+
+  RUNNING_TESTS=
+  RUNNING_BENCHMARKS=
+  RUNNING_DEVBUILD=
+
+  TARGET_EXE_ARGS=
+  RTS_OPTIONS=
+
+  GHC_VERSION=$(ghc --numeric-version)
+
+  CABAL_BUILD_OPTIONS=""
+  CABAL_EXECUTABLE=cabal
+
+  # Use branch specific builds if git-cabal is present in PATH
+  BUILD_DIR=dist-newstyle
+  if which git-cabal 2>/dev/null
+  then
+    echo "Using git-cabal for branch specific builds"
+    CABAL_EXECUTABLE=git-cabal
+    BUILD_DIR=$(git-cabal show-builddir)
+  fi
+}
+
+# XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
+
+# $1: builddir
+# $2: package name
+# $3: command to find
+cabal_which_builddir() {
+  find $1 -type f -path "*${GHC_VERSION}/${2}*/$3" 2>/dev/null
+}
+
+# $1: package name
+# $2: command to find
+cabal_which() {
+  cabal_which_builddir $BUILD_DIR $1 $2
+}
+
+# $1: build program
+# $2: package name
+# $3: component prefix
+# $4: targets
+run_build () {
+  local build_prog=$1
+  local package=$2
+  local component_prefix=$3
+  local COMPONENTS
+  local c
+
+  for c in $4
+  do
+    COMPONENTS+="$package:$component_prefix:$c "
+  done
+  run_verbose $build_prog $COMPONENTS || die "build failed"
+}
+
+# $1: package name
+# $2: target
+run_target () {
+  local package_name=$1
+  local target_name=$2
+  local target_exe=$target_name
+  local target_prog
+  target_prog=$(cabal_target_prog $package_name $target_exe) || \
+    die "Cannot find executable for target $target_name"
+
+  echo "Running executable $target_name ..."
+  TARGET_EXE_EXTRA_ARGS="$RTS_OPTIONS"
+
+  run_verbose $target_prog $TARGET_EXE_EXTRA_ARGS $TARGET_EXE_ARGS \
+    || die "Target exe failed"
+}
+
+# $1: package name
+# $2: targets
+run_targets() {
+    for i in $2
+    do
+      run_target $1 $i
+    done
+}
