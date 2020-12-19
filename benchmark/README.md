@@ -66,19 +66,17 @@ $ cabal bench streamly-benchmarks
 
 ## Building and Running Benchmarks with bench.sh
 
-`bench.sh` script at the root of the repo is the top level driver for running
-benchmarks. It runs the requested benchmarks and then creates a report from the
-results using the `bench-show` package. Try `bench.sh --help` for available
-options to run it.
+`<streamly repo>/bin/bench.sh` script is the top level driver for
+running benchmarks. It runs the requested benchmarks and then creates a
+report from the results using the `bench-show` package. Try `bench.sh
+--help` for available options to run it.
 
 ## bench.sh: Quick start
-
-You must be in the repo root directory to run these commands.
 
 Run the default benchmark suites:
 
 ```
-$ ./bench.sh --quick
+$ bench.sh --quick
 ```
 
 You can remove the `--quick` option to run benchmark with lower speed but
@@ -88,25 +86,25 @@ the accuracy a bit.
 Show available benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks help
+$ bench.sh --benchmarks help
 ```
 
 Run all benchmark suites in the `serial_grp` group:
 
 ```
-$ ./bench.sh --benchmarks serial_grp
+$ bench.sh --benchmarks serial_grp
 ```
 
 Run `Prelude.Serial` and `Data.Parser` benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks "Prelude.Serial Data.Parser"
+$ bench.sh --benchmarks "Prelude.Serial Data.Parser"
 ```
 
 Run all O(1) space complexity benchmarks in `Prelude.Serial` suite:
 
 ```
-$ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space
+$ bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space
 ```
 
 Anything after a `--` is passed to the benchmark executable,
@@ -116,7 +114,7 @@ it basically selects all benchmarks starting with
 Run a specific benchmark in `Prelude.Serial` suite:
 
 ```
-$ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
+$ bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
 ```
 
 Run a benchmark directly instead of running it through `bench.sh`:
@@ -136,14 +134,14 @@ To compare two sets of results, first run the benchmarks at the baseline
 commit:
 
 ```
-$ ./bench.sh
+$ bench.sh
 ```
 
 And then run with the `--append` option at the commit that you want to compare
 with the baseline. It will show the comparison with the baseline:
 
 ```
-$ ./bench.sh --append
+$ bench.sh --append
 ```
 
 Append just adds the next set of results in the same results file. You can keep
@@ -157,19 +155,19 @@ while.
 You can use `--compare` to compare the previous commit with the head commit:
 
 ```
-$ ./bench.sh --compare
+$ bench.sh --compare
 ```
 
 To compare the head commit with some other base commit:
 
 ```
-$ ./bench.sh --compare --base d918833
+$ bench.sh --compare --base d918833
 ```
 
 To compare two arbitrary commits:
 
 ```
-$ ./bench.sh --compare --base d918833 --candidate 38aa5f2
+$ bench.sh --compare --base d918833 --candidate 38aa5f2
 ```
 
 Note that the above may not always work because the script and the benchmarks
@@ -181,7 +179,7 @@ reliable to compare.
 First see the available benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks help
+$ bench.sh --benchmarks help
 ```
 
 You will see some benchmark suites end with `_cmp`, these are comparison
@@ -190,7 +188,7 @@ benchmark suites in that group will be shown in the end. For example to compare
 all array benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks array_cmp
+$ bench.sh --benchmarks array_cmp
 ```
 
 ## Reporting without measuring

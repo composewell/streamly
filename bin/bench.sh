@@ -97,7 +97,7 @@ ALL_BENCH_GROUPS="\
 # Script
 #------------------------------------------------------------------------------
 
-BENCH_SH_DIR=$(dirname $0)
+BENCH_SH_DIR=$(cd `dirname $0`; pwd)
 
 list_benches ()  {
   echo "Individual benchmarks:"
@@ -330,7 +330,7 @@ run_bench () {
   run_verbose $bench_prog $SPEED_OPTIONS \
     --csvraw=$output_file \
     -v 2 \
-    --measure-with "$BENCH_SH_DIR/bin/bench-exec-one.sh" \
+    --measure-with "$BENCH_SH_DIR/bench-exec-one.sh" \
     $GAUGE_ARGS || die "Benchmarking failed"
 }
 
@@ -412,6 +412,8 @@ run_reports() {
 #-----------------------------------------------------------------------------
 # Execution starts here
 #-----------------------------------------------------------------------------
+
+cd $BENCH_SH_DIR/..
 
 DEFAULT_BENCHMARKS="$all_grp"
 DEFAULT_FIELDS="allocated bytescopied cputime"
