@@ -247,11 +247,11 @@ test-suite Prelude.Fold
   main-is: Streamly/Test/Prelude/Fold.hs
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
 
-test-suite Prelude.MaxRate
+test-suite Prelude.Rate
   import:always-optimized
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/MaxRate.hs
-  ghc-options: -main-is Streamly.Test.Prelude.MaxRate.main
+  main-is: Streamly/Test/Prelude/Rate.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Rate.main
   if flag(dev)
     buildable: True
   else

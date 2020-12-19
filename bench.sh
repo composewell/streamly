@@ -30,8 +30,8 @@ prelude_other_grp="\
   Prelude.Adaptive"
 
 array_grp="\
-  Memory.Array \
   Data.Array \
+  Data.Array.Storable.Foreign \
   Data.Array.Prim \
   Data.SmallArray \
   Data.Array.Prim.Pinned"
