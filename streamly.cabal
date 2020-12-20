@@ -453,6 +453,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamD.Generate
+                     , Streamly.Internal.Data.Stream.StreamD.SplitGroup
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Enumeration
