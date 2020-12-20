@@ -75,7 +75,24 @@ echo "Using targets [$TARGETS]"
 # Build targets
 #-----------------------------------------------------------------------------
 
-WHICH_COMMAND=cabal_which
+test_exe_rts_opts () {
+  case "$1" in
+    *) echo -n "-K8M -M64M" ;;
+  esac
+}
+
+# $1: bench name
+# $2: bench executable
+target_exe_extra_args () {
+  local bench_name=$1
+  local bench_prog=$2
+
+  echo "+RTS \
+    $(test_exe_rts_opts $(basename $bench_prog)) \
+    $RTS_OPTIONS \
+    -RTS"
+}
+
 BUILD_TEST="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_OPTIONS --enable-tests"
 run_build "$BUILD_TEST" streamly-tests test "$TARGETS"
 
@@ -83,4 +100,4 @@ run_build "$BUILD_TEST" streamly-tests test "$TARGETS"
 # Run targets
 #-----------------------------------------------------------------------------
 
-run_targets streamly-tests "$TARGETS"
+run_targets streamly-tests "$TARGETS" target_exe_extra_args

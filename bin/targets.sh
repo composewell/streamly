@@ -28,7 +28,8 @@ prelude_other_grp="\
   $(test_only $(dev_build Prelude.Rate)) \
   `bench_only Prelude.Rate` \
   `test_only Prelude.Fold` \
-  Prelude.Concurrent \
+  `test_only Prelude.Concurrent` \
+  $(bench_only $(dev_build Prelude.Concurrent)) \
   `bench_only Prelude.Adaptive`"
 
 array_grp="\
@@ -47,8 +48,8 @@ parser_grp="\
   Data.Parser"
 
 list_grp="\
-  Data.List.Base \
-  Data.List"
+  `test_only Data.List.Base` \
+  `test_only Data.List`"
 
 #------------------------------------------------------------------------------
 # Streaming vs non-streaming
@@ -60,6 +61,29 @@ infinite_grp="\
   $prelude_serial_grp \
   $prelude_concurrent_grp \
   `bench_only Prelude.Rate`"
+
+#------------------------------------------------------------------------------
+# Benchmark comparison groups
+#------------------------------------------------------------------------------
+
+# *_cmp denotes a comparison benchmark, the benchmarks provided in *_cmp
+# variables are compared with each other
+base_stream_cmp="Data.Stream.StreamD Data.Stream.StreamK"
+serial_wserial_cmp="Prelude.Serial Prelude.WSerial"
+serial_async_cmp="Prelude.Serial Prelude.Async"
+concurrent_cmp="Prelude.Async Prelude.WAsync Prelude.Ahead Prelude.Parallel"
+array_cmp="Memory.Array Data.Array.Prim Data.Array Data.Array.Prim.Pinned"
+pinned_array_cmp="Memory.Array Data.Array.Prim.Pinned"
+base_parser_cmp=$base_parser_grp
+
+COMPARISONS="\
+  base_stream_cmp \
+  serial_wserial_cmp \
+  serial_async_cmp \
+  concurrent_cmp \
+  array_cmp \
+  pinned_array_cmp \
+  base_parser_cmp"
 
 #------------------------------------------------------------------------------
 # All test/benchmark modules must be in at least one of these
