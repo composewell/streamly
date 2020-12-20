@@ -50,9 +50,15 @@ dev_build () {
 all_grp () {
   { for i in $GROUP_TARGETS
     do
-      eval "echo \$$i"
+      for j in $(eval "echo \$$i")
+      do
+        echo $j
+      done
     done
-    echo $INDIVIDUAL_TARGETS
+    for i in $INDIVIDUAL_TARGETS
+    do
+      echo $i
+    done
   } | sort | uniq
 }
 
@@ -112,7 +118,7 @@ set_targets() {
 # $1: package name
 # $2: target
 cabal_target_prog () {
-  local target_prog=`$WHICH_COMMAND $1 $2`
+  local target_prog=`cabal_which $1 $2`
   if test -x "$target_prog"
   then
     echo $target_prog
@@ -182,26 +188,31 @@ run_build () {
 
 # $1: package name
 # $2: target
+# $3: args generator func
 run_target () {
   local package_name=$1
   local target_name=$2
-  local target_exe=$target_name
+  local extra_args=$3
+
   local target_prog
-  target_prog=$(cabal_target_prog $package_name $target_exe) || \
+  target_prog=$(cabal_target_prog $package_name $target_name) || \
     die "Cannot find executable for target $target_name"
 
   echo "Running executable $target_name ..."
-  TARGET_EXE_EXTRA_ARGS="$RTS_OPTIONS"
 
-  run_verbose $target_prog $TARGET_EXE_EXTRA_ARGS $TARGET_EXE_ARGS \
+  # Needed by bench-exec-one.sh
+  export BENCH_EXEC_PATH=$target_prog
+
+  run_verbose $target_prog $($extra_args $target_name $target_prog) \
     || die "Target exe failed"
 }
 
 # $1: package name
 # $2: targets
+# $3: args generator func
 run_targets() {
     for i in $2
     do
-      run_target $1 $i
+      run_target $1 $i $3
     done
 }

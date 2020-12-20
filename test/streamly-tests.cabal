@@ -53,6 +53,7 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
+                      -rtsopts
 
     if flag(has-llvm)
       ghc-options: -fllvm

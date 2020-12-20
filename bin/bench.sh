@@ -1,134 +1,9 @@
 #!/usr/bin/env bash
 
-#------------------------------------------------------------------------------
-# Benchmark groups
-#------------------------------------------------------------------------------
+SCRIPT_DIR=$(cd `dirname $0`; pwd)
 
-# IMPORTANT NOTE: the names "_grp" and "_cmp" suffixes are special, do
-# not rename them to something else.
-
-base_stream_grp="\
-    Data.Stream.StreamD \
-    Data.Stream.StreamK \
-    Data.Stream.StreamDK"
-
-prelude_serial_grp="\
-  Prelude.Serial \
-  Prelude.WSerial \
-  Prelude.ZipSerial"
-
-prelude_concurrent_grp="\
-  Prelude.Async \
-  Prelude.WAsync \
-  Prelude.Ahead \
-  Prelude.Parallel \
-  Prelude.ZipAsync"
-
-prelude_other_grp="\
-  Prelude.Rate \
-  Prelude.Concurrent \
-  Prelude.Adaptive"
-
-array_grp="\
-  Data.Array \
-  Data.Array.Storable.Foreign \
-  Data.Array.Prim \
-  Data.SmallArray \
-  Data.Array.Prim.Pinned"
-
-base_parser_grp="Data.Parser.ParserD Data.Parser.ParserK"
-parser_grp="Data.Fold Data.Parser"
-
-#------------------------------------------------------------------------------
-# Streaming vs non-streaming
-#------------------------------------------------------------------------------
-# The "o-1-space" groups of these benchmarks are run with long stream
-# sizes when --long option is used.
-
-infinite_grp="\
-  $prelude_serial_grp \
-  $prelude_concurrent_grp \
-  Prelude.Rate"
-
-#------------------------------------------------------------------------------
-# Comparison groups
-#------------------------------------------------------------------------------
-# *_cmp denotes a comparison benchmarks, the benchmarks provided in *_cmp
-# variables are compared with each other
-base_stream_cmp="Data.Stream.StreamD Data.Stream.StreamK"
-serial_wserial_cmp="Prelude.Serial Prelude.WSerial"
-serial_async_cmp="Prelude.Serial Prelude.Async"
-concurrent_cmp="Prelude.Async Prelude.WAsync Prelude.Ahead Prelude.Parallel"
-array_cmp="Memory.Array Data.Array.Prim Data.Array Data.Array.Prim.Pinned"
-pinned_array_cmp="Memory.Array Data.Array.Prim.Pinned"
-base_parser_cmp=$base_parser_grp
-COMPARISONS="\
-  base_stream_cmp \
-  serial_wserial_cmp \
-  serial_async_cmp \
-  concurrent_cmp \
-  array_cmp \
-  pinned_array_cmp \
-  base_parser_cmp"
-
-#------------------------------------------------------------------------------
-# All
-#------------------------------------------------------------------------------
-# All high level benchmarks
-all_grp="\
-    $prelude_serial_grp \
-    $prelude_concurrent_grp \
-    $array_grp \
-    $parser_grp \
-    Unicode.Stream \
-    Data.Unfold \
-    FileSystem.Handle"
-
-ALL_BENCH_GROUPS="\
-    all_grp \
-    prelude_serial_grp \
-    prelude_concurrent_grp \
-    array_grp \
-    infinite_grp \
-    base_stream_grp \
-    base_parser_grp"
-
-#------------------------------------------------------------------------------
-# Script
-#------------------------------------------------------------------------------
-
-BENCH_SH_DIR=$(cd `dirname $0`; pwd)
-
-list_benches ()  {
-  echo "Individual benchmarks:"
-  for i in $all_grp
-  do
-    echo "$i"
-  done
-  echo
-}
-
-list_bench_groups ()  {
-  echo "Benchmark groups:"
-  for i in $ALL_BENCH_GROUPS
-  do
-    echo -n "$i ["
-    eval "echo -n \$$i"
-    echo "]"
-  done
-  echo
-}
-
-list_comparisons ()  {
-  echo "Comparison groups:"
-  for i in $COMPARISONS
-  do
-    echo -n "$i ["
-    eval "echo -n \$$i"
-    echo "]"
-  done
-  echo
-}
+RUNNING_BENCHMARKS=y
+source $SCRIPT_DIR/build-lib.sh
 
 print_help () {
   echo "Usage: $0 "
@@ -141,7 +16,9 @@ print_help () {
   echo "       [--slow]"
   echo "       [--quick]"
   echo "       [--raw]"
+  echo "       [--dev-build]"
   echo "       [--cabal-build-flags <flag>]"
+  echo "       [--rtsopts <opts>]"
   echo "       [--compare] [--base <commit>] [--candidate <commit>]"
   echo "       -- <gauge options or benchmarks>"
   echo
@@ -156,6 +33,7 @@ print_help () {
   echo "--raw: Run the benchmarks but don't report them. This is useful when"
   echo "       you only want to work with the csv files generated."
   echo "--cabal-build-flags: Pass any cabal builds flags to be used for build"
+  echo "       e.g. --cabal-build-flags \"--flag fusion-plugin\""
   echo
   echo "When specific space complexity group is chosen then (and only then) "
   echo "RTS memory restrictions are used accordingly. For example, "
@@ -170,33 +48,37 @@ print_help () {
   exit
 }
 
-# $1: message
-die () {
-  >&2 echo -e "Error: $1"
-  exit 1
+#-----------------------------------------------------------------------------
+# Reporting utility functions
+#-----------------------------------------------------------------------------
+
+list_comparisons ()  {
+  echo "Comparison groups:"
+  for i in $COMPARISONS
+  do
+    echo -n "$i ["
+    eval "echo -n \$$i"
+    echo "]"
+  done
+  echo
 }
 
-set_benchmarks() {
-  if test -z "$BENCHMARKS"
+# chart is expensive to build and usually not required to be rebuilt,
+# use master branch as fallback
+cabal_which_report() {
+  local path=$(cabal_which streamly-benchmarks $1)
+  if test -z "$path"
   then
-    echo $DEFAULT_BENCHMARKS
+    cabal_which_builddir dist-newstyle streamly-benchmarks $1
   else
-    for i in $(echo $BENCHMARKS)
-    do
-        case $i in
-          *_grp) eval "echo -n \$${i}" ;;
-          *_cmp) eval "echo -n \$${i} $i" ;;
-          *) echo -n $i ;;
-        esac
-        echo -n " "
-    done
+    echo $path
   fi
 }
 
 find_report_prog() {
     local prog_name="chart"
     hash -r
-    local prog_path=$($WHICH_COMMAND_REPORT $prog_name)
+    local prog_path=$(cabal_which_report $prog_name)
     if test -x "$prog_path"
     then
       echo $prog_path
@@ -207,14 +89,16 @@ find_report_prog() {
 
 build_report_prog() {
     local prog_name="chart"
-    local prog_path=$($WHICH_COMMAND_REPORT $prog_name)
+    local prog_path=$(cabal_which_report $prog_name)
 
     hash -r
     if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
     then
-      echo "Building bench-graph executables"
+      echo "Building bench-show executables"
       BUILD_ONCE=1
-      $BUILD_CHART_EXE || die "build failed"
+      $CABAL_EXECUTABLE v2-build --flags dev chart \
+        || die "bench-show build failed"
+
     elif test ! -x "$prog_path"
     then
       return 1
@@ -228,8 +112,8 @@ build_report_progs() {
       build_report_prog || exit 1
       local prog
       prog=$(find_report_prog) || \
-          die "Cannot find bench-graph executable"
-      echo "Using bench-graph executable [$prog]"
+          die "Cannot find bench-show executable"
+      echo "Using bench-show executable [$prog]"
   fi
 }
 
@@ -239,40 +123,10 @@ build_report_progs() {
 # own path currently.
 
 # The path is dependent on the architecture and cabal version.
-# Use this command to find the exe if this script fails with an error:
-# find .stack-work/ -type f -name "benchmarks"
-
-stack_bench_prog () {
-  local bench_name=$1
-  local bench_prog=`stack path --dist-dir`/build/$bench_name/$bench_name
-  if test -x "$bench_prog"
-  then
-    echo $bench_prog
-  else
-    return 1
-  fi
-}
-
-cabal_bench_prog () {
-  local bench_name=$1
-  local bench_prog=`$WHICH_COMMAND $1`
-  if test -x "$bench_prog"
-  then
-    echo $bench_prog
-  else
-    return 1
-  fi
-}
 
 bench_output_file() {
     local bench_name=$1
     echo "charts/$bench_name/results.csv"
-}
-
-# $1: command
-function run_verbose() {
-  echo "$*"
-  bash -c "$*"
 }
 
 # --min-duration 0 means exactly one iteration per sample. We use a million
@@ -288,17 +142,14 @@ function run_verbose() {
 # We can pass --min-samples value from the command line as second argument
 # after the benchmark name in case we want to use more than one sample.
 
-run_bench () {
+# $1: bench name
+# $2: bench executable
+target_exe_extra_args () {
   local bench_name=$1
-  local bench_exe=$bench_name
+  local bench_prog=$2
+
   local output_file=$(bench_output_file $bench_name)
-  local bench_prog
-  bench_prog=$($GET_BENCH_PROG $bench_exe) || \
-    die "Cannot find benchmark executable for benchmark $bench_name"
-
   mkdir -p `dirname $output_file`
-
-  echo "Running benchmark $bench_name ..."
 
   local QUICK_OPTS="--quick --min-duration 0"
   local SPEED_OPTIONS
@@ -306,7 +157,6 @@ run_bench () {
   then
     if test "$SLOW" -eq 0
     then
-        export QUICK_MODE
         if test "$QUICK_MODE" -eq 0
         then
           # default mode, not super quick, not slow
@@ -325,20 +175,11 @@ run_bench () {
       SPEED_OPTIONS="--stream-size 10000000 $QUICK_OPTS --include-first-iter"
   fi
 
-  export BENCH_EXEC_PATH=$bench_prog
-  export RTS_OPTIONS
-  run_verbose $bench_prog $SPEED_OPTIONS \
+  echo "$SPEED_OPTIONS \
     --csvraw=$output_file \
     -v 2 \
-    --measure-with "$BENCH_SH_DIR/bench-exec-one.sh" \
-    $GAUGE_ARGS || die "Benchmarking failed"
-}
-
-run_benches() {
-    for i in $1
-    do
-      run_bench $i
-    done
+    --measure-with "$SCRIPT_DIR/bench-exec-one.sh" \
+    $GAUGE_ARGS"
 }
 
 run_benches_comparing() {
@@ -358,14 +199,14 @@ run_benches_comparing() {
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
     $BUILD_BENCH || die "build failed"
-    run_benches "$bench_list"
+    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
     $BUILD_BENCH || die "build failed"
-    run_benches "$bench_list"
+    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
     # XXX reset back to the original commit
 }
 
@@ -389,7 +230,7 @@ run_measurements() {
 
   if test "$COMPARE" = "0"
   then
-    run_benches "$bench_list"
+    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
   else
     run_benches_comparing "$bench_list"
   fi
@@ -413,9 +254,10 @@ run_reports() {
 # Execution starts here
 #-----------------------------------------------------------------------------
 
-cd $BENCH_SH_DIR/..
+cd $SCRIPT_DIR/..
 
-DEFAULT_BENCHMARKS="$all_grp"
+set_common_vars
+
 DEFAULT_FIELDS="allocated bytescopied cputime"
 ALL_FIELDS="$FIELDS time cycles utime stime minflt majflt nvcsw nivcsw"
 FIELDS=$DEFAULT_FIELDS
@@ -425,53 +267,13 @@ BASE=
 CANDIDATE=
 
 APPEND=0
-SLOW=0
-QUICK_MODE=0
 LONG=0
 RAW=0
 GRAPH=0
 MEASURE=1
 
 GAUGE_ARGS=
-RTS_OPTIONS=
 BUILD_ONCE=0
-USE_STACK=0
-CABAL_BUILD_FLAGS=""
-
-GHC_VERSION=$(ghc --numeric-version)
-
-CABAL_EXECUTABLE=cabal
-
-# Use branch specific builds if git-cabal is present in PATH
-BUILD_DIR=dist-newstyle
-if which git-cabal 2>/dev/null
-then
-  echo "Using git-cabal for branch specific builds"
-  CABAL_EXECUTABLE=git-cabal
-  BUILD_DIR=$(git-cabal show-builddir)
-fi
-
-# $1: builddir
-# $2: command to find
-cabal_which_builddir() {
-  find $1 -type f -path "*${GHC_VERSION}/streamly-benchmarks*/$2" 2>/dev/null
-}
-
-cabal_which() {
-  cabal_which_builddir $BUILD_DIR $1
-}
-
-# chart is expensive to build and usually not required to be rebuilt,
-# use master branch as fallback
-cabal_which_report() {
-  local path=$(cabal_which $1)
-  if test -z "$path"
-  then
-    cabal_which_builddir dist-newstyle $1
-  else
-    echo $path
-  fi
-}
 
 #-----------------------------------------------------------------------------
 # Read command line
@@ -482,11 +284,13 @@ do
   case $1 in
     -h|--help|help) print_help ;;
     # options with arguments
-    --benchmarks) shift; BENCHMARKS=$1; shift ;;
+    --benchmarks) shift; TARGETS=$1; shift ;;
+    --targets) shift; TARGETS=$1; shift ;;
     --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
-    --cabal-build-flags) shift; CABAL_BUILD_FLAGS=$1; shift ;;
+    --cabal-build-flags) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
+    --cabal-build-options) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
     --slow) SLOW=1; shift ;;
@@ -497,6 +301,7 @@ do
     --long) LONG=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
+    --dev-build) RUNNING_DEVBUILD=1; shift ;;
     --) shift; break ;;
     -*|--*) echo "Unknown flags: $*"; echo; print_help ;;
     *) break ;;
@@ -504,8 +309,12 @@ do
 done
 GAUGE_ARGS=$*
 
+#-----------------------------------------------------------------------------
+# Determine targets
+#-----------------------------------------------------------------------------
+
 only_real_benchmarks () {
-  for i in $BENCHMARKS
+  for i in $TARGETS
   do
     local SKIP=0
     for j in $COMPARISONS
@@ -522,23 +331,14 @@ only_real_benchmarks () {
   done
 }
 
-has_item () {
-  for i in $1
-  do
-    if test "$i" = "$2"
-    then
-      echo "$i"
-      break
-    fi
-  done
-}
+# Requires RUNNING_DEVBUILD var
+source $SCRIPT_DIR/targets.sh
 
-BENCHMARKS_ORIG=$BENCHMARKS
-if test "$(has_item "$BENCHMARKS_ORIG" help)" = "help"
+if test "$(has_item "$TARGETS" help)" = "help"
 then
-  list_bench_groups
+  list_target_groups
   list_comparisons
-  list_benches
+  list_targets
   exit
 fi
 
@@ -551,40 +351,24 @@ fi
 
 if test "$LONG" -ne 0
 then
-  if test -n "$BENCHMARKS"
+  if test -n "$TARGETS"
   then
-    echo "Cannot specify benchmarks [$BENCHMARKS] with --long"
+    echo "Cannot specify benchmarks [$TARGETS] with --long"
     exit
   fi
-  BENCHMARKS=$infinite_grp
+  TARGETS=$infinite_grp
 fi
 
-BENCHMARKS=$(set_benchmarks)
-BENCHMARKS_ORIG=$BENCHMARKS
-BENCHMARKS=$(only_real_benchmarks)
-EXECUTABLES=$BENCHMARKS
+DEFAULT_TARGETS="$(all_grp)"
+TARGETS=$(set_targets)
 
-echo "Using benchmark suites [$BENCHMARKS]"
+TARGETS_ORIG=$TARGETS
+TARGETS=$(only_real_benchmarks)
 
-if test "$USE_STACK" = "1"
-then
-  WHICH_COMMAND="stack exec which"
-  WHICH_COMMAND_REPORT="stack exec which"
-  BUILD_CHART_EXE="stack build --flag streamly:dev"
-  GET_BENCH_PROG=stack_bench_prog
-  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
-else
-  # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
-  #WHICH_COMMAND="cabal v2-exec which"
-  WHICH_COMMAND=cabal_which
-  WHICH_COMMAND_REPORT=cabal_which_report
-  BUILD_CHART_EXE="$CABAL_EXECUTABLE v2-build --flags dev chart"
-  GET_BENCH_PROG=cabal_bench_prog
-  BUILD_BENCH="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
-fi
+echo "Using benchmark suites [$TARGETS]"
 
 #-----------------------------------------------------------------------------
-# Build stuff
+# Build reporting utility
 #-----------------------------------------------------------------------------
 
 # We need to build the report progs first at the current (latest) commit before
@@ -592,23 +376,16 @@ fi
 build_report_progs
 
 #-----------------------------------------------------------------------------
-# Run benchmarks
+# Build and run targets
 #-----------------------------------------------------------------------------
 
+BUILD_BENCH="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_OPTIONS --enable-benchmarks"
 if test "$MEASURE" = "1"
 then
-  echo $BUILD_BENCH
-  if test "$USE_STACK" = "1"
-  then
-    $BUILD_BENCH || die "build failed"
-  else
-    for c in $EXECUTABLES
-    do
-      COMPONENTS+="streamly-benchmarks:bench:$c "
-    done
-    $BUILD_BENCH $COMPONENTS || die "build failed"
-  fi
-  run_measurements "$BENCHMARKS"
+  run_build "$BUILD_BENCH" streamly-benchmarks bench "$TARGETS"
+  export QUICK_MODE
+  export RTS_OPTIONS
+  run_measurements "$TARGETS"
 fi
 
 #-----------------------------------------------------------------------------
@@ -618,7 +395,7 @@ fi
 COMPARISON_REPORTS=""
 for i in $COMPARISONS
 do
-  if test "$(has_item "$BENCHMARKS_ORIG" $i)" = $i
+  if test "$(has_item "$TARGETS_ORIG" $i)" = $i
   then
     COMPARISON_REPORTS="$COMPARISON_REPORTS $i"
     mkdir -p "charts/$i"
@@ -634,6 +411,6 @@ done
 
 if test "$RAW" = "0"
 then
-  run_reports "$BENCHMARKS"
+  run_reports "$TARGETS"
   run_reports "$COMPARISON_REPORTS"
 fi
