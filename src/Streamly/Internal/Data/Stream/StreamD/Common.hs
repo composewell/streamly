@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Stream.StreamD.Common
        FromSVarState (..)
      , fromProducer
      , fromPrimIORef
+     , nilM
      , takeWhileM
      , takeWhile
      )
@@ -37,6 +38,11 @@ import Prelude hiding
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
+
+-- | An empty 'Stream' with a side effect.
+{-# INLINE_NORMAL nilM #-}
+nilM :: Monad m => m b -> Stream m a
+nilM m = Stream (\_ _ -> m >> return Stop) ()
 
 data FromSVarState t m a =
       FromSVarInit
