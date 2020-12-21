@@ -333,57 +333,12 @@ import Prelude hiding
        , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.StreamD.Common (takeWhileM, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
 import Streamly.Internal.Data.Stream.StreamD.Flatten
 import Streamly.Internal.Data.Stream.StreamD.SplitGroup
 import Streamly.Internal.Data.SVar
-
-------------------------------------------------------------------------------
--- Construction
-------------------------------------------------------------------------------
-
--- | An empty 'Stream'.
-{-# INLINE_NORMAL nil #-}
-nil :: Monad m => Stream m a
-nil = Stream (\_ _ -> return Stop) ()
-
--- | An empty 'Stream' with a side effect.
-{-# INLINE_NORMAL nilM #-}
-nilM :: Monad m => m b -> Stream m a
-nilM m = Stream (\_ _ -> m >> return Stop) ()
-
-{-# INLINE_NORMAL consM #-}
-consM :: Monad m => m a -> Stream m a -> Stream m a
-consM m (Stream step state) = Stream step1 Nothing
-    where
-    {-# INLINE_LATE step1 #-}
-    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
-    step1 gst (Just st) = do
-        r <- step gst st
-        return $
-          case r of
-            Yield a s -> Yield a (Just s)
-            Skip  s   -> Skip (Just s)
-            Stop      -> Stop
-
--- XXX implement in terms of consM?
--- cons x = consM (return x)
---
--- | Can fuse but has O(n^2) complexity.
-{-# INLINE_NORMAL cons #-}
-cons :: Monad m => a -> Stream m a -> Stream m a
-cons x (Stream step state) = Stream step1 Nothing
-    where
-    {-# INLINE_LATE step1 #-}
-    step1 _ Nothing   = return $ Yield x (Just state)
-    step1 gst (Just st) = do
-        r <- step gst st
-        return $
-          case r of
-            Yield a s -> Yield a (Just s)
-            Skip  s   -> Skip (Just s)
-            Stop      -> Stop
 
 -------------------------------------------------------------------------------
 -- Deconstruction
@@ -400,38 +355,6 @@ uncons (UnStream step state) = go state
             Yield x s -> return $ Just (x, Stream step s)
             Skip  s   -> go s
             Stop      -> return Nothing
-
--- We are assuming that "to" is constrained by the type to be within
--- max/min bounds.
-{-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
-enumerateFromToIntegral from to =
-    takeWhile (<= to) $ enumerateFromStepIntegral from 1
-
-{-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
-enumerateFromIntegral from = enumerateFromToIntegral from maxBound
-
--- We cannot write a general function for Num.  The only way to write code
--- portable between the two is to use a 'Real' constraint and convert between
--- Fractional and Integral using fromRational which is horribly slow.
-{-# INLINE_NORMAL enumerateFromToFractional #-}
-enumerateFromToFractional
-    :: (Monad m, Fractional a, Ord a)
-    => a -> a -> Stream m a
-enumerateFromToFractional from to =
-    takeWhile (<= to + 1 / 2) $ enumerateFromStepNum from 1
-
-{-# INLINE_NORMAL enumerateFromThenToFractional #-}
-enumerateFromThenToFractional
-    :: (Monad m, Fractional a, Ord a)
-    => a -> a -> a -> Stream m a
-enumerateFromThenToFractional from next to =
-    takeWhile predicate $ numFromThen from next
-    where
-    mid = (next - from) / 2
-    predicate | next >= from  = (<= to + mid)
-              | otherwise     = (>= to + mid)
 
 -------------------------------------------------------------------------------
 -- Hoisting the inner monad
@@ -1331,24 +1254,6 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 -------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL takeWhileM #-}
-takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-takeWhileM f (Stream step state) = Stream step' state
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst st = do
-        r <- step gst st
-        case r of
-            Yield x s -> do
-                b <- f x
-                return $ if b then Yield x s else Stop
-            Skip s -> return $ Skip s
-            Stop   -> return Stop
-
-{-# INLINE takeWhile #-}
-takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-takeWhile f = takeWhileM (return . f)
 
 {-# INLINE_NORMAL drop #-}
 drop :: Monad m => Int -> Stream m a -> Stream m a
