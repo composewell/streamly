@@ -10,9 +10,15 @@
 
 module Streamly.Internal.Data.Stream.StreamD.Generate
   (
+    -- * Construction
+      nil
+    , nilM
+    , cons
+    , consM
+
     -- * Generation
     -- ** Unfolds
-      unfoldr
+    , unfoldr
     , unfoldrM
     , unfold
 
@@ -31,12 +37,16 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
 
     -- ** Enumerations
     , enumerateFromStepIntegral
+    , enumerateFromIntegral
     , enumerateFromThenIntegral
+    , enumerateFromToIntegral
     , enumerateFromThenToIntegral
 
     , enumerateFromStepNum
     , numFrom
     , numFromThen
+    , enumerateFromToFractional
+    , enumerateFromThenToFractional
 
     -- ** Time
     , times
@@ -88,6 +98,51 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.Stream.StreamD.Common
 import Streamly.Internal.Data.SVar
 
+------------------------------------------------------------------------------
+-- Construction
+------------------------------------------------------------------------------
+
+-- | An empty 'Stream'.
+{-# INLINE_NORMAL nil #-}
+nil :: Monad m => Stream m a
+nil = Stream (\_ _ -> return Stop) ()
+
+-- | An empty 'Stream' with a side effect.
+{-# INLINE_NORMAL nilM #-}
+nilM :: Monad m => m b -> Stream m a
+nilM m = Stream (\_ _ -> m >> return Stop) ()
+
+{-# INLINE_NORMAL consM #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m (Stream step state) = Stream step1 Nothing
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
+    step1 gst (Just st) = do
+        r <- step gst st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Stop
+
+-- XXX implement in terms of consM?
+-- cons x = consM (return x)
+--
+-- | Can fuse but has O(n^2) complexity.
+{-# INLINE_NORMAL cons #-}
+cons :: Monad m => a -> Stream m a -> Stream m a
+cons x (Stream step state) = Stream step1 Nothing
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = return $ Yield x (Just state)
+    step1 gst (Just st) = do
+        r <- step gst st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Generation by unfold
@@ -239,6 +294,38 @@ enumerateFromThenIntegral from next =
     if next > from
     then enumerateFromThenToIntegralUp from next maxBound
     else enumerateFromThenToIntegralDn from next minBound
+
+-- We are assuming that "to" is constrained by the type to be within
+-- max/min bounds.
+{-# INLINE enumerateFromToIntegral #-}
+enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
+enumerateFromToIntegral from to =
+    takeWhile (<= to) $ enumerateFromStepIntegral from 1
+
+{-# INLINE enumerateFromIntegral #-}
+enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
+enumerateFromIntegral from = enumerateFromToIntegral from maxBound
+
+-- We cannot write a general function for Num.  The only way to write code
+-- portable between the two is to use a 'Real' constraint and convert between
+-- Fractional and Integral using fromRational which is horribly slow.
+{-# INLINE_NORMAL enumerateFromToFractional #-}
+enumerateFromToFractional
+    :: (Monad m, Fractional a, Ord a)
+    => a -> a -> Stream m a
+enumerateFromToFractional from to =
+    takeWhile (<= to + 1 / 2) $ enumerateFromStepNum from 1
+
+{-# INLINE_NORMAL enumerateFromThenToFractional #-}
+enumerateFromThenToFractional
+    :: (Monad m, Fractional a, Ord a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToFractional from next to =
+    takeWhile predicate $ numFromThen from next
+    where
+    mid = (next - from) / 2
+    predicate | next >= from  = (<= to + mid)
+              | otherwise     = (>= to + mid)
 
 -- For floating point numbers if the increment is less than the precision then
 -- it just gets lost. Therefore we cannot always increment it correctly by just

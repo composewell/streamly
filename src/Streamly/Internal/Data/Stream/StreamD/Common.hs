@@ -15,6 +15,8 @@ module Streamly.Internal.Data.Stream.StreamD.Common
        FromSVarState (..)
      , fromProducer
      , fromPrimIORef
+     , takeWhileM
+     , takeWhile
      )
 where
 
@@ -86,3 +88,25 @@ fromProducer svar = Stream step (FromSVarRead svar)
         return Stop
 
     step _ FromSVarInit = undefined
+
+-------------------------------------------------------------------------------
+-- Filtering
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL takeWhileM #-}
+takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+takeWhileM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                b <- f x
+                return $ if b then Yield x s else Stop
+            Skip s -> return $ Skip s
+            Stop   -> return Stop
+
+{-# INLINE takeWhile #-}
+takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+takeWhile f = takeWhileM (return . f)
