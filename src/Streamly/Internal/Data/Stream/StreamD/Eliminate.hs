@@ -19,6 +19,7 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , foldrM
     , foldrMx
     , foldr
+    , foldr1
 
     , foldl'
     , foldlM'
@@ -103,9 +104,22 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.Stream.StreamD.Common
 import Streamly.Internal.Data.SVar
 
+
 ------------------------------------------------------------------------------
 -- Elimination by Folds
 ------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- Right Folds
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL foldr1 #-}
+foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
+foldr1 f m = do
+     r <- uncons m
+     case r of
+         Nothing   -> return Nothing
+         Just (h, t) -> fmap Just (foldr f h t)
 
 ------------------------------------------------------------------------------
 -- Left Folds

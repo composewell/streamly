@@ -336,22 +336,6 @@ import Streamly.Internal.Data.Stream.StreamD.SplitGroup
 import Streamly.Internal.Data.SVar
 
 -------------------------------------------------------------------------------
--- Deconstruction
--------------------------------------------------------------------------------
-
--- Does not fuse, has the same performance as the StreamK version.
-{-# INLINE_NORMAL uncons #-}
-uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
-uncons (UnStream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x s -> return $ Just (x, Stream step s)
-            Skip  s   -> go s
-            Stop      -> return Nothing
-
--------------------------------------------------------------------------------
 -- Hoisting the inner monad
 -------------------------------------------------------------------------------
 
@@ -422,22 +406,6 @@ runStateT initial (Stream step state) = Stream step' (state, initial)
             Yield x s -> Yield (sv', x) (s, return sv')
             Skip  s   -> Skip (s, return sv')
             Stop      -> Stop
-
-------------------------------------------------------------------------------
--- Elimination by Folds
-------------------------------------------------------------------------------
-
-------------------------------------------------------------------------------
--- Right Folds
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL foldr1 #-}
-foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
-foldr1 f m = do
-     r <- uncons m
-     case r of
-         Nothing   -> return Nothing
-         Just (h, t) -> fmap Just (foldr f h t)
 
 ------------------------------------------------------------------------------
 -- Substreams

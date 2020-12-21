@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Stream.StreamD.Common
        FromSVarState (..)
      , fromProducer
      , fromPrimIORef
+     , uncons
      , nilM
      , takeWhileM
      , takeWhile
@@ -38,6 +39,26 @@ import Prelude hiding
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
+
+-------------------------------------------------------------------------------
+-- Deconstruction
+-------------------------------------------------------------------------------
+
+-- Does not fuse, has the same performance as the StreamK version.
+{-# INLINE_NORMAL uncons #-}
+uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+uncons (UnStream step state) = go state
+  where
+    go st = do
+        r <- step defState st
+        case r of
+            Yield x s -> return $ Just (x, Stream step s)
+            Skip  s   -> go s
+            Stop      -> return Nothing
+
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
 
 -- | An empty 'Stream' with a side effect.
 {-# INLINE_NORMAL nilM #-}
