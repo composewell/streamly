@@ -64,6 +64,24 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , find
     , (!!)
     , toSVarParallel
+
+    -- ** Substreams
+    , isPrefixOf
+    , isSubsequenceOf
+    , stripPrefix
+
+    -- ** Map and Fold
+    , mapM_
+
+    -- ** Conversions
+    -- | Transform a stream into another type.
+    , hoist
+    , generally
+
+    , liftInner
+    , runReaderT
+    , evalStateT
+    , runStateT
     )
 where
 
@@ -79,11 +97,12 @@ import Foreign.Storable (Storable(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
+import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.Trans.State.Strict (StateT)
+import Data.Functor.Identity (Identity(..))
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
@@ -92,6 +111,8 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Control.Monad.Catch as MC
+import qualified Control.Monad.Trans.Reader as Reader
+import qualified Control.Monad.Trans.State.Strict as State
 import qualified Prelude
 
 import Prelude hiding
@@ -124,25 +145,6 @@ foldr1 f m = do
 ------------------------------------------------------------------------------
 -- Left Folds
 ------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL foldOnce #-}
-foldOnce :: (Monad m) => Fold m a b -> Stream m a -> m b
-foldOnce (Fold fstep begin done) (Stream step state) =
-    begin >>= \x -> go SPEC x state
-
-    where
-
-    {-# INLINE go #-}
-    go !_ !fs st = do
-        r <- step defState st
-        case r of
-            Yield x s -> do
-                res <- fstep fs x
-                case res of
-                    FL.Done b -> return b
-                    FL.Partial fs1 -> go SPEC fs1 s
-            Skip s -> go SPEC fs s
-            Stop -> done fs
 
 {-# INLINE_NORMAL foldlT #-}
 foldlT :: (Monad m, Monad (s m), MonadTrans s)
@@ -755,78 +757,6 @@ reverse' m =
         $ toStreamK
         $ A.fromStreamDArraysOf A.defaultChunkSize m
 
--------------------------------------------------------------------------------
--- Concurrent application and fold
--------------------------------------------------------------------------------
-
--- XXX These functions should be moved to Stream/Parallel.hs
---
--- Using StreamD the worker stream producing code can fuse with the code to
--- queue output to the SVar giving some perf boost.
---
--- Note that StreamD can only be used in limited situations, specifically, we
--- cannot implement joinStreamVarPar using this.
---
--- XXX make sure that the SVar passed is a Parallel style SVar.
-
--- | Fold the supplied stream to the SVar asynchronously using Parallel
--- concurrency style.
--- {-# INLINE_NORMAL toSVarParallel #-}
-{-# INLINE toSVarParallel #-}
-toSVarParallel :: MonadAsync m
-    => State t m a -> SVar t m a -> Stream m a -> m ()
-toSVarParallel st sv xs =
-    if svarInspectMode sv
-    then forkWithDiag
-    else do
-        tid <-
-                case getYieldLimit st of
-                    Nothing -> doFork (work Nothing)
-                                      (svarMrun sv)
-                                      (handleChildException sv)
-                    Just _  -> doFork (workLim Nothing)
-                                      (svarMrun sv)
-                                      (handleChildException sv)
-        modifyThread sv tid
-
-    where
-
-    {-# NOINLINE work #-}
-    work info = (foldOnce (FL.toParallelSVar sv info) xs)
-
-    {-# NOINLINE workLim #-}
-    workLim info = foldOnce (FL.toParallelSVarLimited sv info) xs
-
-    {-# NOINLINE forkWithDiag #-}
-    forkWithDiag = do
-        -- We do not use workerCount in case of ParallelVar but still there is
-        -- no harm in maintaining it correctly.
-        liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
-        recordMaxWorkers sv
-        -- This allocation matters when significant number of workers are being
-        -- sent. We allocate it only when needed. The overhead increases by 4x.
-        winfo <-
-            case yieldRateInfo sv of
-                Nothing -> return Nothing
-                Just _ -> liftIO $ do
-                    cntRef <- newIORef 0
-                    t <- getTime Monotonic
-                    lat <- newIORef (0, t)
-                    return $ Just WorkerInfo
-                        { workerYieldMax = 0
-                        , workerYieldCount = cntRef
-                        , workerLatencyStart = lat
-                        }
-        tid <-
-            case getYieldLimit st of
-                Nothing -> doFork (work winfo)
-                                  (svarMrun sv)
-                                  (handleChildException sv)
-                Just _  -> doFork (workLim winfo)
-                                  (svarMrun sv)
-                                  (handleChildException sv)
-        modifyThread sv tid
-
 ------------------------------------------------------------------------------
 -- Tapping/Distributing
 ------------------------------------------------------------------------------
@@ -1057,3 +987,153 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
             Yield a s -> Yield a (TapDone s)
             Skip s    -> Skip (TapDone s)
             Stop      -> Stop
+
+-------------------------------------------------------------------------------
+-- Hoisting the inner monad
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL hoist #-}
+hoist :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
+hoist f (Stream step state) = (Stream step' state)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- f $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip  s   -> Skip s
+            Stop      -> Stop
+
+{-# INLINE generally #-}
+generally :: Monad m => Stream Identity a -> Stream m a
+generally = hoist (return . runIdentity)
+
+{-# INLINE_NORMAL liftInner #-}
+liftInner :: (Monad m, MonadTrans t, Monad (t m))
+    => Stream m a -> Stream (t m) a
+liftInner (Stream step state) = Stream step' state
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- lift $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip s    -> Skip s
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runReaderT #-}
+runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
+runReaderT env (Stream step state) = Stream step' (state, env)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        r <- Reader.runReaderT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield x (s, return sv)
+            Skip  s   -> Skip (s, return sv)
+            Stop      -> Stop
+
+{-# INLINE_NORMAL evalStateT #-}
+evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+evalStateT initial (Stream step state) = Stream step' (state, initial)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield x (s, return sv')
+            Skip  s   -> Skip (s, return sv')
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runStateT #-}
+runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)
+runStateT initial (Stream step state) = Stream step' (state, initial)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield (sv', x) (s, return sv')
+            Skip  s   -> Skip (s, return sv')
+            Stop      -> Stop
+
+------------------------------------------------------------------------------
+-- Substreams
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL isPrefixOf #-}
+isPrefixOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return True
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else return False
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return False
+
+{-# INLINE_NORMAL isSubsequenceOf #-}
+isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return True
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else go (sa, sb', Just x)
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return False
+
+{-# INLINE_NORMAL stripPrefix #-}
+stripPrefix
+    :: (Eq a, Monad m)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return $ Just (Stream stepb sb)
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else return Nothing
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return Nothing
+
+------------------------------------------------------------------------------
+-- Map and Fold
+------------------------------------------------------------------------------
+
+-- | Execute a monadic action for each element of the 'Stream'
+{-# INLINE_NORMAL mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
+mapM_ m = drain . mapM m
