@@ -142,49 +142,80 @@ Internal APIs:
 
 ## Managing Issues
 
-### User Impacting Changes
+We label the issues in different dimensions based on the lifecyle and different
+management aspects of the issue. The folowing sections discuss the labels used
+to manage the issues. If a new label is required, it should be discussed before
+creating it.
 
-__RULE__: Any commit that may affect the end user in some way MUST have either a
-changelog entry OR MUST have an issue marked with one of the following labels
-OR both.  We can have more than one of these labels on the same issue e.g.
-breaking, enhancement:
+### Disposition
 
-* breaking
-* deprecating
-* enhancement
-* performance
-* usability
-* documentation
-* bug
+The level-1 triaging of the issue determines the current disposition
+of the issue. If no change is required the issue must have one of the
+following labels:
 
-Note that if you are making a big feature change you may have a single issue
-for that feature and attach many commits with it. So you do not necessarily
-need to have an issue for each commit.
-
-### Maintenance Changes
-
-Commits that do not impact the end user in any way are not required to have a
-changelog entry or an issue.  Issues that do not have a corresponding commit
-may be left without a label but preferably should be marked with one of the
-following:
-
+* invalid
 * question
 * discussion
-* maintenance
-* testing
-* invalid
+* duplicate
 * wontfix
 
-### Feature Labels
+If a change is required we need to do level-2 triage of the issue, see the
+sections below.
 
-For big features with many issues we can introduce a custom feature label to
-group the issues together.
+### Change type
 
-### Other Labels
+When a change is required we need to put one of the __change type__
+labels as part of level-2 triaging:
 
-* help wanted
-* duplicate
-* deferred
+* performance: User visible impact on performance.
+* usability: It is not convenient to use the library.
+* documentation: documentation is not correct or sufficient.
+* bug: A functionality issue, not working as expected.
+* enhancement: A new feature or enhancement of the product.
+* maintenance: A refactor or any other change with no user visible impact.
+
+### Aspect
+
+In addition we can put a __product aspect__ label describing a feature name or
+any other product specific classification bucket.
+
+* aspect:<aspect name>
+
+### Severity
+
+Optionally we can add a severity label to indicate how severe is the
+impact of the bug/issue, which may determine how important it is to fix it. By
+default the severity is normal, if it is high we put a label:
+
+* severity:high
+
+### Change impact
+
+For a user visible issue whether it has a release/changelog impact:
+
+* enhancement: includes a new feature or enhancement
+* breaking: has a breaking impact on existing deployments
+* deprecating: deprecates an existing functionality
+
+__RULE__: Any commit that may affect the end user in some way MUST have
+either a changelog entry OR MUST have an issue marked with one of the
+above labels OR both.
+
+### Priority
+
+By default the issues are normal priority. We use a label for high priority
+issues:
+
+* priority:high
+
+### Scheduling
+
+If the issue is assigned to someone then it is considered scheduled. Otherwise
+it is unscheduled.  Unassigned issues may have the following labels:
+
+* deferred: blocked on any other fix or a decision to be made, or deliberately
+  deferred for some reason.
+* help-wanted: anyone can take the issue and contribute
 
 ## Correlating Changes, Issues and Releases
 
