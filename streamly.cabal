@@ -398,7 +398,6 @@ library
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
-                     , Streamly.FileSystem.Event
 
     exposed-modules:
                        Streamly.Prelude
@@ -496,7 +495,8 @@ library
                      -- Filesystem
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.File                     
+                     , Streamly.Internal.FileSystem.Event
 
                      -- Text Processing
                      , Streamly.Internal.Unicode.Stream

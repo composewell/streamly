@@ -850,9 +850,11 @@ watchToStream cfg wt@(Watch handle _) = do
 -- 'Word8'.
 --
 -- @
--- watch True
---  ('setFollowSymLinks' On . 'setUnwatchMoved' Off) defaultConfig
---  [Array.fromCString\# "dir"#]
+-- watch 
+--      True
+--      ('setFollowSymLinks' On . 'setUnwatchMoved' Off) 
+--      defaultConfig
+--      [Array.fromCString\# "dir"#]
 -- @
 --
 -- /Internal/

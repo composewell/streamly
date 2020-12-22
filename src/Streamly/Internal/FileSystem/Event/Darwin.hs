@@ -506,8 +506,9 @@ watchToStream (Watch handle _ _) =
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- watchTreesWith ('setIgnoreSelf' 'On' . 'setRootMoved' 'On')
---  [Array.fromCString\# "path"#]
+-- watchTreesWith 
+--      ('setIgnoreSelf' 'On' . 'setRootMoved' 'On')
+--      [Array.fromCString\# "path"#]
 -- @
 --
 -- /Internal/
@@ -538,8 +539,7 @@ watchTrees = watchTreesWith id
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- watch True ('setIgnoreSelf' 'On' . 'setRootMoved' 'On')
---  [Array.fromCString\# "path"#]
+-- watch True ('setIgnoreSelf' 'On' . 'setRootMoved' 'On') [Array.fromCString\# "path"#]
 -- @
 --
 -- /Internal/
