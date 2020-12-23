@@ -488,9 +488,9 @@ library
                      , Streamly.Data.Unicode.Stream
                      , Streamly.Memory.Array
 
-    if !impl(ghcjs)
-       exposed-modules:
-                       Streamly.Network.Socket
+    
+                     -- Network/Socket
+                     , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
                      , Streamly.Internal.Network.Socket
@@ -522,9 +522,9 @@ library
 
                      , fusion-plugin-types >= 0.1 && < 0.2
 
-  if !impl(ghcjs)
-    build-depends:
-                       network           >= 2.6   && < 4
+                    -- Network
+                     , network           >= 2.6   && < 4
+
 
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.17
