@@ -73,6 +73,7 @@ module Streamly.Internal.FileSystem.Event.Windows
     , watchTreesWith
 
     -- * Handling Events
+    , getAbsPath
     , getRelPath
     , getRoot
     , getAbsPath
@@ -345,11 +346,11 @@ readDirectoryChanges ::
     String -> HANDLE -> Bool -> FileNotificationFlag -> IO [Event]
 readDirectoryChanges root h wst mask = do
     let maxBuf = 63 * 1024
-    allocaBytes maxBuf $ \buffer -> do
+    allocaBytes maxBuf $ \buffer ->
         alloca $ \bret -> do
-            readDirectoryChangesW h buffer (toEnum maxBuf) wst mask bret
-            bytesRet <- peekByteOff bret 0
-            readChangeEvents buffer root bytesRet
+        readDirectoryChangesW h buffer (toEnum maxBuf) wst mask bret
+        bytesRet <- peekByteOff bret 0
+        readChangeEvents buffer root bytesRet
 
 type FileAction = DWORD
 
@@ -456,9 +457,22 @@ watchTrees = watchTreesWith id
 --
 watch :: Bool -> Config -> NonEmpty (Array Word8) -> SerialT IO Event
 watch rec cfg paths =
-    case rec of
-        True -> watchTreesWith (\_ -> cfg) paths
-        False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
+    if rec
+    then watchTreesWith (const cfg) paths
+    else watchTreesWith (\_ -> setRecursiveMode False cfg) paths
+
+-- | Add a trailing "\" at the end of the path if there is none. Do not add a
+-- "\" if the path is empty.
+--
+ensureTrailingSlash :: String -> String
+ensureTrailingSlash path =
+    if null path
+    then path
+    else
+        let x = last path
+        in if x /= '\\' && x /= '/'
+            then path <> "\\"
+            else path
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
@@ -480,7 +494,17 @@ getRelPath Event{..} = eventRelPath
 -- /Internal/
 --
 getRoot :: Event -> String
-getRoot Event{..} = eventRootPath
+getRoot Event{..} = ensureTrailingSlash eventRootPath
+
+-- XXX Change the type to Array Word8 to make it compatible with other APIs.
+--
+-- | Get the absolute file system object path for which the event is generated.
+-- The path is a UTF-8 encoded array of bytes.
+--
+-- /Internal/
+--
+getAbsPath :: Event -> String
+getAbsPath ev = getRoot ev <> getRelPath ev
 
 getAbsPath :: Event -> String
 getAbsPath ev = getRoot ev </> getRelPath ev
@@ -543,9 +567,9 @@ isOverflow Event{..} = totalBytes == 0
 -- | Convert an 'Event' record to a String representation.
 showEvent :: Event -> String
 showEvent ev@Event{..} =
-        "--------------------------"
-    ++ "\nRoot = " ++ show (getRoot ev)
-    ++ "\nPath = " ++ show (getRelPath ev)
+        "--------------------------" <> ("\nRoot = " ++ show (getRoot ev)
+    ++ "\nRelative Path = " ++ show (getRelPath ev)
+    ++ "\nAbsolute Path = " ++ show (getAbsPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isOverflow "Overflow"
     ++ showev isCreated "Created"
@@ -553,6 +577,6 @@ showEvent ev@Event{..} =
     ++ showev isModified "Modified"
     ++ showev isMovedFrom "MovedFrom"
     ++ showev isMovedTo "MovedTo"
-    ++ "\n"
+    ++ "\n")
 
-    where showev f str = if f ev then "\n" ++ str else ""
+    where showev f str = if f ev then "\n" <> str else ""

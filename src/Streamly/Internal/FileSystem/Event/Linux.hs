@@ -173,6 +173,7 @@ import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 import System.FilePath ((</>))
 import System.IO (Handle, hClose, IOMode(ReadMode))
+import System.IO.Unsafe (unsafePerformIO)
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
 import Data.Typeable (cast)
@@ -945,8 +946,14 @@ getRoot Event{..} =
 getRelPath :: Event -> Array Word8
 getRelPath Event{..} = eventRelPath
 
-getAbsPath :: Event -> String
-getAbsPath ev = (utf8ToString $ getRoot ev) </> (utf8ToString $ getRelPath ev)
+getAbsPath :: Event -> Array Word8
+getAbsPath ev0 = go ev0
+
+    where
+
+    go ev = unsafePerformIO
+                $ A.fromStream
+                $ (A.toStream (getRoot ev) <> A.toStream (getRelPath ev))
 
 -- XXX should we use a Maybe?
 -- | Cookie is set when a rename occurs. The cookie value can be used to
@@ -1187,7 +1194,8 @@ showEvent ev@Event{..} =
        "--------------------------"
     ++ "\nWd = " ++ show eventWd
     ++ "\nRoot = " ++ show (utf8ToString $ getRoot ev)
-    ++ "\nPath = " ++ show (utf8ToString $ getRelPath ev)
+    ++ "\nRelative Path = " ++ show (utf8ToString $ getRelPath ev)
+    ++ "\nAbsolute Path = " ++ show (utf8ToString $ getAbsPath ev)
     ++ "\nCookie = " ++ show (getCookie ev)
     ++ "\nFlags " ++ show eventFlags
 
