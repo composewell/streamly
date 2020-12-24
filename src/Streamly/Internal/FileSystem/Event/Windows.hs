@@ -74,6 +74,7 @@ module Streamly.Internal.FileSystem.Event.Windows
     , watchTreesWith
 
     -- * Handling Events
+    , getAbsPath
     , getRelPath
     , getRoot
 
@@ -463,6 +464,19 @@ watchTreesWith f paths =
 watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
 watchTrees = watchTreesWith id
 
+-- | Add a trailing "\" at the end of the path if there is none. Do not add a
+-- "\" if the path is empty.
+--
+ensureTrailingSlash :: String -> String
+ensureTrailingSlash path =
+    if null path
+    then path
+    else
+        let x = last path
+        in if x /= '\\' && x /= '/'
+            then path ++ "\\"
+            else path
+
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
 
@@ -483,7 +497,17 @@ getRelPath Event{..} = eventRelPath
 -- /Internal/
 --
 getRoot :: Event -> String
-getRoot Event{..} = eventRootPath
+getRoot Event{..} = ensureTrailingSlash eventRootPath
+
+-- XXX Change the type to Array Word8 to make it compatible with other APIs.
+--
+-- | Get the absolute file system object path for which the event is generated.
+-- The path is a UTF-8 encoded array of bytes.
+--
+-- /Internal/
+--
+getAbsPath :: Event -> String
+getAbsPath ev = getRoot ev <> getRelPath ev
 
 -- XXX need to document the exact semantics of these.
 --
@@ -545,7 +569,8 @@ showEvent :: Event -> String
 showEvent ev@Event{..} =
         "--------------------------"
     ++ "\nRoot = " ++ show (getRoot ev)
-    ++ "\nPath = " ++ show (getRelPath ev)
+    ++ "\nRelative Path = " ++ show (getRelPath ev)
+    ++ "\nAbsolute Path = " ++ show (getAbsPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isOverflow "Overflow"
     ++ showev isCreated "Created"
