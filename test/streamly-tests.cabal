@@ -53,7 +53,6 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
-                      -rtsopts
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -140,7 +139,6 @@ common test-dependencies
 common lib-options
   import: compile-options
         , optimization-options
-        , threading-options
         , default-extensions
         , test-dependencies
 
@@ -156,6 +154,8 @@ library
 
 common test-options
   import: lib-options
+        , threading-options
+  ghc-options: -rtsopts
   include-dirs: .
   build-depends: streamly-tests
 
