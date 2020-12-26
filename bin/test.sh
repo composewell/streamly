@@ -31,6 +31,9 @@ RUNNING_TESTS=y
 source $SCRIPT_DIR/build-lib.sh
 
 set_common_vars
+COVERAGE=
+MEASURE=1
+HPC_REPORT_OPTIONS=
 
 # XXX add a bisect option
 while test -n "$1"
@@ -40,11 +43,14 @@ do
     # options with arguments
     --targets) shift; TARGETS=$1; shift ;;
     --cabal-build-options) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
+    --hpc-report-options) shift; HPC_REPORT_OPTIONS=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
     --slow) SLOW=1; shift ;;
     --quick) QUICK_MODE=1; shift ;;
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
+    --coverage) COVERAGE=1; shift ;;
+    --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;
     -*|--*) echo "Unknown flags: $*"; echo; print_help ;;
     *) break ;;
@@ -77,7 +83,12 @@ echo "Using targets [$TARGETS]"
 
 test_exe_rts_opts () {
   case "$1" in
-    *) echo -n "-K8M -M64M" ;;
+    *) if test "$COVERAGE" -eq "1"
+       then
+          echo -n "-K8M -M1024M"
+        else
+          echo -n "-K8M -M64M"
+       fi ;;
   esac
 }
 
@@ -93,11 +104,51 @@ target_exe_extra_args () {
     -RTS"
 }
 
+if test "$COVERAGE" -eq "1"
+then
+  # With the --enable-coverage option the tests as well as the library get
+  # compiled with -fhpc, and we get coverage for tests as well. But we want to
+  # exclude that, so a project file is needed.
+  CABAL_BUILD_OPTIONS+=" --project-file cabal.project.coverage"
+  mkdir -p $BUILD_DIR/coverage
+fi
 BUILD_TEST="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_OPTIONS --enable-tests"
+
+if test "$MEASURE" -eq "1"
+then
 run_build "$BUILD_TEST" streamly-tests test "$TARGETS"
+fi
 
 #-----------------------------------------------------------------------------
 # Run targets
 #-----------------------------------------------------------------------------
 
-run_targets streamly-tests "$TARGETS" target_exe_extra_args
+if test "$MEASURE" -eq "1"
+then
+run_targets streamly-tests t "$TARGETS" target_exe_extra_args
+fi
+
+#-----------------------------------------------------------------------------
+# Run coverage reports
+#-----------------------------------------------------------------------------
+
+if test "$COVERAGE" -eq "1"
+then
+  TIXFILES=
+  for i in $TARGETS
+  do
+      TIXFILES+="$BUILD_DIR/coverage/${i}.tix "
+  done
+
+  case `uname` in
+    Linux) SYSTEM=x86_64-linux ;;
+    *) echo "Unsupported system"; exit 1 ;;
+  esac
+
+  ALLTIX=$BUILD_DIR/coverage/all.tix
+  hpc sum --output=$ALLTIX $TIXFILES
+  run_verbose hpc markup $ALLTIX --hpcdir \
+    $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/streamly-0.7.2/hpc/vanilla/mix/streamly-0.7.2/
+  run_verbose hpc report $ALLTIX $HPC_REPORT_OPTIONS --hpcdir \
+    $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/streamly-0.7.2/hpc/vanilla/mix/streamly-0.7.2/
+fi

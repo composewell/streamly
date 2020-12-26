@@ -116,9 +116,11 @@ set_targets() {
 # The path is dependent on the architecture and cabal version.
 
 # $1: package name
-# $2: target
+# $2: component
+# $3: target
 cabal_target_prog () {
-  local target_prog=`cabal_which $1 $2`
+  local target_prog=`cabal_which $1 $2 $3`
+  echo $target_prog 1>&2
   if test -x "$target_prog"
   then
     echo $target_prog
@@ -157,15 +159,18 @@ set_common_vars () {
 
 # $1: builddir
 # $2: package name
-# $3: command to find
+# $3: component ("" (lib), t (test), b (benchmark), x (executable))
+# $4: command to find
 cabal_which_builddir() {
-  find $1 -type f -path "*${GHC_VERSION}/${2}*/$3" 2>/dev/null
+  local path=$(echo $1/build/*/ghc-${GHC_VERSION}/${2}-0.0.0/$3/$4/build/$4/$4)
+  test -f "$path" && echo $path
 }
 
 # $1: package name
-# $2: command to find
+# $2: component
+# $3: command to find
 cabal_which() {
-  cabal_which_builddir $BUILD_DIR $1 $2
+  cabal_which_builddir $BUILD_DIR $1 $2 $3
 }
 
 # $1: build program
@@ -187,32 +192,36 @@ run_build () {
 }
 
 # $1: package name
-# $2: target
-# $3: args generator func
+# $2: component
+# $3: target
+# $4: args generator func
 run_target () {
   local package_name=$1
-  local target_name=$2
-  local extra_args=$3
+  local component=$2
+  local target_name=$3
+  local extra_args=$4
 
   local target_prog
-  target_prog=$(cabal_target_prog $package_name $target_name) || \
+  target_prog=$(cabal_target_prog $package_name $component $target_name) || \
     die "Cannot find executable for target $target_name"
 
   echo "Running executable $target_name ..."
 
   # Needed by bench-exec-one.sh
   export BENCH_EXEC_PATH=$target_prog
+  export HPCTIXFILE=$BUILD_DIR/coverage/$target_name.tix
 
   run_verbose $target_prog $($extra_args $target_name $target_prog) \
     || die "Target exe failed"
 }
 
 # $1: package name
-# $2: targets
-# $3: args generator func
+# $2: component
+# $3: targets
+# $4: args generator func
 run_targets() {
-    for i in $2
+    for i in $3
     do
-      run_target $1 $i $3
+      run_target $1 $2 $i $4
     done
 }
