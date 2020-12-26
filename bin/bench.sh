@@ -66,10 +66,10 @@ list_comparisons ()  {
 # chart is expensive to build and usually not required to be rebuilt,
 # use master branch as fallback
 cabal_which_report() {
-  local path=$(cabal_which streamly-benchmarks $1)
+  local path=$(cabal_which streamly-benchmarks x $1)
   if test -z "$path"
   then
-    cabal_which_builddir dist-newstyle streamly-benchmarks $1
+    cabal_which_builddir dist-newstyle streamly-benchmarks x $1
   else
     echo $path
   fi
@@ -199,14 +199,14 @@ run_benches_comparing() {
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
     $BUILD_BENCH || die "build failed"
-    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
+    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
     $BUILD_BENCH || die "build failed"
-    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
+    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
     # XXX reset back to the original commit
 }
 
@@ -230,7 +230,7 @@ run_measurements() {
 
   if test "$COMPARE" = "0"
   then
-    run_targets streamly-benchmarks "$bench_list" target_exe_extra_args
+    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
   else
     run_benches_comparing "$bench_list"
   fi
