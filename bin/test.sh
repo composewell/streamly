@@ -30,6 +30,7 @@ print_help () {
 RUNNING_TESTS=y
 source $SCRIPT_DIR/build-lib.sh
 
+USE_GIT_CABAL=1
 set_common_vars
 COVERAGE=
 MEASURE=1
@@ -106,11 +107,18 @@ target_exe_extra_args () {
 
 if test "$COVERAGE" -eq "1"
 then
+  # Used to determine the hpc tix dir
+  PACKAGE_FULL_NAME=streamly-0.7.2
+  case `uname` in
+    Linux) SYSTEM=x86_64-linux ;;
+    *) echo "Unsupported system"; exit 1 ;;
+  esac
+
   # With the --enable-coverage option the tests as well as the library get
   # compiled with -fhpc, and we get coverage for tests as well. But we want to
   # exclude that, so a project file is needed.
   CABAL_BUILD_OPTIONS+=" --project-file cabal.project.coverage"
-  mkdir -p $BUILD_DIR/coverage
+  mkdir -p $BUILD_DIR/hpc
 fi
 BUILD_TEST="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_OPTIONS --enable-tests"
 
@@ -137,15 +145,10 @@ then
   TIXFILES=
   for i in $TARGETS
   do
-      TIXFILES+="$BUILD_DIR/coverage/${i}.tix "
+    TIXFILES+="$(get_tix_file ${i}) "
   done
 
-  case `uname` in
-    Linux) SYSTEM=x86_64-linux ;;
-    *) echo "Unsupported system"; exit 1 ;;
-  esac
-
-  ALLTIX=$BUILD_DIR/coverage/all.tix
+  ALLTIX=$BUILD_DIR/hpc/all.tix
   hpc sum --output=$ALLTIX $TIXFILES
   run_verbose hpc markup $ALLTIX --hpcdir \
     $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/streamly-0.7.2/hpc/vanilla/mix/streamly-0.7.2/
