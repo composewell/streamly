@@ -147,11 +147,14 @@ set_common_vars () {
 
   # Use branch specific builds if git-cabal is present in PATH
   BUILD_DIR=dist-newstyle
-  if which git-cabal 2>/dev/null
+  if test "$USE_GIT_CABAL" -eq 1
   then
-    echo "Using git-cabal for branch specific builds"
-    CABAL_EXECUTABLE=git-cabal
-    BUILD_DIR=$(git-cabal show-builddir)
+    if which git-cabal 2>/dev/null
+    then
+        echo "Using git-cabal for branch specific builds"
+        CABAL_EXECUTABLE=git-cabal
+        BUILD_DIR=$(git-cabal show-builddir)
+      fi
   fi
 }
 
@@ -191,6 +194,11 @@ run_build () {
   run_verbose $build_prog $COMPONENTS || die "build failed"
 }
 
+# $1: target name
+get_tix_file () {
+  echo $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/$PACKAGE_FULL_NAME/hpc/vanilla/tix/$1/$1.tix
+}
+
 # $1: package name
 # $2: component
 # $3: target
@@ -209,7 +217,8 @@ run_target () {
 
   # Needed by bench-exec-one.sh
   export BENCH_EXEC_PATH=$target_prog
-  export HPCTIXFILE=$BUILD_DIR/coverage/$target_name.tix
+  mkdir -p $(dirname $(get_tix_file $target_name))
+  export HPCTIXFILE=$(get_tix_file $target_name)
 
   run_verbose $target_prog $($extra_args $target_name $target_prog) \
     || die "Target exe failed"

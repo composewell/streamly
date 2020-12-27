@@ -256,6 +256,7 @@ run_reports() {
 
 cd $SCRIPT_DIR/..
 
+USE_GIT_CABAL=1
 set_common_vars
 
 DEFAULT_FIELDS="allocated bytescopied cputime"
