@@ -328,10 +328,6 @@ jobs:
         - *restore
         - run:
             name: Build and test with inspection, coverage, Werror
-            environment:
-              BUILD: "cabal-v2"
-              COVERALLS_OPTIONS: "--repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test"
-              CABAL_PROJECT: "cabal.project.coverage"
             command: |
               apt-get install -y ghc-8.10.2
               apt-get install -y cabal-install-3.2
@@ -339,7 +335,12 @@ jobs:
               apt-get install -y libcurl4-gnutls-dev
               apt-get install -y git
               apt-get install libtinfo-dev
-              bash -c "$PACKCHECK $BUILD"
+              cabal update
+              PATH=$HOME/.cabal/bin:$PATH
+              export PATH
+              which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.coverage hpc-coveralls
+              bin/test.sh --coverage --raw
+              hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
             no_output_timeout: 25m
         - *save
   hlint-src:
