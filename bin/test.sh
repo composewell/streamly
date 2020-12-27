@@ -35,6 +35,7 @@ set_common_vars
 COVERAGE=
 MEASURE=1
 HPC_REPORT_OPTIONS=
+RAW=0
 
 # XXX add a bisect option
 while test -n "$1"
@@ -47,6 +48,7 @@ do
     --hpc-report-options) shift; HPC_REPORT_OPTIONS=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
+    --raw) RAW=1; shift ;;
     --slow) SLOW=1; shift ;;
     --quick) QUICK_MODE=1; shift ;;
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
@@ -140,7 +142,7 @@ fi
 # Run coverage reports
 #-----------------------------------------------------------------------------
 
-if test "$COVERAGE" -eq "1"
+if test "$COVERAGE" -eq "1" -a "$RAW" -eq 0
 then
   TIXFILES=
   for i in $TARGETS
