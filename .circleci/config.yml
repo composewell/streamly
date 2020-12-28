@@ -338,7 +338,7 @@ jobs:
               cabal update
               PATH=$HOME/.cabal/bin:$PATH
               export PATH
-              which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.coverage hpc-coveralls
+              which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
               bin/test.sh --coverage --raw
               hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
             no_output_timeout: 25m

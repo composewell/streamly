@@ -2,14 +2,6 @@ packages:
   ./
   test
 
-source-repository-package
-  type: git
-  location: https://github.com/composewell/hpc-coveralls
-  tag: 93f3dcd473b3f92bbb40b9d3db9c83f4bf085cff
-
-package hpc-coveralls
-  tests: false
-
 package streamly
   ghc-options: -Werror
   flags: inspection
