@@ -1,3 +1,4 @@
 .packcheck.ignore
 cabal.project.coverage
+cabal.project.hpc-coveralls
 hie.yaml
