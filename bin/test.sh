@@ -32,7 +32,7 @@ source $SCRIPT_DIR/build-lib.sh
 
 USE_GIT_CABAL=1
 set_common_vars
-COVERAGE=
+COVERAGE=0
 MEASURE=1
 HPC_REPORT_OPTIONS=
 RAW=0
