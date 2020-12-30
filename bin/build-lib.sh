@@ -120,7 +120,6 @@ set_targets() {
 # $3: target
 cabal_target_prog () {
   local target_prog=`cabal_which $1 $2 $3`
-  echo $target_prog 1>&2
   if test -x "$target_prog"
   then
     echo $target_prog
