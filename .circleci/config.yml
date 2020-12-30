@@ -354,24 +354,8 @@ jobs:
             name: Hlint src
             environment:
               BUILD: cabal-v2
-              HLINT_OPTIONS: lint
-              HLINT_TARGETS: src
-            command: |
-              bash -c "$PACKCHECK $BUILD"
-        - *save
-  hlint-test-benchmarks:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - checkout
-        - *preinstall
-        - *restore
-        - run:
-            name: Hlint tests and benchmarks
-            environment:
-              BUILD: cabal-v2
-              HLINT_OPTIONS: lint
-              HLINT_TARGETS: test benchmarks
+              HLINT_OPTIONS: lint --cpp-include=src --cpp-include=test
+              HLINT_TARGETS: src test benchmark
             command: |
               bash -c "$PACKCHECK $BUILD"
         - *save
@@ -400,5 +384,3 @@ workflows:
           name: GHC 8.10.2 + inspection + coverage + Werror
       - hlint-src:
           name: Hlint src
-      - hlint-test-benchmarks:
-          name: Hlint tests and benchmarks
