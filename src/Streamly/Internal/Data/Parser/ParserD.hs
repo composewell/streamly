@@ -296,31 +296,34 @@ takeBetween low high (Fold fstep finitial fextract) =
     initial = Tuple' 0 <$> finitial
 
     step (Tuple' i s) a
-        | low > high = throwM $ ParseError
-                        $ "takeBetween: lower bound - " ++ show low
-                            ++ " is greater than higher bound - " ++ show high
+        | low > high =
+            throwM
+                $ ParseError
+                $ "takeBetween: lower bound - " ++ show low
+                    ++ " is greater than higher bound - " ++ show high
         | high <= 0 = Done 1 <$> fextract s
         | i1 < low = do
             res <- fstep s a
             return
                 $ case res of
-                    FL.Partial s' -> Continue 0 $ Tuple' i1 s'
+                    FL.Partial s1 -> Continue 0 $ Tuple' i1 s1
                     FL.Done _ ->
                         Error
                             $ "takeBetween: the collecting fold terminated after"
                                 ++ " consuming" ++ show i1 ++ " elements"
+                                ++ " minimum" ++ show low ++ " elements needed"
         | otherwise = do
             res <- fstep s a
             case res of
-                FL.Partial s' ->
+                FL.Partial s1 ->
                     if i1 >= high
-                    then Done 0 <$> fextract s'
-                    else return $ Partial 0 $ Tuple' i1 s'
+                    then Done 0 <$> fextract s1
+                    else return $ Partial 0 $ Tuple' i1 s1
                 FL.Done b -> return $ Done 0 b
 
         where
 
-        i1 = i +1
+        i1 = i + 1
 
     extract (Tuple' i s)
         | i >= low && i <= high = fextract s
@@ -331,8 +334,6 @@ takeBetween low high (Fold fstep finitial fextract) =
         err =
                "takeBetween: Expecting alteast " ++ show low
             ++ " elements, got " ++ show i
-
-
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
