@@ -62,6 +62,7 @@ common compile-options
                       -Wall-missed-specialisations
 
     ghc-options:    -fno-ignore-asserts
+                    +RTS -M512M -RTS
 
 common default-extensions
     default-extensions:
@@ -144,6 +145,7 @@ common lib-options
 
 library
     import: lib-options, test-dependencies
+    ghc-options: +RTS -M1024M -RTS
     hs-source-dirs: lib
     exposed-modules: Streamly.Test.Common
                    , Streamly.Test.Prelude.Common
@@ -193,6 +195,7 @@ test-suite Prelude.Serial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Serial.hs
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
+               +RTS -M1024M -RTS
 
 test-suite Prelude.WSerial
   import: test-options
@@ -241,6 +244,7 @@ test-suite Prelude.Concurrent
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Concurrent.hs
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
+               +RTS -M2000M -RTS
 
 test-suite Prelude.Fold
   import: test-options
@@ -276,7 +280,6 @@ test-suite Data.Unfold
 
 test-suite Data.Parser
   import: test-options
-  ghc-options: -O2
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
 
@@ -284,6 +287,7 @@ test-suite Data.Parser.ParserD
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
+  ghc-options: +RTS -M1000M -RTS
 
 test-suite Data.Array
   import: test-options
