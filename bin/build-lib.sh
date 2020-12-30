@@ -62,9 +62,8 @@ all_grp () {
   } | sort | uniq
 }
 
-# All groups including all_grp
+# All groups
 all_target_groups () {
-  echo all_grp
   echo $GROUP_TARGETS
 }
 
@@ -80,6 +79,7 @@ list_targets ()  {
 
 # XXX pass as arg
 list_target_groups ()  {
+  echo "All Targets: all_grp"
   echo "Target groups:"
   for i in $(all_target_groups)
   do
@@ -133,8 +133,6 @@ set_common_vars () {
   SLOW=0
   QUICK_MODE=0
 
-  RUNNING_TESTS=
-  RUNNING_BENCHMARKS=
   RUNNING_DEVBUILD=
 
   TARGET_EXE_ARGS=
