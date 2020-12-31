@@ -219,6 +219,9 @@ run_target () {
 
   run_verbose $target_prog $($extra_args $target_name $target_prog) \
     || die "Target exe failed"
+
+  # hpc-coveralls fails if there is an empty dir and no .tix file generated
+  rmdir $(dirname $(get_tix_file $target_name)) 2>/dev/null || true
 }
 
 # $1: package name
