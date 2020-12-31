@@ -335,11 +335,14 @@ jobs:
               apt-get install -y libcurl4-gnutls-dev
               apt-get install -y git
               apt-get install libtinfo-dev
+              # Run tests with coverage
               cabal update
+              cabal user-config update -a "jobs: 2"
+              bin/test.sh --coverage --raw
+              # Upload results to coveralls.io
               PATH=$HOME/.cabal/bin:$PATH
               export PATH
               which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
-              bin/test.sh --coverage --raw
               hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
             no_output_timeout: 25m
         - *save
