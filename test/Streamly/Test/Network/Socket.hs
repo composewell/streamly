@@ -19,12 +19,11 @@ import Streamly.Prelude (SerialT)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
-import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as Array
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
-import qualified Streamly.Internal.Network.Socket as SK
-import qualified Streamly.Internal.Unicode.Stream as U
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Network.Socket as Socket
+import qualified Streamly.Internal.Unicode.Stream as Unicode
+import qualified Streamly.Prelude as Stream
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -43,26 +42,26 @@ testDataSource = concat $ replicate 1000 testData
 ------------------------------------------------------------------------------
 handlerChunksWithBuffer :: Socket -> IO ()
 handlerChunksWithBuffer sk =
-          S.unfold SK.readChunksWithBufferOf (100, sk)
-        & S.fold (SK.writeChunks sk)
+          Stream.unfold Socket.readChunksWithBufferOf (100, sk)
+        & Stream.fold (Socket.writeChunks sk)
         & discard
 
 handlerChunks :: Socket -> IO ()
 handlerChunks sk =
-          S.unfold SK.readChunks sk
-        & S.fold (SK.writeChunks sk)
+          Stream.unfold Socket.readChunks sk
+        & Stream.fold (Socket.writeChunks sk)
         & discard
 
 handlerwithbuffer :: Socket -> IO ()
 handlerwithbuffer sk =
-          S.unfold SK.readWithBufferOf (100, sk)
-        & S.fold (SK.writeWithBufferOf 100 sk)
+          Stream.unfold Socket.readWithBufferOf (100, sk)
+        & Stream.fold (Socket.writeWithBufferOf 100 sk)
         & discard
 
 handlerRW :: Socket -> IO ()
 handlerRW sk =
-          S.unfold SK.read sk
-        & S.fold (SK.write sk)
+          Stream.unfold Socket.read sk
+        & Stream.fold (Socket.write sk)
         & discard
 ------------------------------------------------------------------------------
 -- Accept connecttions and handle connected sockets
@@ -71,9 +70,9 @@ handlerRW sk =
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    (S.serially $ S.unfold TCP.acceptOnPort port)
-        & (S.asyncly . S.mapM (SK.handleWithM handler))
-        & S.drain
+    (Stream.serially $ Stream.unfold TCP.acceptOnPort port)
+        & (Stream.asyncly . Stream.mapM (Socket.handleWithM handler))
+        & Stream.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)
 remoteAddr = (127, 0, 0, 1)
@@ -82,41 +81,49 @@ sender :: PortNumber -> MVar () -> SerialT IO Char
 sender port sem = do
     _ <- liftIO $ takeMVar sem
     liftIO $ threadDelay 1000000                       -- wait for server
-    S.replicate 1 testDataSource                        -- SerialT IO String
-        & U.unwords UF.fromList                        -- SerialT IO Char
-        & U.encodeLatin1                               -- SerialT IO Word8
+    Stream.replicate 1000 testData                      -- SerialT IO String
+        & Stream.concatMap Stream.fromList             -- SerialT IO Char
+        & Unicode.encodeLatin1                         -- SerialT IO Word8
         & TCP.transformBytesWith remoteAddr port       -- SerialT IO Word8
-        & U.decodeLatin1                               -- SerialT IO Char
+        & Unicode.decodeLatin1                         -- SerialT IO Char
 
-execute :: PortNumber -> Int -> (Socket -> IO ()) -> IO [Char]
+execute :: PortNumber -> Int -> (Socket -> IO ()) -> IO (SerialT IO Char)
 execute port size handler = do
     sem <- newEmptyMVar
     tid <- forkIO $ server port sem handler
-    lst <- sender port sem
-        & S.take size
-        & S.toList
-    killThread tid
+    let lst = sender port sem
+                & Stream.take size
+                & Stream.finally (killThread tid)
     return $ lst
 
 validateWithBufferOf :: Property
 validateWithBufferOf = monadicIO $ do
-    ls2 <- run $ execute 8000 45000 handlerwithbuffer
-    assert (testDataSource == ls2)
+    res <- run $ do
+        ls2 <- execute 8000 45000 handlerwithbuffer
+        Stream.eqBy (==) (Stream.fromList testDataSource) ls2
+    assert res
 
 validateRW :: Property
 validateRW = monadicIO $ do
-    ls2 <- run $ execute 8001 A.defaultChunkSize handlerRW
-    assert (take A.defaultChunkSize testDataSource == ls2)
+    res <- run $ do
+        ls2 <- execute 8001 Array.defaultChunkSize handlerRW    
+        let dataChunk = take Array.defaultChunkSize testDataSource
+        Stream.eqBy (==) (Stream.fromList dataChunk) ls2
+    assert res
 
 validateChunks :: Property
 validateChunks = monadicIO $ do
-    ls2 <- run $ execute 8002 45000 handlerChunks
-    assert (testDataSource == ls2)
+    res <- run $ do
+        ls2 <- execute 8002 45000 handlerChunks
+        Stream.eqBy (==) (Stream.fromList testDataSource) ls2
+    assert res
 
 validateChunksWithBufferOf :: Property
 validateChunksWithBufferOf = monadicIO $ do
-    ls2 <- run $ execute 8003 45000 handlerChunksWithBuffer
-    assert (testDataSource == ls2)
+    res <- run $ do
+        ls2 <- execute 8003 45000 handlerChunksWithBuffer
+        Stream.eqBy (==) (Stream.fromList testDataSource) ls2
+    assert res
 
 main :: IO ()
 main = hspec $ do

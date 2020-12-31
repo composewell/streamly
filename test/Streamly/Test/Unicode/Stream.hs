@@ -86,23 +86,23 @@ propASCIIToLatin1 =
 
 propUnicodeToLatin1 :: Property
 propUnicodeToLatin1 =
-            monadicIO $ do
-                let wrds = 
-                        SS.decodeLatin1 
-                            $ SS.encodeLatin1 
-                            $ S.fromList unicodeTestData
-                lst <- run $  S.toList wrds
-                assert (latin1TestData == lst)
+    monadicIO $ do
+        let wrds =
+                SS.decodeLatin1
+                    $ SS.encodeLatin1
+                    $ S.fromList unicodeTestData
+        lst <- run $  S.toList wrds
+        assert (latin1TestData == lst)
 
 propUnicodeToLatin1' :: Property
 propUnicodeToLatin1' =
-            monadicIO $ do
-                let wrds = 
-                        SS.decodeLatin1 
-                            $ SS.encodeLatin1' 
-                            $ S.fromList unicodeTestData
-                lst <- run $  S.toList wrds
-                assert (latin1TestData == lst)
+    monadicIO $ do
+        let wrds =
+                SS.decodeLatin1
+                    $ SS.encodeLatin1'
+                    $ S.fromList unicodeTestData
+        lst <- run $  S.toList wrds
+        assert (latin1TestData == lst)
 
 testLines :: Property
 testLines =
@@ -167,7 +167,7 @@ main = H.hspec
         prop "decodeUtf8Arrays . encodeUtf8' == id"
                 propDecodeEncodeIdArrays
         prop "Streamly.Data.String.lines == Prelude.lines" testLines
-        prop "Arrays Streamly.Data.String.lines == Prelude.lines" 
+        prop "Arrays Streamly.Data.String.lines == Prelude.lines"
             testLinesArray
         prop "Streamly.Data.String.words == Prelude.words" testWords
         prop
@@ -181,4 +181,3 @@ main = H.hspec
         prop "ASCII to Latin1" propASCIIToLatin1
         prop "Unicode to Latin1" propUnicodeToLatin1
         prop "Unicode to Latin1'" $ expectFailure  propUnicodeToLatin1'
-        

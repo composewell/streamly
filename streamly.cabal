@@ -169,6 +169,8 @@ extra-source-files:
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Handle.hs
+    test/Streamly/Test/Network/Socket.hs
+    test/Streamly/Test/Network/Inet/TCP.hs
     test/Streamly/Test/Prelude.hs
     test/Streamly/Test/Prelude/*.hs
     test/Streamly/Test/Unicode/Stream.hs
