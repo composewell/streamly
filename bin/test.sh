@@ -147,7 +147,11 @@ then
   TIXFILES=
   for i in $TARGETS
   do
-    TIXFILES+="$(get_tix_file ${i}) "
+    tixfile="$(get_tix_file ${i})"
+    if test -f "$tixfile"
+    then
+      TIXFILES+="$tixfile "
+    fi
   done
 
   ALLTIX=$BUILD_DIR/hpc/all.tix
