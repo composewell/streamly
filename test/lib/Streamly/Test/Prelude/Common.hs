@@ -127,9 +127,10 @@ import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import Streamly.Prelude
-       ( SerialT, IsStream, (.:), nil, (|&), serially, avgRate, rate, maxBuffer
-       , maxThreads, maxBuffer)
+import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), serially)
+#ifndef COVERAGE_BUILD
+import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
+#endif
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as FL
@@ -1710,7 +1711,11 @@ folded =
              [x] -> return x -- singleton stream case
              _ -> S.concatMapFoldableWith (<>) return xs)
 
+#ifndef COVERAGE_BUILD
 makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+#else
+makeCommonOps :: b -> [(String, b)]
+#endif
 makeCommonOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
@@ -1723,7 +1728,11 @@ makeCommonOps t =
 #endif
             ]
 
+#ifndef COVERAGE_BUILD
 makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+#else
+makeOps :: b -> [(String, b)]
+#endif
 makeOps t = makeCommonOps t ++
             [
 #ifndef COVERAGE_BUILD

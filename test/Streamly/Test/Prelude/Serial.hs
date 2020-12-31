@@ -38,8 +38,10 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
-import Streamly.Prelude
-      ( SerialT, IsStream, avgRate, maxBuffer, serial, serially)
+import Streamly.Prelude (SerialT, IsStream, serial, serially)
+#ifndef COVERAGE_BUILD
+import Streamly.Prelude (avgRate, maxBuffer)
+#endif
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF

@@ -9,3 +9,5 @@ package streamly
 
 package streamly-tests
   ghc-options: -Werror
+    -- A few percent lesss coverage for some build speedup
+    -- -DCOVERAGE_BUILD
