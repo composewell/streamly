@@ -28,7 +28,10 @@ main = hspec
     $ modifyMaxSuccess (const 10)
 #endif
     $ do
-    let parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]
+    let
+#ifndef COVERAGE_BUILD
+        parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]
+#endif
         parallelCommonOps = []
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]

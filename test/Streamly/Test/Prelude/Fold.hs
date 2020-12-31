@@ -14,6 +14,9 @@ import Control.Concurrent (threadDelay)
 #endif
 import Control.Exception (ErrorCall(..), catch)
 import Data.IORef ( newIORef, readIORef, writeIORef, IORef )
+#ifdef COVERAGE_BUILD
+import Test.Hspec.QuickCheck (modifyMaxSuccess)
+#endif
 import Test.Hspec as H
 #ifdef DEVBUILD
 import System.Mem (performMajorGC)

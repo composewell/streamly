@@ -352,8 +352,10 @@ main = hspec
 
     -- For concurrent application test we need a buffer of at least size 2 to
     -- allow two threads to run.
+#ifndef COVERAGE_BUILD
     let makeConcurrentAppOps :: IsStream t
             => (t m a -> c) -> [(String, t m a -> c)]
+#endif
         makeConcurrentAppOps t = makeCommonOps t ++
             [
 #ifndef COVERAGE_BUILD
@@ -361,7 +363,11 @@ main = hspec
 #endif
             ]
 
+#ifndef COVERAGE_BUILD
     let parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]
+#else
+    let parallelCommonOps :: [(String, ParallelT m a -> t m a)]
+#endif
         parallelCommonOps = []
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
@@ -375,7 +381,12 @@ main = hspec
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
+#ifndef COVERAGE_BUILD
     let mkOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+#else
+    let mkOps :: t -> [(String, t)]
+    -- let mkOps :: (t m a -> c) -> [(String, t m a -> c)]
+#endif
         mkOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
