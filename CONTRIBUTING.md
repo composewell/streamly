@@ -57,26 +57,44 @@ Beginners are encouraged to pick up issues that are marked `help wanted`. It is
 a good idea to update the issue expressing your intent so that others do not
 duplicate the effort and people with a background on the issue can help.
 
-### Changeset in a PR
+### Structuring Pull Requests
 
-* Please make sure that a single PR contains a single logical changeset. That
-  helps the reviewers in quickly understanding and reviewing the change.
-* You are encouraged to group a logically related set of changes into a single
-  commit.  When the overall changeset is largish you can divide it into
-  multiple smaller commits, with each commit having a logically grouped
-  changeset and the title summarizing the logical grouping.  Always keep in
-  mind a logical division helps reviewers understand and review your code
-  quickly, easier history tracking and when required clean reversal changes.
-* If your commits reflect how you fixed intermediate problems during testing
-  or made random changes at different times you may have to squash your changes
-  (`git rebase -i`) into a single commit or logically related set of commits.
-* Please resist the temptation to make style related changes to surrounding
-  code unless you are changing that code anyway . Make sure that your
-  IDE/Editor is not automatically making sweeping style changes to all the
-  files you are editing. That makes separating the signal from the noise
-  very difficult and makes everything harder. If you would like to make style
-  related changes then please send a separate PR with just those changes and no
-  other functionality changes.
+__Lean PR:__ Please keep the reviewer in mind when sending pull
+requests. Use one PR for each logical changeset. A lean and thin
+PR with one independent logical change is more likely to be reviewed and
+merged quickly than a big monolithic PR with several unrelated changes.
+
+__PR Dependencies:__ If your change depends on an earlier PR you can
+create a branch from the old PR's branch, and raise a new PR targeting
+to merge into the old PR branch. Do not push the commits to the same PR
+just because the commit depends on that PR.
+
+__Commits:__ You are encouraged to group a logically related set of
+changes into a single commit.  When the overall changeset is largish you
+can divide it into multiple smaller commits, with each commit having
+a logically grouped changeset and the title summarizing the logical
+grouping.  Always keep in mind a logical division helps reviewers
+understand and review your code quickly, easier history tracking and
+when required clean reversal changes.
+
+__Functional Changes:__ Keep the reviewer in mind when making
+changes.  Please resist the temptation to make style related changes to
+surrounding code unless you are changing that code anyway . Whenever
+possible, try to separate unrelated refactoring changes which do not
+affect functionality in separate commits so that it is easier for the
+reviewer to verify functional changes.
+
+__Style Changes:__ Make sure that your IDE/Editor is not automatically
+making sweeping style changes to all the files you are editing. That
+makes separating the signal from the noise very difficult and makes
+everything harder. If you would like to make style related changes
+then please send a separate PR with just those changes and no other
+functionality changes.
+
+__Rebasing:__ If your commits reflect how you fixed intermediate
+problems during testing or made random changes at different times you
+may have to squash your changes (`git rebase -i`) into a single commit
+or logically related set of commits.
 
 ### Resolving Conflicts
 
