@@ -56,6 +56,8 @@ Here is a quick checklist for a PR, for details please see the next section:
 * Tutorial module, [README](README.md), and [guides](docs) are updated if
   necessary.
 * [Changelog](Changelog.md) is updated if needed
+* The code conforms to the license, it is not stolen, credit is given,
+  copyright notices are retained, original license is included if needed.
 
 ### Structuring Pull Requests
 
@@ -169,6 +171,14 @@ If you make changes that are incompatible with the released versions
 of the library please indicate that in the `Changelog` as `Breaking Changes`
 and also write short notes regarding what the programmers need to do to adapt
 their existing code to the new change.
+
+### Licensing
+
+If you have copied code from elsewhere you need to conform to the
+licensing terms of the original code. Usually you would need to add a
+copyright notice in the source header, and include the license of the
+original code as per the terms of the license. If the code you are
+copying does not have an associated license please do not use it.
 
 ## Developer documentation
 
