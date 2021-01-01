@@ -9,7 +9,21 @@ we will appreciate if you provide as much detail as possible to reproduce or
 understand the problem, but nevertheless you are encouraged to open an issue
 for any problem that you may encounter.
 
-## Pull Requests (PR)
+## Picking Issues to Work on
+
+Beginners are encouraged to pick up issues that are marked `help wanted`. It is
+a good idea to update the issue expressing your intent so that others do not
+duplicate the effort and people with a background on the issue can help.
+
+## Contributing A Change
+
+If the feature makes significant changes to design, we encourage you to open an
+issue as early as possible so that you do not have to redo much work because of
+changes in design decisions. However, if you are confident, you can still go
+ahead and take that risk as the maintainers are supposed to be reasonable
+people.
+
+### Pull Requests (PR)
 
 Please feel free to [send a pull
 request (PR)](https://github.com/composewell/streamly/pulls) whether it is a
@@ -22,7 +36,7 @@ not able to complete the PR, you are still welcome to submit it, maintainers
 will try their best to actively contribute and pick up your change as long as
 the change is approved.
 
-## Pull Request (PR) Checklist
+### Pull Request (PR) Checklist
 
 Here is a quick checklist for a PR, for details please see the next section:
 
@@ -42,20 +56,6 @@ Here is a quick checklist for a PR, for details please see the next section:
 * Tutorial module, [README](README.md), and [guides](docs) are updated if
   necessary.
 * [Changelog](Changelog.md) is updated if needed
-
-## Contributing A Change
-
-If the feature makes significant changes to design, we encourage you to open an
-issue as early as possible so that you do not have to redo much work because of
-changes in design decisions. However, if you are confident, you can still go
-ahead and take that risk as the maintainers are supposed to be reasonable
-people.
-
-### Picking Issues to Work on
-
-Beginners are encouraged to pick up issues that are marked `help wanted`. It is
-a good idea to update the issue expressing your intent so that others do not
-duplicate the effort and people with a background on the issue can help.
 
 ### Structuring Pull Requests
 
