@@ -311,6 +311,6 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
 import Streamly.Internal.Data.Stream.StreamD.Exceptions
-import Streamly.Internal.Data.Stream.StreamD.Flatten
+import Streamly.Internal.Data.Stream.StreamD.Combine
 import Streamly.Internal.Data.Stream.StreamD.SplitGroup
 import Streamly.Internal.Data.Stream.StreamD.Transform

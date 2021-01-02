@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Flatten
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Combine
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 --               (c) The University of Glasgow, 2009
@@ -10,10 +10,20 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.StreamD.Flatten
+module Streamly.Internal.Data.Stream.StreamD.Combine
     (
+    -- * Zipping
+      indexed
+    , indexedR
+    , zipWith
+    , zipWithM
+
+    -- * Merging
+    , mergeBy
+    , mergeByM
+
     -- ** Flattening nested streams
-      concatMapM
+    , concatMapM
     , concatMap
     , ConcatMapUState (..)
     , concatMapU
@@ -35,6 +45,9 @@ module Streamly.Internal.Data.Stream.StreamD.Flatten
     )
 where
 
+#if __GLASGOW_HASKELL__ >= 801
+import Data.Functor.Identity ( Identity )
+#endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
@@ -47,6 +60,117 @@ import Prelude hiding
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
+
+------------------------------------------------------------------------------
+-- Zipping
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL indexed #-}
+indexed :: Monad m => Stream m a -> Stream m (Int, a)
+indexed (Stream step state) = Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) = i `seq` do
+         r <- step (adaptState gst) st
+         case r of
+             Yield x s -> return $ Yield (i, x) (s, i+1)
+             Skip    s -> return $ Skip (s, i)
+             Stop      -> return Stop
+
+{-# INLINE_NORMAL indexedR #-}
+indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
+indexedR m (Stream step state) = Stream step' (state, m)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) = i `seq` do
+         r <- step (adaptState gst) st
+         case r of
+             Yield x s -> let i' = i - 1
+                          in return $ Yield (i, x) (s, i')
+             Skip    s -> return $ Skip (s, i)
+             Stop      -> return Stop
+
+{-# INLINE_NORMAL zipWithM #-}
+zipWithM :: Monad m
+    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
+  where
+    {-# INLINE_LATE step #-}
+    step gst (sa, sb, Nothing) = do
+        r <- stepa (adaptState gst) sa
+        return $
+          case r of
+            Yield x sa' -> Skip (sa', sb, Just x)
+            Skip sa'    -> Skip (sa', sb, Nothing)
+            Stop        -> Stop
+
+    step gst (sa, sb, Just x) = do
+        r <- stepb (adaptState gst) sb
+        case r of
+            Yield y sb' -> do
+                z <- f x y
+                return $ Yield z (sa, sb', Nothing)
+            Skip sb' -> return $ Skip (sa, sb', Just x)
+            Stop     -> return Stop
+
+#if __GLASGOW_HASKELL__ >= 801
+{-# RULES "zipWithM xs xs"
+    forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
+#endif
+
+{-# INLINE zipWith #-}
+zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipWith f = zipWithM (\a b -> return (f a b))
+
+------------------------------------------------------------------------------
+-- Merging
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL mergeByM #-}
+mergeByM
+    :: (Monad m)
+    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
+    Stream step (Just ta, Just tb, Nothing, Nothing)
+  where
+    {-# INLINE_LATE step #-}
+
+    -- one of the values is missing, and the corresponding stream is running
+    step gst (Just sa, sb, Nothing, b) = do
+        r <- stepa gst sa
+        return $ case r of
+            Yield a sa' -> Skip (Just sa', sb, Just a, b)
+            Skip sa'    -> Skip (Just sa', sb, Nothing, b)
+            Stop        -> Skip (Nothing, sb, Nothing, b)
+
+    step gst (sa, Just sb, a, Nothing) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield b sb' -> Skip (sa, Just sb', a, Just b)
+            Skip sb'    -> Skip (sa, Just sb', a, Nothing)
+            Stop        -> Skip (sa, Nothing, a, Nothing)
+
+    -- both the values are available
+    step _ (sa, sb, Just a, Just b) = do
+        res <- cmp a b
+        return $ case res of
+            GT -> Yield b (sa, sb, Just a, Nothing)
+            _  -> Yield a (sa, sb, Nothing, Just b)
+
+    -- one of the values is missing, corresponding stream is done
+    step _ (Nothing, sb, Nothing, Just b) =
+            return $ Yield b (Nothing, sb, Nothing, Nothing)
+
+    step _ (sa, Nothing, Just a, Nothing) =
+            return $ Yield a (sa, Nothing, Nothing, Nothing)
+
+    step _ (Nothing, Nothing, Nothing, Nothing) = return Stop
+
+{-# INLINE mergeBy #-}
+mergeBy
+    :: (Monad m)
+    => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 -------------------------------------------------------------------------------
 -- Stream transformations using Unfolds
