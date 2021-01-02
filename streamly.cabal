@@ -453,9 +453,8 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamD.Generate
-                     , Streamly.Internal.Data.Stream.StreamD.SplitGroup
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                     , Streamly.Internal.Data.Stream.StreamD.Combine
+                     , Streamly.Internal.Data.Stream.StreamD.Nesting
                      , Streamly.Internal.Data.Stream.StreamD.Transform
                      , Streamly.Internal.Data.Stream.StreamD.Exceptions
                      , Streamly.Internal.Data.Stream.StreamDK.Type
