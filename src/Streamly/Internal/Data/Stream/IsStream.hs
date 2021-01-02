@@ -634,7 +634,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.IsStream.Generate
 import Streamly.Internal.Data.Stream.IsStream.Eliminate
 import Streamly.Internal.Data.Stream.IsStream.Transform
-import Streamly.Internal.Data.Stream.IsStream.Exceptions
+import Streamly.Internal.Data.Stream.IsStream.Exception
 
 import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Fold as FL

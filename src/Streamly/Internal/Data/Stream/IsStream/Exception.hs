@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.IsStream.Exceptions
+-- Module      : Streamly.Internal.Data.Stream.IsStream.Exception
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.IsStream.Exceptions
+module Streamly.Internal.Data.Stream.IsStream.Exception
     (
     -- * Exceptions
       before

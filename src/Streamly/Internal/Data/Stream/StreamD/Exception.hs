@@ -1,14 +1,14 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Exceptions
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Exception
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.StreamD.Exceptions
+module Streamly.Internal.Data.Stream.StreamD.Exception
     (
     -- * Exceptions
       newFinalizedIORef
