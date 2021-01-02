@@ -118,7 +118,6 @@ import Prelude hiding
        ( drop, dropWhile, filter, map, mapM
        , scanl, scanl1, sequence, take, takeWhile, zipWith)
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.Stream.StreamD.Common
 import Streamly.Internal.Data.SVar
 
 -------------------------------------------------------------------------------

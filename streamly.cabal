@@ -452,7 +452,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamK
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.StreamD.Common
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.SplitGroup
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
