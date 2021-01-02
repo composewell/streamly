@@ -17,8 +17,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- ** Folding
     -- ** Right Folds
     , foldrM
-    , foldrS
-    , foldrT
     , foldr
 
     -- ** Left Folds
@@ -103,9 +101,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- trimming sequences
     , stripPrefix
     -- , stripInfix
-    , dropPrefix
-    , dropInfix
-    , dropSuffix
 
     -- * Deprecated
     , foldx
@@ -120,7 +115,6 @@ where
 
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor.Identity (Identity (..))
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
@@ -197,54 +191,6 @@ uncons m = K.uncons (K.adapt m)
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
-
--- | Right fold to a streaming monad.
---
--- > foldrS S.cons S.nil === id
---
--- 'foldrS' can be used to perform stateless stream to stream transformations
--- like map and filter in general. It can be coupled with a scan to perform
--- stateful transformations. However, note that the custom map and filter
--- routines can be much more efficient than this due to better stream fusion.
---
--- >>> S.toList $ S.foldrS S.cons S.nil $ S.fromList [1..5]
--- > [1,2,3,4,5]
---
--- Find if any element in the stream is 'True':
---
--- >>> S.toList $ S.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
--- > [True]
---
--- Map (+2) on odd elements and filter out the even elements:
---
--- >>> S.toList $ S.foldrS (\x xs -> if odd x then (x + 2) `S.cons` xs else xs) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
--- > [3,5,7]
---
--- 'foldrM' can also be represented in terms of 'foldrS', however, the former
--- is much more efficient:
---
--- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
---
--- /Internal/
-{-# INLINE foldrS #-}
-foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrS = K.foldrS
-
--- | Right fold to a transformer monad.  This is the most general right fold
--- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
--- implementation can be more efficient:
---
--- > foldrS = foldrT
--- > foldrM f z s = runIdentityT $ foldrT (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
---
--- 'foldrT' can be used to translate streamly streams to other transformer
--- monads e.g.  to a different streaming type.
---
--- /Internal/
-{-# INLINE foldrT #-}
-foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
-    => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
-foldrT f z s = S.foldrT f z (toStreamS s)
 
 -- | Right fold, lazy for lazy monads and pure streams, and strict for strict
 -- monads.
@@ -705,41 +651,6 @@ stripPrefix
     => t m a -> t m a -> m (Maybe (t m a))
 stripPrefix m1 m2 = fmap fromStreamD <$>
     D.stripPrefix (toStreamD m1) (toStreamD m2)
-
--- | Drop prefix from the input stream if present.
---
--- Space: @O(1)@
---
--- /Unimplemented/ - Help wanted.
-{-# INLINE dropPrefix #-}
-dropPrefix ::
-    -- (Eq a, IsStream t, Monad m) =>
-    t m a -> t m a -> t m a
-dropPrefix = error "Not implemented yet!"
-
--- | Drop all matching infix from the input stream if present. Infix stream
--- may be consumed multiple times.
---
--- Space: @O(n)@ where n is the length of the infix.
---
--- /Unimplemented/ - Help wanted.
-{-# INLINE dropInfix #-}
-dropInfix ::
-    -- (Eq a, IsStream t, Monad m) =>
-    t m a -> t m a -> t m a
-dropInfix = error "Not implemented yet!"
-
--- | Drop suffix from the input stream if present. Suffix stream may be
--- consumed multiple times.
---
--- Space: @O(n)@ where n is the length of the suffix.
---
--- /Unimplemented/ - Help wanted.
-{-# INLINE dropSuffix #-}
-dropSuffix ::
-    -- (Eq a, IsStream t, Monad m) =>
-    t m a -> t m a -> t m a
-dropSuffix = error "Not implemented yet!"
 
 ------------------------------------------------------------------------------
 -- Concurrent Application
