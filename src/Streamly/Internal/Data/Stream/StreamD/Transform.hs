@@ -82,16 +82,9 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , zipWith
     , zipWithM
 
-    -- * Comparisons
-    , eqBy
-    , cmpBy
-
     -- * Merging
     , mergeBy
     , mergeByM
-
-    -- * Transformation comprehensions
-    , the
 
     -- * Concurrent Application
     , mkParallel
@@ -870,28 +863,6 @@ mergeBy
     :: (Monad m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
-
-------------------------------------------------------------------------------
--- Transformation comprehensions
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL the #-}
-the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
-the (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x s -> go' x s
-            Skip s    -> go s
-            Stop      -> return Nothing
-    go' n st = do
-        r <- step defState st
-        case r of
-            Yield x s | x == n -> go' n s
-                      | otherwise -> return Nothing
-            Skip s -> go' n s
-            Stop   -> return (Just n)
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold

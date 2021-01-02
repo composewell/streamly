@@ -65,6 +65,13 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , (!!)
     , toSVarParallel
 
+    -- ** Comparisons
+    , eqBy
+    , cmpBy
+
+    -- ** Transformation comprehensions
+    , the
+
     -- ** Substreams
     , isPrefixOf
     , isSubsequenceOf
@@ -1057,6 +1064,28 @@ runStateT initial (Stream step state) = Stream step' (state, initial)
             Yield x s -> Yield (sv', x) (s, return sv')
             Skip  s   -> Skip (s, return sv')
             Stop      -> Stop
+
+------------------------------------------------------------------------------
+-- Transformation comprehensions
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL the #-}
+the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
+the (Stream step state) = go state
+  where
+    go st = do
+        r <- step defState st
+        case r of
+            Yield x s -> go' x s
+            Skip s    -> go s
+            Stop      -> return Nothing
+    go' n st = do
+        r <- step defState st
+        case r of
+            Yield x s | x == n -> go' n s
+                      | otherwise -> return Nothing
+            Skip s -> go' n s
+            Stop   -> return (Just n)
 
 ------------------------------------------------------------------------------
 -- Substreams
