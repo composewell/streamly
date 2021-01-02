@@ -64,11 +64,13 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , fromProducer
     , fromSVar
     , toStreamD
+
+    , newCallbackStream
     )
 where
 
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
+import Control.Concurrent (myThreadId, threadDelay)
+import Control.Monad (void, forever)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Units
@@ -79,6 +81,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Prelude hiding (iterate, repeat, replicate, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
@@ -412,3 +415,27 @@ fromListM = Stream step
     {-# INLINE_LATE step #-}
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
     step _ []     = return Stop
+
+-- Note: we can use another API with two callbacks stop and yield if we want
+-- the callback to be able to indicate end of stream.
+--
+-- | Generates a callback and a stream pair. The callback returned is used to
+-- queue values to the stream.  The stream is infinite, there is no way for the
+-- callback to indicate that it is done now.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL newCallbackStream #-}
+newCallbackStream :: (K.IsStream t, MonadAsync m) => m ((a -> m ()), t m a)
+newCallbackStream = do
+    sv <- newParallelVar StopNone defState
+
+    -- XXX Add our own thread-id to the SVar as we can not know the callback's
+    -- thread-id and the callback is not run in a managed worker. We need to
+    -- handle this better.
+    liftIO myThreadId >>= modifyThread sv
+
+    let callback a = liftIO $ void $ send sv (ChildYield a)
+    -- XXX we can return an SVar and then the consumer can unfold from the
+    -- SVar?
+    return (callback, fromStreamD (fromSVar sv))
