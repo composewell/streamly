@@ -13,7 +13,12 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Transformation
       transform
 
-    -- ** By folding (scans)
+    -- ** By folding
+    , foldrS
+    , foldrT
+    , foldlS
+    , foldlT
+
     , scanlM'
     , scanlMAfter'
     , scanl'
@@ -40,6 +45,10 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , postscanOnce
     , scanOnce
 
+    -- * Reordering
+    , reverse
+    , reverse'
+
     -- * Filtering
     , filter
     , filterM
@@ -59,6 +68,13 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , sequence
     , rollingMap
     , rollingMapM
+
+    -- ** Special Maps
+    , tap
+    , tapOffsetEvery
+    , tapAsync
+    , tapRate
+    , pollCounts
 
     -- * Inserting
     , intersperseM
@@ -82,6 +98,10 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , zipWith
     , zipWithM
 
+    -- * Parsers
+    , parseMany
+    , parseIterate
+
     -- * Merging
     , mergeBy
     , mergeByM
@@ -89,25 +109,58 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Concurrent Application
     , mkParallel
     , mkParallelD
+
+    -- ** Conversions
+    -- | Transform a stream into another type.
+    , hoist
+    , generally
+
+    , liftInner
+    , runReaderT
+    , evalStateT
+    , runStateT
     )
 where
 
-import Control.Monad (void)
+import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
+import Control.Exception (assert, AsyncException)
+import Control.Monad (void, when)
+import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(lift))
+import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.Trans.State.Strict (StateT)
 import Data.Functor.Identity (Identity(..))
+import Data.IORef (newIORef, mkWeakIORef)
 import Data.Maybe (fromJust, isJust)
+import Foreign.Storable (Storable(..))
+import Fusion.Plugin.Types (Fuse(..))
+import GHC.Types (SPEC(..))
+import qualified Control.Monad.Catch as MC
+import qualified Control.Monad.Trans.Reader as Reader
+import qualified Control.Monad.Trans.State.Strict as State
+
+import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
+import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
-import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.Parser as PR
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
+import qualified Prelude
 import Prelude hiding
-       ( drop, dropWhile, filter, map, mapM
+       ( drop, dropWhile, filter, map, mapM, reverse
        , scanl, scanl1, sequence, take, takeWhile, zipWith)
+
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
 
@@ -142,8 +195,46 @@ transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
             Pipe.Continue pst' -> return $ Skip (pst', st)
 
 ------------------------------------------------------------------------------
--- Transformation by Folding (Scans)
+-- Transformation by Folding
 ------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- Left Folds
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = do
+        r <- lift $ step defState st
+        case r of
+            Yield x s -> go SPEC (fstep acc x) s
+            Skip s -> go SPEC acc s
+            Stop   -> acc
+
+-- Note, this is going to have horrible performance, because of the nature of
+-- the stream type (i.e. direct stream vs CPS). Its only for reference, it is
+-- likely be practically unusable.
+{-# INLINE_NORMAL foldlS #-}
+foldlS :: Monad m
+    => (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
+  where
+    step' gst (Left (st, acc)) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (Left (s, fstep acc x))
+            Skip s -> Skip (Left (s, acc))
+            Stop   -> Skip (Right acc)
+
+    step' gst (Right (Stream stp stt)) = do
+        r <- stp (adaptState gst) stt
+        return $ case r of
+            Yield x s -> Yield x (Right (Stream stp s))
+            Skip s -> Skip (Right (Stream stp s))
+            Stop   -> Stop
 
 ------------------------------------------------------------------------------
 -- Prescans
@@ -456,6 +547,68 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
 rollingMap :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
 rollingMap f = rollingMapM (\x y -> return $ f x y)
 
+------------------------------------------------------------------------------
+-- Reordering
+------------------------------------------------------------------------------
+
+-- We can implement reverse as:
+--
+-- > reverse = foldlS (flip cons) nil
+--
+-- However, this implementation is unusable because of the horrible performance
+-- of cons. So we just convert it to a list first and then stream from the
+-- list.
+--
+-- XXX Maybe we can use an Array instead of a list here?
+{-# INLINE_NORMAL reverse #-}
+reverse :: Monad m => Stream m a -> Stream m a
+reverse m = Stream step Nothing
+    where
+    {-# INLINE_LATE step #-}
+    step _ Nothing = do
+        xs <- foldl' (flip (:)) [] m
+        return $ Skip (Just xs)
+    step _ (Just (x:xs)) = return $ Yield x (Just xs)
+    step _ (Just []) = return Stop
+
+-- Much faster reverse for Storables
+{-# INLINE_NORMAL reverse' #-}
+reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
+{-
+-- This commented implementation copies the whole stream into one single array
+-- and then streams from that array, this is 3-4x faster than the chunked code
+-- that follows.  Though this could be problematic due to unbounded large
+-- allocations. We need to figure out why the chunked code is slower and if we
+-- can optimize the chunked code to work as fast as this one. It may be a
+-- fusion issue?
+import Foreign.ForeignPtr (touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.Ptr (Ptr, plusPtr)
+reverse' m = Stream step Nothing
+    where
+    {-# INLINE_LATE step #-}
+    step _ Nothing = do
+        arr <- A.fromStreamD m
+        let p = aEnd arr `plusPtr` negate (sizeOf (undefined :: a))
+        return $ Skip $ Just (aStart arr, p)
+
+    step _ (Just (start, p)) | p < unsafeForeignPtrToPtr start = return Stop
+
+    step _ (Just (start, p)) = do
+        let !x = A.unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr start
+                    return r
+            next = p `plusPtr` negate (sizeOf (undefined :: a))
+        return $ Yield x (Just (start, next))
+-}
+reverse' m =
+          A.flattenArraysRev
+        $ fromStreamK
+        $ K.reverse
+        $ toStreamK
+        $ A.fromStreamDArraysOf A.defaultChunkSize m
+
 -------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
@@ -571,6 +724,237 @@ sequence (Stream step state) = Stream step' state
              Yield x s -> x >>= \a -> return (Yield a s)
              Skip s    -> return $ Skip s
              Stop      -> return Stop
+
+------------------------------------------------------------------------------
+-- Tapping/Distributing
+------------------------------------------------------------------------------
+
+data TapState fs st a
+    = TapInit | Tapping !fs st | TapDone st
+
+-- XXX Multiple yield points
+{-# INLINE tap #-}
+tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
+tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
+
+    where
+
+    step' _ TapInit = do
+        r <- initial
+        return $ Skip (Tapping r state)
+    step' gst (Tapping acc st) = do
+        r <- step gst st
+        case r of
+            -- XXX Abstract Yield?
+            Yield x s -> do
+                res <- fstep acc x
+                return
+                    $ Yield x
+                    $ case res of
+                          FL.Partial fs -> Tapping fs s
+                          FL.Done _ -> TapDone s
+            Skip s -> return $ Skip (Tapping acc s)
+            Stop -> do
+                void $ extract acc
+                return Stop
+    step' gst (TapDone st) = do
+        r <- step gst st
+        return
+            $ case r of
+                  Yield x s -> Yield x (TapDone s)
+                  Skip s -> Skip (TapDone s)
+                  Stop -> Stop
+
+data TapOffState fs s a
+    = TapOffInit
+    | TapOffTapping !fs s Int
+    | TapOffDone s
+
+-- XXX Multiple yield points
+{-# INLINE_NORMAL tapOffsetEvery #-}
+tapOffsetEvery :: Monad m
+    => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
+tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
+    Stream step' TapOffInit
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ TapOffInit = do
+        r <- initial
+        return $ Skip $ TapOffTapping r state (offset `mod` n)
+    step' gst (TapOffTapping acc st count) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                next <-
+                    if count <= 0
+                    then do
+                        res <- fstep acc x
+                        return
+                            $ case res of
+                                  FL.Partial sres ->
+                                    TapOffTapping sres s (n - 1)
+                                  FL.Done _ -> TapOffDone s
+                    else return $ TapOffTapping acc s (count - 1)
+                return $ Yield x next
+            Skip s -> return $ Skip (TapOffTapping acc s count)
+            Stop -> do
+                void $ extract acc
+                return Stop
+    step' gst (TapOffDone st) = do
+        r <- step gst st
+        return
+            $ case r of
+                  Yield x s -> Yield x (TapOffDone s)
+                  Skip s -> Skip (TapOffDone s)
+                  Stop -> Stop
+
+{-# INLINE_NORMAL pollCounts #-}
+pollCounts
+    :: MonadAsync m
+    => (a -> Bool)
+    -> (Stream m Int -> Stream m Int)
+    -> Fold m Int b
+    -> Stream m a
+    -> Stream m a
+pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
+  where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        -- As long as we are using an "Int" for counts lockfree reads from
+        -- Var should work correctly on both 32-bit and 64-bit machines.
+        -- However, an Int on a 32-bit machine may overflow quickly.
+        countVar <- liftIO $ Prim.newIORef (0 :: Int)
+        tid <- forkManaged
+            $ void $ foldOnce fld
+            $ transf $ fromPrimIORef countVar
+        return $ Skip (Just (countVar, tid, state))
+
+    step' gst (Just (countVar, tid, st)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                when (predicate x) $ liftIO $ Prim.modifyIORef' countVar (+ 1)
+                return $ Yield x (Just (countVar, tid, s))
+            Skip s -> return $ Skip (Just (countVar, tid, s))
+            Stop -> do
+                liftIO $ killThread tid
+                return Stop
+
+{-# INLINE_NORMAL tapRate #-}
+tapRate ::
+       (MonadAsync m, MonadCatch m)
+    => Double
+    -> (Int -> m b)
+    -> Stream m a
+    -> Stream m a
+tapRate samplingRate action (Stream step state) = Stream step' Nothing
+  where
+    {-# NOINLINE loop #-}
+    loop countVar prev = do
+        i <-
+            MC.catch
+                (do liftIO $ threadDelay (round $ samplingRate * 1000000)
+                    i <- liftIO $ Prim.readIORef countVar
+                    let !diff = i - prev
+                    void $ action diff
+                    return i)
+                (\(e :: AsyncException) -> do
+                     i <- liftIO $ Prim.readIORef countVar
+                     let !diff = i - prev
+                     void $ action diff
+                     throwM (MC.toException e))
+        loop countVar i
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        countVar <- liftIO $ Prim.newIORef 0
+        tid <- fork $ loop countVar 0
+        ref <- liftIO $ newIORef ()
+        _ <- liftIO $ mkWeakIORef ref (killThread tid)
+        return $ Skip (Just (countVar, tid, state, ref))
+
+    step' gst (Just (countVar, tid, st, ref)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                liftIO $ Prim.modifyIORef' countVar (+ 1)
+                return $ Yield x (Just (countVar, tid, s, ref))
+            Skip s -> return $ Skip (Just (countVar, tid, s, ref))
+            Stop -> do
+                liftIO $ killThread tid
+                return Stop
+
+-------------------------------------------------------------------------------
+-- Concurrent tap
+-------------------------------------------------------------------------------
+
+-- | Create an SVar with a fold consumer that will fold any elements sent to it
+-- using the supplied fold function.
+{-# INLINE newFoldSVar #-}
+newFoldSVar :: MonadAsync m => State t m a -> Fold m a b -> m (SVar t m a)
+newFoldSVar stt f = do
+    -- Buffer size for the SVar is derived from the current state
+    sv <- newParallelVar StopAny (adaptState stt)
+    -- Add the producer thread-id to the SVar.
+    liftIO myThreadId >>= modifyThread sv
+    void $ doFork (work sv) (svarMrun sv) (handleFoldException sv)
+    return sv
+
+    where
+
+    {-# NOINLINE work #-}
+    work sv = void $ foldOnce f $ fromProducer sv
+
+{-# INLINE_NORMAL tapAsync #-}
+tapAsync :: MonadAsync m => Fold m a b -> Stream m a -> Stream m a
+tapAsync f (Stream step1 state1) = Stream step TapInit
+    where
+
+    drainFold svr = do
+            -- In general, a Stop event would come equipped with the result
+            -- of the fold. It is not used here but it would be useful in
+            -- applicative and distribute.
+            done <- fromConsumer svr
+            when (not done) $ do
+                liftIO $ withDiagMVar svr "teeToSVar: waiting to drain"
+                       $ takeMVar (outputDoorBellFromConsumer svr)
+                drainFold svr
+
+    stopFold svr = do
+            liftIO $ sendStop svr Nothing
+            -- drain/wait until a stop event arrives from the fold.
+            drainFold svr
+
+    {-# INLINE_LATE step #-}
+    step gst TapInit = do
+        sv <- newFoldSVar gst f
+        return $ Skip (Tapping sv state1)
+
+    step gst (Tapping sv st) = do
+        r <- step1 gst st
+        case r of
+            Yield a s ->  do
+                done <- pushToFold sv a
+                if done
+                then do
+                    -- XXX we do not need to wait synchronously here
+                    stopFold sv
+                    return $ Yield a (TapDone s)
+                else return $ Yield a (Tapping sv s)
+            Skip s -> return $ Skip (Tapping sv s)
+            Stop -> do
+                stopFold sv
+                return $ Stop
+
+    step gst (TapDone st) = do
+        r <- step1 gst st
+        return $ case r of
+            Yield a s -> Yield a (TapDone s)
+            Skip s    -> Skip (TapDone s)
+            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Inserting
@@ -813,6 +1197,227 @@ zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f = zipWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
+-- Repeated parsing
+------------------------------------------------------------------------------
+
+{-# ANN type ParseChunksState Fuse #-}
+data ParseChunksState x inpBuf st pst =
+      ParseChunksInit inpBuf st
+    | ParseChunksInitLeftOver inpBuf
+    | ParseChunksStream st inpBuf !pst
+    | ParseChunksBuf inpBuf st inpBuf !pst
+    | ParseChunksYield x (ParseChunksState x inpBuf st pst)
+
+{-# INLINE_NORMAL parseMany #-}
+parseMany
+    :: MonadThrow m
+    => PRD.Parser m a b
+    -> Stream m a
+    -> Stream m b
+parseMany (PRD.Parser pstep initial extract) (Stream step state) =
+    Stream stepOuter (ParseChunksInit [] state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    -- Buffer is empty, get the first element from the stream, initialize the
+    -- fold and then go to stream processing loop.
+    stepOuter gst (ParseChunksInit [] st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> initial >>= return . Skip . ParseChunksBuf [x] s []
+            Skip s -> return $ Skip $ ParseChunksInit [] s
+            Stop   -> return Stop
+
+    -- Buffer is not empty, go to buffered processing loop
+    stepOuter _ (ParseChunksInit src st) = do
+        initial >>= return . Skip . ParseChunksBuf src st []
+
+    -- XXX we just discard any leftover input at the end
+    stepOuter _ (ParseChunksInitLeftOver _) = return Stop
+
+    -- Buffer is empty, process elements from the stream
+    stepOuter gst (ParseChunksStream st buf pst) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    PR.Partial 0 pst1 ->
+                        return $ Skip $ ParseChunksStream s [] pst1
+                    PR.Partial n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        return $ Skip $ ParseChunksBuf src s [] pst1
+                    PR.Continue 0 pst1 ->
+                        return $ Skip $ ParseChunksStream s (x:buf) pst1
+                    PR.Continue n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:buf)
+                            src  = Prelude.reverse src0
+                        return $ Skip $ ParseChunksBuf src s buf1 pst1
+                    PR.Done 0 b -> do
+                        return $ Skip $
+                            ParseChunksYield b (ParseChunksInit [] s)
+                    PR.Done n b -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src = Prelude.reverse (Prelude.take n (x:buf))
+                        return $ Skip $
+                            ParseChunksYield b (ParseChunksInit src s)
+                    PR.Error err -> throwM $ ParseError err
+            Skip s -> return $ Skip $ ParseChunksStream s buf pst
+            Stop   -> do
+                b <- extract pst
+                let src = Prelude.reverse buf
+                return $ Skip $
+                    ParseChunksYield b (ParseChunksInitLeftOver src)
+
+    -- go back to stream processing mode
+    stepOuter _ (ParseChunksBuf [] s buf pst) =
+        return $ Skip $ ParseChunksStream s buf pst
+
+    -- buffered processing loop
+    stepOuter _ (ParseChunksBuf (x:xs) s buf pst) = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                return $ Skip $ ParseChunksBuf xs s [] pst1
+            PR.Partial n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ Skip $ ParseChunksBuf src s [] pst1
+            PR.Continue 0 pst1 ->
+                return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let (src0, buf1) = splitAt n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ Skip $ ParseChunksBuf src s buf1 pst1
+            PR.Done 0 b ->
+                return $ Skip $ ParseChunksYield b (ParseChunksInit xs s)
+            PR.Done n b -> do
+                assert (n <= length (x:buf)) (return ())
+                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
+                return $ Skip $ ParseChunksYield b (ParseChunksInit src s)
+            PR.Error err -> throwM $ ParseError err
+
+    stepOuter _ (ParseChunksYield a next) = return $ Yield a next
+
+{-# ANN type ConcatParseState Fuse #-}
+data ConcatParseState x inpBuf st p =
+      ConcatParseInit inpBuf st p
+    | ConcatParseInitLeftOver inpBuf
+    | ConcatParseStream st inpBuf p
+    | ConcatParseBuf inpBuf st inpBuf p
+    | ConcatParseYield x (ConcatParseState x inpBuf st p)
+
+{-# INLINE_NORMAL parseIterate #-}
+parseIterate
+    :: MonadThrow m
+    => (b -> PRD.Parser m a b)
+    -> b
+    -> Stream m a
+    -> Stream m b
+parseIterate func seed (Stream step state) =
+    Stream stepOuter (ConcatParseInit [] state (func seed))
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    -- Buffer is empty, go to stream processing loop
+    stepOuter _ (ConcatParseInit [] st (PRD.Parser pstep initial extract)) = do
+        initial >>= \r -> return $ Skip $ ConcatParseStream st []
+            (PRD.Parser pstep (return r) extract)
+
+    -- Buffer is not empty, go to buffered processing loop
+    stepOuter _ (ConcatParseInit src st
+                    (PRD.Parser pstep initial extract)) = do
+        initial >>= \r -> return $ Skip $ ConcatParseBuf src st []
+            (PRD.Parser pstep (return r) extract)
+
+    -- XXX we just discard any leftover input at the end
+    stepOuter _ (ConcatParseInitLeftOver _) = return Stop
+
+    -- Buffer is empty process elements from the stream
+    stepOuter gst (ConcatParseStream st buf
+                    p@(PRD.Parser pstep initial extract)) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                pst <- initial
+                pRes <- pstep pst x
+                case pRes of
+                    PR.Partial 0 pst1 ->
+                        return $ Skip $ ConcatParseStream s []
+                            (PRD.Parser pstep (return pst1) extract)
+                    PR.Partial n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        return $ Skip $ ConcatParseBuf src s []
+                            (PRD.Parser pstep (return pst1) extract)
+                    -- PR.Continue 0 pst1 ->
+                    --     return $ Skip $ ConcatParseStream s (x:buf) pst1
+                    PR.Continue n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:buf)
+                            src  = Prelude.reverse src0
+                        return $ Skip $ ConcatParseBuf src s buf1
+                            (PRD.Parser pstep (return pst1) extract)
+                    -- XXX Specialize for Stop 0 common case?
+                    PR.Done n b -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src = Prelude.reverse (Prelude.take n (x:buf))
+                        return $ Skip $
+                            ConcatParseYield b (ConcatParseInit src s (func b))
+                    PR.Error err -> throwM $ ParseError err
+            Skip s -> return $ Skip $ ConcatParseStream s buf p
+            Stop   -> do
+                pst <- initial
+                b <- extract pst
+                let src = Prelude.reverse buf
+                return $ Skip $
+                    ConcatParseYield b (ConcatParseInitLeftOver src)
+
+    -- go back to stream processing mode
+    stepOuter _ (ConcatParseBuf [] s buf p) =
+        return $ Skip $ ConcatParseStream s buf p
+
+    -- buffered processing loop
+    stepOuter _ (ConcatParseBuf (x:xs) s buf
+                    (PRD.Parser pstep initial extract)) = do
+        pst <- initial
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                return $ Skip $ ConcatParseBuf xs s []
+                            (PRD.Parser pstep (return pst1) extract)
+            PR.Partial n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ Skip $ ConcatParseBuf src s []
+                            (PRD.Parser pstep (return pst1) extract)
+         -- PR.Continue 0 pst1 -> return $ Skip $ ConcatParseBuf xs s (x:buf) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let (src0, buf1) = splitAt n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ Skip $ ConcatParseBuf src s buf1
+                            (PRD.Parser pstep (return pst1) extract)
+            -- XXX Specialize for Stop 0 common case?
+            PR.Done n b -> do
+                assert (n <= length (x:buf)) (return ())
+                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
+                return $ Skip $ ConcatParseYield b
+                                    (ConcatParseInit src s (func b))
+            PR.Error err -> throwM $ ParseError err
+
+    stepOuter _ (ConcatParseYield a next) = return $ Yield a next
+
+------------------------------------------------------------------------------
 -- Merging
 ------------------------------------------------------------------------------
 
@@ -982,3 +1587,75 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Yield x s -> Yield x (DropByTimeYield s)
              Skip s -> Skip (DropByTimeYield s)
              Stop -> Stop
+
+-------------------------------------------------------------------------------
+-- Hoisting the inner monad
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL hoist #-}
+hoist :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
+hoist f (Stream step state) = (Stream step' state)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- f $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip  s   -> Skip s
+            Stop      -> Stop
+
+{-# INLINE generally #-}
+generally :: Monad m => Stream Identity a -> Stream m a
+generally = hoist (return . runIdentity)
+
+{-# INLINE_NORMAL liftInner #-}
+liftInner :: (Monad m, MonadTrans t, Monad (t m))
+    => Stream m a -> Stream (t m) a
+liftInner (Stream step state) = Stream step' state
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- lift $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip s    -> Skip s
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runReaderT #-}
+runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
+runReaderT env (Stream step state) = Stream step' (state, env)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        r <- Reader.runReaderT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield x (s, return sv)
+            Skip  s   -> Skip (s, return sv)
+            Stop      -> Stop
+
+{-# INLINE_NORMAL evalStateT #-}
+evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+evalStateT initial (Stream step state) = Stream step' (state, initial)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield x (s, return sv')
+            Skip  s   -> Skip (s, return sv')
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runStateT #-}
+runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)
+runStateT initial (Stream step state) = Stream step' (state, initial)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, action) = do
+        sv <- action
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield (sv', x) (s, return sv')
+            Skip  s   -> Skip (s, return sv')
+            Stop      -> Stop
