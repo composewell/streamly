@@ -310,7 +310,7 @@ import Prelude hiding
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
-import Streamly.Internal.Data.Stream.StreamD.Exceptions
+import Streamly.Internal.Data.Stream.StreamD.Exception
 import Streamly.Internal.Data.Stream.StreamD.Nesting
 
 import Streamly.Internal.Data.Stream.StreamD.Transform
