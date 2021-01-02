@@ -21,10 +21,19 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , fromStreamK
     , toStreamK
     , fromStreamD
-    , map
-    , mapM
+    , toStreamD
+    , fromProducer
+    , fromPrimIORef
+    , fromSVar
+    , foldOnce
+    , toSVarParallel
+    , uncons
+    , nilM
+    , consM
     , yield
     , yieldM
+    , map
+    , mapM
     , concatMap
     , concatMapM
 
@@ -45,6 +54,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , eqBy
     , cmpBy
     , take
+    , takeWhileM
+    , takeWhile
     , GroupState (..) -- for inspection testing
     , foldMany
     , foldMany1
@@ -52,21 +63,31 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     )
 where
 
+
 import Control.Applicative (liftA2)
+import Control.Exception (fromException)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift, MonadTrans)
+import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Functor.Identity (Identity(..))
+import Data.Maybe (isNothing)
+import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (build)
 import GHC.Types (SPEC(..))
-import Prelude hiding (map, mapM, foldr, take, concatMap)
-import Fusion.Plugin.Types (Fuse(..))
+import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
+import System.Mem (performMajorGC)
 
-import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
+import Streamly.Internal.Data.IORef.Prim (Prim)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
+import Streamly.Internal.Data.SVar
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.IORef.Prim as Prim
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -140,6 +161,49 @@ toStreamK (Stream step state) = go state
 {-# INLINE fromStreamD #-}
 fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
 fromStreamD = K.fromStream . toStreamK
+
+{-# INLINE toStreamD #-}
+toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
+toStreamD = fromStreamK . K.toStream
+
+-------------------------------------------------------------------------------
+-- Deconstruction
+-------------------------------------------------------------------------------
+
+-- Does not fuse, has the same performance as the StreamK version.
+{-# INLINE_NORMAL uncons #-}
+uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+uncons (UnStream step state) = go state
+  where
+    go st = do
+        r <- step defState st
+        case r of
+            Yield x s -> return $ Just (x, Stream step s)
+            Skip  s   -> go s
+            Stop      -> return Nothing
+
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
+
+-- | An empty 'Stream' with a side effect.
+{-# INLINE_NORMAL nilM #-}
+nilM :: Monad m => m b -> Stream m a
+nilM m = Stream (\_ _ -> m >> return Stop) ()
+
+{-# INLINE_NORMAL consM #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m (Stream step state) = Stream step1 Nothing
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
+    step1 gst (Just st) = do
+        r <- step gst st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Instances
@@ -567,7 +631,9 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
         Skip s2'  -> cmp_null s2'
         Stop      -> return EQ
 
--- XXX The take/drop combinators above should be moved to filtering section.
+-------------------------------------------------------------------------------
+-- Filtering
+-------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
@@ -581,6 +647,25 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
             Skip s    -> Skip (s, i)
             Stop      -> Stop
     step' _ (_, _) = return Stop
+
+
+{-# INLINE_NORMAL takeWhileM #-}
+takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+takeWhileM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                b <- f x
+                return $ if b then Yield x s else Stop
+            Skip s -> return $ Skip s
+            Stop   -> return Stop
+
+{-# INLINE takeWhile #-}
+takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+takeWhile f = takeWhileM (return . f)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -706,3 +791,228 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
         return $ Yield r next
 
     step' _ GroupFinish2 = return Stop
+
+data FromSVarState t m a =
+      FromSVarInit
+    | FromSVarRead (SVar t m a)
+    | FromSVarLoop (SVar t m a) [ChildEvent a]
+    | FromSVarDone (SVar t m a)
+
+-------------------------------------------------------------------------------
+-- Generation from SVar
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL fromSVar #-}
+fromSVar :: (MonadAsync m) => SVar t m a -> Stream m a
+fromSVar svar = Stream step FromSVarInit
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ FromSVarInit = do
+        ref <- liftIO $ newIORef ()
+        _ <- liftIO $ mkWeakIORef ref hook
+        -- when this copy of svar gets garbage collected "ref" will get
+        -- garbage collected and our GC hook will be called.
+        let sv = svar{svarRef = Just ref}
+        return $ Skip (FromSVarRead sv)
+
+        where
+
+        {-# NOINLINE hook #-}
+        hook = do
+            when (svarInspectMode svar) $ do
+                r <- liftIO $ readIORef (svarStopTime (svarStats svar))
+                when (isNothing r) $
+                    printSVar svar "SVar Garbage Collected"
+            cleanupSVar svar
+            -- If there are any SVars referenced by this SVar a GC will prompt
+            -- them to be cleaned up quickly.
+            when (svarInspectMode svar) performMajorGC
+
+    step _ (FromSVarRead sv) = do
+        list <- readOutputQ sv
+        -- Reversing the output is important to guarantee that we process the
+        -- outputs in the same order as they were generated by the constituent
+        -- streams.
+        return $ Skip $ FromSVarLoop sv (Prelude.reverse list)
+
+    step _ (FromSVarLoop sv []) = do
+        done <- postProcess sv
+        return $ Skip $ if done
+                      then (FromSVarDone sv)
+                      else (FromSVarRead sv)
+
+    step _ (FromSVarLoop sv (ev : es)) = do
+        case ev of
+            ChildYield a -> return $ Yield a (FromSVarLoop sv es)
+            ChildStop tid e -> do
+                accountThread sv tid
+                case e of
+                    Nothing -> do
+                        stop <- shouldStop tid
+                        if stop
+                        then do
+                            liftIO (cleanupSVar sv)
+                            return $ Skip (FromSVarDone sv)
+                        else return $ Skip (FromSVarLoop sv es)
+                    Just ex ->
+                        case fromException ex of
+                            Just ThreadAbort ->
+                                return $ Skip (FromSVarLoop sv es)
+                            Nothing -> liftIO (cleanupSVar sv) >> throwM ex
+        where
+
+        shouldStop tid =
+            case svarStopStyle sv of
+                StopNone -> return False
+                StopAny -> return True
+                StopBy -> do
+                    sid <- liftIO $ readIORef (svarStopBy sv)
+                    return $ if tid == sid then True else False
+
+    step _ (FromSVarDone sv) = do
+        when (svarInspectMode sv) $ do
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
+            liftIO $ printSVar sv "SVar Done"
+        return Stop
+
+{-# INLINE_NORMAL fromPrimIORef #-}
+fromPrimIORef :: (MonadIO m, Prim a) => Prim.IORef a -> Stream m a
+fromPrimIORef var = Stream step ()
+  where
+    {-# INLINE_LATE step #-}
+    step _ () = liftIO (Prim.readIORef var) >>= \x -> return $ Yield x ()
+
+-------------------------------------------------------------------------------
+-- Process events received by a fold consumer from a stream producer
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL fromProducer #-}
+fromProducer :: (MonadAsync m) => SVar t m a -> Stream m a
+fromProducer svar = Stream step (FromSVarRead svar)
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ (FromSVarRead sv) = do
+        list <- readOutputQ sv
+        -- Reversing the output is important to guarantee that we process the
+        -- outputs in the same order as they were generated by the constituent
+        -- streams.
+        return $ Skip $ FromSVarLoop sv (Prelude.reverse list)
+
+    step _ (FromSVarLoop sv []) = return $ Skip $ FromSVarRead sv
+    step _ (FromSVarLoop sv (ev : es)) = do
+        case ev of
+            ChildYield a -> return $ Yield a (FromSVarLoop sv es)
+            ChildStop tid e -> do
+                accountThread sv tid
+                case e of
+                    Nothing -> do
+                        sendStopToProducer sv
+                        return $ Skip (FromSVarDone sv)
+                    Just _ -> error "Bug: fromProducer: received exception"
+
+    step _ (FromSVarDone sv) = do
+        when (svarInspectMode sv) $ do
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
+            liftIO $ printSVar sv "SVar Done"
+        return Stop
+
+    step _ FromSVarInit = undefined
+
+------------------------------------------------------------------------------
+-- Left Folds
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL foldOnce #-}
+foldOnce :: (Monad m) => Fold m a b -> Stream m a -> m b
+foldOnce (Fold fstep begin done) (Stream step state) =
+    begin >>= \x -> go SPEC x state
+
+    where
+
+    {-# INLINE go #-}
+    go !_ !fs st = do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                res <- fstep fs x
+                case res of
+                    FL.Done b -> return b
+                    FL.Partial fs1 -> go SPEC fs1 s
+            Skip s -> go SPEC fs s
+            Stop -> done fs
+
+-------------------------------------------------------------------------------
+-- Concurrent application and fold
+-------------------------------------------------------------------------------
+
+-- XXX These functions should be moved to Stream/Parallel.hs
+--
+-- Using StreamD the worker stream producing code can fuse with the code to
+-- queue output to the SVar giving some perf boost.
+--
+-- Note that StreamD can only be used in limited situations, specifically, we
+-- cannot implement joinStreamVarPar using this.
+--
+-- XXX make sure that the SVar passed is a Parallel style SVar.
+
+-- | Fold the supplied stream to the SVar asynchronously using Parallel
+-- concurrency style.
+-- {-# INLINE_NORMAL toSVarParallel #-}
+{-# INLINE toSVarParallel #-}
+toSVarParallel :: MonadAsync m
+    => State t m a -> SVar t m a -> Stream m a -> m ()
+toSVarParallel st sv xs =
+    if svarInspectMode sv
+    then forkWithDiag
+    else do
+        tid <-
+                case getYieldLimit st of
+                    Nothing -> doFork (work Nothing)
+                                      (svarMrun sv)
+                                      (handleChildException sv)
+                    Just _  -> doFork (workLim Nothing)
+                                      (svarMrun sv)
+                                      (handleChildException sv)
+        modifyThread sv tid
+
+    where
+
+    {-# NOINLINE work #-}
+    work info = (foldOnce (FL.toParallelSVar sv info) xs)
+
+    {-# NOINLINE workLim #-}
+    workLim info = foldOnce (FL.toParallelSVarLimited sv info) xs
+
+    {-# NOINLINE forkWithDiag #-}
+    forkWithDiag = do
+        -- We do not use workerCount in case of ParallelVar but still there is
+        -- no harm in maintaining it correctly.
+        liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
+        recordMaxWorkers sv
+        -- This allocation matters when significant number of workers are being
+        -- sent. We allocate it only when needed. The overhead increases by 4x.
+        winfo <-
+            case yieldRateInfo sv of
+                Nothing -> return Nothing
+                Just _ -> liftIO $ do
+                    cntRef <- newIORef 0
+                    t <- getTime Monotonic
+                    lat <- newIORef (0, t)
+                    return $ Just WorkerInfo
+                        { workerYieldMax = 0
+                        , workerYieldCount = cntRef
+                        , workerLatencyStart = lat
+                        }
+        tid <-
+            case getYieldLimit st of
+                Nothing -> doFork (work winfo)
+                                  (svarMrun sv)
+                                  (handleChildException sv)
+                Just _  -> doFork (workLim winfo)
+                                  (svarMrun sv)
+                                  (handleChildException sv)
+        modifyThread sv tid

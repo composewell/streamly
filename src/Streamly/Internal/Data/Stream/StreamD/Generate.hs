@@ -82,7 +82,6 @@ import qualified Streamly.Internal.Data.IORef.Prim as Prim
 
 import Prelude hiding (iterate, repeat, replicate, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.Stream.StreamD.Common
 import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------

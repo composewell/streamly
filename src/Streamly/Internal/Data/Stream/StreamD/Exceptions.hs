@@ -47,9 +47,7 @@ import Prelude hiding
        , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.Stream.StreamD.Common
 import Streamly.Internal.Data.SVar
-
 
 ------------------------------------------------------------------------------
 -- Exceptions

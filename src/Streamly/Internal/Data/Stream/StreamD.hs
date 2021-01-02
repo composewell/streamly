@@ -308,7 +308,6 @@ import Prelude hiding
        , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
        , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.Stream.StreamD.Common (uncons)
 import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
 import Streamly.Internal.Data.Stream.StreamD.Exceptions
