@@ -19,7 +19,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- $smapM_Notes
 
     -- ** Special Maps
-    , mapM_
     , trace
     , trace_
     , tap
@@ -27,6 +26,11 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , tapAsync
     , tapRate
     , pollCounts
+
+    -- ** Folding
+    -- ** Right folds
+    , foldrS
+    , foldrT
 
     -- ** Scanning
     -- ** Left scans
@@ -135,6 +139,9 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , dropWhileM
     -- , dropWhileEnd
     -- , dropAround
+    , dropPrefix
+    , dropInfix
+    , dropSuffix
 
     -- ** Breaking
 
@@ -379,23 +386,6 @@ findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 {-# INLINE elemIndices #-}
 elemIndices :: (IsStream t, Eq a, Monad m) => a -> t m a -> t m Int
 elemIndices a = findIndices (== a)
-
-------------------------------------------------------------------------------
--- Map and Fold
-------------------------------------------------------------------------------
-
--- XXX this can utilize parallel mapping if we implement it as drain . mapM
--- |
--- > mapM_ = drain . mapM
---
--- Apply a monadic action to each element of the stream and discard the output
--- of the action. This is not really a pure transformation operation but a
--- transformation followed by fold.
---
--- @since 0.1.0
-{-# INLINE mapM_ #-}
-mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
-mapM_ f m = S.mapM_ f $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Concurrent Application
@@ -803,6 +793,41 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 {-# INLINE dropByTime #-}
 dropByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
 dropByTime d = fromStreamD . D.dropByTime d . toStreamD
+
+-- | Drop prefix from the input stream if present.
+--
+-- Space: @O(1)@
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropPrefix #-}
+dropPrefix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropPrefix = error "Not implemented yet!"
+
+-- | Drop all matching infix from the input stream if present. Infix stream
+-- may be consumed multiple times.
+--
+-- Space: @O(n)@ where n is the length of the infix.
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropInfix #-}
+dropInfix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropInfix = error "Not implemented yet!"
+
+-- | Drop suffix from the input stream if present. Suffix stream may be
+-- consumed multiple times.
+--
+-- Space: @O(n)@ where n is the length of the suffix.
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropSuffix #-}
+dropSuffix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropSuffix = error "Not implemented yet!"
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
@@ -2610,6 +2635,57 @@ trace f = mapM (\x -> void (f x) >> return x)
 trace_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 trace_ eff = Serial.mapM (\x -> eff >> return x)
 
+------------------------------------------------------------------------------
+-- Folding transformations
+------------------------------------------------------------------------------
+
+-- | Right fold to a streaming monad.
+--
+-- > foldrS S.cons S.nil === id
+--
+-- 'foldrS' can be used to perform stateless stream to stream transformations
+-- like map and filter in general. It can be coupled with a scan to perform
+-- stateful transformations. However, note that the custom map and filter
+-- routines can be much more efficient than this due to better stream fusion.
+--
+-- >>> S.toList $ S.foldrS S.cons S.nil $ S.fromList [1..5]
+-- > [1,2,3,4,5]
+--
+-- Find if any element in the stream is 'True':
+--
+-- >>> S.toList $ S.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
+-- > [True]
+--
+-- Map (+2) on odd elements and filter out the even elements:
+--
+-- >>> S.toList $ S.foldrS (\x xs -> if odd x then (x + 2) `S.cons` xs else xs) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
+-- > [3,5,7]
+--
+-- 'foldrM' can also be represented in terms of 'foldrS', however, the former
+-- is much more efficient:
+--
+-- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+--
+-- /Internal/
+{-# INLINE foldrS #-}
+foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrS = K.foldrS
+
+-- | Right fold to a transformer monad.  This is the most general right fold
+-- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
+-- implementation can be more efficient:
+--
+-- > foldrS = foldrT
+-- > foldrM f z s = runIdentityT $ foldrT (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+--
+-- 'foldrT' can be used to translate streamly streams to other transformer
+-- monads e.g.  to a different streaming type.
+--
+-- /Internal/
+{-# INLINE foldrT #-}
+foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
+    => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
+foldrT f z s = S.foldrT f z (toStreamS s)
 
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad

@@ -619,6 +619,7 @@ import Streamly.Internal.Data.Stream.Combinators
       , maxRate, constRate)
 import Streamly.Internal.Data.Stream.Parallel
        ( ParallelT, Parallel, parallely)
+import Streamly.Internal.Data.Stream.Prelude (toStreamS)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM), adapt)
 import Streamly.Internal.Data.Stream.Serial
        ( SerialT, WSerialT, Serial, WSerial, serially
@@ -645,6 +646,11 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
+#ifdef USE_STREAMK_ONLY
+import qualified Streamly.Internal.Data.Stream.StreamK as S
+#else
+import qualified Streamly.Internal.Data.Stream.StreamD as S
+#endif
 
 import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, zipWith, foldr
@@ -674,6 +680,19 @@ fromCallback setCallback = concatM $ do
 ------------------------------------------------------------------------------
 -- Specialized folds
 ------------------------------------------------------------------------------
+
+-- XXX this can utilize parallel mapping if we implement it as drain . mapM
+-- |
+-- > mapM_ = drain . mapM
+--
+-- Apply a monadic action to each element of the stream and discard the output
+-- of the action. This is not really a pure transformation operation but a
+-- transformation followed by fold.
+--
+-- @since 0.1.0
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
+mapM_ f m = S.mapM_ f $ toStreamS m
 
 -- |
 -- > drainN n = drain . take n
