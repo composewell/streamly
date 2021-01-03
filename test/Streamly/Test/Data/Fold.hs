@@ -1,8 +1,7 @@
 module Main (main) where
 
-import Prelude hiding
-    (maximum, minimum, elem, notElem, null, product, sum, head, last)
 import Data.Semigroup (Sum(..), getSum)
+import Streamly.Test.Common (checkListEqual)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -15,15 +14,15 @@ import Test.QuickCheck
     , vectorOf
     , withMaxSuccess
     )
-import Prelude hiding
-    (maximum, minimum, elem, notElem, null, product, sum, head, last)
-import Streamly.Test.Common (checkListEqual)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 
+import Prelude hiding
+    (maximum, minimum, elem, notElem, null, product, sum, head, last)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
@@ -70,10 +69,11 @@ length :: [Int] -> Expectation
 length ls = S.fold FL.length (S.fromList ls) `shouldReturn` Prelude.length ls
 
 sum :: [Int] -> Expectation
-sum ls = S.fold FL.sum (S.fromList ls) `shouldReturn` foldl (+) 0 ls
+sum ls = S.fold FL.sum (S.fromList ls) `shouldReturn` Prelude.sum ls
 
 product :: [Int] -> Expectation
-product ls = S.fold FL.product (S.fromList ls) `shouldReturn` foldl (*) 1 ls
+product ls =
+    S.fold FL.product (S.fromList ls) `shouldReturn` Prelude.product ls
 
 lesser :: (a -> a -> Ordering) -> a -> a -> a
 lesser f x y = if f x y == LT then x else y
@@ -90,8 +90,7 @@ foldMaybe f acc ls =
 maximumBy :: (Ord a, Show a) => a -> (a -> a -> Ordering) -> [a] -> Expectation
 maximumBy genmin f ls =
     S.fold (FL.maximumBy f) (S.fromList ls)
-    `shouldReturn`
-    foldMaybe (greater f) genmin ls
+        `shouldReturn` foldMaybe (greater f) genmin ls
 
 maximum :: (Show a, Ord a) => a -> [a] -> Expectation
 maximum genmin ls =
@@ -129,16 +128,16 @@ mapMaybe ls =
     in S.fold f (S.fromList ls) `shouldReturn` filter even ls
 
 nth :: Int -> [a] -> Maybe a
-nth idx (x:xs) = if idx == 0
-                 then Just x
-                 else if idx < 0
-                      then Nothing
-                      else nth (idx - 1) xs
+nth idx (x : xs)
+    | idx == 0 = Just x
+    | idx < 0 = Nothing
+    | otherwise = nth (idx - 1) xs
 nth _ [] = Nothing
 
 index :: Int -> [String] -> Expectation
-index idx ls = let x = S.fold (FL.index idx) (S.fromList ls)
-                in x `shouldReturn` (nth idx ls)
+index idx ls =
+    let x = S.fold (FL.index idx) (S.fromList ls)
+    in x `shouldReturn` nth idx ls
 
 find :: (Show a, Eq a) => (a -> Bool) -> [a] -> Expectation
 find f ls = do
@@ -152,7 +151,7 @@ find f ls = do
             in fld `shouldReturn` False
 
 neg :: (a -> Bool) -> a -> Bool
-neg f x = if f x == True then False else True
+neg f x = not (f x)
 
 findIndex :: (a -> Bool) -> [a] -> Expectation
 findIndex f ls = do
@@ -161,16 +160,16 @@ findIndex f ls = do
         Nothing  ->
             let fld = S.fold (FL.all $ neg f) (S.fromList ls)
             in fld `shouldReturn` True
-        Just idx -> if idx == 0
-                    then
-                        S.fold (FL.all f) (S.fromList []) `shouldReturn` True
-                    else
-                        S.fold (FL.all f) (S.fromList $ (take idx ls))
-                        `shouldReturn`
-                        False
+        Just idx ->
+            if idx == 0
+            then
+                S.fold (FL.all f) (S.fromList []) `shouldReturn` True
+            else
+                S.fold (FL.all f) (S.fromList $ take idx ls)
+                    `shouldReturn` False
 
 predicate :: Int -> Bool
-predicate x = if x * x < 100 then True else False
+predicate x = x * x < 100
 
 elemIndex :: Int -> [Int] -> Expectation
 elemIndex elm ls = do
@@ -180,13 +179,17 @@ elemIndex elm ls = do
             let fld = S.fold (FL.any (== elm)) (S.fromList ls)
             in fld `shouldReturn` False
         Just idx ->
-            let fld = S.fold (FL.any (== elm)) (S.fromList $ (take idx ls))
+            let fld = S.fold (FL.any (== elm)) (S.fromList $ take idx ls)
             in fld `shouldReturn` False
 
 null :: [Int] -> Expectation
-null ls = S.fold FL.null (S.fromList ls) `shouldReturn` case ls of
-                                                            [] -> True
-                                                            _ -> False
+null ls =
+    S.fold FL.null (S.fromList ls)
+        `shouldReturn`
+            case ls of
+                [] -> True
+                _ -> False
+
 elem :: Int -> [Int] -> Expectation
 elem elm ls = do
     y <- S.fold (FL.elem elm) (S.fromList ls)
@@ -201,7 +204,7 @@ notElem elm ls = do
 
 all :: (a -> Bool) -> [a] -> Expectation
 all f ls =
-    S.fold (FL.all f) (S.fromList ls) `shouldReturn` Prelude.and (map f ls)
+    S.fold (FL.all f) (S.fromList ls) `shouldReturn` Prelude.all f ls
 
 any :: (a -> Bool) -> [a] -> Expectation
 any f ls = S.fold (FL.any f) (S.fromList ls) `shouldReturn` Prelude.any f ls
@@ -257,7 +260,7 @@ mean =
 
     action ls = do
         v1 <- run $ S.fold FL.mean (S.fromList ls)
-        let v2 = (foldl (+) 0 ls) / fromIntegral (Prelude.length ls)
+        let v2 = Prelude.sum ls / fromIntegral (Prelude.length ls)
         assert (abs (v1 - v2) < 0.0001)
 
 stdDev :: Property
@@ -269,8 +272,8 @@ stdDev =
 
     action ls = do
         v1 <- run $ S.fold FL.stdDev (S.fromList ls)
-        let avg = (foldl (+) 0 ls) / fromIntegral (Prelude.length ls)
-            se = (foldl (+) 0  (map (\x -> (x - avg) * (x - avg)) ls))
+        let avg = Prelude.sum ls / fromIntegral (Prelude.length ls)
+            se = Prelude.sum (fmap (\x -> (x - avg) * (x - avg)) ls)
             sd = sqrt $ se / fromIntegral (Prelude.length ls)
         assert (abs (v1 - sd) < 0.0001 )
 
@@ -283,8 +286,8 @@ variance =
 
     action ls = do
         v1 <- run $ S.fold FL.variance (S.fromList ls)
-        let avg = (foldl (+) 0 ls) / fromIntegral (Prelude.length ls)
-            se = (foldl (+) 0  (map (\x -> (x - avg) * (x - avg)) ls))
+        let avg = Prelude.sum ls / fromIntegral (Prelude.length ls)
+            se = Prelude.sum (fmap (\x -> (x - avg) * (x - avg)) ls)
             vr = se / fromIntegral (Prelude.length ls)
         assert (abs (v1 - vr) < 0.01 )
 
@@ -297,7 +300,7 @@ mconcat =
 
     action ls = do
         v1 <- run $ S.fold FL.mconcat (S.map Sum $ S.fromList ls)
-        let v2 = (foldl (+) 0 ls)
+        let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
 foldMap :: Property
@@ -309,7 +312,7 @@ foldMap =
 
     action ls = do
         v1 <- run $ S.fold (FL.foldMap Sum) $ S.fromList ls
-        let v2 = (foldl (+) 0 ls)
+        let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
 foldMapM :: Property
@@ -321,7 +324,7 @@ foldMapM =
 
     action ls = do
         v1 <- run $ S.fold (FL.foldMapM (return . Sum)) $ S.fromList ls
-        let v2 = (foldl (+) 0 ls)
+        let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
 lookup :: Property
@@ -363,7 +366,7 @@ teeWithLength =
 
     action ls = do
         v1 <- run $ S.fold (FL.tee FL.sum FL.length) $ S.fromList ls
-        let v2 = foldl (+) 0 ls
+        let v2 = Prelude.sum ls
             v3 = Prelude.length ls
         assert (v1 == (v2, v3))
 
@@ -376,7 +379,7 @@ teeWithMax =
 
     action ls = do
         v1 <- run $ S.fold (FL.tee FL.sum FL.maximum) $ S.fromList ls
-        let v2 = foldl (+) 0 ls
+        let v2 = Prelude.sum ls
             v3 = foldMaybe (greater compare) intMin ls
         assert (v1 == (v2, v3))
 
@@ -389,7 +392,7 @@ distribute =
 
     action ls = do
         v1 <- run $ S.fold (FL.distribute [FL.sum, FL.length]) $ S.fromList ls
-        let v2 = foldl (+) 0 ls
+        let v2 = Prelude.sum ls
             v3 = Prelude.length ls
         assert (v1 == [v2, v3])
 
@@ -418,7 +421,7 @@ main :: IO ()
 main = hspec $
     describe "Fold s" $ do
         prop "RollingHashFirstN" rollingHashFirstN
-        prop "Index" $ index
+        prop "Index" index
         prop "Head" head
         prop "Last" last
         prop "Length" Main.length

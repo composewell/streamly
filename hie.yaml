@@ -80,6 +80,8 @@ cradle:
               component: "test:Unicode.Stream"
             - path: "./test/Streamly/Test/FileSystem/Event.hs"
               component: "test:FileSystem.Event"
+            - path: "./test/Streamly/Test/FileSystem/Handle.hs"
+              component: "test:FileSystem.Handle"
             - path: "./test/version-bounds.hs"
               component: "test:version-bounds"
 

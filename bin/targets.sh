@@ -105,6 +105,6 @@ GROUP_TARGETS="\
 INDIVIDUAL_TARGETS="\
     Data.Unfold \
     Unicode.Stream \
-    `bench_only FileSystem.Handle` \
+    FileSystem.Handle \
     `test_only FileSystem.Event` \
     `test_only version-bounds`"
