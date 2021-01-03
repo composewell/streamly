@@ -26,14 +26,14 @@ import System.IO.Temp (withSystemTempDirectory)
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
-import Streamly.FileSystem.Handle as FH
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.FileSystem.Handle as Handle
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
+import qualified Streamly.Internal.Unicode.Stream as Unicode
+
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
-
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Unicode.Stream as U
 
 allocOverhead :: Int
 allocOverhead = 2 * sizeOf (undefined :: Int)
@@ -51,8 +51,9 @@ maxTestCount = 10
 chooseWord8 :: (Word8, Word8) -> Gen Word8
 chooseWord8 = choose
 
-utf8ToString :: A.Array Word8 -> String
-utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
+utf8ToString :: Array.Array Word8 -> String
+utf8ToString =
+    runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.toStream
 
 testData :: String
 testData = "This is the test data for FileSystem.Handle ??`!@#$%^&*~~))`]"
@@ -60,7 +61,7 @@ testData = "This is the test data for FileSystem.Handle ??`!@#$%^&*~~))`]"
 testDataLarge :: String
 testDataLarge = concat $ replicate 6000 testData
 
-executor :: (Handle -> (SerialT IO Char)) -> IO (SerialT IO Char)
+executor :: (Handle -> SerialT IO Char) -> IO (SerialT IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
         let fpath = fp </> "tmp_read.txt"
@@ -70,38 +71,40 @@ executor f =
 
 readFromHandle :: IO (SerialT IO Char)
 readFromHandle =
-    let f = U.decodeUtf8 . S.unfold FH.read
+    let f = Unicode.decodeUtf8 . Stream.unfold Handle.read
     in executor f
 
 readWithBufferFromHandle :: IO (SerialT IO Char)
 readWithBufferFromHandle =
     let f1 = (\h -> (1024, h))
-        f2 = U.decodeUtf8 . S.unfold FH.readWithBufferOf . f1
+        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readWithBufferOf . f1
     in executor f2
 
 readChunksFromHandle :: IO (SerialT IO Char)
 readChunksFromHandle =
-    let f = U.decodeUtf8 . S.concatMap (A.toStream) . S.unfold FH.readChunks
+    let f =   Unicode.decodeUtf8
+            . Stream.concatMap Array.toStream
+            . Stream.unfold Handle.readChunks
     in executor f
 
 readChunksWithBuffer :: IO (SerialT IO Char)
 readChunksWithBuffer =
     let f1 = (\h -> (1024, h))
         f2 =
-              U.decodeUtf8
-            . S.concatMap (A.toStream)
-            . S.unfold FH.readChunksWithBufferOf
+              Unicode.decodeUtf8
+            . Stream.concatMap Array.toStream
+            . Stream.unfold Handle.readChunksWithBufferOf
             . f1
     in executor f2
 
 testRead :: (IsStream t) => IO (t IO Char) -> Property
 testRead fn = monadicIO $ do
-    let v2 = (S.fromList testDataLarge)
-    v1 <- run $ fn
-    res <- run $ S.eqBy (==) v1 v2
-    assert (res)
+    let v2 = Stream.fromList testDataLarge
+    v1 <- run fn
+    res <- run $ Stream.eqBy (==) v1 v2
+    assert res
 
-testWrite :: (Handle -> FL.Fold IO Word8 ()) -> Property
+testWrite :: (Handle -> Fold.Fold IO Word8 ()) -> Property
 testWrite hfold =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len $ chooseWord8 (0, 255)) $ \list0 ->
@@ -117,17 +120,17 @@ testWrite hfold =
                         writeFile fpathWrite ""
                         h <- openFile fpathWrite ReadWriteMode
                         hSeek h AbsoluteSeek 0
-                        S.fold (hfold h) $ S.fromList list
+                        Stream.fold (hfold h) $ Stream.fromList list
                         hFlush h
                         hSeek h AbsoluteSeek 0
-                        ls <- S.toList $ S.unfold FH.read h
+                        ls <- Stream.toList $ Stream.unfold Handle.read h
                         hClose h
                         return (ls == list)
 
 testWriteWithChunk :: Property
 testWriteWithChunk =
     monadicIO $ do
-        res <- run $ go
+        res <- run go
         assert res
 
         where
@@ -141,12 +144,12 @@ testWriteWithChunk =
                 hr <- openFile fpathRead ReadMode
                 hw <- openFile fpathWrite ReadWriteMode
                 hSeek hw AbsoluteSeek 0
-                S.fold (FH.writeChunks hw)
-                    $ S.unfold FH.readChunksWithBufferOf (1024, hr)
+                Stream.fold (Handle.writeChunks hw)
+                    $ Stream.unfold Handle.readChunksWithBufferOf (1024, hr)
                 hFlush hw
                 hSeek hw AbsoluteSeek 0
-                ls <- S.toList $ S.unfold FH.read hw
-                let arr = A.fromList ls
+                ls <- Stream.toList $ Stream.unfold Handle.read hw
+                let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
 main :: IO ()
@@ -154,12 +157,12 @@ main =
     hspec $
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
-        describe "Read" $ do
-            prop "testRead" $ testRead readFromHandle
-            prop "testReadWithBuffer" $ testRead readWithBufferFromHandle
-            prop "testReadChunks" $ testRead readChunksFromHandle
-            prop "testReadChunksWithBuffer" $ testRead readChunksWithBuffer
-        describe "Write" $ do
-            prop "testWrite" $ testWrite FH.write
-            prop "testWriteWithBufferOf" $ testWrite $ FH.writeWithBufferOf 1024
-            prop "testWriteWithChunk" $ testWriteWithChunk
+        describe "Read From Handle" $ do
+            prop "read" $ testRead readFromHandle
+            prop "readWithBufferOf" $ testRead readWithBufferFromHandle
+            prop "readChunks" $ testRead readChunksFromHandle
+            prop "readChunksWithBufferOf" $ testRead readChunksWithBuffer
+        describe "Write To Handle" $ do
+            prop "write" $ testWrite Handle.write
+            prop "writeWithBufferOf" $ testWrite $ Handle.writeWithBufferOf 1024
+            prop "writeChunks" testWriteWithChunk

@@ -219,13 +219,13 @@ main =
             prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
             prop "read . fromStreamN === id" testFromStreamNUnfold
             prop "toStream . fromStreamN === id" testFromStreamNToStream
-            prop "First N elements of a list" testFromListN
+            prop "fromListN" testFromListN
 
 #ifndef TEST_SMALL_ARRAY
             prop "length . fromStream === n" testLengthFromStream
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
-            prop "From a list" testFromList
+            prop "fromList" testFromList
 #endif
 
 #if defined(TEST_ARRAY) ||\
