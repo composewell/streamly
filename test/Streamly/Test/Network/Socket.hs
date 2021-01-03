@@ -64,14 +64,26 @@ handlerRW sk =
         & Stream.fold (Socket.write sk)
         & discard
 ------------------------------------------------------------------------------
--- Accept connecttions and handle connected sockets
+-- Accept connections and handle connected sockets
 ------------------------------------------------------------------------------
+
+-- Ideally we should choose an available port automatically.  However, to test
+-- the APIs that do not allow choosing a port automatically we still need to
+-- use a hardcoded port or search an available port on the system.
+--
+-- This is unreliable and the test may fail on systems where this port is not
+-- available. We choose a higher port number so that the likelihood of it being
+-- available is more.
+--
+-- Also, we cannot run the test after running it once until the timeout.
+basePort :: PortNumber
+basePort = 64000
 
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    (Stream.serially $ Stream.unfold TCP.acceptOnPort port)
-        & (Stream.asyncly . Stream.mapM (Socket.handleWithM handler))
+    Stream.serially (Stream.unfold TCP.acceptOnPort port)
+        & Stream.asyncly . Stream.mapM (Socket.handleWithM handler)
         & Stream.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)
@@ -81,7 +93,7 @@ sender :: PortNumber -> MVar () -> SerialT IO Char
 sender port sem = do
     _ <- liftIO $ takeMVar sem
     liftIO $ threadDelay 1000000                       -- wait for server
-    Stream.replicate 1000 testData                      -- SerialT IO String
+    Stream.replicate 1000 testData                     -- SerialT IO String
         & Stream.concatMap Stream.fromList             -- SerialT IO Char
         & Unicode.encodeLatin1                         -- SerialT IO Word8
         & TCP.transformBytesWith remoteAddr port       -- SerialT IO Word8
@@ -94,19 +106,19 @@ execute port size handler = do
     let lst = sender port sem
                 & Stream.take size
                 & Stream.finally (killThread tid)
-    return $ lst
+    return lst
 
 validateWithBufferOf :: Property
 validateWithBufferOf = monadicIO $ do
     res <- run $ do
-        ls2 <- execute 8000 45000 handlerwithbuffer
+        ls2 <- execute basePort 45000 handlerwithbuffer
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
 validateRW :: Property
 validateRW = monadicIO $ do
     res <- run $ do
-        ls2 <- execute 8001 Array.defaultChunkSize handlerRW    
+        ls2 <- execute (basePort + 1) Array.defaultChunkSize handlerRW
         let dataChunk = take Array.defaultChunkSize testDataSource
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
@@ -114,22 +126,22 @@ validateRW = monadicIO $ do
 validateChunks :: Property
 validateChunks = monadicIO $ do
     res <- run $ do
-        ls2 <- execute 8002 45000 handlerChunks
+        ls2 <- execute (basePort + 2) 45000 handlerChunks
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
 validateChunksWithBufferOf :: Property
 validateChunksWithBufferOf = monadicIO $ do
     res <- run $ do
-        ls2 <- execute 8003 45000 handlerChunksWithBuffer
+        ls2 <- execute (basePort + 3) 45000 handlerChunksWithBuffer
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
 main :: IO ()
 main = hspec $ do
     modifyMaxSuccess (const 1) $ do
-        describe "Socket Tests: " $ do
+        describe "Read/Write" $ do
             prop "read/write" validateRW
             prop "readWithBufferOf/writeWithBufferOf" validateWithBufferOf
-            prop "readChunksWithBufferOf" validateChunksWithBufferOf
             prop "readChunks/writeChunks" validateChunks
+            prop "readChunksWithBufferOf" validateChunksWithBufferOf
