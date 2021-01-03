@@ -152,7 +152,7 @@ library
                    , Streamly.Test.Prelude.Common
 
 -------------------------------------------------------------------------------
--- Test suites
+-- Test suite options
 -------------------------------------------------------------------------------
 
 common test-options
@@ -174,10 +174,9 @@ common always-optimized
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
 
-test-suite Data.List.Base
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/List.hs
+-------------------------------------------------------------------------------
+-- Test suites in sorted order
+-------------------------------------------------------------------------------
 
 test-suite Data.List
   import: test-options
@@ -185,122 +184,16 @@ test-suite Data.List
   main-is: Streamly/Test/Data/List.hs
   cpp-options:  -DUSE_STREAMLY_LIST
 
-test-suite Prelude
+test-suite Data.List.Base
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude.hs
-  ghc-options: -main-is Streamly.Test.Prelude.main
-
-test-suite Prelude.Serial
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Serial.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Serial.main
-               +RTS -M1024M -RTS
-
-test-suite Prelude.WSerial
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/WSerial.hs
-  ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
-
-test-suite Prelude.ZipSerial
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/ZipSerial.hs
-  ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
-
-test-suite Prelude.ZipAsync
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/ZipAsync.hs
-  ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
-
-test-suite Prelude.Ahead
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Ahead.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
-
-test-suite Prelude.Async
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Async.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Async.main
-
-test-suite Prelude.WAsync
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/WAsync.hs
-  ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
-
-test-suite Prelude.Parallel
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Parallel.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
-
-test-suite Prelude.Concurrent
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Concurrent.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
-               +RTS -M2000M -RTS
-
-test-suite Prelude.Fold
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Fold.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Fold.main
-
-test-suite Prelude.Rate
-  import:always-optimized
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Prelude/Rate.hs
-  ghc-options: -main-is Streamly.Test.Prelude.Rate.main
-  if flag(dev)
-    buildable: True
-  else
-    buildable: False
-
-test-suite Data.Array.Storable.Foreign
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Storable/Foreign.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Storable.Foreign.main
-
-test-suite Data.Fold
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Fold.hs
-
-test-suite Data.Unfold
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Unfold.hs
-
-test-suite Data.Parser
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Parser.hs
-
-test-suite Data.Parser.ParserD
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Parser/ParserD.hs
-  ghc-options: +RTS -M1000M -RTS
+  main-is: Streamly/Test/Data/List.hs
 
 test-suite Data.Array
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
-
-test-suite Data.SmallArray
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/SmallArray.hs
-  ghc-options: -main-is Streamly.Test.Data.SmallArray.main
 
 test-suite Data.Array.Prim
   import: test-options
@@ -314,16 +207,38 @@ test-suite Data.Array.Prim.Pinned
   main-is: Streamly/Test/Data/Array/Prim/Pinned.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Prim.Pinned.main
 
-test-suite Unicode.Stream
+test-suite Data.Array.Storable.Foreign
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Unicode/Stream.hs
-  ghc-options: -main-is Streamly.Test.Unicode.Stream.main
+  main-is: Streamly/Test/Data/Array/Storable/Foreign.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Storable.Foreign.main
 
-test-suite version-bounds
+test-suite Data.Fold
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: version-bounds.hs
+  main-is: Streamly/Test/Data/Fold.hs
+
+test-suite Data.Parser
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Parser.hs
+
+test-suite Data.Parser.ParserD
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Parser/ParserD.hs
+  ghc-options: +RTS -M1000M -RTS
+
+test-suite Data.SmallArray
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/SmallArray.hs
+  ghc-options: -main-is Streamly.Test.Data.SmallArray.main
+
+test-suite Data.Unfold
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Unfold.hs
 
 test-suite FileSystem.Event
   import: test-options
@@ -338,12 +253,101 @@ test-suite FileSystem.Handle
   main-is: Streamly/Test/FileSystem/Handle.hs
   ghc-options: -main-is Streamly.Test.FileSystem.Handle.main
 
+test-suite Network.Inet.TCP
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Network/Inet/TCP.hs
+
 test-suite Network.Socket
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Socket.hs
 
-test-suite Network.Inet.TCP
+test-suite Prelude
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Network/Inet/TCP.hs
+  main-is: Streamly/Test/Prelude.hs
+  ghc-options: -main-is Streamly.Test.Prelude.main
+
+test-suite Prelude.Ahead
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Ahead.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
+
+test-suite Prelude.Async
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Async.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Async.main
+
+test-suite Prelude.Concurrent
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Concurrent.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
+               +RTS -M2000M -RTS
+
+test-suite Prelude.Fold
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Fold.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Fold.main
+
+test-suite Prelude.Parallel
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Parallel.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
+
+test-suite Prelude.Rate
+  import:always-optimized
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Rate.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Rate.main
+  if flag(dev)
+    buildable: True
+  else
+    buildable: False
+
+test-suite Prelude.Serial
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Serial.hs
+  ghc-options: -main-is Streamly.Test.Prelude.Serial.main
+               +RTS -M1024M -RTS
+
+test-suite Prelude.WAsync
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/WAsync.hs
+  ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
+
+test-suite Prelude.WSerial
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/WSerial.hs
+  ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
+
+test-suite Prelude.ZipAsync
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/ZipAsync.hs
+  ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
+
+test-suite Prelude.ZipSerial
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/ZipSerial.hs
+  ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
+
+test-suite Unicode.Stream
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Stream.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Stream.main
+
+test-suite version-bounds
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: version-bounds.hs
