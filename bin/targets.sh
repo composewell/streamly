@@ -107,4 +107,6 @@ INDIVIDUAL_TARGETS="\
     Unicode.Stream \
     FileSystem.Handle \
     `test_only FileSystem.Event` \
+    `test_only Network.Socket` \
+    `test_only Network.Inet.TCP` \
     `test_only version-bounds`"

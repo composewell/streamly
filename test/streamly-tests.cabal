@@ -341,9 +341,9 @@ test-suite FileSystem.Handle
 test-suite Network.Socket
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Network/Socket.hs 
+  main-is: Streamly/Test/Network/Socket.hs
 
-test-suite Inet.TCP
+test-suite Network.Inet.TCP
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Inet/TCP.hs
