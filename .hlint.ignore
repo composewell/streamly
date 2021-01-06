@@ -15,6 +15,7 @@ src/Streamly/Internal/Data/Stream/StreamD/Generate.hs
 src/Streamly/Internal/Data/Stream/StreamD/Eliminate.hs
 src/Streamly/Internal/Data/Stream/StreamD/Transform.hs
 src/Streamly/Internal/Data/Stream/StreamD/Exception.hs
+src/Streamly/Internal/Data/Stream/StreamD/Lift.hs
 src/Streamly/Internal/Data/Stream/StreamD/Nesting.hs
 src/Streamly/Internal/Data/Pipe/Types.hs
 src/Streamly/Internal/Data/SmallArray/Types.hs

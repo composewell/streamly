@@ -3,9 +3,7 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD
 -- Copyright   : (c) 2018 Composewell Technologies
---               (c) Roman Leshchinskiy 2008-2010
---               (c) The University of Glasgow, 2009
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -307,10 +305,12 @@ import Prelude hiding
        , notElem, null, head, tail, zipWith, lookup, foldr1, sequence
        , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
        , reverse, iterate, splitAt)
+
+-- XXX We could just export these modules directly
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
 import Streamly.Internal.Data.Stream.StreamD.Exception
+import Streamly.Internal.Data.Stream.StreamD.Lift
 import Streamly.Internal.Data.Stream.StreamD.Nesting
-
 import Streamly.Internal.Data.Stream.StreamD.Transform

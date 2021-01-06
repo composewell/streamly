@@ -1,8 +1,6 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Exception
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2020 Composewell Technologies and Contributors
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -10,10 +8,12 @@
 
 module Streamly.Internal.Data.Stream.StreamD.Exception
     (
-    -- * Exceptions
+    -- * Finalizers
       newFinalizedIORef
     , runIORefFinalizer
     , withIORefFinalizer
+
+    -- * Combinators
     , gbracket_
     , gbracket
     , before
@@ -29,9 +29,9 @@ module Streamly.Internal.Data.Stream.StreamD.Exception
     )
 where
 
+#include "inline.hs"
 
-import Control.Exception
-       (Exception, SomeException, mask_)
+import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -40,71 +40,8 @@ import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
 
 import qualified Control.Monad.Catch as MC
 
-import Prelude hiding
-       ( map, mapM, mapM_, repeat, foldr, last, take, filter
-       , takeWhile, drop, dropWhile, all, any, maximum, minimum, elem
-       , notElem, null, head, tail, zipWith, lookup, foldr1, sequence
-       , (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat
-       , reverse, iterate, splitAt)
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
-
-------------------------------------------------------------------------------
--- Exceptions
-------------------------------------------------------------------------------
-
-data GbracketState s1 s2 v
-    = GBracketInit
-    | GBracketNormal s1 v
-    | GBracketException s2
-
--- | Like 'gbracket' but with following differences:
---
--- * alloc action @m c@ runs with async exceptions enabled
--- * cleanup action @c -> m d@ won't run if the stream is garbage collected
---   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
---
--- /Inhibits stream fusion/
---
--- /Internal/
---
-{-# INLINE_NORMAL gbracket_ #-}
-gbracket_
-    :: Monad m
-    => m c                                  -- ^ before
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
-    -> (c -> m d)                           -- ^ after, on normal stop
-    -> (c -> e -> Stream m b -> Stream m b) -- ^ on exception
-    -> (c -> Stream m b)                    -- ^ stream generator
-    -> Stream m b
-gbracket_ bef exc aft fexc fnormal =
-    Stream step GBracketInit
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ GBracketInit = do
-        r <- bef
-        return $ Skip $ GBracketNormal (fnormal r) r
-
-    step gst (GBracketNormal (UnStream step1 st) v) = do
-        res <- exc $ step1 gst st
-        case res of
-            Right r -> case r of
-                Yield x s ->
-                    return $ Yield x (GBracketNormal (Stream step1 s) v)
-                Skip s -> return $ Skip (GBracketNormal (Stream step1 s) v)
-                Stop -> aft v >> return Stop
-            -- XXX Do not handle async exceptions, just rethrow them.
-            Left e ->
-                return $ Skip (GBracketException (fexc v e (UnStream step1 st)))
-    step gst (GBracketException (UnStream step1 st)) = do
-        res <- step1 gst st
-        case res of
-            Yield x s -> return $ Yield x (GBracketException (Stream step1 s))
-            Skip s    -> return $ Skip (GBracketException (Stream step1 s))
-            Stop      -> return Stop
 
 ------------------------------------------------------------------------------
 -- Finalizers
@@ -172,6 +109,61 @@ withIORefFinalizer ref action = do
             runinio action
 
 ------------------------------------------------------------------------------
+-- Exception handling combinators.
+------------------------------------------------------------------------------
+
+data GbracketState s1 s2 v
+    = GBracketInit
+    | GBracketNormal s1 v
+    | GBracketException s2
+
+-- | Like 'gbracket' but with following differences:
+--
+-- * alloc action @m c@ runs with async exceptions enabled
+-- * cleanup action @c -> m d@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * does not require a 'MonadAsync' constraint.
+--
+-- /Inhibits stream fusion/
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL gbracket_ #-}
+gbracket_
+    :: Monad m
+    => m c                                  -- ^ before
+    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
+    -> (c -> m d)                           -- ^ after, on normal stop
+    -> (c -> e -> Stream m b -> Stream m b) -- ^ on exception
+    -> (c -> Stream m b)                    -- ^ stream generator
+    -> Stream m b
+gbracket_ bef exc aft fexc fnormal =
+    Stream step GBracketInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ GBracketInit = do
+        r <- bef
+        return $ Skip $ GBracketNormal (fnormal r) r
+
+    step gst (GBracketNormal (UnStream step1 st) v) = do
+        res <- exc $ step1 gst st
+        case res of
+            Right r -> case r of
+                Yield x s ->
+                    return $ Yield x (GBracketNormal (Stream step1 s) v)
+                Skip s -> return $ Skip (GBracketNormal (Stream step1 s) v)
+                Stop -> aft v >> return Stop
+            -- XXX Do not handle async exceptions, just rethrow them.
+            Left e ->
+                return $ Skip (GBracketException (fexc v e (UnStream step1 st)))
+    step gst (GBracketException (UnStream step1 st)) = do
+        res <- step1 gst st
+        case res of
+            Yield x s -> return $ Yield x (GBracketException (Stream step1 s))
+            Skip s    -> return $ Skip (GBracketException (Stream step1 s))
+            Stop      -> return Stop
 
 data GbracketIOState s1 s2 v wref
     = GBracketIOInit
@@ -250,7 +242,7 @@ gbracket bef exc aft fexc fnormal =
             Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.after_'.
+-- | See 'Streamly.Internal.Data.Stream.IsStream.before'.
 --
 {-# INLINE_NORMAL before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a

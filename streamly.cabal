@@ -451,23 +451,19 @@ library
                      , Streamly.Internal.Data.Stream.StreamK.Type
                      , Streamly.Internal.Data.Stream.StreamK
                      , Streamly.Internal.Data.Stream.StreamD.Type
-                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
                      , Streamly.Internal.Data.Stream.StreamD.Nesting
                      , Streamly.Internal.Data.Stream.StreamD.Transform
                      , Streamly.Internal.Data.Stream.StreamD.Exception
+                     , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Enumeration
                      , Streamly.Internal.Data.Stream.Prelude
 
                      -- Higher level streams
-                     , Streamly.Internal.Data.Stream.IsStream
-                     , Streamly.Internal.Data.Stream.IsStream.Generate
-                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
-                     , Streamly.Internal.Data.Stream.IsStream.Transform
-                     , Streamly.Internal.Data.Stream.IsStream.Exception
                      , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
@@ -475,6 +471,14 @@ library
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Combinators
+                     , Streamly.Internal.Data.Stream.IsStream.Common
+                     , Streamly.Internal.Data.Stream.IsStream.Generate
+                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
+                     , Streamly.Internal.Data.Stream.IsStream.Transform
+                     , Streamly.Internal.Data.Stream.IsStream.Nesting
+                     , Streamly.Internal.Data.Stream.IsStream.Exception
+                     , Streamly.Internal.Data.Stream.IsStream.Lift
+                     , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.List
 
                      -- Unfolds
