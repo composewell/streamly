@@ -8,7 +8,6 @@
 
 module Streamly.Internal.Data.Stream.IsStream.Exception
     (
-    -- * Exceptions
       before
     , after_
     , after
@@ -26,19 +25,11 @@ import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
-import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
+import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
-import Prelude hiding
-       ( filter, drop, dropWhile, take, takeWhile, zipWith, foldr
-       , foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem
-       , notElem, maximum, minimum, head, last, tail, length, null
-       , reverse, iterate, init, and, or, lookup, foldr1, (!!)
-       , scanl, scanl1, replicate, concatMap, span, splitAt, break
-       , repeat, concat, mconcat)
 
 ------------------------------------------------------------------------------
 -- Exceptions
@@ -209,20 +200,3 @@ handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a) -> t m a -> t m a
 handle handler xs =
     D.fromStreamD $ D.handle (D.toStreamD . handler) $ D.toStreamD xs
-
--- Keep concating either streams as long as rights are generated, stop as soon
--- as a left is generated and concat the left stream.
---
--- See also: 'handle'
---
--- /Unimplemented/
---
-{-
-concatMapEitherWith
-    :: -- (IsStream t, MonadAsync m) =>
-       (forall x. t m x -> t m x -> t m x)
-    -> (a -> t m (Either (t m b) b))
-    -> t m a
-    -> t m b
-concatMapEitherWith = undefined
--}

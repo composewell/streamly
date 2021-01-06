@@ -5,44 +5,70 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- This module contains functions ending in the shape:
+--
+-- @
+-- t m a -> m b
+-- @
+--
+-- We call them stream folding functions, they reduce a stream @t m a@ to a
+-- monadic value @m b@.
 
 module Streamly.Internal.Data.Stream.IsStream.Eliminate
     (
-    -- * Elimination
-    -- ** Deconstruction
-      uncons
-    , tail
-    , init
+    -- * Running a 'Fold'
+    --  See "Streamly.Internal.Data.Fold".
+      fold
 
-    -- ** Folding
-    -- ** Right Folds
-    , foldrM
-    , foldr
-
-    -- ** Left Folds
-    , foldl'
-    , foldl1'
-    , foldlM'
-
-    -- ** Composable Left Folds
-    -- | See "Streamly.Internal.Data.Fold"
-    , fold
-
-    -- ** Parsers
-    -- | See "Streamly.Internal.Data.Parser"
+    -- * Running a 'Parser'
+    -- "Streamly.Internal.Data.Parser".
     , parse
     , parseK
     , parseD
 
-    -- ** Concurrent Folds
-    , foldAsync
-    , (|$.)
-    , (|&.)
+    -- * Stream Deconstruction
+    -- | foldr and foldl do not provide the remaining stream.  'uncons' is more
+    -- general, as it can be used to implement those as well.  It allows to use
+    -- the stream one element at a time, and we have the remaining stream all
+    -- the time.
+    , uncons
+
+    -- * Right Folds
+    , foldrM
+    , foldr
+
+    -- * Left Folds
+    , foldl'
+    , foldl1'
+    , foldlM'
+
+    -- * Specific 'Fold's
+    -- XXX Move to Data.Fold?
+    , toStream    -- XXX rename to write? buffer?
+    , toStreamRev -- XXX rename to writeRev? bufferRev?
+
+    -- * Specific Fold Functions
+    -- | Folds as functions of the shape @t m a -> m b@.
+    --
+    -- These functions are good to run individually but they do not compose
+    -- well. Prefer writing folds as the 'Fold' data type. Use folds from
+    -- "Streamly.Internal.Data.Fold" instead of using the functions in this
+    -- section.
+    --
+    -- This section can possibly be removed in future.  Are these better in
+    -- some case compared to 'Fold'? When the input stream is in CPS style
+    -- (StreamK) we may want to rewrite the function call to CPS implementation
+    -- of the fold through these definitions. Will that be more efficient for
+    -- StreamK?
 
     -- ** Full Folds
 
     -- -- ** To Summary (Full Folds)
+    , mapM_
     , drain
+    , drainN
+    , drainWhile
     , last
     , length
     , sum
@@ -56,18 +82,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , minimum
     , the
 
-    -- ** Lazy Folds
-    -- -- ** To Containers (Full Folds)
-    , toList
-    , toListRev
-    , toPure
-    , toPureRev
-
-    -- ** Composable Left Folds
-
-    , toStream    -- XXX rename to write?
-    , toStreamRev -- XXX rename to writeRev?
-
     -- ** Partial Folds
 
     -- -- ** To Elements (Partial Folds)
@@ -76,8 +90,12 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , (!!)
     , head
     , headElse
+    , tail
+    , init
     , findM
     , find
+    , findIndex
+    , elemIndex
     , lookup
 
     -- -- ** To Boolean (Partial Folds)
@@ -89,24 +107,41 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , and
     , or
 
-    -- ** Multi-Stream folds
+    -- -- ** Lazy Folds
+    -- ** To Containers
+    , toList
+    , toListRev
+    , toPure -- XXX move toStream to Data.Fold and rename this to toStream?
+    , toPureRev
+
+    -- * Concurrent Folds
+    , foldAsync
+    , (|$.)
+    , (|&.)
+
+    -- * Multi-Stream folds
     -- Full equivalence
     , eqBy
     , cmpBy
 
     -- finding subsequences
     , isPrefixOf
+    , isInfixOf
+    , isSuffixOf
     , isSubsequenceOf
 
     -- trimming sequences
     , stripPrefix
     -- , stripInfix
+    , stripSuffix
 
     -- * Deprecated
     , foldx
     , foldxM
     , foldr1
     , runStream
+    , runN
+    , runWhile
     , toHandle
     )
 where
@@ -116,20 +151,24 @@ where
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity (..))
+import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (MonadAsync, defState)
+import Streamly.Internal.Data.Stream.IsStream.Common
+    (fold, drop, findIndices, reverse, splitOnSeq, take, takeWhile)
 import Streamly.Internal.Data.Stream.Prelude (toStreamS)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
+import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 import qualified System.IO as IO
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
@@ -138,12 +177,10 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
 import Prelude hiding
-       ( filter, drop, dropWhile, take, takeWhile, zipWith, foldr
-       , foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem
-       , notElem, maximum, minimum, head, last, tail, length, null
-       , reverse, iterate, init, and, or, lookup, foldr1, (!!)
-       , scanl, scanl1, replicate, concatMap, span, splitAt, break
-       , repeat, concat, mconcat)
+       ( drop, take, takeWhile, foldr , foldl, mapM_, sequence, all, any, sum
+       , product, elem, notElem, maximum, minimum, head, last, tail, length
+       , null , reverse, init, and, or, lookup, foldr1, (!!) , splitAt, break
+       , mconcat)
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -165,7 +202,7 @@ uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m = K.uncons (K.adapt m)
 
 ------------------------------------------------------------------------------
--- Elimination by Folding
+-- Right Folds
 ------------------------------------------------------------------------------
 
 -- | Right associative/lazy pull fold. @foldrM build final stream@ constructs
@@ -218,6 +255,10 @@ foldr = P.foldr
 {-# DEPRECATED foldr1 "Use foldrM instead." #-}
 foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldr1 f m = S.foldr1 f (toStreamS m)
+
+------------------------------------------------------------------------------
+-- Left Folds
+------------------------------------------------------------------------------
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -275,23 +316,6 @@ foldlM' :: Monad m => (b -> a -> m b) -> m b -> SerialT m a -> m b
 foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
 ------------------------------------------------------------------------------
--- Running a Fold
-------------------------------------------------------------------------------
-
--- | Fold a stream using the supplied left 'Fold' and reducing the resulting
--- expression strictly at each step. The behavior is similar to 'foldl''. A
--- 'Fold' can terminate early without consuming the full stream. See the
--- documentation of individual 'Fold's for termination behavior.
---
--- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
--- 5050
---
--- @since 0.7.0
-{-# INLINE fold #-}
-fold :: Monad m => Fold m a b -> SerialT m a -> m b
-fold = P.foldOnce
-
-------------------------------------------------------------------------------
 -- Running a sink
 ------------------------------------------------------------------------------
 
@@ -327,8 +351,21 @@ parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
 parse = parseD . PRK.fromParserK
 
 ------------------------------------------------------------------------------
--- Specialized folds
+-- Specific Fold Functions
 ------------------------------------------------------------------------------
+
+-- XXX this can utilize parallel mapping if we implement it as drain . mapM
+-- |
+-- > mapM_ = drain . mapM
+--
+-- Apply a monadic action to each element of the stream and discard the output
+-- of the action. This is not really a pure transformation operation but a
+-- transformation followed by fold.
+--
+-- @since 0.1.0
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
+mapM_ f m = S.mapM_ f $ toStreamS m
 
 -- |
 -- > drain = mapM_ (\_ -> return ())
@@ -342,6 +379,50 @@ parse = parseD . PRK.fromParserK
 {-# INLINE drain #-}
 drain :: Monad m => SerialT m a -> m ()
 drain = P.drain
+
+-- |
+-- > drainN n = drain . take n
+-- > drainN n = fold (Fold.ltake n Fold.drain)
+--
+-- Run maximum up to @n@ iterations of a stream.
+--
+-- @since 0.7.0
+{-# INLINE drainN #-}
+drainN :: Monad m => Int -> SerialT m a -> m ()
+drainN n = drain . take n
+
+-- |
+-- > runN n = runStream . take n
+--
+-- Run maximum up to @n@ iterations of a stream.
+--
+-- @since 0.6.0
+{-# DEPRECATED runN "Please use \"drainN\" instead" #-}
+{-# INLINE runN #-}
+runN :: Monad m => Int -> SerialT m a -> m ()
+runN = drainN
+
+-- |
+-- > drainWhile p = drain . takeWhile p
+-- > drainWhile p = fold (Fold.sliceSepBy (not . p) Fold.drain)
+--
+-- Run a stream as long as the predicate holds true.
+--
+-- @since 0.7.0
+{-# INLINE drainWhile #-}
+drainWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
+drainWhile p = drain . takeWhile p
+
+-- |
+-- > runWhile p = runStream . takeWhile p
+--
+-- Run a stream as long as the predicate holds true.
+--
+-- @since 0.6.0
+{-# DEPRECATED runWhile "Please use \"drainWhile\" instead" #-}
+{-# INLINE runWhile #-}
+runWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
+runWhile = drainWhile
 
 -- | Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
@@ -553,6 +634,10 @@ maximumBy cmp m = S.maximumBy cmp (toStreamS m)
 the :: (Eq a, Monad m) => SerialT m a -> m (Maybe a)
 the m = S.the (toStreamS m)
 
+------------------------------------------------------------------------------
+-- Searching
+------------------------------------------------------------------------------
+
 -- | Lookup the element at the given index.
 --
 -- @since 0.6.0
@@ -590,130 +675,26 @@ find p m = S.find p (toStreamS m)
 findM :: Monad m => (a -> m Bool) -> SerialT m a -> m (Maybe a)
 findM p m = S.findM p (toStreamS m)
 
-------------------------------------------------------------------------------
--- Substreams
-------------------------------------------------------------------------------
+-- | Returns the first index that satisfies the given predicate.
+--
+-- > findIndex = fold Fold.findIndex
+--
+-- @since 0.5.0
+{-# INLINE findIndex #-}
+findIndex :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe Int)
+findIndex p = head . findIndices p
 
--- | Returns 'True' if the first stream is the same as or a prefix of the
--- second. A stream is a prefix of itself.
+-- | Returns the first index where a given value is found in the stream.
 --
--- @
--- > S.isPrefixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
--- True
--- @
+-- > elemIndex a = findIndex (== a)
 --
--- @since 0.6.0
-{-# INLINE isPrefixOf #-}
-isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
-isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
-
--- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
--- may use the suffix stream many times. To run in optimal memory we do not
--- want to buffer the suffix stream in memory therefore  we need an ability to
--- clone (or consume it multiple times) the suffix stream without any side
--- effects so that multiple potential suffix matches can proceed in parallel
--- without buffering the suffix stream. For example, we may create the suffix
--- stream from a file handle, however, if we evaluate the stream multiple
--- times, once for each match, we will need a different file handle each time
--- which may exhaust the file descriptors. Instead, we want to share the same
--- underlying file descriptor, use pread on it to generate the stream and clone
--- the stream for each match. Therefore the suffix stream should be built in
--- such a way that it can be consumed multiple times without any problems.
-
--- XXX Can be implemented with better space/time complexity.
--- Space: @O(n)@ worst case where @n@ is the length of the suffix.
-
--- | Returns 'True' if all the elements of the first stream occur, in order, in
--- the second stream. The elements do not have to occur consecutively. A stream
--- is a subsequence of itself.
---
--- @
--- > S.isSubsequenceOf (S.fromList "hlo") (S.fromList "hello" :: SerialT IO Char)
--- True
--- @
---
--- @since 0.6.0
-{-# INLINE isSubsequenceOf #-}
-isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
-isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
-
--- | @stripPrefix prefix stream@ strips @prefix@ from @stream@ if it is a
--- prefix of stream. Returns 'Nothing' if the stream does not start with the
--- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
--- is the same as the stream.
---
--- Space: @O(1)@
---
--- @since 0.6.0
-{-# INLINE stripPrefix #-}
-stripPrefix
-    :: (Eq a, IsStream t, Monad m)
-    => t m a -> t m a -> m (Maybe (t m a))
-stripPrefix m1 m2 = fmap fromStreamD <$>
-    D.stripPrefix (toStreamD m1) (toStreamD m2)
+-- @since 0.5.0
+{-# INLINE elemIndex #-}
+elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
+elemIndex a = findIndex (== a)
 
 ------------------------------------------------------------------------------
--- Concurrent Application
-------------------------------------------------------------------------------
-
-infixr 0 |$.
-infixl 1 |&.
-
--- | Parallel fold application operator; applies a fold function @t m a -> m b@
--- to a stream @t m a@ concurrently; The the input stream is evaluated
--- asynchronously in an independent thread yielding elements to a buffer and
--- the folding action runs in another thread consuming the input from the
--- buffer.
---
--- If you read the signature as @(t m a -> m b) -> (t m a -> m b)@ you can look
--- at it as a transformation that converts a fold function to a buffered
--- concurrent fold function.
---
--- The @.@ at the end of the operator is a mnemonic for termination of the
--- stream.
---
--- @
---    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
---       |$. S.repeatM (threadDelay 1000000 >> return 1)
--- @
---
--- /Concurrent/
---
--- /Since: 0.3.0 ("Streamly")/
---
--- @since 0.8.0
-{-# INLINE (|$.) #-}
-(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
--- (|$.) f = f . Async.mkAsync
-(|$.) f = f . D.mkParallel
-
--- | Same as '|$.'.
---
---  /Internal/
---
-{-# INLINE foldAsync #-}
-foldAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
-foldAsync = (|$.)
-
--- | Parallel reverse function application operator for applying a run or fold
--- functions to a stream. Just like '|$.' except that the operands are reversed.
---
--- @
---        S.repeatM (threadDelay 1000000 >> return 1)
---    |&. S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
--- @
---
--- /Concurrent/
---
--- /Since: 0.3.0 ("Streamly")/
---
--- @since 0.8.0
-{-# INLINE (|&.) #-}
-(|&.) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
-x |&. f = f |$. x
-
-------------------------------------------------------------------------------
--- Conversions
+-- To containers
 ------------------------------------------------------------------------------
 
 -- |
@@ -821,6 +802,191 @@ toPure = foldr K.cons K.nil
 {-# INLINE toPureRev #-}
 toPureRev :: Monad m => SerialT m a -> m (SerialT Identity a)
 toPureRev = foldl' (flip K.cons) K.nil
+
+------------------------------------------------------------------------------
+-- Concurrent Application
+------------------------------------------------------------------------------
+
+-- | Parallel fold application operator; applies a fold function @t m a -> m b@
+-- to a stream @t m a@ concurrently; The the input stream is evaluated
+-- asynchronously in an independent thread yielding elements to a buffer and
+-- the folding action runs in another thread consuming the input from the
+-- buffer.
+--
+-- If you read the signature as @(t m a -> m b) -> (t m a -> m b)@ you can look
+-- at it as a transformation that converts a fold function to a buffered
+-- concurrent fold function.
+--
+-- The @.@ at the end of the operator is a mnemonic for termination of the
+-- stream.
+--
+-- @
+--    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+--       |$. S.repeatM (threadDelay 1000000 >> return 1)
+-- @
+--
+-- /Concurrent/
+--
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE (|$.) #-}
+(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
+-- (|$.) f = f . Async.mkAsync
+(|$.) f = f . D.mkParallel
+
+infixr 0 |$.
+
+-- | Same as '|$.'.
+--
+--  /Internal/
+--
+{-# INLINE foldAsync #-}
+foldAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
+foldAsync = (|$.)
+
+-- | Parallel reverse function application operator for applying a run or fold
+-- functions to a stream. Just like '|$.' except that the operands are reversed.
+--
+-- @
+--        S.repeatM (threadDelay 1000000 >> return 1)
+--    |&. S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+-- @
+--
+-- /Concurrent/
+--
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE (|&.) #-}
+(|&.) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
+x |&. f = f |$. x
+
+infixl 1 |&.
+
+------------------------------------------------------------------------------
+-- Multi-stream folds
+------------------------------------------------------------------------------
+
+-- | Returns 'True' if the first stream is the same as or a prefix of the
+-- second. A stream is a prefix of itself.
+--
+-- @
+-- > S.isPrefixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- @since 0.6.0
+{-# INLINE isPrefixOf #-}
+isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
+isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
+
+-- | Returns 'True' if the first stream is an infix of the second. A stream is
+-- considered an infix of itself.
+--
+-- @
+-- > S.isInfixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- Space: @O(n)@ worst case where @n@ is the length of the infix.
+--
+-- /Internal/
+--
+-- /Requires 'Storable' constraint/ - Help wanted.
+--
+{-# INLINE isInfixOf #-}
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a)
+    => SerialT m a -> SerialT m a -> m Bool
+isInfixOf infx stream = do
+    arr <- fold A.write infx
+    -- XXX can use breakOnSeq instead (when available)
+    r <- null $ drop 1 $ splitOnSeq arr FL.drain stream
+    return (not r)
+
+-- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
+-- may use the suffix stream many times. To run in optimal memory we do not
+-- want to buffer the suffix stream in memory therefore  we need an ability to
+-- clone (or consume it multiple times) the suffix stream without any side
+-- effects so that multiple potential suffix matches can proceed in parallel
+-- without buffering the suffix stream. For example, we may create the suffix
+-- stream from a file handle, however, if we evaluate the stream multiple
+-- times, once for each match, we will need a different file handle each time
+-- which may exhaust the file descriptors. Instead, we want to share the same
+-- underlying file descriptor, use pread on it to generate the stream and clone
+-- the stream for each match. Therefore the suffix stream should be built in
+-- such a way that it can be consumed multiple times without any problems.
+
+-- XXX Can be implemented with better space/time complexity.
+-- Space: @O(n)@ worst case where @n@ is the length of the suffix.
+
+-- | Returns 'True' if the first stream is a suffix of the second. A stream is
+-- considered a suffix of itself.
+--
+-- @
+-- > S.isSuffixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- Space: @O(n)@, buffers entire input stream and the suffix.
+--
+-- /Internal/
+--
+-- /Suboptimal/ - Help wanted.
+--
+{-# INLINE isSuffixOf #-}
+isSuffixOf :: (Monad m, Eq a) => SerialT m a -> SerialT m a -> m Bool
+isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
+
+-- | Returns 'True' if all the elements of the first stream occur, in order, in
+-- the second stream. The elements do not have to occur consecutively. A stream
+-- is a subsequence of itself.
+--
+-- @
+-- > S.isSubsequenceOf (S.fromList "hlo") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- @since 0.6.0
+{-# INLINE isSubsequenceOf #-}
+isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
+isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
+
+-- Note: If we want to return a Maybe value to know whether the
+-- suffix/infix was present or not along with the stripped stream then
+-- we need to buffer the whole input stream.
+--
+-- | @stripPrefix prefix stream@ strips @prefix@ from @stream@ if it is a
+-- prefix of stream. Returns 'Nothing' if the stream does not start with the
+-- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
+-- is the same as the stream.
+--
+-- Space: @O(1)@
+--
+-- @since 0.6.0
+{-# INLINE stripPrefix #-}
+stripPrefix
+    :: (Eq a, IsStream t, Monad m)
+    => t m a -> t m a -> m (Maybe (t m a))
+stripPrefix m1 m2 = fmap fromStreamD <$>
+    D.stripPrefix (toStreamD m1) (toStreamD m2)
+
+-- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
+-- not end with the given suffix. Returns @Just nil@ when the suffix is the
+-- same as the stream.
+--
+-- It may be more efficient to convert the stream to an Array and use
+-- stripSuffix on that especially if the elements have a Storable or Prim
+-- instance.
+--
+-- Space: @O(n)@, buffers the entire input stream as well as the suffix
+--
+-- /Internal/
+{-# INLINE stripSuffix #-}
+stripSuffix
+    :: (Monad m, Eq a)
+    => SerialT m a -> SerialT m a -> m (Maybe (SerialT m a))
+stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)
 
 ------------------------------------------------------------------------------
 -- Comparison

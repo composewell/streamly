@@ -1,37 +1,42 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
---               (c) The University of Glasgow, 2009
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
+-- A few functions in this module have been adapted from the vector package
+-- (c) Roman Leshchinskiy.
+--
 module Streamly.Internal.Data.Stream.StreamD.Eliminate
     (
-    -- * Elimination
-    -- ** General Folds
-      foldrM
-    , foldrMx
+    -- * Running a 'Fold'
+      foldOnce -- XXX rename to "fold"
+
+    -- -- * Running a 'Parser'
+ -- , parse
+
+    -- * Stream Deconstruction
+    , uncons
+
+    -- * Right Folds
+    , foldrM
     , foldr
+    , foldrMx
     , foldr1
 
-    , foldl'
+    -- * Left Folds
     , foldlM'
-    , toList
-    , toListRev
-
-    , foldlx'
+    , foldl'
     , foldlMx'
-    , foldOnce
-
+    , foldlx'
     , parselMx'
 
-    -- ** Specialized Folds
+    -- * Specific Fold Functions
     , drain
+    , mapM_ -- Map and Fold
     , null
     , head
     , headElse
@@ -45,29 +50,32 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , maximumBy
     , minimum
     , minimumBy
-    , findIndices
     , lookup
     , findM
     , find
     , (!!)
+    , the
+
+    -- * To containers
+    , toList
+    , toListRev
     , toSVarParallel
 
+    -- * Multi-Stream Folds
     -- ** Comparisons
+    -- | These should probably be expressed using zipping operations.
     , eqBy
     , cmpBy
 
-    -- ** Transformation comprehensions
-    , the
-
     -- ** Substreams
+    -- | These should probably be expressed using parsers.
     , isPrefixOf
     , isSubsequenceOf
     , stripPrefix
-
-    -- ** Map and Fold
-    , mapM_
     )
 where
+
+#include "inline.hs"
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -100,7 +108,7 @@ foldr1 f m = do
          Just (h, t) -> fmap Just (foldr f h t)
 
 ------------------------------------------------------------------------------
--- Parses
+-- Parsers
 ------------------------------------------------------------------------------
 
 -- Inlined definition. Without the inline "serially/parser/take" benchmark
@@ -381,18 +389,6 @@ findM p m = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
 find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
 find p = findM (return . p)
 
-{-# INLINE_NORMAL findIndices #-}
-findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
-findIndices p (Stream step state) = Stream step' (state, 0)
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (st, i) = i `seq` do
-      r <- step (adaptState gst) st
-      return $ case r of
-          Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
-          Skip s -> Skip (s, i)
-          Stop   -> Stop
-
 {-# INLINE toListRev #-}
 toListRev :: Monad m => Stream m a -> m [a]
 toListRev = foldl' (flip (:)) []
@@ -420,7 +416,16 @@ the (Stream step state) = go state
             Stop   -> return (Just n)
 
 ------------------------------------------------------------------------------
--- Substreams
+-- Map and Fold
+------------------------------------------------------------------------------
+
+-- | Execute a monadic action for each element of the 'Stream'
+{-# INLINE_NORMAL mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
+mapM_ m = drain . mapM m
+
+------------------------------------------------------------------------------
+-- Multi-stream folds
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL isPrefixOf #-}
@@ -487,12 +492,3 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
                     else return Nothing
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return Nothing
-
-------------------------------------------------------------------------------
--- Map and Fold
-------------------------------------------------------------------------------
-
--- | Execute a monadic action for each element of the 'Stream'
-{-# INLINE_NORMAL mapM_ #-}
-mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
-mapM_ m = drain . mapM m

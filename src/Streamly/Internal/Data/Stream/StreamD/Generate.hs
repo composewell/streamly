@@ -1,41 +1,51 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Generate
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2020 Composewell Technologies and Contributors
+--               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- Prefer unfolds ("Streamly.Internal.Data.Unfold") over the combinators in
+-- this module. They are more powerful and efficient as they can be transformed
+-- and composed on the input side efficiently and they can fuse in nested
+-- operations (e.g.  concatUnfold). All the combinators in this module can be
+-- expressed using unfolds with the same efficiency.
+--
+-- Operations in this module that are not in "Streamly.Internal.Data.Unfold":
+-- generate, times, fromPrimIORef.
+--
+-- We should plan to replace this module with "Streamly.Internal.Data.Unfold"
+-- in future.
 
+-- A few combinators in this module have been adapted from the vector package
+-- (c) Roman Leshchinskiy. See the notes in specific combinators.
+--
 module Streamly.Internal.Data.Stream.StreamD.Generate
   (
-    -- * Construction
+    -- * Primitives
       nil
     , nilM
     , cons
     , consM
 
-    -- * Generation
-    -- ** Unfolds
-    , unfoldr
-    , unfoldrM
+    -- * From 'Unfold'
     , unfold
 
-    -- ** Specialized Generation
-    -- | Generate a monadic stream from a seed.
+    -- * Unfolding
+    , unfoldr
+    , unfoldrM
+
+    -- * From Values
+    , yield
+    , yieldM
     , repeat
     , repeatM
     , replicate
     , replicateM
-    , fromIndices
-    , fromIndicesM
-    , generate
-    , generateM
-    , iterate
-    , iterateM
 
-    -- ** Enumerations
+    -- * Enumeration
     , enumerateFromStepIntegral
     , enumerateFromIntegral
     , enumerateFromThenIntegral
@@ -48,33 +58,48 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , enumerateFromToFractional
     , enumerateFromThenToFractional
 
-    -- ** Time
+    -- * Time Enumeration
     , times
 
-    -- ** Conversions
+    -- * From Generators
+    -- | Generate a monadic stream from a seed.
+    , fromIndices
+    , fromIndicesM
+    , generate
+    , generateM
+
+    -- * Iteration
+    , iterate
+    , iterateM
+
+    -- * From Containers
     -- | Transform an input structure into a stream.
-    -- | Direct style stream does not support @fromFoldable@.
-    , yield
-    , yieldM
+
+    -- Note: Direct style stream does not support @fromFoldable@.
     , fromList
     , fromListM
-    , fromStreamK
-    , fromStreamD
     , fromPrimIORef
     , fromProducer
     , fromSVar
-    , toStreamD
 
+    -- * Callbacks
     , newCallbackStream
+
+    -- * Conversions
+    , fromStreamK
+    , toStreamK
+    , fromStreamD
+    , toStreamD
     )
 where
+
+#include "inline.hs"
 
 import Control.Concurrent (myThreadId, threadDelay)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Int (Int64)
-import Streamly.Internal.Data.Time.Units
-       (toRelTime64, RelTime64)
+import Streamly.Internal.Data.Time.Units (toRelTime64, RelTime64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
@@ -88,7 +113,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
--- Construction
+-- Primitives
 ------------------------------------------------------------------------------
 
 -- | An empty 'Stream'.
@@ -115,23 +140,8 @@ cons x (Stream step state) = Stream step1 Nothing
             Stop      -> Stop
 
 ------------------------------------------------------------------------------
--- Generation by unfold
+-- From 'Unfold'
 ------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL unfoldrM #-}
-unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
-unfoldrM next state = Stream step state
-  where
-    {-# INLINE_LATE step #-}
-    step _ st = do
-        r <- next st
-        return $ case r of
-            Just (x, s) -> Yield x s
-            Nothing     -> Stop
-
-{-# INLINE_LATE unfoldr #-}
-unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
-unfoldr f = unfoldrM (return . f)
 
 data UnfoldState s = UnfoldNothing | UnfoldJust s
 
@@ -151,7 +161,27 @@ unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
             Stop      -> Stop
 
 ------------------------------------------------------------------------------
--- Specialized Generation
+-- Unfolding
+------------------------------------------------------------------------------
+
+-- Adapted from vector package
+{-# INLINE_NORMAL unfoldrM #-}
+unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
+unfoldrM next state = Stream step state
+  where
+    {-# INLINE_LATE step #-}
+    step _ st = do
+        r <- next st
+        return $ case r of
+            Just (x, s) -> Yield x s
+            Nothing     -> Stop
+
+{-# INLINE_LATE unfoldr #-}
+unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
+unfoldr f = unfoldrM (return . f)
+
+------------------------------------------------------------------------------
+-- From values
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL repeatM #-}
@@ -162,14 +192,7 @@ repeatM x = Stream (\_ _ -> x >>= \r -> return $ Yield r ()) ()
 repeat :: Monad m => a -> Stream m a
 repeat x = Stream (\_ _ -> return $ Yield x ()) ()
 
-{-# INLINE_NORMAL iterateM #-}
-iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
-iterateM step = Stream (\_ st -> st >>= \x -> return $ Yield x (step x))
-
-{-# INLINE_NORMAL iterate #-}
-iterate :: Monad m => (a -> a) -> a -> Stream m a
-iterate step st = iterateM (return . step) (return st)
-
+-- Adapted from the vector package
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: forall m a. Monad m => Int -> m a -> Stream m a
 replicateM n p = Stream step n
@@ -184,6 +207,10 @@ replicateM n p = Stream step n
 {-# INLINE_NORMAL replicate #-}
 replicate :: Monad m => Int -> a -> Stream m a
 replicate n x = replicateM n (return x)
+
+------------------------------------------------------------------------------
+-- Enumeration
+------------------------------------------------------------------------------
 
 -- This would not work properly for floats, therefore we put an Integral
 -- constraint.
@@ -323,6 +350,10 @@ numFrom from = enumerateFromStepNum from 1
 numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
 numFromThen from next = enumerateFromStepNum from (next - from)
 
+------------------------------------------------------------------------------
+-- Time Enumeration
+------------------------------------------------------------------------------
+
 {-# INLINE updateTimeVar #-}
 updateTimeVar :: Prim.IORef Int64 -> IO ()
 updateTimeVar timeVar = do
@@ -347,8 +378,6 @@ updateWithDelay precision timeVar = do
         where
 
         g' = g * 10 ^ (6 :: Int)
-
--- The take/drop combinators above should be moved to filtering section.
 
 {-# INLINE_NORMAL times #-}
 times :: MonadAsync m => Double -> Stream m (AbsTime, RelTime64)
@@ -376,7 +405,7 @@ times g = Stream step Nothing
             (toRelTime64 (MicroSecond64 (a - t0)))) s
 
 -------------------------------------------------------------------------------
--- Generation by Conversion
+-- From Generators
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL fromIndicesM #-}
@@ -392,6 +421,7 @@ fromIndicesM gen = Stream step 0
 fromIndices :: Monad m => (Int -> a) -> Stream m a
 fromIndices gen = fromIndicesM (return . gen)
 
+-- Adapted from the vector package
 {-# INLINE_NORMAL generateM #-}
 generateM :: Monad m => Int -> (Int -> m a) -> Stream m a
 generateM n gen = n `seq` Stream step 0
@@ -406,6 +436,22 @@ generateM n gen = n `seq` Stream step 0
 generate :: Monad m => Int -> (Int -> a) -> Stream m a
 generate n gen = generateM n (return . gen)
 
+-------------------------------------------------------------------------------
+-- Iteration
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL iterateM #-}
+iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
+iterateM step = Stream (\_ st -> st >>= \x -> return $ Yield x (step x))
+
+{-# INLINE_NORMAL iterate #-}
+iterate :: Monad m => (a -> a) -> a -> Stream m a
+iterate step st = iterateM (return . step) (return st)
+
+-------------------------------------------------------------------------------
+-- From containers
+-------------------------------------------------------------------------------
+
 -- XXX we need the MonadAsync constraint because of a rewrite rule.
 -- | Convert a list of monadic actions to a 'Stream'
 {-# INLINE_LATE fromListM #-}
@@ -415,6 +461,10 @@ fromListM = Stream step
     {-# INLINE_LATE step #-}
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
     step _ []     = return Stop
+
+-------------------------------------------------------------------------------
+-- From callback
+-------------------------------------------------------------------------------
 
 -- Note: we can use another API with two callbacks stop and yield if we want
 -- the callback to be able to indicate end of stream.
