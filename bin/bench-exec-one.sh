@@ -44,11 +44,14 @@ bench_rts_opts_default () {
 # Overrides for specific benchmarks
 bench_rts_opts_specific () {
   case "$1" in
+    Data.Stream.StreamD/o-n-space/elimination/toList) echo -n "-K2M" ;;
     Data.Stream.StreamK/o-n-space/elimination/toList) echo -n "-K2M" ;;
 
     Prelude.Parallel/o-n-heap/mapping/mapM) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
+
+    Prelude.Rate/o-1-space/asyncly/minRate/*) echo -n "-K128K" ;;
 
     # XXX These should be moved to o-n-space?
     Prelude.Serial/o-n-heap/grouping/classifySessionsOf) echo -n "-K1M -M32M" ;;
