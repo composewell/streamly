@@ -173,7 +173,6 @@ import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 import System.FilePath ((</>))
 import System.IO (Handle, hClose, IOMode(ReadMode))
-import System.IO.Unsafe (unsafePerformIO)
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
 import Data.Typeable (cast)
@@ -947,13 +946,7 @@ getRelPath :: Event -> Array Word8
 getRelPath Event{..} = eventRelPath
 
 getAbsPath :: Event -> Array Word8
-getAbsPath ev0 = go ev0
-
-    where
-
-    go ev = unsafePerformIO
-                $ A.fromStream
-                $ (A.toStream (getRoot ev) <> A.toStream (getRelPath ev))
+getAbsPath ev = getRoot ev <> getRelPath ev
 
 -- XXX should we use a Maybe?
 -- | Cookie is set when a rename occurs. The cookie value can be used to
