@@ -487,12 +487,13 @@ drainWhile p = takeWhile p FL.drain
 -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
 -- @
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINABLE sliceSepBy #-}
-sliceSepBy :: -- MonadCatch m =>
+sliceSepBy ::
+    MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepBy _cond = undefined -- K.toParserK . D.sliceSepBy cond
+sliceSepBy cond = K.toParserK . D.sliceSepBy cond . K.fromParserK
 
 -- | Like 'sliceSepBy' but does not drop the separator element, instead
 -- separator is emitted as a separate element in the output.
