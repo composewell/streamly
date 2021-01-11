@@ -173,8 +173,6 @@ module Streamly.Internal.Data.Fold.Types
 
     , Fold2 (..)
     , simplify
-    , toListRevF  -- experimental
-    -- $toListRevF
 
     -- * Generators
     , yield
@@ -329,9 +327,8 @@ instance Functor m => Functor (Fold m a) where
 -- /Unimplemented/
 --
 {-# INLINE yield #-}
-yield :: -- Monad m =>
-    b -> Fold m a b
-yield = undefined
+yield :: Applicative m => b -> Fold m a b
+yield b = Fold undefined (pure $ Done b) pure
 
 -- This is the dual of stream "yieldM".
 --
@@ -341,9 +338,8 @@ yield = undefined
 -- /Unimplemented/
 --
 {-# INLINE yieldM #-}
-yieldM :: -- Monad m =>
-    m b -> Fold m a b
-yieldM = undefined
+yieldM :: Applicative m => m b -> Fold m a b
+yieldM b = Fold undefined (Done <$> b) pure
 
 {-# ANN type Step Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
@@ -373,10 +369,7 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Partial sl -> return $ Partial $ SeqFoldL sl
             Done bl -> do
                 resR <- initialR
-                return
-                    $ case resR of
-                          Partial sr -> Partial $ SeqFoldR (func bl) sr
-                          Done br -> Done $ func bl br
+                return $ bimap (SeqFoldR (func bl)) (func bl) resR
 
     step (SeqFoldL st) a = do
         r <- stepL st a
@@ -384,10 +377,7 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Partial s -> return $ Partial (SeqFoldL s)
             Done b -> do
                 res <- initialR
-                return
-                    $ case res of
-                          Partial sr -> Partial $ SeqFoldR (func b) sr
-                          Done br -> Done $ func b br
+                return $ bimap (SeqFoldR (func b)) (func b) res
     step (SeqFoldR f st) a = do
         r <- stepR st a
         return
@@ -425,7 +415,7 @@ data GenericRunner sL sR bL bR
 -- folds and combines their output using the supplied function.
 instance Monad m => Applicative (Fold m a) where
     {-# INLINE pure #-}
-    pure b = Fold (\() _ -> pure $ Done b) (pure (Done b)) (\() -> pure b)
+    pure = yield
 
     {-# INLINE (<*>) #-}
     (<*>) = teeWith ($)
@@ -452,10 +442,7 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                           $ case resR of
                                 Partial sr -> RunBoth sl sr
                                 Done br -> RunLeft sl br
-                  Done bl ->
-                      case resR of
-                          Partial sr -> Partial $ RunRight bl sr
-                          Done br -> Done $ f bl br
+                  Done bl -> bimap (RunRight bl) (f bl) resR
 
     step (RunBoth sL sR) a = do
         resL <- stepL sL a
@@ -657,23 +644,6 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 -- Internal APIs
 ------------------------------------------------------------------------------
 
--- $toListRevF
--- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
--- exactly the same as reversing the list after 'toListRevF'.
-
--- | Buffers the input stream to a list in the reverse order of the input.
---
--- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Array" instead.
---
--- @since 0.7.0
-
---  xn : ... : x2 : x1 : []
-{-# INLINABLE toListRevF #-}
-toListRevF :: Monad m => Fold m a [a]
-toListRevF =
-    Fold (\xs x -> return $ Partial $ x : xs) (return $ Partial []) return
-
 -- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --
 -- >>> S.fold (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
@@ -758,18 +728,16 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
                 else Done <$> fextract s
             Done b -> return $ Done b
 
-    step (Tuple' i r) a
-        | i < n = do
-            res <- fstep r a
-            case res of
-                Partial sres -> do
-                    let i1 = i + 1
-                        s1 = Tuple' i1 sres
-                    if i1 < n
-                    then return $ Partial s1
-                    else Done <$> fextract sres
-                Done bres -> return $ Done bres
-        | otherwise = Done <$> fextract r
+    step (Tuple' i r) a = do
+        res <- fstep r a
+        case res of
+            Partial sres -> do
+                let i1 = i + 1
+                    s1 = Tuple' i1 sres
+                if i1 < n
+                then return $ Partial s1
+                else Done <$> fextract sres
+            Done bres -> return $ Done bres
 
     extract (Tuple' _ r) = fextract r
 
@@ -777,9 +745,9 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
 -- Nesting
 ------------------------------------------------------------------------------
 
--- XXX There is no clean way to duplicate. We should remove it from the API.
--- | Modify the fold such that when the fold is done, instead of returning the
--- accumulator, it returns a fold. The returned fold starts from where we left
+-- | Modify the fold such that it returns a new 'Fold' instead of the output.
+-- If the fold was already done the returned fold would always yield the
+-- result. If the fold was partial, the returned fold starts from where we left
 -- i.e. it uses the last accumulator value as the initial value of the
 -- accumulator. Thus we can resume the fold later and feed it more input.
 --
@@ -791,11 +759,15 @@ ltake n (Fold fstep finitial fextract) = Fold step initial extract
 --
 -- @since 0.7.0
 {-# INLINABLE duplicate #-}
-duplicate ::
-    -- Monad m =>
-    Fold m a b -> Fold m a (Fold m a b)
--- XXX This should change once we have step type in the initial element
-duplicate _ = undefined
+duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
+duplicate (Fold step1 initial1 extract1) =
+    Fold step initial (\s -> pure $ Fold step1 (pure $ Partial s) extract1)
+
+    where
+
+    initial = second yield <$> initial1
+
+    step s a = second yield <$> step1 s a
 
 -- | Run the initialization effect of a fold. The returned fold would use the
 -- value returned by this effect as its initial value.
@@ -810,12 +782,15 @@ initialize (Fold step initial extract) = do
 -- the returned fold.
 {-# INLINABLE runStep #-}
 runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
-runStep (Fold step initial done) a = do
-    res <- initial
-    return
-        $ case res of
-              Partial fs -> Fold step (step fs a) done
-              b@(Done _) -> Fold step (return b) done
+runStep (Fold step initial extract) a = return $ Fold step initial1 extract
+
+    where
+
+    initial1 = do
+        res <- initial
+        case res of
+              Partial fs -> step fs a
+              b@(Done _) -> return b
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -844,53 +819,44 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 
     -- cs = collect state
     -- ss = split state
-    -- cres = split state result
-    -- sres = collect state result
+    -- cres = collect state result
+    -- sres = split state result
     -- cb = collect done
     -- sb = split done
 
-    loopTillPartial cs sb = do
-        cres <- cstep cs sb
-        case cres of
-            Partial cs1 -> do
-                sres <- sinitial
-                case sres of
-                    Partial ss -> return $ Partial $ Tuple' ss cs
-                    Done sb1 -> loopTillPartial cs1 sb1
-            Done cb -> return $ Done cb
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
 
-    initial = do
-        cres <- cinitial
+    {-# INLINE handleSplitStep #-}
+    handleSplitStep cs sres =
+        case sres of
+            Partial ss1 -> return $ Partial $ Tuple' ss1 cs
+            Done sb -> loopTillPartial cs sb
+
+    {-# INLINE handleCollectStep #-}
+    handleCollectStep cres =
         case cres of
             Partial cs -> do
                 sres <- sinitial
-                case sres of
-                    -- XXX Check behaviour
-                    Partial ss -> return $ Partial $ Tuple' ss cs
-                    Done sb -> loopTillPartial cs sb
+                handleSplitStep cs sres
             Done cb -> return $ Done cb
+
+    -- Do not inline this
+    loopTillPartial cs sb = cstep cs sb >>= handleCollectStep
+
+    initial = cinitial >>= handleCollectStep
 
     {-# INLINE step #-}
     step (Tuple' ss cs) a = do
         sres <- sstep ss a
-        case sres of
-            Partial ss1 -> return $ Partial $ Tuple' ss1 cs
-            Done sb -> do
-                cres <- cstep cs sb
-                case cres of
-                    Partial cs1 -> do
-                        sres1 <- sinitial
-                        case sres1 of
-                            Partial ss2 -> return $ Partial $ Tuple' ss2 cs1
-                            Done sb1 -> loopTillPartial cs1 sb1
-                    Done cb -> return $ Done cb
+        handleSplitStep cs sres
 
     extract (Tuple' ss cs) = do
         sb <- sextract ss
         cres <- cstep cs sb
         case cres of
-            Partial cs1 -> cextract cs1
-            Done cb -> return cb
+            Partial s -> cextract s
+            Done b -> return b
 
 -- | @lchunksOf n split collect@ repeatedly applies the @split@ fold to chunks
 -- of @n@ items in the input stream and supplies the result to the @collect@
@@ -913,15 +879,13 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 
     where
 
-    inject' x = do
-        r2 <- inject2 x
-        loopUntilPartial initial1 r2
-
-    loopUntilPartial mres r2 = do
-        res <- mres
+    loopUntilPartial s = do
+        res <- initial1
         case res of
-            Partial fs -> return $ Tuple3' 0 fs r2
-            Done _ -> loopUntilPartial mres r2
+            Partial fs -> return $ Tuple3' 0 fs s
+            Done _ -> loopUntilPartial s
+
+    inject' x = inject2 x >>= loopUntilPartial
 
     step' (Tuple3' i r1 r2) a =
         if i < n
@@ -929,18 +893,10 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
             res <- step1 r1 a
             case res of
                 Partial s -> return $ Tuple3' (i + 1) s r2
-                Done b -> do
-                    r21 <- step2 r2 b
-                    loopUntilPartial initial1 r21
-        else do
-            res <- extract1 r1
-            acc2 <- step2 r2 res
-            loopUntilPartial initial1 acc2
+                Done b -> step2 r2 b >>= loopUntilPartial
+        else extract1 r1 >>= step2 r2 >>= loopUntilPartial
 
-    extract' (Tuple3' _ r1 r2) = do
-        res <- extract1 r1
-        acc2 <- step2 r2 res
-        extract2 acc2
+    extract' (Tuple3' _ r1 r2) = extract1 r1 >>= step2 r2 >>= extract2
 
 -- | @takeByTime n fold@ uses @fold@ to fold the input items arriving within a
 -- window of first @n@ seconds.

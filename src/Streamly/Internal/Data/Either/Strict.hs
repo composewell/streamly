@@ -29,18 +29,19 @@ where
 -- | A strict 'Either'
 data Either' a b = Left' !a | Right' !b deriving Show
 
--- | Return True if the given value is a Left'-value, False otherwise.
+-- | Return 'True' if the given value is a Left', 'False' otherwise.
 {-# INLINABLE isLeft' #-}
 isLeft' :: Either' a b -> Bool
 isLeft' (Left'  _) = True
 isLeft' (Right' _) = False
 
--- | Return True if the given value is a Right'-value, False otherwise.
+-- | Return 'True' if the given value is a Right', 'False' otherwise.
 {-# INLINABLE isRight' #-}
 isRight' :: Either' a b -> Bool
 isRight' (Left'  _) = False
 isRight' (Right' _) = True
 
+-- XXX This is partial. We can use a default value instead.
 -- | Return the contents of a Left'-value or errors out.
 {-# INLINABLE fromLeft' #-}
 fromLeft' :: Either' a b -> a

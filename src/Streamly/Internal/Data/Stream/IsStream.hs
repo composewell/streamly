@@ -2045,9 +2045,7 @@ toHandle h = go
 -- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
-                (return (FL.Partial id))
-                (return . ($ K.nil))
+toStream = FL.mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -2063,11 +2061,7 @@ toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev =
-    Fold
-        (\xs x -> return $ FL.Partial $ x `K.cons` xs)
-        (return (FL.Partial K.nil))
-        return
+toStreamRev = FL.mkAccum_ (flip K.cons) K.nil
 
 -- | Convert a stream to a pure stream.
 --
@@ -4903,6 +4897,37 @@ classifySessionsBy tick tmout reset ejectPred
                     , sessionKeyValueMap = mp
                     , sessionOutputStream = yield (key, fb)
                     }
+            partial fs1 = do
+                let acc = Tuple' timestamp fs1
+                (hp1, mp1, out1, cnt1) <- do
+                        let vars = (sessionTimerHeap, sessionKeyValueMap,
+                                           K.nil, sessionCount)
+                        case mOld of
+                            -- inserting new entry
+                            Nothing -> do
+                                -- Eject a session from heap and map is needed
+                                eject <- ejectPred sessionCount
+                                (hp, mp, out, cnt) <-
+                                    if eject
+                                    then ejectOne vars
+                                    else return vars
+
+                                -- Insert the new session in heap
+                                let expiry = addToAbsTime timestamp timeoutMs
+                                    hp' = H.insert (Entry expiry key) hp
+                                 in return (hp', mp, out, cnt + 1)
+                            -- updating old entry
+                            Just _ -> return vars
+
+                let mp2 = Map.insert key acc mp1
+                return $ SessionState
+                    { sessionCurTime = curTime
+                    , sessionEventTime = curTime
+                    , sessionCount = cnt1
+                    , sessionTimerHeap = hp1
+                    , sessionKeyValueMap = mp2
+                    , sessionOutputStream = out1
+                    }
         res0 <- do
             case mOld of
                 Nothing -> initial
@@ -4913,37 +4938,7 @@ classifySessionsBy tick tmout reset ejectPred
                 res <- step fs value
                 case res of
                     FL.Done fb -> done fb
-                    FL.Partial fs1 -> do
-                        let acc = Tuple' timestamp fs1
-                        (hp1, mp1, out1, cnt1) <- do
-                                let vars = (sessionTimerHeap, sessionKeyValueMap,
-                                                   K.nil, sessionCount)
-                                case mOld of
-                                    -- inserting new entry
-                                    Nothing -> do
-                                        -- Eject a session from heap and map is needed
-                                        eject <- ejectPred sessionCount
-                                        (hp, mp, out, cnt) <-
-                                            if eject
-                                            then ejectOne vars
-                                            else return vars
-
-                                        -- Insert the new session in heap
-                                        let expiry = addToAbsTime timestamp timeoutMs
-                                            hp' = H.insert (Entry expiry key) hp
-                                         in return (hp', mp, out, cnt + 1)
-                                    -- updating old entry
-                                    Just _ -> return vars
-
-                        let mp2 = Map.insert key acc mp1
-                        return $ SessionState
-                            { sessionCurTime = curTime
-                            , sessionEventTime = curTime
-                            , sessionCount = cnt1
-                            , sessionTimerHeap = hp1
-                            , sessionKeyValueMap = mp2
-                            , sessionOutputStream = out1
-                            }
+                    FL.Partial fs1 -> partial fs1
 
     -- Got a timer tick event
     sstep sessionState@SessionState{..} Nothing =

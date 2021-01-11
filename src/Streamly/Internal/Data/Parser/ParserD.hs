@@ -285,71 +285,56 @@ either parser = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 
-data TakeEQState s b = EQTaking Int !s | EQZero !b
-
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
 -- /Internal/
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
+takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    n = max cnt 0
+    cnt = max n 0
 
     initial = do
         res <- finitial
         case res of
-            FL.Partial s ->
-                if n == 0
-                then EQZero <$> fextract s
-                else return $ EQTaking 0 s
-            FL.Done b -> return $ EQZero b
+            FL.Partial s -> return $ Tuple' 0 s
+            FL.Done _ ->
+                error "takeEQ: Done/Error in initial not implemented yet."
 
-    step (EQTaking i r) a
-        | i1 < n = do
+    step (Tuple' i r) a
+        | i1 < cnt = do
             res <- fstep r a
             return
                 $ case res of
-                    FL.Partial s -> Continue 0 $ EQTaking i1 s
+                    FL.Partial s -> Continue 0 $ Tuple' i1 s
                     FL.Done _ ->
                         Error
-                            $ "takeEQ: the collecting fold terminated after "
-                                ++ "consuming" ++ show i1 ++ " elements"
-        | i1 == n = do
+                            $ "takeEQ: Expecting exactly " ++ show cnt
+                                ++ " elements, fold terminated on " ++ show i1
+        | i1 == cnt = do
             res <- fstep r a
             Done 0
                 <$> case res of
                         FL.Partial s -> fextract s
                         FL.Done b -> return b
-        | otherwise =
-            error $ "takeEQ: took more than " ++ show n ++ " elements"
+        -- XXX we should not reach here when initial returns Step type
+        -- reachable only when n == 0
+        | otherwise = Done 1 <$> fextract r
 
         where
 
         i1 = i + 1
 
-    step (EQZero b) _ =
-        return
-            $ if n == 0
-              then Done 1 b
-              else Error $ err n 0
-
-    extract (EQTaking i r)
-        | i == 0 && n == 0 = fextract r
-        | otherwise = throwM $ ParseError $ err n i
-    extract (EQZero r)
-        | n == 0 = return r
-        | otherwise = throwM $ ParseError $ err n 0
-
-    err :: Int -> Int -> String
-    err n_ i =
-        "takeEQ: Expecting exactly "
-        ++ show n_ ++ " elements, got " ++ show i
-
-data TakeGEState s b = GETaking Int s | GEZero b
+    extract (Tuple' i r)
+        | i == 0 && cnt == 0 = fextract r
+        | otherwise =
+            throwM
+                $ ParseError
+                $ "takeEQ: Expecting exactly " ++ show cnt
+                    ++ " elements, input terminated on " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeGE'.
 --
@@ -357,49 +342,46 @@ data TakeGEState s b = GETaking Int s | GEZero b
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadThrow m => Int -> Fold m a b -> Parser m a b
-takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
+takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    n = max cnt 0
+    cnt = max n 0
     initial = do
         res <- finitial
-        return
-            $ case res of
-                  FL.Partial s -> GETaking 0 s
-                  FL.Done b -> GEZero b
+        case res of
+            FL.Partial s -> return $ Tuple' 0 s
+            FL.Done _ ->
+                error "takeGE: Done/Error in initial not implemented yet."
 
-    step (GETaking i r) a
-        | i < n = do
+    step (Tuple' i r) a
+        | i1 < cnt = do
             res <- fstep r a
             return
                 $ case res of
-                      FL.Partial s -> Continue 0 $ GETaking i1 s
+                      FL.Partial s -> Continue 0 $ Tuple' i1 s
                       FL.Done _ ->
                         Error
-                            $ "takeGE: the collecting fold terminated after "
-                                ++ "consuming " ++ show i1 ++ " elements"
+                            $ "takeGE: Expecting at least " ++ show cnt
+                                ++ " elements, fold terminated on " ++ show i1
         | otherwise = do
             res <- fstep r a
             return
                 $ case res of
-                      FL.Partial s -> Partial 0 $ GETaking i1 s
+                      FL.Partial s -> Partial 0 $ Tuple' i1 s
                       FL.Done b -> Done 0 b
 
         where
 
         i1 = i + 1
 
-    step (GEZero b) _ = return $ Done 1 b
-
-    extract (GETaking i b)
-        | i >= n = fextract b
+    extract (Tuple' i r)
+        | i >= cnt = fextract r
         | otherwise =
             throwM
                 $ ParseError
-                $ "takeGE: Expecting at least "
-                      ++ show n ++ " elements, got " ++ show i
-    extract (GEZero b) = return b
+                $ "takeGE: Expecting at least " ++ show cnt
+                    ++ " elements, input terminated on " ++ show i
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
@@ -408,25 +390,26 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile predicate (Fold fstep finitial fextract) =
-    Parser step initial extract
+    Parser step initial fextract
 
     where
 
-    initial = finitial
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial s -> return s
+            FL.Done _ ->
+                error "takeWhile: Done/Error in initial not implemented yet."
 
-    step (FL.Partial s) a =
+    step s a =
         if predicate a
         then do
             fres <- fstep s a
             return
                 $ case fres of
-                      FL.Partial s1 -> Partial 0 (FL.Partial s1)
+                      FL.Partial s1 -> Partial 0 s1
                       FL.Done b -> Done 0 b
         else Done 1 <$> fextract s
-    step (FL.Done b) _ = return $ Done 1 b
-
-    extract (FL.Partial s) = fextract s
-    extract (FL.Done b) = return b
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
@@ -442,18 +425,19 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     initial = return Nothing
 
     step Nothing a =
-        if predicate a
-        then do
-            res <- finitial
-            case res of
-                FL.Partial s -> do
-                    sr <- fstep s a
-                    return
-                        $ case sr of
-                              FL.Partial r -> Partial 0 (Just r)
-                              FL.Done b -> Done 0 b
-                FL.Done b -> return $ Done 1 b
-        else return $ Error "takeWhile1: predicate failed on first element"
+        let err = Error "takeWhile1: predicate failed on first element"
+         in if predicate a
+            then do
+                res <- finitial
+                case res of
+                    FL.Partial s -> do
+                        sr <- fstep s a
+                        return
+                            $ case sr of
+                                  FL.Partial s1 -> Partial 0 (Just s1)
+                                  FL.Done b -> Done 0 b
+                    FL.Done _ -> return err
+            else return err
     step (Just s) a =
         if predicate a
         then do
@@ -486,7 +470,7 @@ sliceBeginWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
 
-data WordByState s b = WBLeft !s | WBWord !s | WBRight !b | WBNone !b
+data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
@@ -510,7 +494,7 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s -> WBLeft s
-                  FL.Done b -> WBNone b
+                  FL.Done _ -> error "wordBy: Done in initial not implemented"
 
     step (WBLeft s) a =
         if not (predicate a)
@@ -527,17 +511,14 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
             $ if not (predicate a)
               then Done 1 b
               else Partial 0 $ WBRight b
-    step (WBNone b) _ = return $ Done 1 b
 
     extract (WBLeft s) = fextract s
     extract (WBWord s) = fextract s
     extract (WBRight b) = return b
-    extract (WBNone b) = return b
 
-data GroupByState a s b
+data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
-    | GroupByNone !b
 
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
@@ -560,10 +541,9 @@ groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s -> GroupByInit s
-                  FL.Done b -> GroupByNone b
+                  FL.Done _ -> error "groupBy: Done in initial not implemented"
 
     step (GroupByInit s) a = grouper s a a
-    step (GroupByNone b) _ = return $ Done 1 b
     step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then grouper s a0 a
@@ -571,7 +551,6 @@ groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
 
     extract (GroupByInit s) = fextract s
     extract (GroupByGrouping _ s) = fextract s
-    extract (GroupByNone b) = return b
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
@@ -732,10 +711,9 @@ count ::
 count n = countBetween n n
 -- count n f p = many (takeEQ n f) p
 
-data ManyTillState fs sr sl b
+data ManyTillState fs sr sl
     = ManyTillR Int fs sr
     | ManyTillL Int fs sl
-    | ManyTillN b
 
 -- | See 'Streamly.Internal.Data.Parser.manyTill'.
 --
@@ -755,7 +733,7 @@ manyTill (Fold fstep finitial fextract)
         res <- finitial
         case res of
             FL.Partial fs -> ManyTillR 0 fs <$> initialR
-            FL.Done b -> return $ ManyTillN b
+            FL.Done _ -> error "manyTill: Done in initial not implemented"
 
     step (ManyTillR cnt fs st) a = do
         r <- stepR st a
@@ -770,11 +748,14 @@ manyTill (Fold fstep finitial fextract)
             Error _ -> do
                 rR <- initialL
                 return $ Continue (cnt + 1) (ManyTillL 0 fs rR)
-    step (ManyTillL _ fs st) a = do
+    -- XXX the cnt is being used only by the assert
+    step (ManyTillL cnt fs st) a = do
         r <- stepL st a
         case r of
             Partial n s -> return $ Partial n (ManyTillL 0 fs s)
-            Continue n s -> return $ Continue n (ManyTillL 0 fs s)
+            Continue n s -> do
+                assert (cnt + 1 - n >= 0) (return ())
+                return $ Continue n (ManyTillL (cnt + 1 - n) fs s)
             Done n b -> do
                 fs1 <- fstep fs b
                 case fs1 of
@@ -783,7 +764,6 @@ manyTill (Fold fstep finitial fextract)
                         return $ Partial n (ManyTillR 0 s l)
                     FL.Done b1 -> return $ Done n b1
             Error err -> return $ Error err
-    step (ManyTillN fb) _ = return $ Done 1 fb
 
     extract (ManyTillL _ fs sR) = do
         res <- extractL sR >>= fstep fs
@@ -791,4 +771,3 @@ manyTill (Fold fstep finitial fextract)
             FL.Partial s -> fextract s
             FL.Done b -> return b
     extract (ManyTillR _ fs _) = fextract fs
-    extract (ManyTillN b) = return b

@@ -93,6 +93,7 @@ import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -675,11 +676,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
 
-        res <- initial1
-        return
-            $ case res of
-                  FL.Partial r1 -> FL.Partial $ Tuple' Nothing r1
-                  FL.Done _ -> FL.Done ()
+        r <- initial1
+        return $ first (Tuple' Nothing) r
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
@@ -698,11 +696,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                         FL.Partial s -> do
                             extract1 s
                             res <- initial1
-                            return
-                                $ case res of
-                                      FL.Partial r1' ->
-                                          FL.Partial $ Tuple' Nothing r1'
-                                      FL.Done _ -> FL.Done ()
+                            return $ first (Tuple' Nothing) res
                 else return $ FL.Partial $ Tuple' (Just arr) r1
 
     step (Tuple' (Just buf) r1) arr = do
@@ -721,11 +715,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     FL.Partial s -> do
                         extract1 s
                         res <- initial1
-                        return
-                            $ case res of
-                                  FL.Partial r1' ->
-                                      FL.Partial $ Tuple' Nothing r1'
-                                  FL.Done _ -> FL.Done ()
+                        return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf'') r1
 
 #if !defined(mingw32_HOST_OS)

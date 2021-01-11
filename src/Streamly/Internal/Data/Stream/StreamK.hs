@@ -446,13 +446,13 @@ foldOnce (FL.Fold step begin done) m = do
     go !acc m1 =
         let stop = done acc
             single a = step acc a
-              >>= \x -> case x of
-                            FL.Partial s -> done s
-                            FL.Done b1 -> return b1
+              >>= \case
+                        FL.Partial s -> done s
+                        FL.Done b1 -> return b1
             yieldk a r = step acc a
-              >>= \x -> case x of
-                            FL.Partial s -> go s r
-                            FL.Done b1 -> return b1
+              >>= \case
+                        FL.Partial s -> go s r
+                        FL.Done b1 -> return b1
          in foldStream defState yieldk single stop m1
 
 -- | Like 'foldl'' but with a monadic step function.

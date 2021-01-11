@@ -6,6 +6,7 @@
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Primitive.Types (Prim(..), sizeOf)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
@@ -368,10 +369,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
               ++ show n
               ++ "] must be a natural number"
         res <- initial1
-        return
-            $ case res of
-                  FL.Partial r1 -> FL.Partial $ Tuple' Nothing r1
-                  FL.Done b -> FL.Done b
+        return $ first (Tuple' Nothing) res
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
@@ -390,10 +388,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 FL.Partial s -> do
                     extract1 s
                     res <- initial1
-                    return
-                        $ case res of
-                              FL.Partial r1' -> FL.Partial $ Tuple' Nothing r1'
-                              FL.Done b -> FL.Done b
+                    return $ first (Tuple' Nothing) res
         else return $ FL.Partial $ Tuple' (Just arr) r1
     step (Tuple' (Just buf) r1) arr = do
         blen <- byteLength buf
@@ -408,8 +403,5 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 FL.Partial s -> do
                     extract1 s
                     res <- initial1
-                    return
-                        $ case res of
-                              FL.Partial r1' -> FL.Partial $ Tuple' Nothing r1'
-                              FL.Done b -> FL.Done b
+                    return $ first (Tuple' Nothing) res
         else return $ FL.Partial $ Tuple' (Just buf') r1

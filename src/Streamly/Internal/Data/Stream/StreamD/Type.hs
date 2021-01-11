@@ -588,13 +588,20 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# ANN type GroupState Fuse #-}
 data GroupState s fs b a
     = GroupStart s
-    | GroupStart1 fs s
     | GroupConsume s fs a
     | GroupBuffer s fs
     | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
--- The behaviour of 'foldMany' should be consistent with 'many'.
+-- | This is the stream equivalent of "Data.Fold.Internal.many". The fold
+-- may consume 0 or more elements. It means:
+--
+-- * If the stream is empty the default value of the fold would still be
+-- emitted in the output.
+-- * At the end of the stream if the last application of the fold did not
+-- receive any input it would still yield the default fold accumulator as the
+-- last value.
+--
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
@@ -604,23 +611,21 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 
     {-# INLINE_LATE step' #-}
     step' _ (GroupStart st) = do
-        -- fs = fold state
-        fr <- initial
+        r <- initial
         return
-            $ case fr of
-                  FL.Done b ->
-                      let next = GroupStart st
-                       in Skip (GroupYield b next)
-                  FL.Partial fs -> Skip (GroupBuffer st fs)
+            $ Skip
+            $ case r of
+                  FL.Done b -> GroupYield b (GroupStart st)
+                  FL.Partial fs -> GroupBuffer st fs
     -- This state is not strictly required but it helps the compiler fuse the
     -- code.
     step' _ (GroupConsume st fs x) = do
-        fs' <- fstep fs x
+        r <- fstep fs x
         return
             $ Skip
-            $ case fs' of
+            $ case r of
                   FL.Done b -> GroupYield b (GroupStart st)
-                  FL.Partial ps -> GroupBuffer st ps
+                  FL.Partial fs1 -> GroupBuffer st fs1
     step' gst (GroupBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -631,51 +636,73 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                 return $ Skip (GroupYield b GroupFinish)
     step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
-    -- XXX GroupStart1 is unused here. Prehaps we should use a new type for
-    -- foldMany and foldMany1.
-    step' _ _ = error "foldMany: Unimplemented action reached"
 
--- The behaviour of 'foldMany1' should be consistent with respect to 'foldMany'.
+{-# ANN type FoldMany1 Fuse #-}
+data FoldMany1 s fs b a
+    = FoldMany1Start s
+    | FoldMany1First fs s
+    | FoldMany1Consume s fs a
+    | FoldMany1Gen s fs
+    | FoldMany1Yield b (FoldMany1 s fs b a)
+    | FoldMany1Done
+
+-- Is there a many1 corresponding to this?
+--
+-- | Like 'foldMany' except that the fold consumes 1 or more elements. It
+-- means:
+--
+-- * If the stream is empty the output would be empty.
+-- * At the end of the stream if the last application of the fold did not
+-- receive any input it would not result in any output.
+--
+-- @foldMany1 f = parseMany (fromFold f)@
+--
+-- This could be problematic unless we use an accumulator fold instead of a
+-- terminating fold. A terminating fold may terminate even without accepting a
+-- single element. We can use parseMany instead where we can return the input
+-- if the fold terminates without accepting any input. The alternative is to
+-- always execute the fold's initial action and discard it in case the stream
+-- stops without actually feeding input to it.
+--
 {-# INLINE_NORMAL foldMany1 #-}
 foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany1 (Fold fstep initial extract) (Stream step state) =
-    Stream step' (GroupStart state)
+    Stream step' (FoldMany1Start state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ (GroupStart st) = do
-        fr <- initial
+    step' _ (FoldMany1Start st) = do
+        r <- initial
         return
-            $ case fr of
-                  FL.Done b ->
-                      let next = GroupStart st
-                       in Skip (GroupYield b next)
-                  FL.Partial fs -> Skip (GroupStart1 fs st)
-    step' gst (GroupStart1 fs st) = do
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldMany1Yield b (FoldMany1Start st)
+                  FL.Partial fs -> FoldMany1First fs st
+    step' gst (FoldMany1First fs st) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                return $ Skip $ GroupConsume s fs x
-            Skip s -> return $ Skip (GroupStart s)
+                return $ Skip $ FoldMany1Consume s fs x
+            Skip s -> return $ Skip (FoldMany1Start s)
             Stop -> return Stop
-    step' _ (GroupConsume st fs x) = do
-        fs' <- fstep fs x
+    step' _ (FoldMany1Consume st fs x) = do
+        r <- fstep fs x
         return
             $ Skip
-            $ case fs' of
-                  FL.Done b -> GroupYield b (GroupStart st)
-                  FL.Partial ps -> GroupBuffer st ps
-    step' gst (GroupBuffer st fs) = do
+            $ case r of
+                  FL.Done b -> FoldMany1Yield b (FoldMany1Start st)
+                  FL.Partial fs1 -> FoldMany1Gen st fs1
+    step' gst (FoldMany1Gen st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
-            Skip s -> return $ Skip (GroupBuffer s fs)
+            Yield x s -> return $ Skip $ FoldMany1Consume s fs x
+            Skip s -> return $ Skip (FoldMany1Gen s fs)
             Stop -> do
                 b <- extract fs
-                return $ Skip (GroupYield b GroupFinish)
-    step' _ (GroupYield b next) = return $ Yield b next
-    step' _ GroupFinish = return Stop
+                return $ Skip (FoldMany1Yield b FoldMany1Done)
+    step' _ (FoldMany1Yield b next) = return $ Yield b next
+    step' _ FoldMany1Done = return Stop
 
 data GroupState2 s fs
     = GroupStart2 s

@@ -8,6 +8,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Primitive (PrimMonad(..), primitive_)
+import Data.Bifunctor (first)
 import Data.Primitive.Types (Prim(..), sizeOf)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -604,10 +605,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             error $ "Streamly.Internal.Data.Array.Storable.Foreign.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         res <- initial1
-        return
-            $ case res of
-                  FL.Partial r1 -> FL.Partial $ (Tuple3' Nothing' 0 r1)
-                  FL.Done b -> FL.Done b
+        return $ first (Tuple3' Nothing' 0) res
 
     extract (Tuple3' Nothing' _ r1) = extract1 r1
     extract (Tuple3' (Just' buf) boff r1) = do
@@ -626,11 +624,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     FL.Partial s -> do
                         extract1 s
                         res <- initial1
-                        return
-                            $ case res of
-                                  FL.Partial r1' ->
-                                      FL.Partial $ Tuple3' Nothing' 0 r1'
-                                  FL.Done b -> FL.Done b
+                        return $ first (Tuple3' Nothing' 0) res
             else do
                 buf <- MA.newArray nElem
                 noff <- spliceInto buf 0 arr
@@ -648,11 +642,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     FL.Partial s -> do
                         extract1 s
                         res <- initial1
-                        return
-                            $ case res of
-                                  FL.Partial r1' ->
-                                      FL.Partial $ Tuple3' Nothing' 0 r1'
-                                  FL.Done b -> FL.Done b
+                        return $ first (Tuple3' Nothing' 0) res
             else return $ FL.Partial $ Tuple3' (Just' buf) noff r1
 
 data SplitState s arr
