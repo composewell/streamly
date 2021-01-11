@@ -311,6 +311,17 @@ takeProperties =
 --                         where
 --                             list_length = Prelude.length ls
 
+sliceSepBy :: Property
+sliceSepBy =
+    forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
+        case S.parse (P.sliceSepBy predicate prsr) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile
+                        (not. predicate) ls)
+            Left _ -> property False
+        where
+            predicate = (>= 100)
+            prsr = P.many FL.toList (P.satisfy (const True))
+
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
@@ -693,6 +704,7 @@ main =
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
+        prop "P.sliceSepBy test" Main.sliceSepBy
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
                 ++ " else check why failed") takeWhile1

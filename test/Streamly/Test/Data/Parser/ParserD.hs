@@ -292,6 +292,7 @@ lookAhead =
                         where
                             list_length = Prelude.length ls
 
+
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
@@ -336,12 +337,15 @@ groupBy =
 
 sliceSepBy :: Property
 sliceSepBy =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parseD (P.fromFold $ FL.sliceSepBy predicate FL.toList) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile (not . predicate) ls)
+    forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
+        case S.parseD (P.sliceSepBy predicate prsr) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile
+                        (not. predicate) ls)
             Left _ -> property False
         where
-            predicate = (== 1)
+            predicate = (>= 100)
+            prsr = P.many FL.toList (P.satisfy (const True))
+
 
 sliceSepByMax :: Property
 sliceSepByMax =

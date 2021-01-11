@@ -487,9 +487,22 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 --
 -- /Internal/
 --
-sliceSepBy :: -- MonadCatch m =>
+sliceSepBy :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepBy _cond = undefined
+sliceSepBy cond (Parser pstep pinitial pextract) =
+
+    Parser step initial pextract
+
+    where
+
+    initial = pinitial
+
+    step s a =
+        if cond a
+        then do
+            res <- pextract s
+            return $ Done 0 res
+        else pstep s a
 
 -- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
