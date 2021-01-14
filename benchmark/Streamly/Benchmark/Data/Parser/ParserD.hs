@@ -100,10 +100,10 @@ someAlt xs = do
     x <- IP.parseD (AP.some (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
-{-#INLINE sliceSepBy #-}
-sliceSepBy :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceSepBy value = IP.parseD (PR.sliceSepBy (>= value) (PR.many FL.drain
-                    (PR.satisfy (const True))))
+{-#INLINE sliceSepByP #-}
+sliceSepByP :: MonadCatch m => Int -> SerialT m Int -> m ()
+sliceSepByP value = IP.parseD (PR.sliceSepByP (>= value) (PR.fromFold FL.drain))
+
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
 manyTill value =
@@ -218,7 +218,7 @@ o_1_space_serial value =
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
-    , benchIOSink value "sliceSepBy" $ sliceSepBy value
+    , benchIOSink value "sliceSepByP" $ sliceSepByP value
     , benchIOSink value "manyTill" $ manyTill value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value

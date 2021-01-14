@@ -161,11 +161,10 @@ split_ value =
             (PR.drainWhile (<= value))
         )
 
-{-# INLINE sliceSepBy #-}
-sliceSepBy :: MonadCatch m
+{-# INLINE sliceSepByP #-}
+sliceSepByP :: MonadCatch m
     => Int -> SerialT m Int -> m()
-sliceSepBy value = IP.parse (PR.sliceSepBy (>= value) (PR.many FL.drain
-                    (PR.satisfy (const True))))
+sliceSepByP value = IP.parse (PR.sliceSepByP (>= value) (PR.fromFold FL.drain))
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadCatch m
@@ -287,7 +286,7 @@ o_1_space_serial value =
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
     , benchIOSink value "splitWith" $ splitWith value
-    , benchIOSink value "sliceSepBy" $ sliceSepBy value
+    , benchIOSink value "sliceSepByP" $ sliceSepByP value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
