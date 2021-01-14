@@ -335,18 +335,6 @@ groupBy =
         | null lst = []
         | otherwise = head $ List.groupBy cmp lst
 
-sliceSepBy :: Property
-sliceSepBy =
-    forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
-        case S.parseD (P.sliceSepBy predicate prsr) (S.fromList ls) of
-            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile
-                        (not. predicate) ls)
-            Left _ -> property False
-        where
-            predicate = (>= 100)
-            prsr = P.many FL.toList (P.satisfy (const True))
-
-
 sliceSepByMax :: Property
 sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -710,7 +698,6 @@ main =
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
-        prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
         prop "many (P.wordBy ' ') = words'" wordBy
         prop "parse 0, then 1, else fail" splitWith
