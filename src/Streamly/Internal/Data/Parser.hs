@@ -85,7 +85,7 @@ module Streamly.Internal.Data.Parser
     , takeWhile1
     , drainWhile
 
-    , sliceSepBy
+    , sliceSepByP
     , sliceBeginWith
     , sliceSepWith
     , escapedSliceSepBy
@@ -476,24 +476,24 @@ takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
 drainWhile p = takeWhile p FL.drain
 
--- | @sliceSepBy cond parser@ parses a slice of the input using @parser@ until
+-- | @sliceSepByP cond parser@ parses a slice of the input using @parser@ until
 -- @cond@ succeeds or the parser stops.
 --
 -- This is a generalized slicing parser which can be used to implement other
 -- parsers e.g.:
 --
 -- @
--- sliceSepByMax cond n p = sliceBy cond (take n p)
--- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
+-- sliceSepByMax cond n p = sliceSepByP cond (take n p)
+-- sliceSepByBetween cond m n p = sliceSepByP cond (takeBetween m n p)
 -- @
 --
 -- /Internal/
 --
-{-# INLINABLE sliceSepBy #-}
-sliceSepBy ::
+{-# INLINABLE sliceSepByP #-}
+sliceSepByP ::
     MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepBy cond = K.toParserK . D.sliceSepBy cond . K.fromParserK
+sliceSepByP cond = K.toParserK . D.sliceSepByP cond . K.fromParserK
 
 -- | Like 'sliceSepBy' but does not drop the separator element, instead
 -- separator is emitted as a separate element in the output.

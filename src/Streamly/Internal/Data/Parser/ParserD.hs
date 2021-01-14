@@ -53,7 +53,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , lookAhead
     , takeWhile
     , takeWhile1
-    , sliceSepBy
+    , sliceSepByP
     -- , sliceSepByBetween
     , sliceBeginWith
     -- , sliceSepWith
@@ -483,13 +483,13 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
 
--- | See 'Streamly.Internal.Data.Parser.sliceSepBy'.
+-- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
 --
 -- /Internal/
 --
-sliceSepBy :: MonadCatch m =>
+sliceSepByP :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepBy cond (Parser pstep pinitial pextract) =
+sliceSepByP cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
 
