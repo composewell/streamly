@@ -506,9 +506,14 @@ fromFoldableM = Prelude.foldr consM K.nil
 -- @since 0.4.0
 {-# INLINE_EARLY fromListM #-}
 fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
-fromListM = fromStreamD . D.fromListM
+fromListM = fromFoldableM
 {-# RULES "fromListM fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
+
+{-# RULES "fromListM serial" fromListM = fromListMSerial #-}
+{-# INLINE_EARLY fromListMSerial #-}
+fromListMSerial :: MonadAsync m => [m a] -> SerialT m a
+fromListMSerial = fromStreamD . D.fromListM
 
 -- | Same as 'fromFoldable'.
 --
