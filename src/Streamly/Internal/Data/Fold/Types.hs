@@ -184,7 +184,7 @@ module Streamly.Internal.Data.Fold.Types
     , lfilter
     , lfilterM
     , lcatMaybes
-    , ltake
+    , takeLE
     , takeByTime
 
     -- * Distributing
@@ -704,18 +704,18 @@ lcatMaybes = lfilter isJust . lmap fromJust
 
 -- | Take at most @n@ input elements and fold them using the supplied fold.
 --
--- >>> Stream.fold (Fold.ltake 1 Fold.toList) $ Stream.fromList [1]
+-- >>> Stream.fold (Fold.takeLE 1 Fold.toList) $ Stream.fromList [1]
 -- [1]
 --
--- >>> Stream.fold (Fold.ltake (-1) Fold.toList) $ Stream.fromList [1]
+-- >>> Stream.fold (Fold.takeLE (-1) Fold.toList) $ Stream.fromList [1]
 -- []
 --
 -- /Internal/
 --
 -- @since 0.7.0
-{-# INLINE ltake #-}
-ltake :: Monad m => Int -> Fold m a b -> Fold m a b
-ltake n (Fold fstep finitial fextract) = Fold step initial extract
+{-# INLINE takeLE #-}
+takeLE :: Monad m => Int -> Fold m a b -> Fold m a b
+takeLE n (Fold fstep finitial fextract) = Fold step initial extract
 
     where
 
@@ -862,7 +862,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
--- > lchunksOf n split collect = many collect (ltake n split)
+-- > lchunksOf n split collect = many collect (takeLE n split)
 --
 -- Stops when @collect@ stops.
 --
@@ -870,7 +870,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n split collect = many collect (ltake n split)
+lchunksOf n split collect = many collect (takeLE n split)
 
 {-# INLINE lchunksOf2 #-}
 lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c

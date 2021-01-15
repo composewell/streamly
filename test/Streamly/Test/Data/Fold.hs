@@ -215,10 +215,10 @@ and ls = S.fold FL.and (S.fromList ls) `shouldReturn` Prelude.and ls
 or :: [Bool] -> Expectation
 or ls = S.fold FL.or (S.fromList ls) `shouldReturn` Prelude.or ls
 
-ltake :: [Int] -> Property
-ltake ls =
+takeLE :: [Int] -> Property
+takeLE ls =
     forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
-            S.fold (F.ltake n FL.toList) (S.fromList ls)
+            S.fold (F.takeLE n FL.toList) (S.fromList ls)
                 `shouldReturn` Prelude.take n ls
 
 sliceSepBy :: Property
@@ -443,7 +443,7 @@ main = hspec $
         prop "And" Main.and
         prop "Or" Main.or
         prop "mapMaybe" mapMaybe
-        prop "ltake" ltake
+        prop "takeLE" takeLE
         prop "sliceSepBy" sliceSepBy
         prop "sliceSepByMax" sliceSepByMax
         prop "drain" Main.drain

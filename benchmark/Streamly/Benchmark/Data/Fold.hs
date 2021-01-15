@@ -64,9 +64,9 @@ any value = IP.fold (FL.any (> value))
 all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
 all value = IP.fold (FL.all (<= value))
 
-{-# INLINE take #-}
-take :: Monad m => Int -> SerialT m a -> m ()
-take value = IP.fold (FL.ltake value FL.drain)
+{-# INLINE takeLE #-}
+takeLE :: Monad m => Int -> SerialT m a -> m ()
+takeLE value = IP.fold (FL.takeLE value FL.drain)
 
 -------------------------------------------------------------------------------
 -- Splitting by serial application
@@ -78,7 +78,7 @@ sliceSepBy value = IP.fold (FL.sliceSepBy (>= value) FL.drain)
 
 {-# INLINE many #-}
 many :: Monad m => SerialT m Int -> m ()
-many = IP.fold (FL.many FL.drain (FL.ltake 1 FL.drain))
+many = IP.fold (FL.many FL.drain (FL.takeLE 1 FL.drain))
 
 {-# INLINE splitAllAny #-}
 splitAllAny :: Monad m => Int -> SerialT m Int -> m (Bool, Bool)
@@ -229,7 +229,7 @@ o_1_space_serial_elimination value =
         , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
         , benchIOSink value "all" $ all value
         , benchIOSink value "any" $ any value
-        , benchIOSink value "take" $ take value
+        , benchIOSink value "takeLE" $ takeLE value
         , benchIOSink value "sliceSepBy" $ sliceSepBy value
         , benchIOSink value "and" (S.fold FL.and . S.map (<= (value + 1)))
         , benchIOSink value "or" (S.fold FL.or . S.map (> (value + 1)))
@@ -265,7 +265,7 @@ o_1_space_serial_composition value =
             [ benchIOSink value "splitWith (all, any)" $ splitAllAny value
             , benchIOSink value "teeApplicative (all, any)"
                 $ teeApplicative value
-            , benchIOSink value "many drain (take 1)" many
+            , benchIOSink value "many drain (takeLE 1)" many
             , benchIOSink value "tee (sum, length)" teeSumLength
             , benchIOSink value "distribute [sum, length]" distribute
             , benchIOSink value "partition (sum, length)" partition
