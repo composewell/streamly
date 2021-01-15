@@ -214,7 +214,7 @@ module Streamly.Internal.Data.Fold
     -- * Nesting
     , many
     , lsessionsOf
-    , lchunksOf
+    , chunksOf
     , chunksBetween
 
     , concatSequence

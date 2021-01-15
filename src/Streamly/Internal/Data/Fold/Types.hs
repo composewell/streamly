@@ -202,7 +202,7 @@ module Streamly.Internal.Data.Fold.Types
     , concatMap
     , many
     , lsessionsOf
-    , lchunksOf
+    , chunksOf
     , chunksOf2
 
     , duplicate
@@ -861,19 +861,19 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- | @lchunksOf n split collect@ repeatedly applies the @split@ fold to chunks
+-- | @chunksOf n split collect@ repeatedly applies the @split@ fold to chunks
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
--- > lchunksOf n split collect = many collect (takeLE n split)
+-- > chunksOf n split collect = many collect (takeLE n split)
 --
 -- Stops when @collect@ stops.
 --
 -- /Internal/
 --
-{-# INLINE lchunksOf #-}
-lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n split collect = many collect (takeLE n split)
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+chunksOf n split collect = many collect (takeLE n split)
 
 {-# INLINE chunksOf2 #-}
 chunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c

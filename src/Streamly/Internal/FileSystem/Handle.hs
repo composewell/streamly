@@ -460,7 +460,7 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
+writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
 {-# INLINE writeWithBufferOf2 #-}
 writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()

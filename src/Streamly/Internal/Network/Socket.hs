@@ -503,7 +503,7 @@ fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeWithBufferOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
+writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
