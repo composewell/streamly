@@ -343,8 +343,8 @@ lookup =
         let v2 = Prelude.lookup key ls
         assert (v1 == v2)
 
-mapM :: Property
-mapM =
+rmapM :: Property
+rmapM =
     forAll (listOf1 (chooseInt (intMin, intMax)))
         $ \ls0 -> monadicIO $ action ls0
 
@@ -352,7 +352,7 @@ mapM =
 
     action ls = do
         let addLen x = return $ x + Prelude.length ls
-            fld = FL.mapM addLen FL.sum
+            fld = FL.rmapM addLen FL.sum
             v2 = foldl (+) (Prelude.length ls) ls
         v1 <- run $ S.fold fld $ S.fromList ls
         assert (v1 == v2)
@@ -455,7 +455,7 @@ main = hspec $
         prop "foldMap" Main.foldMap
         prop "foldMapM" Main.foldMapM
         prop "lookup" Main.lookup
-        prop "mapM" Main.mapM
+        prop "rmapM" Main.rmapM
         prop "teeWithLength" Main.teeWithLength
         prop "teeWithMax" Main.teeWithMax
         prop "distribute" Main.distribute

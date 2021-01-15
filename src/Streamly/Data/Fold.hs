@@ -128,7 +128,9 @@ module Streamly.Data.Fold
     --
     -- Note: Output transformations are also known as covariant
     -- transformations.
+    , rsequence
     , sequence
+    , rmapM
     , mapM
 
     {-

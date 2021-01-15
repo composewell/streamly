@@ -372,7 +372,7 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 -- this range then @offset `mod` n@ is used as offset.
 --
 -- @
--- >>> S.drain $ S.tapOffsetEvery 0 2 (FL.mapM print FL.toList) $ S.enumerateFromTo 0 10
+-- >>> S.drain $ S.tapOffsetEvery 0 2 (FL.rmapM print FL.toList) $ S.enumerateFromTo 0 10
 -- > [0,2,4,6,8,10]
 -- @
 --
