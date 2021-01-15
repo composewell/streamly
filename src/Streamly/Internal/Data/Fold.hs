@@ -107,7 +107,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Mapping
     , transform
-    , lmap
+    , map
     --, lsequence
     , lmapM
     -- ** Filtering
@@ -403,7 +403,7 @@ mapM f = sequence . fmap f
 -- /Internal/
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
-mapMaybe f = lmap f . filter isJust . lmap fromJust
+mapMaybe f = map f . filter isJust . map fromJust
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
@@ -750,7 +750,7 @@ mconcat ::
 mconcat = sconcat mempty
 
 -- |
--- > foldMap f = lmap f mconcat
+-- > foldMap f = map f mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
@@ -764,7 +764,7 @@ foldMap :: (Monad m, Monoid b
     , Semigroup b
 #endif
     ) => (a -> b) -> Fold m a b
-foldMap f = lmap f mconcat
+foldMap f = map f mconcat
 
 -- |
 -- > foldMapM f = lmapM f mconcat
@@ -935,7 +935,7 @@ null :: Monad m => Fold m a Bool
 null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 
 --
--- > any p = lmap p or
+-- > any p = map p or
 -- > any p = fmap getAny . FL.foldMap (Any . p)
 --
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
@@ -967,7 +967,7 @@ elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
 
 --
--- > all p = lmap p and
+-- > all p = map p and
 -- > all p = fmap getAll . FL.foldMap (All . p)
 --
 -- | Returns 'True' if all elements of a stream satisfy a predicate.
@@ -1992,11 +1992,11 @@ classifyWith f (Fold step1 initial1 extract1) = mkAccumM step initial extract
 
 -- Same as:
 --
--- > classify fld = classifyWith fst (lmap snd fld)
+-- > classify fld = classifyWith fst (map snd fld)
 --
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify fld = classifyWith fst (lmap snd fld)
+classify fld = classifyWith fst (map snd fld)
 
 ------------------------------------------------------------------------------
 -- Unzipping
@@ -2086,7 +2086,7 @@ unzipWithMinM = undefined
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
 --
--- @unzipWith f fld1 fld2 = lmap f (unzip fld1 fld2)@
+-- @unzipWith f fld1 fld2 = map f (unzip fld1 fld2)@
 --
 -- This fold terminates when both the input folds terminate.
 --

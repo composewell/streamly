@@ -97,7 +97,7 @@ import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 #endif
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..), lmap)
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
@@ -105,6 +105,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Fold.Types as Fold
 import qualified GHC.Exts as Exts
 
 #if __GLASGOW_HASKELL__ < 808
@@ -377,7 +378,7 @@ packArraysChunksOf n str =
 lpackArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lpackArraysChunksOf n fld =
-    lmap unsafeThaw $ MA.lpackArraysChunksOf n (lmap unsafeFreeze fld)
+    Fold.map unsafeThaw $ MA.lpackArraysChunksOf n (Fold.map unsafeFreeze fld)
 
 #if !defined(mingw32_HOST_OS)
 
