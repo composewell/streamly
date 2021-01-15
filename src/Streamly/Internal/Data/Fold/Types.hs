@@ -181,8 +181,8 @@ module Streamly.Internal.Data.Fold.Types
     -- * Transformations
     , lmap
     , lmapM
-    , lfilter
-    , lfilterM
+    , filter
+    , filterM
     , lcatMaybes
     , takeLE
     , takeByTime
@@ -230,7 +230,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import Prelude hiding (concatMap)
+import Prelude hiding (concatMap, filter)
 
 ------------------------------------------------------------------------------
 -- Monadic left folds
@@ -671,22 +671,22 @@ lmapM f (Fold step begin done) = Fold step' begin done
 
 -- | Include only those elements that pass a predicate.
 --
--- >>> S.fold (lfilter (> 5) FL.sum) [1..10]
+-- >>> S.fold (filter (> 5) FL.sum) [1..10]
 -- 40
 --
 -- @since 0.7.0
-{-# INLINABLE lfilter #-}
-lfilter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
-lfilter f (Fold step begin done) = Fold step' begin done
+{-# INLINABLE filter #-}
+filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
+filter f (Fold step begin done) = Fold step' begin done
     where
     step' x a = if f a then step x a else return $ Partial x
 
--- | Like 'lfilter' but with a monadic predicate.
+-- | Like 'filter' but with a monadic predicate.
 --
 -- @since 0.7.0
-{-# INLINABLE lfilterM #-}
-lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-lfilterM f (Fold step begin done) = Fold step' begin done
+{-# INLINABLE filterM #-}
+filterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
+filterM f (Fold step begin done) = Fold step' begin done
     where
     step' x a = do
       use <- f a
@@ -696,7 +696,7 @@ lfilterM f (Fold step begin done) = Fold step' begin done
 -- 'Just' values.
 {-# INLINE lcatMaybes #-}
 lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-lcatMaybes = lfilter isJust . lmap fromJust
+lcatMaybes = filter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Parsing
