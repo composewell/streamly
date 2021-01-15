@@ -464,7 +464,7 @@ writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
 
 {-# INLINE writeWithBufferOf2 #-}
 writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
-writeWithBufferOf2 n = FL.lchunksOf2 n (writeNUnsafe n) writeChunks2
+writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

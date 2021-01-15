@@ -203,7 +203,7 @@ module Streamly.Internal.Data.Fold.Types
     , many
     , lsessionsOf
     , lchunksOf
-    , lchunksOf2
+    , chunksOf2
 
     , duplicate
     , initialize
@@ -875,9 +875,9 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 lchunksOf n split collect = many collect (takeLE n split)
 
-{-# INLINE lchunksOf2 #-}
-lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
-lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
+{-# INLINE chunksOf2 #-}
+chunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
+chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
     Fold2 step' inject' extract'
 
     where
