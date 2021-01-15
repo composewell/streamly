@@ -1177,7 +1177,7 @@ writeNUnsafe n = Fold step initial extract
 {-# INLINE_NORMAL toArrayMinChunk #-}
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+-- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
 toArrayMinChunk alignSize elemCount = FL.mkAccumM step initial extract
 
     where

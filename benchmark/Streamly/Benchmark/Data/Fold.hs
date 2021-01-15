@@ -245,9 +245,9 @@ o_1_space_serial_transformation value =
            in benchIOSink value "mapMaybe" (S.fold fld)
         , benchIOSink
               value
-              "sequence"
-              (S.fold (FL.sequence (return <$> FL.drain)))
-        , benchIOSink value "mapM" (S.fold (FL.mapM return FL.drain))
+              "rsequence"
+              (S.fold (FL.rsequence (return <$> FL.drain)))
+        , benchIOSink value "rmapM" (S.fold (FL.rmapM return FL.drain))
         , benchIOSink
               value
               "pipe-mapM"

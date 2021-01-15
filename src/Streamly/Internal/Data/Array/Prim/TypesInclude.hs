@@ -162,7 +162,7 @@ nil =
 -- /Internal/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
-write = FL.mapM unsafeFreeze MA.write
+write = FL.rmapM unsafeFreeze MA.write
 
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
@@ -170,7 +170,7 @@ write = FL.mapM unsafeFreeze MA.write
 -- /Internal/
 {-# INLINE_NORMAL writeN #-}
 writeN :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeN limit = FL.mapM unsafeFreeze (MA.writeN limit)
+writeN limit = FL.rmapM unsafeFreeze (MA.writeN limit)
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -181,7 +181,7 @@ writeN limit = FL.mapM unsafeFreeze (MA.writeN limit)
 -- /Internal/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeNUnsafe limit = FL.mapM unsafeFreeze (MA.writeNUnsafe limit)
+writeNUnsafe limit = FL.rmapM unsafeFreeze (MA.writeNUnsafe limit)
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: (MonadIO m, Prim a) => Int -> D.Stream m a -> m (Array a)

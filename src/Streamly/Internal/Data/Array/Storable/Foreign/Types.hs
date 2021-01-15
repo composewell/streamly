@@ -552,7 +552,7 @@ writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
 {-# INLINE_NORMAL toArrayMinChunk #-}
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+-- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
 toArrayMinChunk alignSize elemCount =
     unsafeFreeze <$> MA.toArrayMinChunk alignSize elemCount
 

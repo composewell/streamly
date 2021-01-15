@@ -100,7 +100,9 @@ module Streamly.Internal.Data.Fold
     , runStep
 
     -- * Output Transformations
+    , rsequence
     , sequence
+    , rmapM
     , mapM
 
     -- * Input Transformations
@@ -366,10 +368,10 @@ generally = hoist (return . runIdentity)
 
 -- | Flatten the monadic output of a fold to pure output.
 --
--- @since 0.7.0
-{-# INLINE sequence #-}
-sequence :: Monad m => Fold m a (m b) -> Fold m a b
-sequence (Fold step initial extract) = Fold step' initial1 extract'
+-- @since 0.8.0
+{-# INLINE rsequence #-}
+rsequence :: Monad m => Fold m a (m b) -> Fold m a b
+rsequence (Fold step initial extract) = Fold step' initial1 extract'
 
     where
 
@@ -384,12 +386,28 @@ sequence (Fold step initial extract) = Fold step' initial1 extract'
 
     extract' = join . extract
 
+-- | Flatten the monadic output of a fold to pure output.
+--
+-- @since 0.7.0
+{-# DEPRECATED sequence "Use rsequence instead" #-}
+{-# INLINE sequence #-}
+sequence :: Monad m => Fold m a (m b) -> Fold m a b
+sequence = rsequence
+
+-- | Map a monadic function on the output of a fold.
+--
+-- @since 0.8.0
+{-# INLINE rmapM #-}
+rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
+rmapM f = sequence . fmap f
+
 -- | Map a monadic function on the output of a fold.
 --
 -- @since 0.7.0
+{-# DEPRECATED mapM "Use rmapM instead" #-}
 {-# INLINE mapM #-}
 mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
-mapM f = sequence . fmap f
+mapM = rmapM
 
 -- | @mapMaybe f fold@ maps a 'Maybe' returning function @f@ on the input of
 -- the fold, filters out 'Nothing' elements, and return the values extracted
