@@ -85,7 +85,7 @@ inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
 inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'copyStream `hasNoType` ''A.ReadUState  -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
-inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
+inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
 
 o_1_space_copy_read :: BenchEnv -> [Benchmark]

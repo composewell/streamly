@@ -377,7 +377,7 @@ writeChunks path = Fold step initial extract
 writeWithBufferOf :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
 writeWithBufferOf n path =
-    FL.lchunksOf n (writeNUnsafe n) (writeChunks path)
+    FL.chunksOf n (writeNUnsafe n) (writeChunks path)
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

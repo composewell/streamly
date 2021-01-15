@@ -203,7 +203,7 @@ inspect $ 'copyStreamLatin1' `hasNoType` ''Step
 inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'copyStreamLatin1' `hasNoType` ''A.ReadUState  -- FH.read/A.read
 inspect $ 'copyStreamLatin1' `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
-inspect $ 'copyStreamLatin1' `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
+inspect $ 'copyStreamLatin1' `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
 
 -- | Copy file (encodeLatin1)
@@ -220,7 +220,7 @@ inspect $ 'copyStreamLatin1 `hasNoType` ''Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
 inspect $ 'copyStreamLatin1 `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
-inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/lchunksOf
+inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
 
 -- | Copy file
