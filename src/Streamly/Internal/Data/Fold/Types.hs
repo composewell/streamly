@@ -201,7 +201,7 @@ module Streamly.Internal.Data.Fold.Types
     -- * Nested Application
     , concatMap
     , many
-    , lsessionsOf
+    , intervalsOf
     , chunksOf
     , chunksOf2
 
@@ -968,10 +968,10 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
 --
 -- @
 --
--- > lsessionsOf n split collect = many collect (takeByTime n split)
+-- > intervalsOf n split collect = many collect (takeByTime n split)
 --
 -- /Internal/
 --
-{-# INLINE lsessionsOf #-}
-lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-lsessionsOf n split collect = many collect (takeByTime n split)
+{-# INLINE intervalsOf #-}
+intervalsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
+intervalsOf n split collect = many collect (takeByTime n split)
