@@ -116,7 +116,7 @@ linesUnlinesArrayUtf8Copy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeLatin1'
       $ IP.intercalate (A.fromList [10]) (pipe SS.decodeUtf8P A.read)
-      $ S.splitOnSuffix (== '\n') (IFL.lmap SS.encodeUtf8' A.write)
+      $ S.splitOnSuffix (== '\n') (IFL.map SS.encodeUtf8' A.write)
       $ SS.decodeLatin1
       $ S.unfold FH.read inh
 -}
