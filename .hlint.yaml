@@ -21,6 +21,7 @@
 - ignore: {name: "Use <$>"}
 - ignore: {name: "Use uncurry"}
 - ignore: {name: "Redundant $!"}
+- ignore: {name: "Use fmap"}
 
 
 # Specify additional command line arguments
