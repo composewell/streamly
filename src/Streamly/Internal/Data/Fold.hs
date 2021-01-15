@@ -213,7 +213,7 @@ module Streamly.Internal.Data.Fold
 
     -- * Nesting
     , many
-    , lsessionsOf
+    , intervalsOf
     , chunksOf
     , chunksBetween
 
