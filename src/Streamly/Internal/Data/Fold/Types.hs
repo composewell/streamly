@@ -179,7 +179,7 @@ module Streamly.Internal.Data.Fold.Types
     , yieldM
 
     -- * Transformations
-    , lmap
+    , map
     , lmapM
     , filter
     , filterM
@@ -230,7 +230,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import Prelude hiding (concatMap, filter)
+import Prelude hiding (concatMap, filter, map)
 
 ------------------------------------------------------------------------------
 -- Monadic left folds
@@ -644,15 +644,18 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 -- Internal APIs
 ------------------------------------------------------------------------------
 
--- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
+-- | @(map f fold)@ maps the function @f@ on the input of the fold.
 --
--- >>> S.fold (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
+-- >>> S.fold (FL.map (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
 -- 338350
 --
+-- __Note__: This is not the same as 'fmap'. @map@ is contravariant where as
+-- @fmap@ is covariant.
+--
 -- @since 0.7.0
-{-# INLINABLE lmap #-}
-lmap :: (a -> b) -> Fold m b r -> Fold m a r
-lmap f (Fold step begin done) = Fold step' begin done
+{-# INLINABLE map #-}
+map :: (a -> b) -> Fold m b r -> Fold m a r
+map f (Fold step begin done) = Fold step' begin done
     where
     step' x a = step x (f a)
 
@@ -696,7 +699,7 @@ filterM f (Fold step begin done) = Fold step' begin done
 -- 'Just' values.
 {-# INLINE lcatMaybes #-}
 lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-lcatMaybes = filter isJust . lmap fromJust
+lcatMaybes = filter isJust . map fromJust
 
 ------------------------------------------------------------------------------
 -- Parsing
