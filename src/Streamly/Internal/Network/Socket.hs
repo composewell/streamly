@@ -57,8 +57,7 @@ module Streamly.Internal.Network.Socket
     , writeChunks
     , writeChunksWithBufferOf
     , writeStrings
-    , chunksOfTimeout
-    , writeWithBufferOfMaybe
+    , writeMaybesWithBufferOf
 
     -- reading/writing datagrams
     )
@@ -451,17 +450,6 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 putBytesWithBufferOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
 putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 
--- | Transform a stream of @a@ to @(Just a)@ then intersperse a Nothing into the input 
--- stream after every n elements then interject Nothing every @t@ seconds.
--- @since 0.8.0
-{-# INLINE chunksOfTimeout #-}
-chunksOfTimeout :: (MonadIO m , IsStream t, MonadAsync m)
-    => Int -> Double -> t m a -> t m (Maybe a)
-chunksOfTimeout n t =   
-          S.interjectSuffix t (return Nothing)
-        . S.intersperseSuffixBySpan n (return Nothing)
-        . S.map Just
-
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
 --
@@ -474,15 +462,15 @@ writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
 -- | Write a (Maybe Word8) stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes or till Nothing before writing.
 --
--- @since 0.8.0
--- >>> S.unfold readWithBufferOf (1024, sk)  
---             & chunksOfTimeout 1024 1
---             & S.fold (writeWithBufferOfMaybe 1024 sk)
+-- >>> S.unfold readWithBufferOf (1024, sk)
+--             & S.justsOfTimeout 1024 1
+--             & S.fold (writeMaybesWithBufferOf 1024 sk)
+-- /Internal/
 
-{-# INLINE writeWithBufferOfMaybe #-}
-writeWithBufferOfMaybe :: (MonadIO m ) 
+{-# INLINE writeMaybesWithBufferOf #-}
+writeMaybesWithBufferOf :: (MonadIO m )
     => Int -> Socket -> Fold m (Maybe Word8) ()
-writeWithBufferOfMaybe n h = FL.many (writeChunks h) ( A.writeNUnsafeMaybe n) 
+writeMaybesWithBufferOf n h = FL.many (writeChunks h) (A.writeMaybesN n)
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

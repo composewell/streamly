@@ -80,7 +80,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , MA.memcpy
     , MA.memcmp
     , MA.bytesToElemCount
-    , writeNUnsafeMaybe 
+    , writeMaybesN 
     )
 where
 
@@ -547,10 +547,11 @@ writeNUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
 writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
 
-{-# INLINE_NORMAL writeNUnsafeMaybe #-}
-writeNUnsafeMaybe :: forall m a. (MonadIO m, Storable a)
+
+{-# INLINE_NORMAL writeMaybesN #-}
+writeMaybesN :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m (Maybe a) (Array a)
-writeNUnsafeMaybe n = unsafeFreeze <$> MA.writeNUnsafeMaybe n
+writeMaybesN n = unsafeFreeze <$> MA.writeMaybesN n
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
 -- shrinkToFit.  On the other hand, the stream of arrays implementation may
