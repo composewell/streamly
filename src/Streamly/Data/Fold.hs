@@ -148,8 +148,8 @@ module Streamly.Data.Fold
     -- , lmapM
 
     -- -- ** Filtering
-    -- , lfilter
-    -- , lfilterM
+    -- , filter
+    -- , filterM
     -- , ldeleteBy
     -- , luniq
 
