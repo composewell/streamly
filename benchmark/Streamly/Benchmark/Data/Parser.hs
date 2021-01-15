@@ -256,7 +256,7 @@ parseMany :: MonadCatch m => SerialT m Int -> m ()
 parseMany =
       S.drain
     . S.map getSum
-    . IP.parseMany (PR.fromFold $ FL.ltake 2 FL.mconcat)
+    . IP.parseMany (PR.fromFold $ FL.takeLE 2 FL.mconcat)
     . S.map Sum
 
 {-# INLINE parseIterate #-}
@@ -264,7 +264,7 @@ parseIterate :: MonadCatch m => SerialT m Int -> m ()
 parseIterate =
       S.drain
     . S.map getSum
-    . IP.parseIterate (PR.fromFold . FL.ltake 2 . FL.sconcat) (Sum 0)
+    . IP.parseIterate (PR.fromFold . FL.takeLE 2 . FL.sconcat) (Sum 0)
     . S.map Sum
 
 -------------------------------------------------------------------------------

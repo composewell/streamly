@@ -311,12 +311,12 @@ chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.read inh)
 
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
-    S.length $ IP.foldMany (FL.ltake n FL.sum) (S.unfold FH.read inh)
+    S.length $ IP.foldMany (FL.takeLE n FL.sum) (S.unfold FH.read inh)
 
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
     S.length
-        $ IP.parseMany (PR.fromFold $ FL.ltake n FL.sum) (S.unfold FH.read inh)
+        $ IP.parseMany (PR.fromFold $ FL.takeLE n FL.sum) (S.unfold FH.read inh)
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 -- Even though allocations remain the same in both cases inlining improves time

@@ -877,7 +877,7 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 -- This is the streaming dual of the 'Streamly.Internal.Data.Fold.many'
 -- parse combinator.
 --
--- >>> f = Fold.ltake 2 Fold.sum
+-- >>> f = Fold.takeLE 2 Fold.sum
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
 -- > [3,7,11,15,19]
 --
@@ -912,7 +912,7 @@ foldSequence _f _m = undefined
 -- generate the first fold, the fold is applied on the stream and the result of
 -- the fold is used to generate the next fold and so on.
 --
--- >>> f x = Fold.ltake 2 (Fold.mconcatTo x)
+-- >>> f x = Fold.takeLE 2 (Fold.mconcatTo x)
 -- >>> s = Stream.map Sum $ Stream.fromList [1..10]
 -- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
 -- > [3,10,21,36,55,55]
@@ -1535,15 +1535,15 @@ splitOnSuffixSeqAny subseq f m = undefined
 -- >> S.toList $ S.chunksOf 2 FL.sum (S.enumerateFromTo 1 10)
 -- > [3,7,11,15,19]
 --
--- This can be considered as an n-fold version of 'ltake' where we apply
--- 'ltake' repeatedly on the leftover stream until the stream exhausts.
+-- This can be considered as an n-fold version of 'takeLE' where we apply
+-- 'takeLE' repeatedly on the leftover stream until the stream exhausts.
 --
 -- @since 0.7.0
 {-# INLINE chunksOf #-}
 chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-chunksOf n f = foldMany (FL.ltake n f)
+chunksOf n f = foldMany (FL.takeLE n f)
 
 -- |
 --
