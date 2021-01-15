@@ -396,7 +396,7 @@ writeWithBufferOf
     -> PortNumber
     -> Fold m Word8 ()
 writeWithBufferOf n addr port =
-    FL.lchunksOf n (writeNUnsafe n) (writeChunks addr port)
+    FL.chunksOf n (writeNUnsafe n) (writeChunks addr port)
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --

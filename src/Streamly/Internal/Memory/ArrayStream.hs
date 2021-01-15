@@ -232,5 +232,5 @@ toArraysInRange low high (Fold step initial extract) =
 {-# INLINE _toArraysOf #-}
 _toArraysOf :: (MonadIO m, Storable a)
     => Int -> Fold m a (SerialT Identity (Array a))
-_toArraysOf n = FL.lchunksOf n (A.writeNF n) FL.toStream
+_toArraysOf n = FL.chunksOf n (A.writeNF n) FL.toStream
 -}
