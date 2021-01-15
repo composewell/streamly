@@ -111,8 +111,8 @@ module Streamly.Internal.Data.Fold
     --, lsequence
     , lmapM
     -- ** Filtering
-    , lfilter
-    , lfilterM
+    , filter
+    , filterM
     -- , ldeleteBy
     -- , luniq
     , lcatMaybes
@@ -403,7 +403,7 @@ mapM f = sequence . fmap f
 -- /Internal/
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
-mapMaybe f = lmap f . lfilter isJust . lmap fromJust
+mapMaybe f = lmap f . filter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
