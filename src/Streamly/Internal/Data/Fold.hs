@@ -137,7 +137,7 @@ module Streamly.Internal.Data.Fold
     -}
 
     -- ** Trimming
-    , ltake
+    , takeLE
     , takeByTime
     -- By elements
     , sliceSepBy
@@ -715,10 +715,10 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- > rollingHashFirstN = ltake n rollingHash
+-- > rollingHashFirstN = takeLE n rollingHash
 {-# INLINABLE rollingHashFirstN #-}
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
-rollingHashFirstN n = ltake n rollingHash
+rollingHashFirstN n = takeLE n rollingHash
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
@@ -826,7 +826,7 @@ toListRevF = mkAccum_ (flip (:)) []
 -- and discarding the results.
 {-# INLINABLE drainN #-}
 drainN :: Monad m => Int -> Fold m a ()
-drainN n = ltake n drain
+drainN n = takeLE n drain
 
 ------------------------------------------------------------------------------
 -- To Elements
@@ -1056,7 +1056,7 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- > ([1,2,3],[])
 --
--- > splitAt n f1 f2 = splitWith (,) (ltake n f1) f2
+-- > splitAt n f1 f2 = splitWith (,) (takeLE n f1) f2
 --
 -- /Internal/
 
@@ -1067,7 +1067,7 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n fld = splitWith (,) (ltake n fld)
+splitAt n fld = splitWith (,) (takeLE n fld)
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1176,7 +1176,7 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
 {-# INLINABLE sliceSepByMax #-}
 sliceSepByMax :: Monad m
     => (a -> Bool) -> Int -> Fold m a b -> Fold m a b
-sliceSepByMax p n = sliceSepBy p . ltake n
+sliceSepByMax p n = sliceSepBy p . takeLE n
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is

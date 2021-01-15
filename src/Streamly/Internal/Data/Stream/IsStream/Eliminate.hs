@@ -382,7 +382,7 @@ drain = P.drain
 
 -- |
 -- > drainN n = drain . take n
--- > drainN n = fold (Fold.ltake n Fold.drain)
+-- > drainN n = fold (Fold.takeLE n Fold.drain)
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
