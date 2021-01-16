@@ -591,11 +591,6 @@ module Streamly.Internal.Data.Stream.IsStream
     )
 where
 
-import Streamly.Internal.Data.SVar (Rate (..))
-import Streamly.Internal.Data.Stream.Combinators
-      ( inspectMode, maxBuffer, maxThreads, rate, avgRate, minRate
-      , maxRate, constRate)
-
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D

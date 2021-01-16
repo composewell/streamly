@@ -158,6 +158,21 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , (|$)
     , (|&)
 
+    -- ** Concurrency Control
+    , maxThreads
+    , maxBuffer
+
+    -- ** Rate Limiting
+    , Rate (..)
+    , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
+
+    -- * Diagnostics
+    , inspectMode
+
     -- * Deprecated
     , scanx
     )
@@ -174,7 +189,10 @@ import Data.Either (isLeft, isRight)
 import Data.Maybe (isJust, fromJust)
 import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
-import Streamly.Internal.Data.SVar (MonadAsync)
+import Streamly.Internal.Data.Pipe.Types (Pipe (..))
+import Streamly.Internal.Data.Stream.IsStream.Combinators
+      ( inspectMode, maxBuffer, maxThreads, rate, avgRate, minRate
+      , maxRate, constRate)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( absTimesWith
     , drop
@@ -191,10 +209,10 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , intersperseM
     )
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Pipe.Types (Pipe (..))
+import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
 import Streamly.Internal.Data.Time.Units ( TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
