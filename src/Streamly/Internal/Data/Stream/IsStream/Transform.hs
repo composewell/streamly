@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , smapM
 
     -- * Mapping Side Effects (Observation)
+    -- | See also the intersperse*_ combinators.
     , trace
     , trace_
     , tap
@@ -62,58 +63,71 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- , lprescanlM'
 
     -- * Filtering
-    -- | Produce a subset of the stream.
+    -- | Produce a subset of the stream using criteria based on the values of
+    -- the elements. We can use a concatMap and scan for filtering but these
+    -- combinators are more efficient and convenient.
 
+    , with
+    , deleteBy
     , filter
     , filterM
-    , deleteBy
     , uniq
-    -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
-    -- , uniqOn -- to remove duplicate sequences
-    -- , pruneBy -- dropAround + uniqBy - like words
+    , uniqBy
+    , nubBy
+    , nubWindowBy
+    , prune
+    , repeated
 
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
 
     , take
-    -- , takeGE
-    -- , takeBetween
-    , takeByTime
-    -- , takeEnd
+    , takeByTime -- takeInterval
+    , takeEnd
+    , takeEndInterval
     , takeWhile
     , takeWhileM
-    -- , takeWhileEnd
+    , takeWhileEnd
+    , takeWhileAround
     , drop
-    , dropByTime
-    -- , dropEnd
+    , dropByTime -- dropInterval
+    , dropEnd
+    , dropEndInterval
     , dropWhile
     , dropWhileM
-    -- , dropWhileEnd
-    -- , dropAround
+    , dropWhileEnd
+    , dropWhileAround
 
     -- * Inserting Elements
-    -- | Produce a superset of the stream.
+    -- | Produce a superset of the stream. This is the opposite of
+    -- filtering/sampling.  We can always use concatMap and scan for inserting
+    -- but these combinators are more efficient and convenient.
 
-    , insertBy
+    -- Element agnostic (Opposite of sampling)
     , intersperse
     , intersperseM -- XXX naming
+    , intersperseBySpan
+
     , intersperseSuffix
     , intersperseSuffixBySpan
-    -- , intersperseBySpan
-    -- , intersperseByIndices -- using an index function/stream
-
-    -- * Inserting Side Effects
-    , intersperseM_ -- XXX naming
-    , intersperseSuffix_
-    , interspersePrefix_
-
-    -- * Inserting Time
-    -- , intersperseByTime
-    -- , intersperseByEvent
     , interjectSuffix
+
+    -- , interspersePrefix
+    -- , interspersePrefixBySpan
+
+    -- * Inserting Side Effects/Time
+    , intersperseM_ -- XXX naming
     , delay
+    , intersperseSuffix_
     , delayPost
+    , interspersePrefix_
     , delayPre
+
+    -- * Element Aware Insertion
+    -- | Opposite of filtering
+    , insertBy
+    -- , intersperseByBefore
+    -- , intersperseByAfter
 
     -- * Reordering
     , reverse
@@ -151,7 +165,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , lefts
     , rights
 
-    -- * Threading
+    -- * Concurrent Evaluation
     -- ** Concurrent Pipelines
     -- | Run streaming stages concurrently.
 
@@ -162,9 +176,20 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- ** Concurrency Control
     , maxThreads
+
+    -- ** Buffering and Sampling
+    -- | Evaluate strictly using a buffer of results.  When the buffer becomes
+    -- full we can block, drop the new elements, drop the oldest element and
+    -- insert the new at the end or keep dropping elements uniformly to match
+    -- the rate of the consumer.
     , maxBuffer
+    , sampleOld
+    , sampleNew
+    , sampleRate
 
     -- ** Rate Limiting
+    -- | Evaluate the stream at uniform intervals to maintain a specified
+    -- evaluation rate.
     , Rate (..)
     , rate
     , avgRate
@@ -215,7 +240,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
-import Streamly.Internal.Data.Time.Units ( TimeUnit64, AbsTime, RelTime64)
+import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
@@ -519,7 +544,9 @@ trace f = mapM (\x -> void (f x) >> return x)
 -- "got here"
 -- @
 --
--- See also: 'trace', 'interspersePrefix_'
+-- Same as 'interspersePrefix_' but always serial.
+--
+-- See also: 'trace'
 --
 -- /Internal/
 {-# INLINE trace_ #-}
@@ -693,6 +720,24 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- Filtering
 ------------------------------------------------------------------------------
 
+-- | Modify a @t m a -> t m a@ stream transformation that accepts a predicate
+-- @(a -> b)@ to accept @((s, a) -> b)@ instead, provided a transformation @t m
+-- a -> t m (s, a)@. Convenient to filter with index or time.
+--
+-- @
+-- filterWithIndex = with indexed filter
+-- filterWithAbsTime = with timestamped filter
+-- filterWithRelTime = with timeIndexed filter
+-- @
+--
+-- /Internal/
+{-# INLINE with #-}
+with :: Functor (t m) =>
+       (t m a -> t m (s, a))
+    -> (((s, a) -> c) -> t m (s, a) -> t m (s, a))
+    -> (((s, a) -> c) -> t m a -> t m a)
+with f comb g = fmap snd . comb g . f
+
 -- | Include only those elements that pass a predicate.
 --
 -- @since 0.1.0
@@ -713,12 +758,98 @@ filter = K.filter
 filterM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 
+-- | Drop repeated elements that are adjacent to each other using the supplied
+-- comparison function.
+--
+-- @uniq = uniqBy (==)
+--
+-- To strip duplicate path separators:
+--
+-- @
+-- f x y = x == '/' && x == y
+-- Stream.toList $ Stream.uniqBy f $ Stream.fromList "//a//b"
+-- "/a/b"
+-- @
+--
+-- Space: @O(1)@
+--
+-- See also: 'nubBy'.
+--
+-- /Internal/
+--
+{-# INLINE uniqBy #-}
+uniqBy :: (IsStream t, Monad m, Functor (t m)) =>
+    (a -> a -> Bool) -> t m a -> t m a
+uniqBy eq =
+    catMaybes . rollingMap (\x y -> if x `eq` y then Nothing else Just y)
+
 -- | Drop repeated elements that are adjacent to each other.
 --
 -- @since 0.6.0
 {-# INLINE uniq #-}
 uniq :: (Eq a, IsStream t, Monad m) => t m a -> t m a
 uniq = fromStreamD . D.uniq . toStreamD
+
+-- | Strip all leading and trailing occurrences of an element passing a
+-- predicate and make all other consecutive occurrences uniq.
+--
+-- @
+-- prune p = dropWhileAround p $ uniqBy (x y -> p x && p y)
+-- @
+--
+-- >>> Stream.pruneBy isSpace (Stream.fromList "  hello      world!   ")
+-- "hello world!"
+--
+-- Space: @O(1)@
+--
+-- /Unimplemented/
+{-# INLINE prune #-}
+prune ::
+    -- (IsStream t, Monad m, Eq a) =>
+    (a -> Bool) -> t m a -> t m a
+prune = error "Not implemented yet!"
+
+-- Possible implementation:
+-- @repeated =
+--      Stream.catMaybes . Stream.parseMany (Parser.groupBy (==) Fold.repeated)@
+--
+-- 'Fold.repeated' should return 'Just' when repeated, and 'Nothing' for a
+-- single element.
+--
+-- | Emit only repeated elements, once.
+--
+-- /Unimplemented/
+repeated :: -- (IsStream t, Monad m, Eq a) =>
+    t m a -> t m a
+repeated = undefined
+
+-- We can have more efficient implementations for nubOrd and nubInt by using
+-- Set and IntSet to find/remove duplication. For Hashable we can use a
+-- hashmap. Use rewrite rules to specialize to more efficient impls.
+--
+-- | Drop repeated elements anywhere in the stream.
+--
+-- /Caution: not scalable for infinite streams/
+--
+-- /See also: nubWindowBy/
+--
+-- /Unimplemented/
+--
+{-# INLINE nubBy #-}
+nubBy :: -- (IsStream t, Monad m) =>
+    (a -> a -> Bool) -> t m a -> t m a
+nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
+
+-- | Drop repeated elements within the specified tumbling window in the stream.
+--
+-- @nubBy = nubWindowBy maxBound@
+--
+-- /Unimplemented/
+--
+{-# INLINE nubWindowBy #-}
+nubWindowBy :: -- (IsStream t, Monad m) =>
+    Int -> (a -> a -> Bool) -> t m a -> t m a
+nubWindowBy = undefined -- fromStreamD . D.nubWithinBy . toStreamD
 
 -- | Deletes the first occurrence of the element in the stream that satisfies
 -- the given equality predicate.
@@ -734,6 +865,51 @@ deleteBy :: (IsStream t, Monad m) => (a -> a -> Bool) -> a -> t m a -> t m a
 deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 
 ------------------------------------------------------------------------------
+-- Lossy Buffering
+------------------------------------------------------------------------------
+
+-- XXX We could use 'maxBuffer Block/Drop/Rotate/Sample' instead. However we
+-- may want to have the evaluation rate independent of the sampling rate. To
+-- support that we can decouple evaluation and sampling in independent stages.
+-- The sampling stage would strictly evaluate and sample, the evaluation stage
+-- would control the evaluation rate.
+
+-- | Evaluate the input stream continuously and keep only the oldest @n@
+-- elements in the buffer, discard the new ones when the buffer is full.  When
+-- the output stream is evaluated it consumes the values from the buffer in a
+-- FIFO manner.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleOld #-}
+sampleOld :: -- (IsStream t, Monad m) =>
+    Int -> t m a -> t m a
+sampleOld = undefined
+
+-- | Evaluate the input stream continuously and keep only the latest @n@
+-- elements in a ring buffer, keep discarding the older ones to make space for
+-- the new ones.  When the output stream is evaluated it consumes the values
+-- from the buffer in a FIFO manner.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleNew #-}
+sampleNew :: -- (IsStream t, Monad m) =>
+    Int -> t m a -> t m a
+sampleNew = undefined
+
+-- | Like 'sampleNew' but samples at uniform intervals to match the consumer
+-- rate. Note that 'sampleNew' leads to non-uniform sampling depending on the
+-- consumer pattern.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleRate #-}
+sampleRate :: -- (IsStream t, Monad m) =>
+    Double -> t m a -> t m a
+sampleRate = undefined
+
+------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
 
@@ -743,6 +919,51 @@ deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 {-# INLINE takeWhileM #-}
 takeWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
+
+-- See the lastN fold for impl hints. Use a Data.Array based ring buffer.
+--
+-- takeEnd n = Stream.concatM . fmap Array.toStream . fold Fold.lastN
+--
+-- | Take @n@ elements at the end of the stream.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeEnd #-}
+takeEnd :: -- (IsStream t, Monad m) =>
+    Int -> t m a -> t m a
+takeEnd = undefined -- fromStreamD $ D.takeEnd n $ toStreamD m
+
+-- | Take time interval @i@ seconds at the end of the stream.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeEndInterval #-}
+takeEndInterval :: -- (IsStream t, Monad m) =>
+    Double -> t m a -> t m a
+takeEndInterval = undefined -- fromStreamD $ D.takeEnd n $ toStreamD m
+
+-- | Take all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileEnd #-}
+takeWhileEnd :: -- (IsStream t, Monad m) =>
+    (a -> Bool) -> t m a -> t m a
+takeWhileEnd = undefined -- fromStreamD $ D.takeWhileEnd n $ toStreamD m
+
+-- | Like 'takeWhile' and 'takeWhileEnd' combined.
+--
+-- O(n) space, where n is the number elements taken from the end.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileAround #-}
+takeWhileAround :: -- (IsStream t, Monad m) =>
+    (a -> Bool) -> t m a -> t m a
+takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 
 -- | @takeByTime duration@ yields stream elements upto specified time
 -- @duration@. The duration starts when the stream is evaluated for the first
@@ -797,6 +1018,47 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 dropByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
 dropByTime d = fromStreamD . D.dropByTime d . toStreamD
 
+-- | Drop @n@ elements at the end of the stream.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropEnd #-}
+dropEnd :: -- (IsStream t, Monad m) =>
+    Int -> t m a -> t m a
+dropEnd = undefined -- fromStreamD $ D.dropEnd n $ toStreamD m
+
+-- | Drop time interval @i@ seconds at the end of the stream.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropEndInterval #-}
+dropEndInterval :: -- (IsStream t, Monad m) =>
+    Int -> t m a -> t m a
+dropEndInterval = undefined
+
+-- | Drop all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileEnd #-}
+dropWhileEnd :: -- (IsStream t, Monad m) =>
+    (a -> Bool) -> t m a -> t m a
+dropWhileEnd = undefined -- fromStreamD $ D.dropWhileEnd n $ toStreamD m
+
+-- | Like 'dropWhile' and 'dropWhileEnd' combined.
+--
+-- O(n) space, where n is the number elements dropped from the end.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileAround #-}
+dropWhileAround :: -- (IsStream t, Monad m) =>
+    (a -> Bool) -> t m a -> t m a
+dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
+
 ------------------------------------------------------------------------------
 -- Inserting Elements
 ------------------------------------------------------------------------------
@@ -844,7 +1106,6 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 intersperseM_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 
-{-
 -- | Intersperse a monadic action into the input stream after every @n@
 -- elements.
 --
@@ -853,11 +1114,11 @@ intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 -- "he,ll,o"
 -- @
 --
--- @since 0.7.0
+-- /Unimplemented/
 {-# INLINE intersperseBySpan #-}
-intersperseBySpan :: IsStream t => Int -> m a -> t m a -> t m a
+intersperseBySpan :: -- IsStream t =>
+    Int -> m a -> t m a -> t m a
 intersperseBySpan _n _f _xs = undefined
--}
 
 -- | Insert an effect and its output after consuming an element of a stream.
 --
@@ -883,6 +1144,8 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 
+-- XXX Use an offset argument, like tapOffsetEvery
+--
 -- | Like 'intersperseSuffix' but intersperses an effectful action into the
 -- input stream after every @n@ elements and after the last element.
 --
@@ -906,7 +1169,7 @@ intersperseSuffixBySpan n eff =
 -- > .h.e.l.l.o"hello"
 -- @
 --
--- See also: 'trace_'
+-- Same as 'trace_' but may be concurrent.
 --
 -- /Concurrent/
 --
