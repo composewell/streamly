@@ -1,16 +1,13 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Combinators
 -- Copyright   : (c) 2017 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
 --
-module Streamly.Internal.Data.Stream.Combinators
+module Streamly.Internal.Data.Stream.IsStream.Combinators
     ( maxThreads
     , maxBuffer
     , maxYields
@@ -23,6 +20,8 @@ module Streamly.Internal.Data.Stream.Combinators
     , printState
     )
 where
+
+#include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
