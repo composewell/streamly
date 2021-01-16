@@ -91,7 +91,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Void (Void)
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Data.SVar (MonadAsync, Rate (..))
-import Streamly.Internal.Data.Stream.Enumeration
+import Streamly.Internal.Data.Stream.IsStream.Enumeration
     (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Stream.IsStream.Common
     (absTimesWith, concatM, relTimesWith, timesWith, yield, yieldM, repeatM)

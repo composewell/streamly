@@ -461,7 +461,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Stream.StreamDK
-                     , Streamly.Internal.Data.Stream.Enumeration
                      , Streamly.Internal.Data.Stream.Prelude
 
                      -- Higher level streams
@@ -474,6 +473,7 @@ library
                      , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
                      , Streamly.Internal.Data.Stream.IsStream.Types
+                     , Streamly.Internal.Data.Stream.IsStream.Enumeration
                      , Streamly.Internal.Data.Stream.IsStream.Generate
                      , Streamly.Internal.Data.Stream.IsStream.Eliminate
                      , Streamly.Internal.Data.Stream.IsStream.Transform
