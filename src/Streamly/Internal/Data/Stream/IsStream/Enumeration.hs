@@ -20,7 +20,7 @@
 -- in this module can be used to define them. Alternatively, these functions
 -- can be used directly.
 
-module Streamly.Internal.Data.Stream.Enumeration
+module Streamly.Internal.Data.Stream.IsStream.Enumeration
     (
       Enumerable (..)
 
