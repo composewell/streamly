@@ -57,6 +57,11 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     , mergeAsyncBy
     , mergeAsyncByM
 
+    -- ** Trimming
+    , dropPrefix
+    , dropInfix
+    , dropSuffix
+
     -- ** Combine N Streams
     -- | Functions generally ending in these shapes:
     --
@@ -139,11 +144,6 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     , chunksOf2
     , arraysOf
     , intervalsOf
-
-    -- ** Trimming
-    , dropPrefix
-    , dropInfix
-    , dropSuffix
 
     -- ** Grouping
     -- In imperative terms, grouped folding can be considered as a nested loop
