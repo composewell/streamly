@@ -95,6 +95,7 @@ build-type:          Configure
 
 extra-source-files:
     .circleci/config.yml
+    .ghci
     .github/workflows/haskell.yml
     .gitignore
     .hlint.ignore
