@@ -374,8 +374,12 @@ timeout = undefined
 -- From Generator functions
 ------------------------------------------------------------------------------
 
+-- XXX we can remove it and recommend the definition in terms of enumerate and
+-- map. Check performance equivalence.
+--
 -- |
 -- @
+-- fromIndices f = fmap f $ Stream.enumerateFrom 0
 -- fromIndices f = let g i = f i \`cons` g (i + 1) in g 0
 -- @
 --
@@ -383,7 +387,7 @@ timeout = undefined
 -- applied on the corresponding index.  Index starts at 0.
 --
 -- @
--- > S.toList $ S.take 5 $ S.fromIndices id
+-- > Stream.toList $ Stream.take 5 $ Stream.fromIndices id
 -- [0,1,2,3,4]
 -- @
 --
@@ -395,6 +399,7 @@ fromIndices = fromStreamS . S.fromIndices
 --
 -- |
 -- @
+-- fromIndicesM f = Stream.mapM f $ Stream.enumerateFrom 0
 -- fromIndicesM f = let g i = f i \`consM` g (i + 1) in g 0
 -- @
 --
