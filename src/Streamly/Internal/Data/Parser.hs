@@ -507,22 +507,41 @@ sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
 
 -- | Collect stream elements until an elements passes the predicate, return the
 -- last element on which the predicate succeeded back to the input stream.  If
--- the predicate succeeds on the first element itself then it is kept in the
--- stream and we continue collecting. The succeeding element is treated as a
--- prefix separator which is kept in the output segement.
+-- the predicate succeeds on the first element itself then the parser does not
+-- terminate there. The succeeding element in the leading position
+-- is treated as a prefix separator which is kept in the output segment.
 --
 -- * Stops - when the predicate succeeds in non-leading position.
 -- * Fails - never.
 --
 -- S.splitWithPrefix pred f = S.parseMany (PR.sliceBeginWith pred f)
 --
--- /Unimplemented/
+-- Examples: -
+--
+-- @
+-- sliceBeginWithOdd ls = S.parse prsr (S.fromList ls)
+--      where prsr = P.sliceBeginWith odd FL.toList
+-- @
+--
+-- >>> sliceBeginWithOdd [2, 4, 6, 3]
+-- > [2,4,6]
+--
+-- >>> sliceBeginWithOdd [3, 5, 7, 4]
+-- > [3]
+--
+-- >>> sliceBeginWithOdd [3, 4, 6, 8, 5]
+-- > [3,4,6,8]
+--
+-- >>> sliceBeginWithOdd []
+-- > []
+--
+-- /Internal/
 --
 {-# INLINABLE sliceBeginWith #-}
 sliceBeginWith ::
-    -- Monad m =>
+    MonadCatch m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith = undefined
+sliceBeginWith cond = K.toParserK . D.sliceBeginWith cond
 
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
 -- escape char determined by the second predicate.

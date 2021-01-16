@@ -72,6 +72,10 @@ takeEQ value = IP.parse (PR.takeEQ value FL.drain)
 drainWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 drainWhile value = IP.parse (PR.drainWhile (<= value))
 
+{-# INLINE sliceBeginWith #-}
+sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
+sliceBeginWith value = IP.parse (PR.sliceBeginWith (>= value) FL.drain)
+
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
@@ -284,6 +288,7 @@ o_1_space_serial value =
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "drainWhile" $ drainWhile value
+    , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value

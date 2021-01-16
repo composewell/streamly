@@ -535,13 +535,36 @@ sliceSepByP cond (Parser pstep pinitial pextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
--- /Unimplemented/
+-- /Internal/
 --
-{-# INLINABLE sliceBeginWith #-}
-sliceBeginWith ::
-    -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith = undefined
+data SliceBeginWithState s = Left' s | Right' s
+
+{-# INLINE sliceBeginWith #-}
+sliceBeginWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceBeginWith cond (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial = Left' <$> finitial
+
+    {-# INLINE process #-}
+    process s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Partial 0 (Right' s1)
+                FL.Done b -> Done 0 b
+
+    step (Left' s) a = process s a
+    step (Right' s) a =
+        if not (cond a)
+        then process s a
+        else Done 1 <$> fextract s
+
+    extract (Left' s) = fextract s
+    extract (Right' s) = fextract s
 
 data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 
