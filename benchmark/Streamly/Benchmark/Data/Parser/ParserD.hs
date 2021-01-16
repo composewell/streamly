@@ -63,6 +63,10 @@ benchIOSink value name f =
 drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
 drainWhile p = PR.takeWhile p FL.drain
 
+{-# INLINE sliceBeginWith #-}
+sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m()
+sliceBeginWith value = IP.parseD (PR.sliceBeginWith (>= value) FL.drain)
+
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
@@ -216,6 +220,7 @@ moduleName = "Data.Parser.ParserD"
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value

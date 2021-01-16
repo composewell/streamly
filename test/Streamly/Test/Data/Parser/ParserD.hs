@@ -292,7 +292,6 @@ lookAhead =
                         where
                             list_length = Prelude.length ls
 
-
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
