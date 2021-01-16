@@ -323,6 +323,23 @@ sliceSepByP =
             prsr = P.many FL.toList (P.satisfy (const True))
             tkwhl ls = Prelude.takeWhile (not . predicate) ls
 
+sliceBeginWith :: Property
+sliceBeginWith =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        case S.parse parser (S.fromList ls) of
+            Right parsed_list ->
+                if not $ Prelude.null ls
+                then
+                    let tls = Prelude.takeWhile (not . predicate) (tail ls)
+                    in checkListEqual parsed_list $
+                        if predicate (head ls)
+                        then head ls : tls
+                        else Prelude.takeWhile (not . predicate) ls
+                else property $ Prelude.null parsed_list
+            Left _ -> property False
+        where
+            predicate = odd
+            parser = P.sliceBeginWith predicate FL.toList
 
 takeWhile :: Property
 takeWhile =
@@ -696,6 +713,8 @@ main =
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.sliceSepByP test" Main.sliceSepByP
+        prop ("P.sliceBeginWith pred = head : Prelude.takeWhile (not . pred)"
+                ++ " tail") sliceBeginWith
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
                 ++ " else check why failed") takeWhile1
