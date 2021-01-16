@@ -473,6 +473,7 @@ library
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
+                     , Streamly.Internal.Data.Stream.IsStream.Types
                      , Streamly.Internal.Data.Stream.IsStream.Generate
                      , Streamly.Internal.Data.Stream.IsStream.Eliminate
                      , Streamly.Internal.Data.Stream.IsStream.Transform

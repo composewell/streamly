@@ -1,21 +1,14 @@
-{-# OPTIONS_GHC -Wno-orphans  #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream
 -- Copyright   : (c) 2017 Composewell Technologies
---
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- This is an Internal module consisting of released, unreleased and
--- unimplemented APIs. For stable and released APIs please see
--- "Streamly.Prelude" module. This module provides documentation only for the
--- unreleased and unimplemented APIs. For documentation on released APIs please
--- see "Streamly.Prelude" module.
+-- This is an internal module which is superset of the corresponding released
+-- module "Streamly.Prelude". It contains some additional unreleased or
+-- experimental APIs.
 
 module Streamly.Internal.Data.Stream.IsStream
     (
@@ -598,36 +591,25 @@ module Streamly.Internal.Data.Stream.IsStream
     )
 where
 
-import Streamly.Internal.Data.SVar (MonadAsync, Rate (..))
-import Streamly.Internal.Data.Stream.Ahead (AheadT, Ahead, aheadly)
-import Streamly.Internal.Data.Stream.Async
-       ( AsyncT, Async, WAsyncT, WAsync, mkAsync, asyncly
-       , wAsyncly)
+import Streamly.Internal.Data.SVar (Rate (..))
 import Streamly.Internal.Data.Stream.Combinators
       ( inspectMode, maxBuffer, maxThreads, rate, avgRate, minRate
       , maxRate, constRate)
-import Streamly.Internal.Data.Stream.Parallel
-       ( ParallelT, Parallel, parallely)
-import Streamly.Internal.Data.Stream.StreamK (IsStream(), adapt)
-import Streamly.Internal.Data.Stream.Serial
-       ( SerialT, WSerialT, Serial, WSerial, serially
-       , wSerially)
-import Streamly.Internal.Data.Stream.Zip
-       ( ZipSerialM, ZipSerial, ZipAsyncM, ZipAsync, zipSerially, zipAsyncly)
 
-import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.Prelude as P
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Zip as Z
 
-import Streamly.Internal.Data.Stream.IsStream.Generate
 import Streamly.Internal.Data.Stream.IsStream.Eliminate
-import Streamly.Internal.Data.Stream.IsStream.Transform
-import Streamly.Internal.Data.Stream.IsStream.Nesting
 import Streamly.Internal.Data.Stream.IsStream.Exception
+import Streamly.Internal.Data.Stream.IsStream.Generate
 import Streamly.Internal.Data.Stream.IsStream.Lift
+import Streamly.Internal.Data.Stream.IsStream.Nesting
+import Streamly.Internal.Data.Stream.IsStream.Transform
+import Streamly.Internal.Data.Stream.IsStream.Types
 
 import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, zipWith, foldr
