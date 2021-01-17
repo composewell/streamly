@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Transform
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -141,15 +141,18 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , rollingMap
 
     -- * Maybe Streams
+    -- Move these to Streamly.Data.Maybe.Stream?
     , catMaybes -- XXX justs (like lefts/rights)
     , mapMaybe
     , mapMaybeM
 
     -- * Either Streams
+    -- Move these to Streamly.Data.Either.Stream?
     , lefts
     , rights
 
     -- * Threading
+    -- ** Concurrent Pipelines
     -- | Run streaming stages concurrently.
 
     , D.mkParallel

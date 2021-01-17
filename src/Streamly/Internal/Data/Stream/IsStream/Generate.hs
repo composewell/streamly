@@ -2,7 +2,7 @@
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Generate
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental

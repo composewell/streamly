@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Eliminate
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -67,8 +67,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- -- ** To Summary (Full Folds)
     , mapM_
     , drain
-    , drainN
-    , drainWhile
     , last
     , length
     , sum
@@ -85,6 +83,8 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- ** Partial Folds
 
     -- -- ** To Elements (Partial Folds)
+    , drainN
+    , drainWhile
 
     -- -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
@@ -959,6 +959,8 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 -- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
 -- is the same as the stream.
 --
+-- See also "Streamly.Internal.Data.Stream.IsStream.Nesting.dropPrefix".
+--
 -- Space: @O(1)@
 --
 -- @since 0.6.0
@@ -976,6 +978,8 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 -- It may be more efficient to convert the stream to an Array and use
 -- stripSuffix on that especially if the elements have a Storable or Prim
 -- instance.
+--
+-- See also "Streamly.Internal.Data.Stream.IsStream.Nesting.dropSuffix".
 --
 -- Space: @O(n)@, buffers the entire input stream as well as the suffix
 --

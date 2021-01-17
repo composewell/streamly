@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Nesting
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     , mergeAsyncBy
     , mergeAsyncByM
 
-    -- ** Trimming
+    -- *** Trimming
     , dropPrefix
     , dropInfix
     , dropSuffix
@@ -198,11 +198,41 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     -- -- *** Splitting By Streams
     -- -- | Splitting a stream using another stream as separator.
 
-    -- ** Classifying
-    -- | De-interleaving groups.
-    , classifySessionsOf
-    , classifyKeepAliveSessions
+    -- ** Windowed Classification
+
+    -- | Split the stream into windows or chunks in space or time. Each window
+    -- can be associated with a key, all events associated with a particular
+    -- key in the window can be folded to a single result. The stream is split
+    -- into windows of specified size, the window can be terminated early if
+    -- the closing flag is specified in the input stream.
+    --
+    -- The term "chunk" is used for a space window and the term "session" is
+    -- used for a time window.
+
+    -- *** Tumbling Windows
+    -- | A new window starts after the previous window is finished.
+
+    -- , classifyChunksOf
     , classifySessionsBy
+    , classifySessionsOf
+
+    -- *** Keep Alive Windows
+    -- | The window size is extended if an event arrives within the specified
+    -- window size. This can represent sessions with idle or inactive timeout.
+
+    -- , classifyKeepAliveChunks
+    , classifyKeepAliveSessions
+
+    {-
+    -- *** Sliding Windows
+    -- | A new window starts after the specified slide from the previous
+    -- window. Therefore windows can overlap.
+    , classifySlidingChunks
+    , classifySlidingSessions
+    -- *** Sliding Window Buffers
+    -- , slidingChunkBuffer
+    -- , slidingSessionBuffer
+    -}
 
     -- * Transform (Nested Containers)
     -- Nested splitting
