@@ -30,7 +30,6 @@ import qualified Prelude as P
 import qualified Data.List as List
 
 import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.Prelude as SP
 import qualified Streamly.Internal.Data.SVar as S
 
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
@@ -119,13 +118,19 @@ sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
 sourceFromFoldableM n =
     Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+value])
 
+{-# INLINABLE concatMapFoldableWith #-}
+concatMapFoldableWith :: (S.IsStream t, Foldable f)
+    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
+
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Stream m Int
-sourceFoldMapWith n = SP.concatMapFoldableWith S.serial S.yield [n..n+value]
+sourceFoldMapWith n = concatMapFoldableWith S.serial S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = SP.concatMapFoldableWith S.serial (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n =
+    concatMapFoldableWith S.serial (S.yieldM . return) [n..n+value]
 
 -------------------------------------------------------------------------------
 -- Elimination

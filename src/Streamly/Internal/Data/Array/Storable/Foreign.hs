@@ -65,8 +65,8 @@ module Streamly.Internal.Data.Array.Storable.Foreign
     -- * Elimination
 
     , A.toList
-    , toStream
-    , toStreamRev
+    , A.toStream
+    , A.toStreamRev
     , read
     , ReadUState (..)
     , unsafeRead
@@ -160,7 +160,6 @@ import GHC.IO (IO(..))
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), length)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
@@ -170,7 +169,6 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Memory.Ring as RB
 
 -------------------------------------------------------------------------------
@@ -205,26 +203,6 @@ fromStream = P.foldOnce A.write
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
-
--- | Convert an 'Array' into a stream.
---
--- /Internal/
-{-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
-toStream = D.fromStreamD . A.toStreamD
--- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
---     forall a. S.readK (read a) = K.fromArray a #-}
-
--- | Convert an 'Array' into a stream in reverse order.
---
--- /Internal/
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-toStreamRev = D.fromStreamD . A.toStreamDRev
--- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
---     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
 data ReadUState a = ReadUState
     {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
@@ -530,7 +508,7 @@ streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
 streamTransform f arr =
     P.foldOnce (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
-        $ f (toStream arr)
+        $ f (A.toStream arr)
 
 -------------------------------------------------------------------------------
 -- Casts
@@ -603,11 +581,11 @@ asCString arr act = do
 -- /Internal/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-fold f arr = P.foldOnce f (toStream arr :: Serial.SerialT m a)
+fold f arr = P.foldOnce f (A.toStream arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Internal/
 {-# INLINE streamFold #-}
 streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-streamFold f arr = f (toStream arr)
+streamFold f arr = f (A.toStream arr)

@@ -255,7 +255,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD

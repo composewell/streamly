@@ -50,7 +50,6 @@ import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Prelude as P
 
 -- XXX efficiently compare two streams of arrays. Two streams can have chunks
 -- of different sizes, we can handle that in the stream comparison abstraction.
@@ -174,7 +173,7 @@ spliceArraysLenUnsafe len buffered = do
 _spliceArrays :: (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArrays s = do
-    buffered <- P.foldr S.cons S.nil s
+    buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
     arr <- liftIO $ MA.newArray len
     end <- S.foldlM' writeArr (return $ MA.aEnd arr) s
@@ -192,7 +191,7 @@ _spliceArrays s = do
 _spliceArraysBuffered :: (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
-    buffered <- P.foldr S.cons S.nil s
+    buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
     A.unsafeFreeze <$> spliceArraysLenUnsafe len (S.map A.unsafeThaw s)
 
