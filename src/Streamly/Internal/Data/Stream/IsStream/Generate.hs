@@ -79,6 +79,7 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , fromCallback
 
     -- * Deprecated
+    , K.once
     , each
     , fromHandle
     , currentTime

@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- This is an internal module which is superset of the corresponding released
+-- This is an internal module which is a superset of the corresponding released
 -- module "Streamly.Prelude". It contains some additional unreleased or
 -- experimental APIs.
 
@@ -56,10 +56,10 @@ module Streamly.Internal.Data.Stream.IsStream
 
     -- * Construction
     -- ** Primitives
-    , K.nil
-    , K.nilM
-    , K.cons
-    , (K..:)
+    , nil
+    , nilM
+    , cons
+    , (.:)
 
     , consM
     , (|:)
@@ -99,12 +99,12 @@ module Streamly.Internal.Data.Stream.IsStream
     , iterateM
 
     -- ** Cyclic Elements
-    , K.mfix
+    , mfix
 
     -- ** From Containers
     , fromList
     , fromListM
-    , K.fromFoldable
+    , fromFoldable
     , fromFoldableM
     , fromPrimIORef
     , fromCallback
@@ -228,7 +228,7 @@ module Streamly.Internal.Data.Stream.IsStream
     , transform
 
     -- ** Mapping
-    , Serial.map
+    , map
     , sequence
     , mapM
     , smapM
@@ -274,7 +274,7 @@ module Streamly.Internal.Data.Stream.IsStream
     -- , lprescanlM'
 
     -- ** Concurrent Transformation
-    , D.mkParallel
+    , mkParallel
     -- Par.mkParallel
     , applyAsync
     , (|$)
@@ -466,8 +466,8 @@ module Streamly.Internal.Data.Stream.IsStream
     , interleaveInfix
 
     , wSerial
-    , Serial.wSerialFst
-    , Serial.wSerialMin
+    , wSerialFst
+    , wSerialMin
 
     -- ** Scheduling
     , ahead
@@ -477,8 +477,8 @@ module Streamly.Internal.Data.Stream.IsStream
 
     -- ** Parallel
     , parallel
-    , Par.parallelFst
-    , Par.parallelMin
+    , parallelFst
+    , parallelMin
 
     -- ** Merging
     -- , merge
@@ -488,10 +488,10 @@ module Streamly.Internal.Data.Stream.IsStream
     , mergeAsyncByM
 
     -- ** Zipping
-    , Z.zipWith
-    , Z.zipWithM
-    , Z.zipAsyncWith
-    , Z.zipAsyncWithM
+    , zipWith
+    , zipWithM
+    , zipAsyncWith
+    , zipAsyncWithM
 
     -- ** Flattening a Container of Streams
     , concatFoldableWith
@@ -577,7 +577,7 @@ module Streamly.Internal.Data.Stream.IsStream
     , inspectMode
 
     -- * Deprecated
-    , K.once
+    , once
     , each
     , scanx
     , foldx
@@ -590,12 +590,6 @@ module Streamly.Internal.Data.Stream.IsStream
     , toHandle
     )
 where
-
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.Zip as Z
 
 import Streamly.Internal.Data.Stream.IsStream.Eliminate
 import Streamly.Internal.Data.Stream.IsStream.Exception
