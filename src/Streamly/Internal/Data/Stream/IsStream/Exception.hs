@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Exception
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
