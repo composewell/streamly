@@ -56,6 +56,8 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Types
     , toStreamDRev
     , toStreamK
     , toStreamKRev
+    , toStream
+    , toStreamRev
     , toList
 
     , unlines
@@ -460,6 +462,27 @@ toStreamDRev arr = MA.toStreamDRev (unsafeThaw arr)
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
 toStreamKRev arr = MA.toStreamKRev (unsafeThaw arr)
+
+-- | Convert an 'Array' into a stream.
+--
+-- /Internal/
+{-# INLINE_EARLY toStream #-}
+toStream :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
+toStream = D.fromStreamD . toStreamD
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
+--     forall a. S.readK (read a) = K.fromArray a #-}
+
+-- | Convert an 'Array' into a stream in reverse order.
+--
+-- /Internal/
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
+toStreamRev = D.fromStreamD . toStreamDRev
+
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
+--     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b

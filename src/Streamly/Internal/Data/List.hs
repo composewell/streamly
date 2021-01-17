@@ -75,7 +75,7 @@ import GHC.Exts (IsList(..), IsString(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 
-import qualified Streamly.Internal.Data.Stream.Prelude as P
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- We implement list as a newtype instead of a type synonym to make type
@@ -103,15 +103,15 @@ newtype List a = List { toSerial :: SerialT Identity a }
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
-    fromString = List . P.fromList
+    fromString = List . Stream.fromList
 
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (List a) where
     type (Item (List a)) = a
     {-# INLINE fromList #-}
-    fromList = List . P.fromList
+    fromList = List . Stream.fromList
     {-# INLINE toList #-}
-    toList = runIdentity . P.toList . toSerial
+    toList = runIdentity . Stream.toList . toSerial
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -165,15 +165,15 @@ newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
 
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}
-    fromString = ZipList . P.fromList
+    fromString = ZipList . Stream.fromList
 
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (ZipList a) where
     type (Item (ZipList a)) = a
     {-# INLINE fromList #-}
-    fromList = ZipList . P.fromList
+    fromList = ZipList . Stream.fromList
     {-# INLINE toList #-}
-    toList = runIdentity . P.toList . toZipSerial
+    toList = runIdentity . Stream.toList . K.adapt . toZipSerial
 
 -- | Convert a 'ZipList' to a regular 'List'
 --

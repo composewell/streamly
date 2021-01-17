@@ -102,7 +102,7 @@ module Streamly.Internal.Data.Stream.IsStream
     , K.mfix
 
     -- ** From Containers
-    , P.fromList
+    , fromList
     , fromListM
     , K.fromFoldable
     , fromFoldableM
@@ -592,7 +592,6 @@ module Streamly.Internal.Data.Stream.IsStream
 where
 
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
