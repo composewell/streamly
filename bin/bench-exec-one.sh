@@ -52,6 +52,7 @@ bench_rts_opts_specific () {
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
 
     Prelude.Rate/o-1-space/*) echo -n "-K128K" ;;
+    Prelude.Rate/o-1-space/asyncly/*) echo -n "-K128K" ;;
 
     # XXX For GHC-9.0
     Prelude.Serial/o-1-space/mixed/sum-product-fold) echo -n "-K64M" ;;

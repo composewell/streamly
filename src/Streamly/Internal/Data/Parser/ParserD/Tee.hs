@@ -44,7 +44,7 @@ import Prelude
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Parser.ParserD.Types
-       (Parser(..), Step(..), ParseError)
+       (Initial(..), Parser(..), Step(..), ParseError)
 
 -------------------------------------------------------------------------------
 -- Distribute input to two parsers and collect both results
@@ -81,6 +81,7 @@ import Streamly.Internal.Data.Parser.ParserD.Types
 -- different lengths of the stream we consider the maximum of the two as
 -- consumed.
 --
+  -- XXX We can use Initial instead of StepState
 {-# ANN type StepState Fuse #-}
 data StepState s a = StepState s | StepResult a
 
@@ -108,9 +109,24 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
     {-# INLINE_LATE initial #-}
     initial = do
-        sL <- initialL
-        sR <- initialR
-        return $ TeePair ([], StepState sL, [], []) ([], StepState sR, [], [])
+        resL <- initialL
+        resR <- initialR
+        return $ case resL of
+            IPartial sl ->
+                case resR of
+                     IPartial sr -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                       ([], StepState sr, [], [])
+                     IDone br -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                    ([], StepResult br, [], [])
+                     IError err -> IError err
+            IDone bl ->
+                case resR of
+                     IPartial sr ->
+                         IPartial $ TeePair ([], StepResult bl, [], [])
+                                            ([], StepState sr, [], [])
+                     IDone br -> IDone $ zf bl br
+                     IError err -> IError err
+            IError err -> IError err
 
     {-# INLINE consume #-}
     consume buf inp1 inp2 stp st y = do
@@ -236,9 +252,22 @@ teeWithFst zf (Parser stepL initialL extractL)
 
     {-# INLINE_LATE initial #-}
     initial = do
-        sL <- initialL
-        sR <- initialR
-        return $ TeePair ([], StepState sL, [], []) ([], StepState sR, [], [])
+        resL <- initialL
+        resR <- initialR
+        case resL of
+            IPartial sl ->
+                return $ case resR of
+                     IPartial sr -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                       ([], StepState sr, [], [])
+                     IDone br -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                    ([], StepResult br, [], [])
+                     IError err -> IError err
+            IDone bl ->
+                case resR of
+                     IPartial sr -> IDone . zf bl <$> extractR sr
+                     IDone br -> return $ IDone $ zf bl br
+                     IError err -> return $ IError err
+            IError err -> return $ IError err
 
     {-# INLINE consume #-}
     consume buf inp1 inp2 stp st y = do
@@ -358,9 +387,21 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
 
     {-# INLINE_LATE initial #-}
     initial = do
-        sL <- initialL
-        sR <- initialR
-        return $ TeePair ([], StepState sL, [], []) ([], StepState sR, [], [])
+        resL <- initialL
+        resR <- initialR
+        return $ case resL of
+            IPartial sl ->
+                case resR of
+                     IPartial sr -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                       ([], StepState sr, [], [])
+                     IDone br -> IDone br
+                     IError err -> IError err
+            IDone bl -> IDone bl
+            IError errL ->
+                case resR of
+                     IPartial _ -> IError errL
+                     IDone br -> IDone br
+                     IError errR -> IError errR
 
     {-# INLINE consume #-}
     consume buf inp1 inp2 stp st y = do
@@ -433,11 +474,35 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
     where
 
+
     {-# INLINE_LATE initial #-}
     initial = do
-        sL <- initialL
-        sR <- initialR
-        return $ TeePair ([], StepState sL, [], []) ([], StepState sR, [], [])
+        resL <- initialL
+        resR <- initialR
+        return $ case resL of
+            IPartial sl ->
+                case resR of
+                     IPartial sr -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                       ([], StepState sr, [], [])
+                     IDone br -> IPartial $ TeePair ([], StepState sl, [], [])
+                                                    ([], StepResult br, [], [])
+                     IError _ ->
+                         IPartial $ TeePair ([], StepState sl, [], [])
+                                            ([], StepResult undefined, [], [])
+            IDone bl ->
+                case resR of
+                     IPartial sr ->
+                         IPartial $ TeePair ([], StepResult bl, [], [])
+                                            ([], StepState sr, [], [])
+                     IDone _ -> IDone bl
+                     IError _ -> IDone bl
+            IError _ ->
+                case resR of
+                     IPartial sr ->
+                         IPartial $ TeePair ([], StepResult undefined, [], [])
+                                            ([], StepState sr, [], [])
+                     IDone br -> IDone br
+                     IError err -> IError err
 
     {-# INLINE consume #-}
     consume buf inp1 inp2 stp st y = do

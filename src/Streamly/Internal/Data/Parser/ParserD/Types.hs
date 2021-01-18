@@ -36,9 +36,9 @@
 -- 'Step' functor provides the following commands to the fold driver
 -- corresponding to the use cases outlined in the previous para:
 --
--- 1. 'Continue': buffer the current input and go back to a previous
+-- 1. 'Continue': buffer the current input and optionally go back to a previous
 --    position in the stream
--- 2. 'Partial': buffer the current input and go back to a previous
+-- 2. 'Partial': buffer the current input and optionally go back to a previous
 --    position in the stream, drop the buffer before that position.
 -- 3. 'Done': parser succeeded, returns how much input was leftover
 -- 4. 'Error': indicates that the parser has failed without a result
@@ -111,7 +111,8 @@
 
 module Streamly.Internal.Data.Parser.ParserD.Types
     (
-      Step (..)
+      Initial (..)
+    , Step (..)
     , Parser (..)
     , ParseError (..)
 
@@ -135,6 +136,7 @@ import Control.Applicative (Alternative(..))
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
+import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
@@ -150,6 +152,48 @@ import Prelude hiding (concatMap)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
+-- | The type of a 'Parser''s initial action.
+--
+-- /Internal/
+--
+{-# ANN type Initial Fuse #-}
+data Initial s b
+    = IPartial !s   -- ^ Wait for step function to be called with state @s@.
+    | IDone !b      -- ^ Return a result right away without an input.
+    | IError String -- ^ Return an error right away without an input.
+
+-- | @first@ maps on 'IPartial' and @second@ maps on 'IDone'.
+--
+-- /Internal/
+--
+instance Bifunctor Initial where
+    {-# INLINE bimap #-}
+    bimap f _ (IPartial a) = IPartial (f a)
+    bimap _ g (IDone b) = IDone (g b)
+    bimap _ _ (IError err) = IError err
+
+    {-# INLINE first #-}
+    first f (IPartial a) = IPartial (f a)
+    first _ (IDone x) = IDone x
+    first _ (IError err) = IError err
+
+    {-# INLINE second #-}
+    second _ (IPartial x) = IPartial x
+    second f (IDone a) = IDone (f a)
+    second _ (IError err) = IError err
+
+-- | Maps a function over the result held by 'IDone'.
+--
+-- @
+-- fmap = 'second'
+-- @
+--
+-- /Internal/
+--
+instance Functor (Initial s) where
+    {-# INLINE fmap #-}
+    fmap = second
 
 -- | The return type of a 'Parser' step.
 --
@@ -231,7 +275,7 @@ instance Functor (Step s) where
 -- /Internal/
 --
 data Parser m a b =
-    forall s. Parser (s -> a -> m (Step s b)) (m s) (s -> m b)
+    forall s. Parser (s -> a -> m (Step s b)) (m (Initial s b)) (s -> m b)
 
 -- | This exception is used for two purposes:
 --
@@ -249,11 +293,12 @@ instance Exception ParseError where
 
 instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
-    fmap f (Parser step1 initial extract) =
+    fmap f (Parser step1 initial1 extract) =
         Parser step initial (fmap2 f extract)
 
         where
 
+        initial = fmap2 f initial1
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
@@ -263,9 +308,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE_NORMAL yield #-}
 yield :: Monad m => b -> Parser m a b
-yield b = Parser (\_ _ -> pure $ Done 1 b)  -- step
-                 (pure ())                  -- initial
-                 (\_ -> pure b)             -- extract
+yield b = Parser undefined (pure $ IDone b) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.yieldM'.
 --
@@ -273,9 +316,7 @@ yield b = Parser (\_ _ -> pure $ Done 1 b)  -- step
 --
 {-# INLINE yieldM #-}
 yieldM :: Monad m => m b -> Parser m a b
-yieldM b = Parser (\_ _ -> Done 1 <$> b) -- step
-                  (pure ())              -- initial
-                  (const b)              -- extract
+yieldM b = Parser undefined (IDone <$> b) undefined
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -296,7 +337,7 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 -- /Internal/
 --
 {-# INLINE splitWith #-}
-splitWith :: Monad m
+splitWith :: MonadThrow m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 splitWith func (Parser stepL initialL extractL)
                (Parser stepR initialR extractR) =
@@ -304,38 +345,55 @@ splitWith func (Parser stepL initialL extractL)
 
     where
 
-    initial = SeqParseL <$> initialL
+    initial = do
+        resL <- initialL
+        case resL of
+            IPartial sl -> return $ IPartial $ SeqParseL sl
+            IDone bl -> do
+                resR <- initialR
+                return $ case resR of
+                    IPartial sr -> IPartial $ SeqParseR (func bl) sr
+                    IDone br -> IDone (func bl br)
+                    IError err -> IError err
+            IError err -> return $ IError err
 
     -- Note: For the composed parse to terminate, the left parser has to be
     -- a terminating parser returning a Done at some point.
-    step (SeqParseL st) a = do
-        r <- stepL st a
-        case r of
+    step (SeqParseL st) a =
+      (\resL initR ->
+        case resL of
             -- Note: We need to buffer the input for a possible Alternative
             -- e.g. in ((,) <$> p1 <*> p2) <|> p3, if p2 fails we have to
             -- backtrack and start running p3. So we need to keep the input
             -- buffered until we know that the applicative cannot fail.
-            Partial n s -> return $ Continue n (SeqParseL s)
-            Continue n s -> return $ Continue n (SeqParseL s)
-            Done n b -> Continue n <$> (SeqParseR (func b) <$> initialR)
-            Error err -> return $ Error err
+            Partial n s -> Continue n (SeqParseL s)
+            Continue n s -> Continue n (SeqParseL s)
+            Done n b ->
+                case initR of
+                   IPartial sr -> Continue n $ SeqParseR (func b) sr
+                   IDone br -> Done n (func b br)
+                   IError err -> Error err
+            Error err -> Error err) <$> stepL st a <*> initialR
 
-    step (SeqParseR f st) a = do
-        r <- stepR st a
-        return $ case r of
+    step (SeqParseR f st) a =
+        (\case
             Partial n s -> Partial n (SeqParseR f s)
             Continue n s -> Continue n (SeqParseR f s)
             Done n b -> Done n (f b)
-            Error err -> Error err
+            Error err -> Error err) <$> stepR st a
 
     extract (SeqParseR f sR) = fmap f (extractR sR)
     extract (SeqParseL sL) = do
         rL <- extractL sL
-        sR <- initialR
-        rR <- extractR sR
-        return $ func rL rR
+        res <- initialR
+        case res of
+            IPartial sR -> do
+                rR <- extractR sR
+                return $ func rL rR
+            IDone rR -> return $ func rL rR
+            IError err -> throwM $ ParseError err
 
--- Only use this if you know what you're doing
+-- | Works correctly only if the first parser is guaranteed to never fail.
 {-# INLINE noErrorUnsafeSplitWith #-}
 noErrorUnsafeSplitWith :: Monad m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
@@ -345,14 +403,34 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
 
     where
 
-    initial = SeqParseL <$> initialL
+    initial = do
+        resL <- initialL
+        case resL of
+            IPartial sl -> return $ IPartial $ SeqParseL sl
+            IDone bl -> do
+                resR <- initialR
+                return $ case resR of
+                    IPartial sr -> IPartial $ SeqParseR (func bl) sr
+                    IDone br -> IDone (func bl br)
+                    IError err -> IError err
+            IError err -> return $ IError err
 
+    -- Note: For the composed parse to terminate, the left parser has to be
+    -- a terminating parser returning a Done at some point.
     step (SeqParseL st) a = do
         r <- stepL st a
         case r of
+            -- Assume that the first parser can never fail, therefore we do not
+            -- need to keep the input for backtracking.
             Partial n s -> return $ Partial n (SeqParseL s)
             Continue n s -> return $ Partial n (SeqParseL s)
-            Done n b -> Partial n <$> (SeqParseR (func b) <$> initialR)
+            Done n b -> do
+                res <- initialR
+                return
+                    $ case res of
+                          IPartial sr -> Partial n $ SeqParseR (func b) sr
+                          IDone br -> Done n (func b br)
+                          IError err -> Error err
             Error err -> return $ Error err
 
     step (SeqParseR f st) a = do
@@ -366,9 +444,15 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
     extract (SeqParseR f sR) = fmap f (extractR sR)
     extract (SeqParseL sL) = do
         rL <- extractL sL
-        sR <- initialR
-        rR <- extractR sR
-        return $ func rL rR
+        res <- initialR
+        case res of
+            IPartial sR -> do
+                rR <- extractR sR
+                return $ func rL rR
+            IDone rR -> return $ func rL rR
+            IError err -> error $ "noErrorUnsafeSplitWith: cannot use a "
+                ++ "failing parser. Parser failed with: " ++ err
+
 
 {-# ANN type SeqAState Fuse #-}
 data SeqAState sl sr = SeqAL sl | SeqAR sr
@@ -379,23 +463,37 @@ data SeqAState sl sr = SeqAL sl | SeqAR sr
 -- /Internal/
 --
 {-# INLINE split_ #-}
-split_ :: Monad m => Parser m x a -> Parser m x b -> Parser m x b
+split_ :: MonadThrow m => Parser m x a -> Parser m x b -> Parser m x b
 split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
 
     where
 
-    initial = SeqAL <$> initialL
+    initial = do
+        resL <- initialL
+        case resL of
+            IPartial sl -> return $ IPartial $ SeqAL sl
+            IDone _ -> do
+                resR <- initialR
+                return $ case resR of
+                    IPartial sr -> IPartial $ SeqAR sr
+                    IDone br -> IDone br
+                    IError err -> IError err
+            IError err -> return $ IError err
 
     -- Note: For the composed parse to terminate, the left parser has to be
     -- a terminating parser returning a Done at some point.
     step (SeqAL st) a =
-        (\r i -> case r of
+        (\resL initR -> case resL of
             -- Note: this leads to buffering even if we are not in an
             -- Alternative composition.
             Partial n s -> Continue n (SeqAL s)
             Continue n s -> Continue n (SeqAL s)
-            Done n _ -> Continue n (SeqAR i)
+            Done n _ -> do
+                case initR of
+                    IPartial s -> Continue n (SeqAR s)
+                    IDone b -> Done n b
+                    IError err -> Error err
             -- XXX should we sequence initialR monadically?
             Error err -> Error err) <$> stepL st a <*> initialR
 
@@ -409,10 +507,14 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     extract (SeqAR sR) = extractR sR
     extract (SeqAL sL) = do
         _ <- extractL sL
-        initialR >>= extractR
+        res <- initialR
+        case res of
+            IPartial sR -> extractR sR
+            IDone rR -> return rR
+            IError err -> throwM $ ParseError err
 
 -- | 'Applicative' form of 'splitWith'.
-instance Monad m => Applicative (Parser m a) where
+instance MonadThrow m => Applicative (Parser m a) where
     {-# INLINE pure #-}
     pure = yield
 
@@ -445,7 +547,17 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
     where
 
-    initial = AltParseL 0 <$> initialL
+    initial = do
+        resL <- initialL
+        case resL of
+            IPartial sl -> return $ IPartial $ AltParseL 0 sl
+            IDone bl -> return $ IDone bl
+            IError _ -> do
+                resR <- initialR
+                return $ case resR of
+                    IPartial sr -> IPartial $ AltParseR sr
+                    IDone br -> IDone br
+                    IError err -> IError err
 
     -- Once a parser yields at least one value it cannot fail.  This
     -- restriction helps us make backtracking more efficient, as we do not need
@@ -461,8 +573,12 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 return $ Continue n (AltParseL (cnt + 1 - n) s)
             Done n b -> return $ Done n b
             Error _ -> do
-                rR <- initialR
-                return $ Continue (cnt + 1) (AltParseR rR)
+                res <- initialR
+                return
+                    $ case res of
+                          IPartial rR -> Continue (cnt + 1) (AltParseR rR)
+                          IDone b -> Done (cnt + 1) b
+                          IError err -> Error err
 
     step (AltParseR st) a = do
         r <- stepR st a
@@ -486,14 +602,25 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     where
 
-    initial = do
-        ps <- initial1 -- parse state
-        res <- finitial -- fold state
-        return
-            $ case res of
-                  FL.Partial fs -> Tuple3' ps (0 :: Int) fs
-                  FL.Done _ ->
-                    error "splitMany: Done in initial not implemented"
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
+
+    {-# INLINE handleCollect #-}
+    handleCollect partial done fres =
+        case fres of
+            FL.Partial fs -> do
+                pres <- initial1
+                case pres of
+                    IPartial ps -> return $ partial $ Tuple3' ps 0 fs
+                    IDone pb ->
+                        runCollectorWith (handleCollect partial done) fs pb
+                    IError _ -> done <$> fextract fs
+            FL.Done fb -> return $ done fb
+
+    -- Do not inline this
+    runCollectorWith cont fs pb = fstep fs pb >>= cont
+
+    initial = finitial >>= handleCollect IPartial IDone
 
     {-# INLINE step #-}
     step (Tuple3' st cnt fs) a = do
@@ -507,13 +634,8 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 assert (cnt1 - n >= 0) (return ())
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Done n b -> do
-                s <- initial1
-                fs1 <- fstep fs b
                 assert (cnt1 - n >= 0) (return ())
-                return
-                    $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 s1)
-                          FL.Done b1 -> Done n b1
+                fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -540,14 +662,39 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
     where
 
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
+
+    {-# INLINE handleCollect #-}
+    handleCollect partial done fres =
+        case fres of
+            FL.Partial fs -> do
+                pres <- initial1
+                case pres of
+                    IPartial ps -> return $ partial $ Tuple3' ps 0 $ Right fs
+                    IDone pb ->
+                        runCollectorWith (handleCollect partial done) fs pb
+                    IError _ -> done <$> fextract fs
+            FL.Done fb -> return $ done fb
+
+    -- Do not inline this
+    runCollectorWith cont fs pb = fstep fs pb >>= cont
+
     initial = do
-        ps <- initial1 -- parse state
-        res <- finitial -- fold state
-        return
-            $ case res of
-                  FL.Partial fs -> Tuple3' ps (0 :: Int) (Left fs)
-                  FL.Done _ ->
-                    error "splitSome: Done/Error in initial not implemented"
+        fres <- finitial
+        case fres of
+            FL.Partial fs -> do
+                pres <- initial1
+                case pres of
+                    IPartial ps -> return $ IPartial $ Tuple3' ps 0 $ Left fs
+                    IDone pb ->
+                        runCollectorWith (handleCollect IPartial IDone) fs pb
+                    IError err -> return $ IError err
+            FL.Done _ ->
+                return
+                    $ IError
+                    $ "splitSome: The collecting fold terminated without"
+                          ++ " consuming any elements."
 
     {-# INLINE step #-}
     step (Tuple3' st cnt (Left fs)) a = do
@@ -563,12 +710,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
             Done n b -> do
                 assert (cnt1 - n >= 0) (return ())
-                s <- initial1
-                fs1 <- fstep fs b
-                return
-                    $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                          FL.Done b1 -> Done n b1
+                fstep fs b >>= handleCollect (Partial n) (Done n)
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
@@ -582,12 +724,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
                 return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
             Done n b -> do
                 assert (cnt1 - n >= 0) (return ())
-                s <- initial1
-                fs1 <- fstep fs b
-                return
-                    $ case fs1 of
-                          FL.Partial s1 -> Partial n (Tuple3' s 0 (Right s1))
-                          FL.Done b1 -> Done n b1
+                fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> Done cnt1 <$> fextract fs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
@@ -613,10 +750,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 --
 {-# INLINE_NORMAL die #-}
 die :: MonadThrow m => String -> Parser m a b
-die err =
-    Parser (\_ _ -> pure $ Error err)      -- step
-           (pure ())                       -- initial
-           (\_ -> throwM $ ParseError err) -- extract
+die err = Parser undefined (pure (IError err)) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.dieM'.
 --
@@ -624,10 +758,7 @@ die err =
 --
 {-# INLINE dieM #-}
 dieM :: MonadThrow m => m String -> Parser m a b
-dieM err =
-    Parser (\_ _ -> Error <$> err)         -- step
-           (pure ())                       -- initial
-           (\_ -> err >>= throwM . ParseError) -- extract
+dieM err = Parser undefined (IError <$> err) undefined
 
 -- Note: The default implementations of "some" and "many" loop infinitely
 -- because of the strict pattern match on both the arguments in applicative and
@@ -659,47 +790,70 @@ instance MonadCatch m => Alternative (Parser m a) where
     some = splitSome toList
 
 {-# ANN type ConcatParseState Fuse #-}
-data ConcatParseState sl p = ConcatParseL sl | ConcatParseR p
+data ConcatParseState sl m a b =
+      ConcatParseL sl
+    | forall s. ConcatParseR (s -> a -> m (Step s b)) s (s -> m b)
 
 -- | See 'Streamly.Internal.Data.Parser.concatMap'.
 --
 -- /Internal/
 --
 {-# INLINE concatMap #-}
-concatMap :: Monad m => (b -> Parser m a c) -> Parser m a b -> Parser m a c
+concatMap :: MonadThrow m =>
+    (b -> Parser m a c) -> Parser m a b -> Parser m a c
 concatMap func (Parser stepL initialL extractL) = Parser step initial extract
 
     where
 
-    initial = ConcatParseL <$> initialL
+    {-# INLINE initializeR #-}
+    initializeR (Parser stepR initialR extractR) = do
+        resR <- initialR
+        return $ case resR of
+            IPartial sr -> IPartial $ ConcatParseR stepR sr extractR
+            IDone br -> IDone br
+            IError err -> IError err
+
+    initial = do
+        res <- initialL
+        case res of
+            IPartial s -> return $ IPartial $ ConcatParseL s
+            IDone b -> initializeR (func b)
+            IError err -> return $ IError err
+
+    {-# INLINE initializeRL #-}
+    initializeRL n (Parser stepR initialR extractR) = do
+        resR <- initialR
+        return $ case resR of
+            IPartial sr -> Continue n $ ConcatParseR stepR sr extractR
+            IDone br -> Done n br
+            IError err -> Error err
 
     step (ConcatParseL st) a = do
         r <- stepL st a
-        return $ case r of
-            Partial n s -> Continue n (ConcatParseL s)
-            Continue n s -> Continue n (ConcatParseL s)
-            Done n b -> Continue n (ConcatParseR (func b))
-            Error err -> Error err
+        case r of
+            Partial n s -> return $ Continue n (ConcatParseL s)
+            Continue n s -> return $ Continue n (ConcatParseL s)
+            Done n b -> initializeRL n (func b)
+            Error err -> return $ Error err
 
-    step (ConcatParseR (Parser stepR initialR extractR)) a = do
-        st <- initialR
+    step (ConcatParseR stepR st extractR) a = do
         r <- stepR st a
         return $ case r of
-            Partial n s ->
-                Partial n (ConcatParseR (Parser stepR (return s) extractR))
-            Continue n s ->
-                Continue n (ConcatParseR (Parser stepR (return s) extractR))
+            Partial n s -> Partial n $ ConcatParseR stepR s extractR
+            Continue n s -> Continue n $ ConcatParseR stepR s extractR
             Done n b -> Done n b
             Error err -> Error err
 
-    extract (ConcatParseR (Parser _ initialR extractR)) =
-        initialR >>= extractR
+    {-# INLINE extractP #-}
+    extractP (Parser _ initialR extractR) = do
+        res <- initialR
+        case res of
+            IPartial s -> extractR s
+            IDone b -> return b
+            IError err -> throwM $ ParseError err
 
-    extract (ConcatParseL sL) = extractL sL >>= f . func
-
-        where
-
-        f (Parser _ initialR extractR) = initialR >>= extractR
+    extract (ConcatParseR _ s extractR) = extractR s
+    extract (ConcatParseL sL) = extractL sL >>= extractP . func
 
 -- Note: The monad instance has quadratic performance complexity. It works fine
 -- for small number of compositions but for a scalable implementation we need a
@@ -707,7 +861,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Types.Parser'.
 --
-instance Monad m => Monad (Parser m a) where
+instance MonadThrow m => Monad (Parser m a) where
     {-# INLINE return #-}
     return = pure
 

@@ -112,15 +112,19 @@ newtype Parser m a b = MkParser
 parseDToK
     :: MonadCatch m
     => (s -> a -> m (D.Step s b))
-    -> m s
+    -> m (D.Initial s b)
     -> (s -> m b)
     -> Int
     -> (Int, Int)
     -> ((Int, Int) -> Parse b -> m (Driver m a r))
     -> m (Driver m a r)
 
-parseDToK pstep initial extract leftover (0, _) cont =
-    return $ Continue leftover (parseCont initial)
+parseDToK pstep initial extract leftover (0, _) cont = do
+    res <- initial
+    case res of
+        D.IPartial r -> return $ Continue leftover (parseCont (return r))
+        D.IDone b -> cont (0,0) (Done 0 b)
+        D.IError err -> cont (0,0) (Error err)
 
     where
 
@@ -140,8 +144,12 @@ parseDToK pstep initial extract leftover (0, _) cont =
             Left (e :: D.ParseError) -> cont (0,0) (Error (displayException e))
             Right b -> cont (0,0) (Done 0 b)
 
-parseDToK pstep initial extract leftover (level, count) cont =
-    return $ Continue leftover (parseCont count initial)
+parseDToK pstep initial extract leftover (level, count) cont = do
+    res <- initial
+    case res of
+        D.IPartial r -> return $ Continue leftover (parseCont count (return r))
+        D.IDone b -> cont (level,count) (Done 0 b)
+        D.IError err -> cont (level,count) (Error err)
 
     where
 
@@ -203,7 +211,7 @@ extractParse cont = do
         Continue _ cont1 -> extractParse cont1
         Failed e -> throwM $ D.ParseError e
 
-data FromParserK b e c = FPKDone !Int !b | FPKError !e | FPKCont c
+data FromParserK b c = FPKDone !Int !b | FPKCont c
 
 -- | Convert a CPS style 'Parser' to a direct style 'D.Parser'.
 --
@@ -221,10 +229,10 @@ fromParserK parser = D.Parser step initial extract
     initial = do
         r <- runParser parser 0 (0,0) parserDone
         return $ case r of
-            Stop n b -> FPKDone n b
-            Failed e -> FPKError e
-            Partial _ cont -> FPKCont cont -- XXX can we get this?
-            Continue _ cont -> FPKCont cont
+            Stop n b -> D.IPartial $ FPKDone n b
+            Failed e -> D.IError e
+            Partial _ cont -> D.IPartial $ FPKCont cont -- XXX can we get this?
+            Continue _ cont -> D.IPartial $ FPKCont cont
 
     -- Note, we can only reach FPKDone and FPKError from "initial". FPKCont
     -- always transitions to only FPKCont.  The input remains unconsumed in
@@ -232,7 +240,6 @@ fromParserK parser = D.Parser step initial extract
     step (FPKDone n b) _ = do
         assertM (n == 0)
         return $ D.Done (n + 1) b
-    step (FPKError e) _ = return $ D.Error e
     step (FPKCont cont) a = do
         r <- cont (Just a)
         return $ case r of
@@ -243,7 +250,6 @@ fromParserK parser = D.Parser step initial extract
 
     -- Note, we can only reach FPKDone and FPKError from "initial".
     extract (FPKDone _ b) = return b
-    extract (FPKError e) = throwM $ D.ParseError e
     extract (FPKCont cont) = extractParse cont
 
 #ifndef DISABLE_FUSION

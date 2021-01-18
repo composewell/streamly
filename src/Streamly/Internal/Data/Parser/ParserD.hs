@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Parser.ParserD
       Parser (..)
     , ParseError (..)
     , Step (..)
+    , Initial (..)
 
     -- First order parsers
     -- * Accumulators
@@ -191,20 +192,23 @@ import Streamly.Internal.Data.Parser.ParserD.Types
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
-fromFold (Fold fstep finitial fextract) = Parser step finitial extract
+fromFold (Fold fstep finitial fextract) = Parser step initial fextract
 
     where
 
-    step (FL.Partial s) a = do
+    initial = do
+        res <- finitial
+        return
+            $ case res of
+                  FL.Partial s1 -> IPartial s1
+                  FL.Done b -> IDone b
+
+    step s a = do
         res <- fstep s a
         return
             $ case res of
-                  FL.Partial s1 -> Partial 0 (FL.Partial s1)
+                  FL.Partial s1 -> Partial 0 s1
                   FL.Done b -> Done 0 b
-    step (FL.Done b) _ = return $ Done 1 b
-
-    extract (FL.Partial s) = fextract s
-    extract (FL.Done b) = return b
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -220,7 +224,7 @@ peek = Parser step initial extract
 
     where
 
-    initial = return ()
+    initial = return $ IPartial ()
 
     step () a = return $ Done 1 a
 
@@ -236,7 +240,7 @@ eof = Parser step initial return
 
     where
 
-    initial = return ()
+    initial = return $ IPartial ()
 
     step () _ = return $ Error "eof: not at end of input"
 
@@ -250,7 +254,7 @@ satisfy predicate = Parser step initial extract
 
     where
 
-    initial = return ()
+    initial = return $ IPartial ()
 
     step () a = return $
         if predicate a
@@ -269,7 +273,7 @@ maybe parser = Parser step initial extract
 
     where
 
-    initial = return ()
+    initial = return $ IPartial ()
 
     step () a = return $
         case parser a of
@@ -288,7 +292,7 @@ either parser = Parser step initial extract
 
     where
 
-    initial = return ()
+    initial = return $ IPartial ()
 
     step () a = return $
         case parser a of
@@ -315,10 +319,15 @@ takeBetween low high (Fold fstep finitial fextract) =
 
     initial = do
         res <- finitial
-        case res of
-            FL.Partial s -> return $ Tuple' 0 s
-            FL.Done _ ->
-                error "takeBetween: Done/Error in initial not implemented yet."
+        return $ case res of
+            FL.Partial s -> IPartial $ Tuple' 0 s
+            FL.Done b ->
+                if low <= 0
+                then IDone b
+                else IError
+                         $ "takeBetween: the collecting fold terminated without"
+                             ++ " consuming any elements"
+                             ++ " minimum" ++ show low ++ " elements needed"
 
     step (Tuple' i s) a
         | low > high =
@@ -374,10 +383,15 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     initial = do
         res <- finitial
-        case res of
-            FL.Partial s -> return $ Tuple' 0 s
-            FL.Done _ ->
-                error "takeEQ: Done/Error in initial not implemented yet."
+        return $ case res of
+            FL.Partial s -> IPartial $ Tuple' 0 s
+            FL.Done b ->
+                if cnt == 0
+                then IDone b
+                else IError
+                         $ "takeEQ: Expecting exactly " ++ show cnt
+                             ++ " elements, fold terminated without"
+                             ++ " consuming any elements"
 
     step (Tuple' i r) a
         | i1 < cnt = do
@@ -424,10 +438,15 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
     cnt = max n 0
     initial = do
         res <- finitial
-        case res of
-            FL.Partial s -> return $ Tuple' 0 s
-            FL.Done _ ->
-                error "takeGE: Done/Error in initial not implemented yet."
+        return $ case res of
+            FL.Partial s -> IPartial $ Tuple' 0 s
+            FL.Done b ->
+                if cnt == 0
+                then IDone b
+                else IError
+                         $ "takeGE: Expecting at least " ++ show cnt
+                             ++ " elements, fold terminated without"
+                             ++ " consuming any elements"
 
     step (Tuple' i r) a
         | i1 < cnt = do
@@ -471,10 +490,9 @@ takeWhile predicate (Fold fstep finitial fextract) =
 
     initial = do
         res <- finitial
-        case res of
-            FL.Partial s -> return s
-            FL.Done _ ->
-                error "takeWhile: Done/Error in initial not implemented yet."
+        return $ case res of
+            FL.Partial s -> IPartial s
+            FL.Done b -> IDone b
 
     step s a =
         if predicate a
@@ -497,35 +515,36 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 
     where
 
-    initial = return Nothing
+    initial = do
+        res <- finitial
+        return $ case res of
+            FL.Partial s -> IPartial (Left s)
+            FL.Done _ ->
+                IError
+                    $ "takeWhile1: fold terminated without consuming:"
+                          ++ " any element"
 
-    step Nothing a =
-        let err = Error "takeWhile1: predicate failed on first element"
-         in if predicate a
-            then do
-                res <- finitial
-                case res of
-                    FL.Partial s -> do
-                        sr <- fstep s a
-                        return
-                            $ case sr of
-                                  FL.Partial s1 -> Partial 0 (Just s1)
-                                  FL.Done b -> Done 0 b
-                    FL.Done _ -> return err
-            else return err
-    step (Just s) a =
+    {-# INLINE process #-}
+    process s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                  FL.Partial s1 -> Partial 0 (Right s1)
+                  FL.Done b -> Done 0 b
+
+    step (Left s) a =
         if predicate a
-        then do
-            sr <- fstep s a
-            case sr of
-                FL.Partial r -> return $ Partial 0 (Just r)
-                FL.Done b -> return $ Done 0 b
+        then process s a
+        else return $ Error "takeWhile1: predicate failed on first element"
+    step (Right s) a =
+        if predicate a
+        then process s a
         else do
             b <- fextract s
             return $ Done 1 b
 
-    extract Nothing = throwM $ ParseError "takeWhile1: end of input"
-    extract (Just s) = fextract s
+    extract (Left _) = throwM $ ParseError "takeWhile1: end of input"
+    extract (Right s) = fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
 --
@@ -566,8 +585,8 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
         res <- finitial
         return $
             case res of
-                FL.Partial s -> Left' s
-                FL.Done _ -> error "sliceBeginWith : bad finitial"
+                FL.Partial s -> IPartial (Left' s)
+                FL.Done _ -> IError "sliceBeginWith : bad finitial"
 
     {-# INLINE process #-}
     process s a = do
@@ -613,8 +632,8 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
         res <- finitial
         return
             $ case res of
-                  FL.Partial s -> WBLeft s
-                  FL.Done _ -> error "wordBy: Done in initial not implemented"
+                  FL.Partial s -> IPartial $ WBLeft s
+                  FL.Done b -> IDone b
 
     step (WBLeft s) a =
         if not (predicate a)
@@ -661,8 +680,8 @@ groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
         res <- finitial
         return
             $ case res of
-                  FL.Partial s -> GroupByInit s
-                  FL.Done _ -> error "groupBy: Done in initial not implemented"
+                  FL.Partial s -> IPartial $ GroupByInit s
+                  FL.Done b -> IDone b
 
     step (GroupByInit s) a = grouper s a a
     step (GroupByGrouping a0 s) a =
@@ -693,8 +712,8 @@ groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
         res <- finitial
         return
             $ case res of
-                  FL.Partial s -> GroupByInit s
-                  FL.Done _ -> error "groupByRolling: Done in initial not implemented"
+                  FL.Partial s -> IPartial $ GroupByInit s
+                  FL.Done b -> IDone b
 
     step (GroupByInit s) a = grouper s a
     step (GroupByGrouping a0 s) a =
@@ -718,7 +737,7 @@ eqBy cmp str = Parser step initial extract
 
     where
 
-    initial = return str
+    initial = return $ IPartial str
 
     step [] _ = return $ Done 0 ()
     step [x] a =
@@ -804,7 +823,12 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 
     where
 
-    initial = Tuple' 0 <$> initial1
+    initial = do
+        res <- initial1
+        return $ case res of
+            IPartial s -> IPartial (Tuple' 0 s)
+            IDone b -> IDone b
+            IError e -> IError e
 
     step (Tuple' cnt st) a = do
         r <- step1 st a
@@ -932,11 +956,33 @@ manyTill (Fold fstep finitial fextract)
 
     where
 
+    -- Caution: Mutual recursion
+
+    -- Don't inline this
+    scrutL fs p c d e = do
+        resL <- initialL
+        case resL of
+            IPartial sl -> return $ c (ManyTillL 0 fs sl)
+            IDone bl -> do
+                fr <- fstep fs bl
+                case fr of
+                    FL.Partial fs1 -> scrutR fs1 p c d e
+                    FL.Done fb -> return $ d fb
+            IError err -> return $ e err
+
+    {-# INLINE scrutR #-}
+    scrutR fs p c d e = do
+        resR <- initialR
+        case resR of
+            IPartial sr -> return $ p (ManyTillR 0 fs sr)
+            IDone _ -> d <$> fextract fs
+            IError _ -> scrutL fs p c d e
+
     initial = do
         res <- finitial
         case res of
-            FL.Partial fs -> ManyTillR 0 fs <$> initialR
-            FL.Done _ -> error "manyTill: Done in initial not implemented"
+            FL.Partial fs -> scrutR fs IPartial IPartial IDone IError
+            FL.Done b -> return $ IDone b
 
     step (ManyTillR cnt fs st) a = do
         r <- stepR st a
@@ -949,8 +995,20 @@ manyTill (Fold fstep finitial fextract)
                 b <- fextract fs
                 return $ Done n b
             Error _ -> do
-                rR <- initialL
-                return $ Continue (cnt + 1) (ManyTillL 0 fs rR)
+                resL <- initialL
+                case resL of
+                    IPartial sl ->
+                        return $ Continue (cnt + 1) (ManyTillL 0 fs sl)
+                    IDone bl -> do
+                        fr <- fstep fs bl
+                        let cnt1 = cnt + 1
+                            p = Partial cnt
+                            c = Continue cnt
+                            d = Done cnt
+                        case fr of
+                            FL.Partial fs1 -> scrutR fs1 p c d Error
+                            FL.Done fb -> return $ Done cnt1 fb
+                    IError err -> return $ Error err
     -- XXX the cnt is being used only by the assert
     step (ManyTillL cnt fs st) a = do
         r <- stepL st a
@@ -962,9 +1020,8 @@ manyTill (Fold fstep finitial fextract)
             Done n b -> do
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s -> do
-                        l <- initialR
-                        return $ Partial n (ManyTillR 0 s l)
+                    FL.Partial s ->
+                        scrutR s (Partial n) (Continue n) (Done n) Error
                     FL.Done b1 -> return $ Done n b1
             Error err -> return $ Error err
 
