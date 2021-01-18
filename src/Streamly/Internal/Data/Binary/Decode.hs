@@ -113,7 +113,7 @@ word16beD = PRD.Parser step initial extract
 
     where
 
-    initial = return Nothing'
+    initial = return $ PRD.IPartial Nothing'
 
     step Nothing' a =
         -- XXX We can use a non-failing parser or a fold so that we do not
@@ -140,7 +140,7 @@ word16leD = PRD.Parser step initial extract
 
     where
 
-    initial = return Nothing'
+    initial = return $ PRD.IPartial Nothing'
 
     step Nothing' a =
         return $ PRD.Continue 0 (Just' (fromIntegral a))
@@ -165,7 +165,7 @@ word32beD = PRD.Parser step initial extract
 
     where
 
-    initial = return $ Tuple' 0 24
+    initial = return $ PRD.IPartial $ Tuple' 0 24
 
     step (Tuple' w sh) a = return $
         if sh /= 0
@@ -192,7 +192,7 @@ word32leD = PRD.Parser step initial extract
 
     where
 
-    initial = return $ Tuple' 0 0
+    initial = return $ PRD.IPartial $ Tuple' 0 0
 
     step (Tuple' w sh) a = return $
         let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
@@ -218,7 +218,7 @@ word64beD = PRD.Parser step initial extract
 
     where
 
-    initial = return $ Tuple' 0 56
+    initial = return $ PRD.IPartial $ Tuple' 0 56
 
     step (Tuple' w sh) a = return $
         if sh /= 0
@@ -245,7 +245,7 @@ word64leD = PRD.Parser step initial extract
 
     where
 
-    initial = return $ Tuple' 0 0
+    initial = return $ PRD.IPartial $ Tuple' 0 0
 
     step (Tuple' w sh) a = return $
         let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)

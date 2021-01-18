@@ -338,7 +338,7 @@ runSink = fold . toFold
 --
 {-# INLINE_NORMAL parseD #-}
 parseD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m b
-parseD (PRD.Parser step initial extract) = P.parselMx' step initial extract
+parseD p = D.parse p . toStreamD
 
 {-# INLINE parseK #-}
 parseK :: MonadThrow m => PRK.Parser m a b -> SerialT m a -> m b
