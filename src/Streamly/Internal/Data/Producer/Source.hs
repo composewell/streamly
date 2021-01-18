@@ -122,8 +122,13 @@ parseD
     (Producer ustep uinject uextract)
     seed = do
 
-    state <- uinject seed
-    initial >>= go SPEC state (List [])
+    res <- initial
+    case res of
+        ParserD.IPartial s -> do
+            state <- uinject seed
+            go SPEC state (List []) s
+        ParserD.IDone b -> return (b, seed)
+        ParserD.IError err -> throwM $ ParseError err
 
     where
 
