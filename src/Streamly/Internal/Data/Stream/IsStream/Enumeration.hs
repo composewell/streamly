@@ -298,9 +298,9 @@ enumerateFromThenToSmall from next to = Serial.map toEnum $
 enumerateFromThenSmallBounded :: (IsStream t, Monad m, Enumerable a, Bounded a)
     => a -> a -> t m a
 enumerateFromThenSmallBounded from next =
-    case fromEnum next >= fromEnum from of
-        True -> enumerateFromThenTo from next maxBound
-        False -> enumerateFromThenTo from next minBound
+    if fromEnum next >= fromEnum from
+    then enumerateFromThenTo from next maxBound
+    else enumerateFromThenTo from next minBound
 
 -------------------------------------------------------------------------------
 -- Enumerable type class
@@ -505,7 +505,7 @@ ENUMERABLE_UNBOUNDED_INTEGRAL(Integer)
 ENUMERABLE_UNBOUNDED_INTEGRAL(Natural)
 
 #define ENUMERABLE_FRACTIONAL(FRACTIONAL_TYPE,CONSTRAINT)         \
-instance (CONSTRAINT) => Enumerable (FRACTIONAL_TYPE) where {     \
+instance (CONSTRAINT) => Enumerable FRACTIONAL_TYPE where {     \
     {-# INLINE enumerateFrom #-};                                 \
     enumerateFrom = enumerateFromFractional;                      \
     {-# INLINE enumerateFromThen #-};                             \
@@ -517,8 +517,8 @@ instance (CONSTRAINT) => Enumerable (FRACTIONAL_TYPE) where {     \
 
 ENUMERABLE_FRACTIONAL(Float,)
 ENUMERABLE_FRACTIONAL(Double,)
-ENUMERABLE_FRACTIONAL(Fixed a,HasResolution a)
-ENUMERABLE_FRACTIONAL(Ratio a,Integral a)
+ENUMERABLE_FRACTIONAL((Fixed a),HasResolution a)
+ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
 
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}

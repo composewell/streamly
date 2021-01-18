@@ -3,7 +3,6 @@ src/Streamly/Internal/Data/Stream/Serial.hs
 src/Streamly/Internal/Data/Stream/Zip.hs
 src/Streamly/Internal/Data/Stream/Parallel.hs
 src/Streamly/Internal/Data/Stream/Async.hs
-src/Streamly/Internal/Data/Stream/Enumeration.hs
 src/Streamly/Internal/Data/Stream/StreamDK.hs
 src/Streamly/Internal/Data/Stream/StreamK.hs
 src/Streamly/Internal/Data/Stream/StreamK/Type.hs
