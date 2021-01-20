@@ -26,10 +26,16 @@ module Streamly.Internal.Data.Stream.Parallel
 
     -- * Evaluate Concurrently
     , mkParallel
+    , mkParallelD
+    , mkParallelK
 
     -- * Tap Concurrently
     , tapAsync
+    , tapAsyncF
     , distributeAsync_
+
+    -- * Callbacks
+    , newCallbackStream
     )
 where
 
@@ -52,15 +58,17 @@ import Prelude hiding (map)
 
 import qualified Data.Set as Set
 
-import Streamly.Internal.Data.Stream.SVar
-       (fromSVar, fromProducer, fromConsumer, pushToFold)
+import Streamly.Internal.Data.Fold.Types (Fold)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared, adapt)
 
 import Streamly.Internal.Data.SVar
 
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.SVar as SVar
 
 #include "Instances.hs"
 
@@ -145,7 +153,7 @@ forkSVarPar ss m r = mkStream $ \st yld sng stp -> do
             writeIORef (svarStopBy sv) $ Set.elemAt 0 set
         _ -> return ()
     pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream r)
-    foldStream st yld sng stp (fromSVar sv)
+    foldStream st yld sng stp (SVar.fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: (IsStream t, MonadAsync m)
@@ -281,84 +289,63 @@ parallelMin = joinStreamVarPar ParallelVar StopAny
 -- Convert a stream to parallel
 ------------------------------------------------------------------------------
 
--- | Generate a stream asynchronously to keep it buffered, lazily consume
--- from the buffer.
+-- | Like 'mkParallel' but uses StreamK internally.
 --
 -- /Internal/
 --
-mkParallel :: (IsStream t, MonadAsync m) => t m a -> t m a
-mkParallel m = mkStream $ \st yld sng stp -> do
+mkParallelK :: (IsStream t, MonadAsync m) => t m a -> t m a
+mkParallelK m = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     -- pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
-    D.toSVarParallel st sv $ D.toStreamD m
-    foldStream st yld sng stp $ fromSVar sv
+    SVar.toSVarParallel st sv $ D.toStreamD m
+    foldStream st yld sng stp $ SVar.fromSVar sv
 
-------------------------------------------------------------------------------
--- Clone and distribute a stream in parallel
-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Concurrent application and fold
+-------------------------------------------------------------------------------
 
--- Tap a stream and send the elements to the specified SVar in addition to
--- yielding them again.
+-- | Same as 'mkParallel' but for StreamD stream.
 --
--- XXX this could be written in StreamD style for better efficiency with fusion.
---
-{-# INLINE teeToSVar #-}
-teeToSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> t m a
-teeToSVar svr m = mkStream $ \st yld sng stp -> do
-    foldStreamShared st yld sng stp (go False m)
-
+{-# INLINE_NORMAL mkParallelD #-}
+mkParallelD :: MonadAsync m => D.Stream m a -> D.Stream m a
+mkParallelD m = D.Stream step Nothing
     where
 
-    go False m0 = mkStream $ \st yld _ stp -> do
-        let drain = do
-                -- In general, a Stop event would come equipped with the result
-                -- of the fold. It is not used here but it would be useful in
-                -- applicative and distribute.
-                done <- fromConsumer svr
-                when (not done) $ do
-                    liftIO $ withDiagMVar svr "teeToSVar: waiting to drain"
-                           $ takeMVar (outputDoorBellFromConsumer svr)
-                    drain
+    step gst Nothing = do
+        sv <- newParallelVar StopNone gst
+        SVar.toSVarParallel gst sv m
+        -- XXX use unfold instead?
+        return $ Skip $ Just $ SVar.fromSVarD sv
 
-            stopFold = do
-                liftIO $ sendStop svr Nothing
-                -- drain/wait until a stop event arrives from the fold.
-                drain
+    step gst (Just (D.UnStream step1 st)) = do
+        r <- step1 gst st
+        return $ case r of
+            Yield a s -> Yield a (Just $ D.Stream step1 s)
+            Skip s    -> Skip (Just $ D.Stream step1 s)
+            Stop      -> Stop
 
-            stop       = stopFold >> stp
-            single a   = do
-                done <- pushToFold svr a
-                yld a (go done (K.nilM stopFold))
-            yieldk a r = pushToFold svr a >>= \done -> yld a (go done r)
-         in foldStreamShared st yieldk single stop m0
-
-    go True m0 = m0
-
--- In case of folds the roles of worker and parent on an SVar are reversed. The
--- parent stream pushes values to an SVar instead of pulling from it and a
--- worker thread running the fold pulls from the SVar and folds the stream. We
--- keep a separate channel for pushing exceptions in the reverse direction i.e.
--- from the fold to the parent stream.
+-- Compare with mkAsync. mkAsync uses an Async style SVar whereas this uses a
+-- parallel style SVar for evaluation. Currently, parallel style cannot use
+-- rate control whereas Async style can use rate control. In async style SVar
+-- the worker thread terminates when the buffer is full whereas in Parallel
+-- style it blocks.
 --
--- Note: If we terminate due to an exception, we do not actively terminate the
--- fold. It gets cleaned up by the GC.
+-- | Make the stream producer and consumer run concurrently by introducing a
+-- buffer between them. The producer thread evaluates the input stream until
+-- the buffer fills, it blocks if the buffer is full until there is space in
+-- the buffer. The consumer consumes the stream lazily from the buffer.
+--
+-- @mkParallel = D.fromStreamD . mkParallelD . D.toStreamD@
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL mkParallel #-}
+mkParallel :: (K.IsStream t, MonadAsync m) => t m a -> t m a
+mkParallel = D.fromStreamD . mkParallelD . D.toStreamD
 
--- | Create an SVar with a fold consumer that will fold any elements sent to it
--- using the supplied fold function.
-{-# INLINE newFoldSVar #-}
-newFoldSVar :: (IsStream t, MonadAsync m)
-    => State Stream m a -> (t m a -> m b) -> m (SVar Stream m a)
-newFoldSVar stt f = do
-    -- Buffer size for the SVar is derived from the current state
-    sv <- newParallelVar StopAny (adaptState stt)
-
-    -- Add the producer thread-id to the SVar.
-    liftIO myThreadId >>= modifyThread sv
-
-    void $ doFork (void $ f $ fromStream $ fromProducer sv)
-                  (svarMrun sv)
-                  (handleFoldException sv)
-    return sv
+-------------------------------------------------------------------------------
+-- Concurrent tap
+-------------------------------------------------------------------------------
 
 -- NOTE: In regular pull style streams, the consumer stream is pulling elements
 -- from the SVar and we have several workers producing elements and pushing to
@@ -404,8 +391,60 @@ newFoldSVar stt f = do
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
-    sv <- newFoldSVar st f
-    foldStreamShared st yld sng stp (teeToSVar sv m)
+    sv <- SVar.newFoldSVar st f
+    foldStreamShared st yld sng stp (SVar.teeToSVar sv m)
+
+data TapState fs st a = TapInit | Tapping !fs st | TapDone st
+
+-- | Like 'tapAsync' but uses a 'Fold' instead of a fold function.
+--
+{-# INLINE_NORMAL tapAsyncF #-}
+tapAsyncF :: MonadAsync m => Fold m a b -> D.Stream m a -> D.Stream m a
+tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
+    where
+
+    drainFold svr = do
+            -- In general, a Stop event would come equipped with the result
+            -- of the fold. It is not used here but it would be useful in
+            -- applicative and distribute.
+            done <- SVar.fromConsumer svr
+            when (not done) $ do
+                liftIO $ withDiagMVar svr "teeToSVar: waiting to drain"
+                       $ takeMVar (outputDoorBellFromConsumer svr)
+                drainFold svr
+
+    stopFold svr = do
+            liftIO $ sendStop svr Nothing
+            -- drain/wait until a stop event arrives from the fold.
+            drainFold svr
+
+    {-# INLINE_LATE step #-}
+    step gst TapInit = do
+        sv <- SVar.newFoldSVarF gst f
+        return $ Skip (Tapping sv state1)
+
+    step gst (Tapping sv st) = do
+        r <- step1 gst st
+        case r of
+            Yield a s ->  do
+                done <- SVar.pushToFold sv a
+                if done
+                then do
+                    -- XXX we do not need to wait synchronously here
+                    stopFold sv
+                    return $ Yield a (TapDone s)
+                else return $ Yield a (Tapping sv s)
+            Skip s -> return $ Skip (Tapping sv s)
+            Stop -> do
+                stopFold sv
+                return Stop
+
+    step gst (TapDone st) = do
+        r <- step1 gst st
+        return $ case r of
+            Yield a s -> Yield a (TapDone s)
+            Skip s    -> Skip (TapDone s)
+            Stop      -> Stop
 
 -- | Concurrently distribute a stream to a collection of fold functions,
 -- discarding the outputs of the folds.
@@ -582,3 +621,31 @@ instance MonadAsync m => Monad (ParallelT m) where
 ------------------------------------------------------------------------------
 
 MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
+
+-------------------------------------------------------------------------------
+-- From callback
+-------------------------------------------------------------------------------
+
+-- Note: we can use another API with two callbacks stop and yield if we want
+-- the callback to be able to indicate end of stream.
+--
+-- | Generates a callback and a stream pair. The callback returned is used to
+-- queue values to the stream.  The stream is infinite, there is no way for the
+-- callback to indicate that it is done now.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL newCallbackStream #-}
+newCallbackStream :: (K.IsStream t, MonadAsync m) => m (a -> m (), t m a)
+newCallbackStream = do
+    sv <- newParallelVar StopNone defState
+
+    -- XXX Add our own thread-id to the SVar as we can not know the callback's
+    -- thread-id and the callback is not run in a managed worker. We need to
+    -- handle this better.
+    liftIO myThreadId >>= modifyThread sv
+
+    let callback a = liftIO $ void $ send sv (ChildYield a)
+    -- XXX we can return an SVar and then the consumer can unfold from the
+    -- SVar?
+    return (callback, D.fromStreamD (SVar.fromSVarD sv))

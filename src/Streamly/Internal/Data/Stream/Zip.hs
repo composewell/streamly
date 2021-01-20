@@ -53,13 +53,17 @@ import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (cmpBy, eqBy, foldl', foldr, fromList, toList, fromStreamS, toStreamS)
+import qualified Streamly.Internal.Data.Stream.StreamK as K (repeat)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD as D (zipWithM)
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 #ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
+import qualified Streamly.Internal.Data.Stream.StreamK as S (zipWith, zipWithM)
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S (zipWith, zipWithM)
 #endif
 
 import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
@@ -97,8 +101,8 @@ zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 = D.fromStreamD $
-    D.zipWithM f (D.mkParallelD $ D.toStreamD m1)
-                 (D.mkParallelD $ D.toStreamD m2)
+    D.zipWithM f (Par.mkParallelD $ D.toStreamD m1)
+                 (Par.mkParallelD $ D.toStreamD m2)
 
 -- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.

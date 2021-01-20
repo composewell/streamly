@@ -67,7 +67,6 @@ module Streamly.Internal.Data.Fold
     , toList
     , toListRevF  -- experimental
     -- $toListRevF
-    , toParallelSVar
 
     -- * Terminating Folds
     , drainN
@@ -89,7 +88,6 @@ module Streamly.Internal.Data.Fold
     , and
     , or
     -- , the
-    , toParallelSVarLimited
 
     -- * Adapting
     , hoist
@@ -226,7 +224,6 @@ module Streamly.Internal.Data.Fold
 where
 
 import Control.Monad (void, join)
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -235,15 +232,13 @@ import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
-import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Either.Strict
+    (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Either.Strict
-       (fromLeft', fromRight', isLeft', isRight')
 
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Prelude
 
@@ -254,7 +249,6 @@ import Prelude hiding
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
        , span, splitAt, break, mapM)
-import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Fold.Types
 
 ------------------------------------------------------------------------------
@@ -2163,51 +2157,3 @@ concatSequence _f _p = undefined
 chunksBetween :: -- Monad m =>
        Int -> Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksBetween _low _high _f1 _f2 = undefined
-
-------------------------------------------------------------------------------
--- Fold to a Parallel SVar
-------------------------------------------------------------------------------
-
-{-# INLINE toParallelSVar #-}
-toParallelSVar :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-toParallelSVar svar winfo = Fold step initial extract
-
-    where
-
-    initial = return $ Partial ()
-
-    -- XXX we can have a separate fold for unlimited buffer case to avoid a
-    -- branch in the step here.
-    step () x =
-        liftIO $ do
-            decrementBufferLimit svar
-            void $ send svar (ChildYield x)
-            return $ FL.Partial ()
-
-    extract () = liftIO $ sendStop svar winfo
-
-{-# INLINE toParallelSVarLimited #-}
-toParallelSVarLimited :: MonadIO m
-    => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-toParallelSVarLimited svar winfo = Fold step initial extract
-
-    where
-
-    initial = return $ Partial True
-
-    step True x =
-        liftIO $ do
-            yieldLimitOk <- decrementYieldLimit svar
-            if yieldLimitOk
-            then do
-                decrementBufferLimit svar
-                void $ send svar (ChildYield x)
-                return $ FL.Partial True
-            else do
-                cleanupSVarFromWorker svar
-                sendStop svar winfo
-                return $ FL.Done ()
-    step False _ = return $ FL.Done ()
-
-    extract True = liftIO $ sendStop svar winfo
-    extract False = return ()

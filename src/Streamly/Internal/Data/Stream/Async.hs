@@ -50,12 +50,14 @@ import Prelude hiding (map)
 import qualified Data.Set as S
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
-import Streamly.Internal.Data.Stream.SVar (fromSVar)
+import Streamly.Internal.Data.Stream.SVar (fromSVar, fromSVarD)
 import Streamly.Internal.Data.SVar
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.Stream.StreamK.Type
        (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared)
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 #include "Instances.hs"
 
@@ -504,7 +506,7 @@ mkAsyncD m = D.Stream step Nothing
 
     step gst Nothing = do
         sv <- newAsyncVar gst (D.fromStreamD m)
-        return $ D.Skip $ Just $ D.fromSVar sv
+        return $ D.Skip $ Just $ fromSVarD sv
 
     step gst (Just (D.UnStream step1 st)) = do
         r <- step1 gst st

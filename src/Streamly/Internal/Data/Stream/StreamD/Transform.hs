@@ -27,7 +27,6 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Mapping Effects
     , tap
     , tapOffsetEvery
-    , tapAsync
     , tapRate
     , pollCounts
 
@@ -117,17 +116,12 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Maybe Streams
     , mapMaybe
     , mapMaybeM
-
-    -- * Threading
-    -- | Make the stream concurrent
-    , mkParallel
-    , mkParallelD
     )
 where
 
 #include "inline.hs"
 
-import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
+import Control.Concurrent (killThread, threadDelay)
 import Control.Exception (AsyncException)
 import Control.Monad (void, when)
 import Control.Monad.Catch (MonadCatch, throwM)
@@ -141,7 +135,6 @@ import qualified Control.Monad.Catch as MC
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
-import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
@@ -354,7 +347,7 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
         countVar <- liftIO $ Prim.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ foldOnce fld
-            $ transf $ fromPrimIORef countVar
+            $ transf $ Prim.toStreamD countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do
@@ -411,75 +404,6 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
             Stop -> do
                 liftIO $ killThread tid
                 return Stop
-
--------------------------------------------------------------------------------
--- Concurrent tap
--------------------------------------------------------------------------------
-
--- | Create an SVar with a fold consumer that will fold any elements sent to it
--- using the supplied fold function.
-{-# INLINE newFoldSVar #-}
-newFoldSVar :: MonadAsync m => State t m a -> Fold m a b -> m (SVar t m a)
-newFoldSVar stt f = do
-    -- Buffer size for the SVar is derived from the current state
-    sv <- newParallelVar StopAny (adaptState stt)
-    -- Add the producer thread-id to the SVar.
-    liftIO myThreadId >>= modifyThread sv
-    void $ doFork (work sv) (svarMrun sv) (handleFoldException sv)
-    return sv
-
-    where
-
-    {-# NOINLINE work #-}
-    work sv = void $ foldOnce f $ fromProducer sv
-
-{-# INLINE_NORMAL tapAsync #-}
-tapAsync :: MonadAsync m => Fold m a b -> Stream m a -> Stream m a
-tapAsync f (Stream step1 state1) = Stream step TapInit
-    where
-
-    drainFold svr = do
-            -- In general, a Stop event would come equipped with the result
-            -- of the fold. It is not used here but it would be useful in
-            -- applicative and distribute.
-            done <- fromConsumer svr
-            when (not done) $ do
-                liftIO $ withDiagMVar svr "teeToSVar: waiting to drain"
-                       $ takeMVar (outputDoorBellFromConsumer svr)
-                drainFold svr
-
-    stopFold svr = do
-            liftIO $ sendStop svr Nothing
-            -- drain/wait until a stop event arrives from the fold.
-            drainFold svr
-
-    {-# INLINE_LATE step #-}
-    step gst TapInit = do
-        sv <- newFoldSVar gst f
-        return $ Skip (Tapping sv state1)
-
-    step gst (Tapping sv st) = do
-        r <- step1 gst st
-        case r of
-            Yield a s ->  do
-                done <- pushToFold sv a
-                if done
-                then do
-                    -- XXX we do not need to wait synchronously here
-                    stopFold sv
-                    return $ Yield a (TapDone s)
-                else return $ Yield a (Tapping sv s)
-            Skip s -> return $ Skip (Tapping sv s)
-            Stop -> do
-                stopFold sv
-                return $ Stop
-
-    step gst (TapDone st) = do
-        r <- step1 gst st
-        return $ case r of
-            Yield a s -> Yield a (TapDone s)
-            Skip s    -> Skip (TapDone s)
-            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
@@ -1300,42 +1224,3 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
-
--------------------------------------------------------------------------------
--- Concurrent application and fold
--------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL mkParallelD #-}
-mkParallelD :: MonadAsync m => Stream m a -> Stream m a
-mkParallelD m = Stream step Nothing
-    where
-
-    step gst Nothing = do
-        sv <- newParallelVar StopNone gst
-        toSVarParallel gst sv m
-        -- XXX use unfold instead?
-        return $ Skip $ Just $ fromSVar sv
-
-    step gst (Just (UnStream step1 st)) = do
-        r <- step1 gst st
-        return $ case r of
-            Yield a s -> Yield a (Just $ Stream step1 s)
-            Skip s    -> Skip (Just $ Stream step1 s)
-            Stop      -> Stop
-
--- Compare with mkAsync. mkAsync uses an Async style SVar whereas this uses a
--- parallel style SVar for evaluation. Currently, parallel style cannot use
--- rate control whereas Async style can use rate control. In async style SVar
--- the worker thread terminates when the buffer is full whereas in Parallel
--- style it blocks.
---
--- | Make the stream producer and consumer run concurrently by introducing a
--- buffer between them. The producer thread evaluates the input stream until
--- the buffer fills, it blocks if the buffer is full until there is space in
--- the buffer. The consumer consumes the stream lazily from the buffer.
---
--- /Internal/
---
-{-# INLINE_NORMAL mkParallel #-}
-mkParallel :: (K.IsStream t, MonadAsync m) => t m a -> t m a
-mkParallel = fromStreamD . mkParallelD . toStreamD

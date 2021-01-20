@@ -164,6 +164,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -831,7 +832,7 @@ toPureRev = foldl' (flip K.cons) K.nil
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 -- (|$.) f = f . Async.mkAsync
-(|$.) f = f . D.mkParallel
+(|$.) f = f . Par.mkParallel
 
 infixr 0 |$.
 

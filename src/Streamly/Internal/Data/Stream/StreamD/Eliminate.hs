@@ -59,7 +59,6 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     -- * To containers
     , toList
     , toListRev
-    , toSVarParallel
 
     -- * Multi-Stream Folds
     -- ** Comparisons
