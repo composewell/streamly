@@ -155,8 +155,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- ** Concurrent Pipelines
     -- | Run streaming stages concurrently.
 
-    , D.mkParallel
-    -- Par.mkParallel
+    , Par.mkParallel
     , applyAsync
     , (|$)
     , (|&)
@@ -219,6 +218,7 @@ import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
 import Streamly.Internal.Data.Time.Units ( TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -434,7 +434,7 @@ tapOffsetEvery offset n f xs =
 -- /Internal/
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
-tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
+tapAsync f xs = D.fromStreamD $ Par.tapAsyncF f (D.toStreamD xs)
 
 -- | @pollCounts predicate transform fold stream@ counts those elements in the
 -- stream that pass the @predicate@. The resulting count stream is sent to
@@ -1233,7 +1233,7 @@ rights = fmap (fromRight undefined) . filter isRight
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> (t m a -> t m b)
 -- (|$) f = f . Async.mkAsync
-(|$) f = f . D.mkParallel
+(|$) f = f . Par.mkParallel
 
 infixr 0 |$
 

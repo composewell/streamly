@@ -1,7 +1,5 @@
 {-# LANGUAGE UnboxedTuples #-}
 
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.IORef.Prim
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -37,13 +35,21 @@ module Streamly.Internal.Data.IORef.Prim
 
     -- * Read
     , readIORef
+    , toStream
+    , toStreamD
     )
 where
 
+#include "inline.hs"
+
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Primitive (primitive_)
 import Data.Primitive.Types (Prim, sizeOf#, readByteArray#, writeByteArray#)
 import GHC.Exts (MutableByteArray#, newByteArray#, RealWorld)
 import GHC.IO (IO(..))
+
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | An 'IORef' holds a single 'Prim' value.
 data IORef a = IORef (MutableByteArray# RealWorld)
@@ -82,3 +88,23 @@ modifyIORef' :: Prim a => IORef a -> (a -> a) -> IO ()
 modifyIORef' (IORef arr#) g = primitive_ $ \s# ->
   case readByteArray# arr# 0# s# of
     (# s'#, a #) -> let a' = g a in a' `seq` writeByteArray# arr# 0# a' s'#
+
+-- | Generate a stream by continuously reading the IORef.
+--
+-- /Internal/
+{-# INLINE_NORMAL toStreamD #-}
+toStreamD :: (MonadIO m, Prim a) => IORef a -> D.Stream m a
+toStreamD var = D.Stream step ()
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ () = liftIO (readIORef var) >>= \x -> return $ D.Yield x ()
+
+-- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
+--
+-- /Internal/
+--
+{-# INLINE toStream #-}
+toStream :: (K.IsStream t, MonadIO m, Prim a) => IORef a -> t m a
+toStream = D.fromStreamD . toStreamD

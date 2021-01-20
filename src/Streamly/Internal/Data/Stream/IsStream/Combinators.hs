@@ -27,7 +27,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
 
 import Streamly.Internal.Data.SVar
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.Stream.StreamK.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 -------------------------------------------------------------------------------

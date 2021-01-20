@@ -1,115 +1,61 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.7.2
-synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
+version:            0.8.0
+synopsis:           Dataflow programming and declarative concurrency
 description:
-  Streamly is a framework for writing programs in a high level, declarative
-  data flow programming paradigm. It provides a simple API, very close to
-  standard Haskell lists.  A program is expressed as a composition of data
-  processing pipes, generally known as streams.  Streams can be generated,
-  merged, chained, mapped, zipped, and consumed concurrently – enabling a high
-  level, declarative yet concurrent composition of programs.  Programs can be
-  concurrent or non-concurrent without any significant change.  Concurrency is
-  auto scaled based on consumption rate.  Programmers do not have to be aware
-  of threads, locking or synchronization to write scalable concurrent programs.
-  Streamly provides C like performance, orders of magnitude better compared to
-  existing streaming libraries.
+  Browse the documentation at https://streamly.composewell.com.
   .
-  Streamly is designed to express the full spectrum of programs with highest
-  performance. Do not think that if you are writing a small and simple program
-  it may not be for you. It expresses a small "hello world" program with the
-  same efficiency, simplicity and elegance as a large scale concurrent
-  application. It unifies many different aspects of special purpose libraries
-  into a single yet simple framework.
+  Streamly is a streaming framework to build reliable and scalable
+  software systems from modular building blocks using dataflow
+  programming and declarative concurrency.  Stream fusion optimizations
+  in streamly result in high-performance, modular combinatorial
+  programming.
   .
-  Streamly covers the functionality provided by Haskell lists as well as the
-  functionality provided by streaming libraries like
-  <https://hackage.haskell.org/package/streaming streaming>,
-  <https://hackage.haskell.org/package/pipes pipes>, and
-  <https://hackage.haskell.org/package/conduit conduit> with a simpler API and
-  better performance. Streamly provides
-  advanced stream composition including various ways of appending, merging,
-  zipping, splitting, grouping, distributing, partitioning and unzipping of
-  streams with true streaming and with concurrency. Streamly subsumes the
-  functionality of list transformer libraries like @pipes@ or
-  <https://hackage.haskell.org/package/list-t list-t> and also the logic
-  programming library <https://hackage.haskell.org/package/logict logict>.
-  The grouping, splitting and windowing combinators in streamly can be compared
-  to the window operators in <https://flink.apache.org/ Apache Flink>.
-  However, compared to Flink streamly has a pure functional, succinct and
-  expressive API.
+  Performance with simplicity:
   .
-  The concurrency capabilities of streamly are much more advanced and powerful
-  compared to the basic concurrency functionality provided by the
-  <https://hackage.haskell.org/package/async async> package.  Streamly is a
-  first class reactive programming library.  If you are familiar with
-  <http://reactivex.io/ Reactive Extensions> you will find that it is very
-  similar.  For most RxJs combinators you can find or write corresponding ones
-  in streamly. Streamly can be used as an alternative to
-  <https://hackage.haskell.org/package/Yampa Yampa> or
-  <https://hackage.haskell.org/package/reflex reflex> as well.
+  * Performance on par with C (<https://github.com/composewell/streaming-benchmarks Benchmarks>)
+  * API close to standard Haskell lists (<https://github.com/composewell/streamly-examples Examples>)
+  * Declarative concurrency with automatic scaling
+  * Filesystem, fsnotify, network, and Unicode support included
+  * More functionality provided via many ecosystem packages
   .
-  Streamly focuses on practical engineering with high performance. From well
-  written streamly programs one can expect performance competitive to C.  High
-  performance streaming eliminates the need for string and text libraries like
-  <https://hackage.haskell.org/package/bytestring bytestring>,
-  <https://hackage.haskell.org/package/text text> and their lazy and strict
-  flavors. The confusion and cognitive overhead arising from different
-  string types is eliminated. The two fundamental types in streamly are arrays
-  for storage and streams for processing. Strings and text are simply streams
-  or arrays of 'Char' as they should be. Arrays in streamly have performance
-  at par with the vector library.
+  Unified and powerful abstractions:
   .
-  Where to find more information:
-  .
-  * /Quick Overview/: <#readme README file> in the package
-  * /Building/: <src/docs/Build.md Build guide> for optimal performance
-  * /Detailed Tutorial/: "Streamly.Tutorial" module in the haddock documentation
-  * /Interoperation/: "Streamly.Tutorial" module for interop with other
-    streaming libraries
-  * /Reference Documentation/: Haddock documentation for the respective modules
-  * /Examples/: <https://github.com/composewell/streamly-examples Streamly Examples>
-  * /Guides/: <src/docs docs directory> in the package, for documentation on
-    advanced topics, limitations, semantics of the library or on specific use
-    cases.
-  * <https://github.com/composewell/streaming-benchmarks Streaming Benchmarks>
-  * <https://github.com/composewell/concurrency-benchmarks Concurrency Benchmarks>
-  .
+  * Unifies unfolds, arrays, folds, and parsers with streaming
+  * Unifies @Data.List@, @list-t@, and @logict@ with streaming
+  * Unifies concurrency with standard streaming abstractions
+  * Provides time-domain combinators for reactive programming
+  * Interworks with bytestring and streaming libraries
 
-
-homepage:            https://github.com/composewell/streamly
+homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD-3-Clause
 license-file:        LICENSE
 tested-with:         GHC==8.0.2
                    , GHC==8.4.4
                    , GHC==8.6.5
-                   , GHC==8.8.1
-                   , GHC==8.10.1
+                   , GHC==8.8.4
+                   , GHC==8.10.4
+                   , GHC==9.0.1
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
-category:            Control, Concurrency, Streaming, Reactivity
-stability:           Experimental
+category:
+    Streamly, Concurrency, Streaming, Dataflow, Pipes, Reactivity, List,
+    Logic, Non-determinism, Parsing, Array, Time, Unicode, Filesystem,
+    Network
+stability:           Stable
 build-type:          Configure
 
 extra-source-files:
-    .circleci/config.yml
-    .ghci
-    .github/workflows/haskell.yml
-    .gitignore
-    .hlint.ignore
-    .hlint.yaml
-    .travis.yml
-    CONTRIBUTING.md
-    Changelog.md
-    INSTALL.md
-    MAINTAINING.md
-    README.md
-    appveyor.yml
     benchmark/*.hs
-    benchmark/README.md
+    benchmark/bench-report/BenchReport.hs
+    benchmark/bench-report/bench-report.cabal
+    benchmark/bench-report/bin/bench-runner.sh
+    benchmark/bench-report/bin/build-lib.sh
+    benchmark/bench-report/cabal.project
     benchmark/Streamly/Benchmark/Data/*.hs
+    benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
@@ -121,52 +67,29 @@ extra-source-files:
     benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
     bin/bench.sh
-    bin/bench-exec-one.sh
-    bin/build-lib.sh
+    bin/bench-config.sh
     bin/mk-hscope.sh
     bin/mk-tags.sh
     bin/targets.sh
     bin/test.sh
-    cabal.project
-    cabal.project.ci
-    charts-0/streamly-vs-list-time.svg
     configure
     configure.ac
-    credits/*.md
-    credits/Yampa-0.10.6.2.txt
-    credits/base-4.12.0.0.txt
-    credits/bjoern-2008-2009.txt
-    credits/clock-0.7.2.txt
-    credits/foldl-1.4.5.txt
-    credits/fsnotify-0.3.0.1.txt
-    credits/hfsevents-0.1.6.txt
-    credits/pipes-concurrency-2.0.8.txt
-    credits/primitive-0.7.0.0.txt
-    credits/transient-0.5.5.txt
-    credits/vector-0.12.0.2.txt
-    default.nix
-    design/*.md
-    design/*.png
-    design/*.rst
-    docs/Build.md
-    docs/streamly-vs-async.md
-    docs/streamly-vs-lists.md
-    docs/transformers.md
-    examples/README.md
+    docs/*.hs
+    docs/streamly-docs.cabal
     src/Streamly/Internal/Data/Stream/Instances.hs
-    src/Streamly/Internal/Data/Time/config-clock.h
+    src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/Streamly/Internal/Data/Array/PrimInclude.hs
     src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
     src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
-    test/README.md
     test/Streamly/Test/Common/Array.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/Prim.hs
     test/Streamly/Test/Data/Array/Prim/Pinned.hs
-    test/Streamly/Test/Data/Array/Storable/Foreign.hs
+    test/Streamly/Test/Data/Array/Foreign.hs
+    test/Streamly/Test/Data/Array/Stream/Foreign.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Handle.hs
@@ -174,12 +97,34 @@ extra-source-files:
     test/Streamly/Test/Network/Inet/TCP.hs
     test/Streamly/Test/Prelude.hs
     test/Streamly/Test/Prelude/*.hs
-    test/Streamly/Test/Unicode/Stream.hs
+    test/Streamly/Test/Unicode/*.hs
     test/lib/Streamly/Test/Common.hs
     test/lib/Streamly/Test/Prelude/Common.hs
     test/streamly-tests.cabal
     test/version-bounds.hs
-    stack.yaml
+    test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
+    test/Streamly/Test/Unicode/extra/NormalizationTest.txt
+    benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Vietnamese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Deutsch.txt
+    benchmark/Streamly/Benchmark/Unicode/data/English.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Korean.txt
+
+extra-doc-files:
+    CONTRIBUTING.md
+    Changelog.md
+    README.md
+    benchmark/README.md
+    dev/*.md
+    dev/*.png
+    dev/*.rst
+    docs/*.md
+    docs/*.rst
+    docs/*.svg
+    docs/API-changelog.txt
+    test/README.md
 
 extra-tmp-files:
     config.log
@@ -356,14 +301,14 @@ library
     js-sources: jsbits/clock.js
     include-dirs:    src
     if os(windows)
-      c-sources:     src/Streamly/Internal/Data/Time/Windows.c
+      c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
       exposed-modules: Streamly.Internal.FileSystem.Event.Windows
-      build-depends: Win32 >= 2.6 && < 2.10
+      build-depends: Win32 >= 2.6 && < 2.13
 
     if os(darwin)
       frameworks:    Cocoa
       include-dirs:  src/Streamly/Internal
-      c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
+      c-sources:     src/Streamly/Internal/Data/Time/Clock/Darwin.c
                    , src/Streamly/Internal/FileSystem/Event/Darwin.m
       exposed-modules:
                      Streamly.Internal.FileSystem.Event.Darwin
@@ -377,81 +322,85 @@ library
                      , Streamly.Data.Prim.Array
                      , Streamly.Data.SmallArray
 
-                    -- Memory storage
-                     , Streamly.Memory.Ring
-
-                     , Streamly.FileSystem.IOVec
-                     , Streamly.FileSystem.FDIO
-                     , Streamly.FileSystem.FD
-
     exposed-modules:
                        Streamly.Prelude
-                     , Streamly
-                     , Streamly.Data.Fold
                      , Streamly.Data.Unfold
+                     , Streamly.Data.Fold
+                     , Streamly.Data.Fold.Tee
+                     , Streamly.Data.Array.Foreign
 
                      -- Text Processing
                      , Streamly.Unicode.Stream
 
-                     -- IO devices
-                     , Streamly.Data.Array.Storable.Foreign
+                     -- Filesystem/IO
                      , Streamly.FileSystem.Handle
+                     , Streamly.Console.Stdio
 
-                     , Streamly.Tutorial
+                     -- Network/IO
+                     , Streamly.Network.Socket
+                     , Streamly.Network.Inet.TCP
 
-                     -- Internal modules
+                     -- Deprecated
+                     , Streamly
+                     , Streamly.Data.Unicode.Stream
+                     , Streamly.Memory.Array
+
+                     -- Internal modules, listed roughly in dependency order
+                     -- To view dependency graph:
+                     -- graphmod | dot -Tps > deps.ps
+
+                     -- streamly-base
                      , Streamly.Internal.BaseCompat
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
+                     , Streamly.Internal.Control.Concurrent
                      , Streamly.Internal.Data.Cont
                      , Streamly.Internal.Data.Tuple.Strict
                      , Streamly.Internal.Data.Maybe.Strict
                      , Streamly.Internal.Data.Either.Strict
+                     , Streamly.Internal.Foreign.Malloc
                      , Streamly.Internal.Data.Atomics
+                     , Streamly.Internal.Data.IOFinalizer
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
+                     , Streamly.Internal.Data.Time.Clock.Type
                      , Streamly.Internal.Data.Time.Clock
+                     , Streamly.Internal.System.IO
+
+                     -- streamly-core-stream
                      , Streamly.Internal.Data.SVar
+                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Fold.Type
+                     , Streamly.Internal.Data.Stream.StreamD.Step
+                     , Streamly.Internal.Data.Stream.StreamD.Type
+                     , Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Unfold.Type
+                     , Streamly.Internal.Data.Producer.Type
+                     , Streamly.Internal.Data.Producer
+                     , Streamly.Internal.Data.Producer.Source
+                     , Streamly.Internal.Data.Sink.Type
+                     , Streamly.Internal.Data.Parser.ParserK.Type
+                     , Streamly.Internal.Data.Parser.ParserD.Type
+                     , Streamly.Internal.Data.Pipe.Type
 
-                     -- Memory storage
-                     ,  Streamly.Internal.Foreign.Malloc
-
-                     -- Mutable data
+                    -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Prim
 
-                     -- Arrays
-                     , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Prim.Types
-                     , Streamly.Internal.Data.Array.Prim
-                     , Streamly.Internal.Data.Array.Prim.Mut.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
-                     , Streamly.Internal.Data.SmallArray.Types
-                     , Streamly.Internal.Data.SmallArray
-                     , Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
-                     , Streamly.Internal.Data.Array.Storable.Foreign.Types
-                     , Streamly.Internal.Data.Array.Storable.Foreign
-                     , Streamly.Internal.Memory.ArrayStream
+                     -- streamly-core-array
+                     -- May depend on streamly-core-stream
+                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Foreign.Mut
+                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Prim.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Type
+                     , Streamly.Internal.Data.SmallArray.Type
 
-                     -- Folds
-                     , Streamly.Internal.Data.Fold.Types
-                     , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Sink.Types
-                     , Streamly.Internal.Data.Sink
-
-                     -- Parsers
-                     , Streamly.Internal.Data.Parser.ParserK.Types
-                     , Streamly.Internal.Data.Parser.ParserD.Types
-                     , Streamly.Internal.Data.Parser.ParserD.Tee
-                     , Streamly.Internal.Data.Parser.ParserD
-                     , Streamly.Internal.Data.Parser
-
-                     -- Base streams
-                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     -- streamly-base-streams
                      , Streamly.Internal.Data.Stream.StreamK
-                     , Streamly.Internal.Data.Stream.StreamD.Type
+                     -- StreamD depends on streamly-core-array
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
                      , Streamly.Internal.Data.Stream.StreamD.Nesting
@@ -459,81 +408,99 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Prelude
 
-                     -- Higher level streams
+                     , Streamly.Internal.Data.Parser.ParserD.Tee
+                     , Streamly.Internal.Data.Parser.ParserD
+
+                     -- streamly-core
+                     , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Fold.Tee
+                     , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Sink
+                     , Streamly.Internal.Data.Parser
+                     , Streamly.Internal.Data.Pipe
+
                      , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.IsStream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
                      , Streamly.Internal.Data.Stream.IsStream.Types
                      , Streamly.Internal.Data.Stream.IsStream.Enumeration
                      , Streamly.Internal.Data.Stream.IsStream.Generate
                      , Streamly.Internal.Data.Stream.IsStream.Eliminate
                      , Streamly.Internal.Data.Stream.IsStream.Transform
-                     , Streamly.Internal.Data.Stream.IsStream.Combinators
-                     , Streamly.Internal.Data.Stream.IsStream.Nesting
+                     , Streamly.Internal.Data.Stream.IsStream.Expand
+                     , Streamly.Internal.Data.Stream.IsStream.Reduce
                      , Streamly.Internal.Data.Stream.IsStream.Exception
                      , Streamly.Internal.Data.Stream.IsStream.Lift
+                     , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.List
 
-                     -- Unfolds
-                     , Streamly.Internal.Data.Unfold.Types
-                     , Streamly.Internal.Data.Unfold
+                     -- streamly-arrays
+                     -- May depend on streamly-core
+                     , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Prim
+                     , Streamly.Internal.Data.Array.Prim.Pinned
+                     , Streamly.Internal.Data.SmallArray
+                     , Streamly.Internal.Data.Array.Stream.Mut.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
-                     -- Pipes
-                     , Streamly.Internal.Data.Pipe.Types
-                     , Streamly.Internal.Data.Pipe
+                    -- Memory storage
+                     , Streamly.Internal.Ring.Foreign
 
-                     -- Filesystem
-                     , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File                     
-                     , Streamly.Internal.FileSystem.Event
-
-                     -- Text Processing
+                     -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Unicode.Array.Char
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
 
-                     -- Serialization/deserialization in binary format
+                     -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
 
-                     -- Deprecated
-                     , Streamly.Data.Unicode.Stream
-                     , Streamly.Memory.Array
+                     -- streamly-filesystem
+                     , Streamly.Internal.FileSystem.Handle
+                     , Streamly.Internal.FileSystem.Dir
+                     , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.IOVec
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
 
-    
-                     -- Network/Socket
-                     , Streamly.Network.Socket
-                     , Streamly.Network.Inet.TCP
+                     -- streamly-console
+                     , Streamly.Internal.Console.Stdio
 
+                     -- streamly-network
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Inet.TCP
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max
                     -- constraints of these libraries should match with
-                    -- the GHC versions we support
+                    -- the GHC versions we support. This is to make sure that
+                    -- packages depending on the "ghc" package (packages
+                    -- depending on doctest is a common example) can
+                    -- depend on streamly.
                        base              >= 4.9   &&  < 5
                      , containers        >= 0.5   && < 0.7
                      , deepseq           >= 1.4.1 && < 1.5
                      , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
-                     , ghc-prim          >= 0.2   && < 0.7
+                     , ghc-prim          >= 0.2   && < 0.8
                      , mtl               >= 2.2   && < 3
                      , primitive         >= 0.5.4 && < 0.8
                      , transformers      >= 0.4   && < 0.6
 
-                     , heaps             >= 0.3     && < 0.4
-                     , filepath          >= 1.4.1 && < 1.5
+                     , heaps             >= 0.3     && < 0.5
+
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
@@ -543,6 +510,7 @@ library
                      , transformers-base >= 0.4   && < 0.5
 
                      , fusion-plugin-types >= 0.1 && < 0.2
+                     , unicode-data      >= 0.1 && < 0.2
 
                     -- Network
                      , network           >= 2.6   && < 4

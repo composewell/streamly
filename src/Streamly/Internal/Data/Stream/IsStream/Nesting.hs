@@ -546,8 +546,10 @@ mergeAsyncBy f = mergeAsyncByM (\a b -> return $ f a b)
 {-# INLINE mergeAsyncByM #-}
 mergeAsyncByM :: (IsStream t, MonadAsync m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeAsyncByM f m1 m2 = fromStreamD $
-    D.mergeByM f (D.mkParallelD $ toStreamD m1) (D.mkParallelD $ toStreamD m2)
+mergeAsyncByM f m1 m2 =
+    fromStreamD $
+        let par = Par.mkParallelD . toStreamD
+        in D.mergeByM f (par m1) (par m2)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap

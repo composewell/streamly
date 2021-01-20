@@ -42,10 +42,12 @@ import qualified Data.Heap as H
 
 import Streamly.Internal.Data.Stream.SVar (fromSVar)
 import Streamly.Internal.Data.SVar
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.Stream.StreamK.Type
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared)
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Prelude hiding (map)
 

@@ -64,13 +64,16 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace)
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.Stream.StreamK.Type
        (IsStream(..), adapt, Stream, mkStream, foldStream)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (cmpBy, foldl', foldr, eqBy, fromList, toList)
+import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD as D (unfoldrM)
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Prelude hiding (map, mapM, errorWithoutStackTrace)
 
