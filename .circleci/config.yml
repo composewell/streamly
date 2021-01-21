@@ -95,9 +95,16 @@ preinstall: &preinstall
         # required for packcheck
         apt-get install -y curl
 
+        # required for circleci.
+        apt-get install -y libcurl4-gnutls-dev
+        apt-get install -y git
+        apt-get install -y libtinfo-dev
+
         # required for outbound https for stack and for stack setup
         apt-get install -y netbase xz-utils make
 
+project-preinstall: &project-preinstall
+  run: |
         # If a custom stack-yaml is specified, replace the default with that
         if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
         unset STACK_YAML
@@ -131,8 +138,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             name: GHC 8.8 + stack lts-16.12
@@ -150,8 +158,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run: |
               apt-get install -y ghc-8.6.3
@@ -162,8 +171,9 @@ jobs:
       <<: *env
       executor: x86-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
            name: GHC 8.4.4 + x86 + debug
@@ -180,8 +190,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             environment:
@@ -201,8 +212,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             environment:
@@ -221,8 +233,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run: |
               apt-get install -y ghc-7.10.3
@@ -233,8 +246,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run: |
             bash -c "$PACKCHECK stack RESOLVER=lts-12"
@@ -243,8 +257,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run: |
             bash -c "$PACKCHECK stack RESOLVER=lts-11"
@@ -253,8 +268,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             name: GHCJS 8.4+no-test+no-docs
@@ -279,8 +295,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             environment:
@@ -290,18 +307,15 @@ jobs:
             command: |
               apt-get install -y ghc-8.2.2
               apt-get install -y cabal-install-2.4
-              # required by hpc-coveralls
-              apt-get install -y libcurl4-gnutls-dev
-              apt-get install -y git
-              apt-get install libtinfo-dev
               bash -c "$PACKCHECK cabal-v1"
         - *save
   coveralls-ghc-8_8_3:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             environment:
@@ -312,10 +326,6 @@ jobs:
             command: |
               apt-get install -y ghc-8.8.3
               apt-get install -y cabal-install-3.0
-              # required by hpc-coveralls
-              apt-get install -y libcurl4-gnutls-dev
-              apt-get install -y git
-              apt-get install libtinfo-dev
               bash -c "$PACKCHECK cabal-v2"
             no_output_timeout: 25m
         - *save
@@ -323,18 +333,15 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             name: Build and test with inspection, coverage, Werror
             command: |
               apt-get install -y ghc-8.10.2
               apt-get install -y cabal-install-3.2
-              # required by hpc-coveralls
-              apt-get install -y libcurl4-gnutls-dev
-              apt-get install -y git
-              apt-get install libtinfo-dev
               # Run tests with coverage
               cabal update
               cabal user-config update -a "jobs: 2"
@@ -350,8 +357,9 @@ jobs:
       <<: *env
       executor: amd64-executor
       steps:
-        - checkout
         - *preinstall
+        - checkout
+        - *project-preinstall
         - *restore
         - run:
             name: Hlint src
