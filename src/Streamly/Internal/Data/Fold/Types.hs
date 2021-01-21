@@ -413,10 +413,16 @@ data GenericRunner sL sR bL bR
 
 -- | The fold resulting from '<*>' distributes its input to both the argument
 -- folds and combines their output using the supplied function.
+--
+-- __Note:__ The Applicative behaviour will change in the next major release.
+--
 instance Monad m => Applicative (Fold m a) where
     {-# INLINE pure #-}
     pure = yield
 
+    -- | __Notice:__ In the next major release the behaviour of @<*>@ for folds
+    -- will be updated from 'teeWith' to 'splitWith' to reflect it's similarity
+    -- with parsers.
     {-# INLINE (<*>) #-}
     (<*>) = teeWith ($)
 

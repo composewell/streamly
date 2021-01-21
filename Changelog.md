@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Notice
+
+* In the next major release the behaviour of `<*>` for folds will be updated
+  from `teeWith` to `splitWith` to reflect it's similarity with parsers.
+
 ### Behavioral changes
 
 * `Streamly.Prelude.fold` can now terminate early without consuming the entire
