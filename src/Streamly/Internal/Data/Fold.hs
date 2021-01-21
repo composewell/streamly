@@ -715,19 +715,6 @@ foldMapM act = mkAccumM_ step (pure mempty)
 -- To Containers
 ------------------------------------------------------------------------------
 
--- | Folds the input stream to a list.
---
--- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Data.Array.Storable.Foreign"
--- instead.
---
--- @since 0.7.0
-
--- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
-{-# INLINABLE toList #-}
-toList :: Monad m => Fold m a [a]
-toList = mkAccum (\f x -> f . (x :)) id ($ [])
-
 -- $toListRevF
 -- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
 -- exactly the same as reversing the list after 'toListRevF'.

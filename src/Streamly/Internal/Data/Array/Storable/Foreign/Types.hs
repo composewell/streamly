@@ -105,7 +105,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Fold.Types as Fold
 import qualified GHC.Exts as Exts

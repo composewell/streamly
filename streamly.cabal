@@ -452,8 +452,8 @@ library
                      , Streamly.Internal.Data.SmallArray.Types
 
                      -- streamly-base-streams
-                     -- May depend on streamly-core-array
                      , Streamly.Internal.Data.Stream.StreamK
+                     -- StreamD depends on streamly-core-array
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
                      , Streamly.Internal.Data.Stream.StreamD.Nesting
