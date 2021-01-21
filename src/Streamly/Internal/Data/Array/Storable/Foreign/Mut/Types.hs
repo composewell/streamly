@@ -123,7 +123,6 @@ import qualified Data.Foldable as F
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K (foldl')
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
