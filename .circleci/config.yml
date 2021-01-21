@@ -118,7 +118,12 @@ project-preinstall: &project-preinstall
 restore: &restore
   # Needs to happen after installing ca-certificates
   restore_cache:
-    key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
+    keys:
+      - v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
+      # Fallback to master branch's cache.
+      - v1-{{ .Environment.CIRCLE_JOB }}-master
+      # Fallback to any branch's cache.
+      - v1-{{ .Environment.CIRCLE_JOB }}-
 
 save: &save
   save_cache:
