@@ -171,6 +171,17 @@ module Streamly.Internal.Data.Fold.Types
       Step (..)
     , Fold (..)
 
+    -- * Fold constructors
+    , mkAccum
+    , mkAccum_
+    , mkAccumM
+    , mkAccumM_
+    , mkFold
+    , mkFold_
+    , mkFoldM
+    , mkFoldM_
+
+    -- * Fold2
     , Fold2 (..)
     , simplify
 
@@ -295,6 +306,96 @@ data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
 
+------------------------------------------------------------------------------
+-- Smart constructors
+------------------------------------------------------------------------------
+
+-- | Make an accumulating (non-terminating) fold using a pure step function, a
+-- pure initial state and a pure state extraction function.
+--
+-- /Internal/
+--
+{-# INLINE mkAccum #-}
+mkAccum :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
+mkAccum step initial extract =
+    Fold
+        (\s a -> return $ Partial $ step s a)
+        (return (Partial initial))
+        (return . extract)
+
+-- | Similar to 'mkAccum' but the final state extracted is identical to the
+-- intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkAccum_ #-}
+mkAccum_ :: Monad m => (b -> a -> b) -> b -> Fold m a b
+mkAccum_ step initial = mkAccum step initial id
+
+-- | Make an accumulating (non-terminating) fold with an effectful step
+-- function, an initial state, and a state extraction function.
+--
+-- /Internal/
+--
+{-# INLINE mkAccumM #-}
+mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
+mkAccumM step initial =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial)
+
+-- | Similar to 'mkAccumM' but the final state extracted is identical to the
+-- intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkAccumM_ #-}
+mkAccumM_ :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
+mkAccumM_ step initial = mkAccumM step initial return
+
+-- | Make a terminating fold using a pure step function, a pure initial state
+-- and a pure state extraction function.
+--
+-- /Internal/
+--
+{-# INLINE mkFold #-}
+mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
+mkFold step initial extract =
+    Fold (\s a -> return $ step s a) (return initial) (return . extract)
+
+-- | Similar to 'mkFold' but the final state extracted is identical to the
+-- intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkFold_ #-}
+mkFold_ :: Monad m => (b -> a -> Step b b) -> Step b b -> Fold m a b
+mkFold_ step initial = mkFold step initial id
+
+-- | Make a terminating fold with an effectful step function and initial state,
+-- and a state extraction function.
+--
+-- > mkFoldM = Fold
+--
+--  We can just use 'Fold' but it is provided for completeness.
+--
+-- /Internal/
+--
+{-# INLINE mkFoldM #-}
+mkFoldM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
+mkFoldM = Fold
+
+-- | Similar to 'mkFoldM' but the final state extracted is identical to the
+-- intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkFoldM_ #-}
+mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
+mkFoldM_ step initial = mkFoldM step initial return
+
+------------------------------------------------------------------------------
+-- Fold2
+------------------------------------------------------------------------------
+
 -- | Experimental type to provide a side input to the fold for generating the
 -- initial state. For example, if we have to fold chunks of a stream and write
 -- each chunk to a different file, then we can generate the file name using a
@@ -308,6 +409,10 @@ data Fold2 m c a b =
 simplify :: Functor m => Fold2 m c a b -> c -> Fold m a b
 simplify (Fold2 step inject extract) c =
     Fold (\x a -> Partial <$> step x a) (Partial <$> inject c) extract
+
+------------------------------------------------------------------------------
+-- Instances
+------------------------------------------------------------------------------
 
 -- | Maps a function on the output of the fold (the type @b@).
 instance Functor m => Functor (Fold m a) where
