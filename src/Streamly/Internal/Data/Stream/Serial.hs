@@ -72,7 +72,7 @@ import qualified Streamly.Internal.Data.Stream.Prelude as P
     (cmpBy, foldl', foldr, eqBy, fromList, toList)
 import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D (unfoldrM)
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D (unfoldrM)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Prelude hiding (map, mapM, errorWithoutStackTrace)

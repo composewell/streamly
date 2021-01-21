@@ -134,7 +134,7 @@ import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold (Fold(..), toList)
+import Streamly.Internal.Data.Fold.Types (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Streamly.Internal.Data.Fold as FL
