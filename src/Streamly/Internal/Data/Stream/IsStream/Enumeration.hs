@@ -60,11 +60,11 @@ import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 
 -------------------------------------------------------------------------------
 -- Enumeration of Integral types
