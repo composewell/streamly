@@ -383,44 +383,6 @@ foldr1 step m = do
             yieldk a r = fmap (step p) (go a r)
          in foldStream defState yieldk single stp m1
 
--- | Strict left fold with an extraction function. Like the standard strict
--- left fold, but applies a user supplied extraction function (the third
--- argument) to the folded value at the end. This is designed to work with the
--- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
---
--- Note that the accumulator is always evaluated including the initial value.
-{-# INLINE foldlx' #-}
-foldlx' :: forall t m a b x. (IsStream t, Monad m)
-    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldlx' step begin done m = get $ go m begin
-    where
-    {-# NOINLINE get #-}
-    get :: t m x -> m b
-    get m1 =
-        -- XXX we are not strictly evaluating the accumulator here. Is this
-        -- okay?
-        let single = return . done
-        -- XXX this is foldSingleton. why foldStreamShared?
-         in foldStreamShared undefined undefined single undefined m1
-
-    -- Note, this can be implemented by making a recursive call to "go",
-    -- however that is more expensive because of unnecessary recursion
-    -- that cannot be tail call optimized. Unfolding recursion explicitly via
-    -- continuations is much more efficient.
-    go :: t m a -> x -> t m x
-    go m1 !acc = mkStream $ \_ yld sng _ ->
-        let stop = sng acc
-            single a = sng $ step acc a
-            -- XXX this is foldNonEmptyStream
-            yieldk a r = foldStream defState yld sng undefined $
-                go r (step acc a)
-        in foldStream defState yieldk single stop m1
-
--- | Strict left associative fold.
-{-# INLINE foldl' #-}
-foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
-foldl' step begin = foldlx' step begin id
-
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
 {-# INLINABLE foldlMx' #-}
