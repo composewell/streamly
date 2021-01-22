@@ -468,6 +468,7 @@ library
 
                      -- streamly-core
                      , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Sink
                      , Streamly.Internal.Data.Parser
