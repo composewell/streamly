@@ -84,6 +84,8 @@
 * A bug was fixed in the conversion of MicroSecond64 and MilliSecond64
   (commit e5119626)
 * Bug fix: classifySessionsBy now flushes sessions at the end and terminates.
+* `Streamly.Internal.Data.Fold.Tee` module added for folds with tee-like
+  applicative behaviour.
 
 ## 0.7.2
 
