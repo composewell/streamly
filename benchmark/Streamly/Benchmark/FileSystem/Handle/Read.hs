@@ -51,6 +51,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
 
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as IUF
 
@@ -162,7 +163,7 @@ readLast = S.last . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readLast
 inspect $ 'readLast `hasNoType` ''Step -- S.unfold
 inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'readLast `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'readLast `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- assert that flattenArrays constructors are not present
@@ -174,7 +175,7 @@ readCountBytes = S.length . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
 inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'readCountBytes `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'readCountBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Count the number of lines in a file.
@@ -189,7 +190,7 @@ readCountLines =
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
 inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'readCountLines `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'readCountLines `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Count the number of words in a file.
@@ -213,7 +214,7 @@ readSumBytes = S.sum . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
 inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'readSumBytes `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'readSumBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- XXX When we mark this with INLINE and we have two benchmarks using S.drain
@@ -335,7 +336,7 @@ inspect $ 'chunksOf `hasNoType` ''Step
 inspect $ 'chunksOf `hasNoType` ''GroupState
 inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'chunksOf `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]

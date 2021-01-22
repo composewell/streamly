@@ -8,10 +8,13 @@
 
 module Streamly.Internal.Data.Unfold.Types
     ( Unfold (..)
+    , lmap
     )
 where
 
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+#include "inline.hs"
+
+import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
@@ -25,3 +28,14 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 data Unfold m a b =
     -- | @Unfold step inject@
     forall s. Unfold (s -> m (Step s b)) (a -> m s)
+
+-- | Map a function on the input argument of the 'Unfold'.
+--
+-- @
+-- lmap f = concat (singleton f)
+-- @
+--
+-- /Internal/
+{-# INLINE_NORMAL lmap #-}
+lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
+lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)

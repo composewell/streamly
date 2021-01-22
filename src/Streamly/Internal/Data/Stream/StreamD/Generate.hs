@@ -97,7 +97,6 @@ import Streamly.Internal.Data.Time.Units (toRelTime64, RelTime64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 
@@ -130,27 +129,6 @@ cons x (Stream step state) = Stream step1 Nothing
           case r of
             Yield a s -> Yield a (Just s)
             Skip  s   -> Skip (Just s)
-            Stop      -> Stop
-
-------------------------------------------------------------------------------
--- From 'Unfold'
-------------------------------------------------------------------------------
-
-data UnfoldState s = UnfoldNothing | UnfoldJust s
-
--- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
---
-{-# INLINE_NORMAL unfold #-}
-unfold :: Monad m => Unfold m a b -> a -> Stream m b
-unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
-  where
-    {-# INLINE_LATE step #-}
-    step _ UnfoldNothing = inject seed >>= return . Skip . UnfoldJust
-    step _ (UnfoldJust st) = do
-        r <- ustep st
-        return $ case r of
-            Yield x s -> Yield x (UnfoldJust s)
-            Skip s    -> Skip (UnfoldJust s)
             Stop      -> Stop
 
 ------------------------------------------------------------------------------

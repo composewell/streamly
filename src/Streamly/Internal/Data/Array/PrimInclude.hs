@@ -173,7 +173,7 @@ last arr = readIndex arr (length arr - 1)
 concat :: (IsStream t, MonadIO m, Prim a) => t m (Array a) -> t m a
 -- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
-concat m = D.fromStreamD $ D.concatMapU read (D.toStreamD m)
+concat m = D.fromStreamD $ D.concatUnfold read (D.toStreamD m)
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

@@ -26,6 +26,9 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , consM
     , uncons
 
+    -- * From Unfold
+    , unfold
+
     -- * From Values
     , yield
     , yieldM
@@ -70,12 +73,15 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , takeWhileM
 
     -- * Nesting
+    , ConcatMapUState (..)
+    , concatUnfold
     , concatMap
     , concatMapM
     , GroupState (..) -- for inspection testing
     , foldMany
     , foldMany1
     , groupsOf2
+    , chunksOf
     )
 where
 
@@ -90,7 +96,9 @@ import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
+import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar (State, adaptState, defState)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -98,18 +106,6 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 ------------------------------------------------------------------------------
 -- The direct style stream type
 ------------------------------------------------------------------------------
-
--- | A stream is a succession of 'Step's. A 'Yield' produces a single value and
--- the next state of the stream. 'Stop' indicates there are no more values in
--- the stream.
-{-# ANN type Step Fuse #-}
-data Step s a = Yield a s | Skip s | Stop
-
-instance Functor (Step s) where
-    {-# INLINE fmap #-}
-    fmap f (Yield x s) = Yield (f x) s
-    fmap _ (Skip s) = Skip s
-    fmap _ Stop = Stop
 
 -- gst = global state
 -- | A stream consists of a step function that generates the next step given a
@@ -165,6 +161,27 @@ uncons (UnStream step state) = go state
             Stop      -> return Nothing
 
 ------------------------------------------------------------------------------
+-- From 'Unfold'
+------------------------------------------------------------------------------
+
+data UnfoldState s = UnfoldNothing | UnfoldJust s
+
+-- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
+--
+{-# INLINE_NORMAL unfold #-}
+unfold :: Monad m => Unfold m a b -> a -> Stream m b
+unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
+  where
+    {-# INLINE_LATE step #-}
+    step _ UnfoldNothing = inject seed >>= return . Skip . UnfoldJust
+    step _ (UnfoldJust st) = do
+        r <- ustep st
+        return $ case r of
+            Yield x s -> Yield x (UnfoldJust s)
+            Skip s    -> Skip (UnfoldJust s)
+            Stop      -> Stop
+
+------------------------------------------------------------------------------
 -- From Values
 ------------------------------------------------------------------------------
 
@@ -204,6 +221,7 @@ fromList = Stream step
 -- Conversions From/To
 ------------------------------------------------------------------------------
 
+-- | Convert a CPS encoded StreamK to direct style step encoded StreamD
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
 fromStreamK = Stream step
@@ -214,7 +232,7 @@ fromStreamK = Stream step
             yieldk a r = return $ Yield a r
          in K.foldStreamShared gst yieldk single stop m1
 
--- Convert a direct stream to and from CPS encoded stream
+-- | Convert a direct style step encoded StreamD to a CPS encoded StreamK
 {-# INLINE_LATE toStreamK #-}
 toStreamK :: Monad m => Stream m a -> K.Stream m a
 toStreamK (Stream step state) = go state
@@ -235,10 +253,12 @@ toStreamK (Stream step state) = go state
     forall s. fromStreamK (toStreamK s) = s #-}
 #endif
 
+-- XXX Rename to toStream or move to some IsStream common module
 {-# INLINE fromStreamD #-}
 fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
 fromStreamD = K.fromStream . toStreamK
 
+-- XXX Rename to toStream or move to some IsStream common module
 {-# INLINE toStreamD #-}
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
@@ -660,6 +680,46 @@ instance Applicative f => Applicative (Stream f) where
     (<*) = apDiscardSnd
 
 ------------------------------------------------------------------------------
+-- Combine N Streams - concatUnfold
+------------------------------------------------------------------------------
+
+-- Define a unique structure to use in inspection testing
+data ConcatMapUState o i =
+      ConcatMapUOuter o
+    | ConcatMapUInner o i
+
+-- | @concatUnfold unfold stream@ uses @unfold@ to map the input stream elements
+-- to streams and then flattens the generated streams into a single output
+-- stream.
+
+-- This is like 'concatMap' but uses an unfold with an explicit state to
+-- generate the stream instead of a 'Stream' type generator. This allows better
+-- optimization via fusion.  This can be many times more efficient than
+-- 'concatMap'.
+
+{-# INLINE_NORMAL concatUnfold #-}
+concatUnfold :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+concatUnfold (Unfold istep inject) (Stream ostep ost) =
+    Stream step (ConcatMapUOuter ost)
+  where
+    {-# INLINE_LATE step #-}
+    step gst (ConcatMapUOuter o) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (ConcatMapUInner o' i))
+            Skip o' -> return $ Skip (ConcatMapUOuter o')
+            Stop -> return $ Stop
+
+    step _ (ConcatMapUInner o i) = do
+        r <- istep i
+        return $ case r of
+            Yield x i' -> Yield x (ConcatMapUInner o i')
+            Skip i'    -> Skip (ConcatMapUInner o i')
+            Stop       -> Skip (ConcatMapUOuter o)
+
+------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------
 
@@ -842,6 +902,10 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
                 return $ Skip (FoldMany1Yield b FoldMany1Done)
     step' _ (FoldMany1Yield b next) = return $ Yield b next
     step' _ FoldMany1Done = return Stop
+
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+chunksOf n f = foldMany (FL.takeLE n f)
 
 data GroupState2 s fs
     = GroupStart2 s

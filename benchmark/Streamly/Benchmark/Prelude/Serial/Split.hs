@@ -1,4 +1,4 @@
- -- |
+-- |
 -- Module      : Streamly.Benchmark.Prelude.Serial.Split
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
@@ -41,6 +41,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Unfold as IUF
 
 import Test.Inspection
@@ -66,7 +67,7 @@ splitOn inh =
 inspect $ hasNoTypeClasses 'splitOn
 inspect $ 'splitOn `hasNoType` ''Step
 inspect $ 'splitOn `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'splitOn `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'splitOn `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split suffix on line feed.
@@ -79,7 +80,7 @@ splitOnSuffix inh =
 inspect $ hasNoTypeClasses 'splitOnSuffix
 inspect $ 'splitOnSuffix `hasNoType` ''Step
 inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'splitOnSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'splitOnSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split suffix with line feed.
@@ -92,7 +93,7 @@ splitWithSuffix inh =
 inspect $ hasNoTypeClasses 'splitWithSuffix
 inspect $ 'splitWithSuffix `hasNoType` ''Step
 inspect $ 'splitWithSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'splitWithSuffix `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'splitWithSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split on line feed.
@@ -123,7 +124,7 @@ wordsBy inh =
 inspect $ hasNoTypeClasses 'wordsBy
 inspect $ 'wordsBy `hasNoType` ''Step
 inspect $ 'wordsBy `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'wordsBy `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'wordsBy `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 -- | Split on a word8 sequence.

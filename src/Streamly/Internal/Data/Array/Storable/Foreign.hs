@@ -68,7 +68,6 @@ module Streamly.Internal.Data.Array.Storable.Foreign
     , A.toStream
     , A.toStreamRev
     , read
-    , ReadUState (..)
     , unsafeRead
     -- , readChunksOf
 
@@ -147,7 +146,7 @@ import Data.Semigroup ((<>))
 import Data.Word (Word8)
 -- import Data.Functor.Identity (Identity)
 import Foreign.C.String (CString)
-import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr, castForeignPtr)
+import Foreign.ForeignPtr (withForeignPtr, castForeignPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -169,6 +168,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Memory.Ring as RB
 
 -------------------------------------------------------------------------------
@@ -204,35 +204,12 @@ fromStream = P.foldOnce A.write
 -- Elimination
 -------------------------------------------------------------------------------
 
-data ReadUState a = ReadUState
-    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
-    {-# UNPACK #-} !(Ptr a)         -- current pointer
-
 -- | Unfold an array into a stream.
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = Unfold step inject
-    where
-
-    inject (Array (ForeignPtr start contents) (Ptr end)) =
-        return $ ReadUState (ForeignPtr end contents) (Ptr start)
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
-        let x = A.unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return D.Stop
-    step (ReadUState fp p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = A.unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
+read = Unfold.lmap A.unsafeThaw MA.read
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For

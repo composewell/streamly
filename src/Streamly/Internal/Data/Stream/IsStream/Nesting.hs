@@ -254,8 +254,7 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types
-    (Array, writeNUnsafe)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array)
 import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Stream.Ahead (ahead)
 import Streamly.Internal.Data.Stream.Async (async, wAsync)
@@ -650,7 +649,7 @@ concatMapEitherWith = undefined
 -- @since 0.7.0
 {-# INLINE concatUnfold #-}
 concatUnfold ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
-concatUnfold u m = fromStreamD $ D.concatMapU u (toStreamD m)
+concatUnfold u m = fromStreamD $ D.concatUnfold u (toStreamD m)
 
 -- | Like 'concatUnfold' but interleaves the streams in the same way as
 -- 'interleave' behaves instead of appending them.
@@ -749,7 +748,7 @@ gintercalate unf1 str1 unf2 str2 =
 intercalate :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
 intercalate seed unf str = D.fromStreamD $
-    D.concatMapU unf $ D.intersperse seed (toStreamD str)
+    D.concatUnfold unf $ D.intersperse seed (toStreamD str)
 
 -- | 'interleaveSuffix' followed by unfold and concat.
 --
@@ -777,7 +776,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
-intercalateSuffix seed unf str = fromStreamD $ D.concatMapU unf
+intercalateSuffix seed unf str = fromStreamD $ D.concatUnfold unf
     $ D.intersperseSuffix (return seed) (D.toStreamD str)
 
 ------------------------------------------------------------------------------
@@ -1570,12 +1569,14 @@ splitOnSuffixSeqAny subseq f m = undefined
 -- This can be considered as an n-fold version of 'takeLE' where we apply
 -- 'takeLE' repeatedly on the leftover stream until the stream exhausts.
 --
+-- @chunksOf n f = foldMany (FL.takeLE n f)@
+--
 -- @since 0.7.0
 {-# INLINE chunksOf #-}
 chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-chunksOf n f = foldMany (FL.takeLE n f)
+chunksOf n f = D.fromStreamD . D.chunksOf n f . D.toStreamD
 
 -- |
 --
@@ -1591,13 +1592,13 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- Same as the following but may be more efficient:
 --
--- > arraysOf n = S.chunksOf n (A.writeN n)
+-- > arraysOf n = Stream.foldMany (A.writeN n)
 --
 -- /Internal/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = chunksOf n (writeNUnsafe n)
+arraysOf n = D.fromStreamD . A.arraysOf n . D.toStreamD
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

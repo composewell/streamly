@@ -137,7 +137,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (groupIOVecsOf)
+import Streamly.Internal.Memory.ArrayStream (groupIOVecsOf)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)

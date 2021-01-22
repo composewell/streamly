@@ -83,8 +83,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Generate streams by using an unfold on each element of an input
     -- stream, append the resulting streams and flatten. A special case of
     -- gintercalate.
-    , ConcatMapUState (..)
-    , concatMapU
+    , concatUnfold
     , ConcatUnfoldInterleaveState (..)
     , concatUnfoldInterleave
     , concatUnfoldRoundrobin
@@ -125,6 +124,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
+    , chunksOf
     , groupsOf2
     , groupsBy
     , groupsRollingBy
@@ -478,42 +478,6 @@ mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatUnfold
 ------------------------------------------------------------------------------
-
--- Define a unique structure to use in inspection testing
-data ConcatMapUState o i =
-      ConcatMapUOuter o
-    | ConcatMapUInner o i
-
--- | @concatMapU unfold stream@ uses @unfold@ to map the input stream elements
--- to streams and then flattens the generated streams into a single output
--- stream.
-
--- This is like 'concatMap' but uses an unfold with an explicit state to
--- generate the stream instead of a 'Stream' type generator. This allows better
--- optimization via fusion.  This can be many times more efficient than
--- 'concatMap'.
-
-{-# INLINE_NORMAL concatMapU #-}
-concatMapU :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-concatMapU (Unfold istep inject) (Stream ostep ost) =
-    Stream step (ConcatMapUOuter ost)
-  where
-    {-# INLINE_LATE step #-}
-    step gst (ConcatMapUOuter o) = do
-        r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (ConcatMapUInner o' i))
-            Skip o' -> return $ Skip (ConcatMapUOuter o')
-            Stop -> return $ Stop
-
-    step _ (ConcatMapUInner o i) = do
-        r <- istep i
-        return $ case r of
-            Yield x i' -> Yield x (ConcatMapUInner o i')
-            Skip i'    -> Skip (ConcatMapUInner o i')
-            Stop       -> Skip (ConcatMapUOuter o)
 
 data ConcatUnfoldInterleaveState o i =
       ConcatUnfoldInterleaveOuter o [i]
