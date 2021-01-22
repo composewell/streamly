@@ -89,7 +89,8 @@ import qualified Network.Socket as Net
 
 import Streamly.Prelude (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), lpackArraysChunksOf)
+import Streamly.Internal.Memory.ArrayStream (lpackArraysChunksOf)
+import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)

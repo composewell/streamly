@@ -9,8 +9,11 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- See notes in "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types"
+--
 module Streamly.Internal.Data.Array.Storable.Foreign.Types
     (
+    -- $arrayNotes
       Array (..)
 
     -- * Freezing and Thawing
@@ -27,19 +30,9 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Types
     , fromList
     , fromListN
     , fromStreamDN
+    , fromStreamD
 
-    -- * Streams of arrays
-    , fromStreamDArraysOf
-    , MA.FlattenState (..) -- for inspection testing
-    , flattenArrays
-    , flattenArraysRev
-    , packArraysChunksOf
-    , MA.SpliceState (..)
-    , lpackArraysChunksOf
-#if !defined(mingw32_HOST_OS)
-    , groupIOVecsOf
-#endif
-    , splitOn
+    -- * Split
     , breakOn
 
     -- * Elimination
@@ -60,8 +53,6 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Types
     , toStreamRev
     , toList
 
-    , unlines
-
     -- * Folds
     , toArrayMinChunk
     , writeN
@@ -71,6 +62,12 @@ module Streamly.Internal.Data.Array.Storable.Foreign.Types
     , writeNAlignedUnmanaged
     , write
     , writeAligned
+
+    -- * Streams of arrays
+    , arraysOf
+    , bufferChunks
+    , flattenArrays
+    , flattenArraysRev
 
     -- * Utilities
     , MA.defaultChunkSize
@@ -104,18 +101,13 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
-import qualified Streamly.Internal.Data.Fold.Types as Fold
 import qualified GHC.Exts as Exts
 
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
-#endif
-
-#if !defined(mingw32_HOST_OS)
-import Streamly.FileSystem.FDIO (IOVec(..))
 #endif
 
 #ifdef DEVBUILD
@@ -123,51 +115,17 @@ import qualified Data.Foldable as F
 #endif
 
 -------------------------------------------------------------------------------
--- Design Notes
--------------------------------------------------------------------------------
-
--- There are two goals that we want to fulfill with arrays.  One, holding large
--- amounts of data in non-GC memory and the ability to pass this data to and
--- from the operating system without an extra copy overhead. Two, allow random
--- access to elements based on their indices. The first one falls in the
--- category of storage buffers while the second one falls in the category of
--- maps/multisets/hashmaps.
---
--- For the first requirement we use an array of Storables and store it in a
--- ForeignPtr. We can have both immutable and mutable variants of this array
--- using wrappers over the same underlying type.
---
--- For the second requirement, we need a separate type for arrays of
--- polymorphic values, for example vectors of handler functions, lookup tables.
--- We can call this type a "vector" in contrast to arrays.  It should not
--- require Storable instance for the type. In that case we need to use an
--- Array# instead of a ForeignPtr. This type of array would not reduce the GC
--- overhead much because each element of the array still needs to be scanned by
--- the GC.  However, it can store polymorphic elements and allow random access
--- to those.  But in most cases random access means storage, and it means we
--- need to avoid GC scanning except in cases of trivially small storage. One
--- way to achieve that would be to put the array in a Compact region. However,
--- if and when we mutate this, we will have to use a manual GC copying out to
--- another CR and freeing the old one.
-
--------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
 
--- We require that an array stores only Storable. Arrays are used for buffering
--- data while streams are used for processing. If you want something to be
--- buffered it better be Storable so that we can store it in non-GC memory.
+-- $arrayNotes
 --
--- We can use a "Storable" constraint in the Array type and the Constraint can
+-- We can use a 'Storable' constraint in the Array type and the constraint can
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
--- XXX Can this cost be alleviated in GHC-8.10 specialization fix?
+-- Investigate a GHC improvement possiblity.
 --
--- XXX Another way to not require the Storable constraint in array operations
--- is to store the elemSize in the array at construction and use that instead
--- of using sizeOf. Need to charaterize perf cost of this.
---
--- XXX rename the fields to "start, next, end".
+-- XXX Rename the fields to better names.
 --
 data Array a =
 #ifdef DEVBUILD
@@ -343,20 +301,33 @@ fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 
+{-# INLINE_NORMAL fromStreamD #-}
+fromStreamD :: forall m a. (MonadIO m, Storable a)
+    => D.Stream m a -> m (Array a)
+fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
+
 -------------------------------------------------------------------------------
 -- Streams of arrays
 -------------------------------------------------------------------------------
 
--- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
--- arrays of size n.
-{-# INLINE_NORMAL fromStreamDArraysOf #-}
-fromStreamDArraysOf :: forall m a. (MonadIO m, Storable a)
-    => Int -> D.Stream m a -> D.Stream m (Array a)
--- fromStreamDArraysOf n str = D.groupsOf n (writeN n) str
-fromStreamDArraysOf n str = D.map unsafeFreeze $ MA.fromStreamDArraysOf n str
+{-# INLINE bufferChunks #-}
+bufferChunks :: (MonadIO m, Storable a) =>
+    D.Stream m a -> m (K.Stream m (Array a))
+bufferChunks m = D.foldr K.cons K.nil $ arraysOf MA.defaultChunkSize m
 
--- XXX concatMap does not seem to have the best possible performance so we have
--- a custom way to concat arrays.
+-- | @arraysOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
+{-# INLINE_NORMAL arraysOf #-}
+arraysOf :: forall m a. (MonadIO m, Storable a)
+    => Int -> D.Stream m a -> D.Stream m (Array a)
+arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
+
+-- | Use the "read" unfold instead.
+--
+-- @flattenArrays = concatUnfold read@
+--
+-- We can try this if there are any fusion issues in the unfold.
+--
 {-# INLINE_NORMAL flattenArrays #-}
 flattenArrays :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
@@ -366,47 +337,6 @@ flattenArrays = MA.flattenArrays . D.map unsafeThaw
 flattenArraysRev :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev = MA.flattenArraysRev . D.map unsafeThaw
-
-
-{-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Storable a)
-    => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
-packArraysChunksOf n str =
-    D.map unsafeFreeze $ MA.packArraysChunksOf n $ D.map unsafeThaw str
-
--- XXX instead of writing two different versions of this operation, we should
--- write it as a pipe.
-{-# INLINE_NORMAL lpackArraysChunksOf #-}
-lpackArraysChunksOf :: (MonadIO m, Storable a)
-    => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n fld =
-    Fold.map unsafeThaw $ MA.lpackArraysChunksOf n (Fold.map unsafeFreeze fld)
-
-#if !defined(mingw32_HOST_OS)
-
--- | @groupIOVecsOf maxBytes maxEntries@ groups arrays in the incoming stream
--- to create a stream of 'IOVec' arrays with a maximum of @maxBytes@ bytes in
--- each array and a maximum of @maxEntries@ entries in each array.
---
--- @since 0.7.0
-{-# INLINE_NORMAL groupIOVecsOf #-}
-groupIOVecsOf :: MonadIO m
-    => Int -> Int -> D.Stream m (Array a) -> D.Stream m (Array IOVec)
-groupIOVecsOf n maxIOVLen str =
-    D.map unsafeFreeze $ MA.groupIOVecsOf n maxIOVLen $ D.map unsafeThaw str
-#endif
-
--- | Split a stream of arrays on a given separator byte, dropping the separator
--- and coalescing all the arrays between two separators into a single array.
---
--- @since 0.7.0
-{-# INLINE_NORMAL splitOn #-}
-splitOn
-    :: MonadIO m
-    => Word8
-    -> D.Stream m (Array Word8)
-    -> D.Stream m (Array Word8)
-splitOn byte str = D.map unsafeFreeze $ MA.splitOn byte $ D.map unsafeThaw str
 
 -- Drops the separator byte
 {-# INLINE breakOn #-}
@@ -507,11 +437,6 @@ splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
 {-# INLINE toList #-}
 toList :: Storable a => Array a -> [a]
 toList = MA.toList . unsafeThaw
-
-{-# INLINE_NORMAL unlines #-}
-unlines :: forall m a. (MonadIO m, Storable a)
-    => a -> D.Stream m (Array a) -> D.Stream m a
-unlines sep str = MA.unlines sep (D.map unsafeThaw str)
 
 -------------------------------------------------------------------------------
 -- Folds

@@ -1102,11 +1102,11 @@ reverse m = Stream step Nothing
 reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
 {-
 -- This commented implementation copies the whole stream into one single array
--- and then streams from that array, this is 3-4x faster than the chunked code
--- that follows.  Though this could be problematic due to unbounded large
--- allocations. We need to figure out why the chunked code is slower and if we
--- can optimize the chunked code to work as fast as this one. It may be a
--- fusion issue?
+-- and then streams from that array, this has exactly the same performance as
+-- the chunked code that follows.  Though this could be problematic due to
+-- unbounded large allocations. However, if we use an idiomatic implementation
+-- of arraysOf instead of the custom implementation then the chunked code
+-- becomes worse by 6 times. Need to investigate if that can be improved.
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, plusPtr)
@@ -1115,8 +1115,8 @@ reverse' m = Stream step Nothing
     {-# INLINE_LATE step #-}
     step _ Nothing = do
         arr <- A.fromStreamD m
-        let p = aEnd arr `plusPtr` negate (sizeOf (undefined :: a))
-        return $ Skip $ Just (aStart arr, p)
+        let p = A.aEnd arr `plusPtr` negate (sizeOf (undefined :: a))
+        return $ Skip $ Just (A.aStart arr, p)
 
     step _ (Just (start, p)) | p < unsafeForeignPtrToPtr start = return Stop
 
@@ -1128,12 +1128,12 @@ reverse' m = Stream step Nothing
             next = p `plusPtr` negate (sizeOf (undefined :: a))
         return $ Yield x (Just (start, next))
 -}
-reverse' m =
-          A.flattenArraysRev
-        $ fromStreamK
-        $ K.reverse
-        $ toStreamK
-        $ A.fromStreamDArraysOf A.defaultChunkSize m
+reverse' =
+          A.flattenArraysRev -- concatUnfold A.readRev
+        . fromStreamK
+        . K.reverse
+        . toStreamK
+        . A.arraysOf A.defaultChunkSize
 
 ------------------------------------------------------------------------------
 -- Position Indexing

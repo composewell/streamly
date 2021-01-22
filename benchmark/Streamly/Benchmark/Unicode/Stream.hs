@@ -40,8 +40,8 @@ import Streamly.Benchmark.Common.Handle
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
 import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
+import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
 
 import Test.Inspection
 #endif
@@ -201,7 +201,7 @@ copyStreamLatin1' inh outh =
 inspect $ hasNoTypeClasses 'copyStreamLatin1'
 inspect $ 'copyStreamLatin1' `hasNoType` ''Step
 inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'copyStreamLatin1' `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'copyStreamLatin1' `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'copyStreamLatin1' `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1' `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
@@ -218,7 +218,7 @@ copyStreamLatin1 inh outh =
 inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
-inspect $ 'copyStreamLatin1 `hasNoType` ''A.ReadUState  -- FH.read/A.read
+inspect $ 'copyStreamLatin1 `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'copyStreamLatin1 `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif

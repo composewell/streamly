@@ -114,11 +114,11 @@ import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Array.Storable.Foreign.Types
-       (Array(..), writeNUnsafe, defaultChunkSize, lpackArraysChunksOf
-       , unsafeFreezeWithShrink)
+       (Array(..), writeNUnsafe, defaultChunkSize , unsafeFreezeWithShrink)
 import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
+import Streamly.Internal.Memory.ArrayStream (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Data.Fold as FL

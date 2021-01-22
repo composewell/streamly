@@ -159,16 +159,16 @@ import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap)
 import System.Mem (performMajorGC)
 
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D (unfold)
 
 import Streamly.Internal.Data.SVar
 import Prelude
@@ -178,17 +178,6 @@ import Prelude
 -------------------------------------------------------------------------------
 -- Input operations
 -------------------------------------------------------------------------------
-
--- | Map a function on the input argument of the 'Unfold'.
---
--- @
--- lmap f = concat (singleton f)
--- @
---
--- /Internal/
-{-# INLINE_NORMAL lmap #-}
-lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
-lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 
 -- | Map an action on the input argument of the 'Unfold'.
 --
