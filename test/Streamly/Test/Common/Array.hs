@@ -19,6 +19,8 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Test.Hspec as H
 
 import Streamly.Prelude (SerialT)
+import Streamly.Test.Common (listEquals)
+
 import qualified Streamly.Prelude as S
 #ifdef TEST_SMALL_ARRAY
 import qualified Streamly.Internal.Data.SmallArray as A
@@ -131,7 +133,7 @@ testFromListN =
                 monadicIO $ do
                     let arr = A.fromListN n list
                     xs <- run $ S.toList $ (S.unfold A.read) arr
-                    assert (xs == take n list)
+                    listEquals (==) xs (take n list)
 
 #ifndef TEST_SMALL_ARRAY
 testFromStreamToStream :: Property
