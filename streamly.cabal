@@ -420,6 +420,7 @@ library
                      , Streamly.Internal.Data.Either.Strict
                      , Streamly.Internal.Foreign.Malloc
                      , Streamly.Internal.Data.Atomics
+                     , Streamly.Internal.Data.IOFinalizer
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units

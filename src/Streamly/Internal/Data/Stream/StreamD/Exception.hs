@@ -8,13 +8,7 @@
 
 module Streamly.Internal.Data.Stream.StreamD.Exception
     (
-    -- * Finalizers
-      newFinalizedIORef
-    , runIORefFinalizer
-    , withIORefFinalizer
-
-    -- * Combinators
-    , gbracket_
+      gbracket_
     , gbracket
     , before
     , after_
@@ -32,85 +26,16 @@ where
 #include "inline.hs"
 
 import Control.Exception (Exception, SomeException, mask_)
-import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_, control)
-import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
+import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Streamly.Internal.Data.IOFinalizer
+    (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
-
-------------------------------------------------------------------------------
--- Finalizers
-------------------------------------------------------------------------------
-
--- | Make a finalizer from a monadic action @m a@ that can run in IO monad.
-mkIOFinalizer :: MonadBaseControl IO m => m b -> m (IO ())
-mkIOFinalizer f = do
-    mrun <- captureMonadState
-    return $
-        void $ do
-            _ <- runInIO mrun f
-            return ()
-
--- | Run an IO action stored in a finalized IORef.
-runIORefFinalizerGC :: IORef (Maybe (IO ())) -> IO ()
-runIORefFinalizerGC ref = do
-    res <- readIORef ref
-    case res of
-        Nothing -> return ()
-        Just f -> f
-
--- | Create an IORef holding a finalizer that is called automatically when
--- the IORef is garbage collected. The IORef can be written to with a 'Nothing'
--- value to deactivate the finalizer.
---
--- Note: The finalizer is always run with the state of the monad captured at
--- the time of calling newFinalizedIORef. To run it on garbage collection we
--- have no option but to take a snapshot of the monadic state at some point of
--- time. For normal case we could run it with the current state of the monad
--- but we want to keep both the cases consistent.
---
-newFinalizedIORef :: (MonadIO m, MonadBaseControl IO m)
-    => m a -> m (IORef (Maybe (IO ())))
-newFinalizedIORef finalizer = do
-    f <- mkIOFinalizer finalizer
-    ref <- liftIO $ newIORef $ Just f
-    _ <- liftIO $ mkWeakIORef ref (runIORefFinalizerGC ref)
-    return ref
-
--- | Run the finalizer stored in an IORef and deactivate it so that it is run
--- only once. Note, the action runs with async exceptions masked.
---
-runIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
-runIORefFinalizer ref = liftIO $ do
-    res <- readIORef ref
-    case res of
-        Nothing -> return ()
-        Just action -> do
-            -- if an async exception comes after writing 'Nothing' then the
-            -- finalizing action will never be run. We need to do this
-            -- atomically wrt async exceptions.
-            mask_ $ do
-                writeIORef ref Nothing
-                action
-
--- | Run an action clearing the finalizer IORef atomically wrt async
--- exceptions. The action is run with async exceptions masked.
-withIORefFinalizer :: MonadBaseControl IO m
-    => IORef (Maybe (IO ())) -> m a -> m a
-withIORefFinalizer ref action = do
-    control $ \runinio ->
-        mask_ $ do
-            writeIORef ref Nothing
-            runinio action
-
-------------------------------------------------------------------------------
--- Exception handling combinators.
-------------------------------------------------------------------------------
 
 data GbracketState s1 s2 v
     = GBracketInit
@@ -211,7 +136,7 @@ gbracket bef exc aft fexc fnormal =
         -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef
-            ref <- newFinalizedIORef (aft r)
+            ref <- newIOFinalizer (aft r)
             return (r, ref)
         return $ Skip $ GBracketIONormal (fnormal r) r ref
 
@@ -224,7 +149,7 @@ gbracket bef exc aft fexc fnormal =
                 Skip s ->
                     return $ Skip (GBracketIONormal (Stream step1 s) v ref)
                 Stop -> do
-                    runIORefFinalizer ref
+                    runIOFinalizer ref
                     return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
@@ -232,7 +157,7 @@ gbracket bef exc aft fexc fnormal =
                 -- be atomic wrt async exceptions. Otherwise if we have cleared
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
-                stream <- withIORefFinalizer ref (fexc v e (UnStream step1 st))
+                stream <- clearingIOFinalizer ref (fexc v e (UnStream step1 st))
                 return $ Skip (GBracketIOException stream)
     step gst (GBracketIOException (UnStream step1 st)) = do
         res <- step1 gst st
@@ -287,7 +212,7 @@ after action (Stream step state) = Stream step' Nothing
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        ref <- newFinalizedIORef action
+        ref <- newIOFinalizer action
         return $ Skip $ Just (state, ref)
     step' gst (Just (st, ref)) = do
         res <- step gst st
@@ -295,7 +220,7 @@ after action (Stream step state) = Stream step' Nothing
             Yield x s -> return $ Yield x (Just (s, ref))
             Skip s    -> return $ Skip (Just (s, ref))
             Stop      -> do
-                runIORefFinalizer ref
+                runIOFinalizer ref
                 return Stop
 
 -- XXX For high performance error checks in busy streams we may need another
