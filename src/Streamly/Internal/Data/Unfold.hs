@@ -149,15 +149,17 @@ import Control.Monad ((>=>), when)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Data.Void (Void)
-import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
-import GHC.Types (SPEC(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.IOFinalizer
+    (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import System.Mem (performMajorGC)
 
 import qualified Prelude
@@ -166,8 +168,7 @@ import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (unfold, newFinalizedIORef, runIORefFinalizer, withIORefFinalizer)
+import qualified Streamly.Internal.Data.Stream.StreamD as D (unfold)
 
 import Streamly.Internal.Data.SVar
 import Prelude
@@ -1154,7 +1155,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef x
-            ref <- D.newFinalizedIORef (aft r)
+            ref <- newIOFinalizer (aft r)
             return (r, ref)
         s <- inject1 r
         return $ Right (s, r, ref)
@@ -1167,7 +1168,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 Yield x s -> return $ Yield x (Right (s, v, ref))
                 Skip s    -> return $ Skip (Right (s, v, ref))
                 Stop      -> do
-                    D.runIORefFinalizer ref
+                    runIOFinalizer ref
                     return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
@@ -1175,7 +1176,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 -- be atomic wrt async exceptions. Otherwise if we have cleared
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
-                r <- D.withIORefFinalizer ref (einject (v, e))
+                r <- clearingIOFinalizer ref (einject (v, e))
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
@@ -1263,7 +1264,7 @@ after action (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         s <- inject1 x
-        ref <- D.newFinalizedIORef (action x)
+        ref <- newIOFinalizer (action x)
         return (s, ref)
 
     {-# INLINE_LATE step #-}
@@ -1273,7 +1274,7 @@ after action (Unfold step1 inject1) = Unfold step inject
             Yield x s -> return $ Yield x (s, ref)
             Skip s    -> return $ Skip (s, ref)
             Stop      -> do
-                D.runIORefFinalizer ref
+                runIOFinalizer ref
                 return Stop
 
 {-# INLINE_NORMAL _onException #-}
@@ -1365,17 +1366,17 @@ finally action (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         s <- inject1 x
-        ref <- D.newFinalizedIORef (action x)
+        ref <- newIOFinalizer (action x)
         return (s, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
-        res <- step1 st `MC.onException` D.runIORefFinalizer ref
+        res <- step1 st `MC.onException` runIOFinalizer ref
         case res of
             Yield x s -> return $ Yield x (s, ref)
             Skip s    -> return $ Skip (s, ref)
             Stop      -> do
-                D.runIORefFinalizer ref
+                runIOFinalizer ref
                 return Stop
 
 {-# INLINE_NORMAL _bracket #-}
@@ -1449,19 +1450,19 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef x
-            ref <- D.newFinalizedIORef (aft r)
+            ref <- newIOFinalizer (aft r)
             return (r, ref)
         s <- inject1 r
         return (s, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
-        res <- step1 st `MC.onException` D.runIORefFinalizer ref
+        res <- step1 st `MC.onException` runIOFinalizer ref
         case res of
             Yield x s -> return $ Yield x (s, ref)
             Skip s    -> return $ Skip (s, ref)
             Stop      -> do
-                D.runIORefFinalizer ref
+                runIOFinalizer ref
                 return Stop
 
 -- | When unfolding @Unfold m a b@ if an exception @e@ occurs, unfold @e@ using
