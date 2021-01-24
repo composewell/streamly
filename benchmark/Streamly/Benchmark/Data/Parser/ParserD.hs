@@ -111,10 +111,10 @@ manyTill value =
         pcond = PR.satisfy (== value)
     in IP.parseD (PR.manyTill FL.length p pcond)
 
-{-# INLINE splitAllAny #-}
-splitAllAny :: MonadThrow m
+{-# INLINE splitWith #-}
+splitWith :: MonadThrow m
     => Int -> SerialT m Int -> m ((), ())
-splitAllAny value =
+splitWith value =
     IP.parseD
         ((,)
             <$> drainWhile (<= (value `div` 2))
@@ -214,7 +214,7 @@ o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "wordBy" $ wordBy value
-    , benchIOSink value "split (all,any)" $ splitAllAny value
+    , benchIOSink value "splitWith" $ splitWith value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
