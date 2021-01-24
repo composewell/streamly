@@ -71,6 +71,10 @@ takeWhile value = IP.parseD (drainWhile (<= value))
 groupBy :: MonadThrow m => SerialT m Int -> m ()
 groupBy = IP.parseD (PR.groupBy (<=) FL.drain)
 
+{-# INLINE groupByRolling #-}
+groupByRolling :: MonadThrow m => SerialT m Int -> m ()
+groupByRolling = IP.parseD (PR.groupByRolling (<=) FL.drain)
+
 {-# INLINE wordBy #-}
 wordBy :: MonadThrow m => Int -> SerialT m Int -> m ()
 wordBy value = IP.parseD (PR.wordBy (>= value) FL.drain)
@@ -213,6 +217,7 @@ o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "groupBy" $ groupBy
+    , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
     , benchIOSink value "splitWith" $ splitWith value
     , benchIOSink value "many" many
