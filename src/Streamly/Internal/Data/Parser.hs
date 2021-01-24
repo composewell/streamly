@@ -92,6 +92,7 @@ module Streamly.Internal.Data.Parser
     , escapedFrameBy
     , wordBy
     , groupBy
+    , groupByRolling
     , eqBy
     -- | Unimplemented
     --
@@ -594,6 +595,38 @@ wordBy f = K.toParserK . D.wordBy f
 {-# INLINABLE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy cmp = K.toParserK . D.groupBy cmp
+
+-- | Unlike 'groupBy' this combinator performs a rolling comparison of two
+-- successive elements in the input stream.  Assuming the input stream to the
+-- parser is @[a,b,c,...]@ and the comparison function is @cmp@, the parser
+-- first assigns the element @a@ to the first group, then if @a \`cmp` b@ is
+-- 'True' @b@ is also assigned to the same group.  If @b \`cmp` c@ is 'True'
+-- then @c@ is also assigned to the same group and so on. When the comparison
+-- fails the parser is terminated. Each group is folded using the 'Fold' @f@ and
+-- the result of the fold is the result of the parser.
+--
+-- * Stops - when the comparison fails.
+-- * Fails - never.
+--
+-- > runGroupsByRolling eq =
+-- >     Stream.toList
+-- >         . Stream.parseMany (groupByRolling eq Fold.toList)
+-- >         . Stream.fromList
+--
+-- >>> runGroupsByRolling (<) []
+-- []
+--
+-- >>> runGroupsByRolling (<) [1]
+-- [[1]]
+--
+-- >>> runGroupsByRolling (<) [3, 5, 4, 1, 2, 0]
+-- [[3, 5], [4], [1, 2], [0]]
+--
+-- /Internal/
+--
+{-# INLINABLE groupByRolling #-}
+groupByRolling :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupByRolling eq = K.toParserK . D.groupByRolling eq
 
 -- | Match the given sequence of elements using the given comparison function.
 --
