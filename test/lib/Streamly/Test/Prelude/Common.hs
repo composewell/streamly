@@ -133,6 +133,7 @@ import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 #endif
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
@@ -1180,7 +1181,7 @@ transformCombineOpsCommon constr desc eq t = do
 
     -- reordering
     prop (desc <> " reverse") $ transform reverse t S.reverse
-    -- prop (desc <> " reverse'") $ transform reverse t S.reverse'
+    prop (desc <> " reverse'") $ transform reverse t S.reverse'
 
     -- inserting
     prop (desc <> " intersperseM") $
