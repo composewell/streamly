@@ -63,6 +63,7 @@ module Streamly.Internal.Data.Parser.ParserD
     --
     , wordBy
     , groupBy
+    , groupByRolling
     , eqBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
@@ -619,6 +620,38 @@ groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
     step (GroupByGrouping a0 s) a =
         if cmp a0 a
         then grouper s a0 a
+        else Done 1 <$> fextract s
+
+    extract (GroupByInit s) = fextract s
+    extract (GroupByGrouping _ s) = fextract s
+
+-- | See 'Streamly.Internal.Data.Parser.groupByRolling'.
+--
+{-# INLINE groupByRolling #-}
+groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    {-# INLINE grouper #-}
+    grouper s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                  FL.Done b -> Done 0 b
+                  FL.Partial s1 -> Partial 0 (GroupByGrouping a s1)
+
+    initial = do
+        res <- finitial
+        return
+            $ case res of
+                  FL.Partial s -> GroupByInit s
+                  FL.Done _ -> error "groupByRolling: Done in initial not implemented"
+
+    step (GroupByInit s) a = grouper s a
+    step (GroupByGrouping a0 s) a =
+        if eq a0 a
+        then grouper s a
         else Done 1 <$> fextract s
 
     extract (GroupByInit s) = fextract s
