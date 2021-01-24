@@ -335,6 +335,25 @@ groupBy =
         | null lst = []
         | otherwise = head $ List.groupBy cmp lst
 
+groupByRolling :: Property
+groupByRolling =
+    forAll (listOf (chooseInt (0, 1)))
+        $ \ls ->
+              case S.parseD parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
+                  Left _ -> property False
+
+    where
+
+    cmp = (==)
+    parser = P.groupBy cmp FL.toList
+    groupByLF _ [] = []
+    groupByLF Nothing (x:xs) = x : groupByLF (Just x) xs
+    groupByLF (Just y) (x:xs) =
+        if cmp y x
+        then x : groupByLF (Just x) xs
+        else []
+
 sliceSepByMax :: Property
 sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -696,6 +715,7 @@ main =
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
+        prop "groupByRolling" groupByRolling
         prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
         prop "many (P.wordBy ' ') = words'" wordBy
         prop "parse 0, then 1, else fail" splitWith
