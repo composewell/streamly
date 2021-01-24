@@ -576,25 +576,35 @@ escapedFrameBy _begin _end _escape _p = undefined
 wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy f = K.toParserK . D.wordBy f
 
--- | @groupBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
--- first group, then if @a \`cmp` b@ is 'True' @b@ is also assigned to the same
--- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
--- group and so on. When the comparison fails a new group is started. Each
--- group is folded using the 'Fold' @f@ and the result of the fold is emitted
--- in the output stream.
+-- | Given an input stream @[a,b,c,...]@ and a comparison function @cmp@, the
+-- parser assigns the element @a@ to the first group, then if @a \`cmp` b@ is
+-- 'True' @b@ is also assigned to the same group.  If @a \`cmp` c@ is 'True'
+-- then @c@ is also assigned to the same group and so on. When the comparison
+-- fails the parser is terminated. Each group is folded using the 'Fold' @f@ and
+-- the result of the fold is the result of the parser.
 --
 -- * Stops - when the comparison fails.
 -- * Fails - never.
 --
--- @
--- S.groupsBy cmp f = S.parseMany (PR.groupBy cmp f)
--- @
+-- > runGroupsBy eq =
+-- >     Stream.toList
+-- >         . Stream.parseMany (groupBy eq Fold.toList)
+-- >         . Stream.fromList
 --
--- /Unimplemented/
+-- >>> runGroupsBy (<) []
+-- []
+--
+-- >>> runGroupsBy (<) [1]
+-- [[1]]
+--
+-- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
+-- [[3, 5, 4], [1, 2], [0]]
+--
+-- /Internal/
 --
 {-# INLINABLE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
-groupBy cmp = K.toParserK . D.groupBy cmp
+groupBy eq = K.toParserK . D.groupBy eq
 
 -- | Unlike 'groupBy' this combinator performs a rolling comparison of two
 -- successive elements in the input stream.  Assuming the input stream to the

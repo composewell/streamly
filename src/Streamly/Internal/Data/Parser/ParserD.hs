@@ -597,7 +597,7 @@ data GroupByState a s
 --
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
-groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
+groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
@@ -618,7 +618,7 @@ groupBy cmp (Fold fstep finitial fextract) = Parser step initial extract
 
     step (GroupByInit s) a = grouper s a a
     step (GroupByGrouping a0 s) a =
-        if cmp a0 a
+        if eq a0 a
         then grouper s a0 a
         else Done 1 <$> fextract s
 
