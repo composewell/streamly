@@ -20,7 +20,7 @@ import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
 import System.Random (randomRIO)
-import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
+import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile, span)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
@@ -175,6 +175,37 @@ longestAllAny value =
         )
 
 -------------------------------------------------------------------------------
+-- Derived parsers
+-------------------------------------------------------------------------------
+
+{-# INLINE span #-}
+span :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+span value = IP.parseD (span_ (<= (value `div` 2)) FL.drain FL.drain)
+
+    where
+
+    span_ p f1 f2 = PR.splitWith (,) (PR.takeWhile p f1) (PR.fromFold f2)
+
+{-# INLINE spanBy #-}
+spanBy :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+spanBy value =
+    IP.parseD (spanBy_ (\_ i -> i <= (value `div` 2)) FL.drain FL.drain)
+
+    where
+
+    spanBy_ c f1 f2 = PR.splitWith (,) (PR.groupBy c f1) (PR.fromFold f2)
+
+{-# INLINE spanByRolling #-}
+spanByRolling :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+spanByRolling value =
+    IP.parseD (spanByRolling_ (\_ i -> i <= value `div` 2) FL.drain FL.drain)
+
+    where
+
+    spanByRolling_ c f1 f2 =
+        PR.splitWith (,) (PR.groupByRolling c f1) (PR.fromFold f2)
+
+-------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -241,6 +272,13 @@ o_1_space_serial value =
     , benchIOSink value "longest (all,any)" $ longestAllAny value
     ]
 
+o_1_space_serial_derived :: Int -> [Benchmark]
+o_1_space_serial_derived value =
+    [ benchIOSink value "span" $ span value
+    , benchIOSink value "spanBy" $ spanBy value
+    , benchIOSink value "spanByRolling" $ spanByRolling value
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -275,6 +313,7 @@ main = do
 
     allBenchmarks value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
+        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_derived value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
