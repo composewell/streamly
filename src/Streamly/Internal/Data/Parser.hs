@@ -694,6 +694,24 @@ eqBy cmp = K.toParserK . D.eqBy cmp
 -- operations and can be faster than 'Applicative' instance for small number
 -- (less than 8) of compositions.
 --
+-- Many combinators can be expressed using @splitWith@ and other parser
+-- primitives. Some common idioms are described below,
+--
+-- @
+-- span :: (a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
+-- span pred f1 f2 = splitWith (,) ('takeWhile' pred f1) ('fromFold' f2)
+-- @
+--
+-- @
+-- spanBy :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
+-- spanBy eq f1 f2 = splitWith (,) ('groupBy' eq f1) ('fromFold' f2)
+-- @
+--
+-- @
+-- spanByRolling :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
+-- spanByRolling eq f1 f2 = splitWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
+-- @
+--
 -- /Internal/
 --
 {-# INLINE splitWith #-}
