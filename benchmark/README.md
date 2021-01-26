@@ -227,3 +227,17 @@ $ cabal run FileSystem.Handle -- --quick FileSystem.Handle/o-1-space/reduce/read
 
 The automatic tests do not test unicode input, this option is useful to specify
 a unicode text file manually.
+
+## Benchmarking notes
+
+We use gauge instead of criterion for benchmarking. We have fixed
+several issues in gauge inherited from criterion. We have added several
+features as well e.g. rusage stats, running benchmarks in an isolated
+process etc which are crucial to our benchmarking analysis process.
+
+### Gotchas
+
+Gauge forces a GC before and after the measurement. However, we have observed
+that sometimes the GC stats may not be accurate when the number of iterations
+in the measurement is small (e.g. 1 iteration).  In such cases usually the
+number of GCs and GC times would also be 0.

@@ -95,7 +95,8 @@ bench_rts_opts_specific () {
 # Speed options
 #------------------------------------------------------------------------------
 
-SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0 --include-first-iter"
+# Do not keep time limit as 0 otherwise GC stats may remain 0 in some cases.
+SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0.01 --include-first-iter"
 QUICKER_OPTIONS="--min-samples 3 --time-limit 1"
 
 # For certain long benchmarks if the user has not requested super quick

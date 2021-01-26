@@ -163,7 +163,12 @@ target_exe_extra_args () {
           SPEED_OPTIONS="$QUICK_OPTS --min-samples 10 --time-limit 1"
         else
           # super quick but less accurate
-          SPEED_OPTIONS="$QUICK_OPTS --time-limit 0 --include-first-iter"
+          # When the time-limit is too low and the benchmark is tiny,
+          # then if the number of iterations is very small the GC stats
+          # may remain 0.  So keep the time-limit at a minimum of 10 ms
+          # to collect significant stats. The problem was observed in
+          # the Prelude.Serial/reverse' benchmark.
+          SPEED_OPTIONS="$QUICK_OPTS --time-limit 0.01 --include-first-iter"
         fi
     else
       # Slow but more accurate mode
