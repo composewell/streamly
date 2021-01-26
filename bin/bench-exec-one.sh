@@ -51,7 +51,7 @@ bench_rts_opts_specific () {
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
 
-    Prelude.Rate/o-1-space/asyncly/minRate/*) echo -n "-K128K" ;;
+    Prelude.Rate/o-1-space/*) echo -n "-K128K" ;;
 
     # XXX These should be moved to o-n-space?
     Prelude.Serial/o-n-heap/grouping/classifySessionsOf) echo -n "-K1M -M32M" ;;
@@ -70,6 +70,7 @@ bench_rts_opts_specific () {
 
     Prelude.Async/o-n-space/monad-outer-product/*) echo -n "-K4M" ;;
     Prelude.Ahead/o-n-space/monad-outer-product/*) echo -n "-K4M" ;;
+    Prelude.Ahead/o-1-space/*) echo -n "-K128K" ;;
 
     Prelude.WAsync/o-n-heap/monad-outer-product/toNull3) echo -n "-M64M" ;;
     Prelude.WAsync/o-n-space/monad-outer-product/*) echo -n "-K4M" ;;
