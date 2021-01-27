@@ -173,7 +173,7 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-  ghc-options: +RTS -M1000M -RTS
+  ghc-options: +RTS -M2000M -RTS
   if impl(ghcjs)
     buildable: False
   else
