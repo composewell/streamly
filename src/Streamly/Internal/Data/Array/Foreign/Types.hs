@@ -45,6 +45,7 @@ module Streamly.Internal.Data.Array.Foreign.Types
     , foldr
     , splitAt
 
+    , readRev
     , toStreamD
     , toStreamDRev
     , toStreamK
@@ -97,6 +98,7 @@ import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
@@ -104,6 +106,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Unfold.Types as Unfold
 import qualified GHC.Exts as Exts
 
 #if __GLASGOW_HASKELL__ < 808
@@ -333,6 +336,12 @@ flattenArrays :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays = MA.flattenArrays . D.map unsafeThaw
 
+-- | Use the "readRev" unfold instead.
+--
+-- @flattenArrays = concatUnfold readRev@
+--
+-- We can try this if there are any fusion issues in the unfold.
+--
 {-# INLINE_NORMAL flattenArraysRev #-}
 flattenArraysRev :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
@@ -376,6 +385,13 @@ byteLength = MA.byteLength . unsafeThaw
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
 length arr =  MA.length (unsafeThaw arr)
+
+-- | Unfold an array into a stream in reverse order.
+--
+-- /Internal/
+{-# INLINE_NORMAL readRev #-}
+readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readRev = Unfold.lmap unsafeThaw MA.readRev
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
