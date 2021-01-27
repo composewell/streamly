@@ -146,7 +146,7 @@ common lib-options
 
 library
     import: lib-options, test-dependencies
-    ghc-options: +RTS -M1024M -RTS
+    ghc-options: +RTS -M1500M -RTS
     hs-source-dirs: lib
     exposed-modules: Streamly.Test.Common
                    , Streamly.Test.Prelude.Common
