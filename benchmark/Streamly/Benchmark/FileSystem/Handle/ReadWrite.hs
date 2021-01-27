@@ -112,7 +112,7 @@ inspect $ hasNoTypeClasses 'readFromBytesNull
 inspect $ 'readFromBytesNull `hasNoType` ''Step
 inspect $ 'readFromBytesNull `hasNoType` ''MAS.SpliceState
 inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
-inspect $ 'readFromBytesNull `hasNoType` ''D.GroupState
+inspect $ 'readFromBytesNull `hasNoType` ''D.FoldMany1
 #endif
 
 -- | Send the file contents ('defaultChunkSize') to /dev/null
@@ -126,7 +126,7 @@ inspect $ hasNoTypeClasses 'readWithBufferOfFromBytesNull
 inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''Step
 inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''MAS.SpliceState
 inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
-inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''D.GroupState
+inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''D.FoldMany1
 #endif
 
 -- | Send the chunk content ('defaultChunkSize') to /dev/null

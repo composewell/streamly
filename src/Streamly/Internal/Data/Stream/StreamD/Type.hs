@@ -78,6 +78,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMap
     , concatMapM
     , FoldMany (..) -- for inspection testing
+    , FoldMany1 (..)
     , foldMany
     , foldMany1
     , groupsOf2
@@ -904,7 +905,7 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
 
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-chunksOf n f = foldMany (FL.takeLE n f)
+chunksOf n f = foldMany1 (FL.takeLE n f)
 
 data GroupState2 s fs
     = GroupStart2 s

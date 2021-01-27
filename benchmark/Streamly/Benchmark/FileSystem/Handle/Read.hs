@@ -49,7 +49,7 @@ import Prelude hiding (last, length)
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany1)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -336,7 +336,7 @@ chunksOf n inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
-inspect $ 'chunksOf `hasNoType` ''GroupState
+inspect $ 'chunksOf `hasNoType` ''FoldMany1
 inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
