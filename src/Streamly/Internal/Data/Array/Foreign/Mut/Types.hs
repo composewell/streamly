@@ -77,6 +77,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Types
     -- * Unfolds
     , ReadUState
     , read
+    , readRev
     , flattenArrays
     , flattenArraysRev
 
@@ -523,6 +524,33 @@ read = Unfold step inject
             return $ D.Yield x
                 (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
 
+-- | Unfold an array into a stream in reverse order.
+--
+-- /Internal/
+{-# INLINE_NORMAL readRev #-}
+readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readRev = Unfold step inject
+    where
+
+    inject (Array fp end _) =
+        let p = end `plusPtr` negate (sizeOf (undefined :: a))
+         in return $ ReadUState fp p
+
+    {-# INLINE_LATE step #-}
+    step (ReadUState fp@(ForeignPtr start _) p) | p < Ptr start =
+        let x = unsafeInlineIO $ touchForeignPtr fp
+        in x `seq` return D.Stop
+    step (ReadUState fp p) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = unsafeInlineIO $ peek p
+            return $ D.Yield x
+                (ReadUState fp (p `plusPtr` negate (sizeOf (undefined :: a))))
+
 data FlattenState s a =
       OuterLoop s
     | InnerLoop s !(ForeignPtr a) !(Ptr a) !(Ptr a)
@@ -561,6 +589,12 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` sizeOf (undefined :: a)) end)
 
+-- | Use the "readRev" unfold instead.
+--
+-- @flattenArrays = concatUnfold readRev@
+--
+-- We can try this if there are any fusion issues in the unfold.
+--
 {-# INLINE_NORMAL flattenArraysRev #-}
 flattenArraysRev :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
@@ -667,6 +701,11 @@ toStreamK Array{..} =
                     return r
         in x `K.cons` go (p `plusPtr` sizeOf (undefined :: a))
 
+-- | Use the 'readRev' unfold instead.
+--
+-- @toStreamDRev = D.unfold readRev@
+--
+-- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamDRev Array{..} =

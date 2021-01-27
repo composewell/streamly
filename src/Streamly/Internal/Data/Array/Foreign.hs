@@ -69,6 +69,7 @@ module Streamly.Internal.Data.Array.Foreign
     , A.toStreamRev
     , read
     , unsafeRead
+    , A.readRev
     -- , readChunksOf
 
     -- * Random Access
