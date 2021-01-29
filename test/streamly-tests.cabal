@@ -222,6 +222,7 @@ test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
+  ghc-options: +RTS -M1000M -RTS
 
 test-suite Data.Parser.ParserD
   import: test-options
@@ -315,7 +316,7 @@ test-suite Prelude.Serial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Serial.hs
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
-               +RTS -M1024M -RTS
+               +RTS -M1500M -RTS
 
 test-suite Prelude.WAsync
   import: test-options
