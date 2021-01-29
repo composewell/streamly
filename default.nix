@@ -55,6 +55,13 @@ let haskellPackages =
                         mkPackage super "streamly-tests"
                             ./test flags inShell;
 
+                    fusion-plugin =
+                      super.callHackageDirect
+                        { pkg = "fusion-plugin";
+                          ver = "0.2.2";
+                          sha256 = "1g7j50wa7ffyizv6fdnr09dr4w7bc0hskb46h7y0paw6rh9yz4zj";
+                        } {};
+
                     # Example to Use a different version of a package
                     #QuickCheck = self.QuickCheck_2_14;
 
