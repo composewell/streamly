@@ -773,7 +773,7 @@ index = genericIndex
 -- @since 0.7.0
 {-# INLINABLE head #-}
 head :: Monad m => Fold m a (Maybe a)
-head = _Fold1 const
+head = mkFold_ (const (Done . Just)) (Partial Nothing)
 
 -- | Returns the first element that satisfies the given predicate.
 --
