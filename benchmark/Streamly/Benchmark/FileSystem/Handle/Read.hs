@@ -39,7 +39,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Unicode.Stream as SS

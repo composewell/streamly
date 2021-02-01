@@ -31,7 +31,7 @@ import Data.Word(Word8)
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A

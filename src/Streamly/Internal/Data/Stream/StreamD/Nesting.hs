@@ -165,7 +165,7 @@ import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Memory.Ring as RB
+import qualified Streamly.Internal.Ring.Foreign as RB
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar

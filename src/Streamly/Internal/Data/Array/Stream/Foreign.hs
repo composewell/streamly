@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Memory.ArrayStream
+-- Module      : Streamly.Internal.Data.Array.Stream.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.
 --
-module Streamly.Internal.Memory.ArrayStream
+module Streamly.Internal.Data.Array.Stream.Foreign
     (
     -- * Creation
       arraysOf
@@ -50,7 +50,7 @@ import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat, unlines)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.FileSystem.FDIO (IOVec(..))
+import Streamly.Internal.FileSystem.FDIO (IOVec(..))
 #endif
 import Streamly.Internal.Data.Array.Foreign.Types (Array(..), length)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
