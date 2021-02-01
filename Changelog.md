@@ -87,7 +87,7 @@
 * `Streamly.Internal.Data.Fold.Tee` module added for folds with tee-like
   applicative behaviour.
 
-## 0.7.2
+## 0.7.2 (April 2020)
 
 ### Bug Fixes
 
@@ -103,7 +103,7 @@
 * Now builds with newer `QuickCheck` package version >= 2.14 && < 2.15.
 * Now builds with GHC 8.10.
 
-## 0.7.1
+## 0.7.1 (February 2020)
 
 ### Bug Fixes
 
@@ -132,7 +132,7 @@
 * Significant improvement in performance of concurrent stream operations.
 * Improved space and time performance of `Foldable` instance.
 
-## 0.7.0
+## 0.7.0 (November 2019)
 
 ### Breaking changes
 
@@ -246,7 +246,7 @@ concurrently using this.
       effects
     * `tap` redirects a copy of the stream to a `Fold`
 
-## 0.6.1
+## 0.6.1 (March 2019)
 
 ### Bug Fixes
 
@@ -258,7 +258,7 @@ concurrently using this.
 * Add GHCJS support
 * Remove dependency on "clock" package
 
-## 0.6.0
+## 0.6.0 (December 2018)
 
 ### Breaking changes
 
@@ -286,7 +286,7 @@ concurrently using this.
 * Performance improvements
 * Add benchmarks to measure composed and iterated operations
 
-## 0.5.2
+## 0.5.2 (October 2018)
 
 ### Bug Fixes
 
@@ -301,12 +301,12 @@ concurrently using this.
   used in a stateful monad e.g. `StateT`. Particularly, this bug cannot affect
   `ReaderT`.
 
-## 0.5.1
+## 0.5.1 (September 2018)
 
 * Performance improvements, especially space consumption, for concurrent
   streams
 
-## 0.5.0
+## 0.5.0 (September 2018)
 
 ### Bug Fixes
 
@@ -332,13 +332,13 @@ concurrently using this.
 * The `Streamly.Time` module is now deprecated, its functionality is subsumed
   by the new rate limiting combinators.
 
-## 0.4.1
+## 0.4.1 (July 2018)
 
 ### Bug Fixes
 
 * foldxM was not fully strict, fixed.
 
-## 0.4.0
+## 0.4.0 (July 2018)
 
 ### Breaking changes
 
@@ -365,7 +365,7 @@ concurrently using this.
 * Add `takeWhileM` and `dropWhileM`
 * Add `filterM`
 
-## 0.3.0
+## 0.3.0 (June 2018)
 
 ### Breaking changes
 
@@ -393,14 +393,14 @@ concurrently using this.
   stream processing function application pipeline concurrently.
 * Added `mapMaybe` and `mapMaybeM`.
 
-## 0.2.1
+## 0.2.1 (June 2018)
 
 ### Bug Fixes
 * Fixed a bug that caused some transformation ops to return incorrect results
   when used with concurrent streams. The affected ops are `take`, `filter`,
   `takeWhile`, `drop`, `dropWhile`, and `reverse`.
 
-## 0.2.0
+## 0.2.0 (May 2018)
 
 ### Breaking changes
 * Changed the semantics of the Semigroup instance for `InterleavedT`, `AsyncT`
@@ -478,7 +478,7 @@ concurrently using this.
 * Put a bound (1500) on the output buffer used for asynchronous tasks
 * Put a limit (1500) on the number of threads used for Async and WAsync types
 
-## 0.1.2
+## 0.1.2 (March 2018)
 
 ### Enhancements
 * Add `iterate`, `iterateM` stream operations
@@ -487,7 +487,7 @@ concurrently using this.
 * Fixed a bug that caused unexpected behavior when `pure` was used to inject
   values in Applicative composition of `ZipStream` and `ZipAsync` types.
 
-## 0.1.1
+## 0.1.1 (March 2018)
 
 ### Enhancements
 * Make `cons` right associative and provide an operator form `.:` for it
@@ -498,6 +498,6 @@ concurrently using this.
 * Fix the `product` operation. Earlier, it always returned 0 due to a bug
 * Fix the `last` operation, which returned `Nothing` for singleton streams
 
-## 0.1.0
+## 0.1.0 (December 2017)
 
 * Initial release
