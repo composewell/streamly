@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.FileSystem.FDIO
+-- Module      : Streamly.Internal.FileSystem.FDIO
 -- Copyright   : (c) 2019 Composewell Technologies
 -- Copyright   : (c) 1994-2008 The University of Glasgow
 --
@@ -13,7 +13,7 @@
 -- Low level IO routines interfacing the operating system.
 --
 
-module Streamly.FileSystem.FDIO
+module Streamly.Internal.FileSystem.FDIO
     ( write
     , writeAll
     , IOVec (..)
@@ -31,7 +31,7 @@ import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
 import Foreign.C.Types (CBool(..))
 #endif
 import System.Posix.Internals (c_write, c_safe_write)
-import Streamly.FileSystem.IOVec (c_writev, c_safe_writev)
+import Streamly.Internal.FileSystem.IOVec (c_writev, c_safe_writev)
 #endif
 
 import Foreign.C.Types (CSize(..), CInt(..))
@@ -40,7 +40,7 @@ import Foreign.Ptr (plusPtr, Ptr)
 
 import GHC.IO.FD (FD(..))
 
-import Streamly.FileSystem.IOVec (IOVec(..))
+import Streamly.Internal.FileSystem.IOVec (IOVec(..))
 
 -------------------------------------------------------------------------------
 -- IO Routines
@@ -181,7 +181,7 @@ writeNonBlocking loc !fd !buf !off !len
 -- suspend the Haskell thread until write can proceed.  Returns the actual
 -- amount of data written.
 write :: FD -> Ptr Word8 -> Int -> CSize -> IO CInt
-write = writeNonBlocking "Streamly.FileSystem.FDIO"
+write = writeNonBlocking "Streamly.Internal.FileSystem.FDIO"
 
 -- XXX sendAll for sockets has a similar code, we can deduplicate the two.
 -- XXX we need to check the errno to determine if the loop should continue. For
@@ -205,7 +205,7 @@ writeAll fd ptr bytes = do
 -- write will not block the OS thread, it may suspend the Haskell thread until
 -- write can proceed.  Returns the actual amount of data written.
 writev :: FD -> Ptr IOVec -> Int -> IO CInt
-writev = writevNonBlocking "Streamly.FileSystem.FDIO"
+writev = writevNonBlocking "Streamly.Internal.FileSystem.FDIO"
 
 -- XXX incomplete
 -- | Keep writing an iovec in a loop until all the iovec entries are written.

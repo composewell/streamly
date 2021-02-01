@@ -118,7 +118,7 @@ import qualified Network.Socket as Net
 
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK

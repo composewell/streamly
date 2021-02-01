@@ -118,14 +118,14 @@ import Streamly.Internal.Data.Array.Foreign.Types
 import Streamly.Internal.Data.Array.Foreign.Mut.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
-import Streamly.Internal.Memory.ArrayStream (lpackArraysChunksOf)
+import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Foreign as IA
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

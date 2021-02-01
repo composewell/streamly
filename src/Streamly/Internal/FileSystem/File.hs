@@ -107,7 +107,7 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Prelude as S
 

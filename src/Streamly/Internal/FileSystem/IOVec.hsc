@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.FileSystem.IOVec
+-- Module      : Streamly.Internal.FileSystem.IOVec
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -10,7 +10,7 @@
 -- Low level IO routines interfacing the operating system.
 --
 
-module Streamly.FileSystem.IOVec
+module Streamly.Internal.FileSystem.IOVec
     ( IOVec(..)
     , c_writev
     , c_safe_writev

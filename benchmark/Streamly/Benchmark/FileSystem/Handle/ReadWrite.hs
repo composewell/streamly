@@ -29,7 +29,7 @@ import Streamly.Internal.Data.Array.Foreign.Types (defaultChunkSize)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Prelude as S
 

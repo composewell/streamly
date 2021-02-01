@@ -377,13 +377,6 @@ library
                      , Streamly.Data.Prim.Array
                      , Streamly.Data.SmallArray
 
-                    -- Memory storage
-                     , Streamly.Memory.Ring
-
-                     , Streamly.FileSystem.IOVec
-                     , Streamly.FileSystem.FDIO
-                     , Streamly.FileSystem.FD
-
     exposed-modules:
                        Streamly.Prelude
                      , Streamly.Data.Unfold
@@ -503,7 +496,10 @@ library
                      , Streamly.Internal.Data.Array.Prim.Pinned
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
-                     , Streamly.Internal.Memory.ArrayStream
+                     , Streamly.Internal.Data.Array.Stream.Foreign
+
+                    -- Memory storage
+                     , Streamly.Internal.Ring.Foreign
 
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
@@ -518,6 +514,9 @@ library
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.IOVec
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
 
                      -- streamly-network
                      , Streamly.Internal.Network.Socket

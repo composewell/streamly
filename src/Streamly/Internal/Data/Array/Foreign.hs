@@ -22,8 +22,8 @@
 -- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
 -- instances should be used with care; concatenating arrays using binary
 -- operations can be highly inefficient.  Instead, use
--- 'Streamly.Internal.Memory.ArrayStream.toArray' to concatenate N arrays at
--- once.
+-- 'Streamly.Internal.Data.Array.Stream.Foreign.toArray' to concatenate N
+-- arrays at once.
 --
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
 -- single byte) are only as good as holding those elements in a Haskell list.
@@ -169,7 +169,7 @@ import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Memory.Ring as RB
+import qualified Streamly.Internal.Ring.Foreign as RB
 
 -------------------------------------------------------------------------------
 -- Construction
