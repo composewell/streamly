@@ -37,16 +37,16 @@ import Foreign.Storable (Storable(..))
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
 import Streamly.FileSystem.FDIO (IOVec(..))
-import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (length)
+import Streamly.Internal.Data.Array.Foreign.Mut.Types (length)
 import Streamly.Internal.Data.SVar (adaptState)
 #endif
-import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (Array(..))
+import Streamly.Internal.Data.Array.Foreign.Mut.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MArray
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MArray
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -99,7 +99,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -143,7 +143,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
 
         r <- initial1
@@ -264,11 +264,11 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
     step' gst (GatherInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.groupIOVecsOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.groupIOVecsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         when (maxIOVLen <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.groupIOVecsOf: the number of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.groupIOVecsOf: the number of "
                  ++ "IOVec entries [" ++ show n ++ "] must be a natural number"
         r <- step (adaptState gst) st
         case r of

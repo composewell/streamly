@@ -48,7 +48,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array)
+import Streamly.Internal.Data.Array.Foreign.Types (Array)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)

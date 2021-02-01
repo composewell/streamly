@@ -19,7 +19,7 @@ import Streamly.Prelude (SerialT)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as Array
+import qualified Streamly.Internal.Data.Array.Foreign.Types as Array
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
 import qualified Streamly.Internal.Network.Socket as Socket

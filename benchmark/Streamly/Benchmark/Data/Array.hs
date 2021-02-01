@@ -12,8 +12,8 @@ import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
-import qualified Streamly.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
+import qualified Streamly.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Prelude  as S
 
 import Gauge

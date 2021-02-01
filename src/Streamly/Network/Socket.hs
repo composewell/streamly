@@ -64,9 +64,9 @@
 -- = Programmer Notes
 --
 -- Read IO requests to connected stream sockets are performed in chunks of
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'.  Unless specified
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.  Unless specified
 -- otherwise in the API, writes are collected into chunks of
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize' before they are
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before they are
 -- written to the socket. APIs are provided to control the chunking behavior.
 --
 -- > import qualified Streamly.Network.Socket as SK
@@ -89,7 +89,7 @@
 -- APIs for unconnected sockets need to explicitly specify the remote endpoint.
 --
 -- By design, connected socket IO APIs are similar to
--- "Streamly.Data.Array.Storable.Foreign" read write APIs. They are almost identical to the
+-- "Streamly.Data.Array.Foreign" read write APIs. They are almost identical to the
 -- sequential streaming APIs in "Streamly.Internal.FileSystem.File".
 --
 module Streamly.Network.Socket

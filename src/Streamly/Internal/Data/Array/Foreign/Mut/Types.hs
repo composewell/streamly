@@ -1,7 +1,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
+-- Module      : Streamly.Internal.Data.Array.Foreign.Mut.Types
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -22,7 +22,7 @@
 -- Stream and Fold APIs allow easy, efficient and convenient operations on
 -- arrays.
 
-module Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
+module Streamly.Internal.Data.Array.Foreign.Mut.Types
     (
     -- * Type
     -- $arrayNotes
@@ -459,7 +459,7 @@ arraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types.fromStreamDArraysOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.fromStreamDArraysOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         Array start end bound <- liftIO $ newArray n
         return $ D.Skip (GroupBuffer st start end bound)

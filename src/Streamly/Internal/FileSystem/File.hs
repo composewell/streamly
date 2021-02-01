@@ -96,7 +96,7 @@ import qualified System.IO as SIO
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Array.Storable.Foreign.Types
+import Streamly.Internal.Data.Array.Foreign.Types
        (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
@@ -108,7 +108,7 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -243,9 +243,9 @@ readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
 --
 -- /Internal/
 {-# INLINE readChunks #-}
@@ -262,7 +262,7 @@ readWithBufferOf = usingFile2 FH.readWithBufferOf
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
@@ -382,7 +382,7 @@ writeWithBufferOf n path =
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize' before writing to
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before writing to
 -- the IO device.
 --
 -- /Internal/

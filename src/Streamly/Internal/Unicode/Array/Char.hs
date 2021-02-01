@@ -20,11 +20,11 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Prelude (MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
-import Streamly.Data.Array.Storable.Foreign (Array)
+import Streamly.Data.Array.Foreign (Array)
 import Streamly.Internal.Data.Stream.IsStream (IsStream)
 
 import qualified Streamly.Internal.Unicode.Stream as S
-import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Array.Foreign as A
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.

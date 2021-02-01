@@ -254,7 +254,7 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array)
+import Streamly.Internal.Data.Array.Foreign.Types (Array)
 import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Stream.Ahead (ahead)
 import Streamly.Internal.Data.Stream.Async (async, wAsync)
@@ -284,7 +284,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD

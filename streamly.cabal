@@ -166,7 +166,7 @@ extra-source-files:
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/Prim.hs
     test/Streamly/Test/Data/Array/Prim/Pinned.hs
-    test/Streamly/Test/Data/Array/Storable/Foreign.hs
+    test/Streamly/Test/Data/Array/Foreign.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Handle.hs
@@ -388,7 +388,7 @@ library
                        Streamly.Prelude
                      , Streamly.Data.Unfold
                      , Streamly.Data.Fold
-                     , Streamly.Data.Array.Storable.Foreign
+                     , Streamly.Data.Array.Foreign
 
                      -- Text Processing
                      , Streamly.Unicode.Stream
@@ -444,8 +444,8 @@ library
 
                      -- streamly-core-array
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types
-                     , Streamly.Internal.Data.Array.Storable.Foreign.Types
+                     , Streamly.Internal.Data.Array.Foreign.Mut.Types
+                     , Streamly.Internal.Data.Array.Foreign.Types
                      , Streamly.Internal.Data.Array.Prim.Mut.Types
                      , Streamly.Internal.Data.Array.Prim.Types
                      , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
@@ -498,7 +498,7 @@ library
                      -- streamly-arrays
                      -- May depend on streamly-core
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Storable.Foreign
+                     , Streamly.Internal.Data.Array.Foreign
                      , Streamly.Internal.Data.Array.Prim
                      , Streamly.Internal.Data.Array.Prim.Pinned
                      , Streamly.Internal.Data.SmallArray

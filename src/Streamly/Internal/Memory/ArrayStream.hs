@@ -52,15 +52,15 @@ import Prelude hiding (length, null, last, map, (!!), read, concat, unlines)
 #if !defined(mingw32_HOST_OS)
 import Streamly.FileSystem.FDIO (IOVec(..))
 #endif
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), length)
+import Streamly.Internal.Data.Array.Foreign.Types (Array(..), length)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.SVar (adaptState)
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
