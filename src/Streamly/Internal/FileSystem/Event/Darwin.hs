@@ -166,7 +166,7 @@ import GHC.IO.Handle.FD (fdToHandle)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Cont (contListMap)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
+import Streamly.Internal.Data.Array.Foreign.Types (Array(..))
 import System.IO (Handle, hClose)
 
 import qualified Data.List.NonEmpty as NonEmpty
@@ -174,7 +174,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign as A
 
 -------------------------------------------------------------------------------
 -- Subscription to events

@@ -29,12 +29,12 @@ import System.IO.Temp (withSystemTempDirectory)
 #if !defined(CABAL_OS_WINDOWS)
 import System.IO.Unsafe (unsafePerformIO)
 #endif
-import Streamly.Internal.Data.Array.Storable.Foreign (Array)
+import Streamly.Internal.Data.Array.Foreign (Array)
 
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
 import qualified Streamly.Unicode.Stream as Unicode
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S

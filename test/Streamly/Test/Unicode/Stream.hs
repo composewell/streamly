@@ -16,7 +16,7 @@ import Test.QuickCheck
     )
 import Test.QuickCheck.Monadic (run, monadicIO, assert)
 
-import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Unicode.Stream as SS

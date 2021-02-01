@@ -34,7 +34,7 @@ prelude_other_grp="\
 
 array_grp="\
   Data.Array \
-  Data.Array.Storable.Foreign \
+  Data.Array.Foreign \
   Data.Array.Prim \
   Data.SmallArray \
   Data.Array.Prim.Pinned"

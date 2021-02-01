@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Storable.Foreign.Types
+-- Module      : Streamly.Internal.Data.Array.Foreign.Types
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD3-3-Clause
@@ -9,9 +9,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See notes in "Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types"
+-- See notes in "Streamly.Internal.Data.Array.Foreign.Mut.Types"
 --
-module Streamly.Internal.Data.Array.Storable.Foreign.Types
+module Streamly.Internal.Data.Array.Foreign.Types
     (
     -- $arrayNotes
       Array (..)
@@ -101,7 +101,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified GHC.Exts as Exts

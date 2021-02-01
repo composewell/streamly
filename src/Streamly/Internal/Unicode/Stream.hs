@@ -81,14 +81,14 @@ import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Data.Fold (Fold)
-import Streamly.Data.Array.Storable.Foreign (Array)
+import Streamly.Data.Array.Foreign (Array)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.IsStream (IsStream)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

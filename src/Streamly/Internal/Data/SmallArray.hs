@@ -103,7 +103,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- 'SmallArray'.
 --
 -- Since we are folding to a 'SmallArray' @n@ should be <= 128, for larger number
--- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Data.Array.Storable.Foreign".
+-- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Data.Array.Foreign".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
 writeN limit = Fold step initial extract
@@ -139,7 +139,7 @@ fromStreamDN limit str = do
 --
 -- It is recommended to use a value of @n@ <= 128. For larger sized
 -- arrays, use an 'Array' from "Streamly.Data.Array" or
--- "Streamly.Data.Array.Storable.Foreign"
+-- "Streamly.Data.Array.Foreign"
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> SmallArray a
 fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs

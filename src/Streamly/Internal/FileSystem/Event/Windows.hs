@@ -125,8 +125,8 @@ import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import Streamly.Internal.Data.Array.Storable.Foreign (Array)
+import qualified Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Internal.Data.Array.Foreign (Array)
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.

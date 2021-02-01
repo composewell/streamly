@@ -25,7 +25,7 @@ import Data.Word (Word8)
 import System.IO (Handle)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
@@ -41,7 +41,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Unfold as IUF
 
 import Test.Inspection
@@ -229,4 +229,3 @@ benchmarks moduleName env =
             , o_1_space_reduce_toChunks_split env
             ]
         ]
-

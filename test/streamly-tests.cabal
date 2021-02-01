@@ -207,11 +207,11 @@ test-suite Data.Array.Prim.Pinned
   main-is: Streamly/Test/Data/Array/Prim/Pinned.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Prim.Pinned.main
 
-test-suite Data.Array.Storable.Foreign
+test-suite Data.Array.Foreign
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Storable/Foreign.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Storable.Foreign.main
+  main-is: Streamly/Test/Data/Array/Foreign.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Foreign.main
 
 test-suite Data.Fold
   import: test-options

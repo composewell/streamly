@@ -143,9 +143,9 @@ conflict with any other module on Hackage.
 We have the following module hierarchy under Streamly:
 
 * Data: This is a generic bucket for basic data structures a la the `base`
-  package's `Data` hierarchy. 
+  package's `Data` hierarchy.
     * Streamly.Data.Array
-  
+
   Streams can be classified under `Data` or `Control`.  Though they are
   mostly used for processing, they can also be used to store data in
   memory.
@@ -216,7 +216,7 @@ Similarly, the immutable Array modules would go in:
 * `Streamly.Data.Array`                  -- unpinned, native memory arrays
 * `Streamly.Data.Array.Storable`         -- unpinned, unboxed, native memory arrays
 * `Streamly.Data.Array.Storable.Pinned`  -- pinned, unboxed, native memory arrays
-* `Streamly.Data.Array.Storable.Foreign` -- pinned, unboxed, foreign capable arrays
+* `Streamly.Data.Array.Foreign` -- pinned, unboxed, foreign capable arrays
 
 Unboxed arrays, based on `Prim` type class:
 

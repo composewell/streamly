@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Data.Array.Storable.Foreign
+-- Module      : Streamly.Data.Array.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -32,9 +32,9 @@
 --
 -- > import qualified Streamly.Array as A
 --
--- For experimental APIs see "Streamly.Internal.Data.Array.Storable.Foreign".
+-- For experimental APIs see "Streamly.Internal.Data.Array.Foreign".
 
-module Streamly.Data.Array.Storable.Foreign
+module Streamly.Data.Array.Foreign
     (
       A.Array
 
@@ -70,4 +70,4 @@ module Streamly.Data.Array.Storable.Foreign
     )
 where
 
-import Streamly.Internal.Data.Array.Storable.Foreign as A
+import Streamly.Internal.Data.Array.Foreign as A

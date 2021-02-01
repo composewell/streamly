@@ -28,8 +28,8 @@ type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
 import Data.Word(Word8)
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as A
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 type Array = A.Array

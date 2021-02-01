@@ -29,7 +29,7 @@ import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Unicode.Array.Char as IUA
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
@@ -40,8 +40,8 @@ import Streamly.Benchmark.Common.Handle
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as AT
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Types as AT
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 
 import Test.Inspection
 #endif

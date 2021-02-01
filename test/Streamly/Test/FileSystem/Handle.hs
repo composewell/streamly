@@ -29,7 +29,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Test.Hspec as H

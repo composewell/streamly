@@ -113,9 +113,9 @@ import Streamly.Prelude (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Array.Storable.Foreign.Types
+import Streamly.Internal.Data.Array.Foreign.Types
        (Array(..), writeNUnsafe, defaultChunkSize , unsafeFreezeWithShrink)
-import Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types (mutableArray)
+import Streamly.Internal.Data.Array.Foreign.Mut.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Internal.Memory.ArrayStream (lpackArraysChunksOf)
@@ -124,10 +124,10 @@ import Streamly.Internal.Memory.ArrayStream (lpackArraysChunksOf)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Storable.Foreign as IA
+import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Data.Array.Storable.Foreign as A
+import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -------------------------------------------------------------------------------
@@ -255,9 +255,9 @@ getBytes = toBytes stdin
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -294,7 +294,7 @@ toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 --
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
@@ -411,7 +411,7 @@ fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
@@ -469,7 +469,7 @@ writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Storable.Foreign.Types.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- @since 0.7.0

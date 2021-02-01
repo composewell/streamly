@@ -52,7 +52,7 @@
 ### Deprecations
 
 * Deprecate `Streamly.Memory.Array` in favor of
-  `Streamly.Data.Array.Storable.Foreign`
+  `Streamly.Data.Array.Foreign`
 * Deprecate `Streamly.Data.Unicode.Stream` in favor of
   `Streamly.Unicode.Stream`
 * The `Streamly` module is now deprecated, its functionality is subsumed

@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Storable.Foreign
+-- Module      : Streamly.Internal.Data.Array.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -32,7 +32,7 @@
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
 
-module Streamly.Internal.Data.Array.Storable.Foreign
+module Streamly.Internal.Data.Array.Foreign
     (
       Array
 
@@ -156,14 +156,14 @@ import GHC.Ptr (Ptr(..))
 import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..), length)
+import Streamly.Internal.Data.Array.Foreign.Types (Array(..), length)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Mut.Types as MA
-import qualified Streamly.Internal.Data.Array.Storable.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial

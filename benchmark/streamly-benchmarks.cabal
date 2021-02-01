@@ -162,7 +162,7 @@ common bench-options-threaded
 benchmark Prelude.Serial
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude 
+  hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Serial.hs
   other-modules:
         Serial.Generation
@@ -432,7 +432,7 @@ benchmark Data.Array.Prim.Pinned
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DDATA_ARRAY_PRIM_PINNED
 
-benchmark Data.Array.Storable.Foreign
+benchmark Data.Array.Foreign
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .
@@ -461,7 +461,7 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
- 
+
 -------------------------------------------------------------------------------
 -- benchmark comparison and presentation
 -------------------------------------------------------------------------------

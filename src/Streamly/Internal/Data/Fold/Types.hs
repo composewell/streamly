@@ -420,7 +420,7 @@ simplify (Fold2 step inject extract) c =
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Data.Array.Storable.Foreign"
+-- very inefficient, consider using "Streamly.Data.Array.Foreign"
 -- instead.
 --
 -- @since 0.7.0
