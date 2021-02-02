@@ -403,6 +403,8 @@ library
                      , Streamly.Memory.Array
 
                      -- Internal modules, listed roughly in dependency order
+                     -- To view dependency graph:
+                     -- graphmod | dot -Tps > deps.ps
 
                      -- streamly-base
                      , Streamly.Internal.BaseCompat
@@ -488,6 +490,7 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Nesting
                      , Streamly.Internal.Data.Stream.IsStream.Exception
                      , Streamly.Internal.Data.Stream.IsStream.Lift
+                     , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.List
 

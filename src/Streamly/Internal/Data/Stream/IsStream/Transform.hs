@@ -213,6 +213,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Either (isLeft, isRight)
+import Data.Kind (Type)
 import Data.Maybe (isJust, fromJust)
 import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
@@ -732,10 +733,10 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 --
 -- /Internal/
 {-# INLINE with #-}
-with :: Functor (t m) =>
+with :: forall (t :: (Type -> Type) -> Type -> Type) m a b s. Functor (t m) =>
        (t m a -> t m (s, a))
-    -> (((s, a) -> c) -> t m (s, a) -> t m (s, a))
-    -> (((s, a) -> c) -> t m a -> t m a)
+    -> (((s, a) -> b) -> t m (s, a) -> t m (s, a))
+    -> (((s, a) -> b) -> t m a -> t m a)
 with f comb g = fmap snd . comb g . f
 
 -- | Include only those elements that pass a predicate.

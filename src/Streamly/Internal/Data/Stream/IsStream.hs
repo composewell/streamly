@@ -18,9 +18,11 @@ module Streamly.Internal.Data.Stream.IsStream
     , module Streamly.Internal.Data.Stream.IsStream.Nesting
     , module Streamly.Internal.Data.Stream.IsStream.Exception
     , module Streamly.Internal.Data.Stream.IsStream.Lift
+    , module Streamly.Internal.Data.Stream.IsStream.Top
     )
 where
 
+import Streamly.Internal.Data.Stream.IsStream.Top
 import Streamly.Internal.Data.Stream.IsStream.Eliminate
 import Streamly.Internal.Data.Stream.IsStream.Exception
 import Streamly.Internal.Data.Stream.IsStream.Generate
