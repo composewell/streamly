@@ -1,13 +1,5 @@
 {-# OPTIONS_GHC -Wno-identities          #-}
 
-#ifndef __GHCJS__
-#include "config.h"
-#endif
-
-#include "Streamly/Internal/Data/Time/Clock/config-clock.h"
-
-#include "MachDeps.h"
-
 -- |
 -- Module      : Streamly.Internal.Data.Time.TimeSpec
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -15,12 +7,26 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- 'TimeSpec' can store upto a duration of ~292 billion years at nanosecond
+-- precision.  An 'Int64' data type is much faster to manipulate but has a
+-- smaller maximum limit (~292 years) at nanosecond precision.  An 'Integer'
+-- type can possibly be used for unbounded fixed precision time. 'Double' can
+-- be used for floating precision time.
 
 module Streamly.Internal.Data.Time.TimeSpec
     (
       TimeSpec(..)
     )
 where
+
+#ifndef __GHCJS__
+#include "config.h"
+#endif
+
+#include "Streamly/Internal/Data/Time/config-clock.h"
+
+#include "MachDeps.h"
 
 import Data.Int (Int64)
 #if (WORD_SIZE_IN_BITS == 32)
@@ -41,20 +47,27 @@ tenPower9 :: Int64
 tenPower9 = 1000000000
 
 -------------------------------------------------------------------------------
--- TimeSpec representation
+-- TimeSpec
 -------------------------------------------------------------------------------
 
--- A structure storing seconds and nanoseconds as 'Int64' is the simplest and
--- fastest way to store practically large quantities of time with efficient
--- arithmetic operations. If we store nanoseconds using 'Integer' it can store
--- practically unbounded quantities but it may not be as efficient to
--- manipulate in performance critical applications. XXX need to measure the
--- performance.
+-- XXX Should we use "SystemTime" from the "time" package instead?
 --
--- | Data type to represent practically large quantities of time efficiently.
--- It can represent time up to ~292 billion years at nanosecond resolution.
+-- | 'TimeSpec' can hold up to ~292 billion years at nanosecond precision.
+--
+-- In addition to using the 'TimeSpec' constructor you can also use
+-- 'fromInteger' from the 'Num' type class to create a 'TimeSpec' from
+-- nanoseconds.  Like any 'Num', 'TimeSpec' can be negative.  
+--
+-- Note, we assume that 'nsec' is always less than 10^9. Also, when 'TimeSpec'
+-- is negative then both 'sec' and 'nsec' must be negative.
+-- TODO: Use smart constructors to enforce the assumptions.
+--
+-- Use 'Eq' and 'Ord' instances for comparisons and the 'Num' instance to
+-- perform arithmetic operations on 'TimeSpec'.
+--
 data TimeSpec = TimeSpec
   { sec  :: {-# UNPACK #-} !Int64 -- ^ seconds
+  -- XXX this could be Int32 instead
   , nsec :: {-# UNPACK #-} !Int64 -- ^ nanoseconds
   } deriving (Eq, Read, Show)
 
@@ -88,11 +101,12 @@ adjustSign t@(TimeSpec s ns)
 timeSpecToInteger :: TimeSpec -> Integer
 timeSpecToInteger (TimeSpec s ns) = toInteger $ s * tenPower9 + ns
 
+-- | Note that the arithmetic operations may overflow silently.
 instance Num TimeSpec where
     {-# INLINE (+) #-}
     t1 + t2 = adjustSign (addWithOverflow t1 t2)
 
-    -- XXX will this be more optimal if imlemented without "negate"?
+    -- XXX will this be more optimal if implemented without "negate"?
     {-# INLINE (-) #-}
     t1 - t2 = t1 + negate t2
     t1 * t2 = fromInteger $ timeSpecToInteger t1 * timeSpecToInteger t2
@@ -104,7 +118,7 @@ instance Num TimeSpec where
     {-# INLINE signum #-}
     signum (TimeSpec s ns) | s == 0    = TimeSpec (signum ns) 0
                            | otherwise = TimeSpec (signum s) 0
-    -- This is fromNanoSecond64 Integer
+    -- | Convert 'Integer' nanoseconds to 'TimeSpec'.
     {-# INLINE fromInteger #-}
     fromInteger nanosec = TimeSpec (fromInteger s) (fromInteger ns)
         where (s, ns) = nanosec `divMod` toInteger tenPower9
