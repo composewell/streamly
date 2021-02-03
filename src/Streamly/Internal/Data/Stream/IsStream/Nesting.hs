@@ -127,6 +127,7 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     -- ** Folding
     -- | Apply folds on a stream.
     , foldMany
+    , foldMany1
     , foldSequence
     , foldIterate
 
@@ -925,6 +926,14 @@ foldMany
     -> t m a
     -> t m b
 foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
+
+{-# INLINE foldMany1 #-}
+foldMany1
+    :: (IsStream t, Monad m)
+    => Fold m a b
+    -> t m a
+    -> t m b
+foldMany1 f m = D.fromStreamD $ D.foldMany1 f (D.toStreamD m)
 
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
