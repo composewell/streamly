@@ -314,6 +314,10 @@ foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
     S.length $ IP.foldMany (FL.takeLE n FL.sum) (S.unfold FH.read inh)
 
+foldMany1ChunksOfSum :: Int -> Handle -> IO Int
+foldMany1ChunksOfSum n inh =
+    S.length $ IP.foldMany1 (FL.takeLE n FL.sum) (S.unfold FH.read inh)
+
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
     S.length
@@ -327,7 +331,6 @@ parseManyChunksOfSum n inh =
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
-    -- XXX replace with S.arraysOf
     S.length $ S.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.read inh)
 
 #ifdef INSPECTION
@@ -338,6 +341,10 @@ inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
+
+{-# INLINE arraysOf #-}
+arraysOf :: Int -> Handle -> IO Int
+arraysOf n inh = S.length $ IP.arraysOf n (S.unfold FH.read inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
@@ -359,6 +366,14 @@ o_1_space_reduce_read_grouped env =
             env
             $ \inh _ -> inline foldManyChunksOfSum 1 inh
         , mkBenchSmall
+            ("S.foldMany1 (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+            env
+            $ \inh _ -> noinline foldMany1ChunksOfSum (bigSize env) inh
+        , mkBench
+            "S.foldMany1 (FL.take 1 FL.sum)"
+            env
+            $ \inh _ -> inline foldMany1ChunksOfSum 1 inh
+        , mkBenchSmall
             ("S.parseMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
             $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
@@ -368,12 +383,20 @@ o_1_space_reduce_read_grouped env =
             $ \inh _ -> inline parseManyChunksOfSum 1 inh
 
         -- folding chunks to arrays
-        , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
+        , mkBenchSmall "S.chunksOf 1" env $ \inh _ ->
             chunksOf 1 inh
-        , mkBench "S.arraysOf 10" env $ \inh _ ->
+        , mkBench "S.chunksOf 10" env $ \inh _ ->
             chunksOf 10 inh
-        , mkBench "S.arraysOf 1000" env $ \inh _ ->
+        , mkBench "S.chunksOf 1000" env $ \inh _ ->
             chunksOf 1000 inh
+
+        -- arraysOf may use a different impl than chunksOf
+        , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
+            arraysOf 1 inh
+        , mkBench "S.arraysOf 10" env $ \inh _ ->
+            arraysOf 10 inh
+        , mkBench "S.arraysOf 1000" env $ \inh _ ->
+            arraysOf 1000 inh
         ]
     ]
 
