@@ -163,6 +163,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , concatMapBy
     , concatMap
     , bindWith
+    , concatPairsWith
     , apWith
     , apSerial
     , apSerialDiscardFst

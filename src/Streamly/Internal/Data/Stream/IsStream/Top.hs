@@ -20,6 +20,9 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , sampleBurstStart
     , sampleBurstEnd
 
+    -- ** Reordering
+    , sortBy
+
     -- * Nesting
     -- ** Set like operations
     -- | These are not exactly set operations because streams are not
@@ -68,6 +71,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as Stream
+import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Nesting as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
@@ -163,6 +167,27 @@ sampleBurstStart gap =
         . Stream.catMaybes
         . Stream.groupsByRolling f Fold.head
         . Stream.timeIndexed
+
+------------------------------------------------------------------------------
+-- Reordering
+------------------------------------------------------------------------------
+--
+-- We could possibly choose different algorithms depending on whether the
+-- input stream is almost sorted (ascending/descending) or random. We could
+-- serialize the stream to an array and use quicksort.
+--
+-- | Sort the input stream using a supplied comparison function.
+--
+-- /O(n) space/
+--
+-- Note: this is not the fastest possible implementation as of now.
+--
+-- /Internal/
+--
+{-# INLINE sortBy #-}
+sortBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
+-- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
+sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.yield
 
 ------------------------------------------------------------------------------
 -- SQL Joins

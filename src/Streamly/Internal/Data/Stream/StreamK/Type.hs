@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , concatMapBy
     , concatMap
     , bindWith
+    , concatPairsWith
     , apWith
     , apSerial
     , apSerialDiscardFst
@@ -1117,6 +1118,51 @@ concatMap_ :: IsStream t => (a -> t m b) -> t m a -> t m b
 concatMap_ f xs = buildS
      (\c n -> foldrSShared (\x b -> foldrSShared c b (unShare $ f x)) n xs)
 -}
+
+-- | See 'Streamly.Internal.Data.Stream.IsStream.concatPairsWith' for
+-- documentation.
+--
+{-# INLINE concatPairsWith #-}
+concatPairsWith
+    :: IsStream t
+    => (t m b -> t m b -> t m b)
+    -> (a -> t m b)
+    -> t m a
+    -> t m b
+concatPairsWith combine f = go Nothing
+
+    where
+
+    go Nothing stream =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single a   = foldShared $ unShare (f a)
+                yieldk a r = foldShared $ go (Just a) r
+            in foldStream (adaptState st) yieldk single stp stream
+    go (Just a1) stream =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop = foldShared $ unShare (f a1)
+                single a = foldShared $ unShare (f a1) `combine` f a
+                yieldk a r =
+                    foldShared
+                        $ concatPairsWith combine
+                            (\(x,y) -> combine (unShare x) y)
+                        $ (f a1, f a) `cons` makePairs Nothing r
+            in foldStream (adaptState st) yieldk single stop stream
+
+    makePairs Nothing stream =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single a   = sng (f a, nil)
+                yieldk a r = foldShared $ makePairs (Just a) r
+            in foldStream (adaptState st) yieldk single stp stream
+    makePairs (Just a1) stream =
+        mkStream $ \st yld sng _ ->
+            let stop = sng (f a1, nil)
+                single a = sng (f a1, f a)
+                yieldk a r = yld (f a1, f a) (makePairs Nothing r)
+            in foldStream (adaptState st) yieldk single stop stream
 
 instance Monad m => Applicative (Stream m) where
     {-# INLINE pure #-}

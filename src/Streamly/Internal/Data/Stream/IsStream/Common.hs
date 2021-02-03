@@ -8,6 +8,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Bottom level IsStream module that can be used by all other upper level
+-- IsStream modules.
 
 module Streamly.Internal.Data.Stream.IsStream.Common
     (
