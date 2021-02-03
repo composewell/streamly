@@ -84,7 +84,8 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     , concatMapM
     , concatMapWith
     , concatSmapMWith
-    -- , bindWith
+    , K.bindWith
+    , concatPairsWith
 
     -- *** ConcatUnfold
     -- | Unfold and flatten streams.
@@ -440,7 +441,7 @@ roundrobin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
--- Merging
+-- Merging (sorted streams)
 ------------------------------------------------------------------------------
 
 -- | Merge two streams using a comparison function. The head elements of both
@@ -638,6 +639,29 @@ concatMapEitherWith
     -> t m b
 concatMapEitherWith = undefined
 -}
+
+-- XXX Implement a StreamD version for fusion.
+--
+-- | Combine streams in pairs using a binary stream combinator, then combine
+-- the resulting streams in pairs recursively until we get to a single combined
+-- stream.
+--
+-- For example, you can sort a stream using merge sort like this:
+--
+-- >>> Stream.toList $ Stream.concatPairsWith (Stream.mergeBy compare) Stream.yield $ Stream.fromList [5,1,7,9,2]
+-- [1,2,5,7,9]
+--
+-- /Caution: the stream of streams must be finite/
+--
+-- /Internal/
+--
+{-# INLINE concatPairsWith #-}
+concatPairsWith :: IsStream t =>
+       (t m b -> t m b -> t m b)
+    -> (a -> t m b)
+    -> t m a
+    -> t m b
+concatPairsWith = K.concatPairsWith
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatUnfold
