@@ -162,7 +162,7 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Types as A
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Ring.Foreign as RB
