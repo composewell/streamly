@@ -23,7 +23,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , mapM
     , smapM
 
-    -- * Mapping Side Effects
+    -- * Mapping Side Effects (Observation)
     , trace
     , trace_
     , tap
@@ -387,6 +387,8 @@ sequence m = fromStreamS $ S.sequence (toStreamS m)
 tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
 tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 
+-- XXX Remove this. It can be expressed in terms of Fold.sampleFromThen.
+--
 -- | @tapOffsetEvery offset n@ taps every @n@th element in the stream
 -- starting at @offset@. @offset@ can be between @0@ and @n - 1@. Offset 0
 -- means start at the first element in the stream. If the offset is outside
