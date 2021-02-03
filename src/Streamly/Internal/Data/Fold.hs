@@ -110,9 +110,12 @@ module Streamly.Internal.Data.Fold
     , map
     --, lsequence
     , lmapM
+    , indexed
+
     -- ** Filtering
     , filter
     , filterM
+    , sampleFromthen
     -- , ldeleteBy
     -- , luniq
     , lcatMaybes
@@ -216,6 +219,8 @@ module Streamly.Internal.Data.Fold
     , intervalsOf
     , chunksOf
     , chunksBetween
+    , zipWithM
+    , zip
 
     , concatSequence
     , concatMap
@@ -237,9 +242,11 @@ import Streamly.Internal.Data.Either.Strict
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Prelude
 
 import Prelude hiding
@@ -248,7 +255,7 @@ import Prelude hiding
        , notElem, maximum, minimum, head, last, tail, length, null
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
-       , span, splitAt, break, mapM)
+       , span, splitAt, break, mapM, zip)
 import Streamly.Internal.Data.Fold.Types
 
 ------------------------------------------------------------------------------
@@ -2016,6 +2023,61 @@ unzipWith f = unzipWithM (return . f)
 {-# INLINE unzip #-}
 unzip :: Monad m => Fold m a x -> Fold m b y -> Fold m (a,b) (x,y)
 unzip = unzipWith id
+
+------------------------------------------------------------------------------
+-- Combining streams and folds - Zipping
+------------------------------------------------------------------------------
+
+-- | Zip a stream with the input of a fold using the supplied function.
+--
+-- /Unimplemented/
+--
+{-# INLINE zipWithM #-}
+zipWithM :: -- Monad m =>
+    (a -> b -> m c) -> t m a -> Fold m c x -> Fold m b x
+zipWithM = undefined
+
+-- | Zip a stream with the input of a fold.
+--
+-- /Unimplemented/
+--
+{-# INLINE zip #-}
+zip :: Monad m => t m a -> Fold m (a, b) x -> Fold m b x
+zip = zipWithM (curry return)
+
+-- | Pair each element of a fold input with its index, starting from index 0.
+--
+-- /Unimplemented/
+{-# INLINE indexed #-}
+indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Fold m a b
+indexed = zip (Stream.enumerateFrom 0 :: SerialT m Int)
+
+-- | Change the predicate function of a Fold from @a -> b@ to accept an
+-- additional state input @(s, a) -> b@. Convenient to filter with an
+-- addiitonal index or time input.
+--
+-- @
+-- filterWithIndex = with indexed filter
+-- filterWithAbsTime = with timestamped filter
+-- filterWithRelTime = with timeIndexed filter
+-- @
+--
+-- /Internal/
+{-# INLINE with #-}
+with ::
+       (Fold m (s, a) b -> Fold m a b)
+    -> (((s, a) -> c) -> Fold m (s, a) b -> Fold m (s, a) b)
+    -> (((s, a) -> c) -> Fold m a b -> Fold m a b)
+with f comb g = f . comb g . map snd
+
+-- | @sampleFromthen offset stride@ samples the element at @offset@ index and
+-- then every element at strides of @stride@.
+--
+-- /Unimplemented/
+{-# INLINE sampleFromthen #-}
+sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Fold m a b
+sampleFromthen offset size =
+    with indexed filter (\(i, _) -> (i + offset) `mod` size == 0)
 
 ------------------------------------------------------------------------------
 -- Nesting
