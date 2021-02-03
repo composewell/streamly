@@ -401,16 +401,6 @@ _Fold1 step = mkAccum step_ Nothing' toMaybe
 -- Run Effects
 ------------------------------------------------------------------------------
 
--- | A fold that drains all its input, running the effects and discarding the
--- results.
---
--- > drain = drainBy (const (return ()))
---
--- @since 0.7.0
-{-# INLINABLE drain #-}
-drain :: Monad m => Fold m a ()
-drain = mkAccum_ (\_ _ -> ()) ()
-
 -- |
 -- > drainBy f = lmapM f drain
 -- > drainBy = FL.foldMapM (void . f)
