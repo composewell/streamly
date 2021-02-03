@@ -139,7 +139,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Prelude hiding (concatMap)
 

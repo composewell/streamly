@@ -186,6 +186,7 @@ module Streamly.Internal.Data.Fold.Types
     , simplify
 
     -- * Basic Folds
+    , drain
     , toList
 
     -- * Generators
@@ -438,6 +439,16 @@ simplify (Fold2 step inject extract) c =
 ------------------------------------------------------------------------------
 -- Basic Folds
 ------------------------------------------------------------------------------
+
+-- | A fold that drains all its input, running the effects and discarding the
+-- results.
+--
+-- > drain = drainBy (const (return ()))
+--
+-- @since 0.7.0
+{-# INLINABLE drain #-}
+drain :: Monad m => Fold m a ()
+drain = mkAccum_ (\_ _ -> ()) ()
 
 -- | Folds the input stream to a list.
 --
