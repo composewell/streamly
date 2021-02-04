@@ -380,7 +380,11 @@ mkAccumM_ step initial = mkAccumM step initial return
 {-# INLINE mkFold #-}
 mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
 mkFold step initial extract =
-    Fold (\s a -> return $ step s a) (return initial) (return . extract) nocleanup
+    Fold
+        (\s a -> return $ step s a)
+        (return initial)
+        (return . extract)
+        nocleanup
 
 -- | Similar to 'mkFold' but the final state extracted is identical to the
 -- intermediate state.
@@ -590,7 +594,7 @@ instance Monad m => Applicative (Fold m a) where
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-teeWith f (Fold stepL beginL doneL cleanupL) (Fold stepR beginR doneR cleanupR) =
+teeWith f (Fold stepL beginL doneL cleanL) (Fold stepR beginR doneR cleanR) =
     Fold step begin done cleanup
 
     where
@@ -646,9 +650,9 @@ teeWith f (Fold stepL beginL doneL cleanupL) (Fold stepR beginR doneR cleanupR) 
         bR <- doneR sR
         return $ f bL bR
 
-    cleanup (RunBoth sL sR) = cleanupL sL >> cleanupR sR
-    cleanup (RunLeft sL _) = cleanupL sL
-    cleanup (RunRight _ sR) = cleanupR sR
+    cleanup (RunBoth sL sR) = cleanL sL >> cleanR sR
+    cleanup (RunLeft sL _) = cleanL sL
+    cleanup (RunRight _ sR) = cleanR sR
 
 -- | Like 'teeWith' but terminates when the first fold terminates.
 --

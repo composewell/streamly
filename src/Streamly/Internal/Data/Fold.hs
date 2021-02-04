@@ -1535,7 +1535,8 @@ distribute = foldr (teeWith (:)) (yield [])
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByM f (Fold stepL beginL doneL cleanL) (Fold stepR beginR doneR cleanR) =
+partitionByM f (Fold stepL beginL doneL cleanL)
+               (Fold stepR beginR doneR cleanR) =
     Fold step begin done clean
 
     where
@@ -1747,7 +1748,8 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract dclean) =
                 r <- initial1
                 return
                     $ case r of
-                          Partial _ -> Right' (Fold step1 (return r) done1 clean1)
+                          Partial _ ->
+                              Right' (Fold step1 (return r) done1 clean1)
                           Done b -> Left' b
 
         -- initialize folds in the kv map and separate the ones that are done
@@ -1771,7 +1773,8 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract dclean) =
                       else Done (doneMap, b)
 
     {-# INLINE runFold #-}
-    runFold fPartial fDone doneMap runMap (Fold step1 initial1 done1 clean1) k a1 = do
+    runFold fPartial fDone doneMap runMap
+                (Fold step1 initial1 done1 clean1) k a1 = do
         resi <- initial1
         case resi of
             Partial st -> do

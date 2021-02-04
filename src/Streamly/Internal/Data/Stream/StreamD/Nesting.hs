@@ -1825,7 +1825,8 @@ splitOnSuffixSeq
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOnSuffixSeq withSep patArr (Fold fstep initial done clean) (Stream step state) =
+splitOnSuffixSeq withSep patArr (Fold fstep initial done clean)
+                                (Stream step state) =
     Stream stepOuter SplitOnSuffixSeqInit
 
     where
@@ -2006,7 +2007,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done clean) (Stream step sta
                             then go SPEC (idx + 1) wrd1 s fs1
                             else if wrd1 .&. wordMask /= wordPat
                             then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                            else FL.finalExtract done clean fs >>= yieldProceed jump
+                            else FL.finalExtract done clean fs
+                                     >>= yieldProceed jump
                         FL.Done b -> yieldProceed jump b
                 Skip s -> go SPEC idx wrd s fs
                 Stop -> skip $ SplitOnSuffixSeqWordDone idx fs wrd
@@ -2032,7 +2034,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done clean) (Stream step sta
                     case r of
                         FL.Partial fs1 ->
                             if wrd1 .&. wordMask == wordPat
-                            then FL.finalExtract done clean fs1 >>= yieldProceed jump
+                            then FL.finalExtract done clean fs1
+                                     >>= yieldProceed jump
                             else go SPEC wrd1 s fs1
                         FL.Done b -> yieldProceed jump b
                 Skip s -> go SPEC wrd s fs

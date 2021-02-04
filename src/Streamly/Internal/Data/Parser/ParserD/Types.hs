@@ -436,7 +436,8 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 --
 {-# INLINE splitMany #-}
 splitMany :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-splitMany (Fold fstep finitial fextract fclean) (Parser step1 initial1 extract1) =
+splitMany (Fold fstep finitial fextract fclean)
+          (Parser step1 initial1 extract1) =
     Parser step initial extract
 
     where
@@ -490,7 +491,8 @@ splitMany (Fold fstep finitial fextract fclean) (Parser step1 initial1 extract1)
 --
 {-# INLINE splitSome #-}
 splitSome :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-splitSome (Fold fstep finitial fextract fclean) (Parser step1 initial1 extract1) =
+splitSome (Fold fstep finitial fextract fclean)
+          (Parser step1 initial1 extract1) =
     Parser step initial extract
 
     where
