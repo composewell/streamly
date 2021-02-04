@@ -6,6 +6,7 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fspec-constr-recursive=4 #-}
 
 module Main
@@ -17,6 +18,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
+import Data.Maybe (fromMaybe)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
@@ -64,8 +66,11 @@ drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
 drainWhile p = PR.takeWhile p FL.drain
 
 {-# INLINE sliceBeginWith #-}
-sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m()
-sliceBeginWith value = IP.parseD (PR.sliceBeginWith (>= value) FL.drain)
+sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
+sliceBeginWith value stream = do
+    stream1 <- return . fromMaybe (S.yield (value + 1)) =<< S.tail stream
+    let stream2 = value `S.cons` stream1
+    IP.parseD (PR.sliceBeginWith (== value) FL.drain) stream2
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()

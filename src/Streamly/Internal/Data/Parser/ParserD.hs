@@ -547,7 +547,12 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
 
     where
 
-    initial = Left' <$> finitial
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> Left' s
+                FL.Done _ -> error "sliceBeginWith : bad finitial"
 
     {-# INLINE process #-}
     process s a = do
@@ -557,7 +562,11 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
                 FL.Partial s1 -> Partial 0 (Right' s1)
                 FL.Done b -> Done 0 b
 
-    step (Left' s) a = process s a
+    step (Left' s) a =
+        if cond a
+        then process s a
+        else error $ "sliceBeginWith : slice begins with an element which"
+                        ++ "fails the predicate"
     step (Right' s) a =
         if not (cond a)
         then process s a
