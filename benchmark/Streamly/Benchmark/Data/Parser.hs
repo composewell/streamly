@@ -16,6 +16,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (asum)
 import Data.Functor (($>))
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum(..))
 import System.Random (randomRIO)
 import Prelude
@@ -74,7 +75,10 @@ drainWhile value = IP.parse (PR.drainWhile (<= value))
 
 {-# INLINE sliceBeginWith #-}
 sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceBeginWith value = IP.parse (PR.sliceBeginWith (>= value) FL.drain)
+sliceBeginWith value stream = do
+    stream1 <- return . fromMaybe (S.yield (value + 1)) =<< S.tail stream
+    let stream2 = value `S.cons` stream1
+    IP.parse (PR.sliceBeginWith (== value) FL.drain) stream2
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()

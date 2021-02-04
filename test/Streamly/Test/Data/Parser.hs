@@ -326,20 +326,22 @@ sliceSepByP =
 sliceBeginWith :: Property
 sliceBeginWith =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-        case S.parse parser (S.fromList ls) of
-            Right parsed_list ->
-                if not $ Prelude.null ls
-                then
-                    let tls = Prelude.takeWhile (not . predicate) (tail ls)
+        let ls1 = 1:ls
+        in
+            case S.parse parser (S.fromList ls1) of
+                Right parsed_list ->
+                  if not $ Prelude.null ls1
+                  then
+                    let tls = Prelude.takeWhile (not . predicate) (tail ls1)
                     in checkListEqual parsed_list $
-                        if predicate (head ls)
-                        then head ls : tls
-                        else Prelude.takeWhile (not . predicate) ls
-                else property $ Prelude.null parsed_list
-            Left _ -> property False
-        where
-            predicate = odd
-            parser = P.sliceBeginWith predicate FL.toList
+                      if predicate (head ls1)
+                      then head ls1 : tls
+                      else Prelude.takeWhile (not . predicate) ls1
+                  else property $ Prelude.null parsed_list
+                Left _ -> property False
+            where
+                predicate = odd
+                parser = P.sliceBeginWith predicate FL.toList
 
 takeWhile :: Property
 takeWhile =
