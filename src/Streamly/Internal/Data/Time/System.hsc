@@ -8,7 +8,7 @@
 #include "Streamly/Internal/Data/Time/config-clock.h"
 
 -- |
--- Module      : Streamly.Internal.Data.Time.Clock
+-- Module      : Streamly.Internal.Data.Time.System
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2009-2012, Cetin Sert
 --               (c) 2010, Eugene Kirpichov
@@ -19,7 +19,7 @@
 
 -- A majority of the code below has been stolen from the "clock" package.
 
-module Streamly.Internal.Data.Time.Clock
+module Streamly.Internal.Data.Time.System
     (
     -- * get time from the system clock
       Clock(..)

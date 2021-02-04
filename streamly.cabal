@@ -417,6 +417,7 @@ library
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
+                     , Streamly.Internal.Data.Time.System
                      , Streamly.Internal.Data.Time.Clock
 
                      -- streamly-core-stream
