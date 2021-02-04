@@ -91,7 +91,7 @@ maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
 category:            Control, Concurrency, Streaming, Reactivity
 stability:           Experimental
-build-type:          Configure
+build-type:          Custom
 
 extra-source-files:
     .circleci/config.yml
@@ -237,6 +237,16 @@ flag opt
   description: off=GHC default, on=-O2
   manual: True
   default: True
+
+flag doctests
+  description: Build doctests test suite
+  manual: True
+  default: False
+
+custom-setup
+ setup-depends:
+   base >= 4 && <5,
+   cabal-doctest >= 1 && <1.1
 
 -------------------------------------------------------------------------------
 -- Common stanzas
@@ -570,3 +580,19 @@ library
   -- tests fail
   if flag(dev) && flag(inspection)
     build-depends: inspection-and-dev-flags-cannot-be-used-together
+
+test-suite doctests
+  type:             exitcode-stdio-1.0
+  main-is:          doctests.hs
+  if flag(doctests)
+    build-depends:
+        base
+      , base-compat       >=0.10.5 && <0.12
+      , doctest           >=0.15   && <0.18
+      , streamly
+  else
+    buildable: False
+
+  ghc-options:      -Wall -threaded
+  hs-source-dirs:   .
+  default-language: Haskell2010
