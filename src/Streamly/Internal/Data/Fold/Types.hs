@@ -685,19 +685,57 @@ longest :: -- Monad m =>
     Fold m x a -> Fold m x a -> Fold m x a
 longest _f1 _f2 = undefined
 
+data ConcatMapState m sa a c
+    = B !sa
+    | forall s. C (s -> a -> m (Step s c)) !s (s -> m c)
+
 -- | Map a 'Fold' returning function on the result of a 'Fold'.
 --
--- Compare with 'Monad' instance method '>>='. This implementation allows
--- stream fusion but has quadratic complexity. This can fuse with other
--- operations and can be much faster than 'Monad' instance for small number
--- (less than 8) of compositions.
+-- Compare with 'Monad' instance method '>>='.
 --
--- /Unimplemented/
+-- >>> Stream.fold (concatMap (flip Fold.takeLE Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
+-- 45
+--
+-- /Internal/
 --
 {-# INLINE concatMap #-}
-concatMap :: -- Monad m =>
-    (b -> Fold m a c) -> Fold m a b -> Fold m a c
-concatMap _func _fld = undefined
+concatMap :: Monad m => (b -> Fold m a c) -> Fold m a b -> Fold m a c
+concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
+  where
+    initialc = do
+        r <- initiala
+        case r of
+            Partial s -> return $ Partial (B s)
+            Done b -> initInnerFold (f b)
+
+    stepc (B s) a = do
+        r <- stepa s a
+        case r of
+            Partial s1 -> return $ Partial (B s1)
+            Done b -> initInnerFold (f b)
+
+    stepc (C stepInner s extractInner) a = do
+        r <- stepInner s a
+        return $ case r of
+            Partial sc -> Partial (C stepInner sc extractInner)
+            Done c -> Done c
+
+    extractc (B s) = do
+        r <- extracta s
+        initExtract (f r)
+    extractc (C _ sInner extractInner) = extractInner sInner
+
+    initInnerFold (Fold step i e) = do
+        r <- i
+        return $ case r of
+            Partial s -> Partial (C step s e)
+            Done c -> Done c
+
+    initExtract (Fold _ i e) = do
+        r <- i
+        case r of
+            Partial s -> e s
+            Done c -> return c
 
 -- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
 -- instances.
