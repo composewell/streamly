@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Distribution.Simple
+import Distribution.Extra.Doctest (defaultMainAutoconfWithDoctests)
 
 main :: IO ()
-main = defaultMainWithHooks autoconfUserHooks
+main = defaultMainAutoconfWithDoctests "doctests"
