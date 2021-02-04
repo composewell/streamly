@@ -26,12 +26,19 @@ import Streamly.Internal.Data.Stream.IsStream (IsStream)
 import qualified Streamly.Internal.Unicode.Stream as S
 import qualified Streamly.Data.Array.Foreign as A
 
+-- $setup
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import Prelude hiding (String, lines, words, unlines, unwords)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Unicode.Array.Char as Unicode
+
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
 --
 -- > lines = S.lines A.write
 --
--- >>> S.toList $ lines $ S.fromList "lines\nthis\nstring\n\n\n"
+-- >>> Stream.toList $ Unicode.lines $ Stream.fromList "lines\nthis\nstring\n\n\n"
 -- ["lines","this","string","",""]
 --
 {-# INLINE lines #-}
@@ -43,8 +50,8 @@ lines = S.lines A.write
 --
 -- > words = S.words A.write
 --
--- >>> S.toList $ words $ S.fromList "A  newline\nis considered white space?"
--- ["A", "newline", "is", "considered", "white", "space?"]
+-- >>> Stream.toList $ Unicode.words $ Stream.fromList "A  newline\nis considered white space?"
+-- ["A","newline","is","considered","white","space?"]
 --
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
@@ -55,7 +62,7 @@ words = S.words A.write
 --
 -- 'unlines' is an inverse operation to 'lines'.
 --
--- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
+-- >>> Stream.toList $ Unicode.unlines $ Stream.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
 -- > unlines = S.unlines A.read
@@ -72,7 +79,7 @@ unlines = S.unlines A.read
 --
 -- 'unwords' is an inverse operation to 'words'.
 --
--- >>> S.toList $ unwords $ S.fromList ["unwords", "this", "string"]
+-- >>> Stream.toList $ Unicode.unwords $ Stream.fromList ["unwords", "this", "string"]
 -- "unwords this string"
 --
 -- > unwords = S.unwords A.read

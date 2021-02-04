@@ -202,6 +202,9 @@ import Streamly.Internal.Data.Stream.StreamK.Type
 
 import qualified Streamly.Internal.Data.Fold.Types as FL
 
+-- $setup
+-- >>> :m
+
 -------------------------------------------------------------------------------
 -- Deconstruction
 -------------------------------------------------------------------------------
@@ -524,6 +527,7 @@ tailPartial m = mkStream $ \st yld sng stp ->
 -- lazy value @x@ i.e.  the same location in memory.  Thus @x@ can be defined
 -- in terms of itself, creating structures with cyclic references.
 --
+-- >>> import Data.Function (fix)
 -- >>> f ~(a, b) = ([1, b], head a)
 -- >>> fix f
 -- ([1,1],1)

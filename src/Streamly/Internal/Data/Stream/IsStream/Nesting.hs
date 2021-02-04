@@ -303,6 +303,17 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 
 import Prelude hiding (zipWith, concatMap, concat)
 
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (zipWith, concatMap, concat)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Data.Array.Foreign as Array
+
 -------------------------------------------------------------------------------
 -- Appending
 -------------------------------------------------------------------------------
@@ -339,9 +350,10 @@ append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 -- early the other stream continues alone until it too finishes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> interleave "ab" ",,,," :: SerialT Identity Char
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleave "ab" ",,,," :: Stream.SerialT Identity Char
 -- fromList "a,b,,,"
--- >>> interleave "abcd" ",," :: SerialT Identity Char
+-- >>> Stream.interleave "abcd" ",," :: Stream.SerialT Identity Char
 -- fromList "a,b,cd"
 --
 -- 'interleave' is dual to 'interleaveMin', it can be called @interleaveMax@.
@@ -361,9 +373,10 @@ interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
 -- still continues to yield elements until it finishes.
 --
 -- >>> :set -XOverloadedStrings
--- >>> interleaveSuffix "abc" ",,,," :: SerialT Identity Char
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveSuffix "abc" ",,,," :: Stream.SerialT Identity Char
 -- fromList "a,b,c,"
--- >>> interleaveSuffix "abc" "," :: SerialT Identity Char
+-- >>> Stream.interleaveSuffix "abc" "," :: Stream.SerialT Identity Char
 -- fromList "a,bc"
 --
 -- 'interleaveSuffix' is a dual of 'interleaveInfix'.
@@ -384,9 +397,10 @@ interleaveSuffix m1 m2 =
 -- has finished.
 --
 -- >>> :set -XOverloadedStrings
--- >>> interleaveInfix "abc" ",,,," :: SerialT Identity Char
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveInfix "abc" ",,,," :: Stream.SerialT Identity Char
 -- fromList "a,b,c"
--- >>> interleaveInfix "abc" "," :: SerialT Identity Char
+-- >>> Stream.interleaveInfix "abc" "," :: Stream.SerialT Identity Char
 -- fromList "a,bc"
 --
 -- 'interleaveInfix' is a dual of 'interleaveSuffix'.
@@ -406,9 +420,10 @@ interleaveInfix m1 m2 =
 -- stream.
 --
 -- >>> :set -XOverloadedStrings
--- >>> interleaveMin "ab" ",,,," :: SerialT Identity Char
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveMin "ab" ",,,," :: Stream.SerialT Identity Char
 -- fromList "a,b,"
--- >>> interleaveMin "abcd" ",," :: SerialT Identity Char
+-- >>> Stream.interleaveMin "abcd" ",," :: Stream.SerialT Identity Char
 -- fromList "a,b,c"
 --
 -- 'interleaveMin' is dual to 'interleave'.
@@ -453,8 +468,9 @@ roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
 -- also remain sorted in ascending order.
 --
 -- @
--- > S.toList $ S.mergeBy compare (S.fromList [1,3,5]) (S.fromList [2,4,6,8])
+-- >>> Stream.toList $ Stream.mergeBy compare (Stream.fromList [1,3,5]) (Stream.fromList [2,4,6,8])
 -- [1,2,3,4,5,6,8]
+--
 -- @
 --
 -- @since 0.6.0
@@ -763,10 +779,10 @@ gintercalate unf1 str1 unf2 str2 =
 --
 -- | 'intersperse' followed by unfold and concat.
 --
--- > unwords = intercalate " " UF.fromList
+-- > unwords = intercalate " " Unfold.fromList
 --
--- >>> intercalate " " UF.fromList ["abc", "def", "ghi"]
--- > "abc def ghi"
+-- >>> Stream.toList $ Stream.intercalate " " Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
+-- "abc def ghi"
 --
 -- /Internal/
 {-# INLINE intercalate #-}
@@ -792,10 +808,10 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 --
 -- | 'intersperseSuffix' followed by unfold and concat.
 --
--- > unlines = intercalateSuffix "\n" UF.fromList
+-- > unlines = intercalateSuffix "\n" Unfold.fromList
 --
--- >>> intercalate "\n" UF.fromList ["abc", "def", "ghi"]
--- > "abc\ndef\nghi\n"
+-- >>> Stream.toList $ Stream.intercalateSuffix "\n" Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
+-- "abc\ndef\nghi\n"
 --
 -- /Internal/
 {-# INLINE intercalateSuffix #-}
@@ -932,11 +948,11 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 --
 -- >>> f = Fold.takeLE 2 Fold.sum
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList []
--- > [0]
+-- [0]
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
--- > [3,7,11,15,9]
+-- [3,7,11,15,9]
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
--- > [3,7,11,15,19,0]
+-- [3,7,11,15,19,0]
 --
 -- /Internal/
 --
@@ -955,12 +971,12 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 --
 -- >>> f = Fold.takeLE 2 Fold.sum
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
--- > [3,7,11,15,19]
+-- [3,7,11,15,19]
 --
 -- On an empty stream the output is empty:
 --
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
--- > []
+-- []
 --
 -- Note @foldMany (takeLE 0)@ would result in an infinite loop in a non-empty
 -- stream.
@@ -992,10 +1008,14 @@ foldSequence _f _m = undefined
 -- generate the first fold, the fold is applied on the stream and the result of
 -- the fold is used to generate the next fold and so on.
 --
--- >>> f x = Fold.takeLE 2 (Fold.mconcatTo x)
--- >>> s = Stream.map Sum $ Stream.fromList [1..10]
--- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
--- > [3,10,21,36,55,55]
+-- @
+-- > import Data.Monoid (Sum(..))
+-- > f x = Fold.takeLE 2 (Fold.sconcat x)
+-- > s = Stream.map Sum $ Stream.fromList [1..10]
+-- > Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
+-- [3,10,21,36,55,55]
+--
+-- @
 --
 -- This is the streaming equivalent of monad like sequenced application of
 -- folds where next fold is dependent on the previous fold.
@@ -1022,11 +1042,14 @@ foldIterate _f _i _m = undefined
 -- This is the streaming equivalent of the 'Streamly.Internal.Data.Parser.many'
 -- parse combinator.
 --
--- >>> S.toList $ S.parseMany (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
--- > [3,7,11,15,19]
+-- >>> Stream.toList $ Stream.parseMany (Parser.takeBetween 0 2 Fold.sum) $ Stream.fromList [1..10]
+-- [3,7,11,15,19]
 --
--- >>> S.toList $ S.parseMany (PR.line FL.toList) $ S.fromList "hello\nworld"
--- > ["hello\n","world"]
+-- @
+-- > Stream.toList $ Stream.parseMany (Parser.line Fold.toList) $ Stream.fromList "hello\\nworld"
+-- ["hello\\n","world"]
+--
+-- @
 --
 -- @
 -- foldMany f = parseMany (fromFold f)
@@ -1089,8 +1112,9 @@ parseManyTill = undefined
 -- used to generate the first parser, the parser is applied on the stream and
 -- the result is used to generate the next parser and so on.
 --
--- >>> S.toList $ S.map getSum $ S.parseIterate (\b -> PR.take 2 (FL.mconcatTo b)) 0 $ S.map Sum $ S.fromList [1..10]
--- > [3,10,21,36,55,55]
+-- >>> import Data.Monoid (Sum(..))
+-- >>> Stream.toList $ Stream.map getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ Stream.map Sum $ Stream.fromList [1..10]
+-- [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
 -- parsers where next parser is dependent on the previous parser.
@@ -1196,8 +1220,8 @@ groupScan split fold m = undefined
 -- group is folded using the fold @f@ and the result of the fold is emitted in
 -- the output stream.
 --
--- >>> S.toList $ S.groupsBy (>) FL.toList $ S.fromList [1,3,7,0,2,5]
--- > [[1,3,7],[0,2,5]]
+-- >>> Stream.toList $ Stream.groupsBy (>) Fold.toList $ Stream.fromList [1,3,7,0,2,5]
+-- [[1,3,7],[0,2,5]]
 --
 -- @since 0.7.0
 {-# INLINE groupsBy #-}
@@ -1217,8 +1241,8 @@ groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 -- comparison fails a new group is started. Each group is folded using the fold
 -- @f@.
 --
--- >>> S.toList $ S.groupsByRolling (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
--- > [[1,2,3],[7,8,9]]
+-- >>> Stream.toList $ Stream.groupsByRolling (\a b -> a + 1 == b) Fold.toList $ Stream.fromList [1,2,3,7,8,9]
+-- [[1,2,3],[7,8,9]]
 --
 -- @since 0.7.0
 {-# INLINE groupsByRolling #-}
@@ -1236,8 +1260,8 @@ groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD 
 --
 -- Groups contiguous spans of equal elements together in individual groups.
 --
--- >>> S.toList $ S.groups FL.toList $ S.fromList [1,1,2,2]
--- > [[1,1],[2,2]]
+-- >>> Stream.toList $ Stream.groups Fold.toList $ Stream.fromList [1,1,2,2]
+-- [[1,1],[2,2]]
 --
 -- @since 0.7.0
 {-# INLINE groups #-}
@@ -1262,9 +1286,9 @@ groups = groupsBy (==)
 -- separator elements determined by the supplied predicate, separator is
 -- considered as infixed between two segments:
 --
--- >>> splitOn' p xs = S.toList $ S.splitOn p FL.toList (S.fromList xs)
+-- >>> splitOn' p xs = Stream.toList $ Stream.splitOn p Fold.toList (Stream.fromList xs)
 -- >>> splitOn' (== '.') "a.b"
--- > ["a","b"]
+-- ["a","b"]
 --
 -- An empty stream is folded to the default value of the fold:
 --
@@ -1278,13 +1302,13 @@ groups = groupsBy (==)
 -- ["",""]
 --
 -- >>> splitOn' (== '.') ".a"
--- > ["","a"]
+-- ["","a"]
 --
 -- >>> splitOn' (== '.') "a."
--- > ["a",""]
+-- ["a",""]
 --
 -- >>> splitOn' (== '.') "a..b"
--- > ["a","","b"]
+-- ["a","","b"]
 --
 -- splitOn is an inverse of intercalating single element:
 --
@@ -1318,12 +1342,12 @@ splitOn predicate f =
 -- | Split on a suffixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
 --
--- > splitOnSuffix' p xs = S.toList $ S.splitOnSuffix p (FL.toList) (S.fromList xs)
+-- >>> splitOnSuffix' p xs = Stream.toList $ Stream.splitOnSuffix p Fold.toList (Stream.fromList xs)
 -- >>> splitOnSuffix' (== '.') "a.b."
--- > ["a","b"]
+-- ["a","b"]
 --
 -- >>> splitOnSuffix' (== '.') "a."
--- > ["a"]
+-- ["a"]
 --
 -- An empty stream results in an empty output stream:
 --
@@ -1337,7 +1361,7 @@ splitOn predicate f =
 -- [""]
 --
 -- >>> splitOnSuffix' (== '.') "a..b.."
--- > ["a","","b",""]
+-- ["a","","b",""]
 --
 -- A suffix is optional at the end of the stream:
 --
@@ -1345,10 +1369,10 @@ splitOn predicate f =
 -- ["a"]
 --
 -- >>> splitOnSuffix' (== '.') ".a"
--- > ["","a"]
+-- ["","a"]
 --
 -- >>> splitOnSuffix' (== '.') "a.b"
--- > ["a","b"]
+-- ["a","b"]
 --
 -- > lines = splitOnSuffix (== '\n')
 --
@@ -1371,33 +1395,42 @@ splitOnSuffix predicate f = foldMany (FL.sliceSepBy predicate f)
 -- | Split on a prefixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
 --
--- >>> splitOnPrefix' p xs = S.toList $ S.splitOnPrefix p (FL.toList) (S.fromList xs)
--- >>> splitOnPrefix' (== '.') ".a.b"
--- > ["a","b"]
+-- @
+-- > splitOnPrefix' p xs = Stream.toList $ Stream.splitOnPrefix p (Fold.toList) (Stream.fromList xs)
+-- > splitOnPrefix' (== '.') ".a.b"
+-- ["a","b"]
+-- @
 --
 -- An empty stream results in an empty output stream:
--- >>> splitOnPrefix' (== '.') ""
+-- @
+-- > splitOnPrefix' (== '.') ""
 -- []
+-- @
 --
 -- An empty segment consisting of only a prefix is folded to the default output
 -- of the fold:
 --
--- >>> splitOnPrefix' (== '.') "."
+-- @
+-- > splitOnPrefix' (== '.') "."
 -- [""]
 --
--- >>> splitOnPrefix' (== '.') ".a.b."
--- > ["a","b",""]
+-- > splitOnPrefix' (== '.') ".a.b."
+-- ["a","b",""]
 --
--- >>> splitOnPrefix' (== '.') ".a..b"
--- > ["a","","b"]
+-- > splitOnPrefix' (== '.') ".a..b"
+-- ["a","","b"]
+--
+-- @
 --
 -- A prefix is optional at the beginning of the stream:
 --
--- >>> splitOnPrefix' (== '.') "a"
+-- @
+-- > splitOnPrefix' (== '.') "a"
 -- ["a"]
 --
--- >>> splitOnPrefix' (== '.') "a.b"
--- > ["a","b"]
+-- > splitOnPrefix' (== '.') "a.b"
+-- ["a","b"]
+-- @
 --
 -- 'splitOnPrefix' is an inverse of 'intercalatePrefix' with a single element:
 --
@@ -1420,16 +1453,16 @@ splitOnPrefix _predicate _f = undefined
 -- @["a","b"]@.  In other words, its like parsing words from whitespace
 -- separated text.
 --
--- > wordsBy' p xs = S.toList $ S.wordsBy p (FL.toList) (S.fromList xs)
+-- >>> wordsBy' p xs = Stream.toList $ Stream.wordsBy p Fold.toList (Stream.fromList xs)
 --
 -- >>> wordsBy' (== ',') ""
--- > []
+-- []
 --
 -- >>> wordsBy' (== ',') ","
--- > []
+-- []
 --
 -- >>> wordsBy' (== ',') ",a,,b,"
--- > ["a","b"]
+-- ["a","b"]
 --
 -- > words = wordsBy isSpace
 --
@@ -1447,7 +1480,7 @@ wordsBy predicate f m =
 -- | Like 'splitOnSuffix' but keeps the suffix attached to the resulting
 -- splits.
 --
--- > splitWithSuffix' p xs = S.toList $ S.splitWithSuffix p (FL.toList) (S.fromList xs)
+-- >>> splitWithSuffix' p xs = Stream.toList $ splitWithSuffix p Fold.toList (Stream.fromList xs)
 --
 -- >>> splitWithSuffix' (== '.') ""
 -- []
@@ -1459,19 +1492,19 @@ wordsBy predicate f m =
 -- ["a"]
 --
 -- >>> splitWithSuffix' (== '.') ".a"
--- > [".","a"]
+-- [".","a"]
 --
 -- >>> splitWithSuffix' (== '.') "a."
--- > ["a."]
+-- ["a."]
 --
 -- >>> splitWithSuffix' (== '.') "a.b"
--- > ["a.","b"]
+-- ["a.","b"]
 --
 -- >>> splitWithSuffix' (== '.') "a.b."
--- > ["a.","b."]
+-- ["a.","b."]
 --
 -- >>> splitWithSuffix' (== '.') "a..b.."
--- > ["a.",".","b.","."]
+-- ["a.",".","b.","."]
 --
 -- @since 0.7.0
 
@@ -1529,34 +1562,34 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 --
 -- | Like 'splitOnSeq' but splits the separator as well, as an infix token.
 --
--- > splitOn'_ pat xs = S.toList $ S.splitOn' (A.fromList pat) (FL.toList) (S.fromList xs)
+-- >>> splitOn'_ pat xs = Stream.toList $ Stream.splitBySeq (Array.fromList pat) Fold.toList (Stream.fromList xs)
 --
 -- >>> splitOn'_ "" "hello"
--- > ["h","","e","","l","","l","","o"]
+-- ["h","","e","","l","","l","","o"]
 --
 -- >>> splitOn'_ "hello" ""
--- > [""]
+-- [""]
 --
 -- >>> splitOn'_ "hello" "hello"
--- > ["","hello",""]
+-- ["","hello",""]
 --
 -- >>> splitOn'_ "x" "hello"
--- > ["hello"]
+-- ["hello"]
 --
 -- >>> splitOn'_ "h" "hello"
--- > ["","h","ello"]
+-- ["","h","ello"]
 --
 -- >>> splitOn'_ "o" "hello"
--- > ["hell","o",""]
+-- ["hell","o",""]
 --
 -- >>> splitOn'_ "e" "hello"
--- > ["h","e","llo"]
+-- ["h","e","llo"]
 --
 -- >>> splitOn'_ "l" "hello"
--- > ["he","l","","l","o"]
+-- ["he","l","","l","o"]
 --
 -- >>> splitOn'_ "ll" "hello"
--- > ["he","ll","o"]
+-- ["he","ll","o"]
 --
 -- /Internal/
 {-# INLINE splitBySeq #-}
@@ -1569,7 +1602,7 @@ splitBySeq patt f m =
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.
 --
--- > splitOnSuffixSeq_ pat xs = S.toList $ S.splitOnSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+-- >>> splitOnSuffixSeq_ pat xs = Stream.toList $ Stream.splitOnSuffixSeq (Array.fromList pat) Fold.toList (Stream.fromList xs)
 --
 -- >>> splitOnSuffixSeq_ "." ""
 -- []
@@ -1581,19 +1614,19 @@ splitBySeq patt f m =
 -- ["a"]
 --
 -- >>> splitOnSuffixSeq_ "." ".a"
--- > ["","a"]
+-- ["","a"]
 --
 -- >>> splitOnSuffixSeq_ "." "a."
--- > ["a"]
+-- ["a"]
 --
 -- >>> splitOnSuffixSeq_ "." "a.b"
--- > ["a","b"]
+-- ["a","b"]
 --
 -- >>> splitOnSuffixSeq_ "." "a.b."
--- > ["a","b"]
+-- ["a","b"]
 --
 -- >>> splitOnSuffixSeq_ "." "a..b.."
--- > ["a","","b",""]
+-- ["a","","b",""]
 --
 -- > lines = splitOnSuffixSeq "\n"
 --
@@ -1627,10 +1660,10 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 
 -- | Like 'splitOnSuffixSeq' but keeps the suffix intact in the splits.
 --
--- > splitWithSuffixSeq'_ pat xs = S.toList $ S.splitWithSuffixSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+-- >>> splitWithSuffixSeq' pat xs = Stream.toList $ Stream.splitWithSuffixSeq (Array.fromList pat) Fold.toList (Stream.fromList xs)
 --
 -- >>> splitWithSuffixSeq' "." ""
--- [""]
+-- []
 --
 -- >>> splitWithSuffixSeq' "." "."
 -- ["."]
@@ -1639,19 +1672,19 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- ["a"]
 --
 -- >>> splitWithSuffixSeq' "." ".a"
--- > [".","a"]
+-- [".","a"]
 --
 -- >>> splitWithSuffixSeq' "." "a."
--- > ["a."]
+-- ["a."]
 --
 -- >>> splitWithSuffixSeq' "." "a.b"
--- > ["a.","b"]
+-- ["a.","b"]
 --
 -- >>> splitWithSuffixSeq' "." "a.b."
--- > ["a.","b."]
+-- ["a.","b."]
 --
 -- >>> splitWithSuffixSeq' "." "a..b.."
--- > ["a.",".","b.","."]
+-- ["a.",".","b.","."]
 --
 -- /Internal/
 {-# INLINE splitWithSuffixSeq #-}
@@ -1679,8 +1712,8 @@ splitOnSuffixSeqAny subseq f m = undefined
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- >> S.toList $ S.chunksOf 2 FL.sum (S.enumerateFromTo 1 10)
--- > [3,7,11,15,19]
+-- >>> Stream.toList $ Stream.chunksOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
+-- [3,7,11,15,19]
 --
 -- This can be considered as an n-fold version of 'takeLE' where we apply
 -- 'takeLE' repeatedly on the leftover stream until the stream exhausts.
@@ -1718,11 +1751,12 @@ arraysOf n = D.fromStreamD . A.arraysOf n . D.toStreamD
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
--- >>> S.toList $ S.take 5 $ intervalsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
--- > [3,7,11,15,19]
 --
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
+--
+-- >>> Stream.toList $ Stream.take 5 $ Stream.intervalsOf 1 Fold.sum $ Stream.constRate 2 $ Stream.enumerateFrom 1
+-- [...,...,...,...,...]
 --
 -- @since 0.7.0
 {-# INLINE intervalsOf #-}
@@ -2188,12 +2222,18 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- @
 --
 -- @
--- >>> S.mapM_ print
---   $ S.classifySessionsOf 3 (const (return False)) (fmap Right FL.toList)
---   $ S.map (\(ts,(k,a)) -> (k, a, ts))
---   $ S.timestamped
---   $ S.delay 1
---   $ (,) <$> S.fromList [1,2,3] <*> S.fromList [1,2,3]
+-- > :{
+--  Stream.mapM_ print
+--      $ Stream.classifySessionsOf 3 (const (return False)) (fmap Right Fold.toList)
+--      $ Stream.map (\\(ts,(k,a)) -> (k, a, ts))
+--      $ Stream.timestamped
+--      $ Stream.delay 1
+--      $ (,) <$> Stream.fromList [1,2,3] <*> Stream.fromList [1,2,3]
+-- :}
+-- (1,Right [1,2,3])
+-- (2,Right [1,2,3])
+-- (3,Right [1,2,3])
+--
 -- @
 --
 -- /Internal/

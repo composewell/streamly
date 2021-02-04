@@ -74,6 +74,15 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 
 import Prelude hiding (take, takeWhile, drop, reverse)
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (take, takeWhile, drop, reverse)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Array.Foreign as Array
+
 ------------------------------------------------------------------------------
 -- Generation
 ------------------------------------------------------------------------------
@@ -112,7 +121,7 @@ yield = K.yield
 -- Create a singleton stream from a monadic action.
 --
 -- @
--- > toList $ yieldM getLine
+-- > Stream.toList $ Stream.yieldM getLine
 -- hello
 -- ["hello"]
 -- @
@@ -159,12 +168,12 @@ repeatMSerial = fromStreamS . S.repeatM
 -- A lower granularity clock gives higher precision but is more expensive in
 -- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
 --
--- @
--- >>> S.mapM_ (\x -> print x >> threadDelay 1000000) $ S.timesWith 0.01
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 0))
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1002028000))
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1996656000))
--- @
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Streamly.Internal.Data.Stream.IsStream.Common as Stream (timesWith)
+-- >>> Stream.mapM_ (\x -> print x >> threadDelay 1000000) $ Stream.take 3 $ Stream.timesWith 0.01
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -179,9 +188,10 @@ timesWith g = fromStreamD $ D.times g
 -- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
 -- as 1 ms.
 --
--- @
--- >>> S.mapM_ print $ S.delayPre 1 $ S.absTimesWith 0.01
--- @
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ absTimesWith 0.01
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -197,12 +207,10 @@ absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
 -- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
 -- ms is treated as 1 ms.
 --
--- @
--- >>> S.mapM_ print $ S.delayPre 1 $ S.relTimesWith 0.01
--- > RelTime64 (NanoSecond64 0)
--- > RelTime64 (NanoSecond64 91139000)
--- > RelTime64 (NanoSecond64 204052000)
--- @
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -222,7 +230,7 @@ relTimesWith = fmap snd . timesWith
 -- 'Fold' can terminate early without consuming the full stream. See the
 -- documentation of individual 'Fold's for termination behavior.
 --
--- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
+-- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
 -- 5050
 --
 -- @fold f = parse (Parser.fromFold f)@
@@ -368,10 +376,8 @@ findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 -- | Insert an effect and its output before consuming an element of a stream
 -- except the first one.
 --
--- @
--- >>> S.toList $ S.trace putChar $ S.intersperseM (putChar '.' >> return ',') $ S.fromList "hello"
--- > h.,e.,l.,l.,o"h,e,l,l,o"
--- @
+-- >>> Stream.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.fromList "hello"
+-- h.,e.,l.,l.,o"h,e,l,l,o"
 --
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
@@ -382,8 +388,9 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 -- seconds.
 --
 -- @
--- > S.drain $ S.interjectSuffix 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
--- "h,e,l,l,o"
+-- > import Control.Concurrent (threadDelay)
+-- > Stream.drain $ Stream.interjectSuffix 1 (putChar ',') $ Stream.mapM (\x -> threadDelay 1000000 >> putChar x) $ Stream.fromList "hello"
+-- h,e,l,l,o
 -- @
 --
 -- /Internal/
@@ -463,36 +470,34 @@ concatM generator = concatMapM (\() -> generator) (yield ())
 --
 -- For illustration, let's define a function that operates on pure lists:
 --
--- @
--- splitOnSeq' pat xs = S.toList $ S.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
--- @
+-- >>> splitOnSeq' pat xs = Stream.toList $ Stream.splitOnSeq (Array.fromList pat) Fold.toList (Stream.fromList xs)
 --
 -- >>> splitOnSeq' "" "hello"
--- > ["h","e","l","l","o"]
+-- ["h","e","l","l","o"]
 --
 -- >>> splitOnSeq' "hello" ""
--- > [""]
+-- [""]
 --
 -- >>> splitOnSeq' "hello" "hello"
--- > ["",""]
+-- ["",""]
 --
 -- >>> splitOnSeq' "x" "hello"
--- > ["hello"]
+-- ["hello"]
 --
 -- >>> splitOnSeq' "h" "hello"
--- > ["","ello"]
+-- ["","ello"]
 --
 -- >>> splitOnSeq' "o" "hello"
--- > ["hell",""]
+-- ["hell",""]
 --
 -- >>> splitOnSeq' "e" "hello"
--- > ["h","llo"]
+-- ["h","llo"]
 --
 -- >>> splitOnSeq' "l" "hello"
--- > ["he","","o"]
+-- ["he","","o"]
 --
 -- >>> splitOnSeq' "ll" "hello"
--- > ["he","o"]
+-- ["he","o"]
 --
 -- 'splitOnSeq' is an inverse of 'intercalate'. The following law always holds:
 --

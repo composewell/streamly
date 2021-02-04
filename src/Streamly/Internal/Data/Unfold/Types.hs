@@ -35,6 +35,12 @@ import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import Prelude hiding (const, map, concat, concatMap, zipWith)
 
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
 ------------------------------------------------------------------------------

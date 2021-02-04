@@ -116,13 +116,24 @@ import qualified System.IO as IO
 
 import Prelude hiding (iterate, replicate, repeat)
 
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (iterate, replicate, repeat)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import Control.Concurrent (threadDelay)
+
 ------------------------------------------------------------------------------
 -- From Unfold
 ------------------------------------------------------------------------------
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
--- >>> unfold (UF.replicateM 10) (putStrLn "hello")
+-- >>> Stream.drain $ Stream.unfold (Unfold.replicateM 3) (putStrLn "hello")
+-- hello
+-- hello
+-- hello
 --
 -- /Since: 0.7.0/
 {-# INLINE unfold #-}
@@ -278,12 +289,10 @@ replicateMSerial n = fromStreamS . S.replicateM n
 -- (epoch) denoting the start of the stream and the second component is a time
 -- relative to the reference.
 --
--- @
--- >>> S.mapM_ (\x -> print x >> threadDelay 1000000) $ S.times
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 0))
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1002028000))
--- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1996656000))
--- @
+-- >>> Stream.mapM_ (\x -> print x >> threadDelay 1000000) $ Stream.take 3 $ Stream.times
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -296,9 +305,10 @@ times = timesWith 0.01
 -- | @absTimes@ returns a stream of absolute timestamps using a clock of 10 ms
 -- granularity.
 --
--- @
--- >>> S.mapM_ print $ S.delayPre 1 $ S.absTimes
--- @
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimes
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -317,9 +327,10 @@ currentTime = absTimesWith
 -- | @relTimes@ returns a stream of relative time values starting from 0,
 -- using a clock of granularity 10 ms.
 --
--- @
--- >>> S.mapM_ print $ S.delayPre 1 $ S.relTimes
--- @
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimes
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
 --
 -- Note: This API is not safe on 32-bit machines.
 --
@@ -386,10 +397,8 @@ timeout = undefined
 -- Generate an infinite stream, whose values are the output of a function @f@
 -- applied on the corresponding index.  Index starts at 0.
 --
--- @
--- > Stream.toList $ Stream.take 5 $ Stream.fromIndices id
+-- >>> Stream.toList $ Stream.take 5 $ Stream.fromIndices id
 -- [0,1,2,3,4]
--- @
 --
 -- @since 0.6.0
 {-# INLINE fromIndices #-}

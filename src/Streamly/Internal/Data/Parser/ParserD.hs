@@ -172,6 +172,15 @@ import Prelude hiding
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding ()
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
@@ -571,7 +580,7 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
     step (Left' s) a =
         if cond a
         then process s a
-        else error $ "sliceBeginWith : slice begins with an element which"
+        else error $ "sliceBeginWith : slice begins with an element which "
                         ++ "fails the predicate"
     step (Right' s) a =
         if not (cond a)
@@ -739,16 +748,19 @@ eqBy cmp str = Parser step initial extract
 -- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
 -- input.
 --
--- > let span_ p xs = S.parse (FL.span p FL.toList FL.toList) $ S.fromList xs
+-- @
+-- > let span_ p xs = Stream.parse (Parser.span p Fold.toList Fold.toList) $ Stream.fromList xs
 --
--- >>> span_ (< 1) [1,2,3]
--- > ([],[1,2,3])
+-- > span_ (< 1) [1,2,3]
+-- ([],[1,2,3])
 --
--- >>> span_ (< 2) [1,2,3]
--- > ([1],[2,3])
+-- > span_ (< 2) [1,2,3]
+-- ([1],[2,3])
 --
--- >>> span_ (< 4) [1,2,3]
--- > ([1,2,3],[])
+-- > span_ (< 4) [1,2,3]
+-- ([1,2,3],[])
+--
+-- @
 --
 -- /Internal/
 {-# INLINE span #-}

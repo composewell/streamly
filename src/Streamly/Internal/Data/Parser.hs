@@ -206,6 +206,15 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
@@ -276,7 +285,7 @@ dieM = K.toParserK . D.dieM
 -- | Peek the head element of a stream, without consuming it. Fails if it
 -- encounters end of input.
 --
--- >>> S.parse ((,) <$> PR.peek <*> PR.satisfy (> 0)) $ S.fromList [1]
+-- >>> Stream.parse ((,) <$> Parser.peek <*> Parser.satisfy (> 0)) $ Stream.fromList [1]
 -- (1,1)
 --
 -- @
@@ -291,8 +300,8 @@ peek = K.toParserK D.peek
 
 -- | Succeeds if we are at the end of input, fails otherwise.
 --
--- >>> S.parse ((,) <$> PR.satisfy (> 0) <*> PR.eof) $ S.fromList [1]
--- > (1,())
+-- >>> Stream.parse ((,) <$> Parser.satisfy (> 0) <*> Parser.eof) $ Stream.fromList [1]
+-- (1,())
 --
 -- /Internal/
 --
@@ -302,8 +311,8 @@ eof = K.toParserK D.eof
 
 -- | Returns the next element if it passes the predicate, fails otherwise.
 --
--- >>> S.parse (PR.satisfy (== 1)) $ S.fromList [1,0,1]
--- > 1
+-- >>> Stream.parse (Parser.satisfy (== 1)) $ Stream.fromList [1,0,1]
+-- 1
 --
 -- /Internal/
 --
@@ -344,24 +353,27 @@ either = K.toParserK . D.either
 -- Examples: -
 --
 -- @
--- takeBetween' low high ls = S.parse prsr (S.fromList ls)
---      where prsr = P.takeBetween low high FL.toList
+-- >>> :{
+--   takeBetween' low high ls = Stream.parse prsr (Stream.fromList ls)
+--     where prsr = Parser.takeBetween low high Fold.toList
+-- :}
+--
 -- @
 --
 -- >>> takeBetween' 2 4 [1, 2, 3, 4, 5]
--- > [1,2,3,4]
+-- [1,2,3,4]
 --
 -- >>> takeBetween' 2 4 [1, 2]
--- > [1,2]
+-- [1,2]
 --
 -- >>> takeBetween' 2 4 [1]
--- > ParseError "takeBetween: Expecting alteast 2 elements, got 1"
+-- *** Exception: ParseError "takeBetween: Expecting alteast 2 elements, got 1"
 --
 -- >>> takeBetween' 0 0 [1, 2]
--- > []
+-- []
 --
 -- >>> takeBetween' 0 1 []
--- > []
+-- []
 --
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
@@ -386,8 +398,8 @@ takeBetween m n = K.toParserK . D.takeBetween m n
 -- * Fails - if the stream or the collecting fold ends before it can collect
 --           exactly @n@ elements.
 --
--- >>> S.parse (PR.takeEQ 4 FL.toList) $ S.fromList [1,0,1]
--- > "takeEQ: Expecting exactly 4 elements, got 3"
+-- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- *** Exception: ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3"
 --
 -- /Internal/
 --
@@ -401,11 +413,11 @@ takeEQ n = K.toParserK . D.takeEQ n
 -- * Fails - if the stream or the collecting fold ends before producing @n@
 --           elements.
 --
--- >>> S.parse (PR.takeGE 4 FL.toList) $ S.fromList [1,0,1]
--- > "takeGE: Expecting at least 4 elements, got only 3"
+-- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- *** Exception: ParseError "takeGE: Expecting at least 4 elements, input terminated on 3"
 --
--- >>> S.parse (PR.takeGE 4 FL.toList) $ S.fromList [1,0,1,0,1]
--- > [1,0,1,0,1]
+-- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
+-- [1,0,1,0,1]
 --
 -- /Internal/
 --
@@ -443,8 +455,8 @@ takeWhileP _cond = undefined -- K.toParserK . D.takeWhileP cond
 -- * Stops - when the predicate fails or the collecting fold stops.
 -- * Fails - never.
 --
--- >>> S.parse (PR.takeWhile (== 0) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [0,0]
+-- >>> Stream.parse (Parser.takeWhile (== 0) Fold.toList) $ Stream.fromList [0,0,1,0,1]
+-- [0,0]
 --
 -- We can implement a @breakOn@ using 'takeWhile':
 --
@@ -518,22 +530,24 @@ sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
 --
 -- Examples: -
 --
--- @
--- sliceBeginWithOdd ls = S.parse prsr (S.fromList ls)
---      where prsr = P.sliceBeginWith odd FL.toList
--- @
+-- >>> :{
+--  sliceBeginWithOdd ls = Stream.parse prsr (Stream.fromList ls)
+--      where prsr = Parser.sliceBeginWith odd Fold.toList
+-- :}
+--
 --
 -- >>> sliceBeginWithOdd [2, 4, 6, 3]
--- > [2,4,6]
+-- *** Exception: sliceBeginWith : slice begins with an element which fails the predicate
+-- ...
 --
 -- >>> sliceBeginWithOdd [3, 5, 7, 4]
--- > [3]
+-- [3]
 --
 -- >>> sliceBeginWithOdd [3, 4, 6, 8, 5]
--- > [3,4,6,8]
+-- [3,4,6,8]
 --
 -- >>> sliceBeginWithOdd []
--- > []
+-- []
 --
 -- /Internal/
 --
@@ -560,17 +574,20 @@ escapedSliceSepBy _cond _esc = undefined
 --
 -- For example,
 --
--- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello}"
--- > "hello"
+-- @
+-- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello}"
+-- "hello"
 --
--- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello {world}}"
--- > "hello world"
+-- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}}"
+-- "hello world"
 --
--- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello \\{world\\}}"
--- > "hello {world}"
+-- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello \\{world\\}}"
+-- "hello {world}"
 --
--- >>> escapedFrameBy (== '{') (== '}') (== '\\') S.toList $ S.fromList "{hello {world}"
--- > ParseError "Unterminated '{'"
+-- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}"
+-- ParseError "Unterminated '{'"
+--
+-- @
 --
 -- /Unimplemented/
 {-# INLINABLE escapedFrameBy #-}
@@ -605,10 +622,12 @@ wordBy f = K.toParserK . D.wordBy f
 -- * Stops - when the comparison fails.
 -- * Fails - never.
 --
--- > runGroupsBy eq =
--- >     Stream.toList
--- >         . Stream.parseMany (groupBy eq Fold.toList)
--- >         . Stream.fromList
+-- >>> :{
+--  runGroupsBy eq =
+--      Stream.toList
+--          . Stream.parseMany (Parser.groupBy eq Fold.toList)
+--          . Stream.fromList
+-- :}
 --
 -- >>> runGroupsBy (<) []
 -- []
@@ -617,7 +636,7 @@ wordBy f = K.toParserK . D.wordBy f
 -- [[1]]
 --
 -- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
--- [[3, 5, 4], [1, 2], [0]]
+-- [[3,5,4],[1,2],[0]]
 --
 -- /Internal/
 --
@@ -637,10 +656,12 @@ groupBy eq = K.toParserK . D.groupBy eq
 -- * Stops - when the comparison fails.
 -- * Fails - never.
 --
--- > runGroupsByRolling eq =
--- >     Stream.toList
--- >         . Stream.parseMany (groupByRolling eq Fold.toList)
--- >         . Stream.fromList
+-- >>> :{
+--  runGroupsByRolling eq =
+--      Stream.toList
+--          . Stream.parseMany (Parser.groupByRolling eq Fold.toList)
+--          . Stream.fromList
+-- :}
 --
 -- >>> runGroupsByRolling (<) []
 -- []
@@ -649,7 +670,7 @@ groupBy eq = K.toParserK . D.groupBy eq
 -- [[1]]
 --
 -- >>> runGroupsByRolling (<) [3, 5, 4, 1, 2, 0]
--- [[3, 5], [4], [1, 2], [0]]
+-- [[3,5],[4],[1,2],[0]]
 --
 -- /Internal/
 --
@@ -659,10 +680,10 @@ groupByRolling eq = K.toParserK . D.groupByRolling eq
 
 -- | Match the given sequence of elements using the given comparison function.
 --
--- >>> S.parse $ S.eqBy (==) "string" $ S.fromList "string"
+-- >>> Stream.parse (Parser.eqBy (==) "string") $ Stream.fromList "string"
 --
--- >>> S.parse $ S.eqBy (==) "mismatch" $ S.fromList "match"
--- > *** Exception: ParseError "eqBy: failed, yet to match 7 elements"
+-- >>> Stream.parse (Parser.eqBy (==) "mismatch") $ Stream.fromList "match"
+-- *** Exception: ParseError "eqBy: failed, yet to match 7 elements"
 --
 -- /Internal/
 --
@@ -687,7 +708,9 @@ eqBy cmp = K.toParserK . D.eqBy cmp
 -- This implementation is strict in the second argument, therefore, the
 -- following will fail:
 --
--- >>> S.parse (PR.splitWith const (PR.satisfy (> 0)) undefined) $ S.fromList [1]
+-- >>> Stream.parse (Parser.splitWith const (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
+-- *** Exception: Prelude.undefined
+-- ...
 --
 -- Compare with 'Applicative' instance method '<*>'. This implementation allows
 -- stream fusion but has quadratic complexity. This can fuse with other
@@ -729,7 +752,9 @@ splitWith f p1 p2 =
 -- This implementation is strict in the second argument, therefore, the
 -- following will fail:
 --
--- >>> S.parse (split_ (PR.satisfy (> 0)) undefined) $ S.fromList [1]
+-- >>> Stream.parse (Parser.split_ (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
+-- *** Exception: Prelude.undefined
+-- ...
 --
 -- Compare with 'Applicative' instance method '*>'. This implementation allows
 -- stream fusion but has quadratic complexity. This can fuse with other
@@ -783,7 +808,8 @@ teeWithMin f p1 p2 =
 -- Note: This implementation is not lazy in the second argument. The following
 -- will fail:
 --
--- >>> S.parse (PR.satisfy (> 0) `PR.alt` undefined) $ S.fromList [1..10]
+-- >>> Stream.parse (Parser.satisfy (> 0) `Parser.alt` undefined) $ Stream.fromList [1..10]
+-- 1
 --
 -- Compare with 'Alternative' instance method '<|>'. This implementation allows
 -- stream fusion but has quadratic complexity. This can fuse with other

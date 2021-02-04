@@ -655,6 +655,10 @@ import Prelude
 
 import Streamly.Internal.Data.Stream.IsStream
 
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
 
 -- $streamtypes
 -- The basic stream type is 'Serial', it represents a sequence of IO actions,
@@ -964,9 +968,9 @@ import Streamly.Internal.Data.Stream.IsStream
 -- The following two ways of folding are equivalent in functionality and
 -- performance,
 --
--- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
+-- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
 -- 5050
--- >>> S.sum (S.enumerateFromTo 1 100)
+-- >>> Stream.sum (Stream.enumerateFromTo 1 100)
 -- 5050
 --
 -- However, left folds cannot terminate early even if it does not need to
@@ -978,30 +982,30 @@ import Streamly.Internal.Data.Stream.IsStream
 -- fold in parallel the performance is not impacted as we anyway have to
 -- consume the whole stream due to the full fold.
 --
--- >>> S.head (1 `S.cons` undefined)
+-- >>> Stream.head (1 `Stream.cons` undefined)
 -- Just 1
--- >>> S.fold FL.head (1 `S.cons` undefined)
--- *** Exception: Prelude.undefined
+-- >>> Stream.fold Fold.head (1 `Stream.cons` undefined)
+-- Just 1
 --
 -- However, we can wrap the fold in a scan to convert it into a lazy stream of
 -- fold steps. We can then terminate the stream whenever we want.  For example,
 --
--- >>> S.toList $ S.take 1 $ S.scan FL.head (1 `S.cons` undefined)
+-- >>> Stream.toList $ Stream.take 1 $ Stream.scan Fold.head (1 `Stream.cons` undefined)
 -- [Nothing]
 --
 -- The following example extracts the input stream up to a point where the
 -- running average of elements is no more than 10:
 --
--- @
--- > S.toList
---   $ S.map (fromJust . fst)
---   $ S.takeWhile (\\(_,x) -> x <= 10)
---   $ S.postscan ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
--- @
--- @
---  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
--- @
-
+-- >>> import Data.Maybe (fromJust)
+-- >>> let avg = (/) <$> Fold.sum <*> fmap fromIntegral Fold.length
+-- >>> :{
+--  Stream.toList
+--   $ Stream.map (fromJust . fst)
+--   $ Stream.takeWhile (\(_,x) -> x <= 10)
+--   $ Stream.postscan ((,) <$> Fold.last <*> avg) (Stream.enumerateFromTo 1.0 100.0)
+-- :}
+-- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
+--
 -- $application
 --
 -- Stream processing functions can be composed in a chain using function

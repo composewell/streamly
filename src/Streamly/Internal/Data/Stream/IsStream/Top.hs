@@ -78,6 +78,12 @@ import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (filter, zipWith, concatMap, concat)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+
 ------------------------------------------------------------------------------
 -- Sampling
 ------------------------------------------------------------------------------
@@ -88,10 +94,8 @@ import Prelude hiding (filter, zipWith, concatMap, concat)
 -- | @sampleFromthen offset stride@ samples the element at @offset@ index and
 -- then every element at strides of @stride@.
 --
--- @
 -- >>> Stream.toList $ Stream.sampleFromThen 2 3 $ Stream.enumerateFromTo 0 10
--- [1,4,7,10]
--- @
+-- [2,5,8]
 --
 -- /Internal/
 --
@@ -468,15 +472,15 @@ mergeOuterJoin _eq _s1 _s2 = undefined
 -- elements in the first stream that are present in the second stream.
 --
 -- >>> Stream.toList $ Stream.intersectBy (==) (Stream.fromList [1,2,2,4]) (Stream.fromList [2,1,1,3])
--- > [1,2,2]
+-- [1,2,2]
 --
 -- >>> Stream.toList $ Stream.intersectBy (==) (Stream.fromList [2,1,1,3]) (Stream.fromList [1,2,2,4])
--- > [2,1,1]
+-- [2,1,1]
 --
 -- 'intersectBy' is similar to but not the same as 'innerJoin':
 --
 -- >>> Stream.toList $ fmap fst $ Stream.innerJoin (==) (Stream.fromList [1,2,2,4]) (Stream.fromList [2,1,1,3])
--- > [1,1,2,2]
+-- [1,1,2,2]
 --
 -- Space: O(n) where @n@ is the number of elements in the second stream.
 --
@@ -513,7 +517,7 @@ mergeIntersectBy _eq _s1 _s2 = undefined
 -- second stream as many occurrences of it are deleted from the first stream.
 --
 -- >>> Stream.toList $ Stream.differenceBy (==) (Stream.fromList [1,2,2]) (Stream.fromList [1,2,3])
--- > [2]
+-- [2]
 --
 -- The following laws hold:
 --
@@ -559,7 +563,7 @@ mergeDifferenceBy _eq _s1 _s2 = undefined
 -- in the first stream.
 --
 -- >>> Stream.toList $ Stream.unionBy (==) (Stream.fromList [1,2,2,4]) (Stream.fromList [1,1,2,3])
--- > [1,2,2,4,1,3]
+-- [1,2,2,4,3]
 --
 -- Equivalent to the following except that @s1@ is evaluated only once:
 --
