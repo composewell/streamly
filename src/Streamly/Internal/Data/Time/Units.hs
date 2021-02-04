@@ -1,4 +1,5 @@
-#include "inline.hs"
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Time.Units
@@ -45,9 +46,12 @@ module Streamly.Internal.Data.Time.Units
     )
 where
 
+#include "inline.hs"
+
 import Text.Printf (printf)
 
 import Data.Int
+import Data.Primitive.Types (Prim(..))
 import Streamly.Internal.Data.Time.TimeSpec
 
 -------------------------------------------------------------------------------
@@ -102,6 +106,7 @@ newtype NanoSecond64 = NanoSecond64 Int64
              , Real
              , Integral
              , Ord
+             , Prim
              )
 
 -- | An 'Int64' time representation with a microsecond resolution.
@@ -116,6 +121,7 @@ newtype MicroSecond64 = MicroSecond64 Int64
              , Real
              , Integral
              , Ord
+             , Prim
              )
 
 -- | An 'Int64' time representation with a millisecond resolution.
@@ -130,6 +136,7 @@ newtype MilliSecond64 = MilliSecond64 Int64
              , Real
              , Integral
              , Ord
+             , Prim
              )
 
 -------------------------------------------------------------------------------
