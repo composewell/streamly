@@ -474,12 +474,9 @@ library
                      , Streamly.Internal.FileSystem.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
-<<<<<<< HEAD
 
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
-=======
->>>>>>> ed030cc1 (Rename some modules.)
 
                      -- streamly-network
                      , Streamly.Internal.Network.Socket
