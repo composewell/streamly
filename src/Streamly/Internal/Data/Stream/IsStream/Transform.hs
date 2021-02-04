@@ -260,6 +260,15 @@ import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence
        , reverse, foldr1 , scanl, scanl1)
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence, reverse, foldr1 , scanl, scanl1)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+
 ------------------------------------------------------------------------------
 -- Piping
 ------------------------------------------------------------------------------
@@ -285,18 +294,18 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- stateful transformations. However, note that the custom map and filter
 -- routines can be much more efficient than this due to better stream fusion.
 --
--- >>> S.toList $ S.foldrS S.cons S.nil $ S.fromList [1..5]
--- > [1,2,3,4,5]
+-- >>> Stream.toList $ Stream.foldrS Stream.cons Stream.nil $ Stream.fromList [1..5]
+-- [1,2,3,4,5]
 --
 -- Find if any element in the stream is 'True':
 --
--- >>> S.toList $ S.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
--- > [True]
+-- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (Stream.fromList (2:4:5:undefined) :: Stream.SerialT IO Int)
+-- [True]
 --
 -- Map (+2) on odd elements and filter out the even elements:
 --
--- >>> S.toList $ S.foldrS (\x xs -> if odd x then (x + 2) `S.cons` xs else xs) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
--- > [3,5,7]
+-- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then (x + 2) `Stream.cons` xs else xs) Stream.nil $ (Stream.fromList [1..5] :: Stream.SerialT IO Int)
+-- [3,5,7]
 --
 -- 'foldrM' can also be represented in terms of 'foldrS', however, the former
 -- is much more efficient:
@@ -400,11 +409,9 @@ sequence m = fromStreamS $ S.sequence (toStreamS m)
 --
 -- @
 --
--- @
--- > S.drain $ S.tap (FL.drainBy print) (S.enumerateFromTo 1 2)
+-- >>> Stream.drain $ Stream.tap (Fold.drainBy print) (Stream.enumerateFromTo 1 2)
 -- 1
 -- 2
--- @
 --
 -- Compare with 'trace'.
 --
@@ -420,10 +427,9 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 -- means start at the first element in the stream. If the offset is outside
 -- this range then @offset `mod` n@ is used as offset.
 --
--- @
--- >>> S.drain $ S.tapOffsetEvery 0 2 (FL.rmapM print FL.toList) $ S.enumerateFromTo 0 10
--- > [0,2,4,6,8,10]
--- @
+-- >>> Stream.drain $ Stream.tapOffsetEvery 0 2 (Fold.rmapM print Fold.toList) $ Stream.enumerateFromTo 0 10
+-- [0,2,4,6,8,10]
+
 --
 -- /Internal/
 --
@@ -798,8 +804,10 @@ uniq = fromStreamD . D.uniq . toStreamD
 -- prune p = dropWhileAround p $ uniqBy (x y -> p x && p y)
 -- @
 --
--- >>> Stream.pruneBy isSpace (Stream.fromList "  hello      world!   ")
+-- @
+-- > Stream.pruneBy isSpace (Stream.fromList "  hello      world!   ")
 -- "hello world!"
+-- @
 --
 -- Space: @O(1)@
 --
@@ -1084,10 +1092,8 @@ insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
 
 -- | Insert a pure value between successive elements of a stream.
 --
--- @
--- > S.toList $ S.intersperse ',' $ S.fromList "hello"
+-- >>> Stream.toList $ Stream.intersperse ',' $ Stream.fromList "hello"
 -- "h,e,l,l,o"
--- @
 --
 -- @since 0.7.0
 {-# INLINE intersperse #-}
@@ -1097,10 +1103,8 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- | Insert a side effect before consuming an element of a stream except the
 -- first one.
 --
--- @
--- >>> S.drain $ S.trace putChar $ S.intersperseM_ (putChar '.') $ S.fromList "hello"
--- > h.e.l.l.o
--- @
+-- >>> Stream.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') $ Stream.fromList "hello"
+-- h.e.l.l.o
 --
 -- /Internal/
 {-# INLINE intersperseM_ #-}
@@ -1123,10 +1127,8 @@ intersperseBySpan _n _f _xs = undefined
 
 -- | Insert an effect and its output after consuming an element of a stream.
 --
--- @
--- >>> S.toList $ S.trace putChar $ S.intersperseSuffix (putChar '.' >> return ',') $ S.fromList "hello"
--- > h.,e.,l.,l.,o.,"h,e,l,l,o,"
--- @
+-- >>> Stream.toList $ Stream.trace putChar $ intersperseSuffix (putChar '.' >> return ',') $ Stream.fromList "hello"
+-- h.,e.,l.,l.,o.,"h,e,l,l,o,"
 --
 -- /Internal/
 {-# INLINE intersperseSuffix #-}
@@ -1150,10 +1152,8 @@ intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 -- | Like 'intersperseSuffix' but intersperses an effectful action into the
 -- input stream after every @n@ elements and after the last element.
 --
--- @
--- > S.toList $ S.intersperseSuffixBySpan 2 (return ',') $ S.fromList "hello"
+-- >>> Stream.toList $ Stream.intersperseSuffixBySpan 2 (return ',') $ Stream.fromList "hello"
 -- "he,ll,o,"
--- @
 --
 -- /Internal/
 --
@@ -1165,10 +1165,8 @@ intersperseSuffixBySpan n eff =
 
 -- | Insert a side effect before consuming an element of a stream.
 --
--- @
--- >>> S.toList $ S.trace putChar $ S.interspersePrefix_ (putChar '.' >> return ',') $ S.fromList "hello"
--- > .h.e.l.l.o"hello"
--- @
+-- >>> Stream.toList $ Stream.trace putChar $ Stream.interspersePrefix_ (putChar '.' >> return ',') $ Stream.fromList "hello"
+-- .h.e.l.l.o"hello"
 --
 -- Same as 'trace_' but may be concurrent.
 --
@@ -1189,12 +1187,10 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- | Introduce a delay of specified seconds before consuming an element of the
 -- stream except the first one.
 --
--- @
--- >>> S.mapM_ print $ S.timestamped $ S.delay 1 $ S.enumerateFromTo 1 3
--- > (AbsTime (TimeSpec {sec = 2502706, nsec = 751137000}),1)
--- > (AbsTime (TimeSpec {sec = 2502707, nsec = 743535000}),2)
--- > (AbsTime (TimeSpec {sec = 2502708, nsec = 749758000}),3)
--- @
+-- >>> Stream.mapM_ print $ Stream.timestamped $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),1)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
 -- /Internal/
 --
@@ -1207,12 +1203,10 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- | Introduce a delay of specified seconds after consuming an element of a
 -- stream.
 --
--- @
--- >>> S.mapM_ print $ S.timestamped $ S.delayPost 1 $ S.enumerateFromTo 1 3
--- > (AbsTime (TimeSpec {sec = 2502826, nsec = 119030000}),1)
--- > (AbsTime (TimeSpec {sec = 2502827, nsec = 111393000}),2)
--- > (AbsTime (TimeSpec {sec = 2502828, nsec = 112221000}),3)
--- @
+-- >>> Stream.mapM_ print $ Stream.timestamped $ Stream.delayPost 1 $ Stream.enumerateFromTo 1 3
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),1)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
 -- /Internal/
 --
@@ -1225,12 +1219,10 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- | Introduce a delay of specified seconds before consuming an element of a
 -- stream.
 --
--- @
--- >>> S.mapM_ print $ S.timestamped $ S.delayPre 1 $ S.enumerateFromTo 1 3
--- > (AbsTime (TimeSpec {sec = 2502207, nsec = 533177000}),1)
--- > (AbsTime (TimeSpec {sec = 2502208, nsec = 530859000}),2)
--- > (AbsTime (TimeSpec {sec = 2502209, nsec = 531619000}),3)
--- @
+-- >>> Stream.mapM_ print $ Stream.timestamped $ Stream.delayPre 1 $ Stream.enumerateFromTo 1 3
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),1)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
 -- /Internal/
 --
@@ -1267,10 +1259,8 @@ reassembleBy = undefined
 --
 -- Pair each element in a stream with its index, starting from index 0.
 --
--- @
--- > S.toList $ S.indexed $ S.fromList "hello"
+-- >>> Stream.toList $ Stream.indexed $ Stream.fromList "hello"
 -- [(0,'h'),(1,'e'),(2,'l'),(3,'l'),(4,'o')]
--- @
 --
 -- @since 0.6.0
 {-# INLINE indexed #-}
@@ -1284,10 +1274,8 @@ indexed = fromStreamD . D.indexed . toStreamD
 -- Pair each element in a stream with its index, starting from the
 -- given index @n@ and counting down.
 --
--- @
--- > S.toList $ S.indexedR 10 $ S.fromList "hello"
+-- >>> Stream.toList $ Stream.indexedR 10 $ Stream.fromList "hello"
 -- [(10,'h'),(9,'e'),(8,'l'),(7,'l'),(6,'o')]
--- @
 --
 -- @since 0.6.0
 {-# INLINE indexedR #-}
@@ -1309,9 +1297,10 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- specified granularity.  The timestamp is generated just before the element
 -- is consumed.
 --
--- @
--- >>> S.mapM_ print $ S.timestampWith 0.01 $ S.delay 1 $ S.enumerateFromTo 1 3
--- @
+-- >>> Stream.mapM_ print $ Stream.timestampWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),1)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
 -- /Internal/
 --
@@ -1333,9 +1322,10 @@ timestamped = timestampWith 0.01
 -- clock with the specified granularity. The time is measured just before the
 -- element is consumed.
 --
--- @
--- >>> S.mapM_ print $ S.timeIndexWith 0.01 $ S.delay 1 $ S.enumerateFromTo 1 3
--- @
+-- >>> Stream.mapM_ print $ Stream.timeIndexWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- (RelTime64 (NanoSecond64 ...),1)
+-- (RelTime64 (NanoSecond64 ...),2)
+-- (RelTime64 (NanoSecond64 ...),3)
 --
 -- /Internal/
 --
@@ -1348,12 +1338,10 @@ timeIndexWith g stream = Z.zipWith (flip (,)) stream (relTimesWith g)
 -- 10 ms granularity clock. The time is measured just before the element is
 -- consumed.
 --
--- @
--- >>> S.mapM_ print $ S.timeIndexed $ S.delay 1 $ S.enumerateFromTo 1 3
--- (RelTime64 (NanoSecond64 0),1)
--- (RelTime64 (NanoSecond64 996239000),2)
--- (RelTime64 (NanoSecond64 1996712000),3)
--- @
+-- >>> Stream.mapM_ print $ Stream.timeIndexed $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- (RelTime64 (NanoSecond64 ...),1)
+-- (RelTime64 (NanoSecond64 ...),2)
+-- (RelTime64 (NanoSecond64 ...),3)
 --
 -- /Internal/
 --

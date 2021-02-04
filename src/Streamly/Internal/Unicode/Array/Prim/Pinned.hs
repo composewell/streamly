@@ -26,13 +26,19 @@ import Streamly.Internal.Data.Array.Prim.Pinned (Array)
 import qualified Streamly.Internal.Unicode.Stream as S
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
 
+-- $setup
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Unicode.Array.Prim.Pinned as Unicode
+
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
 --
 -- > lines = S.lines A.write
 --
--- >>> S.toList $ lines $ S.fromList "lines\nthis\nstring\n\n\n"
--- ["lines","this","string","",""]
+-- >>> Stream.toList $ Unicode.lines $ Stream.fromList "lines\nthis\nstring\n\n\n"
+-- [fromListN 5 "lines",fromListN 4 "this",fromListN 6 "string",fromListN 0 "",fromListN 0 ""]
 --
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
@@ -43,8 +49,8 @@ lines = S.lines A.write
 --
 -- > words = S.words A.write
 --
--- >>> S.toList $ words $ S.fromList "A  newline\nis considered white space?"
--- ["A", "newline", "is", "considered", "white", "space?"]
+-- >>> Stream.toList $ Unicode.words $ Stream.fromList "A  newline\nis considered white space?"
+-- [fromListN 1 "A",fromListN 7 "newline",fromListN 2 "is",fromListN 10 "considered",fromListN 5 "white",fromListN 6 "space?"]
 --
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
@@ -55,7 +61,7 @@ words = S.words A.write
 --
 -- 'unlines' is an inverse operation to 'lines'.
 --
--- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
+-- >>> Stream.toList $ Unicode.unlines $ Stream.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
 -- > unlines = S.unlines A.read
@@ -72,7 +78,7 @@ unlines = S.unlines A.read
 --
 -- 'unwords' is an inverse operation to 'words'.
 --
--- >>> S.toList $ unwords $ S.fromList ["unwords", "this", "string"]
+-- >>> Stream.toList $ Unicode.unwords $ Stream.fromList ["unwords", "this", "string"]
 -- "unwords this string"
 --
 -- > unwords = S.unwords A.read

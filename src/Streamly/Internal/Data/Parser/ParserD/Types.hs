@@ -142,6 +142,14 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Prelude hiding (concatMap)
+--
+-- $setup
+-- >>> :m
+-- >>> import Control.Applicative ((<|>))
+-- >>> import Prelude hiding (concatMap)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
 -- | The return type of a 'Parser' step.
 --
@@ -634,7 +642,8 @@ dieM err =
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
 --
--- >>> S.parse (PR.satisfy (> 0) <|> undefined) $ S.fromList [1..10]
+-- >>> Stream.parse (Parser.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
+-- 1
 --
 instance MonadCatch m => Alternative (Parser m a) where
     {-# INLINE empty #-}

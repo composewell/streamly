@@ -117,6 +117,12 @@ import Data.Semigroup (Semigroup(..))
 import qualified Data.Foldable as F
 #endif
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
+-- >>> import Streamly.Internal.Data.Array.Foreign as Array
+
 -------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
@@ -230,11 +236,12 @@ fromPtr n ptr = MA.unsafeInlineIO $ do
 -- characters that can be encoded in a byte i.e. characters or literal bytes in
 -- the range from 0-255.
 --
--- >>> fromAddr# 5 "hello world!"#
--- > [104,101,108,108,111]
+-- >>> import Data.Word (Word8)
+-- >>> Array.fromAddr# 5 "hello world!"# :: Array Word8
+-- [104,101,108,108,111]
 --
--- >>> fromAddr# 3 "\255\NUL\255"#
--- > [255,0,255]
+-- >>> Array.fromAddr# 3 "\255\NUL\255"# :: Array Word8
+-- [255,0,255]
 --
 -- /See also: 'fromString#'/
 --
@@ -262,11 +269,11 @@ fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 -- of bytes terminated by a NUL byte (a 'CString') corresponding to the
 -- given unicode string.
 --
--- >>> fromCString# "hello world!"#
--- > [104,101,108,108,111,32,119,111,114,108,100,33]
+-- >>> Array.fromCString# "hello world!"#
+-- [104,101,108,108,111,32,119,111,114,108,100,33]
 --
--- >>> fromCString# "\255\NUL\255"#
--- > [255]
+-- >>> Array.fromCString# "\255\NUL\255"#
+-- [255]
 --
 -- /See also: 'fromAddr#'/
 --

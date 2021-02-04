@@ -247,6 +247,13 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 
 import Prelude hiding (concatMap, filter, map)
 
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (concatMap, filter, map)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+
 ------------------------------------------------------------------------------
 -- Monadic left folds
 ------------------------------------------------------------------------------
@@ -693,7 +700,8 @@ data ConcatMapState m sa a c
 --
 -- Compare with 'Monad' instance method '>>='.
 --
--- >>> Stream.fold (concatMap (flip Fold.takeLE Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
+-- >>> import Data.Maybe (fromJust)
+-- >>> Stream.fold (Fold.concatMap (flip Fold.takeLE Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
 -- 45
 --
 -- /Internal/
@@ -848,7 +856,7 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 
 -- | @(map f fold)@ maps the function @f@ on the input of the fold.
 --
--- >>> S.fold (FL.map (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
+-- >>> Stream.fold (Fold.map (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
 -- 338350
 --
 -- __Note__: This is not the same as 'fmap'. @map@ is contravariant where as
@@ -876,8 +884,11 @@ lmapM f (Fold step begin done) = Fold step' begin done
 
 -- | Include only those elements that pass a predicate.
 --
--- >>> S.fold (filter (> 5) FL.sum) [1..10]
+-- >>> Stream.fold (Fold.filter (> 5) Fold.sum) $ Stream.fromList [1..10]
 -- 40
+--
+-- >>> Stream.fold (Fold.filter (< 5) Fold.sum) $ Stream.fromList [1..10]
+-- 10
 --
 -- @since 0.7.0
 {-# INLINABLE filter #-}

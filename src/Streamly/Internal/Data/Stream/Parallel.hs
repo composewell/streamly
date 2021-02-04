@@ -72,6 +72,13 @@ import qualified Streamly.Internal.Data.Stream.SVar as SVar
 
 #include "Instances.hs"
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (map)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+
 -------------------------------------------------------------------------------
 -- Parallel
 -------------------------------------------------------------------------------
@@ -228,27 +235,28 @@ infixr 6 `parallel`
 -- singleton streams.  The following trivial example is semantically equivalent
 -- to running the action @putStrLn "hello"@ in the current thread:
 --
--- >>> S.toList $ S.yieldM (putStrLn "hello") `parallel` S.nil
--- > hello
--- > [()]
+-- >>> Stream.toList $ Stream.yieldM (putStrLn "hello") `Stream.parallel` Stream.nil
+-- hello
+-- [()]
 --
 -- Run two actions concurrently:
 --
--- >>> S.toList $ S.yieldM (putStrLn "hello") `parallel` S.yieldM (putStrLn "world")
--- > hello
--- > world
--- > [(),()]
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> Stream.toList $ Stream.yieldM (putStrLn "hello") `Stream.parallel` Stream.yieldM (threadDelay 100000 >> putStrLn "world")
+-- hello
+-- world
+-- [(),()]
 --
 -- Run effects concurrently, disregarding their outputs:
 --
--- >>> S.toList $ S.nilM (putStrLn "hello") `parallel` S.nilM (putStrLn "world")
--- > hello
--- > world
--- > []
+-- >>> Stream.toList $ nilM (putStrLn "hello") `parallel` Stream.nilM (threadDelay 100000 >> putStrLn "world")
+-- hello
+-- world
+-- []
 --
 -- Run an effectful action, and a pure effect without any output, concurrently:
 --
--- >>> S.toList $ S.yieldM (return 1) `parallel` S.nilM (putStrLn "world")
+-- >>> Stream.toList $ Stream.yieldM (return 1) `Stream.parallel` Stream.nilM (putStrLn "world")
 -- world
 -- [1]
 --
@@ -449,7 +457,14 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 -- | Concurrently distribute a stream to a collection of fold functions,
 -- discarding the outputs of the folds.
 --
--- >>> S.drain $ distributeAsync_ [S.mapM_ print, S.mapM_ print] (S.enumerateFromTo 1 2)
+-- @
+-- > Stream.drain $ Stream.distributeAsync_ [Stream.mapM_ print, Stream.mapM_ print] (Stream.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- 1
+-- 2
+--
+-- @
 --
 -- @
 -- distributeAsync_ = flip (foldr tapAsync)

@@ -177,6 +177,13 @@ import Prelude hiding
        , null , reverse, init, and, or, lookup, foldr1, (!!) , splitAt, break
        , mconcat)
 
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Data.Fold as Fold
+
 ------------------------------------------------------------------------------
 -- Deconstruction
 ------------------------------------------------------------------------------
@@ -212,8 +219,8 @@ uncons m = K.uncons (K.adapt m)
 --
 -- Example, determine if any element is 'odd' in a stream:
 --
--- >>> S.foldrM (\x xs -> if odd x then return True else xs) (return False) $ S.fromList (2:4:5:undefined)
--- > True
+-- >>> Stream.foldrM (\x xs -> if odd x then return True else xs) (return False) $ Stream.fromList (2:4:5:undefined)
+-- True
 --
 -- /Since: 0.7.0 (signature changed)/
 --

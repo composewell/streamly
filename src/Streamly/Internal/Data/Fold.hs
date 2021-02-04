@@ -254,6 +254,15 @@ import Prelude hiding
        , span, splitAt, break, mapM, zip)
 import Streamly.Internal.Data.Fold.Types
 
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (break, map, span, splitAt)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, foldMany)
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
 ------------------------------------------------------------------------------
 -- hoist
 ------------------------------------------------------------------------------
@@ -327,7 +336,7 @@ mapM = rmapM
 -- >>> f x = if even x then Just x else Nothing
 -- >>> fld = Fold.mapMaybe f Fold.toList
 -- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
--- [2,4,6,8]
+-- [2,4,6,8,10]
 --
 -- /Internal/
 {-# INLINE mapMaybe #-}
@@ -847,7 +856,7 @@ null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
 --
 -- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
--- > True
+-- True
 --
 -- @since 0.7.0
 {-# INLINE any #-}
@@ -879,7 +888,7 @@ elem a = any (a ==)
 -- | Returns 'True' if all elements of a stream satisfy a predicate.
 --
 -- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
--- > False
+-- False
 --
 -- @since 0.7.0
 {-# INLINABLE all #-}
@@ -942,25 +951,25 @@ or = any (== True)
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
 -- is consumed by fold @f2@.
 --
--- > let splitAt_ n xs = S.fold (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
+-- >>> let splitAt_ n xs = Stream.fold (Fold.splitAt n Fold.toList Fold.toList) $ Stream.fromList xs
 --
 -- >>> splitAt_ 6 "Hello World!"
--- > ("Hello ","World!")
+-- ("Hello ","World!")
 --
 -- >>> splitAt_ (-1) [1,2,3]
--- > ([],[1,2,3])
+-- ([],[1,2,3])
 --
 -- >>> splitAt_ 0 [1,2,3]
--- > ([],[1,2,3])
+-- ([],[1,2,3])
 --
 -- >>> splitAt_ 1 [1,2,3]
--- > ([1],[2,3])
+-- ([1],[2,3])
 --
 -- >>> splitAt_ 3 [1,2,3]
--- > ([1,2,3],[])
+-- ([1,2,3],[])
 --
 -- >>> splitAt_ 4 [1,2,3]
--- > ([1,2,3],[])
+-- ([1,2,3],[])
 --
 -- > splitAt n f1 f2 = splitWith (,) (takeLE n f1) f2
 --
@@ -1009,9 +1018,9 @@ splitAt n fld = splitWith (,) (takeLE n fld)
 --
 -- Let's use the following definition for illustration:
 --
--- > splitOn p = Stream.foldMany (Fold.sliceSepBy pred Fold.toList)
--- > splitOn' p = Stream.toList . splitOn p . Stream.fromList
---
+-- >>> splitOn p = Stream.foldMany (Fold.sliceSepBy pred Fold.toList)
+-- >>> splitOn' p = Stream.toList . splitOn p . Stream.fromList
+
 -- >>> splitOn' (== '.') ""
 -- [""]
 --
@@ -1019,16 +1028,16 @@ splitAt n fld = splitWith (,) (takeLE n fld)
 -- ["",""]
 --
 -- >>> splitOn' (== '.') ".a"
--- > ["","a"]
+-- ["","a"]
 --
 -- >>> splitOn' (== '.') "a."
--- > ["a",""]
+-- ["a",""]
 --
 -- >>> splitOn' (== '.') "a.b"
--- > ["a","b"]
+-- ["a","b"]
 --
 -- >>> splitOn' (== '.') "a..b"
--- > ["a","","b"]
+-- ["a","","b"]
 --
 -- Stops - when the predicate succeeds.
 --
@@ -1102,7 +1111,7 @@ breakOn pat f m = undefined
 -- ---stream m a---|                         |---m (b,c)
 --                 |-------Fold m a c--------|
 -- @
--- >>> S.fold (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
+-- >>> Stream.fold (Fold.tee Fold.sum Fold.length) (Stream.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
 --
 -- @since 0.7.0
@@ -1126,7 +1135,7 @@ tee = teeWith (,)
 --                            ...
 -- @
 --
--- >>> S.fold (FL.distribute [FL.sum, FL.length]) (S.enumerateFromTo 1 5)
+-- >>> Stream.fold (Fold.distribute [Fold.sum, Fold.length]) (Stream.enumerateFromTo 1 5)
 -- [15,5]
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
@@ -1154,10 +1163,12 @@ distribute = foldr (teeWith (:)) (yield [])
 --
 -- Send input to either fold randomly:
 --
--- >>> import System.Random (randomIO)
--- >>> randomly a = randomIO >>= \x -> return $ if x then Left a else Right a
--- >>> S.fold (FL.partitionByM randomly FL.length FL.length) (S.enumerateFromTo 1 100)
+-- @
+-- > import System.Random (randomIO)
+-- > randomly a = randomIO >>= \\x -> return $ if x then Left a else Right a
+-- > Stream.fold (Fold.partitionByM randomly Fold.length Fold.length) (Stream.enumerateFromTo 1 100)
 -- (59,41)
+-- @
 --
 -- Send input to the two folds in a proportion of 2:1:
 --
@@ -1279,13 +1290,13 @@ partitionByMinM = undefined
 --
 -- Count even and odd numbers in a stream:
 --
--- @
--- >>> let f = FL.partitionBy (\\n -> if even n then Left n else Right n)
---                       (fmap (("Even " ++) . show) FL.length)
---                       (fmap (("Odd "  ++) . show) FL.length)
---   in S.fold f (S.enumerateFromTo 1 100)
+-- >>> :{
+--  let f = Fold.partitionBy (\n -> if even n then Left n else Right n)
+--                      (fmap (("Even " ++) . show) Fold.length)
+--                      (fmap (("Odd "  ++) . show) Fold.length)
+--   in Stream.fold f (Stream.enumerateFromTo 1 100)
+-- :}
 -- ("Even 50","Odd 50")
--- @
 --
 -- @since 0.7.0
 {-# INLINE partitionBy #-}
@@ -1355,12 +1366,13 @@ demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 -- key into a map from keys to the results of fold outputs of the corresponding
 -- values.
 --
--- @
--- > let table = Data.Map.fromList [(\"SUM", FL.sum), (\"PRODUCT", FL.product)]
---       input = S.fromList [(\"SUM",1),(\"PRODUCT",2),(\"SUM",3),(\"PRODUCT",4)]
---   in S.fold (FL.demux table) input
+-- >>> import qualified Data.Map
+-- >>> :{
+--  let table = Data.Map.fromList [("SUM", Fold.sum), ("PRODUCT", Fold.product)]
+--      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
+--   in Stream.fold (Fold.demux table) input
+-- :}
 -- fromList [("PRODUCT",8),("SUM",4)]
--- @
 --
 -- @since 0.7.0
 {-# INLINE demux #-}
@@ -1505,11 +1517,11 @@ demuxDefault = demuxDefaultWith id
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
 -- or for generating histograms.
 --
--- @
--- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.fold (FL.classify FL.toList) input
--- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
--- @
+-- >>> :{
+--  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+--   in Stream.fold (Fold.classifyWith fst (Fold.map snd Fold.toList)) input
+-- :}
+-- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
 -- If the classifier fold stops for a particular key any further inputs in that
 -- bucket are ignored.
@@ -1564,14 +1576,14 @@ classifyWith f (Fold step1 initial1 extract1) = mkAccumM step initial extract
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the
 -- input in different bins or for generating histograms.
 --
--- @
--- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.fold (FL.classify FL.toList) input
--- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
--- @
+-- >>> :{
+--  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+--   in Stream.fold (Fold.classify Fold.toList) input
+-- :}
+-- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
 -- @since 0.7.0
-
+--
 -- Same as:
 --
 -- > classify fld = classifyWith fst (map snd fld)

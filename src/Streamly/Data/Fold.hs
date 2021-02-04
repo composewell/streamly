@@ -62,7 +62,7 @@ module Streamly.Data.Fold
     -- A 'Fold' can be run over a stream using the 'Streamly.Prelude.fold'
     -- combinator:
     --
-    -- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
+    -- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
     -- 5050
 
       Fold -- (..)
@@ -123,7 +123,7 @@ module Streamly.Data.Fold
     -- Transformations can be applied either on the input side or on the output
     -- side. The 'Functor' instance of a fold maps on the output of the fold:
     --
-    -- >>> S.fold (fmap show FL.sum) (S.enumerateFromTo 1 100)
+    -- >>> Stream.fold (fmap show Fold.sum) (Stream.enumerateFromTo 1 100)
     -- "5050"
     --
     -- Note: Output transformations are also known as covariant
@@ -199,16 +199,16 @@ module Streamly.Data.Fold
     -- To compute the average of numbers in a stream without going through the
     -- stream twice:
     --
-    -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
-    -- >>> S.fold avg (S.enumerateFromTo 1.0 100.0)
+    -- >>> let avg = (/) <$> Fold.sum <*> fmap fromIntegral Fold.length
+    -- >>> Stream.fold avg (Stream.enumerateFromTo 1.0 100.0)
     -- 50.5
     --
     -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
     -- the input to both the folds and combines the outputs using Monoid or
     -- Semigroup instances of the output types:
     --
-    -- >>> import Data.Monoid (Sum)
-    -- >>> S.fold (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
+    -- >>> import Data.Monoid (Sum(..))
+    -- >>> Stream.fold (Fold.head <> Fold.last) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
     -- Just (Sum {getSum = 101.0})
     --
     -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
@@ -265,3 +265,10 @@ import Prelude
                span, splitAt, break, mapM)
 
 import Streamly.Internal.Data.Fold
+
+--
+-- $setup
+-- >>> :m
+-- >>> import Prelude hiding (head, sum, last, length)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
