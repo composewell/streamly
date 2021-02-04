@@ -89,10 +89,9 @@ where
 
 #include "inline.hs"
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay, ThreadId)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Units (toRelTime64, RelTime64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -326,16 +325,17 @@ numFromThen from next = enumerateFromStepNum from (next - from)
 ------------------------------------------------------------------------------
 
 {-# INLINE updateTimeVar #-}
-updateTimeVar :: Prim.IORef Int64 -> IO ()
-updateTimeVar timeVar = do
-    MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
+updateTimeVar :: Clock -> Prim.IORef MicroSecond64 -> IO ()
+updateTimeVar clock timeVar = do
+    t <- fromAbsTime <$> getTime clock
     Prim.modifyIORef' timeVar (const t)
 
 {-# INLINE updateWithDelay #-}
-updateWithDelay :: RealFrac a => a -> Prim.IORef Int64 -> IO ()
-updateWithDelay precision timeVar = do
+updateWithDelay :: RealFrac a =>
+    Clock -> a -> Prim.IORef MicroSecond64 -> IO ()
+updateWithDelay clock precision timeVar = do
     threadDelay (delayTime precision)
-    updateTimeVar timeVar
+    updateTimeVar clock timeVar
 
     where
 
@@ -344,11 +344,35 @@ updateWithDelay precision timeVar = do
     delayTime g
         | g' >= fromIntegral (maxBound :: Int) = maxBound
         | g' < 1000 = 1000
-        | otherwise =  round g'
+        | otherwise = round g'
 
         where
 
         g' = g * 10 ^ (6 :: Int)
+
+-- XXX Move this to the time/clock module?
+--
+-- | @asyncClock g@ starts a clock thread that updates an IORef with current
+-- time as a 64-bit value in microseconds, every 'g' seconds. The IORef can be
+-- read asynchronously.  The thread exits automatically when the reference to
+-- the returned 'ThreadId' is lost.
+--
+-- Minimum granularity of clock update is 1 ms. Higher is better for
+-- performance.
+--
+-- CAUTION! This is safe only on a 64-bit machine. On a 32-bit machine a 64-bit
+-- 'Var' cannot be read consistently without a lock while another thread is
+-- writing to it.
+asyncClock :: Clock -> Double -> IO (ThreadId, Prim.IORef MicroSecond64)
+asyncClock clock g = do
+    timeVar <- Prim.newIORef undefined
+    updateTimeVar clock timeVar
+    tid <- forkManaged $ forever (updateWithDelay clock g timeVar)
+    return (tid, timeVar)
+
+{-# INLINE readClock #-}
+readClock :: (ThreadId, Prim.IORef MicroSecond64) -> IO MicroSecond64
+readClock (_, timeVar) = Prim.readIORef timeVar
 
 {-# INLINE_NORMAL times #-}
 times :: MonadAsync m => Double -> Stream m (AbsTime, RelTime64)
@@ -358,22 +382,16 @@ times g = Stream step Nothing
 
     {-# INLINE_LATE step #-}
     step _ Nothing = do
-        -- XXX note that this is safe only on a 64-bit machine. On a 32-bit
-        -- machine a 64-bit 'Var' cannot be read consistently without a lock
-        -- while another thread is writing to it.
-        timeVar <- liftIO $ Prim.newIORef (0 :: Int64)
-        liftIO $ updateTimeVar timeVar
-        tid <- forkManaged $ liftIO $ forever (updateWithDelay g timeVar)
-        a <- liftIO $ Prim.readIORef timeVar
-        return $ Skip $ Just (timeVar, tid, a)
+        clock <- liftIO $ asyncClock Monotonic g
+        a <- liftIO $ readClock clock
+        return $ Skip $ Just (clock, a)
 
-    step _ s@(Just (timeVar, _, t0)) = do
-        a <- liftIO $ Prim.readIORef timeVar
+    step _ s@(Just (clock, t0)) = do
+        a <- liftIO $ readClock clock
         -- XXX we can perhaps use an AbsTime64 using a 64 bit Int for
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time
-        return $ Yield (toAbsTime (MicroSecond64 t0),
-            (toRelTime64 (MicroSecond64 (a - t0)))) s
+        return $ Yield (toAbsTime t0, toRelTime64 (a - t0)) s
 
 -------------------------------------------------------------------------------
 -- From Generators
