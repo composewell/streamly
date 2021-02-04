@@ -105,20 +105,17 @@ module Streamly.Internal.Data.SVar
     )
 where
 
-import Control.Concurrent
-       (ThreadId, myThreadId, threadDelay, throwTo, forkIO, killThread)
+import Control.Concurrent (ThreadId, myThreadId, threadDelay, throwTo)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, takeMVar, tryTakeMVar, newMVar,
         tryReadMVar)
 import Control.Exception
-       (SomeException(..), catch, mask, assert, Exception, catches,
+       (SomeException(..), assert, Exception, catches,
         throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
         BlockedIndefinitelyOnSTM(..))
 import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control
-       (MonadBaseControl, control, StM, liftBaseDiscard)
+import Control.Monad.Trans.Control (MonadBaseControl, control)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
         storeLoadBarrier)
@@ -126,21 +123,19 @@ import Data.Concurrent.Queue.MichaelScott (LinkedQueue, pushL)
 import Data.Functor (void)
 import Data.Heap (Heap, Entry(..))
 import Data.Int (Int64)
-import Data.Kind (Type)
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
+import Data.Kind (Type)
 import Data.Maybe (fromJust, fromMaybe)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
 import Data.Set (Set)
-import GHC.Conc (ThreadId(..))
-import GHC.Exts
-import GHC.IO (IO(..))
 import System.IO (hPutStrLn, stderr)
-import System.Mem.Weak (addFinalizer)
 
-import Streamly.Internal.Data.Time.Clock (Clock(..), getTime)
+import Streamly.Internal.Control.Concurrent
+    (MonadAsync, RunInIO(..), doFork, fork, forkManaged)
+import Streamly.Internal.Data.Time.System (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
@@ -898,65 +893,15 @@ withDiagMVar sv label action =
 -- Spawning threads
 ------------------------------------------------------------------------------
 
--- /Since: 0.8.0 ("Streamly.Prelude")/
---
--- | A monad that can perform concurrent or parallel IO operations. Streams
--- that can be composed concurrently require the underlying monad to be
--- 'MonadAsync'.
---
--- /Since: 0.1.0 ("Streamly")/
---
--- @since 0.8.0
-type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-
--- When we run computations concurrently, we completely isolate the state of
+-- | When we run computations concurrently, we completely isolate the state of
 -- the concurrent computations from the parent computation.  The invariant is
 -- that we should never be running two concurrent computations in the same
 -- thread without using the runInIO function.  Also, we should never be running
 -- a concurrent computation in the parent thread, otherwise it may affect the
 -- state of the parent which is against the defined semantics of concurrent
 -- execution.
-newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO (StM m b) }
-
 captureMonadState :: MonadBaseControl IO m => m (RunInIO m)
 captureMonadState = control $ \run -> run (return $ RunInIO run)
-
--- Stolen from the async package. The perf improvement is modest, 2% on a
--- thread heavy benchmark (parallel composition using noop computations).
--- A version of forkIO that does not include the outer exception
--- handler: saves a bit of time when we will be installing our own
--- exception handler.
-{-# INLINE rawForkIO #-}
-rawForkIO :: IO () -> IO ThreadId
-rawForkIO action = IO $ \ s ->
-   case fork# action s of (# s1, tid #) -> (# s1, ThreadId tid #)
-
-{-# INLINE doFork #-}
-doFork :: MonadBaseControl IO m
-    => m ()
-    -> RunInIO m
-    -> (SomeException -> IO ())
-    -> m ThreadId
-doFork action (RunInIO mrun) exHandler =
-    control $ \run ->
-        mask $ \restore -> do
-                tid <- rawForkIO $ catch (restore $ void $ mrun action)
-                                         exHandler
-                run (return tid)
-
-{-# INLINABLE fork #-}
-fork :: MonadBaseControl IO m => m () -> m ThreadId
-fork = liftBaseDiscard forkIO
-
--- | Fork a thread that is automatically killed as soon as the reference to the
--- returned threadId is garbage collected.
---
-{-# INLINABLE forkManaged #-}
-forkManaged :: (MonadIO m, MonadBaseControl IO m) => m () -> m ThreadId
-forkManaged action = do
-    tid <- fork action
-    liftIO $ addFinalizer tid (killThread tid)
-    return tid
 
 ------------------------------------------------------------------------------
 -- Collecting results from child workers in a streamed fashion
