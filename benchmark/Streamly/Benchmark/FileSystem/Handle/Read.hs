@@ -267,7 +267,7 @@ o_1_space_reduce_read env =
             readCountBytes inh
         , mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
             readCountLines inh
-        , mkBenchSmall "US.words . SS.decodeLatin1" env $ \inh _ ->
+        , mkBench "US.words . SS.decodeLatin1" env $ \inh _ ->
             readCountWords inh
 
         -- read with utf8 decoding
@@ -357,7 +357,7 @@ o_1_space_reduce_read_grouped env =
 
         -- XXX investigate why we need inline/noinline in these cases (GHC)
         -- Chunk using parsers
-        , mkBenchSmall
+        , mkBench
             ("S.foldMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
             $ \inh _ -> noinline foldManyChunksOfSum (bigSize env) inh
@@ -365,7 +365,7 @@ o_1_space_reduce_read_grouped env =
             "S.foldMany (FL.take 1 FL.sum)"
             env
             $ \inh _ -> inline foldManyChunksOfSum 1 inh
-        , mkBenchSmall
+        , mkBench
             ("S.foldMany1 (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
             $ \inh _ -> noinline foldMany1ChunksOfSum (bigSize env) inh
@@ -373,7 +373,7 @@ o_1_space_reduce_read_grouped env =
             "S.foldMany1 (FL.take 1 FL.sum)"
             env
             $ \inh _ -> inline foldMany1ChunksOfSum 1 inh
-        , mkBenchSmall
+        , mkBench
             ("S.parseMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
             $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
