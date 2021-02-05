@@ -77,7 +77,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatUnfold
     , concatMap
     , concatMapM
-    , GroupState (..) -- for inspection testing
+    , FoldMany (..) -- for inspection testing
     , foldMany
     , foldMany1
     , groupsOf2
@@ -786,13 +786,13 @@ instance Monad m => Monad (Stream m) where
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-{-# ANN type GroupState Fuse #-}
-data GroupState s fs b a
-    = GroupStart s
-    | GroupConsume s fs a
-    | GroupBuffer s fs
-    | GroupYield b (GroupState s fs b a)
-    | GroupFinish
+{-# ANN type FoldMany Fuse #-}
+data FoldMany s fs b a
+    = FoldManyStart s
+    | FoldManyConsume s fs a
+    | FoldManyBuffer s fs
+    | FoldManyYield b (FoldMany s fs b a)
+    | FoldManyFinish
 
 -- | This is the stream equivalent of "Data.Fold.Internal.many". The fold
 -- may consume 0 or more elements. It means:
@@ -806,37 +806,37 @@ data GroupState s fs b a
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
-    Stream step' (GroupStart state)
+    Stream step' (FoldManyStart state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ (GroupStart st) = do
+    step' _ (FoldManyStart st) = do
         r <- initial
         return
             $ Skip
             $ case r of
-                  FL.Done b -> GroupYield b (GroupStart st)
-                  FL.Partial fs -> GroupBuffer st fs
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs -> FoldManyBuffer st fs
     -- This state is not strictly required but it helps the compiler fuse the
     -- code.
-    step' _ (GroupConsume st fs x) = do
+    step' _ (FoldManyConsume st fs x) = do
         r <- fstep fs x
         return
             $ Skip
             $ case r of
-                  FL.Done b -> GroupYield b (GroupStart st)
-                  FL.Partial fs1 -> GroupBuffer st fs1
-    step' gst (GroupBuffer st fs) = do
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs1 -> FoldManyBuffer st fs1
+    step' gst (FoldManyBuffer st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ GroupConsume s fs x
-            Skip s -> return $ Skip (GroupBuffer s fs)
+            Yield x s -> return $ Skip $ FoldManyConsume s fs x
+            Skip s -> return $ Skip (FoldManyBuffer s fs)
             Stop -> do
                 b <- extract fs
-                return $ Skip (GroupYield b GroupFinish)
-    step' _ (GroupYield b next) = return $ Yield b next
-    step' _ GroupFinish = return Stop
+                return $ Skip (FoldManyYield b FoldManyFinish)
+    step' _ (FoldManyYield b next) = return $ Yield b next
+    step' _ FoldManyFinish = return Stop
 
 {-# ANN type FoldMany1 Fuse #-}
 data FoldMany1 s fs b a
