@@ -789,10 +789,9 @@ instance Monad m => Monad (Stream m) where
 {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
     = FoldManyStart s
-    | FoldManyConsume s fs a
-    | FoldManyBuffer s fs
+    | FoldManyLoop s fs
     | FoldManyYield b (FoldMany s fs b a)
-    | FoldManyFinish
+    | FoldManyDone
 
 -- | This is the stream equivalent of "Data.Fold.Internal.many". The fold
 -- may consume 0 or more elements. It means:
@@ -810,6 +809,15 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 
     where
 
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> FoldManyYield b (FoldManyStart s)
+                  FL.Partial ps -> FoldManyLoop s ps
+
     {-# INLINE_LATE step' #-}
     step' _ (FoldManyStart st) = do
         r <- initial
@@ -817,26 +825,17 @@ foldMany (Fold fstep initial extract) (Stream step state) =
             $ Skip
             $ case r of
                   FL.Done b -> FoldManyYield b (FoldManyStart st)
-                  FL.Partial fs -> FoldManyBuffer st fs
-    -- This state is not strictly required but it helps the compiler fuse the
-    -- code.
-    step' _ (FoldManyConsume st fs x) = do
-        r <- fstep fs x
-        return
-            $ Skip
-            $ case r of
-                  FL.Done b -> FoldManyYield b (FoldManyStart st)
-                  FL.Partial fs1 -> FoldManyBuffer st fs1
-    step' gst (FoldManyBuffer st fs) = do
+                  FL.Partial fs -> FoldManyLoop st fs
+    step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ FoldManyConsume s fs x
-            Skip s -> return $ Skip (FoldManyBuffer s fs)
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyLoop s fs)
             Stop -> do
                 b <- extract fs
-                return $ Skip (FoldManyYield b FoldManyFinish)
+                return $ Skip (FoldManyYield b FoldManyDone)
     step' _ (FoldManyYield b next) = return $ Yield b next
-    step' _ FoldManyFinish = return Stop
+    step' _ FoldManyDone = return Stop
 
 {-# ANN type FoldMany1 Fuse #-}
 data FoldMany1 s fs b a
