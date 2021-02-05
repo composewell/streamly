@@ -890,7 +890,7 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
         r <- step (adaptState gst) st
         case r of
             Yield x s -> consume x s fs
-            Skip s -> return $ Skip (FoldMany1Start s)
+            Skip s -> return $ Skip (FoldMany1First fs s)
             Stop -> return Stop
     step' gst (FoldMany1Loop st fs) = do
         r <- step (adaptState gst) st
