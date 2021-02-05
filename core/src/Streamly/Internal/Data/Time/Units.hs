@@ -180,6 +180,15 @@ newtype NanoSecond64 = NanoSecond64 Int64
              , Unbox
              )
 
+-- XXX timed
+
+timed :: IO a -> IO (NanoSecond64, a)
+timed = undefined
+
+-- ghcStats :: IO a -> IO (GHCStats, a)
+-- measuredBy :: Diff s => IO s -> IO a -> IO (s, a)
+-- timed = measuredBy (getTime Monotonic)
+
 -- | An 'Int64' time representation with a microsecond resolution.
 -- It can represent time up to ~292,000 years.
 newtype MicroSecond64 = MicroSecond64 Int64
@@ -271,6 +280,8 @@ class TimeUnit64 a where
 instance TimeUnit TimeSpec where
     toTimeSpec = id
     fromTimeSpec = id
+
+-- XXX Remove 64 suffix, regular units should be considered 64 bit.
 
 instance TimeUnit NanoSecond64 where
     {-# INLINE toTimeSpec #-}
@@ -364,6 +375,34 @@ fromAbsTime (AbsTime t) = fromTimeSpec t
 -- Relative time using NaonoSecond64 as the underlying representation
 -------------------------------------------------------------------------------
 
+-- XXX Use NanoSecond etc. instead of RelTime. They already denote relative
+-- time.  Maybe its a good idea to keep RelTime as a wrapper around time units
+-- so that we can switch the underlying representation any time. we can use
+-- Double or Int64 or Fixed or TimeSpec.
+--
+-- Can we design it such that we can switch to Double as the underlying
+-- representation any time if we want?  We can just switch the module to switch
+-- the impl.
+--
+-- We can use AbsTime and RelTime as generic types so that we have the ability
+-- to switch the underlying repr.
+--
+-- Use "Time" for AbsTime relative to Posix epoch, basically the system
+-- time. For Time, use a 64-bit value or 64+64? A fixed epoch + relative time.
+-- For relative times in a stream we can use rollingMap (-). As long as the
+-- epoch is fixed we only need to diff the reltime which should be efficient.
+--
+-- We can do the same to paths as well. As long as the root is fixed we can
+-- diff only the relative components.
+--
+-- Also type Time = PosixTime
+--      newtype PosixTime = AbsTime Posix days ns
+--      newtype UTCTime = AbsTime UTC days ns
+--      newtype RelTime = AbsTime Rel days ns
+--
+-- The max value of ns won't be limited to 10^9 so we can keep the epoch fixed
+-- and only manipulate ns.
+--
 -- We use a separate type to represent relative time for safety and speed.
 -- RelTime has a Num instance, absolute time doesn't.  Relative times are
 -- usually shorter and for our purposes an Int64 nanoseconds can hold close to
@@ -443,10 +482,12 @@ fromRelTime (RelTime t) = fromTimeSpec t
 {-# RULES "toRelTime/fromRelTime" forall a. fromRelTime (toRelTime a) = a #-}
 
 -- XXX rename to diffAbsTimes?
+-- SemigroupR?
 {-# INLINE diffAbsTime #-}
 diffAbsTime :: AbsTime -> AbsTime -> RelTime
 diffAbsTime (AbsTime t1) (AbsTime t2) = RelTime (t1 - t2)
 
+-- SemigroupR?
 {-# INLINE addToAbsTime #-}
 addToAbsTime :: AbsTime -> RelTime -> AbsTime
 addToAbsTime (AbsTime t1) (RelTime t2) = AbsTime $ t1 + t2
@@ -482,6 +523,12 @@ showNanoSecond64 time@(NanoSecond64 ns)
                | t >= 1e1  = printf "%.2f %s" t u
                | otherwise = printf "%.3f %s" t u
 
+-- The unit Second may be implicit. We can then use modifiers to convert it
+-- e.g. Nano 1 for 1 nanosec, Micro 1 for 1 microsec. These can work in general
+-- for any unit.
+--
+-- We can also use Minute x for 60x, and Hour x for 3600x etc.
+--
 -- In general we should be able to show the time in a specified unit, if we
 -- omit the unit we can show it in an automatically chosen one.
 {-
