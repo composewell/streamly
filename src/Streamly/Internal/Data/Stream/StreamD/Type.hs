@@ -842,8 +842,7 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 data FoldMany1 s fs b a
     = FoldMany1Start s
     | FoldMany1First fs s
-    | FoldMany1Consume s fs a
-    | FoldMany1Gen s fs
+    | FoldMany1Loop s fs
     | FoldMany1Yield b (FoldMany1 s fs b a)
     | FoldMany1Done
 
@@ -870,6 +869,15 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
 
     where
 
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> FoldMany1Yield b (FoldMany1Start s)
+                  FL.Partial ps -> FoldMany1Loop s ps
+
     {-# INLINE_LATE step' #-}
     step' _ (FoldMany1Start st) = do
         r <- initial
@@ -881,22 +889,14 @@ foldMany1 (Fold fstep initial extract) (Stream step state) =
     step' gst (FoldMany1First fs st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> do
-                return $ Skip $ FoldMany1Consume s fs x
+            Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldMany1Start s)
             Stop -> return Stop
-    step' _ (FoldMany1Consume st fs x) = do
-        r <- fstep fs x
-        return
-            $ Skip
-            $ case r of
-                  FL.Done b -> FoldMany1Yield b (FoldMany1Start st)
-                  FL.Partial fs1 -> FoldMany1Gen st fs1
-    step' gst (FoldMany1Gen st fs) = do
+    step' gst (FoldMany1Loop st fs) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip $ FoldMany1Consume s fs x
-            Skip s -> return $ Skip (FoldMany1Gen s fs)
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldMany1Loop s fs)
             Stop -> do
                 b <- extract fs
                 return $ Skip (FoldMany1Yield b FoldMany1Done)
