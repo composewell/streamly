@@ -16,6 +16,9 @@ import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Unfold.Source as Source
+import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
 import qualified Test.Hspec as H
 
 import Prelude hiding (sequence)
@@ -604,6 +607,34 @@ parseMany =
                     )
                 listEquals (==) outs ins
 
+-- basic sanity test for parsing from arrays
+parseUnfold :: Property
+parseUnfold = do
+    let len = 200
+    -- ls = input list (stream)
+    -- clen = chunk size
+    -- tlen = parser take size
+    forAll
+        ((,,)
+            <$> vectorOf len (chooseAny :: Gen Int)
+            <*> chooseInt (1, len)
+            <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
+        monadicIO $ do
+            arrays <- S.toList $ S.arraysOf clen (S.fromList ls)
+            let src = Source.source (arrays, Nothing)
+            let parser = P.fromFold (FL.takeLE tlen FL.toList)
+            let readSrc =
+                    Source.read
+                        $ UnfoldR.concat UnfoldR.fromList A.readResumable
+            let streamParser =
+                    UnfoldR.simplify (UnfoldR.parseManyD parser readSrc)
+            xs <- run
+                $ S.toList
+                $ S.concatUnfold Unfold.fromList
+                $ S.unfold streamParser src
+
+            listEquals (==) xs ls
+
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
 -------------------------------------------------------------------------------
@@ -683,6 +714,7 @@ main =
     describe "Stream parsing" $ do
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
+        prop "parseUnfold" parseUnfold
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold

@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Array.Foreign
     , A.toStream
     , A.toStreamRev
     , read
+    , readResumable
     , unsafeRead
     , A.readRev
     -- , readChunksOf
@@ -170,6 +171,7 @@ import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Unfold.Resume.Type as UnfoldR
 import qualified Streamly.Internal.Ring.Foreign as RB
 
 -------------------------------------------------------------------------------
@@ -211,6 +213,11 @@ fromStream = P.foldOnce A.write
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 read = Unfold.lmap A.unsafeThaw MA.read
+
+{-# INLINE_NORMAL readResumable #-}
+readResumable :: forall m a. (Monad m, Storable a) =>
+    UnfoldR.Unfold m (Array a) a
+readResumable = UnfoldR.lmap A.unsafeThaw A.unsafeFreeze MA.readResumable
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
