@@ -26,9 +26,12 @@ import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
+import qualified Streamly.Internal.Data.Unfold.Source as Source
 
 import Gauge
 import Streamly.Prelude (SerialT, MonadAsync, IsStream)
@@ -210,6 +213,22 @@ parseManyGroupsRolling b =
     IP.drain . IP.parseManyD (PR.groupByRolling (\_ _ -> b) FL.drain)
 
 -------------------------------------------------------------------------------
+-- Parsing with unfolds
+-------------------------------------------------------------------------------
+
+{-# INLINE parseManyUnfoldArrays #-}
+parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
+parseManyUnfoldArrays count arrays = do
+    let src = Source.source (arrays, Nothing)
+    let parser = PR.fromFold (FL.takeLE count FL.drain)
+    let readSrc =
+            Source.read
+                $ UnfoldR.concat UnfoldR.fromList Array.readResumable
+    let streamParser =
+            UnfoldR.simplify (UnfoldR.parseManyD parser readSrc)
+    S.drain $ S.unfold streamParser src
+
+-------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -305,6 +324,14 @@ o_1_space_serial_nested value =
           $ (parseManyGroupsRolling True)
     ]
 
+o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
+o_1_space_serial_unfold bound arrays =
+    [ bench "parseMany/Unfold/1000 arrays/1 parse"
+        $ nfIO $ parseManyUnfoldArrays bound arrays
+    , bench "parseMany/Unfold/1000 arrays/100000 parses"
+        $ nfIO $ parseManyUnfoldArrays 1 arrays
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -334,14 +361,17 @@ o_n_space_serial value =
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+    arrays <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value arrays)
 
     where
 
-    allBenchmarks value =
+    allBenchmarks value arrays =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
+        , bgroup (o_1_space_prefix moduleName)
+            (o_1_space_serial_unfold value arrays)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]

@@ -78,6 +78,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Types
     , ReadUState
     , read
     , readRev
+    , readResumable
     , flattenArrays
     , flattenArraysRev
 
@@ -146,6 +147,7 @@ import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
@@ -498,12 +500,12 @@ data ReadUState a = ReadUState
     {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
     {-# UNPACK #-} !(Ptr a)         -- current pointer
 
--- | Unfold an array into a stream.
+-- | Resumable unfold of an array.
 --
--- @since 0.7.0
-{-# INLINE_NORMAL read #-}
-read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = Unfold step inject
+{-# INLINE_NORMAL readResumable #-}
+readResumable :: forall m a. (Monad m, Storable a) =>
+    UnfoldR.Unfold m (Array a) a
+readResumable = UnfoldR.Unfold step inject extract
     where
 
     inject (Array (ForeignPtr start contents) (Ptr end) _) =
@@ -523,6 +525,16 @@ read = Unfold step inject
             let !x = unsafeInlineIO $ peek p
             return $ D.Yield x
                 (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
+
+    extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
+        return $ Just $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
+
+-- | Unfold an array into a stream.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL read #-}
+read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+read = UnfoldR.simplify readResumable
 
 -- | Unfold an array into a stream in reverse order.
 --

@@ -35,9 +35,12 @@ import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
+import qualified Streamly.Internal.Data.Unfold.Source as Source
 
 import Gauge hiding (env)
 import Streamly.Prelude (SerialT)
@@ -236,6 +239,22 @@ parseManyChunksOfSum n inh =
               (S.unfold Handle.read inh)
 
 -------------------------------------------------------------------------------
+-- Parsing with unfolds
+-------------------------------------------------------------------------------
+
+{-# INLINE parseManyUnfoldArrays #-}
+parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
+parseManyUnfoldArrays count arrays = do
+    let src = Source.source (arrays, Nothing)
+    let parser = PR.fromFold (FL.takeLE count FL.drain)
+    let readSrc =
+            Source.read
+                $ UnfoldR.concat UnfoldR.fromList Array.readResumable
+    let streamParser =
+            UnfoldR.simplify (UnfoldR.parseMany parser readSrc)
+    S.drain $ S.unfold streamParser src
+
+-------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -338,6 +357,14 @@ o_1_space_filesystem env =
           $ \inh _ -> inline parseManyChunksOfSum 1 inh
     ]
 
+o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
+o_1_space_serial_unfold bound arrays =
+    [ bench "parseMany/Unfold/1000 arrays/1 parse"
+        $ nfIO $ parseManyUnfoldArrays bound arrays
+    , bench "parseMany/Unfold/1000 arrays/100000 parses"
+        $ nfIO $ parseManyUnfoldArrays 1 arrays
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -370,14 +397,17 @@ main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks env value)
+    arrays <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks env value arrays)
 
     where
 
-    allBenchmarks env value =
+    allBenchmarks env value arrays =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup
               (o_1_space_prefix moduleName ++ "/filesystem")
               (o_1_space_filesystem env)
+        , bgroup (o_1_space_prefix moduleName)
+            (o_1_space_serial_unfold value arrays)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
