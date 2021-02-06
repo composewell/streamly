@@ -299,7 +299,6 @@ benchmark Data.Parser.ParserD
   if flag(limit-build-mem)
     ghc-options: +RTS -M750M -RTS
 
-
 benchmark Data.Parser.ParserK
   import: bench-options
   type: exitcode-stdio-1.0
@@ -457,6 +456,21 @@ benchmark Data.Array.Foreign
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DMEMORY_ARRAY
+
+-------------------------------------------------------------------------------
+-- Array Stream Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark Data.Array.Stream.Foreign
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Array/Stream
+  main-is: Foreign.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
 
 -------------------------------------------------------------------------------
 -- FileIO Benchmarks
