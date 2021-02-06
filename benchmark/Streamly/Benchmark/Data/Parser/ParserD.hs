@@ -15,6 +15,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
@@ -59,6 +60,13 @@ benchIOSink
     => Int -> String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
+
+{-# INLINE benchIO #-}
+benchIO
+    :: NFData b
+    => String -> (Int -> t IO a) -> (t IO a -> IO b) -> Benchmark
+benchIO name src sink =
+    bench name $ nfIO $ randomRIO (1,1) >>= sink . src
 
 -------------------------------------------------------------------------------
 -- Parsers
@@ -229,6 +237,14 @@ parseManyUnfoldArrays count arrays = do
     S.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------
+-- Array parsers
+-------------------------------------------------------------------------------
+
+{-# INLINE parseArray #-}
+parseArray :: Int -> SerialT IO (Array.Array Int) -> IO ()
+parseArray value s = void $ IP.parseArrayD (drainWhile (< value)) s
+
+-------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -332,6 +348,19 @@ o_1_space_serial_unfold bound arrays =
         $ nfIO $ parseManyUnfoldArrays 1 arrays
     ]
 
+o_1_space_serial_array :: Int -> [Benchmark]
+o_1_space_serial_array bound =
+    [ benchIO "parseArray (100)" (arrayStream 100) $ parseArray bound
+    , benchIO "parseArray (bound)" (arrayStream bound) $ parseArray bound
+    ]
+
+    where
+
+    {-# INLINE arrayStream #-}
+    arrayStream chunkSize start =
+        IP.chunksOf chunkSize (Array.writeN chunkSize)
+            $ sourceUnfoldrM bound start
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -372,6 +401,7 @@ main = do
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
         , bgroup (o_1_space_prefix moduleName)
             (o_1_space_serial_unfold value arrays)
+        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_array value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
