@@ -897,6 +897,10 @@ words = S.wordsBy isSpace
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.
 --
+-- @
+-- unlines = Stream.interposeSuffix '\n'
+-- @
+--
 -- /Internal/
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
@@ -905,6 +909,10 @@ unlines = S.interposeSuffix '\n'
 -- | Unfold the elements of a stream to character streams using the supplied
 -- 'Unfold' and concat the results with a whitespace character infixed between
 -- the streams.
+--
+-- @
+-- unwords = Stream.interpose ' '
+-- @
 --
 -- /Internal/
 {-# INLINE unwords #-}
