@@ -145,7 +145,6 @@ module Streamly.Internal.Data.Fold
     -- By elements
     , sliceSepBy
     -- , breakOn
-    , sliceSepByMax
     , sliceEndWith
     -- , breakAfter
     {-
@@ -1043,43 +1042,6 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
         if not (predicate a)
         then fstep s a
         else Done <$> fextract s
-
--- | Like 'sliceSepBy' but terminates a parse even before the separator
--- is encountered if its size exceeds the specified maximum limit.
---
--- > take n = PR.sliceSepByMax (const True) n
--- > sliceSepBy p = PR.sliceSepByMax p maxBound
---
--- Let's use the following definitions for illustration:
---
--- > splitOn p n = PR.many FL.toList $ PR.sliceSepByMax p n (FL.toList)
--- > splitOn' p n = S.parse (splitOn p n) . S.fromList
---
--- >>> splitOn' (== '.') 0 ""
--- [""]
---
--- >>> splitOn' (== '.') 0 "a"
--- infinite list of empty strings
---
--- >>> splitOn' (== '.') 3 "hello.world"
--- ["hel","lo","wor","ld"]
---
--- If the separator is found and the limit is reached at the same time then it
--- behaves just like 'sliceSepBy' i.e. the separator is dropped.
---
--- >>> splitOn' (== '.') 0 "."
--- ["",""]
---
--- >>> splitOn' (== '.') 0 ".."
--- ["","",""]
---
--- Stops - when the predicate succeeds or the limit is reached.
---
--- /Internal/
-{-# INLINABLE sliceSepByMax #-}
-sliceSepByMax :: Monad m
-    => (a -> Bool) -> Int -> Fold m a b -> Fold m a b
-sliceSepByMax p n = sliceSepBy p . takeLE n
 
 -- | Collect stream elements until an element succeeds the predicate. Also take
 -- the element on which the predicate succeeded. The succeeding element is

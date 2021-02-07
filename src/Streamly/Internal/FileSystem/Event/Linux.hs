@@ -781,12 +781,13 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
     path <-
         if pathLen /= 0
         then do
-            -- XXX sliceSepByMax drops the separator so assumes a null
+            -- XXX sliceSepBy drops the separator so assumes a null
             -- terminated path, we should use a takeWhile nested inside a
             -- takeP
             pth <-
                 PR.fromFold
-                    $ FL.sliceSepByMax (== 0) pathLen (A.writeN pathLen)
+                    $ FL.sliceSepBy (== 0)
+                    $ FL.takeLE pathLen (A.writeN pathLen)
             let remaining = pathLen - A.length pth - 1
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
             return pth

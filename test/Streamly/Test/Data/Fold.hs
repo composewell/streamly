@@ -236,7 +236,7 @@ sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let p = (== 1)
-                f = F.sliceSepByMax p n FL.toList
+                f = F.sliceSepBy p (F.takeLE n FL.toList)
                 ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
              in case S.fold f (S.fromList ls) of
                     Right xs -> checkListEqual xs ys
