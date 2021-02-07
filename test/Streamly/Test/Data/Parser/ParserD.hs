@@ -357,7 +357,7 @@ sliceSepByMax :: Property
 sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
+            case S.parseD (P.fromFold $ FL.sliceSepBy predicate (FL.takeLE n FL.toList)) (S.fromList ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
