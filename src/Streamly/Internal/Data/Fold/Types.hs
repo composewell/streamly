@@ -303,6 +303,9 @@ instance Functor (Step s) where
 -- 'Step'). At any point the fold driver can extract the result from the
 -- intermediate state using the @extract@ function.
 --
+-- NOTE: If you think you need the constructor of this type please consider
+-- using the smart constructors in "Streamly.Internal.Data.Fold' instead.
+--
 -- @since 0.7.0
 
 data Fold m a b =
@@ -316,6 +319,9 @@ data Fold m a b =
 -- | Make an accumulating (non-terminating) fold using a pure step function, a
 -- pure initial state and a pure state extraction function.
 --
+-- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
+-- can use @mkAccum*@ constructors.
+--
 -- /Internal/
 --
 {-# INLINE mkAccum #-}
@@ -328,6 +334,10 @@ mkAccum step initial extract =
 
 -- | Similar to 'mkAccum' but the final state extracted is identical to the
 -- intermediate state.
+--
+-- @
+-- mkAccum_ step initial = mkAccum step initial id
+-- @
 --
 -- /Internal/
 --
@@ -348,6 +358,10 @@ mkAccumM step initial =
 -- | Similar to 'mkAccumM' but the final state extracted is identical to the
 -- intermediate state.
 --
+-- @
+-- mkAccumM_ step initial = mkAccumM step initial return
+-- @
+--
 -- /Internal/
 --
 {-# INLINE mkAccumM_ #-}
@@ -366,6 +380,10 @@ mkFold step initial extract =
 
 -- | Similar to 'mkFold' but the final state extracted is identical to the
 -- intermediate state.
+--
+-- @
+-- mkFold_ step initial = mkFold step initial id
+-- @
 --
 -- /Internal/
 --
@@ -388,6 +406,10 @@ mkFoldM = Fold
 
 -- | Similar to 'mkFoldM' but the final state extracted is identical to the
 -- intermediate state.
+--
+-- @
+-- mkFoldM_ step initial = mkFoldM step initial return
+-- @
 --
 -- /Internal/
 --
