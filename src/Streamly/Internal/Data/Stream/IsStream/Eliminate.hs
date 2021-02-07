@@ -345,6 +345,20 @@ parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
+-- Unlike folds, parsers may not always result in a valid output, they may
+-- result in an error.  For example:
+--
+-- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
+-- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
+--
+-- Note:
+--
+-- @
+-- fold f = parse (Parser.fromFold f)
+-- @
+--
+-- @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
+--
 -- /Internal/
 --
 {-# INLINE [3] parse #-}

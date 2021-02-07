@@ -937,7 +937,7 @@ many f p = K.toParserK $ D.many f (K.fromParserK p)
 --  Stops: when the downstream fold stops or the parser fails.
 --  Fails: if it stops without producing a single result.
 --
--- @some fld parser = many (takeGE 1 fld) parser@
+-- @some fld parser = manyP (takeGE 1 fld) parser@
 --
 -- Compare with 'Control.Applicative.some'.
 --
