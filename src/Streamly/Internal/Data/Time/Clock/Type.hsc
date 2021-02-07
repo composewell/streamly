@@ -5,10 +5,10 @@
 #include "config.h"
 #endif
 
-#include "Streamly/Internal/Data/Time/config-clock.h"
+#include "Streamly/Internal/Data/Time/Clock/config-clock.h"
 
 -- |
--- Module      : Streamly.Internal.Data.Time.System
+-- Module      : Streamly.Internal.Data.Time.Clock.Type
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2009-2012, Cetin Sert
 --               (c) 2010, Eugene Kirpichov
@@ -19,7 +19,7 @@
 
 -- A majority of the code below has been stolen from the "clock" package.
 
-module Streamly.Internal.Data.Time.System
+module Streamly.Internal.Data.Time.Clock.Type
     (
     -- * get time from the system clock
       Clock(..)

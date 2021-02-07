@@ -20,7 +20,7 @@ where
 
 import Control.Concurrent (threadDelay, ThreadId)
 import Control.Monad (forever)
-import Streamly.Internal.Data.Time.System (Clock(..), getTime)
+import Streamly.Internal.Data.Time.Clock.Type (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units (MicroSecond64(..), fromAbsTime)
 import Streamly.Internal.Control.Concurrent (forkManaged)
 
