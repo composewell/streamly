@@ -173,7 +173,7 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     -- -- *** Using Element Separators
     , splitOn
     , splitOnSuffix
-    -- , splitOnPrefix
+    , splitOnPrefix
 
     -- , splitBy
     , splitWithSuffix
@@ -903,19 +903,16 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 --
 -- XXX We need takeGE/takeBetween to implement "some" using "many".
 
--- | Apply a 'Fold' repeatedly on a stream and emit the parsed values in the
--- output stream.
---
--- This is the streaming dual of the 'Streamly.Internal.Data.Fold.many'
--- parse combinator.
+-- | Like 'foldMany1' but appends empty fold output if the fold and stream
+-- termination aligns:
 --
 -- >>> f = Fold.takeLE 2 Fold.sum
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
+-- > [0]
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..9]
+-- > [3,7,11,15,9]
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
--- > [3,7,11,15,19]
---
--- >>> f = Fold.sliceEndWith Fold.toList
--- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList "hello\nworld"
--- > ["hello\n","world"]
+-- > [3,7,11,15,19,0]
 --
 -- /Internal/
 --
@@ -927,6 +924,25 @@ foldMany
     -> t m b
 foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
 
+-- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
+-- output stream.
+--
+-- To sum every two contiguous elements in a stream:
+--
+-- >>> f = Fold.takeLE 2 Fold.sum
+-- >>> Stream.toList $ Stream.foldMany1 f $ Stream.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- On an empty stream the output is empty:
+--
+-- >>> Stream.toList $ Stream.foldMany1 f $ Stream.fromList []
+-- > []
+--
+-- Note @foldMany1 (takeLE 0)@ would result in an infinite loop in a non-empty
+-- stream.
+--
+-- /Internal/
+--
 {-# INLINE foldMany1 #-}
 foldMany1
     :: (IsStream t, Monad m)
@@ -987,6 +1003,13 @@ foldIterate _f _i _m = undefined
 --
 -- >>> S.toList $ S.parseMany (PR.line FL.toList) $ S.fromList "hello\nworld"
 -- > ["hello\n","world"]
+--
+-- @
+-- foldMany1 f = parseMany (fromFold f)
+-- @
+--
+-- Known Issues: When the parser fails there is no way to get the remaining
+-- stream.
 --
 -- /Internal/
 --
@@ -1201,33 +1224,31 @@ groups = groupsBy (==)
 -- Splitting - by a predicate
 ------------------------------------------------------------------------------
 
--- TODO: Use a Splitter configuration similar to the "split" package to make it
--- possible to express all splitting combinations. In general, we can have
--- infix/suffix/prefix/condensing of separators, dropping both leading/trailing
--- separators. We can have a single split operation taking the splitter config
--- as argument.
+-- In general we can use deintercalate for splitting.  Then we can also use
+-- uniqBy to condense the separators.  One way to generalize splitting is to
+-- output:
+--
+-- data Segment a b = Empty | Segment b | Separator a
+--
+-- XXX splitOn and splitOnSuffix have a different behavior on an empty stream,
+-- is that desirable?
 
--- | Split on an infixed separator element, dropping the separator. Splits the
--- stream on separator elements determined by the supplied predicate, separator
--- is considered as infixed between two segments, if one side of the separator
--- is missing then it is parsed as an empty stream.  The supplied 'Fold' is
--- applied on the split segments. With '-' representing non-separator elements
--- and '.' as separator, 'splitOn' splits as follows:
+-- | Split on an infixed separator element, dropping the separator.  The
+-- supplied 'Fold' is applied on the split segments.  Splits the stream on
+-- separator elements determined by the supplied predicate, separator is
+-- considered as infixed between two segments:
 --
--- @
--- "--.--" => "--" "--"
--- "--."   => "--" ""
--- ".--"   => ""   "--"
--- @
+-- >>> splitOn' p xs = S.toList $ S.splitOn p FL.toList (S.fromList xs)
+-- >>> splitOn' (== '.') "a.b"
+-- > ["a","b"]
 --
--- @splitOn (== x)@ is an inverse of @intercalate (S.yield x)@
---
--- Let's use the following definition for illustration:
---
--- > splitOn' p xs = S.toList $ S.splitOn p (FL.toList) (S.fromList xs)
+-- An empty stream is folded to the default value of the fold:
 --
 -- >>> splitOn' (== '.') ""
 -- [""]
+--
+-- If one or both sides of the separator are missing then the empty segment on
+-- that side is folded to the default output of the fold:
 --
 -- >>> splitOn' (== '.') "."
 -- ["",""]
@@ -1238,42 +1259,63 @@ groups = groupsBy (==)
 -- >>> splitOn' (== '.') "a."
 -- > ["a",""]
 --
--- >>> splitOn' (== '.') "a.b"
--- > ["a","b"]
---
 -- >>> splitOn' (== '.') "a..b"
 -- > ["a","","b"]
 --
+-- splitOn is an inverse of intercalating single element:
+--
+-- @Stream.intercalate (Stream.yield '.') Unfold.fromList . Stream.splitOn (== '.') Fold.toList === id@
+--
+-- Assuming the input stream does not contain the separator:
+--
+-- @Stream.splitOn (== '.') Fold.toList . Stream.intercalate (Stream.yield '.') Unfold.fromList === id@
+--
 -- @since 0.7.0
 
--- This can be considered as an n-fold version of 'breakOn' where we apply
--- 'breakOn' successively on the input stream, dropping the first element
--- of the second segment after each break.
---
 {-# INLINE splitOn #-}
 splitOn
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitOn predicate f = foldMany (FL.sliceSepBy predicate f)
+splitOn predicate f =
+    -- We can express the infix splitting in terms of optional suffix split
+    -- fold.  After applying a suffix split fold repeatedly if the last segment
+    -- ends with a suffix then we need to return the default output of the fold
+    -- after that to make it an infix split.
+    --
+    -- Alternately, we can also express it using an optional prefix split fold.
+    -- If the first segment starts with a prefix then we need to emit the
+    -- default output of the fold before that to make it an infix split, and
+    -- then apply prefix split fold repeatedly.
+    --
+    -- Since a suffix split fold can be easily expressed using a
+    -- non-backtracking fold, we use that.
+    foldMany (FL.sliceSepBy predicate f)
 
--- | Like 'splitOn' but the separator is considered as suffixed to the segments
--- in the stream. A missing suffix at the end is allowed. A separator at the
--- beginning is parsed as empty segment.  With '-' representing elements and
--- '.' as separator, 'splitOnSuffix' splits as follows:
+-- | Split on a suffixed separator element, dropping the separator.  The
+-- supplied 'Fold' is applied on the split segments.
 --
--- @
---  "--.--." => "--" "--"
---  "--.--"  => "--" "--"
---  ".--."   => "" "--"
--- @
+-- > splitOnSuffix' p xs = S.toList $ S.splitOnSuffix p (FL.toList) (S.fromList xs)
+-- >>> splitOnSuffix' (== '.') "a.b."
+-- > ["a","b"]
 --
--- > splitOnSuffix' p xs = S.toList $ S.splitSuffixBy p (FL.toList) (S.fromList xs)
+-- >>> splitOnSuffix' (== '.') "a."
+-- > ["a"]
+--
+-- An empty stream results in an empty output stream:
 --
 -- >>> splitOnSuffix' (== '.') ""
 -- []
 --
+-- An empty segment consisting of only a suffix is folded to the default output
+-- of the fold:
+--
 -- >>> splitOnSuffix' (== '.') "."
 -- [""]
+--
+-- >>> splitOnSuffix' (== '.') "a..b.."
+-- > ["a","","b",""]
+--
+-- A suffix is optional at the end of the stream:
 --
 -- >>> splitOnSuffix' (== '.') "a"
 -- ["a"]
@@ -1281,32 +1323,74 @@ splitOn predicate f = foldMany (FL.sliceSepBy predicate f)
 -- >>> splitOnSuffix' (== '.') ".a"
 -- > ["","a"]
 --
--- >>> splitOnSuffix' (== '.') "a."
--- > ["a"]
---
 -- >>> splitOnSuffix' (== '.') "a.b"
 -- > ["a","b"]
 --
--- >>> splitOnSuffix' (== '.') "a.b."
--- > ["a","b"]
---
--- >>> splitOnSuffix' (== '.') "a..b.."
--- > ["a","","b",""]
---
 -- > lines = splitOnSuffix (== '\n')
+--
+-- 'splitOnSuffix' is an inverse of 'intercalateSuffix' with a single element:
+--
+-- @Stream.intercalateSuffix (Stream.yield '.') Unfold.fromList . Stream.splitOnSuffix (== '.') Fold.toList === id@
+--
+-- Assuming the input stream does not contain the separator:
+--
+-- @Stream.splitOnSuffix (== '.') Fold.toList . Stream.intercalateSuffix (Stream.yield '.') Unfold.fromList === id@
 --
 -- @since 0.7.0
 
--- This can be considered as an n-fold version of 'breakPost' where we apply
--- 'breakPost' successively on the input stream, dropping the first element
--- of the second segment after each break.
---
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitOnSuffix predicate f m =
     D.fromStreamD $ D.foldMany1 (FL.sliceSepBy predicate f) (D.toStreamD m)
+
+-- | Split on a prefixed separator element, dropping the separator.  The
+-- supplied 'Fold' is applied on the split segments.
+--
+-- >>> splitOnPrefix' p xs = S.toList $ S.splitOnPrefix p (FL.toList) (S.fromList xs)
+-- >>> splitOnPrefix' (== '.') ".a.b"
+-- > ["a","b"]
+--
+-- An empty stream results in an empty output stream:
+-- >>> splitOnPrefix' (== '.') ""
+-- []
+--
+-- An empty segment consisting of only a prefix is folded to the default output
+-- of the fold:
+--
+-- >>> splitOnPrefix' (== '.') "."
+-- [""]
+--
+-- >>> splitOnPrefix' (== '.') ".a.b."
+-- > ["a","b",""]
+--
+-- >>> splitOnPrefix' (== '.') ".a..b"
+-- > ["a","","b"]
+--
+-- A prefix is optional at the beginning of the stream:
+--
+-- >>> splitOnPrefix' (== '.') "a"
+-- ["a"]
+--
+-- >>> splitOnPrefix' (== '.') "a.b"
+-- > ["a","b"]
+--
+-- 'splitOnPrefix' is an inverse of 'intercalatePrefix' with a single element:
+--
+-- @Stream.intercalatePrefix (Stream.yield '.') Unfold.fromList . Stream.splitOnPrefix (== '.') Fold.toList === id@
+--
+-- Assuming the input stream does not contain the separator:
+--
+-- @Stream.splitOnPrefix (== '.') Fold.toList . Stream.intercalatePrefix (Stream.yield '.') Unfold.fromList === id@
+--
+-- /Unimplemented/
+
+{-# INLINE splitOnPrefix #-}
+splitOnPrefix :: -- (IsStream t, MonadCatch m) =>
+    (a -> Bool) -> Fold m a b -> t m a -> t m b
+splitOnPrefix _predicate _f = undefined
+    -- parseMany (Parser.sliceBeginBy predicate f)
 
 -- | Like 'splitOn' after stripping leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ with '.' as the separator would be parsed as
@@ -1368,9 +1452,6 @@ wordsBy predicate f m =
 --
 -- @since 0.7.0
 
--- This can be considered as an n-fold version of 'breakPost' where we apply
--- 'breakPost' successively on the input stream.
---
 {-# INLINE splitWithSuffix #-}
 splitWithSuffix
     :: (IsStream t, Monad m)
@@ -1419,6 +1500,10 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -}
 
 -- XXX use a non-monadic intersperse to remove the MonadAsync constraint.
+-- XXX Use two folds, one ring buffer fold for separator sequence and the other
+-- split consumer fold. The input is fed to the ring fold first and the
+-- rejected input is fed to the split fold. If the separator matches, the ring
+-- fold would consume all.
 --
 -- | Like 'splitOnSeq' but splits the separator as well, as an infix token.
 --
