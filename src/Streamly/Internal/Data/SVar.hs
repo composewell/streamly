@@ -135,7 +135,7 @@ import System.IO (hPutStrLn, stderr)
 
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, RunInIO(..), doFork, fork, forkManaged)
-import Streamly.Internal.Data.Time.System (Clock(..), getTime)
+import Streamly.Internal.Data.Time.Clock.Type (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
