@@ -127,7 +127,7 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     -- ** Folding
     -- | Apply folds on a stream.
     , foldMany
-    , foldMany1
+    , foldManyPost
     , foldSequence
     , foldIterate
 
@@ -903,16 +903,43 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 --
 -- XXX We need takeGE/takeBetween to implement "some" using "many".
 
--- | Like 'foldMany1' but appends empty fold output if the fold and stream
+-- | Like 'foldMany' but appends empty fold output if the fold and stream
 -- termination aligns:
 --
 -- >>> f = Fold.takeLE 2 Fold.sum
--- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList []
 -- > [0]
--- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..9]
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
 -- > [3,7,11,15,9]
--- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
 -- > [3,7,11,15,19,0]
+--
+-- /Internal/
+--
+{-# INLINE foldManyPost #-}
+foldManyPost
+    :: (IsStream t, Monad m)
+    => Fold m a b
+    -> t m a
+    -> t m b
+foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
+
+-- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
+-- output stream.
+--
+-- To sum every two contiguous elements in a stream:
+--
+-- >>> f = Fold.takeLE 2 Fold.sum
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- On an empty stream the output is empty:
+--
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
+-- > []
+--
+-- Note @foldMany (takeLE 0)@ would result in an infinite loop in a non-empty
+-- stream.
 --
 -- /Internal/
 --
@@ -923,33 +950,6 @@ foldMany
     -> t m a
     -> t m b
 foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
-
--- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
--- output stream.
---
--- To sum every two contiguous elements in a stream:
---
--- >>> f = Fold.takeLE 2 Fold.sum
--- >>> Stream.toList $ Stream.foldMany1 f $ Stream.fromList [1..10]
--- > [3,7,11,15,19]
---
--- On an empty stream the output is empty:
---
--- >>> Stream.toList $ Stream.foldMany1 f $ Stream.fromList []
--- > []
---
--- Note @foldMany1 (takeLE 0)@ would result in an infinite loop in a non-empty
--- stream.
---
--- /Internal/
---
-{-# INLINE foldMany1 #-}
-foldMany1
-    :: (IsStream t, Monad m)
-    => Fold m a b
-    -> t m a
-    -> t m b
-foldMany1 f m = D.fromStreamD $ D.foldMany1 f (D.toStreamD m)
 
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
@@ -1005,7 +1005,7 @@ foldIterate _f _i _m = undefined
 -- > ["hello\n","world"]
 --
 -- @
--- foldMany1 f = parseMany (fromFold f)
+-- foldMany f = parseMany (fromFold f)
 -- @
 --
 -- Known Issues: When the parser fails there is no way to get the remaining
@@ -1289,7 +1289,7 @@ splitOn predicate f =
     --
     -- Since a suffix split fold can be easily expressed using a
     -- non-backtracking fold, we use that.
-    foldMany (FL.sliceSepBy predicate f)
+    foldManyPost (FL.sliceSepBy predicate f)
 
 -- | Split on a suffixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -1342,8 +1342,7 @@ splitOn predicate f =
 splitOnSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitOnSuffix predicate f m =
-    D.fromStreamD $ D.foldMany1 (FL.sliceSepBy predicate f) (D.toStreamD m)
+splitOnSuffix predicate f = foldMany (FL.sliceSepBy predicate f)
 
 -- | Split on a prefixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -1456,8 +1455,7 @@ wordsBy predicate f m =
 splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitWithSuffix predicate f m =
-    D.fromStreamD $ D.foldMany1 (FL.sliceEndWith predicate f) (D.toStreamD m)
+splitWithSuffix predicate f = foldMany (FL.sliceEndWith predicate f)
 
 ------------------------------------------------------------------------------
 -- Splitting - on a delimiter sequence
