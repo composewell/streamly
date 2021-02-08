@@ -49,7 +49,7 @@ import Prelude hiding (last, length)
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany1)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -310,13 +310,13 @@ o_1_space_reduce_toBytes env =
 chunksOfSum :: Int -> Handle -> IO Int
 chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.read inh)
 
+foldManyPostChunksOfSum :: Int -> Handle -> IO Int
+foldManyPostChunksOfSum n inh =
+    S.length $ IP.foldManyPost (FL.takeLE n FL.sum) (S.unfold FH.read inh)
+
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
     S.length $ IP.foldMany (FL.takeLE n FL.sum) (S.unfold FH.read inh)
-
-foldMany1ChunksOfSum :: Int -> Handle -> IO Int
-foldMany1ChunksOfSum n inh =
-    S.length $ IP.foldMany1 (FL.takeLE n FL.sum) (S.unfold FH.read inh)
 
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
@@ -336,7 +336,7 @@ chunksOf n inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
-inspect $ 'chunksOf `hasNoType` ''FoldMany1
+inspect $ 'chunksOf `hasNoType` ''FoldMany
 inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
@@ -358,6 +358,14 @@ o_1_space_reduce_read_grouped env =
         -- XXX investigate why we need inline/noinline in these cases (GHC)
         -- Chunk using parsers
         , mkBench
+            ("S.foldManyPost (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+            env
+            $ \inh _ -> noinline foldManyPostChunksOfSum (bigSize env) inh
+        , mkBench
+            "S.foldManyPost (FL.take 1 FL.sum)"
+            env
+            $ \inh _ -> inline foldManyPostChunksOfSum 1 inh
+        , mkBench
             ("S.foldMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
             $ \inh _ -> noinline foldManyChunksOfSum (bigSize env) inh
@@ -365,14 +373,6 @@ o_1_space_reduce_read_grouped env =
             "S.foldMany (FL.take 1 FL.sum)"
             env
             $ \inh _ -> inline foldManyChunksOfSum 1 inh
-        , mkBench
-            ("S.foldMany1 (FL.take " ++ show (bigSize env) ++ " FL.sum)")
-            env
-            $ \inh _ -> noinline foldMany1ChunksOfSum (bigSize env) inh
-        , mkBench
-            "S.foldMany1 (FL.take 1 FL.sum)"
-            env
-            $ \inh _ -> inline foldMany1ChunksOfSum 1 inh
         , mkBench
             ("S.parseMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env

@@ -78,9 +78,9 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMap
     , concatMapM
     , FoldMany (..) -- for inspection testing
-    , FoldMany1 (..)
+    , FoldManyPost (..)
     , foldMany
-    , foldMany1
+    , foldManyPost
     , groupsOf2
     , chunksOf
     )
@@ -787,21 +787,73 @@ instance Monad m => Monad (Stream m) where
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-{-# ANN type FoldMany Fuse #-}
-data FoldMany s fs b a
-    = FoldManyStart s
-    | FoldManyLoop s fs
-    | FoldManyYield b (FoldMany s fs b a)
-    | FoldManyDone
+{-# ANN type FoldManyPost Fuse #-}
+data FoldManyPost s fs b a
+    = FoldManyPostStart s
+    | FoldManyPostLoop s fs
+    | FoldManyPostYield b (FoldManyPost s fs b a)
+    | FoldManyPostDone
 
--- | This is the stream equivalent of "Data.Fold.Internal.many". The fold
--- may consume 0 or more elements. It means:
+-- | Like foldMany but with the following differences:
 --
 -- * If the stream is empty the default value of the fold would still be
 -- emitted in the output.
 -- * At the end of the stream if the last application of the fold did not
 -- receive any input it would still yield the default fold accumulator as the
 -- last value.
+--
+{-# INLINE_NORMAL foldManyPost #-}
+foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldManyPost (Fold fstep initial extract) (Stream step state) =
+    Stream step' (FoldManyPostStart state)
+
+    where
+
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> FoldManyPostYield b (FoldManyPostStart s)
+                  FL.Partial ps -> FoldManyPostLoop s ps
+
+    {-# INLINE_LATE step' #-}
+    step' _ (FoldManyPostStart st) = do
+        r <- initial
+        return
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldManyPostYield b (FoldManyPostStart st)
+                  FL.Partial fs -> FoldManyPostLoop st fs
+    step' gst (FoldManyPostLoop st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyPostLoop s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (FoldManyPostYield b FoldManyPostDone)
+    step' _ (FoldManyPostYield b next) = return $ Yield b next
+    step' _ FoldManyPostDone = return Stop
+
+{-# ANN type FoldMany Fuse #-}
+data FoldMany s fs b a
+    = FoldManyStart s
+    | FoldManyFirst fs s
+    | FoldManyLoop s fs
+    | FoldManyYield b (FoldMany s fs b a)
+    | FoldManyDone
+
+-- | Apply a fold multiple times until the stream ends. If the stream is empty
+-- the output would be empty.
+--
+-- @foldMany f = parseMany (fromFold f)@
+--
+-- A terminating fold may terminate even without accepting a single input. So
+-- we run the fold's initial action before evaluating the stream. However, this
+-- means that if later the stream does not yield anything we have to discard
+-- the fold's initial result which could have generated an effect.
 --
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
@@ -826,7 +878,13 @@ foldMany (Fold fstep initial extract) (Stream step state) =
             $ Skip
             $ case r of
                   FL.Done b -> FoldManyYield b (FoldManyStart st)
-                  FL.Partial fs -> FoldManyLoop st fs
+                  FL.Partial fs -> FoldManyFirst fs st
+    step' gst (FoldManyFirst fs st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyFirst fs s)
+            Stop -> return Stop
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -838,74 +896,9 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
 
-{-# ANN type FoldMany1 Fuse #-}
-data FoldMany1 s fs b a
-    = FoldMany1Start s
-    | FoldMany1First fs s
-    | FoldMany1Loop s fs
-    | FoldMany1Yield b (FoldMany1 s fs b a)
-    | FoldMany1Done
-
--- | Like 'foldMany' except that the fold consumes 1 or more elements. It
--- means:
---
--- * If the stream is empty the output would be empty.
--- * At the end of the stream if the last application of the fold did not
--- receive any input it would not result in any output.
---
--- @foldMany1 f = parseMany (fromFold f)@
---
--- This could be problematic unless we use an accumulator fold instead of a
--- terminating fold. A terminating fold may terminate even without accepting a
--- single element. We can use parseMany instead where we can return the input
--- if the fold terminates without accepting any input. The alternative is to
--- always execute the fold's initial action and discard it in case the stream
--- stops without actually feeding input to it.
---
-{-# INLINE_NORMAL foldMany1 #-}
-foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldMany1 (Fold fstep initial extract) (Stream step state) =
-    Stream step' (FoldMany1Start state)
-
-    where
-
-    {-# INLINE consume #-}
-    consume x s fs = do
-        res <- fstep fs x
-        return
-            $ Skip
-            $ case res of
-                  FL.Done b -> FoldMany1Yield b (FoldMany1Start s)
-                  FL.Partial ps -> FoldMany1Loop s ps
-
-    {-# INLINE_LATE step' #-}
-    step' _ (FoldMany1Start st) = do
-        r <- initial
-        return
-            $ Skip
-            $ case r of
-                  FL.Done b -> FoldMany1Yield b (FoldMany1Start st)
-                  FL.Partial fs -> FoldMany1First fs st
-    step' gst (FoldMany1First fs st) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> consume x s fs
-            Skip s -> return $ Skip (FoldMany1First fs s)
-            Stop -> return Stop
-    step' gst (FoldMany1Loop st fs) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> consume x s fs
-            Skip s -> return $ Skip (FoldMany1Loop s fs)
-            Stop -> do
-                b <- extract fs
-                return $ Skip (FoldMany1Yield b FoldMany1Done)
-    step' _ (FoldMany1Yield b next) = return $ Yield b next
-    step' _ FoldMany1Done = return Stop
-
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-chunksOf n f = foldMany1 (FL.takeLE n f)
+chunksOf n f = foldMany (FL.takeLE n f)
 
 data GroupState2 s fs
     = GroupStart2 s
