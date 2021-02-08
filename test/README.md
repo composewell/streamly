@@ -1,3 +1,20 @@
+## Using bin/test.sh
+
+`bin/test.sh` (path relative to the top level repo dir) can run selected
+test groups, generate coverage report, pass GHC RTS options when
+running tests. `test.sh` runs the tests with restricted memory, see
+`bin/test.sh` source for details on the amount of memory used or to change it.
+
+To generate coverage report:
+
+```
+$ bin/test.sh --coverage
+```
+
+To view coverage report, open `./hpc_index.html` in browser.
+
+See `bin/test.sh --help` for more info.
+
 ## Build a single test
 
 ```
