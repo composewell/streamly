@@ -9,15 +9,23 @@ SCRIPT_DIR=$(dirname $0)
 print_help () {
   echo "Usage: $0 "
   echo "       [--targets <"target1 target2 ..." | help>]"
-  echo "       [--slow]"
-  echo "       [--quick]"
   echo "       [--cabal-build-options <option>]"
+  echo "       [--dev-build]"
+  echo "       [--coverage]"
+  echo "       [--hpc-report-options <option>]"
+  echo "       [--no-measure]"
+  echo "       [--raw]"
+  echo "       [--rtsopts <option>]"
   echo "       -- <hspec options or test names>"
   echo
   echo "--targets: targets to run, use 'help' for list of targets"
-  echo "--slow: take longer but run more tests"
-  echo "--quick: faster  but run fewer tests"
   echo "--cabal-build-options: Pass any cabal build options to be used for build"
+  echo "--dev-build: runs some additional tests"
+  echo "--coverage: enable coverage and report coverage info"
+  echo "--hpc-report-options: option for 'hpc report'"
+  echo "--no-measure: with --coverage, do not run tests, only show coverage info"
+  echo "--raw: with --coverage, do not run hpc"
+  echo "--rtsopts: pass GHC RTS options to the test executable"
   echo
   echo "Any arguments after a '--' are passed directly to hspec"
   exit
@@ -49,8 +57,8 @@ do
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
     --raw) RAW=1; shift ;;
-    --slow) SLOW=1; shift ;;
-    --quick) QUICK_MODE=1; shift ;;
+    #--slow) SLOW=1; shift ;; # not implemented
+    #--quick) QUICK_MODE=1; shift ;; # not implemented
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
     --coverage) COVERAGE=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
