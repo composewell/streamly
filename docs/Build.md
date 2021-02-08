@@ -1,62 +1,67 @@
 # GHC Haskell
-## Compiler Versions
+## Compiler (GHC) Versions
 
-GHC versions 8.0 onwards are supported by streamly per se. However, note
-that some packages we depend on (e.g. `network`) support only last three
-versions of GHC.
+For best performance use GHC 8.10 or 8.8 along with `fusion-plugin`
+(see below).  Benchmarks show that GHC 8.8 has significantly better
+performance than GHC 8.6 in many cases.
 
-Use GHC 8.8 for best performance.  Benchmarks show that GHC 8.8 has
-significantly better performance than GHC 8.6 in many cases.
+GHC versions 8.6 onwards are fully supported along with `fusion-plugin`.
+`fusion-plugin` is not supported for GHC versions below 8.6.
+
+GHC versions 8.0 onwards are supported without `fusion-plugin`. However, note
+that some packages we depend on (e.g. `network`) may support only last three
+major versions of GHC.
 
 GHC 8.2.2 may hog memory and hang when building certain applications using
 streamly (particularly the benchmark programs in the streamly package).
 Therefore, we recommend avoiding using the GHC version 8.2.x.
 
+## Memory requirements
+
+Building streamly itself may require upto 4GB memory. Depending on the
+size of the application you may require 1-16GB memory to build. For most
+applications up to 8GB of memory should be sufficient.
+
+To reduce the memory footprint you may want to break big modules into
+smaller ones and reduce unnecessary inlining on large functions. You can
+also use the `-Rghc-timing` GHC option to report the memory usage during
+compilation.
+
+See the "Build times and space considerations" section below for more
+details.
+
 ## Compilation Options
-
-### Absolute Minimum
-
-At the very least `-O -fdicts-strict` compilation options are
-required. If these options are not used, the program may exhibit memory
-hog.  For example, the following program, if compiled without an
-optimization option, is known to hog memory:
-
-```
-main = S.drain $ S.concatMap S.fromList $ S.repeat []
-```
 
 ### Recommended Options
 
-Use the following GHC options:
+Add `fusion-plugin` to the `build-depends` section of your program in
+the cabal file and use the following GHC options:
 
 ```
   -O2
   -fdicts-strict
   -fmax-worker-args=16
   -fspec-constr-recursive=16
+  -fplugin Fusion.Plugin
 ```
 
-Important Note: In certain cases it is possible that GHC takes too long to
-compile with `-fspec-constr-recursive=16`, if that happens please reduce the
-value or remove that option.
+Important Notes:
+
+1. [fusion-plugin](https://hackage.haskell.org/package/fusion-plugin) can
+   improve performance significantly by better stream fusion, many
+   cases. If the perform regresses due to fusion-plugin please open
+   an issue.  You may remove the `-fplugin` option for regular builds
+   but it is recommended for deployment builds and performance
+   benchmarking. Note, for GHC 8.4 or lower fusion-plugin cannot be used.
+2. In certain cases it is possible that GHC takes too long to compile
+   with `-fspec-constr-recursive=16`, if that happens please reduce the
+   value or remove that option.
+3. At the very least `-O -fdicts-strict` compilation options are
+   absolutely required to avoid issues in some cases. For example, the
+   program `main = S.drain $ S.concatMap S.fromList $ S.repeat []` may
+   hog memory without these options.
 
 See [Explanation](#explanation) for details about these flags.
-
-### Using Fusion Plugin
-
-In many cases
-[fusion-plugin](https://hackage.haskell.org/package/fusion-plugin) can
-improve performance by better stream fusion. However, in some cases
-performance may also regress. Please note that the `fusion-plugin`
-package works only for GHC >= 8.6.
-
-* Add `fusion-plugin` to the `build-depends` section of your program in
-  the cabal file.
-* Add the following to GHC options:
-
-```
-  -fplugin=Fusion.Plugin 
-```
 
 ### Explanation
 
@@ -103,10 +108,6 @@ Features/modules may get disabled if the kernel/OS does not support it.
   Xcode/macOS SDK installed (depends on `Cocoa` framework). However, we only
   test on latest three versions of the OS.
 
-## Windows
-
-* File system event notification module is not yet available for Windows.
-
 # Performance Optimizations
 
 A "closed loop" is any streamly code that generates a stream using
@@ -118,7 +119,7 @@ programming.
 
 Closed loops are generated in a modular fashion by stream generation,
 transformation and elimination combinators in streamly. Combinators
-transfer data to the next stage or combinator using data constructors.
+transfer data to the next stream pipeline stage using data constructors.
 These data constructors are eliminated by the compiler using `stream
 fusion` optimizations, generating a very efficient loop.
 
