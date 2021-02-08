@@ -103,7 +103,7 @@ common threading-options
                 -with-rtsopts=-N
 
 common optimization-options
-  if flag(opt)
+  if flag(opt) || flag(fusion-plugin)
     ghc-options: -O2
                  -fdicts-strict
                  -fmax-worker-args=16

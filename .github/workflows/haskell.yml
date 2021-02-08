@@ -48,6 +48,7 @@ jobs:
             ghc_version: 8.8.3
             build: cabal-v2
             cabal_project: cabal.project.ci
+            cabal_build_options: "--flag fusion-plugin --flag inspection"
             runner: ubuntu-latest
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
