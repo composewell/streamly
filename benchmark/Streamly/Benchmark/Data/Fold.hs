@@ -27,7 +27,7 @@ import qualified Streamly.Prelude as S
 
 import Gauge
 import Streamly.Benchmark.Common
-import Prelude hiding (all, any, take, unzip)
+import Prelude hiding (all, any, take, unzip, span)
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -163,6 +163,24 @@ unzip :: Monad m => SerialT m Int -> m (Int, Int)
 unzip = IP.fold $ FL.map (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 
 -------------------------------------------------------------------------------
+-- Spanning
+-------------------------------------------------------------------------------
+
+{-# INLINE span #-}
+span :: Monad m => Int -> SerialT m Int -> m ((), ())
+span bound = S.fold (FL.span (<= (bound `div` 2)) FL.drain FL.drain)
+
+{-# INLINE spanBy #-}
+spanBy :: Monad m => Int -> SerialT m Int -> m ((), ())
+spanBy bound =
+    S.fold (FL.spanBy (\_ i -> i <= (bound `div` 2)) FL.drain FL.drain)
+
+{-# INLINE spanByRolling #-}
+spanByRolling :: Monad m => Int -> SerialT m Int -> m ((), ())
+spanByRolling bound =
+    S.fold (FL.spanByRolling (\_ i -> i <= (bound `div` 2)) FL.drain FL.drain)
+
+-------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
@@ -274,6 +292,9 @@ o_1_space_serial_composition value =
                   $ demuxDefaultWith fn mp
             , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
             , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+            , benchIOSink value "span" $ span value
+            , benchIOSink value "spanBy" $ spanBy value
+            , benchIOSink value "spanByRolling" $ spanByRolling value
             ]
       ]
 
