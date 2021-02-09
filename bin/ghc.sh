@@ -1,0 +1,45 @@
+#!/bin/bash
+
+ghc -Wall                            \
+    -Wcompat                         \
+    -Wunrecognised-warning-flags     \
+    -Widentities                     \
+    -Wincomplete-record-updates      \
+    -Wincomplete-uni-patterns        \
+    -Wredundant-constraints          \
+    -Wnoncanonical-monad-instances   \
+    -Rghc-timing                     \
+    -XBangPatterns                   \
+    -XCApiFFI                        \
+    -XCPP                            \
+    -XConstraintKinds                \
+    -XDeriveDataTypeable             \
+    -XDeriveGeneric                  \
+    -XDeriveTraversable              \
+    -XExistentialQuantification      \
+    -XFlexibleContexts               \
+    -XFlexibleInstances              \
+    -XGeneralizedNewtypeDeriving     \
+    -XInstanceSigs                   \
+    -XKindSignatures                 \
+    -XLambdaCase                     \
+    -XMagicHash                      \
+    -XMultiParamTypeClasses          \
+    -XPatternSynonyms                \
+    -XRankNTypes                     \
+    -XRecordWildCards                \
+    -XScopedTypeVariables            \
+    -XTupleSections                  \
+    -XTypeFamilies                   \
+    -XViewPatterns                   \
+    -XNoMonoLocalBinds               \
+    -XTypeApplications               \
+    -XQuantifiedConstraints          \
+    -O2                              \
+    -fdicts-strict                   \
+    -fspec-constr-recursive=16       \
+    -fmax-worker-args=16             \
+    -fplugin Fusion.Plugin           \
+    -ddump-to-file                   \
+    -ddump-simpl                     \
+    $*
