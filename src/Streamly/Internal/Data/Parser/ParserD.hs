@@ -69,6 +69,11 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
 
+    -- ** Spanning
+    , span
+    , spanBy
+    , spanByRolling
+
     -- Second order parsers (parsers using parsers)
     -- * Binary Combinators
 
@@ -162,7 +167,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span)
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
 
@@ -723,6 +728,53 @@ eqBy cmp str = Parser step initial extract
             $ ParseError
             $ "eqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
+
+--------------------------------------------------------------------------------
+--- Spanning
+--------------------------------------------------------------------------------
+
+-- | @span p f1 f2@ composes folds @f1@ and @f2@ such that @f1@ consumes the
+-- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
+-- input.
+--
+-- > let span_ p xs = S.parse (FL.span p FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> span_ (< 1) [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> span_ (< 2) [1,2,3]
+-- > ([1],[2,3])
+--
+-- >>> span_ (< 4) [1,2,3]
+-- > ([1,2,3],[])
+--
+-- /Internal/
+{-# INLINE span #-}
+span :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+span p f1 f2 = noErrorUnsafeSplitWith (,) (takeWhile p f1) (fromFold f2)
+
+-- | Break the input stream into two groups, the first group takes the input as
+-- long as the predicate applied to the first element of the stream and next
+-- input element holds 'True', the second group takes the rest of the input.
+--
+-- /Internal/
+--
+{-# INLINE spanBy #-}
+spanBy ::
+       Monad m
+    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+spanBy eq f1 f2 = noErrorUnsafeSplitWith (,) (groupBy eq f1) (fromFold f2)
+
+-- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
+-- predicate is applied to the previous and the next input elements.
+--
+-- /Internal/
+{-# INLINE spanByRolling #-}
+spanByRolling ::
+       Monad m
+    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+spanByRolling eq f1 f2 =
+    noErrorUnsafeSplitWith (,) (groupByRolling eq f1) (fromFold f2)
 
 -------------------------------------------------------------------------------
 -- nested parsers
