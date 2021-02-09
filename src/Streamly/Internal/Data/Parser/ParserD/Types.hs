@@ -126,6 +126,8 @@ module Streamly.Internal.Data.Parser.ParserD.Types
     , splitMany -- parseMany?
     , alt
     , concatMap
+
+    , noErrorUnsafeSplitWith
     )
 where
 
@@ -315,6 +317,41 @@ splitWith func (Parser stepL initialL extractL)
         return $ case r of
             Partial n s -> Partial n (SeqParseR f s)
             Continue n s -> Continue n (SeqParseR f s)
+            Done n b -> Done n (f b)
+            Error err -> Error err
+
+    extract (SeqParseR f sR) = fmap f (extractR sR)
+    extract (SeqParseL sL) = do
+        rL <- extractL sL
+        sR <- initialR
+        rR <- extractR sR
+        return $ func rL rR
+
+-- Only use this if you know what you're doing
+{-# INLINE noErrorUnsafeSplitWith #-}
+noErrorUnsafeSplitWith :: Monad m
+    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
+               (Parser stepR initialR extractR) =
+    Parser step initial extract
+
+    where
+
+    initial = SeqParseL <$> initialL
+
+    step (SeqParseL st) a = do
+        r <- stepL st a
+        case r of
+            Partial n s -> return $ Partial n (SeqParseL s)
+            Continue n s -> return $ Partial n (SeqParseL s)
+            Done n b -> Partial n <$> (SeqParseR (func b) <$> initialR)
+            Error err -> return $ Error err
+
+    step (SeqParseR f st) a = do
+        r <- stepR st a
+        return $ case r of
+            Partial n s -> Partial n (SeqParseR f s)
+            Continue n s -> Partial n (SeqParseR f s)
             Done n b -> Done n (f b)
             Error err -> Error err
 
