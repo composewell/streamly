@@ -27,7 +27,7 @@ import qualified Streamly.Prelude as S
 
 import Gauge
 import Streamly.Benchmark.Common
-import Prelude hiding (all, any, take, unzip)
+import Prelude hiding (all, any, take, unzip, sequence_)
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -67,6 +67,15 @@ all value = IP.fold (FL.all (<= value))
 {-# INLINE takeLE #-}
 takeLE :: Monad m => Int -> SerialT m a -> m ()
 takeLE value = IP.fold (FL.takeLE value FL.drain)
+
+{-# INLINE sequence_ #-}
+sequence_ :: Monad m => Int -> Fold m a ()
+sequence_ value = foldr f (pure ()) (Prelude.replicate value (FL.takeLE 1 FL.drain))
+
+    where
+
+    {-# INLINE f #-}
+    f m k = FL.concatMap (const k) m
 
 -------------------------------------------------------------------------------
 -- Splitting by serial application
@@ -284,6 +293,11 @@ o_1_space_serial_composition value =
 
     mp = Map.fromList [(0, FL.sum), (1, FL.length)]
 
+o_n_space_serial :: Int -> [Benchmark]
+o_n_space_serial value =
+    [ benchIOSink value "sequence_/100" $ S.fold (sequence_ (value `div` 100))
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [ bgroup "elimination"
@@ -312,5 +326,6 @@ main = do
             , o_1_space_serial_transformation value
             , o_1_space_serial_composition value
             ]
+        , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
