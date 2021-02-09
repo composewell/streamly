@@ -246,7 +246,8 @@ flag doctests
 custom-setup
  setup-depends:
    base >= 4 && <5,
-   cabal-doctest >= 1 && <1.1
+   cabal-doctest >= 1 && <1.1,
+   Cabal >= 2.2 && < 4
 
 -------------------------------------------------------------------------------
 -- Common stanzas
