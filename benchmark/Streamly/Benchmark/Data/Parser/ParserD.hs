@@ -175,35 +175,22 @@ longestAllAny value =
         )
 
 -------------------------------------------------------------------------------
--- Derived parsers
+-- Spanning
 -------------------------------------------------------------------------------
 
 {-# INLINE span #-}
 span :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
-span value = IP.parseD (span_ (<= (value `div` 2)) FL.drain FL.drain)
-
-    where
-
-    span_ p f1 f2 = PR.splitWith (,) (PR.takeWhile p f1) (PR.fromFold f2)
+span value = IP.parseD (PR.span (<= (value `div` 2)) FL.drain FL.drain)
 
 {-# INLINE spanBy #-}
 spanBy :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
 spanBy value =
-    IP.parseD (spanBy_ (\_ i -> i <= (value `div` 2)) FL.drain FL.drain)
-
-    where
-
-    spanBy_ c f1 f2 = PR.splitWith (,) (PR.groupBy c f1) (PR.fromFold f2)
+    IP.parseD (PR.spanBy (\_ i -> i <= (value `div` 2)) FL.drain FL.drain)
 
 {-# INLINE spanByRolling #-}
 spanByRolling :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
 spanByRolling value =
-    IP.parseD (spanByRolling_ (\_ i -> i <= value `div` 2) FL.drain FL.drain)
-
-    where
-
-    spanByRolling_ c f1 f2 =
-        PR.splitWith (,) (PR.groupByRolling c f1) (PR.fromFold f2)
+    IP.parseD (PR.spanByRolling (\_ i -> i <= value `div` 2) FL.drain FL.drain)
 
 -------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
@@ -272,8 +259,8 @@ o_1_space_serial value =
     , benchIOSink value "longest (all,any)" $ longestAllAny value
     ]
 
-o_1_space_serial_derived :: Int -> [Benchmark]
-o_1_space_serial_derived value =
+o_1_space_serial_spanning :: Int -> [Benchmark]
+o_1_space_serial_spanning value =
     [ benchIOSink value "span" $ span value
     , benchIOSink value "spanBy" $ spanBy value
     , benchIOSink value "spanByRolling" $ spanByRolling value
@@ -313,7 +300,7 @@ main = do
 
     allBenchmarks value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
-        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_derived value)
+        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
