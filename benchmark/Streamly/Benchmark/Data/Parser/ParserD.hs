@@ -20,7 +20,7 @@ import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
 import System.Random (randomRIO)
-import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile, span)
+import Prelude hiding (any, all, take, sequence, sequenceA, sequence_, takeWhile, span)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
@@ -224,6 +224,16 @@ sequence value xs = do
     x <- IP.parseD (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
+{-# INLINE sequence_ #-}
+sequence_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+sequence_ value xs =
+    IP.parseD (foldr f (return ()) (replicate value (PR.takeBetween 0 1 FL.drain))) xs
+
+    where
+
+    {-# INLINE f #-}
+    f m k = m >>= (\_ -> k)
+
 -- choice using the "Alternative" instance with direct style parser type has
 -- quadratic performance complexity.
 --
@@ -284,6 +294,7 @@ o_n_space_serial value =
     [ benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
     , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
     , benchIOSink value "sequence/100" $ sequence (value `div` 100)
+    , benchIOSink value "sequence_/100" $ sequence_ (value `div` 100)
     , benchIOSink value "choice/100" $ choice (value `div` 100)
     ]
 
