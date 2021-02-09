@@ -123,6 +123,7 @@ extra-source-files:
     bin/bench.sh
     bin/bench-exec-one.sh
     bin/build-lib.sh
+    bin/ghc.sh
     bin/mk-hscope.sh
     bin/mk-tags.sh
     bin/targets.sh
