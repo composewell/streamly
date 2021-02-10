@@ -65,8 +65,10 @@ module Streamly.Internal.Data.Fold
 
     -- ** Collectors
     , toList
-    , toListRevF  -- experimental
-    -- $toListRevF
+    , toListRev  -- experimental
+    -- $toListRev
+    , toStream
+    , toStreamRev
 
     -- * Terminating Folds
     , drainN
@@ -108,6 +110,7 @@ module Streamly.Internal.Data.Fold
     -- ** Mapping
     , transform
     , map
+
     --, lsequence
     , lmapM
     , indexed
@@ -240,6 +243,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Prelude
 
 import Prelude hiding
@@ -705,9 +709,9 @@ foldMapM act = mkAccumM_ step (pure mempty)
 -- To Containers
 ------------------------------------------------------------------------------
 
--- $toListRevF
+-- $toListRev
 -- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
--- exactly the same as reversing the list after 'toListRevF'.
+-- exactly the same as reversing the list after 'toListRev'.
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
@@ -717,9 +721,9 @@ foldMapM act = mkAccumM_ step (pure mempty)
 -- @since 0.7.0
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toListRevF #-}
-toListRevF :: Monad m => Fold m a [a]
-toListRevF = mkAccum_ (flip (:)) []
+{-# INLINABLE toListRev #-}
+toListRev :: Monad m => Fold m a [a]
+toListRev = mkAccum_ (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1820,3 +1824,29 @@ concatSequence _f _p = undefined
 chunksBetween :: -- Monad m =>
        Int -> Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksBetween _low _high _f1 _f2 = undefined
+
+-- | A fold that buffers its input to a pure stream.
+--
+-- /Warning!/ working on large streams accumulated as buffers in memory could
+-- be very inefficient, consider using "Streamly.Data.Array" instead.
+--
+-- /Internal/
+{-# INLINE toStream #-}
+toStream :: Monad m => Fold m a (SerialT Identity a)
+toStream = mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
+
+-- This is more efficient than 'toStream'. toStream is exactly the same as
+-- reversing the stream after toStreamRev.
+--
+-- | Buffers the input stream to a pure stream in the reverse order of the
+-- input.
+--
+-- /Warning!/ working on large streams accumulated as buffers in memory could
+-- be very inefficient, consider using "Streamly.Data.Array" instead.
+--
+-- /Internal/
+
+--  xn : ... : x2 : x1 : []
+{-# INLINABLE toStreamRev #-}
+toStreamRev :: Monad m => Fold m a (SerialT Identity a)
+toStreamRev = mkAccum_ (flip K.cons) K.nil
