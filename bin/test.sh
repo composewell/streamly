@@ -9,6 +9,7 @@ SCRIPT_DIR=$(dirname $0)
 print_help () {
   echo "Usage: $0 "
   echo "       [--targets <"target1 target2 ..." | help>]"
+  echo "       [--with-compiler <compiler exe name>]"
   echo "       [--cabal-build-options <option>]"
   echo "       [--dev-build]"
   echo "       [--coverage]"
@@ -52,6 +53,7 @@ do
     -h|--help|help) print_help ;;
     # options with arguments
     --targets) shift; TARGETS=$1; shift ;;
+    --with-compiler) shift; CABAL_WITH_COMPILER=$1; shift ;;
     --cabal-build-options) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
     --hpc-report-options) shift; HPC_REPORT_OPTIONS=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
@@ -68,6 +70,8 @@ do
   esac
 done
 TARGET_EXE_ARGS=$*
+
+set_derived_vars
 
 #-----------------------------------------------------------------------------
 # Determine targets
