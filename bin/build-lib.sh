@@ -137,8 +137,6 @@ set_common_vars () {
   TARGET_EXE_ARGS=
   RTS_OPTIONS=
 
-  GHC_VERSION=$(ghc --numeric-version)
-
   CABAL_BUILD_OPTIONS=""
   CABAL_EXECUTABLE=cabal
 
@@ -153,6 +151,18 @@ set_common_vars () {
         BUILD_DIR=$(git-cabal show-builddir)
       fi
   fi
+}
+
+# To be called after parsing CLI arguments
+set_derived_vars () {
+  if test -n "$CABAL_WITH_COMPILER"
+  then
+    CABAL_BUILD_OPTIONS+=" --with-compiler $CABAL_WITH_COMPILER"
+  else
+    CABAL_WITH_COMPILER=ghc
+  fi
+
+  GHC_VERSION=$($CABAL_WITH_COMPILER --numeric-version)
 }
 
 # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
