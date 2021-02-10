@@ -70,7 +70,7 @@ updateWithDelay clock precision timeVar = do
 -- writing to it.
 asyncClock :: Clock -> Double -> IO (ThreadId, Prim.IORef MicroSecond64)
 asyncClock clock g = do
-    timeVar <- Prim.newIORef undefined
+    timeVar <- Prim.newIORef 0
     updateTimeVar clock timeVar
     tid <- forkManaged $ forever (updateWithDelay clock g timeVar)
     return (tid, timeVar)
