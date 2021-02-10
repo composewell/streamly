@@ -281,6 +281,8 @@ MEASURE=1
 GAUGE_ARGS=
 BUILD_ONCE=0
 
+CABAL_BUILD_OPTIONS="--flag fusion-plugin "
+
 #-----------------------------------------------------------------------------
 # Read command line
 #-----------------------------------------------------------------------------
@@ -295,8 +297,8 @@ do
     --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
-    --cabal-build-flags) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
-    --cabal-build-options) shift; CABAL_BUILD_OPTIONS=$1; shift ;;
+    --cabal-build-flags) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
+    --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
     --slow) SLOW=1; shift ;;
