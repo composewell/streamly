@@ -53,6 +53,9 @@ bench_rts_opts_specific () {
 
     Prelude.Rate/o-1-space/*) echo -n "-K128K" ;;
 
+    -- XXX For GHC-9.0
+    Prelude.Serial/o-1-space/mixed/sum-product-fold) echo -n "-K64M" ;;
+
     # XXX These should be moved to o-n-space?
     Prelude.Serial/o-n-heap/grouping/classifySessionsOf) echo -n "-K1M -M32M" ;;
     Prelude.Serial/o-n-heap/Functor/*) echo -n "-K4M -M32M" ;;
