@@ -17,6 +17,7 @@ print_help () {
   echo "       [--quick]"
   echo "       [--raw]"
   echo "       [--dev-build]"
+  echo "       [--with-compiler <compiler exe name>]"
   echo "       [--cabal-build-options <options>]"
   echo "       [--rtsopts <opts>]"
   echo "       [--compare] [--base <commit>] [--candidate <commit>]"
@@ -297,6 +298,7 @@ do
     --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
+    --with-compiler) shift; CABAL_WITH_COMPILER=$1; shift ;;
     --cabal-build-flags) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
     --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
@@ -316,6 +318,8 @@ do
   esac
 done
 GAUGE_ARGS=$*
+
+set_derived_vars
 
 #-----------------------------------------------------------------------------
 # Determine targets
