@@ -1081,11 +1081,7 @@ transformCombineFromList constr eq listOp t op a b c =
 -- transformCombineOpsOrdered work only for ordered stream types i.e. excluding
 -- the Async type.
 transformCombineOpsCommon
-    :: (IsStream t, Semigroup (t IO Int)
-#if __GLASGOW_HASKELL__ < 806
-       , Functor (t IO)
-#endif
-       )
+    :: (IsStream t, Semigroup (t IO Int) , Functor (t IO))
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
