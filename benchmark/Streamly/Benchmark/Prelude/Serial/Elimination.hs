@@ -36,12 +36,12 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
+import qualified Streamly.Internal.Data.Fold as FL
 
 import Gauge
 import Streamly.Prelude (SerialT, IsStream, serially)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
@@ -539,9 +539,9 @@ o_n_heap_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toListRev" Internal.toListRev
-        , benchIOSink value "toPureRev" Internal.toPureRev
-        , benchIOSink value "toStream" (S.fold IP.toStream)
-        , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
+        , benchIOSink value "toStreamRev" Internal.toStreamRev
+        , benchIOSink value "toStream" (S.fold FL.toStream)
+        , benchIOSink value "toStreamRev" (S.fold FL.toStreamRev)
         ]
     ]
 
@@ -550,7 +550,7 @@ o_n_space_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
-        , benchIOSink value "toPure" Internal.toPure
+        , benchIOSink value "toStream" Internal.toStream
         ]
     ]
 
