@@ -291,7 +291,7 @@ o_n_heap_serial value =
       -- as the structure cannot be lazily consumed until fully built.
             [
               benchIOSink value "toList" (S.fold FL.toList)
-            , benchIOSink value "toListRevF" (S.fold FL.toListRevF)
+            , benchIOSink value "toListRev" (S.fold FL.toListRev)
             ]
     ]
 

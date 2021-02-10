@@ -43,11 +43,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , foldl1'
     , foldlM'
 
-    -- * Specific 'Fold's
-    -- XXX Move to Data.Fold?
-    , toStream    -- XXX rename to write? buffer?
-    , toStreamRev -- XXX rename to writeRev? bufferRev?
-
     -- * Specific Fold Functions
     -- | Folds as functions of the shape @t m a -> m b@.
     --
@@ -111,8 +106,8 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- ** To Containers
     , toList
     , toListRev
-    , toPure -- XXX move toStream to Data.Fold and rename this to toStream?
-    , toPureRev
+    , toStream
+    , toStreamRev
 
     -- * Concurrent Folds
     , foldAsync
@@ -152,7 +147,6 @@ import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity (..))
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
@@ -763,58 +757,29 @@ toHandle h = go
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
         in K.foldStream defState yieldk single stop m1
 
--- XXX rename these to write/writeRev to make the naming consistent with folds
--- in other modules.
---
--- | A fold that buffers its input to a pure stream.
---
--- /Warning!/ working on large streams accumulated as buffers in memory could
--- be very inefficient, consider using "Streamly.Data.Array" instead.
---
--- /Internal/
-{-# INLINE toStream #-}
-toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = FL.mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
-
--- This is more efficient than 'toStream'. toStream is exactly the same as
--- reversing the stream after toStreamRev.
---
--- | Buffers the input stream to a pure stream in the reverse order of the
--- input.
---
--- /Warning!/ working on large streams accumulated as buffers in memory could
--- be very inefficient, consider using "Streamly.Data.Array" instead.
---
--- /Internal/
-
---  xn : ... : x2 : x1 : []
-{-# INLINABLE toStreamRev #-}
-toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = FL.mkAccum_ (flip K.cons) K.nil
-
 -- | Convert a stream to a pure stream.
 --
 -- @
--- toPure = foldr cons nil
+-- toStream = foldr cons nil
 -- @
 --
 -- /Internal/
 --
-{-# INLINE toPure #-}
-toPure :: Monad m => SerialT m a -> m (SerialT Identity a)
-toPure = foldr K.cons K.nil
+{-# INLINE toStream #-}
+toStream :: Monad m => SerialT m a -> m (SerialT Identity a)
+toStream = foldr K.cons K.nil
 
 -- | Convert a stream to a pure stream in reverse order.
 --
 -- @
--- toPureRev = foldl' (flip cons) nil
+-- toStreamRev = foldl' (flip cons) nil
 -- @
 --
 -- /Internal/
 --
-{-# INLINE toPureRev #-}
-toPureRev :: Monad m => SerialT m a -> m (SerialT Identity a)
-toPureRev = foldl' (flip K.cons) K.nil
+{-# INLINE toStreamRev #-}
+toStreamRev :: Monad m => SerialT m a -> m (SerialT Identity a)
+toStreamRev = foldl' (flip K.cons) K.nil
 
 ------------------------------------------------------------------------------
 -- Concurrent Application
