@@ -5,6 +5,9 @@ For best performance use GHC 8.10 or 8.8 along with `fusion-plugin`
 (see below).  Benchmarks show that GHC 8.8 has significantly better
 performance than GHC 8.6 in many cases.
 
+Please do not use GHC 9.0 for sensitive applications, initial
+evaluations have shown severe perf regressions with GHC 9.0.
+
 GHC versions 8.6 onwards are fully supported along with `fusion-plugin`.
 `fusion-plugin` is not supported for GHC versions below 8.6.
 

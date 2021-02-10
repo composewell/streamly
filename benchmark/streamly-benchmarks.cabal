@@ -113,7 +113,7 @@ common bench-depends
     , containers          >= 0.5   && < 0.7
     , typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
-    , ghc-prim          >= 0.4   && < 0.7
+    , ghc-prim          >= 0.4   && < 0.8
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:

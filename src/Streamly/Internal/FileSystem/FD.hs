@@ -217,7 +217,11 @@ readArrayUpto size (Handle fd) = do
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
         -- n <- hGetBufSome h p size
+#if MIN_VERSION_base(4,15,0)
+        n <- RawIO.read fd p 0 size
+#else
         n <- RawIO.read fd p size
+#endif
         -- XXX shrink only if the diff is significant
         -- Use unsafeFreezeWithShrink
         return $
@@ -235,7 +239,11 @@ writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
     -- RawIO.writeAll fd (castPtr p) aLen
+#if MIN_VERSION_base(4,15,0)
+    RawIO.write fd (castPtr p) 0 aLen
+#else
     RawIO.write fd (castPtr p) aLen
+#endif
     {-
     -- Experiment to compare "writev" based IO with "write" based IO.
     iov <- A.newArray 1
