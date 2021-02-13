@@ -5,6 +5,7 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Main
@@ -18,6 +19,13 @@ import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum(..))
+import GHC.Magic (inline)
+#if __GLASGOW_HASKELL__ >= 802
+import GHC.Magic (noinline)
+#else
+#define noinline
+#endif
+import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude
        hiding (any, all, take, sequence, sequence_, sequenceA, takeWhile)
@@ -25,14 +33,16 @@ import Prelude
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
+import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
-import Gauge
+import Gauge hiding (env)
 import Streamly.Prelude (SerialT)
 import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common.Handle
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -218,6 +228,13 @@ longestAllAny value =
             (PR.drainWhile (<= value))
         )
 
+parseManyChunksOfSum :: Int -> Handle -> IO Int
+parseManyChunksOfSum n inh =
+    S.length
+        $ IP.parseMany
+              (PR.fromFold $ FL.takeLE n FL.sum)
+              (S.unfold Handle.read inh)
+
 -------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
@@ -313,6 +330,14 @@ o_1_space_serial value =
     , benchIOSink value "parseIterate" parseIterate
     ]
 
+o_1_space_filesystem :: BenchEnv -> [Benchmark]
+o_1_space_filesystem env =
+    [ mkBench ("S.parseMany (FL.take " ++ show (bigSize env) ++ " FL.sum)") env
+          $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
+    , mkBench "S.parseMany (FL.take 1 FL.sum)" env
+          $ \inh _ -> inline parseManyChunksOfSum 1 inh
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -344,11 +369,15 @@ o_n_heap_serial value =
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+    env <- mkHandleBenchEnv
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks env value)
 
     where
 
-    allBenchmarks value =
+    allBenchmarks env value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
+        , bgroup
+              (o_1_space_prefix moduleName ++ "/filesystem")
+              (o_1_space_filesystem env)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
