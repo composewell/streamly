@@ -1196,6 +1196,9 @@ groupsBy :: Monad m
     -> Fold m a b
     -> Stream m a
     -> Stream m b
+{-
+groupsBy eq fld = parseMany (PRD.groupBy eq fld)
+-}
 groupsBy cmp (Fold fstep initial done) (Stream step state) =
     Stream stepOuter (GroupingInit state)
 
@@ -1277,6 +1280,9 @@ groupsRollingBy :: Monad m
     -> Fold m a b
     -> Stream m a
     -> Stream m b
+{-
+groupsRollingBy eq fld = parseMany (PRD.groupByRolling eq fld)
+-}
 groupsRollingBy cmp (Fold fstep initial done) (Stream step state) =
     Stream stepOuter (GroupingInit state)
 
