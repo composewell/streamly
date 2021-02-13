@@ -193,6 +193,23 @@ spanByRolling value =
     IP.parseD (PR.spanByRolling (\_ i -> i <= value `div` 2) FL.drain FL.drain)
 
 -------------------------------------------------------------------------------
+-- Nested
+-------------------------------------------------------------------------------
+
+{-# INLINE parseMany #-}
+parseMany :: MonadThrow m => Int -> SerialT m Int -> m ()
+parseMany value = IP.drain . IP.parseManyD (drainWhile (<= value + 1))
+
+{-# INLINE parseManyGroups #-}
+parseManyGroups :: MonadThrow m => Bool -> SerialT m Int -> m ()
+parseManyGroups b = IP.drain . IP.parseManyD (PR.groupBy (\_ _ -> b) FL.drain)
+
+{-# INLINE parseManyGroupsRolling #-}
+parseManyGroupsRolling :: MonadThrow m => Bool -> SerialT m Int -> m ()
+parseManyGroupsRolling b =
+    IP.drain . IP.parseManyD (PR.groupByRolling (\_ _ -> b) FL.drain)
+
+-------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -276,6 +293,18 @@ o_1_space_serial_spanning value =
     , benchIOSink value "spanByRolling" $ spanByRolling value
     ]
 
+o_1_space_serial_nested :: Int -> [Benchmark]
+o_1_space_serial_nested value =
+    [ benchIOSink value "parseMany" $ parseMany value
+    , benchIOSink value "parseMany groupBy (bound groups)"
+          $ (parseManyGroups False)
+    , benchIOSink value "parseMany groupRollingBy (bound groups)"
+          $ (parseManyGroupsRolling False)
+    , benchIOSink value "parseMany groupBy (1 group)" $ (parseManyGroups True)
+    , benchIOSink value "parseMany groupRollingBy (1 group)"
+          $ (parseManyGroupsRolling True)
+    ]
+
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -312,6 +341,7 @@ main = do
     allBenchmarks value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
+        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
