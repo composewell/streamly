@@ -1036,11 +1036,9 @@ splitAt n fld = splitWith (,) (takeLE n fld)
 {-# INLINE sliceSepBy #-}
 sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 sliceSepBy predicate (Fold fstep finitial fextract) =
-    Fold step initial fextract
+    Fold step finitial fextract
 
     where
-
-    initial = finitial
 
     step s a =
         if not (predicate a)
@@ -1060,11 +1058,9 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
 {-# INLINE sliceEndWith #-}
 sliceEndWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 sliceEndWith predicate (Fold fstep finitial fextract) =
-    Fold step initial fextract
+    Fold step finitial fextract
 
     where
-
-    initial = finitial
 
     step s a = do
         res <- fstep s a
