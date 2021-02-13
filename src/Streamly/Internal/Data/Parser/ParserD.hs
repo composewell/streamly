@@ -161,6 +161,7 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
@@ -626,6 +627,7 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
     extract (WBWord s) = fextract s
     extract (WBRight b) = return b
 
+{-# ANN type GroupByState Fuse #-}
 data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
