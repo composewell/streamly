@@ -351,7 +351,7 @@ fromStreamD = Unfold step return
     where
 
     {-# INLINE_LATE step #-}
-    step (Stream step1 state1) = do
+    step (UnStream step1 state1) = do
         r <- step1 defState state1
         return $ case r of
             Yield x s -> Yield x (Stream step1 s)

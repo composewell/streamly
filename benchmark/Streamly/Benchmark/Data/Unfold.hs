@@ -590,7 +590,7 @@ o_1_space_generation size =
           "generation"
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
-          , benchIO "fromStreamD (n/100)" $ fromStreamD (size `div` 100)
+          , benchIO "fromStreamD" $ fromStreamD size
           -- Very small benchmarks, reporting in ns
           -- , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
