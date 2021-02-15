@@ -455,6 +455,7 @@ library
                      -- May depend on streamly-core
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Foreign.Mut
                      , Streamly.Internal.Data.Array.Prim
                      , Streamly.Internal.Data.Array.Prim.Pinned
                      , Streamly.Internal.Data.SmallArray
