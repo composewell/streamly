@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Unfold.Resume
     , fromList
 
     -- * Combinators
+    , NestedLoop (..)
     , concat
     , parse
     , parseMany

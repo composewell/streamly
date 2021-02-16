@@ -245,7 +245,7 @@ parseManyChunksOfSum n inh =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (Just (arrays, Nothing))
+    let src = Source.source (Just (UnfoldR.OuterLoop arrays))
     let parser = PR.fromFold (FL.takeLE count FL.drain)
     let readSrc =
             Source.read

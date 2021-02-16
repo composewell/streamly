@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Unfold.Resume.Type
     , lmap
 
     -- * Nesting
+    , NestedLoop (..)
     , concat
     )
 where
@@ -38,6 +39,17 @@ import Prelude hiding (concat)
 ------------------------------------------------------------------------------
 -- Type
 ------------------------------------------------------------------------------
+
+{-
+-- Representing open loops.
+-- Stepper/Iterator/Generator/Producer
+-- | A function that can be called repeatedly to generate a sequence of values.
+data Producer m a b = Producer (a -> m (Step a b))
+
+-- A similar concept for folds would be an accumulator/reducer/Consumer
+-- | A function that can be called repeatedly to consume a sequence of values.
+data Consumer m a b = Consumer (s -> a -> m (Step b))
+-}
 
 -- | An @Unfold m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
@@ -81,9 +93,10 @@ unfoldrM next = Unfold step return return
 -- /Internal/
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => Unfold m [a] a
-fromList = Unfold step inject return
-  where
-    inject = return
+fromList = Unfold step return return
+
+    where
+
     {-# INLINE_LATE step #-}
     step (x:xs) = return $ Yield x xs
     step [] = return Stop
@@ -105,50 +118,50 @@ lmap f g (Unfold ustep uinject uextract) =
 -- Nesting
 ------------------------------------------------------------------------------
 
-{-# ANN type ConcatState Fuse #-}
-data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
+-- | State representing a nested loop.
+{-# ANN type NestedLoop Fuse #-}
+data NestedLoop s1 s2 = OuterLoop s1 | InnerLoop s1 s2
 
--- XXX Use Either a (a,b) for extracted state.
---
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
 -- /Internal/
 --
 {-# INLINE_NORMAL concat #-}
-concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m (a, Maybe b) c
+concat :: Monad m =>
+    Unfold m a b -> Unfold m b c -> Unfold m (NestedLoop a b) c
 concat (Unfold step1 inject1 extract1) (Unfold step2 inject2 extract2) =
     Unfold step inject extract
 
     where
 
-    inject (x, Nothing) = do
+    inject (OuterLoop x) = do
         s <- inject1 x
-        return $ ConcatOuter s
-    inject (x, Just y) = do
+        return $ OuterLoop s
+    inject (InnerLoop x y) = do
         s1 <- inject1 x
         s2 <- inject2 y
-        return $ ConcatInner s1 s2
+        return $ InnerLoop s1 s2
 
     {-# INLINE_LATE step #-}
-    step (ConcatOuter st) = do
+    step (OuterLoop st) = do
         r <- step1 st
         case r of
             Yield x s -> do
                 innerSt <- inject2 x
-                return $ Skip (ConcatInner s innerSt)
-            Skip s    -> return $ Skip (ConcatOuter s)
+                return $ Skip (InnerLoop s innerSt)
+            Skip s    -> return $ Skip (OuterLoop s)
             Stop      -> return Stop
 
-    step (ConcatInner ost ist) = do
+    step (InnerLoop ost ist) = do
         r <- step2 ist
         return $ case r of
-            Yield x s -> Yield x (ConcatInner ost s)
-            Skip s    -> Skip (ConcatInner ost s)
-            Stop      -> Skip (ConcatOuter ost)
+            Yield x s -> Yield x (InnerLoop ost s)
+            Skip s    -> Skip (InnerLoop ost s)
+            Stop      -> Skip (OuterLoop ost)
 
-    extract (ConcatOuter s1) = (,Nothing) <$> extract1 s1
-    extract (ConcatInner s1 s2) = do
+    extract (OuterLoop s1) = OuterLoop <$> extract1 s1
+    extract (InnerLoop s1 s2) = do
         r1 <- extract1 s1
         r2 <- extract2 s2
-        return (r1, Just r2)
+        return (InnerLoop r1 r2)
