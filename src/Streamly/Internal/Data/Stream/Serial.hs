@@ -424,7 +424,7 @@ wSerialMin :: IsStream t => t m a -> t m a -> t m a
 wSerialMin m1 m2 = mkStream $ \st yld sng stp -> do
     let stop       = stp
         single a   = sng a
-        yieldk a r = yld a (wSerial m2 r)
+        yieldk a r = yld a (wSerialMin m2 r)
     foldStream st yieldk single stop m1
 
 instance Semigroup (WSerialT m a) where
