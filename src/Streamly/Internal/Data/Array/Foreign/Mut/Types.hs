@@ -527,7 +527,7 @@ readResumable = UnfoldR.Unfold step inject extract
                 (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
 
     extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
-        return $ Just $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
+        return $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
 
 -- | Unfold an array into a stream.
 --

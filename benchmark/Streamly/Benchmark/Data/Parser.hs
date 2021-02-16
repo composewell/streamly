@@ -245,7 +245,7 @@ parseManyChunksOfSum n inh =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (arrays, Nothing)
+    let src = Source.source (Just (arrays, Nothing))
     let parser = PR.fromFold (FL.takeLE count FL.drain)
     let readSrc =
             Source.read
@@ -300,19 +300,19 @@ choice value =
 -------------------------------------------------------------------------------
 
 {-# INLINE parseMany #-}
-parseMany :: MonadCatch m => SerialT m Int -> m ()
-parseMany =
+parseMany :: MonadCatch m => Int -> SerialT m Int -> m ()
+parseMany n =
       S.drain
     . S.map getSum
-    . IP.parseMany (PR.fromFold $ FL.takeLE 2 FL.mconcat)
+    . IP.parseMany (PR.fromFold $ FL.takeLE n FL.mconcat)
     . S.map Sum
 
 {-# INLINE parseIterate #-}
-parseIterate :: MonadCatch m => SerialT m Int -> m ()
-parseIterate =
+parseIterate :: MonadCatch m => Int -> SerialT m Int -> m ()
+parseIterate n =
       S.drain
     . S.map getSum
-    . IP.parseIterate (PR.fromFold . FL.takeLE 2 . FL.sconcat) (Sum 0)
+    . IP.parseIterate (PR.fromFold . FL.takeLE n . FL.sconcat) (Sum 0)
     . S.map Sum
 
 -------------------------------------------------------------------------------
@@ -345,8 +345,10 @@ o_1_space_serial value =
     , benchIOSink value "teeFst" $ teeFstAllAny value
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
-    , benchIOSink value "parseMany" parseMany
-    , benchIOSink value "parseIterate" parseIterate
+    , benchIOSink value "parseMany (take 1)" (parseMany 1)
+    , benchIOSink value "parseMany (take all)" (parseMany value)
+    , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
+    , benchIOSink value "parseIterate (take all)" (parseIterate value)
     ]
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]
@@ -359,9 +361,9 @@ o_1_space_filesystem env =
 
 o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
 o_1_space_serial_unfold bound arrays =
-    [ bench "parseMany/Unfold/1000 arrays/1 parse"
+    [ bench "parseMany/Unfold/1000 arrays/take all"
         $ nfIO $ parseManyUnfoldArrays bound arrays
-    , bench "parseMany/Unfold/1000 arrays/100000 parses"
+    , bench "parseMany/Unfold/1000 arrays/take 1"
         $ nfIO $ parseManyUnfoldArrays 1 arrays
     ]
 

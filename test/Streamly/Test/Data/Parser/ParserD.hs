@@ -621,7 +621,7 @@ parseUnfold = do
             <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
             arrays <- S.toList $ S.arraysOf clen (S.fromList ls)
-            let src = Source.source (arrays, Nothing)
+            let src = Source.source (Just (arrays, Nothing))
             let parser = P.fromFold (FL.takeLE tlen FL.toList)
             let readSrc =
                     Source.read

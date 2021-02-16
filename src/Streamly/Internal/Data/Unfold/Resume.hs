@@ -89,7 +89,8 @@ simplify (Unfold step inject _) = Unfold.Unfold step inject
 -- /Internal/
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Monad m => Unfold m (Stream m a) a
-fromStreamD = Unfold step return (return . Just)
+fromStreamD = Unfold step return return
+
     where
 
     {-# INLINE_LATE step #-}
@@ -115,7 +116,7 @@ parseD
     => ParserD.Parser m a b
     -> Unfold m (Source s a) a
     -> Source s a
-    -> m (b, Maybe (Source s a))
+    -> m (b, Source s a)
 parseD
     (ParserD.Parser pstep initial extract)
     (Unfold ustep uinject uextract)
@@ -153,13 +154,13 @@ parseD
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         s1 <- uextract s
-                        return (b, fmap (Source.unread src) s1)
+                        return (b, Source.unread src s1)
                     Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
             Stop   -> do
                 b <- extract pst
                 -- XXX we should return the remaining buffer
-                return (b, Nothing)
+                return (b, Source.source Nothing)
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
@@ -184,7 +185,7 @@ parseD
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 s1 <- uextract s
-                return (b, fmap (Source.unread src) s1)
+                return (b, Source.unread src s1)
             Error err -> throwM $ ParseError err
 
 -- | Parse a resumable unfold returning the parsed value and the state of the
@@ -197,7 +198,7 @@ parse
     => ParserK.Parser m a b
     -> Unfold m (Source s a) a
     -> Source s a
-    -> m (b, Maybe (Source s a))
+    -> m (b, Source s a)
 parse = parseD . ParserK.fromParserK
 
 -------------------------------------------------------------------------------
@@ -207,17 +208,17 @@ parse = parseD . ParserK.fromParserK
 {-# INLINE parseManyD #-}
 parseManyD :: MonadThrow m =>
     ParserD.Parser m a b -> Unfold m (Source x a) a -> Unfold m (Source x a) b
-parseManyD parser reader = Unfold step inject return
+parseManyD parser reader = Unfold step return return
 
     where
 
-    inject = return . Just
-
     {-# INLINE_LATE step #-}
-    step (Just src) = do
-        (b, s1) <- parseD parser reader src
-        return $ Yield b s1
-    step Nothing = return Stop
+    step src = do
+        if Source.isEmpty src
+        then return Stop
+        else do
+            (b, s1) <- parseD parser reader src
+            return $ Yield b s1
 
 -- | Apply a parser repeatedly on an unfold to generate an unfold of parsed
 -- values.

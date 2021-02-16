@@ -219,7 +219,7 @@ parseManyGroupsRolling b =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (arrays, Nothing)
+    let src = Source.source (Just (arrays, Nothing))
     let parser = PR.fromFold (FL.takeLE count FL.drain)
     let readSrc =
             Source.read
