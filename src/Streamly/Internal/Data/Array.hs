@@ -47,7 +47,9 @@ module Streamly.Internal.Data.Array
 where
 
 import Prelude hiding (foldr, length, read)
+#if !MIN_VERSION_primitive(0,7,1)
 import Control.DeepSeq (NFData(..))
+#endif
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.IO (unsafePerformIO)
@@ -160,9 +162,11 @@ fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
 fromList :: [a] -> Array a
 fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 
+#if !MIN_VERSION_primitive(0,7,1)
 instance NFData a => NFData (Array a) where
     {-# INLINE rnf #-}
     rnf = foldl' (\_ x -> rnf x) ()
+#endif
 
 {-# INLINE fromStreamN #-}
 fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
