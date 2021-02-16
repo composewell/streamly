@@ -17,9 +17,12 @@ module Streamly.Internal.Data.Unfold.Source
     -- * Creation
     , source
 
-    -- * Reading
-    , read
+    -- * Transformation
     , unread
+
+    -- * Consumption
+    , isEmpty
+    , read
     )
 where
 
@@ -32,17 +35,28 @@ import Prelude hiding (read)
 -- | An unfold seed with some buffered data. It allows us to 'unread' or return
 -- some data after reading it. Useful in backtracked parsing.
 --
-data Source a b = Source [b] a
+data Source a b = Source [b] (Maybe a)
 
 -- | Make a source from a seed value. The buffer would start as empty. You can
 -- use 'unread' to add to the buffer.
 --
 -- /Internal/
-source :: a -> Source a b
+source :: Maybe a -> Source a b
 source = Source []
 
+
+-- | Return some unused data back to the source. The data is prepended (or
+-- consed) to the source.
+--
+-- /Internal/
+unread :: [b] -> Source a b -> Source a b
+unread xs (Source ys seed) = Source (xs ++ ys) seed
+isEmpty :: Source a b -> Bool
+isEmpty (Source [] Nothing) = True
+isEmpty _ = False
+
 -- | An unfold to read from a 'Source'. If the buffer has data then it is read
--- first otherwise the seed is unfolded using the supplied unfold.
+-- first and then the seed is unfolded using the supplied unfold.
 --
 -- /Internal/
 {-# INLINE_NORMAL read #-}
@@ -51,7 +65,7 @@ read (Unfold step1 inject1 extract1) = Unfold step inject extract
 
     where
 
-    inject (Source [] a) = do
+    inject (Source [] (Just a)) = do
         s <- inject1 a
         return $ Left s
     inject (Source xs a) = return $ Right (xs, a)
@@ -63,22 +77,12 @@ read (Unfold step1 inject1 extract1) = Unfold step inject extract
             Yield x s1 -> Yield x (Left s1)
             Skip s1 -> Skip (Left s1)
             Stop -> Stop
-    step (Right ([], _)) = error "Bug: unreachable"
-    step (Right (x:[], a)) = do
+    step (Right ([], Nothing)) = return Stop
+    step (Right ([], Just _)) = error "Bug: unreachable"
+    step (Right (x:[], Just a)) = do
         s <- inject1 a
         return $ Yield x (Left s)
     step (Right (x:xs, a)) = return $ Yield x (Right (xs, a))
 
-    extract (Left s) = do
-        r <- extract1 s
-        return $ case r of
-            Nothing -> Nothing
-            Just x -> Just $ Source [] x
-    extract (Right (xs, a)) = return $ Just $ Source xs a
-
--- | Return some unused data back to the source. The data is prepended (or
--- consed) to the source.
---
--- /Internal/
-unread :: [b] -> Source a b -> Source a b
-unread xs (Source ys seed) = Source (xs ++ ys) seed
+    extract (Left s) = Source [] . Just <$> extract1 s
+    extract (Right (xs, a)) = return $ Source xs a
