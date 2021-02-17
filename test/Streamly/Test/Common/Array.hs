@@ -237,7 +237,7 @@ main =
 #endif
 
 #ifdef TEST_ARRAY
-            prop "AS.concat . (A.fromList . (:[]) <$>) === id" $ concatArrayW8
+            -- prop "AS.concat . (A.fromList . (:[]) <$>) === id" $ concatArrayW8
         describe "Fold" $ do
             prop "lastN : 0 <= n <= len" $ testLastN
             describe "lastN boundary conditions" $ do
