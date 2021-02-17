@@ -159,7 +159,7 @@ import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap, map)
 import System.Mem (performMajorGC)
 
 import qualified Prelude
@@ -287,18 +287,6 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a = do
                     FL.Done c -> return c
             Skip s -> go SPEC fs s
             Stop -> extract fs
-
-{-# INLINE_NORMAL map #-}
-map :: Monad m => (b -> c) -> Unfold m a b -> Unfold m a c
-map f (Unfold ustep uinject) = Unfold step uinject
-    where
-    {-# INLINE_LATE step #-}
-    step st = do
-        r <- ustep st
-        return $ case r of
-            Yield x s -> Yield (f x) s
-            Skip s    -> Skip s
-            Stop      -> Stop
 
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (b -> m c) -> Unfold m a b -> Unfold m a c
