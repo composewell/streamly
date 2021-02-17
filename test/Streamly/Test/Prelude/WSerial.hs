@@ -13,10 +13,12 @@ import Data.List (sort)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
-import Test.QuickCheck (Property)
+import Test.QuickCheck (Property, forAll)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
+
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 import Streamly.Prelude hiding (repeat)
 import qualified Streamly.Prelude as S
@@ -54,6 +56,17 @@ interleaveCheck t f =
 
     singleton :: IsStream t => a -> t m a
     singleton a = a .: nil
+
+wSerialMinLengthProp :: Property
+wSerialMinLengthProp =
+    forAll (chooseInt (0, 10))
+        $ \len -> S.length (combined len) `shouldReturn` 2 * len + 1
+
+    where
+
+    finiteStream len = S.take len $ S.repeat (1 :: Int)
+    infiniteStream = S.repeat 1
+    combined len = infiniteStream `Serial.wSerialMin` finiteStream len
 
 main :: IO ()
 main = hspec
@@ -158,3 +171,11 @@ main = hspec
 
     describe "Tests for exceptions" $ wSerialOps $ exceptionOps "wSerially"
     describe "Composed MonadThrow wSerially" $ composeWithMonadThrow wSerially
+
+    ---------------------------------------------------------------------------
+    -- Termination checks
+    ---------------------------------------------------------------------------
+
+    describe "wSerialMin termination" $
+             prop "len (infinite `wSerialMin` finite) = 2 * len(finite) + 1"
+                  wSerialMinLengthProp
