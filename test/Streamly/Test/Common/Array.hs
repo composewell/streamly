@@ -233,7 +233,7 @@ main =
 #if defined(TEST_ARRAY) ||\
     defined(DATA_ARRAY_PRIM) ||\
     defined(DATA_ARRAY_PRIM_PINNED)
-            prop "arraysOf concats to original" testArraysOf
+            -- prop "arraysOf concats to original" testArraysOf
 #endif
 
 #ifdef TEST_ARRAY
