@@ -146,8 +146,8 @@ singletonM =
 
 const :: Bool
 const =
-    let unf = UF.take 10 $ UF.const (modify (+ 1) >> get)
-     in testUnfoldMD unf (0 :: Int) 0 10 [1 .. 10]
+    let unf = UF.const (modify (+ 1) >> get)
+     in testUnfoldMD unf (0 :: Int) 0 1 [1]
 
 unfoldrM :: Property
 unfoldrM =
