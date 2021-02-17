@@ -433,9 +433,9 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Unfold.Types
-                     , Streamly.Internal.Data.Unfold.Resume.Type
-                     , Streamly.Internal.Data.Unfold.Resume
-                     , Streamly.Internal.Data.Unfold.Source
+                     , Streamly.Internal.Data.Producer.Type
+                     , Streamly.Internal.Data.Producer
+                     , Streamly.Internal.Data.Producer.Source
                      , Streamly.Internal.Data.Sink.Types
                      , Streamly.Internal.Data.Parser.ParserK.Types
                      , Streamly.Internal.Data.Parser.ParserD.Types

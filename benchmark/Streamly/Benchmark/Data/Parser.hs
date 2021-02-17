@@ -39,8 +39,8 @@ import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
-import qualified Streamly.Internal.Data.Unfold.Source as Source
+import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Producer.Source as Source
 
 import Gauge hiding (env)
 import Streamly.Prelude (SerialT)
@@ -245,13 +245,13 @@ parseManyChunksOfSum n inh =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (Just (UnfoldR.OuterLoop arrays))
+    let src = Source.source (Just (Producer.OuterLoop arrays))
     let parser = PR.fromFold (FL.takeLE count FL.drain)
     let readSrc =
-            Source.read
-                $ UnfoldR.concat UnfoldR.fromList Array.readResumable
+            Source.producer
+                $ Producer.concat Producer.fromList Array.producer
     let streamParser =
-            UnfoldR.simplify (UnfoldR.parseMany parser readSrc)
+            Producer.simplify (Producer.parseMany parser readSrc)
     S.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------

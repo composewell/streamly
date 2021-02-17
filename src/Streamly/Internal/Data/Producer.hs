@@ -1,31 +1,29 @@
 -- |
--- Module      : Streamly.Internal.Data.Unfold.Resume
+-- Module      : Streamly.Internal.Data.Producer
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Unfolds in "Streamly.Internal.Data.Unfold" module run to completion, they
--- cannot be stopped and then resumed. In contrast, the unfolds in this module
--- allow extraction of the intermediate state which can be used to resume the
--- unfold later on.
+-- A 'Producer' is an 'Unfold' with an 'extract' function added to to extract
+-- the state. It is more powerful but less general than an Unfold.
 --
--- For simple cases the seed itself can be used to represent the intermediate
--- state as well. For example, if we are iterating through a list or an array
--- we can return the remaining list or the remaining array slice as the
--- state and resume from it later.
+-- A 'Producer' represents steps of a loop generating a sequence of elements.
+-- While unfolds are closed representation of imperative loops with some opaque
+-- internal state, producers are open loops with the state being accesible to
+-- the user.
 --
--- In general, the intermediate state could be different than the seed. Also,
--- when unfolds are nested, for example using 'concat', then each nesting layer
--- would have its own state.
+-- Unlike an unfold, which runs a loop till completion, a producer can be
+-- stopped in the middle, its state can be extracted, examined, changed, and
+-- then it can be resumed later from the stopped state.
 --
--- In imperative terms, an unfold is like a for loop (or an iterator), the
--- state of the unfold is the state of the loop. The state of the 'concat' of
--- unfolds is like the state of each loop in the nesting of loops.
---
+-- A producer can be used in places where a CPS stream would otherwise be
+-- needed, because the state of the loop can be passed around. However, it can
+-- be much more efficient than CPS because it allows stream fusion and
+-- unecessary function calls can be avoided.
 
-module Streamly.Internal.Data.Unfold.Resume
+module Streamly.Internal.Data.Producer
     ( Unfold (..)
 
     -- * Converting
@@ -54,43 +52,43 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
+import Streamly.Internal.Data.Producer.Source (Source)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
 import Streamly.Internal.Data.SVar (defState)
-import Streamly.Internal.Data.Unfold.Source (Source)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as ParserK
-import qualified Streamly.Internal.Data.Unfold.Types as Unfold
-import qualified Streamly.Internal.Data.Unfold.Source as Source
+import qualified Streamly.Internal.Data.Producer.Source as Source
 
-import Streamly.Internal.Data.Unfold.Resume.Type
+import Streamly.Internal.Data.Producer.Type
 import Prelude hiding (concat)
 
--- XXX We should write unfolds as resumable unfolds where possible and define
--- the regular unfolds using "simplify".
+-- XXX We should write unfolds as producers where possible and define
+-- unfolds using "simplify".
 --
 -------------------------------------------------------------------------------
--- Converting to regular unfolds
+-- Converting to unfolds
 -------------------------------------------------------------------------------
 
--- | Simplify a resumable unfold to a regular unfold.
+-- | Simplify a producer to an unfold.
 --
 -- /Internal/
 {-# INLINE simplify #-}
-simplify :: Unfold m a b -> Unfold.Unfold m a b
-simplify (Unfold step inject _) = Unfold.Unfold step inject
+simplify :: Producer m a b -> Unfold m a b
+simplify (Producer step inject _) = Unfold step inject
 
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
 
--- | Convert a StreamD stream into an Unfold.
+-- | Convert a StreamD stream into a producer.
 --
 -- /Internal/
 {-# INLINE_NORMAL fromStreamD #-}
-fromStreamD :: Monad m => Unfold m (Stream m a) a
-fromStreamD = Unfold step return return
+fromStreamD :: Monad m => Producer m (Stream m a) a
+fromStreamD = Producer step return return
 
     where
 
@@ -106,6 +104,8 @@ fromStreamD = Unfold step return return
 -- Parsing
 -------------------------------------------------------------------------------
 
+-- XXX This should probably be moved to the Source module?
+--
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.
 {-# ANN type List NoSpecConstr #-}
@@ -115,12 +115,12 @@ newtype List a = List {getList :: [a]}
 parseD
     :: MonadThrow m
     => ParserD.Parser m a b
-    -> Unfold m (Source s a) a
+    -> Producer m (Source s a) a
     -> Source s a
     -> m (b, Source s a)
 parseD
     (ParserD.Parser pstep initial extract)
-    (Unfold ustep uinject uextract)
+    (Producer ustep uinject uextract)
     seed = do
 
     state <- uinject seed
@@ -197,7 +197,7 @@ parseD
 parse
     :: MonadThrow m
     => ParserK.Parser m a b
-    -> Unfold m (Source s a) a
+    -> Producer m (Source s a) a
     -> Source s a
     -> m (b, Source s a)
 parse = parseD . ParserK.fromParserK
@@ -208,8 +208,10 @@ parse = parseD . ParserK.fromParserK
 
 {-# INLINE parseManyD #-}
 parseManyD :: MonadThrow m =>
-    ParserD.Parser m a b -> Unfold m (Source x a) a -> Unfold m (Source x a) b
-parseManyD parser reader = Unfold step return return
+       ParserD.Parser m a b
+    -> Producer m (Source x a) a
+    -> Producer m (Source x a) b
+parseManyD parser reader = Producer step return return
 
     where
 
@@ -227,5 +229,7 @@ parseManyD parser reader = Unfold step return return
 -- /Internal/
 {-# INLINE parseMany #-}
 parseMany :: MonadThrow m =>
-    ParserK.Parser m a b -> Unfold m (Source x a) a -> Unfold m (Source x a) b
+       ParserK.Parser m a b
+    -> Producer m (Source x a) a
+    -> Producer m (Source x a) b
 parseMany parser = parseManyD (ParserK.fromParserK parser)

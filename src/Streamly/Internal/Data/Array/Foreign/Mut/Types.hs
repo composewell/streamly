@@ -78,7 +78,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Types
     , ReadUState
     , read
     , readRev
-    , readResumable
+    , producer
     , flattenArrays
     , flattenArraysRev
 
@@ -136,8 +136,9 @@ import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 #ifdef DEVBUILD
@@ -145,9 +146,9 @@ import qualified Data.Foldable as F
 #endif
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
@@ -502,10 +503,9 @@ data ReadUState a = ReadUState
 
 -- | Resumable unfold of an array.
 --
-{-# INLINE_NORMAL readResumable #-}
-readResumable :: forall m a. (Monad m, Storable a) =>
-    UnfoldR.Unfold m (Array a) a
-readResumable = UnfoldR.Unfold step inject extract
+{-# INLINE_NORMAL producer #-}
+producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer = Producer step inject extract
     where
 
     inject (Array (ForeignPtr start contents) (Ptr end) _) =
@@ -534,7 +534,7 @@ readResumable = UnfoldR.Unfold step inject extract
 -- @since 0.7.0
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = UnfoldR.simplify readResumable
+read = Producer.simplify producer
 
 -- | Unfold an array into a stream in reverse order.
 --
