@@ -416,9 +416,12 @@ concatMapM size start =
 
     unfoldOut = UF.enumerateFromToIntegral (start + sizeOuter)
 
-{-# INLINE _ap #-}
-_ap :: Int -> Int -> m ()
-_ap = undefined
+{-# INLINE toNullAp #-}
+toNullAp :: Monad m => Int -> Int -> m ()
+toNullAp linearCount start =
+    let end = start + Nested.nestedCount2 linearCount
+        s = Nested.source end
+    in UF.fold ((+) <$> s <*> s) FL.drain start
 
 {-# INLINE _apDiscardFst #-}
 _apDiscardFst :: Int -> Int -> m ()
@@ -527,7 +530,8 @@ o_1_space_nested :: Int -> [Benchmark]
 o_1_space_nested size =
     [ bgroup
           "outer-product"
-          [ benchIO "toNull" $ Nested.toNull size
+          [ benchIO "toNullAp" $ toNullAp size
+          , benchIO "toNull" $ Nested.toNull size
           , benchIO "toNull3" $ Nested.toNull3 size
           , benchIO "concat" $ Nested.concat size
           , benchIO "breakAfterSome" $ Nested.breakAfterSome size

@@ -125,9 +125,6 @@ module Streamly.Internal.Data.Unfold
     , concat
     , concatMapM
     , outerProduct
-    , ap
-    , apDiscardFst
-    , apDiscardSnd
 
     -- * Exceptions
     , gbracket_
@@ -159,7 +156,7 @@ import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap, map)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap, map, const)
 import System.Mem (performMajorGC)
 
 import qualified Prelude
@@ -428,13 +425,6 @@ singleton f = singletonM $ return . f
 {-# INLINE identity #-}
 identity :: Monad m => Unfold m a a
 identity = singletonM return
-
-const :: Monad m => m b -> Unfold m a b
-const m = Unfold step inject
-    where
-    inject _ = return ()
-    step () = m >>= \r -> return $ Yield r ()
-
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
@@ -952,6 +942,8 @@ concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 data OuterProductState s1 s2 sy x y =
     OuterProductOuter s1 y | OuterProductInner s1 sy s2 x
 
+-- XXX this can be written in terms of "cross".
+--
 -- | Create an outer product (vector product or cartesian product) of the
 -- output streams of two unfolds.
 --
@@ -980,34 +972,6 @@ outerProduct (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Yield y s -> Yield (x, y) (OuterProductInner ost sy s x)
             Skip s    -> Skip (OuterProductInner ost sy s x)
             Stop      -> Skip (OuterProductOuter ost sy)
-
--- Special cases of outer product
--- | Outer product with a function application.
---
--- /Unimplemented/
---
-{-# INLINE_NORMAL ap #-}
-ap :: -- Monad m =>
-    Unfold m a (b -> c) -> Unfold m d b -> Unfold m (a, d) c
-ap (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
-
--- | Outer product discarding the first element.
---
--- /Unimplemented/
---
-{-# INLINE_NORMAL apDiscardFst #-}
-apDiscardFst :: -- Monad m =>
-    Unfold m a b -> Unfold m c d -> Unfold m (a, c) d
-apDiscardFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
-
--- | Outer product discarding the second element.
---
--- /Unimplemented/
---
-{-# INLINE_NORMAL apDiscardSnd #-}
-apDiscardSnd :: -- Monad m =>
-    Unfold m a b -> Unfold m c d -> Unfold m (a, c) b
-apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 
 -- XXX This can be used to implement a Monad instance for "Unfold m ()".
 
