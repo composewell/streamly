@@ -8,6 +8,34 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- = Unfolds and Streams
+--
+-- An 'Unfold' type is the same as the direct style 'Stream' type except that
+-- it uses an inject function to determine the initial state of the stream
+-- based on an input.  A stream is a special case of Unfold when the static
+-- input is unit or Void.
+--
+-- This allows an important optimization to occur in several cases, making the
+-- 'Unfold' a more efficient abstraction. Consider the 'concatMap' and
+-- 'concatUnfold' operations, the latter is more efficient.  'concatMap'
+-- generates a new stream object from each element in the stream by applying
+-- the supplied function to the element, the stream object includes the "step"
+-- function as well as the initial "state" of the stream.  Since the stream is
+-- generated dynamically the compiler does not know the step function or the
+-- state type statically at compile time, therefore, it cannot inline it. On
+-- the other hand in case of 'concatUnfold' the compiler has visibility into
+-- the unfold's state generation function, therefore, the compiler knows all
+-- the types statically and it can inline the inject as well as the step
+-- functions, generating efficient code. Essentially, the stream is not opaque
+-- to the consumer in case of unfolds, the consumer knows how to generate the
+-- stream from a seed using a known "inject" and "step" functions.
+--
+-- A Stream is like a data object whereas unfold is like a function.  Being
+-- function like, an Unfold is an instance of 'Category' and 'Arrow' type
+-- classes.
+--
+-- = Unfolds and Folds
+--
 -- Streams forcing a closed control flow loop can be categorized under
 -- two types, unfolds and folds, both of these are duals of each other.
 --
@@ -149,15 +177,12 @@ import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Data.Void (Void)
-import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Unfold.Types
-    (Unfold(..), lmap, map, const, concatMapM)
 import System.Mem (performMajorGC)
 
 import qualified Prelude
@@ -169,6 +194,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.SVar
+import Streamly.Internal.Data.Unfold.Types
 import Prelude
        hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
@@ -398,34 +424,6 @@ effect eff = Unfold step inject
     {-# INLINE_LATE step #-}
     step True = eff >>= \r -> return $ Yield r False
     step False = return Stop
-
--- XXX change it to yieldM or change yieldM in Prelude to singletonM
---
--- | Lift a monadic function into an unfold generating a singleton stream.
---
-{-# INLINE singletonM #-}
-singletonM :: Monad m => (a -> m b) -> Unfold m a b
-singletonM f = Unfold step inject
-    where
-    inject x = return $ Just x
-    {-# INLINE_LATE step #-}
-    step (Just x) = f x >>= \r -> return $ Yield r Nothing
-    step Nothing = return Stop
-
--- | Lift a pure function into an unfold generating a singleton stream.
---
-{-# INLINE singleton #-}
-singleton :: Monad m => (a -> b) -> Unfold m a b
-singleton f = singletonM $ return . f
-
--- | Identity unfold. Generates a singleton stream with the seed as the only
--- element in the stream.
---
--- > identity = singletonM return
---
-{-# INLINE identity #-}
-identity :: Monad m => Unfold m a a
-identity = singletonM return
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
@@ -842,53 +840,6 @@ fromProducer = Unfold step (return . FromSVarRead)
 -- Zipping
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL zipWithM #-}
-zipWithM :: Monad m
-    => (a -> b -> m c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
-zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
-
-    where
-
-    inject (x, y) = do
-        s1 <- inject1 x
-        s2 <- inject2 y
-        return (s1, s2, Nothing)
-
-    {-# INLINE_LATE step #-}
-    step (s1, s2, Nothing) = do
-        r <- step1 s1
-        return $
-          case r of
-            Yield x s -> Skip (s, s2, Just x)
-            Skip s    -> Skip (s, s2, Nothing)
-            Stop      -> Stop
-
-    step (s1, s2, Just x) = do
-        r <- step2 s2
-        case r of
-            Yield y s -> do
-                z <- f x y
-                return $ Yield z (s1, s, Nothing)
-            Skip s -> return $ Skip (s1, s, Just x)
-            Stop   -> return Stop
-
--- | Divide the input into two unfolds and then zip the outputs to a single
--- stream.
---
--- @
---   S.mapM_ print
--- $ S.concatUnfold (UF.zipWith (,) UF.identity (UF.singleton sqrt))
--- $ S.map (\x -> (x,x))
--- $ S.fromList [1..10]
--- @
---
--- /Internal/
---
-{-# INLINE zipWith #-}
-zipWith :: Monad m
-    => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
-zipWith f = zipWithM (\a b -> return (f a b))
-
 -- | Distribute the input to two unfolds and then zip the outputs to a single
 -- stream.
 --
@@ -906,39 +857,6 @@ teeZipWith f unf1 unf2 = lmap (\x -> (x,x)) $ zipWith f unf1 unf2
 -------------------------------------------------------------------------------
 -- Nested
 -------------------------------------------------------------------------------
-
-{-# ANN type ConcatState Fuse #-}
-data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
-
--- | Apply the second unfold to each output element of the first unfold and
--- flatten the output in a single stream.
---
--- /Internal/
---
-{-# INLINE_NORMAL concat #-}
-concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
-concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
-    where
-    inject x = do
-        s <- inject1 x
-        return $ ConcatOuter s
-
-    {-# INLINE_LATE step #-}
-    step (ConcatOuter st) = do
-        r <- step1 st
-        case r of
-            Yield x s -> do
-                innerSt <- inject2 x
-                return $ Skip (ConcatInner s innerSt)
-            Skip s    -> return $ Skip (ConcatOuter s)
-            Stop      -> return Stop
-
-    step (ConcatInner ost ist) = do
-        r <- step2 ist
-        return $ case r of
-            Yield x s -> Yield x (ConcatInner ost s)
-            Skip s    -> Skip (ConcatInner ost s)
-            Stop      -> Skip (ConcatOuter ost)
 
 data OuterProductState s1 s2 sy x y =
     OuterProductOuter s1 y | OuterProductInner s1 sy s2 x

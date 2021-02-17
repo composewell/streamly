@@ -8,6 +8,11 @@
 
 module Streamly.Internal.Data.Unfold.Types
     ( Unfold (..)
+    , singletonM
+    , singleton
+    , identity
+    , ConcatState (..)
+    , concat
     , lmap
     , map
     , const
@@ -16,19 +21,27 @@ module Streamly.Internal.Data.Unfold.Types
     , cross
     , concatMapM
     , concatMap
+    , zipWithM
+    , zipWith
     )
 where
 
 #include "inline.hs"
 
+import Control.Arrow (Arrow(..))
+import Control.Category (Category(..))
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
-import Prelude hiding (const, map, concatMap)
+import Prelude hiding (const, map, concat, concatMap, zipWith)
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
 ------------------------------------------------------------------------------
 
+-- The order of arguments allows 'Category' and 'Arrow' instances but precludes
+-- contravariant and contra-applicative.
+--
 -- | An @Unfold m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
@@ -47,7 +60,7 @@ data Unfold m a b =
 -- /Internal/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
-lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
+lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -142,7 +155,7 @@ cross (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 --
 instance Monad m => Applicative (Unfold m a) where
     {-# INLINE pure #-}
-    pure = const . return
+    pure = const Prelude.. return
 
     {-# INLINE (<*>) #-}
     u1 <*> u2 = fmap (\(a, b) -> a b) (cross u1 u2)
@@ -195,7 +208,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
-concatMap f = concatMapM (return . f)
+concatMap f = concatMapM (return Prelude.. f)
 
 -- Note: concatMap and Monad instance for unfolds have performance comparable
 -- to Stream. In fact, concatMap is slower than Stream, that may be some
@@ -216,3 +229,139 @@ instance Monad m => Monad (Unfold m a) where
 
     -- {-# INLINE (>>) #-}
     -- (>>) = (*>)
+
+-------------------------------------------------------------------------------
+-- Category
+-------------------------------------------------------------------------------
+
+-- XXX change it to yieldM or change yieldM in Prelude to singletonM
+--
+-- | Lift a monadic function into an unfold generating a singleton stream.
+--
+{-# INLINE singletonM #-}
+singletonM :: Monad m => (a -> m b) -> Unfold m a b
+singletonM f = Unfold step inject
+
+    where
+
+    inject x = return $ Just x
+
+    {-# INLINE_LATE step #-}
+    step (Just x) = f x >>= \r -> return $ Yield r Nothing
+    step Nothing = return Stop
+
+-- | Lift a pure function into an unfold generating a singleton stream.
+--
+{-# INLINE singleton #-}
+singleton :: Monad m => (a -> b) -> Unfold m a b
+singleton f = singletonM $ return Prelude.. f
+
+-- | Identity unfold. Generates a singleton stream with the seed as the only
+-- element in the stream.
+--
+-- > identity = singletonM return
+--
+{-# INLINE identity #-}
+identity :: Monad m => Unfold m a a
+identity = singletonM return
+
+{-# ANN type ConcatState Fuse #-}
+data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
+
+-- | Apply the second unfold to each output element of the first unfold and
+-- flatten the output in a single stream.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL concat #-}
+concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
+concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    inject x = do
+        s <- inject1 x
+        return $ ConcatOuter s
+
+    {-# INLINE_LATE step #-}
+    step (ConcatOuter st) = do
+        r <- step1 st
+        case r of
+            Yield x s -> do
+                innerSt <- inject2 x
+                return $ Skip (ConcatInner s innerSt)
+            Skip s    -> return $ Skip (ConcatOuter s)
+            Stop      -> return Stop
+
+    step (ConcatInner ost ist) = do
+        r <- step2 ist
+        return $ case r of
+            Yield x s -> Yield x (ConcatInner ost s)
+            Skip s    -> Skip (ConcatInner ost s)
+            Stop      -> Skip (ConcatOuter ost)
+
+instance Monad m => Category (Unfold m) where
+    {-# INLINE id #-}
+    id = identity
+
+    {-# INLINE (.) #-}
+    (.) = flip concat
+
+-------------------------------------------------------------------------------
+-- Arrow
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL zipWithM #-}
+zipWithM :: Monad m
+    => (a -> b -> m c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    inject (x, y) = do
+        s1 <- inject1 x
+        s2 <- inject2 y
+        return (s1, s2, Nothing)
+
+    {-# INLINE_LATE step #-}
+    step (s1, s2, Nothing) = do
+        r <- step1 s1
+        return $
+          case r of
+            Yield x s -> Skip (s, s2, Just x)
+            Skip s    -> Skip (s, s2, Nothing)
+            Stop      -> Stop
+
+    step (s1, s2, Just x) = do
+        r <- step2 s2
+        case r of
+            Yield y s -> do
+                z <- f x y
+                return $ Yield z (s1, s, Nothing)
+            Skip s -> return $ Skip (s1, s, Just x)
+            Stop   -> return Stop
+
+-- | Divide the input into two unfolds and then zip the outputs to a single
+-- stream.
+--
+-- @
+--   S.mapM_ print
+-- $ S.concatUnfold (UF.zipWith (,) UF.identity (UF.singleton sqrt))
+-- $ S.map (\x -> (x,x))
+-- $ S.fromList [1..10]
+-- @
+--
+-- /Internal/
+--
+{-# INLINE zipWith #-}
+zipWith :: Monad m
+    => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+zipWith f = zipWithM (\a b -> return (f a b))
+
+{-# ANN module "HLint: ignore Use zip" #-}
+instance Monad m => Arrow (Unfold m) where
+    {-# INLINE arr #-}
+    arr = singleton
+
+    {-# INLINE (***) #-}
+    (***) = zipWith (,)
