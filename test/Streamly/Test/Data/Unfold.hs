@@ -347,14 +347,11 @@ outerProduct =
 
 concatMapM :: Bool
 concatMapM =
-    let unfInF b =
-            modify (+ 1)
-                >> return
-                      (UF.supply (UF.replicateM 10) (modify (+ 1) >> return b))
-        listInF b = replicate 10 b
-        unfOut = UF.enumerateFromToIntegral 10
-        unf = UF.concatMapM unfInF unfOut
-        list = List.concatMap listInF [1 .. 10]
+    let inner b =
+          let u = UF.lmap (\_ -> modify (+ 1) >> return b) (UF.replicateM 10)
+           in modify (+ 1) >> return u
+        unf = UF.concatMapM inner (UF.enumerateFromToIntegral 10)
+        list = List.concatMap (replicate 10) [1 .. 10]
      in testUnfoldMD unf 1 0 110 list
 
 -------------------------------------------------------------------------------

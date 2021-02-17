@@ -14,6 +14,8 @@ module Streamly.Internal.Data.Unfold.Types
     , apSequence
     , apDiscardSnd
     , cross
+    , concatMapM
+    , concatMap
     )
 where
 
@@ -21,7 +23,7 @@ where
 
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
-import Prelude hiding (const, map)
+import Prelude hiding (const, map, concatMap)
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
@@ -150,3 +152,67 @@ instance Monad m => Applicative (Unfold m a) where
 
     -- {-# INLINE (<*) #-}
     -- (<*) = apDiscardSnd
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+data ConcatMapState m b s1 x =
+      ConcatMapOuter x s1
+    | forall s2. ConcatMapInner x s1 s2 (s2 -> m (Step s2 b))
+
+-- | Map an unfold generating action to each element of an unfold and
+-- flatten the results into a single stream.
+--
+{-# INLINE_NORMAL concatMapM #-}
+concatMapM :: Monad m
+    => (b -> m (Unfold m a c)) -> Unfold m a b -> Unfold m a c
+concatMapM f (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = do
+        s <- inject1 x
+        return $ ConcatMapOuter x s
+
+    {-# INLINE_LATE step #-}
+    step (ConcatMapOuter seed st) = do
+        r <- step1 st
+        case r of
+            Yield x s -> do
+                Unfold step2 inject2 <- f x
+                innerSt <- inject2 seed
+                return $ Skip (ConcatMapInner seed s innerSt step2)
+            Skip s    -> return $ Skip (ConcatMapOuter seed s)
+            Stop      -> return Stop
+
+    step (ConcatMapInner seed ost ist istep) = do
+        r <- istep ist
+        return $ case r of
+            Yield x s -> Yield x (ConcatMapInner seed ost s istep)
+            Skip s    -> Skip (ConcatMapInner seed ost s istep)
+            Stop      -> Skip (ConcatMapOuter seed ost)
+
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
+concatMap f = concatMapM (return . f)
+
+-- Note: concatMap and Monad instance for unfolds have performance comparable
+-- to Stream. In fact, concatMap is slower than Stream, that may be some
+-- optimization issue though.
+--
+-- | Example:
+--
+-- >>>  u = do { x <- Unfold.lmap fst Unfold.fromList; y <- Unfold.lmap snd Unfold.fromList; return (x,y); }
+-- >>> Stream.toList $ Stream.unfold u ([1,2],[3,4])
+-- [(1,3),(1,4),(2,3),(2,4)]
+--
+instance Monad m => Monad (Unfold m a) where
+    {-# INLINE return #-}
+    return = pure
+
+    {-# INLINE (>>=) #-}
+    (>>=) = flip concatMap
+
+    -- {-# INLINE (>>) #-}
+    -- (>>) = (*>)
