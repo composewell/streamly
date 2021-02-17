@@ -156,7 +156,8 @@ import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..), lmap, map, const)
+import Streamly.Internal.Data.Unfold.Types
+    (Unfold(..), lmap, map, const, concatMapM)
 import System.Mem (performMajorGC)
 
 import qualified Prelude
@@ -972,41 +973,6 @@ outerProduct (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Yield y s -> Yield (x, y) (OuterProductInner ost sy s x)
             Skip s    -> Skip (OuterProductInner ost sy s x)
             Stop      -> Skip (OuterProductOuter ost sy)
-
--- XXX This can be used to implement a Monad instance for "Unfold m ()".
-
-data ConcatMapState s1 s2 = ConcatMapOuter s1 | ConcatMapInner s1 s2
-
--- | Map an unfold generating action to each element of an unfold and
--- flatten the results into a single stream.
---
-{-# INLINE_NORMAL concatMapM #-}
-concatMapM :: Monad m
-    => (b -> m (Unfold m Void c)) -> Unfold m a b -> Unfold m a c
-concatMapM f (Unfold step1 inject1) = Unfold step inject
-    where
-    inject x = do
-        s <- inject1 x
-        return $ ConcatMapOuter s
-
-    {-# INLINE_LATE step #-}
-    step (ConcatMapOuter st) = do
-        r <- step1 st
-        case r of
-            Yield x s -> do
-                Unfold step2 inject2 <- f x
-                innerSt <- inject2 undefined
-                return $ Skip (ConcatMapInner s (Stream (\_ ss -> step2 ss)
-                                                        innerSt))
-            Skip s    -> return $ Skip (ConcatMapOuter s)
-            Stop      -> return Stop
-
-    step (ConcatMapInner ost (UnStream istep ist)) = do
-        r <- istep defState ist
-        return $ case r of
-            Yield x s -> Yield x (ConcatMapInner ost (Stream istep s))
-            Skip s    -> Skip (ConcatMapInner ost (Stream istep s))
-            Stop      -> Skip (ConcatMapOuter ost)
 
 ------------------------------------------------------------------------------
 -- Exceptions

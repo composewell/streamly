@@ -20,7 +20,7 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Exception (SomeException)
+import Control.Exception (SomeException, ErrorCall, try)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
 import System.Random (randomRIO)
@@ -397,29 +397,13 @@ teeZipWith size start =
     drainProductDefault (size + start) (UF.teeZipWith (+)) start
 
 -------------------------------------------------------------------------------
--- Nested
+-- Applicative
 -------------------------------------------------------------------------------
-
-{-# INLINE concatMapM #-}
-concatMapM :: Monad m => Int -> Int -> m ()
-concatMapM size start =
-    drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
-
-    where
-
-    sizeOuter = 100
-    sizeInner = size `div` sizeOuter
-
-    unfoldInGen i =
-        return
-            $ UF.supply (UF.enumerateFromToIntegral (i + sizeInner)) i
-
-    unfoldOut = UF.enumerateFromToIntegral (start + sizeOuter)
 
 {-# INLINE toNullAp #-}
 toNullAp :: Monad m => Int -> Int -> m ()
-toNullAp linearCount start =
-    let end = start + Nested.nestedCount2 linearCount
+toNullAp value start =
+    let end = start + nthRoot 2 value
         s = Nested.source end
     in UF.fold ((+) <$> s <*> s) FL.drain start
 
@@ -430,6 +414,128 @@ _apDiscardFst = undefined
 {-# INLINE _apDiscardSnd #-}
 _apDiscardSnd :: Int -> Int -> m ()
 _apDiscardSnd = undefined
+
+-------------------------------------------------------------------------------
+-- Monad
+-------------------------------------------------------------------------------
+
+nthRoot :: Double -> Int -> Int
+nthRoot n value = round (fromIntegral value**(1/n))
+
+{-# INLINE concatMapM #-}
+concatMapM :: Monad m => Int -> Int -> m ()
+concatMapM value start =
+    val `seq` drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
+
+    where
+
+    val = nthRoot 2 value
+    unfoldInGen i = return (UF.enumerateFromToIntegral (i + val))
+    unfoldOut = UF.enumerateFromToIntegral (start + val)
+
+{-# INLINE toNull #-}
+toNull :: Monad m => Int -> Int -> m ()
+toNull value start =
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            return (x + y)
+     in UF.fold u FL.drain start
+
+
+{-# INLINE toNull3 #-}
+toNull3 :: Monad m => Int -> Int -> m ()
+toNull3 value start =
+    let end = start + nthRoot 3 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            z <- src
+            return (x + y + z)
+     in UF.fold u FL.drain start
+
+{-# INLINE toList #-}
+toList :: Monad m => Int -> Int -> m [Int]
+toList value start = do
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            return (x + y)
+     in UF.fold u FL.toList start
+
+{-# INLINE toListSome #-}
+toListSome :: Monad m => Int -> Int -> m [Int]
+toListSome value start = do
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            return (x + y)
+     in UF.fold (UF.take 1000 u) FL.toList start
+
+{-# INLINE filterAllOut #-}
+filterAllOut :: Monad m => Int -> Int -> m ()
+filterAllOut value start = do
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            let s = x + y
+            if s < 0
+            then return s
+            else UF.nilM (return . const ())
+     in UF.fold u FL.drain start
+
+{-# INLINE filterAllIn #-}
+filterAllIn :: Monad m => Int -> Int -> m ()
+filterAllIn value start = do
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            let s = x + y
+            if s > 0
+            then return s
+            else UF.nilM (return . const ())
+     in UF.fold u FL.drain start
+
+{-# INLINE filterSome #-}
+filterSome :: Monad m => Int -> Int -> m ()
+filterSome value start = do
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            let s = x + y
+            if s > 1100000
+            then return s
+            else UF.nilM (return . const ())
+     in UF.fold u FL.drain start
+
+{-# INLINE breakAfterSome #-}
+breakAfterSome :: Int -> Int -> IO ()
+breakAfterSome value start =
+    let end = start + nthRoot 2 value
+        src = Nested.source end
+        u = do
+            x <- src
+            y <- src
+            let s = x + y
+            if s > 1100000
+            then error "break"
+            else return s
+     in do
+        (_ :: Either ErrorCall ()) <- try $ UF.fold u FL.drain start
+        return ()
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -529,29 +635,30 @@ o_1_space_zip size =
 o_1_space_nested :: Int -> [Benchmark]
 o_1_space_nested size =
     [ bgroup
-          "outer-product"
-          [ benchIO "toNullAp" $ toNullAp size
-          , benchIO "toNull" $ Nested.toNull size
-          , benchIO "toNull3" $ Nested.toNull3 size
-          , benchIO "concat" $ Nested.concat size
-          , benchIO "breakAfterSome" $ Nested.breakAfterSome size
-          , benchIO "filterAllOut" $ Nested.filterAllOut size
-          , benchIO "filterAllIn" $ Nested.filterAllIn size
-          , benchIO "filterSome" $ Nested.filterSome size
-          , benchIO "concatMapM (100 x n/100)" $ concatMapM size
+          "nested"
+          [ benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp size
           -- Unimplemented
-          -- , benchIO "ap" $ ap size
           -- , benchIO "apDiscardFst" $ apDiscardFst size
           -- , benchIO "apDiscardSnd" $ apDiscardSnd size
+
+          , benchIO "concatMapM (sqrt n x sqrt n)" $ concatMapM size
+          , benchIO "(>>=) (sqrt n x sqrt n)" $ toNull size
+          , benchIO "(>>=) (cubert n x cubert n x cubert n)" $ toNull3 size
+          , benchIO "breakAfterSome" $ breakAfterSome size
+          , benchIO "filterAllOut" $ filterAllOut size
+          , benchIO "filterAllIn" $ filterAllIn size
+          , benchIO "filterSome" $ filterSome size
+
+          , benchIO "concat" $ Nested.concat size
           ]
     ]
 
 o_n_space_nested :: Int -> [Benchmark]
 o_n_space_nested size =
     [ bgroup
-          "outer-product"
-          [ benchIO "toList" $ Nested.toList size
-          , benchIO "toListSome" $ Nested.toListSome size
+          "nested"
+          [ benchIO "toList" $ toList size
+          , benchIO "toListSome" $ toListSome size
           ]
     ]
 
