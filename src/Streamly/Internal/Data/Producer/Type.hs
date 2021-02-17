@@ -1,27 +1,27 @@
 -- |
--- Module      : Streamly.Internal.Data.Unfold.Resume.Type
+-- Module      : Streamly.Internal.Data.Producer.Type
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Resumable unfolds.  See "Streamly.Internal.Data.Unfold.Resume" for
--- introduction.
+-- See "Streamly.Internal.Data.Producer" for introduction.
 --
 
-module Streamly.Internal.Data.Unfold.Resume.Type
+module Streamly.Internal.Data.Producer.Type
     (
     -- * Type
-    Unfold (..)
+    Producer (..)
 
-    -- * Unfolds
+    -- * Producers
     , nil
     , nilM
     , unfoldrM
     , fromList
 
     -- * Mapping
+    , translate
     , lmap
 
     -- * Nesting
@@ -40,33 +40,22 @@ import Prelude hiding (concat)
 -- Type
 ------------------------------------------------------------------------------
 
-{-
--- Representing open loops.
--- Stepper/Iterator/Generator/Producer
--- | A function that can be called repeatedly to generate a sequence of values.
-data Producer m a b = Producer (a -> m (Step a b))
-
--- A similar concept for folds would be an accumulator/reducer/Consumer
--- | A function that can be called repeatedly to consume a sequence of values.
-data Consumer m a b = Consumer (s -> a -> m (Step b))
--}
-
--- | An @Unfold m a b@ is a generator of a stream of values of type @b@ from a
+-- | A @Producer m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
 -- /Internal/
 
-data Unfold m a b =
-    -- | @Unfold step inject extract@
-    forall s. Unfold (s -> m (Step s b)) (a -> m s) (s -> m a)
+data Producer m a b =
+    -- | @Producer step inject extract@
+    forall s. Producer (s -> m (Step s b)) (a -> m s) (s -> m a)
 
 ------------------------------------------------------------------------------
--- Unfolds
+-- Producers
 ------------------------------------------------------------------------------
 
 {-# INLINE nilM #-}
-nilM :: Monad m => (a -> m c) -> Unfold m a b
-nilM f = Unfold step return return
+nilM :: Monad m => (a -> m c) -> Producer m a b
+nilM f = Producer step return return
 
     where
 
@@ -74,12 +63,12 @@ nilM f = Unfold step return return
     step x = f x >> return Stop
 
 {-# INLINE nil #-}
-nil :: Monad m => Unfold m a b
+nil :: Monad m => Producer m a b
 nil = nilM (\_ -> return ())
 
 {-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Unfold m a b
-unfoldrM next = Unfold step return return
+unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Producer m a b
+unfoldrM next = Producer step return return
   where
     {-# INLINE_LATE step #-}
     step st = do
@@ -92,8 +81,8 @@ unfoldrM next = Unfold step return return
 --
 -- /Internal/
 {-# INLINE_LATE fromList #-}
-fromList :: Monad m => Unfold m [a] a
-fromList = Unfold step return return
+fromList :: Monad m => Producer m [a] a
+fromList = Producer step return return
 
     where
 
@@ -105,14 +94,21 @@ fromList = Unfold step return return
 -- Mapping
 ------------------------------------------------------------------------------
 
--- | We can only lmap between two types that can be interconverted without
--- loss.
+-- | Interconvert the producer between two interconvertible input types.
+--
+-- /Internal/
+{-# INLINE_NORMAL translate #-}
+translate :: Functor m =>
+    (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
+translate f g (Producer step inject extract) =
+    Producer step (inject . f) (fmap g . extract)
+
+-- | Map the producer input to another value of the same type.
 --
 -- /Internal/
 {-# INLINE_NORMAL lmap #-}
-lmap :: Functor m => (a -> c) -> (c -> a) -> Unfold m c b -> Unfold m a b
-lmap f g (Unfold ustep uinject uextract) =
-    Unfold ustep (uinject . f) (fmap g . uextract)
+lmap :: (a -> a) -> Producer m a b -> Producer m a b
+lmap f (Producer step inject extract) = Producer step (inject . f) extract
 
 ------------------------------------------------------------------------------
 -- Nesting
@@ -129,9 +125,9 @@ data NestedLoop s1 s2 = OuterLoop s1 | InnerLoop s1 s2
 --
 {-# INLINE_NORMAL concat #-}
 concat :: Monad m =>
-    Unfold m a b -> Unfold m b c -> Unfold m (NestedLoop a b) c
-concat (Unfold step1 inject1 extract1) (Unfold step2 inject2 extract2) =
-    Unfold step inject extract
+    Producer m a b -> Producer m b c -> Producer m (NestedLoop a b) c
+concat (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
+    Producer step inject extract
 
     where
 

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Unfold.Source
+-- Module      : Streamly.Internal.Data.Producer.Source
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -11,7 +11,7 @@
 -- useful in parsing applications with backtracking.
 --
 
-module Streamly.Internal.Data.Unfold.Source
+module Streamly.Internal.Data.Producer.Source
     ( Source
 
     -- * Creation
@@ -22,16 +22,19 @@ module Streamly.Internal.Data.Unfold.Source
 
     -- * Consumption
     , isEmpty
-    , read
+    , producer
     )
 where
 
 #include "inline.hs"
 
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Streamly.Internal.Data.Unfold.Resume.Type (Unfold(..))
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Prelude hiding (read)
 
+-- XXX instead of a seed should we wrap a Producer in a source? Then we won't
+-- have to supply a Producer for read.
+--
 -- | An unfold seed with some buffered data. It allows us to 'unread' or return
 -- some data after reading it. Useful in backtracked parsing.
 --
@@ -44,13 +47,13 @@ data Source a b = Source [b] (Maybe a)
 source :: Maybe a -> Source a b
 source = Source []
 
-
 -- | Return some unused data back to the source. The data is prepended (or
 -- consed) to the source.
 --
 -- /Internal/
 unread :: [b] -> Source a b -> Source a b
 unread xs (Source ys seed) = Source (xs ++ ys) seed
+
 isEmpty :: Source a b -> Bool
 isEmpty (Source [] Nothing) = True
 isEmpty _ = False
@@ -59,9 +62,9 @@ isEmpty _ = False
 -- first and then the seed is unfolded using the supplied unfold.
 --
 -- /Internal/
-{-# INLINE_NORMAL read #-}
-read :: Monad m => Unfold m a b -> Unfold m (Source a b) b
-read (Unfold step1 inject1 extract1) = Unfold step inject extract
+{-# INLINE_NORMAL producer #-}
+producer :: Monad m => Producer m a b -> Producer m (Source a b) b
+producer (Producer step1 inject1 extract1) = Producer step inject extract
 
     where
 

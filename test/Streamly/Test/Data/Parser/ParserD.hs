@@ -15,10 +15,10 @@ import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as P
+import qualified Streamly.Internal.Data.Producer.Source as Source
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Unfold.Source as Source
-import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
 import qualified Test.Hspec as H
 
 import Prelude hiding (sequence)
@@ -621,13 +621,13 @@ parseUnfold = do
             <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
             arrays <- S.toList $ S.arraysOf clen (S.fromList ls)
-            let src = Source.source (Just (UnfoldR.OuterLoop arrays))
+            let src = Source.source (Just (Producer.OuterLoop arrays))
             let parser = P.fromFold (FL.takeLE tlen FL.toList)
             let readSrc =
-                    Source.read
-                        $ UnfoldR.concat UnfoldR.fromList A.readResumable
+                    Source.producer
+                        $ Producer.concat Producer.fromList A.producer
             let streamParser =
-                    UnfoldR.simplify (UnfoldR.parseManyD parser readSrc)
+                    Producer.simplify (Producer.parseManyD parser readSrc)
             xs <- run
                 $ S.toList
                 $ S.concatUnfold Unfold.fromList

@@ -68,7 +68,7 @@ module Streamly.Internal.Data.Array.Foreign
     , A.toStream
     , A.toStreamRev
     , read
-    , readResumable
+    , producer
     , unsafeRead
     , A.readRev
     -- , readChunksOf
@@ -160,6 +160,7 @@ import GHC.IO (IO(..))
 
 import Streamly.Internal.Data.Array.Foreign.Types (Array(..), length)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Producer.Type (Producer)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
@@ -171,7 +172,7 @@ import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Unfold.Resume.Type as UnfoldR
+import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Ring.Foreign as RB
 
 -------------------------------------------------------------------------------
@@ -214,10 +215,9 @@ fromStream = P.foldOnce A.write
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 read = Unfold.lmap A.unsafeThaw MA.read
 
-{-# INLINE_NORMAL readResumable #-}
-readResumable :: forall m a. (Monad m, Storable a) =>
-    UnfoldR.Unfold m (Array a) a
-readResumable = UnfoldR.lmap A.unsafeThaw A.unsafeFreeze MA.readResumable
+{-# INLINE_NORMAL producer #-}
+producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer = Producer.translate A.unsafeThaw A.unsafeFreeze MA.producer
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For

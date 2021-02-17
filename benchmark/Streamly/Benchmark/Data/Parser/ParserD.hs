@@ -29,9 +29,9 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
+import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Internal.Data.Unfold.Resume as UnfoldR
-import qualified Streamly.Internal.Data.Unfold.Source as Source
 
 import Gauge
 import Streamly.Prelude (SerialT, MonadAsync, IsStream)
@@ -219,13 +219,13 @@ parseManyGroupsRolling b =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (Just (UnfoldR.OuterLoop arrays))
+    let src = Source.source (Just (Producer.OuterLoop arrays))
     let parser = PR.fromFold (FL.takeLE count FL.drain)
     let readSrc =
-            Source.read
-                $ UnfoldR.concat UnfoldR.fromList Array.readResumable
+            Source.producer
+                $ Producer.concat Producer.fromList Array.producer
     let streamParser =
-            UnfoldR.simplify (UnfoldR.parseManyD parser readSrc)
+            Producer.simplify (Producer.parseManyD parser readSrc)
     S.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------
