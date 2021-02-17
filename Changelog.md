@@ -1,3 +1,10 @@
+## 0.7.3
+
+### Build Issues
+
+* Fix build issues with `primitive` package version >= 0.7.1.
+* Fix build issues on armv7.
+
 ## 0.7.2
 
 ### Bug Fixes
