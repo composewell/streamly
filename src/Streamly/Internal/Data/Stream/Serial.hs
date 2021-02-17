@@ -421,9 +421,11 @@ wSerialFst m1 m2 = mkStream $ \st yld sng stp -> do
 -- @since 0.7.0
 {-# INLINE wSerialMin #-}
 wSerialMin :: IsStream t => t m a -> t m a -> t m a
-wSerialMin m1 m2 = mkStream $ \st yld sng stp -> do
+wSerialMin m1 m2 = mkStream $ \st yld _ stp -> do
     let stop       = stp
-        single a   = sng a
+        -- "single a" is defined as "yld a (wSerialMin m2 K.nil)" instead of
+        -- "sng a" to keep the behaviour consistent with the yield continuation.
+        single a   = yld a (wSerialMin m2 K.nil)
         yieldk a r = yld a (wSerialMin m2 r)
     foldStream st yieldk single stop m1
 
