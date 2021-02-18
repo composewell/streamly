@@ -155,7 +155,7 @@ testFromList =
 #if defined(TEST_ARRAY) ||\
     defined(DATA_ARRAY_PRIM) ||\
     defined(DATA_ARRAY_PRIM_PINNED)
-
+{-
 testArraysOf :: Property
 testArraysOf =
     forAll (choose (0, maxArrLen)) $ \len ->
@@ -169,7 +169,7 @@ testArraysOf =
                 assert (xs == list)
   where
     arraysOf n = IP.chunksOf n (A.writeNUnsafe n)
-
+-}
 #endif
 
 #ifdef TEST_ARRAY
@@ -198,6 +198,7 @@ testLastN_LN len n = do
 
 -- Instead of hard coding 10000 here we can have maxStreamLength for operations
 -- that use stream of arrays.
+{-
 concatArrayW8 :: Property
 concatArrayW8 =
     forAll (vectorOf 10000 (arbitrary :: Gen Word8))
@@ -205,7 +206,7 @@ concatArrayW8 =
               let w8ArrList = A.fromList . (: []) <$> w8List
               f2 <- S.toList $ AS.concat $ S.fromList w8ArrList
               w8List `shouldBe` f2
-
+-}
 #endif
 
 main :: IO ()
