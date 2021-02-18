@@ -26,7 +26,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
-import Data.Word(Word8)
+-- import Data.Word(Word8)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 -- import qualified Streamly.Internal.Data.Array.Foreign.Types as A
