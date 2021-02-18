@@ -36,7 +36,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-import qualified Streamly.Internal.Data.Fold as FL
 
 import Gauge
 import Streamly.Prelude (SerialT, IsStream, serially)
@@ -540,8 +539,6 @@ o_n_heap_elimination_toList value =
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toListRev" Internal.toListRev
         , benchIOSink value "toStreamRev" Internal.toStreamRev
-        , benchIOSink value "toStream" (S.fold FL.toStream)
-        , benchIOSink value "toStreamRev" (S.fold FL.toStreamRev)
         ]
     ]
 

@@ -306,6 +306,8 @@ o_n_heap_serial value =
             [
               benchIOSink value "toList" (S.fold FL.toList)
             , benchIOSink value "toListRev" (S.fold FL.toListRev)
+            , benchIOSink value "toStream" (S.fold FL.toStream)
+            , benchIOSink value "toStreamRev" (S.fold FL.toStreamRev)
             ]
     ]
 
