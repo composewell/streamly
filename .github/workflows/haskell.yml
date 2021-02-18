@@ -3,7 +3,7 @@ name: Haskell CI
 on:
   push:
     branches:
-      - v0.7.2r1
+      - master
   pull_request:
 
 jobs:
@@ -23,43 +23,67 @@ jobs:
 
       PACKCHECK_LOCAL_PATH: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "b8d39c9cf336e4627e12eb4b1f5827bb7b6afc91"
+      PACKCHECK_GITHUB_COMMIT: "563702bd02c41343dcd3dfcfef0845ca428a9240"
 
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
+      RESOLVER: ${{ matrix.resolver }}
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+      CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
+      CABAL_PROJECT: ${{ matrix.cabal_project }}
+      STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
+      SDIST_OPTIONS: ${{ matrix.sdist_options }}
+      DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
+      DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
+      DISABLE_SDIST_GIT_CHECK: "y"
 
-    runs-on: ubuntu-latest
+      INSTALL_LIBSDL: ${{ matrix.install_libsdl }}
+
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        name: [8.10.1+inspection+Werror, 8.8.3+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin]
+        name: [8.10.2+macOS, 8.8.3+inspection+no-fusion-plugin+Werror, 8.10+stack+lts-17, 8.6.5+no-fusion-flag, 8.6.5+streamk, 8.4.4+debug]
         cabal_version: ["3.2"]
         include:
-          - name: 8.10.1+inspection+Werror
-            ghc_version: 8.10.1
+          - name: 8.10.2+macOS
+            ghc_version: 8.10.2
             build: cabal-v2
-            cabal_build_options: "--project-file=cabal.project.ci"
-          - name: 8.8.3+inspection+Werror
+            disable_sdist_build: "y"
+            runner: macos-latest
+          - name: 8.8.3+inspection+no-fusion-plugin+Werror
             ghc_version: 8.8.3
             build: cabal-v2
-            cabal_build_options: "--project-file=cabal.project.ci"
+            cabal_project: cabal.project.ci
+            cabal_build_options: "--flag inspection"
+            runner: ubuntu-latest
+          - name: 8.10+stack+lts-17
+            build: stack
+            resolver: lts-17
+            stack_build_options: "--flag streamly:examples-sdl"
+            install_libsdl: "y"
+            sdist_options: "--ignore-check"
+            runner: ubuntu-latest
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
             build: cabal-v2
-            cabal_build_options: "--flags streamk"
-          - name: 8.6.5+fusion-plugin
+            cabal_build_options: "--flag streamk"
+            runner: ubuntu-latest
+          - name: 8.6.5+no-fusion-flag
             ghc_version: 8.6.5
             build: cabal-v2
-            cabal_build_options: "--flags fusion-plugin"
-            # haddock generation does not work with 8.6.5+fusion-plugin
-            disable_docs: "y"
+            runner: ubuntu-latest
+          - name: 8.4.4+debug
+            ghc_version: 8.4.4
+            build: cabal-v2
+            cabal_build_options: "--flag debug"
+            runner: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
 
-    - uses: actions/setup-haskell@v1
+    - uses: haskell/actions/setup@v1
       with:
         ghc-version: ${{ matrix.ghc_version }}
         cabal-version: ${{ matrix.cabal_version }}
@@ -75,6 +99,9 @@ jobs:
         # If a custom stack-yaml is specified, replace the default with that
         if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
         unset STACK_YAML
+
+        # Install libsdl if needed
+        if test ! -z "$INSTALL_LIBSDL"; then sudo apt-get install -y libsdl1.2-dev; fi;
 
         # Get packcheck if needed
         CURL=$(which curl)
