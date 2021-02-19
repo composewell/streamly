@@ -101,7 +101,7 @@ apDiscardSnd :: -- Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a b
 apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 
-data Cross s1 s2 sy x y = CrossOuter s1 y | CrossInner s1 sy s2 x
+data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 
 -- | Create a cross product (vector product or cartesian product) of the
 -- output streams of two unfolds.
@@ -112,26 +112,26 @@ cross (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
-    inject x = do
-        s1 <- inject1 x
-        return $ CrossOuter s1 x
+    inject a = do
+        s1 <- inject1 a
+        return $ CrossOuter a s1
 
     {-# INLINE_LATE step #-}
-    step (CrossOuter st1 sy) = do
-        r <- step1 st1
+    step (CrossOuter a s1) = do
+        r <- step1 s1
         case r of
-            Yield x s -> do
-                s2 <- inject2 sy
-                return $ Skip (CrossInner s sy s2 x)
-            Skip s    -> return $ Skip (CrossOuter s sy)
+            Yield b s -> do
+                s2 <- inject2 a
+                return $ Skip (CrossInner a s b s2)
+            Skip s    -> return $ Skip (CrossOuter a s)
             Stop      -> return Stop
 
-    step (CrossInner ost sy ist x) = do
-        r <- step2 ist
+    step (CrossInner a s1 b s2) = do
+        r <- step2 s2
         return $ case r of
-            Yield y s -> Yield (x, y) (CrossInner ost sy s x)
-            Skip s    -> Skip (CrossInner ost sy s x)
-            Stop      -> Skip (CrossOuter ost sy)
+            Yield c s -> Yield (b, c) (CrossInner a s1 b s)
+            Skip s    -> Skip (CrossInner a s1 b s)
+            Stop      -> Skip (CrossOuter a s1)
 
 -- | Example:
 --
