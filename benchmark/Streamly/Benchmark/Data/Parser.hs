@@ -251,7 +251,7 @@ parseManyUnfoldArrays count arrays = do
             Source.producer
                 $ Producer.concat Producer.fromList Array.producer
     let streamParser =
-            Producer.simplify (Producer.parseMany parser readSrc)
+            Producer.simplify (Source.parseMany parser readSrc)
     S.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------
