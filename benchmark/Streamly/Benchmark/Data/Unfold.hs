@@ -26,7 +26,6 @@ import System.IO (Handle, hClose)
 import System.Random (randomRIO)
 
 import qualified Prelude
-import qualified Streamly.Benchmark.Data.NestedUnfoldOps as Nested
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -47,6 +46,15 @@ import Test.Inspection
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
+-------------------------------------------------------------------------------
+-- Stream generation and elimination
+-------------------------------------------------------------------------------
+
+-- generate numbers up to the argument value
+{-# INLINE source #-}
+source :: Monad m => Int -> Unfold m Int Int
+source n = UF.enumerateFromToIntegral n
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -404,7 +412,7 @@ teeZipWith size start =
 toNullAp :: Monad m => Int -> Int -> m ()
 toNullAp value start =
     let end = start + nthRoot 2 value
-        s = Nested.source end
+        s = source end
     in UF.fold ((+) <$> s <*> s) FL.drain start
 
 {-# INLINE _apDiscardFst #-}
@@ -437,7 +445,7 @@ concatMapM value start =
 toNull :: Monad m => Int -> Int -> m ()
 toNull value start =
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -449,7 +457,7 @@ toNull value start =
 toNull3 :: Monad m => Int -> Int -> m ()
 toNull3 value start =
     let end = start + nthRoot 3 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -461,7 +469,7 @@ toNull3 value start =
 toList :: Monad m => Int -> Int -> m [Int]
 toList value start = do
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -472,7 +480,7 @@ toList value start = do
 toListSome :: Monad m => Int -> Int -> m [Int]
 toListSome value start = do
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -483,7 +491,7 @@ toListSome value start = do
 filterAllOut :: Monad m => Int -> Int -> m ()
 filterAllOut value start = do
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -497,7 +505,7 @@ filterAllOut value start = do
 filterAllIn :: Monad m => Int -> Int -> m ()
 filterAllIn value start = do
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -511,7 +519,7 @@ filterAllIn value start = do
 filterSome :: Monad m => Int -> Int -> m ()
 filterSome value start = do
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -525,7 +533,7 @@ filterSome value start = do
 breakAfterSome :: Int -> Int -> IO ()
 breakAfterSome value start =
     let end = start + nthRoot 2 value
-        src = Nested.source end
+        src = source end
         u = do
             x <- src
             y <- src
@@ -536,6 +544,23 @@ breakAfterSome value start =
      in do
         (_ :: Either ErrorCall ()) <- try $ UF.fold u FL.drain start
         return ()
+
+-------------------------------------------------------------------------------
+-- Benchmark ops
+-------------------------------------------------------------------------------
+
+-- n * (n + 1) / 2 == linearCount
+concatCount :: Int -> Int
+concatCount linearCount =
+    round (((1 + 8 * fromIntegral linearCount)**(1/2::Double) - 1) / 2)
+
+{-# INLINE concat #-}
+concat :: Monad m => Int -> Int -> m ()
+concat linearCount start = do
+    let end = start + concatCount linearCount
+    UF.fold
+        (UF.concat (source end) (source end))
+        FL.drain start
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -649,7 +674,7 @@ o_1_space_nested size =
           , benchIO "filterAllIn" $ filterAllIn size
           , benchIO "filterSome" $ filterSome size
 
-          , benchIO "concat" $ Nested.concat size
+          , benchIO "concat" $ concat size
           ]
     ]
 
