@@ -26,6 +26,18 @@ basic () {
       DISABLE_SDIST_BUILD=y \
       CABAL_PROJECT=cabal.project.ci \
       CABAL_BUILD_OPTIONS=\"--flag inspection --flag fusion-plugin\""
+# chart deps do not build with ghc-8.10 on nix
+#  nix-shell \
+#    --argstr compiler "ghc8101" \
+#    --argstr c2nix "--flag dev" \
+#    --run "cabal build chart --flag dev"
+#  nix-shell \
+#    --argstr compiler "ghc8101" \
+#    --argstr c2nix "--flag inspection" \
+#    --run "\
+#      bin/bench.sh \
+#        --quick \
+#        --cabal-build-options \"--cabal-project cabal.project.ci --flag inspection --flag fusion-plugin\""
   }
 
 #------------------------------------------------------------------------------
@@ -116,6 +128,18 @@ ghc844 () { ghc 865 8.4.4; }
 # Read command line
 #-----------------------------------------------------------------------------
 
+ALL_TARGETS="all basic hlint coverage flags ghc883 ghc864 ghc844"
+
+print_targets () {
+  echo "Available targets: $ALL_TARGETS"
+}
+
+print_help () {
+  echo "Usage: $0 --targets <space separated target names>"
+  print_targets
+  exit
+}
+
 while test -n "$1"
 do
   case $1 in
@@ -128,11 +152,9 @@ do
   esac
 done
 
-ALL_TARGETS="all basic hlint coverage flags ghc883 ghc864 ghc844"
-
 if test "$(has_item "$TARGETS" help)" = "help"
 then
-  echo "Available targets: $ALL_TARGETS"
+  print_targets
   exit
 fi
 
@@ -143,9 +165,7 @@ fi
 
 if test -z "$TARGETS"
 then
-  echo "Usage: $0 --targets <space separated target names>"
-  echo "Available targets: $ALL_TARGETS"
-  exit
+  print_help
 fi
 
 for i in $TARGETS
