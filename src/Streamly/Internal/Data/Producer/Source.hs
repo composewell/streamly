@@ -6,8 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A stream source which can be unfolded with some possibly buffered data.
--- Allows to 'unread' data i.e. push unused data back to the source. This is
+-- A 'Source' is a seed that can be unfolded to a stream with a buffer.  Allows
+-- to 'unread' data i.e.  push unused data back to the source buffer. This is
 -- useful in parsing applications with backtracking.
 --
 
@@ -23,25 +23,35 @@ module Streamly.Internal.Data.Producer.Source
     -- * Consumption
     , isEmpty
     , producer
+
+    -- * Parsing
+    , parse
+    , parseMany
+    , parseManyD
     )
 where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Control.Exception (assert)
+import Control.Monad.Catch (MonadThrow, throwM)
+import GHC.Exts (SpecConstrAnnotation(..))
+import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
+import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+
+import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as ParserK
+
 import Prelude hiding (read)
 
--- XXX instead of a seed should we wrap a Producer in a source? Then we won't
--- have to supply a Producer for read.
---
--- | An unfold seed with some buffered data. It allows us to 'unread' or return
--- some data after reading it. Useful in backtracked parsing.
+-- | A seed with a buffer. It allows us to 'unread' or return some data
+-- after reading it. Useful in backtracked parsing.
 --
 data Source a b = Source [b] (Maybe a)
 
--- | Make a source from a seed value. The buffer would start as empty. You can
--- use 'unread' to add to the buffer.
+-- | Make a source from a seed value. The buffer would start as empty.
 --
 -- /Internal/
 source :: Maybe a -> Source a b
@@ -54,12 +64,13 @@ source = Source []
 unread :: [b] -> Source a b -> Source a b
 unread xs (Source ys seed) = Source (xs ++ ys) seed
 
+-- | Determine if the source is empty.
 isEmpty :: Source a b -> Bool
 isEmpty (Source [] Nothing) = True
 isEmpty _ = False
 
--- | An unfold to read from a 'Source'. If the buffer has data then it is read
--- first and then the seed is unfolded using the supplied unfold.
+-- | Convert a producer to a producer from a buffered source. Any buffered data
+-- is read first and then the seed is unfolded.
 --
 -- /Internal/
 {-# INLINE_NORMAL producer #-}
@@ -89,3 +100,134 @@ producer (Producer step1 inject1 extract1) = Producer step inject extract
 
     extract (Left s) = Source [] . Just <$> extract1 s
     extract (Right (xs, a)) = return $ Source xs a
+
+-------------------------------------------------------------------------------
+-- Parsing
+-------------------------------------------------------------------------------
+
+-- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
+-- to make a newtype.
+{-# ANN type List NoSpecConstr #-}
+newtype List a = List {getList :: [a]}
+
+{-# INLINE_NORMAL parseD #-}
+parseD
+    :: MonadThrow m
+    => ParserD.Parser m a b
+    -> Producer m (Source s a) a
+    -> Source s a
+    -> m (b, Source s a)
+parseD
+    (ParserD.Parser pstep initial extract)
+    (Producer ustep uinject uextract)
+    seed = do
+
+    state <- uinject seed
+    initial >>= go SPEC state (List [])
+
+    where
+
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    {-# INLINE go #-}
+    go !_ st buf !pst = do
+        r <- ustep st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    Partial 0 pst1 -> go SPEC s (List []) pst1
+                    Partial n pst1 -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        gobuf SPEC s (List []) (List src) pst1
+                    Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                    Continue n pst1 -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        gobuf SPEC s (List buf1) (List src) pst1
+                    Done n b -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        s1 <- uextract s
+                        return (b, unread src s1)
+                    Error err -> throwM $ ParseError err
+            Skip s -> go SPEC s buf pst
+            Stop   -> do
+                b <- extract pst
+                return (b, unread (reverse $ getList buf) (source Nothing))
+
+    gobuf !_ s buf (List []) !pst = go SPEC s buf pst
+    gobuf !_ s buf (List (x:xs)) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            Partial 0 pst1 ->
+                gobuf SPEC s (List []) (List xs) pst1
+            Partial n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC s (List []) (List src) pst1
+            Continue 0 pst1 ->
+                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
+            Continue n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC s (List buf1) (List src) pst1
+            Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                s1 <- uextract s
+                return (b, unread src s1)
+            Error err -> throwM $ ParseError err
+
+-- | Parse a buffered source using a parser, returning the parsed value and the
+-- remaining source.
+--
+-- /Internal/
+{-# INLINE [3] parse #-}
+parse
+    :: MonadThrow m
+    => ParserK.Parser m a b
+    -> Producer m (Source s a) a
+    -> Source s a
+    -> m (b, Source s a)
+parse = parseD . ParserK.fromParserK
+
+-------------------------------------------------------------------------------
+-- Nested parsing
+-------------------------------------------------------------------------------
+
+{-# INLINE parseManyD #-}
+parseManyD :: MonadThrow m =>
+       ParserD.Parser m a b
+    -> Producer m (Source x a) a
+    -> Producer m (Source x a) b
+parseManyD parser reader = Producer step return return
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step src = do
+        if isEmpty src
+        then return Stop
+        else do
+            (b, s1) <- parseD parser reader src
+            return $ Yield b s1
+
+-- | Apply a parser repeatedly on a buffered source producer to generate a
+-- producer of parsed values.
+--
+-- /Internal/
+{-# INLINE parseMany #-}
+parseMany :: MonadThrow m =>
+       ParserK.Parser m a b
+    -> Producer m (Source x a) a
+    -> Producer m (Source x a) b
+parseMany parser = parseManyD (ParserK.fromParserK parser)

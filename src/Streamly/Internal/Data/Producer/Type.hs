@@ -69,7 +69,9 @@ nil = nilM (\_ -> return ())
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Producer m a b
 unfoldrM next = Producer step return return
-  where
+
+    where
+
     {-# INLINE_LATE step #-}
     step st = do
         r <- next st

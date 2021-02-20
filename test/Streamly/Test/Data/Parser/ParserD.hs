@@ -627,7 +627,7 @@ parseUnfold = do
                     Source.producer
                         $ Producer.concat Producer.fromList A.producer
             let streamParser =
-                    Producer.simplify (Producer.parseManyD parser readSrc)
+                    Producer.simplify (Source.parseManyD parser readSrc)
             xs <- run
                 $ S.toList
                 $ S.concatUnfold Unfold.fromList
