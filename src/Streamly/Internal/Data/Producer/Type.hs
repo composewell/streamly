@@ -34,7 +34,7 @@ where
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Prelude hiding (concat)
+import Prelude hiding (concat, map)
 
 ------------------------------------------------------------------------------
 -- Type
@@ -111,6 +111,27 @@ translate f g (Producer step inject extract) =
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> a) -> Producer m a b -> Producer m a b
 lmap f (Producer step inject extract) = Producer step (inject . f) extract
+
+------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+-- | Map a function on the output of the producer (the type @b@).
+--
+-- /Internal/
+{-# INLINE_NORMAL map #-}
+map :: Functor m => (b -> c) -> Producer m a b -> Producer m a c
+map f (Producer ustep uinject uextract) = Producer step uinject uextract
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step st = fmap (fmap f) (ustep st)
+
+-- | Maps a function on the output of the producer (the type @b@).
+instance Functor m => Functor (Producer m a) where
+    {-# INLINE fmap #-}
+    fmap = map
 
 ------------------------------------------------------------------------------
 -- Nesting
