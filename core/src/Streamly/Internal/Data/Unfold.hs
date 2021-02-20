@@ -71,6 +71,12 @@
 -- unfolds allow the compiler to statically know the state and optimize it
 -- using stream fusion whereas it is not possible with the monad bind because
 -- the state is determined dynamically.
+--
+-- Reader:
+--
+-- An unfold acts as a reader (see 'Reader' monad). The input to an unfold acts
+-- as the read-only environment. The environment can be extracted using the
+-- 'identity' unfold (equivalent to 'ask') and transformed using 'lmap'.
 
 -- Open control flow style streams can also have two representations. StreamK
 -- is a producer style representation. We can also have a consumer style
