@@ -26,6 +26,7 @@ module Streamly.Internal.Data.Producer.Source
 
     -- * Parsing
     , parse
+    , parseD
     , parseMany
     , parseManyD
     )
