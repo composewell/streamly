@@ -27,6 +27,7 @@ module Streamly.Internal.FileSystem.Handle
     -- , readArrayOf
     , readChunks
     , readChunksWithBufferOf
+    , produceChunksWithBufferOf
 
     , toChunksWithBufferOf
     , toChunks
@@ -113,6 +114,7 @@ import Streamly.Prelude (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Array.Foreign.Types
        (Array(..), writeNUnsafe, defaultChunkSize , unsafeFreezeWithShrink)
 import Streamly.Internal.Data.Array.Foreign.Mut.Types (mutableArray)
@@ -208,6 +210,21 @@ toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
 readChunksWithBufferOf = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step (size, h) = do
+        arr <- liftIO $ readArrayUpto size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr (size, h)
+
+-- | Similar to 'readChunksWithBufferOf' but is a 'Producer' instead.
+--
+-- /Internal/
+{-# INLINE_NORMAL produceChunksWithBufferOf #-}
+produceChunksWithBufferOf :: MonadIO m => Producer m (Int, Handle) (Array Word8)
+produceChunksWithBufferOf = Producer step return return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
