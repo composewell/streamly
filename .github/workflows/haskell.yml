@@ -27,10 +27,13 @@ jobs:
 
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
+      RESOLVER: ${{ matrix.resolver }}
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
+      STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
+      SDIST_OPTIONS: ${{ matrix.sdist_options }}
       DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
 
@@ -38,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
+        name: [8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8+stack+lts-16.2, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
         cabal_version: ["3.2"]
         include:
           - name: 8.10.2+macOS
@@ -51,6 +54,12 @@ jobs:
             build: cabal-v2
             cabal_project: cabal.project.ci
             cabal_build_options: "--flag fusion-plugin --flag inspection"
+            runner: ubuntu-latest
+          - name: 8.8+stack+lts-16.2
+            build: stack
+            resolver: lts-16.12
+            sdist_options: "--ignore-check"
+            stack_build_options: "--flag streamly-benchmarks:-opt"
             runner: ubuntu-latest
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
