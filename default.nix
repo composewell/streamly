@@ -33,7 +33,7 @@ let haskellPackages =
                     then orig.overrideAttrs (oldAttrs: { src = null; })
                     else orig;
 
-    flags = "--benchmark --flag fusion-plugin " + c2nix;
+    flags = "--benchmark --flag fusion-plugin --flag doctests" + " " + c2nix;
 
     mkHaskellPackages = inShell:
         haskellPackages.override {
