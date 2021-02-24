@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Producer.Source
     , parse
     , parseMany
     , parseManyD
+    , parseOnceD
     )
 where
 
@@ -39,6 +40,7 @@ import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..), Step(..))
+import Streamly.Internal.Data.Array.Foreign.Types (Array)
 
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as ParserK
@@ -239,3 +241,44 @@ parseMany :: MonadThrow m =>
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
 parseMany parser = parseManyD (ParserK.fromParserK parser)
+
+{-# INLINE parseOnceD #-}
+parseOnceD :: MonadThrow m =>
+       ParserD.Parser m a b
+    -> Producer m (Source x a) a
+    -> Producer m (Source x a) b
+parseOnceD parser reader = Producer step (return . Left) extract
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (Left src) = do
+        (b, s1) <- parseD parser reader src
+        return $ Yield b (Right s1)
+    step (Right src) = do
+        return $ Stop $ Just src
+
+    extract (Left src) = return $ Just src
+    extract (Right src) = return $ Just src
+
+{-
+{-# INLINE parseArrayD #-}
+parseArrayD :: MonadThrow m =>
+       ParserD.Parser m a b
+    -> Producer m (Source x (Array a)) (Array a)
+    -> Producer m (Source x (Array a)) b
+parseArrayD parser reader = Producer step (return . Left) extract
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (Left src) = do
+        (b, s1) <- parseD parser reader src
+        return $ Yield b (Right s1)
+    step (Right src) = do
+        return $ Stop $ Just src
+
+    extract (Left src) = return $ Just src
+    extract (Right src) = return $ Just src
+
+-}

@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Binary.Decode
     , word16le
     , word32be
     , word32le
+    , word32leD
     , word64be
     , word64le
     , word64host

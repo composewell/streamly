@@ -14,10 +14,13 @@ module Streamly.Internal.Data.Producer.Type
     -- * Type
       Step (..)
     , Producer (..)
+    , Unread (..)
 
     -- * Producers
     , nil
     , nilM
+    , identity
+    , const
     , unfoldrM
     , fromList
 
@@ -31,6 +34,7 @@ module Streamly.Internal.Data.Producer.Type
     , concatMapM
     , concatMap
     , concat
+    , concat_
     )
 where
 
@@ -48,6 +52,9 @@ import Prelude hiding (concat, map, const, concatMap)
 -- Step
 ------------------------------------------------------------------------------
 
+-- XXX Should we have an Error and Stop a instead? Error may indicate an
+-- exceptional condition or using the source beyond the end.
+--
 {-# ANN type Step Fuse #-}
 data Step s a b = Yield b s | Skip s | Stop (Maybe a)
 
@@ -55,7 +62,7 @@ instance Functor (Step s a) where
     {-# INLINE fmap #-}
     fmap f (Yield x s) = Yield (f x) s
     fmap _ (Skip s) = Skip s
-    fmap _ (Stop s) = Stop s
+    fmap _ (Stop a) = Stop a
 
 ------------------------------------------------------------------------------
 -- Type
@@ -171,9 +178,33 @@ instance Functor m => Functor (Producer m a) where
     fmap = map
 
 ------------------------------------------------------------------------------
+-- Identity
+------------------------------------------------------------------------------
+
+-- | Identity unfold. Generates a singleton stream with the seed as the only
+-- element in the stream.
+--
+-- > identity = singletonM return
+--
+{-# INLINE identity #-}
+identity :: Monad m => Producer m a a
+identity = Producer step inject extract
+
+    where
+
+    inject a = pure (Left a)
+
+    step (Left a) = pure $ Yield a (Right a)
+    step (Right a) = pure $ Stop (Just a)
+
+    extract (Left a) = pure $ Just a
+    extract (Right a) = pure $ Just a
+
+------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
+-- XXX call it effect or valueM?
 {-# INLINE const #-}
 const :: Applicative m => m b -> Producer m a b
 const m = Producer step inject extract
@@ -349,6 +380,13 @@ instance Monad m => Monad (Producer m a) where
     -- {-# INLINE (>>) #-}
     -- (>>) = (*>)
 
+{-
+-- XXX requires the type to be "Producer a m b"
+instance MonadTrans Producer where
+    {-# INLINE lift #-}
+    lift = const
+-}
+
 ------------------------------------------------------------------------------
 -- Nesting
 ------------------------------------------------------------------------------
@@ -410,3 +448,58 @@ concat (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
                 return $ Just $ case r2 of
                     Nothing -> OuterLoop a
                     Just b -> InnerLoop a b
+
+-- XXX Should we use a single element unread or a list?
+-- | Elements of type "b" can be pushed back to the type "a"
+class Unread a b where
+    unread :: [b] -> a -> a
+
+-- XXX use "Unread a b"
+-- XXX Leftover State of b will be dropped
+{-# INLINE_NORMAL concat_ #-}
+concat_ :: Monad m => Producer m a b -> Producer m b c -> Producer m a c
+concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
+    Producer step inject extract
+
+    where
+
+    inject a = do
+        s <- inject1 a
+        return $ OuterLoop s
+
+    {-# INLINE_LATE step #-}
+    step (OuterLoop st) = do
+        r <- step1 st
+        case r of
+            Yield b s -> do
+                s2 <- inject2 b
+                return $ Skip (InnerLoop s s2)
+            Skip s -> return $ Skip (OuterLoop s)
+            Stop res -> return $ Stop res
+
+    step (InnerLoop s1 s2) = do
+        r <- step2 s2
+        return $ case r of
+            Yield c s -> Yield c (InnerLoop s1 s)
+            Skip s -> Skip (InnerLoop s1 s)
+            Stop res ->
+                case res of
+                    Nothing -> Skip (OuterLoop s1)
+                    -- XXX When the state is not fully consumed should we stop
+                    -- or discard and continue or error out?
+                    Just _ -> Skip (OuterLoop s1)
+
+    extract (OuterLoop s1) = extract1 s1
+    extract (InnerLoop s1 _) = extract1 s1
+    {-
+    extract (InnerLoop s1 s2) = do
+        r1 <- extract1 s1
+        case r1 of
+            Nothing -> return Nothing
+            Just a -> do
+                r2 <- extract2 s2
+                return $ Just $ case r2 of
+                    Nothing -> a
+                    -- XXX error out if there is leftover from inner state?
+                    Just _ -> a
+                    -}
