@@ -9,6 +9,8 @@
 
 #include "Streamly/Internal/Data/Time/Clock/config-clock.h"
 
+#include "MachDeps.h"
+
 -- |
 -- Module      : Streamly.Internal.Data.Time.TimeSpec
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -24,7 +26,7 @@ module Streamly.Internal.Data.Time.TimeSpec
 where
 
 import Data.Int (Int64)
-#if i386_HOST_ARCH
+#if (WORD_SIZE_IN_BITS == 32)
 import Data.Int (Int32)
 #endif
 import Foreign.Storable (Storable(..), peek)
