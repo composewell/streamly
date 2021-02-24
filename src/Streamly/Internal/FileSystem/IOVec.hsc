@@ -1,3 +1,5 @@
+#include "MachDeps.h"
+
 -- |
 -- Module      : Streamly.Internal.FileSystem.IOVec
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -17,8 +19,9 @@ module Streamly.Internal.FileSystem.IOVec
     )
 where
 
+
 import Data.Word (Word8)
-#if defined(i386_HOST_ARCH)
+#if (WORD_SIZE_IN_BITS == 32)
 import Data.Word (Word32)
 #else
 import Data.Word (Word64)
@@ -36,7 +39,7 @@ import Foreign.Storable (Storable(..))
 
 data IOVec = IOVec
   { iovBase :: {-# UNPACK #-} !(Ptr Word8)
-#if defined(i386_HOST_ARCH)
+#if (WORD_SIZE_IN_BITS == 32)
   , iovLen  :: {-# UNPACK #-} !Word32
 #else
   , iovLen  :: {-# UNPACK #-} !Word64
