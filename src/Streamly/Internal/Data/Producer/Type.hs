@@ -19,10 +19,14 @@ module Streamly.Internal.Data.Producer.Type
     -- * Producers
     , nil
     , nilM
-    , identity
     , const
     , unfoldrM
     , fromList
+
+    -- * State
+    , identity -- get
+    , modify
+    , put
 
     -- * Mapping
     , translate
@@ -42,6 +46,7 @@ where
 
 import Fusion.Plugin.Types (Fuse(..))
 import Prelude hiding (concat, map, const, concatMap)
+import qualified Prelude
 
 -- $setup
 -- >>> :m
@@ -55,8 +60,21 @@ import Prelude hiding (concat, map, const, concatMap)
 -- XXX Should we have an Error and Stop a instead? Error may indicate an
 -- exceptional condition or using the source beyond the end.
 --
+-- When one producer stops how do we start another? How do we chain/append
+-- producers?
+--
+-- serial/append :: Producer m a b -> Producer m a b -> Producer m a b
+--
+-- A Producer can yield many values, when it is done yielding it returns Stop.
+-- When it stops it may or may not have a valid seed value, so it returns a
+-- Maybe on Stop. If the seed finishes in the middle of a composition it should
+-- be an error.
+--
 {-# ANN type Step Fuse #-}
-data Step s a b = Yield b s | Skip s | Stop (Maybe a)
+data Step s a b =
+      Yield b s
+    | Skip s
+    | Stop (Maybe a)
 
 instance Functor (Step s a) where
     {-# INLINE fmap #-}
@@ -88,6 +106,7 @@ data Producer m a b =
 -- Producers
 ------------------------------------------------------------------------------
 
+-- nil should cut off the current iteration as in the list monad.
 {-# INLINE nilM #-}
 nilM :: Monad m => (a -> m c) -> Producer m a b
 nilM f = Producer step return (return . Just)
@@ -178,7 +197,7 @@ instance Functor m => Functor (Producer m a) where
     fmap = map
 
 ------------------------------------------------------------------------------
--- Identity
+-- State
 ------------------------------------------------------------------------------
 
 -- | Identity unfold. Generates a singleton stream with the seed as the only
@@ -187,7 +206,7 @@ instance Functor m => Functor (Producer m a) where
 -- > identity = singletonM return
 --
 {-# INLINE identity #-}
-identity :: Monad m => Producer m a a
+identity :: Applicative m => Producer m a a
 identity = Producer step inject extract
 
     where
@@ -200,6 +219,22 @@ identity = Producer step inject extract
     extract (Left a) = pure $ Just a
     extract (Right a) = pure $ Just a
 
+{-# INLINE modify #-}
+modify :: Applicative m => (a -> a) -> Producer m a ()
+modify f = Producer step inject extract
+
+    where
+
+    inject a = pure (f a)
+
+    step a = pure $ Stop (Just a)
+
+    extract a = pure $ Just a
+
+{-# INLINE put #-}
+put :: Applicative m => a -> Producer m a ()
+put a = modify (Prelude.const a)
+
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
@@ -211,6 +246,7 @@ const m = Producer step inject extract
 
     where
 
+    -- XXX if the state is over then stop here and in identity?
     inject a = pure (Left a)
 
     step (Left a) = (`Yield` Right a) <$> m
@@ -306,6 +342,11 @@ data ConcatMapState m a b s1 =
       ConcatMapOuter s1
     | forall s2. ConcatMapInner s1 s2 (s2 -> m (Step s2 a b)) (s2 -> m (Maybe a))
 
+-- XXX For the composition to stop and not go in an infinite loop, the source
+-- must return Nothing in the end. If it returns an empty Just state then we
+-- may keep going in a loop. This is similar to the infinite looping in folds
+-- when we use an empty returning parser in foldMany etc.
+--
 -- | Map a producer generating action to each element of a producer and
 -- flatten the results into a single stream. Each producer consumes from the
 -- same shared state.
@@ -340,6 +381,9 @@ concatMapM f (Producer step1 inject1 extract1) = Producer step inject extract
             Skip s    -> return $ Skip (ConcatMapOuter s)
             Stop a -> return $ Stop a
 
+    -- XXX We should either use Maybe in Yield/Skip or use extract to examine
+    -- if the state is actually over. Otherwise we could keep going in a loop
+    -- if the step does not change the state.
     step (ConcatMapInner s1 s2 step2 extract2) = do
         r <- step2 s2
         case r of

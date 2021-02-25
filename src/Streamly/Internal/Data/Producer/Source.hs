@@ -100,6 +100,7 @@ producer (Producer step1 inject1 extract1) = Producer step inject extract
     step (Right (x:xs, a)) = return $ Yield x (Right (xs, a))
 
     extract (Left s) = fmap (Source [] . Just) <$> extract1 s
+    extract (Right ([], Nothing)) = return Nothing
     extract (Right (xs, a)) = return $ Just $ Source xs a
 
 -------------------------------------------------------------------------------
