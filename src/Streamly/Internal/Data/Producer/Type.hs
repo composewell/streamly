@@ -11,6 +11,7 @@
 
 module Streamly.Internal.Data.Producer.Type
     (
+    {-
     -- * Type
       Step (..)
     , Producer (..)
@@ -39,6 +40,7 @@ module Streamly.Internal.Data.Producer.Type
     , concatMap
     , concat
     , concat_
+    -}
     )
 where
 
@@ -57,6 +59,8 @@ import qualified Prelude
 -- Step
 ------------------------------------------------------------------------------
 
+data StepState s = None | Stopping s | Resuming s
+
 -- XXX Should we have an Error and Stop a instead? Error may indicate an
 -- exceptional condition or using the source beyond the end.
 --
@@ -72,9 +76,9 @@ import qualified Prelude
 --
 {-# ANN type Step Fuse #-}
 data Step s a b =
-      Yield b s
+      Yield b (StepState s)
     | Skip s
-    | Stop (Maybe a)
+    | Stop (Extract a)
 
 instance Functor (Step s a) where
     {-# INLINE fmap #-}
@@ -82,6 +86,7 @@ instance Functor (Step s a) where
     fmap _ (Skip s) = Skip s
     fmap _ (Stop a) = Stop a
 
+{-
 ------------------------------------------------------------------------------
 -- Type
 ------------------------------------------------------------------------------
@@ -100,21 +105,31 @@ instance Functor (Step s a) where
 
 data Producer m a b =
     -- | @Producer step inject extract@
-    forall s. Producer (s -> m (Step s a b)) (a -> m s) (s -> m (Maybe a))
+    forall s. Producer (s -> m (Step s a b)) (a -> m s) (s -> m (Extract a))
 
 ------------------------------------------------------------------------------
 -- Producers
 ------------------------------------------------------------------------------
 
--- nil should cut off the current iteration as in the list monad.
-{-# INLINE nilM #-}
-nilM :: Monad m => (a -> m c) -> Producer m a b
-nilM f = Producer step return (return . Just)
+-- | Finish the computation.
+{-# INLINE exit #-}
+exit :: Monad m => Producer m a b
+exit = Producer step return (\_ -> return None)
 
     where
 
     {-# INLINE_LATE step #-}
-    step x = f x >> return (Stop Nothing)
+    step _ = return (Stop None)
+
+-- | Finish the current iteration similar to 'empty' in the list monad.
+{-# INLINE nilM #-}
+nilM :: Monad m => (a -> m c) -> Producer m a b
+nilM f = Producer step return (return . Stopping)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step x = f x >> return (Stop None)
 
 {-# INLINE nil #-}
 nil :: Monad m => Producer m a b
@@ -122,7 +137,7 @@ nil = nilM (\_ -> return ())
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Producer m a b
-unfoldrM next = Producer step return (return . Just)
+unfoldrM next = Producer step return (return . Resuming)
 
     where
 
@@ -131,20 +146,20 @@ unfoldrM next = Producer step return (return . Just)
         r <- next st
         return $ case r of
             Just (x, s) -> Yield x s
-            Nothing -> Stop Nothing
+            Nothing -> Stop None
 
 -- | Convert a list of pure values to a 'Stream'
 --
 -- /Internal/
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => Producer m [a] a
-fromList = Producer step return (return . Just)
+fromList = Producer step return (return . Resuming)
 
     where
 
     {-# INLINE_LATE step #-}
     step (x:xs) = return $ Yield x xs
-    step [] = return $ Stop Nothing
+    step [] = return $ Stop None
 
 ------------------------------------------------------------------------------
 -- Mapping
@@ -214,10 +229,10 @@ identity = Producer step inject extract
     inject a = pure (Left a)
 
     step (Left a) = pure $ Yield a (Right a)
-    step (Right a) = pure $ Stop (Just a)
+    step (Right a) = pure $ Stop (Stopping a)
 
-    extract (Left a) = pure $ Just a
-    extract (Right a) = pure $ Just a
+    extract (Left a) = pure $ Resuming a
+    extract (Right a) = pure $ Stopping a
 
 {-# INLINE modify #-}
 modify :: Applicative m => (a -> a) -> Producer m a ()
@@ -227,9 +242,9 @@ modify f = Producer step inject extract
 
     inject a = pure (f a)
 
-    step a = pure $ Stop (Just a)
+    step a = pure $ Stop (Stopping a)
 
-    extract a = pure $ Just a
+    extract a = pure $ Stopping a
 
 {-# INLINE put #-}
 put :: Applicative m => a -> Producer m a ()
@@ -250,13 +265,19 @@ const m = Producer step inject extract
     inject a = pure (Left a)
 
     step (Left a) = (`Yield` Right a) <$> m
-    step (Right a) = pure $ Stop (Just a)
+    step (Right a) = pure $ Stop (Stopping a)
 
-    extract (Left a) = pure $ Just a
-    extract (Right a) = pure $ Just a
+    extract (Left a) = pure $ Resuming a
+    extract (Right a) = pure $ Stopping a
 
-data Cross s1 b s2 = CrossOuter s1 | CrossInner b s2
+data Cross s1 b s2 ex = CrossOuter s1 ex | CrossInner b s2 ex
 
+-- XXX Since we assume that when a producer is in Stopping state we can skip
+-- resuming it, so any producer must not do any side effect when it is
+-- stopping, otherwise when using applicative/monad the effect will not occur.
+-- To be able to support that we will need the injected value to be wrapped in
+-- the required state.
+--
 -- Two producers consuming from the same shared state in an interleaving
 -- fashion and producing tuples with output from each one. For example, we can
 -- interleave two Source.parseMany.
@@ -281,10 +302,10 @@ cross (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
     -- Stop for that.
     inject a = do
         s1 <- inject1 a
-        return $ CrossOuter s1
+        return $ CrossOuter s1 Resuming
 
     {-# INLINE_LATE step #-}
-    step (CrossOuter s1) = do
+    step (CrossOuter s1 ex) = do
         r <- step1 s1
         case r of
             Yield b s -> do
@@ -294,27 +315,31 @@ cross (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
                     -- discarding "b" here. The state type must support
                     -- something like "unread". Or should this be considered as
                     -- an error?
-                    Nothing -> return $ Stop Nothing
-                    Just a -> do
+                    None -> return $ Stop None
+                    Resuming a -> do
                         s2 <- inject2 a
-                        return $ Skip (CrossInner b s2)
+                        return $ Skip (CrossInner b s2 Resuming)
+                    Stopping a -> do
+                        s2 <- inject2 a
+                        return $ Skip (CrossInner b s2 Stopping)
             Skip s -> return $ Skip (CrossOuter s)
             Stop a -> return $ Stop a
 
-    step (CrossInner b s2) = do
+    step (CrossInner b s2 ex) = do
         r <- step2 s2
         case r of
-            Yield c s -> return $ Yield (b, c) (CrossInner b s)
-            Skip s -> return $ Skip (CrossInner b s)
+            Yield c s -> return $ Yield (b, c) (CrossInner b s ex)
+            Skip s -> return $ Skip (CrossInner b s ex)
             Stop res -> do
                 case res of
-                    Nothing -> return $ Stop Nothing
-                    Just a -> do
+                    None -> return $ Stop None
+                    Resuming a -> do
                         s1 <- inject1 a
                         return $ Skip (CrossOuter s1)
+                    Stopping a -> return $ Stop $ Stopping a
 
     extract (CrossOuter s1) = extract1 s1
-    extract (CrossInner _ s2) = extract2 s2
+    extract (CrossInner _ s2 _) = extract2 s2
 
 -- | Example:
 --
@@ -546,4 +571,5 @@ concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
                     Nothing -> a
                     -- XXX error out if there is leftover from inner state?
                     Just _ -> a
+                    -}
                     -}
