@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 
     -- * From Unfold
     , unfold
+    , produce
 
     -- * From Values
     , yield
@@ -100,9 +101,11 @@ import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Producer.Type as Producer
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -181,6 +184,27 @@ unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
             Yield x s -> Yield x (UnfoldJust s)
             Skip s    -> Skip (UnfoldJust s)
             Stop      -> Stop
+
+data ProcuceState s = ProducerInit | ProducerDo s | ProducerDone
+
+{-# INLINE_NORMAL produce #-}
+produce :: Monad m => Producer m a b -> a -> Stream m b
+produce (Producer ustep inject extract) seed = Stream step ProducerInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ ProducerInit = inject seed >>= return . Skip . ProducerDo
+    step _ (ProducerDo st) = do
+        r <- ustep st
+        return $ case r of
+            Producer.Partial x s -> Yield x (ProducerDo s)
+            Producer.Skip s -> Skip (ProducerDo s)
+            Producer.Stop -> Stop
+            Producer.Nil _ -> Stop
+            Producer.Result x -> Yield x ProducerDone
+            Producer.Final x _ -> Yield x ProducerDone
+    step _ ProducerDone = return Stop
 
 ------------------------------------------------------------------------------
 -- From Values

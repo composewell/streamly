@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
 
     -- * From 'Unfold'
     , unfold
+    , produce
 
     -- * Unfolding
     , unfoldr

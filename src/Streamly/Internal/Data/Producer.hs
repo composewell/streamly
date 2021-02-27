@@ -30,15 +30,15 @@ module Streamly.Internal.Data.Producer
     , simplify
 
     -- * Producers
-    , nil
-    , nilM
-    , unfoldrM
+    -- , nil
+    -- , nilM
+    -- , unfoldrM
     , fromStreamD
     , fromList
 
     -- * Combinators
     , NestedLoop (..)
-    , concat
+    -- , concat
     )
 where
 
@@ -72,9 +72,12 @@ simplify (Producer step inject _) = Unfold step1 inject
     step1 st = do
         res <- step st
         return $ case res of
-            Yield x s -> D.Yield x s
+            Stop -> D.Stop
             Skip s -> D.Skip s
-            Stop _ -> D.Stop
+            Nil _ -> D.Stop
+            Result b -> D.Yield b (error "unsupported")
+            Final b _ -> D.Yield b (error "unsupported")
+            Partial b s -> D.Yield b s
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -85,7 +88,7 @@ simplify (Producer step inject _) = Unfold step1 inject
 -- /Internal/
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Monad m => Producer m (Stream m a) a
-fromStreamD = Producer step return (return . Just)
+fromStreamD = Producer step return return
 
     where
 
@@ -93,6 +96,6 @@ fromStreamD = Producer step return (return . Just)
     step (UnStream step1 state1) = do
         r <- step1 defState state1
         return $ case r of
-            D.Yield x s -> Yield x (Stream step1 s)
+            D.Yield x s -> Partial x (Stream step1 s)
             D.Skip s    -> Skip (Stream step1 s)
-            D.Stop      -> Stop Nothing
+            D.Stop      -> Stop

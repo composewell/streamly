@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
 
     -- * From 'Unfold'
     , unfold
+    , produce
     , unfold0
 
     -- * Unfolding
@@ -90,6 +91,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Void (Void)
 import Streamly.Internal.Data.Unfold.Types (Unfold)
+import Streamly.Internal.Data.Producer.Type (Producer)
 import Streamly.Internal.Data.SVar (MonadAsync, Rate (..))
 import Streamly.Internal.Data.Stream.IsStream.Enumeration
     (Enumerable(..), enumerate, enumerateTo)
@@ -139,6 +141,10 @@ import Prelude hiding (iterate, replicate, repeat)
 {-# INLINE unfold #-}
 unfold :: (IsStream t, Monad m) => Unfold m a b -> a -> t m b
 unfold unf x = fromStreamD $ D.unfold unf x
+
+{-# INLINE produce #-}
+produce :: (IsStream t, Monad m) => Producer m a b -> a -> t m b
+produce p x = fromStreamD $ D.produce p x
 
 -- | Convert an 'Unfold' with a closed input end into a stream.
 --

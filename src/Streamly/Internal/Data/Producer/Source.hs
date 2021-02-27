@@ -38,7 +38,7 @@ import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
+import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..), Step(..))
 import Streamly.Internal.Data.Array.Foreign.Types (Array)
 
@@ -89,19 +89,23 @@ producer (Producer step1 inject1 extract1) = Producer step inject extract
     step (Left s) = do
         r <- step1 s
         return $ case r of
-            Yield x s1 -> Yield x (Left s1)
+            Stop -> Stop
             Skip s1 -> Skip (Left s1)
-            Stop res -> Stop $ fmap (Source [] . Just) res
-    step (Right ([], Nothing)) = return $ Stop Nothing
+            Nil a -> Nil (Source [] (Just a))
+            Result b -> Result b
+            Final b a -> Final b (Source [] (Just a))
+            Partial b s1 -> Partial b (Left s1)
+
+    step (Right ([], Nothing)) = return Stop
     step (Right ([], Just _)) = error "Bug: unreachable"
     step (Right (x:[], Just a)) = do
         s <- inject1 a
-        return $ Yield x (Left s)
-    step (Right (x:xs, a)) = return $ Yield x (Right (xs, a))
+        return $ Partial x (Left s)
+    step (Right (x:xs, a)) = return $ Partial x (Right (xs, a))
 
-    extract (Left s) = fmap (Source [] . Just) <$> extract1 s
-    extract (Right ([], Nothing)) = return Nothing
-    extract (Right (xs, a)) = return $ Just $ Source xs a
+    extract (Left s) = Source [] . Just <$> extract1 s
+    extract (Right ([], Nothing)) = return $ Source [] Nothing
+    extract (Right (xs, a)) = return $ Source xs a
 
 -------------------------------------------------------------------------------
 -- Parsing
@@ -136,67 +140,63 @@ parseD
     go !_ st buf !pst = do
         r <- ustep st
         case r of
-            Yield x s -> do
+            Partial x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    Partial 0 pst1 -> go SPEC s (List []) pst1
-                    Partial n pst1 -> do
+                    ParserD.Partial 0 pst1 -> go SPEC s (List []) pst1
+                    ParserD.Partial n pst1 -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List []) (List src) pst1
-                    Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
-                    Continue n pst1 -> do
+                    ParserD.Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                    ParserD.Continue n pst1 -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                    Done n b -> do
+                    ParserD.Done n b -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         s1 <- uextract s
-                        let s2 = case s1 of
-                                Nothing -> source Nothing
-                                Just v -> v
-                        return (b, unread src s2)
-                    Error err -> throwM $ ParseError err
+                        return (b, unread src s1)
+                    ParserD.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
-            Stop res -> do
+            Nil src -> do
                 b <- extract pst
-                let src = case res of
-                        Nothing -> source Nothing
-                        Just v -> v
                 return (b, unread (reverse $ getList buf) src)
+            Stop -> do
+                b <- extract pst
+                return (b, Source [] Nothing)
+            Result x -> undefined -- same as Partial
+            Final x s -> undefined -- same as Partial
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
-            Partial 0 pst1 ->
+            ParserD.Partial 0 pst1 ->
                 gobuf SPEC s (List []) (List xs) pst1
-            Partial n pst1 -> do
+            ParserD.Partial n pst1 -> do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s (List []) (List src) pst1
-            Continue 0 pst1 ->
+            ParserD.Continue 0 pst1 ->
                 gobuf SPEC s (List (x:getList buf)) (List xs) pst1
-            Continue n pst1 -> do
+            ParserD.Continue n pst1 -> do
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s (List buf1) (List src) pst1
-            Done n b -> do
+            ParserD.Done n b -> do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 s1 <- uextract s
-                let s2 = case s1 of
-                        Nothing -> source Nothing
-                        Just v -> v
-                return (b, unread src s2)
-            Error err -> throwM $ ParseError err
+                return (b, unread src s1)
+            ParserD.Error err -> throwM $ ParseError err
 
 -- | Parse a buffered source using a parser, returning the parsed value and the
 -- remaining source.
@@ -220,17 +220,17 @@ parseManyD :: MonadThrow m =>
        ParserD.Parser m a b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
-parseManyD parser reader = Producer step return (return . Just)
+parseManyD parser reader = Producer step return return
 
     where
 
     {-# INLINE_LATE step #-}
     step src = do
         if isEmpty src
-        then return $ Stop $ Just src
+        then return Stop
         else do
             (b, s1) <- parseD parser reader src
-            return $ Yield b s1
+            return $ Partial b s1
 
 -- | Apply a parser repeatedly on a buffered source producer to generate a
 -- producer of parsed values.
@@ -248,19 +248,14 @@ parseOnceD :: MonadThrow m =>
        ParserD.Parser m a b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
-parseOnceD parser reader = Producer step (return . Left) extract
+parseOnceD parser reader = Producer step return return
 
     where
 
     {-# INLINE_LATE step #-}
-    step (Left src) = do
+    step src = do
         (b, s1) <- parseD parser reader src
-        return $ Yield b (Right s1)
-    step (Right src) = do
-        return $ Stop $ Just src
-
-    extract (Left src) = return $ Just src
-    extract (Right src) = return $ Just src
+        return $ Final b s1
 
 {-
 {-# INLINE parseArrayD #-}

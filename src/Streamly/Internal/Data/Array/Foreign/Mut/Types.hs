@@ -515,7 +515,7 @@ producer = Producer step inject extract
     {-# INLINE_LATE step #-}
     step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
         let x = unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return (Producer.Stop Nothing)
+        in x `seq` return Producer.Stop
     step (ReadUState fp p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
@@ -524,11 +524,11 @@ producer = Producer step inject extract
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ peek p
-            return $ Producer.Yield x
+            return $ Producer.Partial x
                 (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
 
     extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
-        return $ Just $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
+        return $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
 
 -- | Unfold an array into a stream.
 --
