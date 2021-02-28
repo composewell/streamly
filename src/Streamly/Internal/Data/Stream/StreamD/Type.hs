@@ -189,12 +189,17 @@ data ProcuceState s = ProducerInit | ProducerDo s | ProducerDone
 
 {-# INLINE_NORMAL produce #-}
 produce :: Monad m => Producer m a b -> a -> Stream m b
-produce (Producer ustep inject extract) seed = Stream step ProducerInit
+produce (Producer ustep inject _) seed = Stream step ProducerInit
 
     where
 
     {-# INLINE_LATE step #-}
-    step _ ProducerInit = inject seed >>= return . Skip . ProducerDo
+    step _ ProducerInit = do
+        r <- inject seed
+        case r of
+            Producer.INil _ -> return Stop
+            Producer.IFinal x _ -> return $ Yield x ProducerDone
+            Producer.ISkip s -> return $ Skip $ ProducerDo s
     step _ (ProducerDo st) = do
         r <- ustep st
         return $ case r of

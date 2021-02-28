@@ -13,8 +13,9 @@ module Streamly.Internal.Data.Producer.Type
     (
     -- * Type
       Step (..)
+    , Inject (..)
     , Producer (..)
-    , Unread (..)
+    -- , Unread (..)
 
     -- * Producers
     -- , nil
@@ -34,16 +35,19 @@ module Streamly.Internal.Data.Producer.Type
 
     -- * Nesting
     , cross
-    , NestedLoop (..)
     , concatMapM
     , concatMap
-    -- , concat
+    {-
+    , NestedLoop (..)
+    , concat
     , concat_
+    -}
     )
 where
 
 #include "inline.hs"
 
+import Data.Bifunctor (Bifunctor(..))
 import Debug.Trace
 import Fusion.Plugin.Types (Fuse(..))
 import Prelude hiding (concat, map, const, concatMap)
@@ -51,8 +55,8 @@ import qualified Prelude
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.Producer as Producer
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Producer.Type as Producer
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 
 ------------------------------------------------------------------------------
 -- Step
@@ -91,6 +95,22 @@ instance Functor (Step s a) where
     fmap f (Final b a) = Final (f b) a
     fmap f (Partial b s) = Partial (f b) s
 
+{-# ANN type Inject Fuse #-}
+data Inject a s b =
+      INil a
+    | ISkip s
+    | IFinal b a
+
+instance Bifunctor (Inject a) where
+
+    first _ (INil a) = INil a
+    first f (ISkip s) = ISkip (f s)
+    first _ (IFinal b a) = IFinal b a
+
+    second _ (INil a) = INil a
+    second _ (ISkip s) = ISkip s
+    second f (IFinal b a) = IFinal (f b) a
+
 ------------------------------------------------------------------------------
 -- Type
 ------------------------------------------------------------------------------
@@ -109,7 +129,7 @@ instance Functor (Step s a) where
 
 data Producer m a b =
     -- | @Producer step inject extract@
-    forall s. Producer (s -> m (Step s a b)) (a -> m s) (s -> m a)
+    forall s. Producer (s -> m (Step s a b)) (a -> m (Inject a s b)) (s -> m a)
 
 ------------------------------------------------------------------------------
 -- Producers
@@ -159,7 +179,7 @@ unfoldrM next = Producer step return (return . Resuming)
 -- /Internal/
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => Producer m [a] a
-fromList = Producer step return return
+fromList = Producer step (return . ISkip) return
 
     where
 
@@ -179,9 +199,16 @@ fromList = Producer step return return
 translate :: Monad m =>
     (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
 translate f g (Producer step inject extract) =
-    Producer step1 (inject . f)  (fmap g . extract)
+    Producer step1 inject1  (fmap g . extract)
 
     where
+
+    inject1 a1 = do
+        r <- inject $ f a1
+        return $ case r of
+            INil a -> INil $ g a
+            ISkip s -> ISkip s
+            IFinal b a -> IFinal b (g a)
 
     step1 st = do
         r <- step st
@@ -209,9 +236,11 @@ lmap f (Producer step inject extract) = Producer step (inject . f) extract
 -- /Internal/
 {-# INLINE_NORMAL map #-}
 map :: Functor m => (b -> c) -> Producer m a b -> Producer m a c
-map f (Producer ustep uinject uextract) = Producer step uinject uextract
+map f (Producer ustep uinject uextract) = Producer step inject uextract
 
     where
+
+    inject a = second f <$> uinject a
 
     {-# INLINE_LATE step #-}
     step st = fmap (fmap f) (ustep st)
@@ -232,15 +261,11 @@ instance Functor m => Functor (Producer m a) where
 --
 {-# INLINE identity #-}
 identity :: Applicative m => Producer m a a
-identity = Producer step pure pure
-
-    where
-
-    step a = pure $ Final a a
+identity = Producer undefined (\a -> pure $ IFinal a a) undefined
 
 {-# INLINE modify #-}
 modify :: Applicative m => (a -> a) -> Producer m a ()
-modify f = Producer step (pure . f) pure
+modify f = Producer step (pure . ISkip . f) pure
 
     where
 
@@ -257,11 +282,7 @@ put a = modify (Prelude.const a)
 -- XXX call it effect or valueM?
 {-# INLINE const #-}
 const :: Applicative m => m b -> Producer m a b
-const m = Producer step pure pure
-
-    where
-
-    step a = (`Final` a) <$> m
+const m = Producer undefined (\a -> fmap (\x -> IFinal x a) m) undefined
 
 data Cross s1 b s2 =
       CrossOuter s1
@@ -297,8 +318,11 @@ cross (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
     -- iteration? How do we distinguish that? Perhaps we need "inject" to say
     -- Stop for that.
     inject a = do
-        s1 <- inject1 a
-        return $ CrossOuter s1
+       r <- inject1 a
+       return $ case r of
+            INil x -> INil x
+            IFinal _ x -> INil x
+            ISkip s1 -> ISkip (CrossOuter s1)
 
     {-# INLINE_LATE step #-}
     step (CrossOuter s1) = do
@@ -307,16 +331,26 @@ cross (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
             Stop -> return Stop
             Skip s -> return $ Skip (CrossOuter s)
             Nil a -> return $ Nil a
-            -- XXX We have to discard the result here, inner loop cannot
-            -- continue without a state. We should error or bakctrack.
-            Result _ -> return Stop
+            Result b ->  do
+               -- XXX this means inject must never examine the state
+               r1 <- inject2 undefined
+               return $ case r1 of
+                    INil _ -> Stop
+                    IFinal c _ -> Result (b,c)
+                    ISkip _ -> Stop
             Final b a -> do
-                s2 <- inject2 a
-                return $ Skip (CrossInnerFinal b s2)
+                r1 <- inject2 a
+                return $ case r1 of
+                     INil x -> Nil x
+                     IFinal c x -> Final (b,c) x
+                     ISkip s2 -> Skip (CrossInnerFinal b s2)
             Partial b s -> do
                 res <- extract1 s
-                s2 <- inject2 res
-                return $ Skip (CrossInnerPartial b s2)
+                r1 <- inject2 res
+                return $ case r1 of
+                     INil x -> Nil x
+                     IFinal c x -> Final (b,c) x
+                     ISkip s2 -> Skip (CrossInnerPartial b s2)
     step (CrossInnerFinal b s2) = do
         r <- step2 s2
         return $ case r of
@@ -338,8 +372,12 @@ cross (Producer step1 inject1 extract1) (Producer step2 inject2 extract2) =
             Nil a -> return $ Nil a
             Result c -> return $ Result (b, c)
             Final c a -> do
-                s1 <- inject1 a
-                return $ Partial (b,c) (CrossOuter s1)
+                r1 <- inject1 a
+                return $ case r1 of
+                     INil x -> Nil x
+                     -- XXX unimplemented
+                     -- IFinal b1 x -> Partial (b,c) (CrossOuterFinal b1)
+                     ISkip s1 -> Partial (b,c) (CrossOuter s1)
             Partial c s -> return $ Partial (b,c) (CrossInnerPartial b s)
 
     extract (CrossOuter s1) = extract1 s1
@@ -390,8 +428,17 @@ concatMapM f (Producer step1 inject1 extract1) = Producer step inject extract
     where
 
     inject a = do
-        s1 <- inject1 a
-        return $ ConcatMapOuter s1
+        r <- inject1 a
+        case r of
+             INil x -> return $ INil x
+             IFinal b x -> do
+                Producer step2 inject2 extract2 <- f b
+                res <- inject2 x
+                return $ case res of
+                     INil y -> INil y
+                     IFinal c y -> IFinal c y
+                     ISkip s2 -> ISkip (ConcatMapInnerFinal s2 step2 extract2)
+             ISkip s1 -> return $ ISkip $ ConcatMapOuter s1
 
     {-# INLINE_LATE step #-}
     step (ConcatMapOuter s1) = do
@@ -400,22 +447,38 @@ concatMapM f (Producer step1 inject1 extract1) = Producer step inject extract
             Stop -> return Stop
             Skip s -> return $ Skip (ConcatMapOuter s)
             Nil a -> return $ Nil a
-            -- XXX We have to discard the result here, inner loop cannot
-            -- continue without a state. We should error or bakctrack.
             Result b -> do -- trace "discarding result" (return Stop)
                 Producer step2 inject2 extract2 <- f b
-                -- XXX we need to support Nothing as input state
-                s2 <- inject2 undefined
-                return $ Skip (ConcatMapInnerFinal s2 step2 extract2)
+                res <- inject2 undefined
+                return $ case res of
+                     INil _ -> Stop
+                     IFinal c _ -> Result c
+                     ISkip s2 -> Skip (ConcatMapInnerFinal s2 step2 extract2)
             Final b a -> do
                 Producer step2 inject2 extract2 <- f b
-                s2 <- inject2 a
-                return $ Skip (ConcatMapInnerFinal s2 step2 extract2)
+                res <- inject2 a
+                return $ case res of
+                     INil x -> Nil x
+                     IFinal c x -> Final c x
+                     ISkip s2 -> Skip (ConcatMapInnerFinal s2 step2 extract2)
             Partial b s -> do
                 Producer step2 inject2 extract2 <- f b
                 a <- extract1 s
-                s2 <- inject2 a
-                return $ Skip (ConcatMapInnerPartial s2 step2 extract2)
+                res <- inject2 a
+                case res of
+                     INil x -> do
+                        res1 <- inject1 x
+                        case res1 of
+                            INil y -> return $ Nil y
+                            -- IFinal b1 y -> XXX like Final b a handling above
+                            ISkip s1 -> return $ Skip (ConcatMapOuter s1)
+                     IFinal c x -> do
+                        res1 <- inject1 x
+                        case res1 of
+                            INil y -> return $ Final c y
+                            -- IFinal b1 y -> XXX like Final b a handling above
+                            ISkip s1 -> return $ Partial c (ConcatMapOuter s1)
+                     ISkip s2 -> return $ Skip (ConcatMapInnerPartial s2 step2 extract2)
     step (ConcatMapInnerFinal s2 step2 extract2) = do
         trace "inner final" (return ())
         r <- step2 s2
@@ -437,8 +500,11 @@ concatMapM f (Producer step1 inject1 extract1) = Producer step inject extract
             Nil a -> return $ Nil a
             Result c -> return $ Result c
             Final c a -> do
-                s1 <- inject1 a
-                return $ Partial c (ConcatMapOuter s1)
+                res <- inject1 a
+                case res of
+                    INil y -> return $ Final c y
+                    -- IFinal b1 y -> XXX like Final b a handling above
+                    ISkip s1 -> return $ Partial c (ConcatMapOuter s1)
             Partial c s -> return $ Partial c (ConcatMapInnerPartial s step2 extract2)
 
     extract (ConcatMapOuter s1) = extract1 s1
@@ -471,6 +537,7 @@ instance Monad m => Monad (Producer m a) where
     -- (>>) = (*>)
 
 {-
+{-
 -- XXX requires the type to be "Producer a m b"
 instance MonadTrans Producer where
     {-# INLINE lift #-}
@@ -481,6 +548,7 @@ instance MonadTrans Producer where
 -- Nesting
 ------------------------------------------------------------------------------
 
+            {-
 -- | State representing a nested loop.
 {-# ANN type NestedLoop Fuse #-}
 data NestedLoop s1 s2 a =
@@ -489,7 +557,6 @@ data NestedLoop s1 s2 a =
     | InnerLoopFinal a s2
     | InnerLoopPartial s1 s2
 
-            {-
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
@@ -620,3 +687,4 @@ concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
     extract (InnerLoopResult _) = error "Not handled" -- return Nothing
     extract (InnerLoopFinal a _) = return a
     extract (InnerLoopPartial s1 _) = extract1 s1
+    -}
