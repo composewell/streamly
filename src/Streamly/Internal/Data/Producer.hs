@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Producer
     , fromList
 
     -- * Combinators
-    , NestedLoop (..)
+    -- , NestedLoop (..)
     -- , concat
     )
 where
@@ -60,24 +60,35 @@ import Prelude hiding (concat)
 -- Converting to unfolds
 -------------------------------------------------------------------------------
 
+data SimplifyState s b = SimplDone | SimplOne b | Simpl s
+
 -- | Simplify a producer to an unfold.
 --
 -- /Internal/
 {-# INLINE simplify #-}
 simplify :: Monad m => Producer m a b -> Unfold m a b
-simplify (Producer step inject _) = Unfold step1 inject
+simplify (Producer step inject _) = Unfold step1 inject1
 
     where
 
-    step1 st = do
+    inject1 a = do
+        r <- inject a
+        return $ case r of
+            INil _ -> SimplDone
+            IFinal b _ -> SimplOne b
+            ISkip s -> Simpl s
+
+    step1 (Simpl st) = do
         res <- step st
         return $ case res of
             Stop -> D.Stop
-            Skip s -> D.Skip s
+            Skip s -> D.Skip (Simpl s)
             Nil _ -> D.Stop
-            Result b -> D.Yield b (error "unsupported")
-            Final b _ -> D.Yield b (error "unsupported")
-            Partial b s -> D.Yield b s
+            Result b -> D.Yield b SimplDone
+            Final b _ -> D.Yield b SimplDone
+            Partial b s -> D.Yield b (Simpl s)
+    step1 (SimplOne b) = return $ D.Yield b SimplDone
+    step1 SimplDone = return D.Stop
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -88,7 +99,7 @@ simplify (Producer step inject _) = Unfold step1 inject
 -- /Internal/
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Monad m => Producer m (Stream m a) a
-fromStreamD = Producer step return return
+fromStreamD = Producer step (return . ISkip) return
 
     where
 

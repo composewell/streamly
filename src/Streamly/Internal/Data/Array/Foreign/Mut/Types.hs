@@ -146,7 +146,7 @@ import qualified Data.Foldable as F
 #endif
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Types as FL
--- import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -535,7 +535,7 @@ producer = Producer step inject extract
 -- @since 0.7.0
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = undefined -- Producer.simplify producer
+read = Producer.simplify producer
 
 -- | Unfold an array into a stream in reverse order.
 --

@@ -15,7 +15,7 @@ module Streamly.Internal.Data.Producer.Type
       Step (..)
     , Inject (..)
     , Producer (..)
-    -- , Unread (..)
+    , Unread (..)
 
     -- * Producers
     -- , nil
@@ -37,11 +37,9 @@ module Streamly.Internal.Data.Producer.Type
     , cross
     , concatMapM
     , concatMap
-    {-
     , NestedLoop (..)
-    , concat
+    -- , concat
     , concat_
-    -}
     )
 where
 
@@ -537,7 +535,6 @@ instance Monad m => Monad (Producer m a) where
     -- (>>) = (*>)
 
 {-
-{-
 -- XXX requires the type to be "Producer a m b"
 instance MonadTrans Producer where
     {-# INLINE lift #-}
@@ -548,7 +545,6 @@ instance MonadTrans Producer where
 -- Nesting
 ------------------------------------------------------------------------------
 
-            {-
 -- | State representing a nested loop.
 {-# ANN type NestedLoop Fuse #-}
 data NestedLoop s1 s2 a =
@@ -557,6 +553,7 @@ data NestedLoop s1 s2 a =
     | InnerLoopFinal a s2
     | InnerLoopPartial s1 s2
 
+{-
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
@@ -627,8 +624,16 @@ concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
     where
 
     inject a = do
-        s <- inject1 a
-        return $ OuterLoop s
+        r <- inject1 a
+        case r of
+             INil x -> return $ INil x
+             IFinal b x -> do
+                res <- inject2 b
+                return $ case res of
+                     INil _ -> INil x
+                     IFinal c _ -> IFinal c x
+                     ISkip s2 -> ISkip (InnerLoopFinal x s2)
+             ISkip s1 -> return $ ISkip $ OuterLoop s1
 
     {-# INLINE_LATE step #-}
     step (OuterLoop st) = do
@@ -638,14 +643,23 @@ concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
             Skip s -> return $ Skip (OuterLoop s)
             Nil a -> return $ Nil a
             Result b -> do
-                s2 <- inject2 b
-                return $ Skip (InnerLoopResult s2)
+                res <- inject2 b
+                case res of
+                    INil _ -> return Stop
+                    IFinal c _ -> return $ Result c
+                    ISkip s2 -> return $ Skip (InnerLoopResult s2)
             Final b a -> do
-                s2 <- inject2 b
-                return $ Skip (InnerLoopFinal a s2)
+                res <- inject2 b
+                case res of
+                    INil _ -> return $ Nil a
+                    IFinal c _ -> return $ Final c a
+                    ISkip s2 -> return $ Skip (InnerLoopFinal a s2)
             Partial b s -> do
-                s2 <- inject2 b
-                return $ Skip (InnerLoopPartial s s2)
+               res <- inject2 b
+               case res of
+                    INil _ -> return $ Skip (OuterLoop s)
+                    IFinal c _ -> return $ Partial c (OuterLoop s)
+                    ISkip s2 -> return $ Skip (InnerLoopPartial s s2)
     -- XXX If the state is extracted here then we cannot resume from where we
     -- left.
     step (InnerLoopResult s2) = do
@@ -687,4 +701,3 @@ concat_ (Producer step1 inject1 extract1) (Producer step2 inject2 _) =
     extract (InnerLoopResult _) = error "Not handled" -- return Nothing
     extract (InnerLoopFinal a _) = return a
     extract (InnerLoopPartial s1 _) = extract1 s1
-    -}
