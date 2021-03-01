@@ -31,7 +31,7 @@ module Streamly.Internal.Data.Parser.ParserK.Types
     )
 where
 
-import Control.Applicative (Alternative(..))
+import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..), ap)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..), try)
@@ -318,6 +318,11 @@ instance Monad m => Applicative (Parser m a) where
                 in runParser m2 n s yield2
             yield1 s (Error e) = yieldk s (Error e)
         in runParser m1 lo st yield1
+
+#if MIN_VERSION_base(4,10,0)
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+#endif
 
 -------------------------------------------------------------------------------
 -- Monad

@@ -591,6 +591,11 @@ instance Monad m => Applicative (Fold m a) where
     {-# INLINE (<*>) #-}
     (<*>) = teeWith ($)
 
+#if MIN_VERSION_base(4,10,0)
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+#endif
+
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
 --

@@ -132,7 +132,7 @@ module Streamly.Internal.Data.Parser.ParserD.Types
     )
 where
 
-import Control.Applicative (Alternative(..))
+import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
@@ -523,6 +523,11 @@ instance MonadThrow m => Applicative (Parser m a) where
 
     {-# INLINE (*>) #-}
     (*>) = split_
+
+#if MIN_VERSION_base(4,10,0)
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+#endif
 
 -------------------------------------------------------------------------------
 -- Sequential Alternative
