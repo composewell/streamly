@@ -32,7 +32,6 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , foldl'
     , foldlMx'
     , foldlx'
-    , parselMx'
 
     -- * Specific Fold Functions
     , drain
@@ -133,68 +132,6 @@ splitAt n ls
 newtype List a = List {getList :: [a]}
 
 -- | Run a 'Parse' over a stream.
-{-# INLINE_NORMAL parselMx' #-}
-parselMx'
-    :: MonadThrow m
-    => (s -> a -> m (PR.Step s b))
-    -> m s
-    -> (s -> m b)
-    -> Stream m a
-    -> m b
-parselMx' pstep initial extract (Stream step state) = do
-    initial >>= go SPEC state (List [])
-
-    where
-
-    -- XXX currently we are using a dumb list based approach for backtracking
-    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
-    -- That will allow us more efficient random back and forth movement.
-    {-# INLINE go #-}
-    go !_ st buf !pst = do
-        r <- step defState st
-        case r of
-            Yield x s -> do
-                pRes <- pstep pst x
-                case pRes of
-                    PR.Partial 0 pst1 -> go SPEC s (List []) pst1
-                    PR.Partial n pst1 -> do
-                        assert (n <= length (x:getList buf)) (return ())
-                        let src0 = Prelude.take n (x:getList buf)
-                            src  = Prelude.reverse src0
-                        gobuf SPEC s (List []) (List src) pst1
-                    PR.Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
-                    PR.Continue n pst1 -> do
-                        assert (n <= length (x:getList buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:getList buf)
-                            src  = Prelude.reverse src0
-                        gobuf SPEC s (List buf1) (List src) pst1
-                    PR.Done _ b -> return b
-                    PR.Error err -> throwM $ ParseError err
-            Skip s -> go SPEC s buf pst
-            Stop   -> extract pst
-
-    gobuf !_ s buf (List []) !pst = go SPEC s buf pst
-    gobuf !_ s buf (List (x:xs)) !pst = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.Partial 0 pst1 ->
-                gobuf SPEC s (List []) (List xs) pst1
-            PR.Partial n pst1 -> do
-                assert (n <= length (x:getList buf)) (return ())
-                let src0 = Prelude.take n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List []) (List src) pst1
-            PR.Continue 0 pst1 ->
-                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
-            PR.Continue n pst1 -> do
-                assert (n <= length (x:getList buf)) (return ())
-                let (src0, buf1) = splitAt n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List buf1) (List src) pst1
-            PR.Done _ b -> return b
-            PR.Error err -> throwM $ ParseError err
-
--- | Run a 'Parse' over a stream.
 {-# INLINE_NORMAL parse #-}
 parse :: MonadThrow m => PRD.Parser m a b -> Stream m a -> m b
 parse (PRD.Parser pstep initial extract) (Stream step state) = do
@@ -228,7 +165,6 @@ parse (PRD.Parser pstep initial extract) (Stream step state) = do
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                        -- Specialcase the Done 1 case
                     PR.Done _ b -> return b
                     PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
