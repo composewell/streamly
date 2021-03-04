@@ -1903,10 +1903,10 @@ data SessionState t m k a b = SessionState
 
 -- XXX Perhaps we should use an "Event a" type to represent timestamped data.
 
--- | @classifySessionsBy tick timeout keepalive predicate fold stream@ classifies
--- an input event @stream@ consisting of  @(key, value, timestamp)@ into
--- sessions based on the @key@, folding all the values corresponding to the
--- same key into a session using the supplied @fold@.
+-- | @classifySessionsBy tick keepalive predicate timeout fold stream@
+-- classifies an input event @stream@ consisting of  @(key, value, timestamp)@
+-- into sessions based on the @key@, folding all the values corresponding to
+-- the same key into a session using the supplied @fold@.
 --
 -- When the fold terminates or a @timeout@ occurs, a tuple consisting of the
 -- session key and the folded value is emitted in the output stream. The
@@ -1928,7 +1928,7 @@ data SessionState t m k a b = SessionState
 --
 -- >>> :{
 -- Stream.mapM_ print
---     $ Stream.classifySessionsBy 1 3 False (const (return False)) (Fold.takeLE 3 Fold.toList)
+--     $ Stream.classifySessionsBy 1 False (const (return False)) 3 (Fold.takeLE 3 Fold.toList)
 --     $ Stream.map (\\(ts,(k,a)) -> (k, a, ts))
 --     $ Stream.timestamped
 --     $ Stream.delay 1
@@ -1944,13 +1944,13 @@ data SessionState t m k a b = SessionState
 classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ timer tick in seconds
-    -> Double         -- ^ session timeout in seconds
-    -> Bool           -- ^ reset the timeout when an event is received
+    -> Bool           -- ^ reset the timer when an event is received
     -> (Int -> m Bool) -- ^ predicate to eject sessions based on session count
+    -> Double         -- ^ session timeout in seconds
     -> Fold m a b  -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy tick tmout reset ejectPred
+classifySessionsBy tick reset ejectPred tmout
     (Fold step initial extract) str =
     concatMap sessionOutputStream $
         scanlMAfter' sstep (return szero) flush stream
@@ -2165,7 +2165,7 @@ classifySessionsBy tick tmout reset ejectPred
 -- option set to 'True'.
 --
 -- @
--- classifyKeepAliveSessions timeout pred = classifySessionsBy 1 timeout True pred
+-- classifyKeepAliveSessions = classifySessionsBy 1 True
 -- @
 --
 -- /Pre-release/
@@ -2173,13 +2173,12 @@ classifySessionsBy tick tmout reset ejectPred
 {-# INLINABLE classifyKeepAliveSessions #-}
 classifyKeepAliveSessions ::
        (IsStream t, MonadAsync m, Ord k)
-    => Double -- ^ session inactive timeout
-    -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
+    => (Int -> m Bool) -- ^ predicate to eject sessions on session count
+    -> Double -- ^ session inactive timeout
     -> Fold m a b -- ^ Fold to be applied to session payload data
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifyKeepAliveSessions tmout =
-    classifySessionsBy 1 tmout True
+classifyKeepAliveSessions = classifySessionsBy 1 True
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows
@@ -2213,7 +2212,7 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- option set to 'False'.
 --
 -- @
--- classifySessionsOf interval pred = classifySessionsBy 1 interval False pred
+-- classifySessionsOf = classifySessionsBy 1 False
 -- @
 --
 -- /Pre-release/
@@ -2221,13 +2220,12 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 {-# INLINABLE classifySessionsOf #-}
 classifySessionsOf ::
        (IsStream t, MonadAsync m, Ord k)
-    => Double -- ^ time window size
-    -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
+    => (Int -> m Bool) -- ^ predicate to eject sessions on session count
+    -> Double -- ^ time window size
     -> Fold m a b -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifySessionsOf interval =
-    classifySessionsBy 1 interval False
+classifySessionsOf = classifySessionsBy 1 False
 
 ------------------------------------------------------------------------------
 -- Nested Split
