@@ -53,7 +53,7 @@ bench_rts_opts_specific () {
 
     Prelude.Rate/o-1-space/*) echo -n "-K128K" ;;
 
-    -- XXX For GHC-9.0
+    # XXX For GHC-9.0
     Prelude.Serial/o-1-space/mixed/sum-product-fold) echo -n "-K64M" ;;
 
     # XXX These should be moved to o-n-space?
