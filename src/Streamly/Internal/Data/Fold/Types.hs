@@ -229,7 +229,6 @@ module Streamly.Internal.Data.Fold.Types
     )
 where
 
-import Control.Applicative (liftA2)
 import Control.Concurrent (threadDelay, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
@@ -573,26 +572,6 @@ data GenericRunner sL sR bL bR
     | RunLeft !sL !bR
     | RunRight !bL !sR
 
--- | The fold resulting from '<*>' distributes its input to both the argument
--- folds and combines their output using the supplied function.
---
--- __Note:__ The Applicative behaviour will change in the next major release.
---
-instance Monad m => Applicative (Fold m a) where
-    {-# INLINE pure #-}
-    pure = yield
-
-    -- | __Notice:__ In the next major release the behaviour of @<*>@ for folds
-    -- will be updated from 'teeWith' to 'splitWith' to reflect it's similarity
-    -- with parsers.
-    {-# INLINE (<*>) #-}
-    (<*>) = teeWith ($)
-
-#if MIN_VERSION_base(4,10,0)
-    {-# INLINE liftA2 #-}
-    liftA2 f x = (<*>) (fmap f x)
-#endif
-
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
 --
@@ -745,111 +724,6 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
         case r of
             Partial s -> e s
             Done c -> return c
-
--- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
--- instances.
-instance (Semigroup b, Monad m) => Semigroup (Fold m a b) where
-    {-# INLINE (<>) #-}
-    (<>) = liftA2 (<>)
-
--- | Combines the outputs of the folds (the type @b@) using their 'Monoid'
--- instances.
-instance (Semigroup b, Monoid b, Monad m) => Monoid (Fold m a b) where
-    {-# INLINE mempty #-}
-    mempty = pure mempty
-
-    {-# INLINE mappend #-}
-    mappend = (<>)
-
--- | Combines the fold outputs (type @b@) using their 'Num' instances.
-instance (Monad m, Num b) => Num (Fold m a b) where
-    {-# INLINE fromInteger #-}
-    fromInteger = pure . fromInteger
-
-    {-# INLINE negate #-}
-    negate = fmap negate
-
-    {-# INLINE abs #-}
-    abs = fmap abs
-
-    {-# INLINE signum #-}
-    signum = fmap signum
-
-    {-# INLINE (+) #-}
-    (+) = liftA2 (+)
-
-    {-# INLINE (*) #-}
-    (*) = liftA2 (*)
-
-    {-# INLINE (-) #-}
-    (-) = liftA2 (-)
-
--- | Combines the fold outputs (type @b@) using their 'Fractional' instances.
-instance (Monad m, Fractional b) => Fractional (Fold m a b) where
-    {-# INLINE fromRational #-}
-    fromRational = pure . fromRational
-
-    {-# INLINE recip #-}
-    recip = fmap recip
-
-    {-# INLINE (/) #-}
-    (/) = liftA2 (/)
-
--- | Combines the fold outputs using their 'Floating' instances.
-instance (Monad m, Floating b) => Floating (Fold m a b) where
-    {-# INLINE pi #-}
-    pi = pure pi
-
-    {-# INLINE exp #-}
-    exp = fmap exp
-
-    {-# INLINE sqrt #-}
-    sqrt = fmap sqrt
-
-    {-# INLINE log #-}
-    log = fmap log
-
-    {-# INLINE sin #-}
-    sin = fmap sin
-
-    {-# INLINE tan #-}
-    tan = fmap tan
-
-    {-# INLINE cos #-}
-    cos = fmap cos
-
-    {-# INLINE asin #-}
-    asin = fmap asin
-
-    {-# INLINE atan #-}
-    atan = fmap atan
-
-    {-# INLINE acos #-}
-    acos = fmap acos
-
-    {-# INLINE sinh #-}
-    sinh = fmap sinh
-
-    {-# INLINE tanh #-}
-    tanh = fmap tanh
-
-    {-# INLINE cosh #-}
-    cosh = fmap cosh
-
-    {-# INLINE asinh #-}
-    asinh = fmap asinh
-
-    {-# INLINE atanh #-}
-    atanh = fmap atanh
-
-    {-# INLINE acosh #-}
-    acosh = fmap acosh
-
-    {-# INLINE (**) #-}
-    (**) = liftA2 (**)
-
-    {-# INLINE logBase #-}
-    logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
 -- Internal APIs

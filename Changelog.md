@@ -1,10 +1,5 @@
 ## Unreleased
 
-### Notice
-
-* In the next major release the behaviour of `<*>` for folds will be updated
-  from `teeWith` to `splitWith` to reflect it's similarity with parsers.
-
 ### Behavioral changes
 
 * `Streamly.Prelude.fold` can now terminate early without consuming the entire
@@ -31,6 +26,8 @@
   require an additional `MonadAsync` constraint. Several other
   functions that used these functions also now require the additional
   constraint.
+* Remove `Applicative` instance of folds. Please use `teeWith` or the `Tee` type
+  as an alternative to Fold applicative.
 
 ### Enhancements
 
