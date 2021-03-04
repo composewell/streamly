@@ -599,8 +599,7 @@ instance Monad m => Applicative (Fold m a) where
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
 --
--- /Internal/
---
+-- @since 0.8.0
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
