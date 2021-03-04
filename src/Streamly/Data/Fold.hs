@@ -214,6 +214,7 @@ module Streamly.Data.Fold
     -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
 
     , tee
+    , teeWith
     , distribute
 
     -- * Partitioning
