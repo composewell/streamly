@@ -602,7 +602,7 @@ variance = mkAccum step begin done
 -- @since 0.7.0
 {-# INLINABLE stdDev #-}
 stdDev :: (Monad m, Floating a) => Fold m a a
-stdDev = sqrt variance
+stdDev = sqrt <$> variance
 
 -- | Compute an 'Int' sized polynomial rolling hash
 --
