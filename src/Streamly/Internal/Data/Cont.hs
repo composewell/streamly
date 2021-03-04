@@ -19,7 +19,7 @@ import Control.Monad.Cont (runCont, cont)
 -- continuation based transformation from @[b]@ to @c@, make continuation based
 -- transformation from @[a]@ to @c@.
 --
--- /Internal/
+-- /Pre-release/
 
 -- You can read the definition as:
 --

@@ -423,7 +423,7 @@ length arr = byteLength arr `div` sizeOf (undefined :: a)
 -- | Get the total capacity of an array. An array may have space reserved
 -- beyond the current used length of the array.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE byteCapacity #-}
 byteCapacity :: Array a -> Int
 byteCapacity Array{..} =
@@ -446,7 +446,7 @@ data GroupState s start end bound
 --
 -- @arraysOf n = StreamD.foldMany (Array.writeN n)@
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL arraysOf #-}
 arraysOf :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
@@ -538,7 +538,7 @@ read = Producer.simplify producer
 
 -- | Unfold an array into a stream in reverse order.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 readRev = Unfold step inject
@@ -799,7 +799,7 @@ writeN = writeNAllocWith newArray
 -- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
 writeNAligned :: forall m a. (MonadIO m, Storable a)
@@ -811,7 +811,7 @@ writeNAligned alignSize = writeNAllocWith (newArrayAligned alignSize)
 -- This could be useful to allocate memory that we need to allocate only once
 -- in the lifetime of the program.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAlignedUnmanaged #-}
 writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)

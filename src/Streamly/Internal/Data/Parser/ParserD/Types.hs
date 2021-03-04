@@ -222,7 +222,7 @@ instance Functor (Initial s) where
 -- result left it at. The parser must ensure that the backtrack position is
 -- always after that.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
@@ -272,7 +272,7 @@ instance Functor (Step s) where
 -- At any point of time the driver can call @extract@ to inspect the result of
 -- the fold. It may result in an error or an output value.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Parser m a b =
     forall s. Parser (s -> a -> m (Step s b)) (m (Initial s b)) (s -> m b)
@@ -283,7 +283,7 @@ data Parser m a b =
 --    this exception.
 -- * When the "extract" function of a parser needs to throw an error.
 --
--- /Internal/
+-- /Pre-release/
 --
 newtype ParseError = ParseError String
     deriving Show
@@ -304,7 +304,7 @@ instance Functor m => Functor (Parser m a) where
 
 -- | See 'Streamly.Internal.Data.Parser.yield'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL yield #-}
 yield :: Monad m => b -> Parser m a b
@@ -312,7 +312,7 @@ yield b = Parser undefined (pure $ IDone b) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.yieldM'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE yieldM #-}
 yieldM :: Monad m => m b -> Parser m a b
@@ -334,7 +334,7 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 -- compositions the performance starts dipping rapidly beyond a CPS style
 -- unfused implementation.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE splitWith #-}
 splitWith :: MonadThrow m
@@ -460,7 +460,7 @@ data SeqAState sl sr = SeqAL sl | SeqAR sr
 -- This turns out to be slightly faster than splitWith
 -- | See 'Streamly.Internal.Data.Parser.split_'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE split_ #-}
 split_ :: MonadThrow m => Parser m x a -> Parser m x b -> Parser m x b
@@ -543,7 +543,7 @@ data AltParseState sl sr = AltParseL Int sl | AltParseR sr
 --
 -- | See 'Streamly.Internal.Data.Parser.alt'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE alt #-}
 alt :: Monad m => Parser m x a -> Parser m x a -> Parser m x a
@@ -598,7 +598,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE splitMany #-}
 splitMany :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -658,7 +658,7 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE splitSome #-}
 splitSome :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -751,7 +751,7 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
 
 -- | See 'Streamly.Internal.Data.Parser.die'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL die #-}
 die :: MonadThrow m => String -> Parser m a b
@@ -759,7 +759,7 @@ die err = Parser undefined (pure (IError err)) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.dieM'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE dieM #-}
 dieM :: MonadThrow m => m String -> Parser m a b
@@ -801,7 +801,7 @@ data ConcatParseState sl m a b =
 
 -- | See 'Streamly.Internal.Data.Parser.concatMap'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE concatMap #-}
 concatMap :: MonadThrow m =>

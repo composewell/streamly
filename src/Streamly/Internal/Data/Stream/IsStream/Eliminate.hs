@@ -334,7 +334,7 @@ runSink = fold . toFold
 
 -- | Parse a stream using the supplied 'Parser'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL parseD #-}
 parseD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m b
@@ -360,7 +360,7 @@ parseK = parse
 --
 -- @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE [3] parse #-}
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
@@ -473,7 +473,7 @@ head = S.head . toStreamS
 -- supplied default value. It can help avoid one branch in high performance
 -- code.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE headElse #-}
 headElse :: Monad m => a -> SerialT m a -> m a
 headElse x = D.headElse x . toStreamD
@@ -591,7 +591,7 @@ product = foldl' (*) 1
 --
 -- > mconcat = fold Fold.mconcat
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE mconcat #-}
 mconcat :: (Monad m, Monoid a) => SerialT m a -> m a
 mconcat = foldr mappend mempty
@@ -740,7 +740,7 @@ toList = P.toList
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toListRev #-}
 toListRev :: Monad m => SerialT m a -> m [a]
 toListRev = D.toListRev . toStreamD
@@ -770,7 +770,7 @@ toHandle h = go
 -- toStream = foldr cons nil
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE toStream #-}
 toStream :: Monad m => SerialT m a -> m (SerialT Identity a)
@@ -782,7 +782,7 @@ toStream = foldr K.cons K.nil
 -- toStreamRev = foldl' (flip cons) nil
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => SerialT m a -> m (SerialT Identity a)
@@ -876,7 +876,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 --
 -- Space: @O(n)@ worst case where @n@ is the length of the infix.
 --
--- /Internal/
+-- /Pre-release/
 --
 -- /Requires 'Storable' constraint/ - Help wanted.
 --
@@ -915,7 +915,7 @@ isInfixOf infx stream = do
 --
 -- Space: @O(n)@, buffers entire input stream and the suffix.
 --
--- /Internal/
+-- /Pre-release/
 --
 -- /Suboptimal/ - Help wanted.
 --
@@ -970,7 +970,7 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 --
 -- Space: @O(n)@, buffers the entire input stream as well as the suffix
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE stripSuffix #-}
 stripSuffix
     :: (Monad m, Eq a)

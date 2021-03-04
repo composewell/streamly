@@ -194,7 +194,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 -- | @toStreamWithBufferOf bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toStreamWithBufferOf #-}
 toStreamWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
@@ -252,7 +252,7 @@ readDirs = UF.map (fromLeft undefined) $ UF.filter isLeft readEither
 
 -- | Raw read of a directory.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: (IsStream t, MonadIO m) => String -> t m String
 toStream = S.unfold read
@@ -260,7 +260,7 @@ toStream = S.unfold read
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toEither #-}
 toEither :: (IsStream t, MonadIO m)
     => String -> t m (Either String String)

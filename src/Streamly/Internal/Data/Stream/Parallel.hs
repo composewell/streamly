@@ -278,7 +278,7 @@ parallel = joinStreamVarPar ParallelVar StopNone
 --
 -- | Like `parallel` but stops the output as soon as the first stream stops.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE parallelFst #-}
 parallelFst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallelFst = joinStreamVarPar ParallelVar StopBy
@@ -288,7 +288,7 @@ parallelFst = joinStreamVarPar ParallelVar StopBy
 -- | Like `parallel` but stops the output as soon as any of the two streams
 -- stops.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE parallelMin #-}
 parallelMin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallelMin = joinStreamVarPar ParallelVar StopAny
@@ -299,7 +299,7 @@ parallelMin = joinStreamVarPar ParallelVar StopAny
 
 -- | Like 'mkParallel' but uses StreamK internally.
 --
--- /Internal/
+-- /Pre-release/
 --
 mkParallelK :: (IsStream t, MonadAsync m) => t m a -> t m a
 mkParallelK m = mkStream $ \st yld sng stp -> do
@@ -345,7 +345,7 @@ mkParallelD m = D.Stream step Nothing
 --
 -- @mkParallel = D.fromStreamD . mkParallelD . D.toStreamD@
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL mkParallel #-}
 mkParallel :: (K.IsStream t, MonadAsync m) => t m a -> t m a
@@ -395,7 +395,7 @@ mkParallel = D.fromStreamD . mkParallelD . D.toStreamD
 --
 -- Compare with 'tap'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
@@ -470,7 +470,7 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 -- distributeAsync_ = flip (foldr tapAsync)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE distributeAsync_ #-}
 distributeAsync_ :: (Foldable f, IsStream t, MonadAsync m)
@@ -648,7 +648,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- queue values to the stream.  The stream is infinite, there is no way for the
 -- callback to indicate that it is done now.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL newCallbackStream #-}
 newCallbackStream :: (K.IsStream t, MonadAsync m) => m (a -> m (), t m a)

@@ -197,7 +197,7 @@ connectCommon SockSpec{..} local remote = withSocketsDo $ do
 -- | Connect to a remote host using the given socket specification and remote
 -- address. Returns a connected socket or throws an exception.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE connect #-}
 connect :: SockSpec -> SockAddr -> IO Socket
@@ -207,7 +207,7 @@ connect spec = connectCommon spec Nothing
 -- address to bind to and a remote address to connect to. Returns a connected
 -- socket or throws an exception.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE connectFrom #-}
 connectFrom :: SockSpec -> SockAddr -> SockAddr -> IO Socket
@@ -236,7 +236,7 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 -- port). The server generates a stream of connected sockets.  The first
 -- argument is the maximum number of pending connections in the backlog.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE connections #-}
 connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> SerialT m Socket
 connections tcpListenQ spec addr =
@@ -473,7 +473,7 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 -- | Write a stream of strings to a socket in Latin1 encoding.  Output is
 -- flushed to the socket for each string.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE writeStrings #-}
 writeStrings :: MonadIO m

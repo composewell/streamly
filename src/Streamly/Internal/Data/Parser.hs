@@ -221,7 +221,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 --
 -- | Make a 'Parser' from a 'Fold'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE fromFold #-}
 fromFold :: MonadCatch m => Fold m a b -> Parser m a b
@@ -235,7 +235,7 @@ fromFold = K.toParserK . D.fromFold
 --
 -- | A parser that always yields a pure value without consuming any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE [3] yield #-}
 yield :: MonadCatch m => b -> Parser m a b
@@ -248,7 +248,7 @@ yield = K.toParserK . D.yield
 -- | A parser that always yields the result of an effectful action without
 -- consuming any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE yieldM #-}
 yieldM :: MonadCatch m => m b -> Parser m a b
@@ -259,7 +259,7 @@ yieldM = K.yieldM -- K.toParserK . D.yieldM
 -- | A parser that always fails with an error message without consuming
 -- any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE [3] die #-}
 die :: MonadCatch m => String -> Parser m a b
@@ -272,7 +272,7 @@ die = K.toParserK . D.die
 -- | A parser that always fails with an effectful error message and without
 -- consuming any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE dieM #-}
 dieM :: MonadCatch m => m String -> Parser m a b
@@ -292,7 +292,7 @@ dieM = K.toParserK . D.dieM
 -- peek = lookAhead (satisfy True)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE peek #-}
 peek :: MonadCatch m => Parser m a a
@@ -303,7 +303,7 @@ peek = K.toParserK D.peek
 -- >>> Stream.parse ((,) <$> Parser.satisfy (> 0) <*> Parser.eof) $ Stream.fromList [1]
 -- (1,())
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE eof #-}
 eof :: MonadCatch m => Parser m a ()
@@ -314,7 +314,7 @@ eof = K.toParserK D.eof
 -- >>> Stream.parse (Parser.satisfy (== 1)) $ Stream.fromList [1,0,1]
 -- 1
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
@@ -324,7 +324,7 @@ satisfy = K.toParserK . D.satisfy
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
 -- value.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE maybe #-}
 maybe :: MonadCatch m => (a -> Maybe b) -> Parser m a b
@@ -334,7 +334,7 @@ maybe = K.toParserK . D.maybe
 -- the function returns 'Left err', the parser fails with the error message
 -- @err@ otherwise returns the 'Right' value.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE either #-}
 either :: MonadCatch m => (a -> Either String b) -> Parser m a b
@@ -385,7 +385,7 @@ either = K.toParserK . D.either
 -- takeGE = takeBetween n maxBound
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeBetween #-}
 takeBetween ::  MonadCatch m =>
@@ -401,7 +401,7 @@ takeBetween m n = K.toParserK . D.takeBetween m n
 -- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
 -- *** Exception: ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3"
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadCatch m => Int -> Fold m a b -> Parser m a b
@@ -419,7 +419,7 @@ takeEQ n = K.toParserK . D.takeEQ n
 -- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
 -- [1,0,1,0,1]
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadCatch m => Int -> Fold m a b -> Parser m a b
@@ -464,7 +464,7 @@ takeWhileP _cond = undefined -- K.toParserK . D.takeWhileP cond
 -- breakOn p = takeWhile (not p)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -472,7 +472,7 @@ takeWhile cond = K.toParserK . D.takeWhile cond
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -483,7 +483,7 @@ takeWhile1 cond = K.toParserK . D.takeWhile1 cond
 --
 -- This is also called @skipWhile@ in some parsing libraries.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE drainWhile #-}
 drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
@@ -500,7 +500,7 @@ drainWhile p = takeWhile p FL.drain
 -- sliceSepByBetween cond m n p = sliceSepByP cond (takeBetween m n p)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE sliceSepByP #-}
 sliceSepByP ::
@@ -549,7 +549,7 @@ sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
 -- >>> sliceBeginWithOdd []
 -- []
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE sliceBeginWith #-}
 sliceBeginWith ::
@@ -638,7 +638,7 @@ wordBy f = K.toParserK . D.wordBy f
 -- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
 -- [[3,5,4],[1,2],[0]]
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
@@ -672,7 +672,7 @@ groupBy eq = K.toParserK . D.groupBy eq
 -- >>> runGroupsByRolling (<) [3, 5, 4, 1, 2, 0]
 -- [[3,5],[4],[1,2],[0]]
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE groupByRolling #-}
 groupByRolling :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
@@ -685,7 +685,7 @@ groupByRolling eq = K.toParserK . D.groupByRolling eq
 -- >>> Stream.parse (Parser.eqBy (==) "mismatch") $ Stream.fromList "match"
 -- *** Exception: ParseError "eqBy: failed, yet to match 7 elements"
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE eqBy #-}
 eqBy :: MonadCatch m => (a -> a -> Bool) -> [a] -> Parser m a ()
@@ -735,7 +735,7 @@ eqBy cmp = K.toParserK . D.eqBy cmp
 -- spanByRolling eq f1 f2 = splitWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE splitWith #-}
 splitWith :: MonadCatch m
@@ -761,7 +761,7 @@ splitWith f p1 p2 =
 -- operations, and can be faster than 'Applicative' instance for small
 -- number (less than 8) of compositions.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE split_ #-}
 split_ :: MonadCatch m => Parser m x a -> Parser m x b -> Parser m x b
@@ -771,7 +771,7 @@ split_ p1 p2 = K.toParserK $ D.split_ (K.fromParserK p1) (K.fromParserK p2)
 -- of them succeed or anyone of them fails and combines their output using @f@.
 -- The parser succeeds if both the parsers succeed.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE teeWith #-}
 teeWith :: MonadCatch m
@@ -782,7 +782,7 @@ teeWith f p1 p2 =
 -- | Like 'teeWith' but ends parsing and zips the results, if available,
 -- whenever the first parser ends.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE teeWithFst #-}
 teeWithFst :: MonadCatch m
@@ -816,7 +816,7 @@ teeWithMin f p1 p2 =
 -- operations and can be much faster than 'Alternative' instance for small
 -- number (less than 8) of alternatives.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE alt #-}
 alt :: MonadCatch m => Parser m x a -> Parser m x a -> Parser m x a
@@ -826,7 +826,7 @@ alt p1 p2 = K.toParserK $ D.alt (K.fromParserK p1) (K.fromParserK p2)
 -- from the one which consumed least input i.e. take the shortest succeeding
 -- parse.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE shortest #-}
 shortest :: MonadCatch m
@@ -837,7 +837,7 @@ shortest p1 p2 = K.toParserK $ D.shortest (K.fromParserK p1) (K.fromParserK p2)
 -- from the one which consumed more input i.e. take the longest succeeding
 -- parse.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE longest #-}
 longest :: MonadCatch m
@@ -846,7 +846,7 @@ longest p1 p2 = K.toParserK $ D.longest (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Run a parser without consuming the input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE lookAhead #-}
 lookAhead :: MonadCatch m => Parser m a b -> Parser m a b
@@ -913,7 +913,7 @@ concatSequence _f _p = undefined
 -- operations and can be much faster than 'Monad' instance for small number
 -- (less than 8) of compositions.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE concatMap #-}
 concatMap :: MonadCatch m
@@ -964,7 +964,7 @@ manyP _f _p = undefined -- K.toParserK $ D.manyP f (K.fromParserK p)
 --
 -- Compare with 'Control.Applicative.many'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE many #-}
 many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -985,7 +985,7 @@ many f p = K.toParserK $ D.many f (K.fromParserK p)
 --
 -- Compare with 'Control.Applicative.some'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE some #-}
 some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -1044,7 +1044,7 @@ manyTillP _f _p1 _p2 = undefined
 --
 -- Stops when the fold @f@ stops.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m

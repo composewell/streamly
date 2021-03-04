@@ -683,7 +683,7 @@ decodeUtf8' = D.fromStreamD . decodeUtf8D' . D.toStreamD
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE decodeUtf8Arrays' #-}
 decodeUtf8Arrays' :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
 decodeUtf8Arrays' = D.fromStreamD . decodeUtf8ArraysD' . D.toStreamD
@@ -716,7 +716,7 @@ decodeUtf8Lax = decodeUtf8
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE decodeUtf8Either #-}
 decodeUtf8Either :: (Monad m, IsStream t)
     => t m Word8 -> t m (Either DecodeError Char)
@@ -724,7 +724,7 @@ decodeUtf8Either = D.fromStreamD . decodeUtf8EitherD . D.toStreamD
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE resumeDecodeUtf8Either #-}
 resumeDecodeUtf8Either
     :: (Monad m, IsStream t)
@@ -737,7 +737,7 @@ resumeDecodeUtf8Either st cp =
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE decodeUtf8Arrays #-}
 decodeUtf8Arrays ::
        (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
@@ -746,7 +746,7 @@ decodeUtf8Arrays =
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE decodeUtf8Arrays_ #-}
 decodeUtf8Arrays_ ::
        (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
@@ -858,7 +858,7 @@ stripEnd = undefined
 --
 -- > stripStart = S.dropWhile isSpace
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE stripStart #-}
 stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
 stripStart = S.dropWhile isSpace
@@ -871,7 +871,7 @@ stripStart = S.dropWhile isSpace
 --
 -- > lines = S.splitOnSuffix (== '\n')
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE lines #-}
 lines :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
 lines = S.splitOnSuffix (== '\n')
@@ -896,7 +896,7 @@ isSpace c
 --
 -- > words = S.wordsBy isSpace
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE words #-}
 words :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
 words = S.wordsBy isSpace
@@ -908,7 +908,7 @@ words = S.wordsBy isSpace
 -- unlines = Stream.interposeSuffix '\n'
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
 unlines = S.interposeSuffix '\n'
@@ -921,7 +921,7 @@ unlines = S.interposeSuffix '\n'
 -- unwords = Stream.interpose ' '
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE unwords #-}
 unwords :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
 unwords = S.interpose ' '

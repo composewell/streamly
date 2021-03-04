@@ -56,7 +56,7 @@ data IORef a = IORef (MutableByteArray# RealWorld)
 
 -- | Create a new 'IORef'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE newIORef #-}
 newIORef :: forall a. Prim a => a -> IO (IORef a)
 newIORef x = IO (\s# ->
@@ -68,21 +68,21 @@ newIORef x = IO (\s# ->
 
 -- | Write a value to an 'IORef'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Prim a => IORef a -> a -> IO ()
 writeIORef (IORef arr#) x = primitive_ (writeByteArray# arr# 0# x)
 
 -- | Read a value from an 'IORef'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE readIORef #-}
 readIORef :: Prim a => IORef a -> IO a
 readIORef (IORef arr#) = IO (readByteArray# arr# 0#)
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE modifyIORef' #-}
 modifyIORef' :: Prim a => IORef a -> (a -> a) -> IO ()
 modifyIORef' (IORef arr#) g = primitive_ $ \s# ->
@@ -91,7 +91,7 @@ modifyIORef' (IORef arr#) g = primitive_ $ \s# ->
 
 -- | Generate a stream by continuously reading the IORef.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: (MonadIO m, Prim a) => IORef a -> D.Stream m a
 toStreamD var = D.Stream step ()
@@ -103,7 +103,7 @@ toStreamD var = D.Stream step ()
 
 -- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE toStream #-}
 toStream :: (K.IsStream t, MonadIO m, Prim a) => IORef a -> t m a

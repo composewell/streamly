@@ -97,7 +97,7 @@ import Prelude hiding (filter, zipWith, concatMap, concat)
 -- >>> Stream.toList $ Stream.sampleFromThen 2 3 $ Stream.enumerateFromTo 0 10
 -- [2,5,8]
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sampleFromThen #-}
 sampleFromThen :: (IsStream t, Monad m, Functor (t m)) =>
@@ -115,7 +115,7 @@ sampleFromThen offset stride =
 -- sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.last
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sampleIntervalEnd #-}
 sampleIntervalEnd :: (IsStream t, MonadAsync m, Functor (t m)) =>
@@ -128,7 +128,7 @@ sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.last
 -- sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sampleIntervalStart #-}
 sampleIntervalStart :: (IsStream t, MonadAsync m, Functor (t m)) =>
@@ -143,7 +143,7 @@ sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
 --
 -- The clock granularity is 10 ms.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sampleBurstEnd #-}
 sampleBurstEnd :: (IsStream t, MonadAsync m, Functor (t m)) =>
@@ -159,7 +159,7 @@ sampleBurstEnd gap =
 -- | Like 'sampleBurstEnd' but samples the event at the beginning of the burst
 -- instead of at the end of it.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sampleBurstStart #-}
 sampleBurstStart :: (IsStream t, MonadAsync m, Functor (t m)) =>
@@ -186,7 +186,7 @@ sampleBurstStart gap =
 --
 -- Note: this is not the fastest possible implementation as of now.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sortBy #-}
 sortBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
@@ -231,7 +231,7 @@ sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.yield
 --
 -- Time: O(m x n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE crossJoin #-}
 crossJoin :: Monad (t m) => t m a -> t m b -> t m (a, b)
 crossJoin s1 s2 = do
@@ -259,7 +259,7 @@ crossJoin s1 s2 = do
 --
 -- Time: O(m x n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE innerJoin #-}
 innerJoin ::
     forall (t :: (Type -> Type) -> Type -> Type) m a b.
@@ -487,7 +487,7 @@ mergeOuterJoin _eq _s1 _s2 = undefined
 -- Time: O(m x n) where @m@ is the number of elements in the first stream and
 -- @n@ is the number of elements in the second stream.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE intersectBy #-}
 intersectBy :: (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a -> t m a
@@ -533,7 +533,7 @@ mergeIntersectBy _eq _s1 _s2 = undefined
 -- Time: O(m x n) where @m@ is the number of elements in the first stream and
 -- @n@ is the number of elements in the second stream.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE differenceBy #-}
 differenceBy :: (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a -> t m a
@@ -577,7 +577,7 @@ mergeDifferenceBy _eq _s1 _s2 = undefined
 --
 -- Time: O(m x n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE unionBy #-}
 unionBy :: (IsStream t, MonadAsync m, Semigroup (t m a)) =>
     (a -> a -> Bool) -> t m a -> t m a -> t m a

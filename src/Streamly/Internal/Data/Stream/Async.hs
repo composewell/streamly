@@ -491,7 +491,7 @@ newAsyncVar st m = do
 -- | Generate a stream asynchronously to keep it buffered, lazily consume
 -- from the buffer.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE mkAsyncK #-}
 mkAsyncK :: (IsStream t, MonadAsync m) => t m a -> t m a
@@ -525,7 +525,7 @@ mkAsyncD m = D.Stream step Nothing
 -- kicked off again to evaluate the remaining stream when there is space in the
 -- buffer.  The consumer consumes the stream lazily from the buffer.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL mkAsync #-}
 mkAsync :: (K.IsStream t, MonadAsync m) => t m a -> t m a

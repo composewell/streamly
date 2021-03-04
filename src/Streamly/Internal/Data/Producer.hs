@@ -61,7 +61,7 @@ import Prelude hiding (concat)
 
 -- | Simplify a producer to an unfold.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE simplify #-}
 simplify :: Producer m a b -> Unfold m a b
 simplify (Producer step inject _) = Unfold step inject
@@ -72,7 +72,7 @@ simplify (Producer step inject _) = Unfold step inject
 
 -- | Convert a StreamD stream into a producer.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Monad m => Producer m (Stream m a) a
 fromStreamD = Producer step return return

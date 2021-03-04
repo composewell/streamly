@@ -55,7 +55,7 @@ before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 --
 -- > after_ action xs = xs <> 'nilM' action
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE after_ #-}
 after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
@@ -95,7 +95,7 @@ onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 --
 -- /Inhibits stream fusion/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE finally_ #-}
 finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
@@ -132,7 +132,7 @@ finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 --
 -- /Inhibits stream fusion/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE bracket_ #-}
 bracket_ :: (IsStream t, MonadCatch m)
@@ -179,7 +179,7 @@ bracket bef aft bet = D.fromStreamD $
 --
 -- /Inhibits stream fusion/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE ghandle #-}
 ghandle :: (IsStream t, MonadCatch m, Exception e)

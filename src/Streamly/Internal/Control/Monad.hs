@@ -19,7 +19,7 @@ import Control.Monad.Catch (MonadCatch, catch, SomeException)
 
 -- | Discard any exceptions or value returned by an effectful action.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE discard #-}
 discard :: MonadCatch m => m b -> m ()

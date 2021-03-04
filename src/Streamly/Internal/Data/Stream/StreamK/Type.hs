@@ -340,7 +340,7 @@ nil = mkStream $ \_ _ _ stp -> stp
 -- []
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
 nilM :: (IsStream t, Monad m) => m b -> t m a
 nilM m = mkStream $ \_ _ _ stp -> m >> stp

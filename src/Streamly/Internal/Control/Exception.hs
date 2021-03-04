@@ -21,7 +21,7 @@ import Control.Exception (assert)
 -- Like 'assert' but returns @()@ in an 'Applicative' context so that it can be
 -- used as an independent statement in a @do@ block.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE assertM #-}
 assertM :: Applicative f => Bool -> f ()
@@ -30,7 +30,7 @@ assertM predicate = assert predicate (pure ())
 -- | Like 'assert' but is not removed by the compiler, it is always present in
 -- production code.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE verify #-}
 verify :: Bool -> a -> a
@@ -43,7 +43,7 @@ verify predicate val =
 -- Like 'verify' but returns @()@ in an 'Applicative' context so that it can be
 -- used as an independent statement in a @do@ block.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE verifyM #-}
 verifyM :: Applicative f => Bool -> f ()

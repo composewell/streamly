@@ -27,7 +27,7 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Prim a) => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = do
@@ -42,7 +42,7 @@ fromStreamN n m = do
 -- may fail.  When the stream size is not known, `arraysOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Prim a) => SerialT m a -> m (Array a)
 fromStream = P.foldOnce A.write
@@ -54,7 +54,7 @@ fromStream = P.foldOnce A.write
 
 -- | Convert an 'Array' into a stream.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_EARLY toStream #-}
 toStream :: (MonadIO m, K.IsStream t, Prim a) => Array a -> t m a
 toStream = D.fromStreamD . A.toStreamD
@@ -64,7 +64,7 @@ toStream = D.fromStreamD . A.toStreamD
 
 -- | Convert an 'Array' into a stream in reverse order.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
 toStreamRev :: (MonadIO m, IsStream t, Prim a) => Array a -> t m a
 toStreamRev = D.fromStreamD . A.toStreamDRev
@@ -98,7 +98,7 @@ read = Unfold step inject
 -- for which this was written, "read" proves to be faster even though the core
 -- generated with unsafeRead looks simpler.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL unsafeRead #-}
 unsafeRead :: (MonadIO m, Prim a) => Unfold m (Array a) a
@@ -114,7 +114,7 @@ unsafeRead = Unfold step inject
 
 -- | > null arr = length arr == 0
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE null #-}
 null :: Array a -> Bool
 null arr = length arr == 0
@@ -125,14 +125,14 @@ null arr = length arr == 0
 
 -- | Fold an array using a 'Fold'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Prim a) => Fold m a b -> Array a -> m b
 fold f arr = P.foldOnce f (toStream arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE streamFold #-}
 streamFold :: (MonadIO m, Prim a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
@@ -143,7 +143,7 @@ streamFold f arr = f (toStream arr)
 
 -- | /O(1)/ Lookup the element at the given index, starting from 0.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE readIndex #-}
 readIndex :: Prim a => Array a -> Int -> Maybe a
 readIndex arr i =
@@ -153,7 +153,7 @@ readIndex arr i =
 
 -- | > last arr = readIndex arr (length arr - 1)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE last #-}
 last :: Prim a => Array a -> Maybe a
 last arr = readIndex arr (length arr - 1)
@@ -168,7 +168,7 @@ last arr = readIndex arr (length arr - 1)
 --
 -- > concat = S.concatMap A.read
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE concat #-}
 concat :: (IsStream t, MonadIO m, Prim a) => t m (Array a) -> t m a
 -- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
@@ -178,7 +178,7 @@ concat m = D.fromStreamD $ D.concatUnfold read (D.toStreamD m)
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE compact #-}
 compact ::
        (MonadIO m, Prim a) => Int -> SerialT m (Array a) -> SerialT m (Array a)

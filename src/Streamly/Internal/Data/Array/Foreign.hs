@@ -183,7 +183,7 @@ import qualified Streamly.Internal.Ring.Foreign as RB
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = do
@@ -198,7 +198,7 @@ fromStreamN n m = do
 -- may fail.  When the stream size is not known, `arraysOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
 fromStream = P.foldOnce A.write
@@ -228,7 +228,7 @@ producer = Producer.translate A.unsafeThaw A.unsafeFreeze MA.producer
 -- for which this was written, "read" proves to be faster even though the core
 -- generated with unsafeRead looks simpler.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL unsafeRead #-}
 unsafeRead :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
@@ -256,14 +256,14 @@ unsafeRead = Unfold step inject
 
 -- | > null arr = length arr == 0
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE null #-}
 null :: Storable a => Array a -> Bool
 null arr = length arr == 0
 
 -- | > last arr = readIndex arr (length arr - 1)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE last #-}
 last :: Storable a => Array a -> Maybe a
 last arr = readIndex arr (length arr - 1)
@@ -395,7 +395,7 @@ foldbWith level f = undefined
 
 -- | /O(1)/ Lookup the element at the given index, starting from 0.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE readIndex #-}
 readIndex :: Storable a => Array a -> Int -> Maybe a
 readIndex arr i =
@@ -429,7 +429,7 @@ readSliceRev arr i len = undefined
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE writeIndex #-}
 writeIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
 writeIndex arr i a = do
@@ -487,7 +487,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -- | Transform an array into another array using a stream transformation
 -- operation.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE streamTransform #-}
 streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
@@ -504,7 +504,7 @@ streamTransform f arr =
 -- otherwise accessing the last element of the array may result into a crash or
 -- a random value.
 --
--- /Internal/
+-- /Pre-release/
 --
 unsafeCast ::
 #ifdef DEVBUILD
@@ -515,7 +515,7 @@ unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
 
 -- | Cast an array into a Word8 array
 --
--- /Internal/
+-- /Pre-release/
 --
 asByteArray :: Array a -> Array Word8
 asByteArray = unsafeCast
@@ -524,7 +524,7 @@ asByteArray = unsafeCast
 -- type @b@. The length of the array should be a multiple of the size of the
 -- target element otherwise 'Nothing' is returned.
 --
--- /Internal/
+-- /Pre-release/
 --
 cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
 cast arr =
@@ -538,7 +538,7 @@ cast arr =
 --
 -- /Unsafe/
 --
--- /Internal/
+-- /Pre-release/
 --
 asPtr :: Array a -> (Ptr b -> IO c) -> IO c
 asPtr Array{..} act = do
@@ -550,7 +550,7 @@ asPtr Array{..} act = do
 --
 -- /O(n) Time: (creates a copy of the array)/
 --
--- /Internal/
+-- /Pre-release/
 --
 asCString :: Array a -> (CString -> IO b) -> IO b
 asCString arr act = do
@@ -563,14 +563,14 @@ asCString arr act = do
 
 -- | Fold an array using a 'Fold'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
 fold f arr = P.foldOnce f (A.toStream arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE streamFold #-}
 streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (A.toStream arr)

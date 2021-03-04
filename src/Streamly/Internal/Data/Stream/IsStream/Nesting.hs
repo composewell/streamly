@@ -328,7 +328,7 @@ import Prelude hiding (zipWith, concatMap, concat)
 -- but use 'concatMap' or 'concatMapWith serial' for appending @n@ streams or
 -- infinite containers of streams.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE append #-}
 append ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
@@ -360,7 +360,7 @@ append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 --
 -- Do not use at scale in concatMapWith.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interleave #-}
 interleave ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
@@ -383,7 +383,7 @@ interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
 --
 -- Do not use at scale in concatMapWith.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interleaveSuffix #-}
 interleaveSuffix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveSuffix m1 m2 =
@@ -407,7 +407,7 @@ interleaveSuffix m1 m2 =
 --
 -- Do not use at scale in concatMapWith.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interleaveInfix #-}
 interleaveInfix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveInfix m1 m2 =
@@ -430,7 +430,7 @@ interleaveInfix m1 m2 =
 --
 -- Do not use at scale in concatMapWith.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interleaveMin #-}
 interleaveMin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2)
@@ -450,7 +450,7 @@ interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2
 --
 -- Do not use at scale in concatMapWith.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE roundrobin #-}
 roundrobin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
@@ -601,7 +601,7 @@ concatMapWith = K.concatMapBy
 -- concatSmapMWith combine f initial = concatMapWith combine id . smapM f initial
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE concatSmapMWith #-}
 concatSmapMWith
@@ -634,7 +634,7 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 -- concat = concatMap id
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE concat #-}
 concat :: (IsStream t, Monad m) => t m (t m a) -> t m a
 concat = concatMap id
@@ -669,7 +669,7 @@ concatMapEitherWith = undefined
 --
 -- /Caution: the stream of streams must be finite/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE concatPairsWith #-}
 concatPairsWith :: IsStream t =>
@@ -695,7 +695,7 @@ concatUnfold u m = fromStreamD $ D.concatUnfold u (toStreamD m)
 -- | Like 'concatUnfold' but interleaves the streams in the same way as
 -- 'interleave' behaves instead of appending them.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE concatUnfoldInterleave #-}
 concatUnfoldInterleave ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
@@ -705,7 +705,7 @@ concatUnfoldInterleave u m =
 -- | Like 'concatUnfold' but executes the streams in the same way as
 -- 'roundrobin'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE concatUnfoldRoundrobin #-}
 concatUnfoldRoundrobin ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
@@ -723,7 +723,7 @@ concatUnfoldRoundrobin u m =
 --
 -- > unwords = S.interpose ' '
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interpose #-}
 interpose :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
@@ -737,7 +737,7 @@ interpose x unf str =
 --
 -- > unlines = S.interposeSuffix '\n'
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interposeSuffix #-}
 interposeSuffix :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
@@ -758,7 +758,7 @@ interposeSuffix x unf str =
 --
 -- | 'interleaveInfix' followed by unfold and concat.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE gintercalate #-}
 gintercalate
     :: (IsStream t, Monad m)
@@ -784,7 +784,7 @@ gintercalate unf1 str1 unf2 str2 =
 -- >>> Stream.toList $ Stream.intercalate " " Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc def ghi"
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE intercalate #-}
 intercalate :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
@@ -793,7 +793,7 @@ intercalate seed unf str = D.fromStreamD $
 
 -- | 'interleaveSuffix' followed by unfold and concat.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE gintercalateSuffix #-}
 gintercalateSuffix
     :: (IsStream t, Monad m)
@@ -813,7 +813,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 -- >>> Stream.toList $ Stream.intercalateSuffix "\n" Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc\ndef\nghi\n"
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
@@ -846,7 +846,7 @@ intercalateSuffix seed unf str = fromStreamD $ D.concatUnfold unf
 --     (yield (Left "tmp"))
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE iterateMapWith #-}
 iterateMapWith
@@ -883,7 +883,7 @@ iterateUnfold unf xs = undefined
 --
 -- See also: 'mfix'
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE iterateSmapMWith #-}
 iterateSmapMWith
@@ -922,7 +922,7 @@ iterateSmapMWith combine f initial stream =
 -- iterateMapLeftsWith serial Dir.toEither (yield (Left "tmp"))
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE iterateMapLeftsWith #-}
 iterateMapLeftsWith
@@ -954,7 +954,7 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
 -- [3,7,11,15,19,0]
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE foldManyPost #-}
 foldManyPost
@@ -981,7 +981,7 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 -- Note @foldMany (takeLE 0)@ would result in an infinite loop in a non-empty
 -- stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE foldMany #-}
 foldMany
@@ -994,7 +994,7 @@ foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE foldSequence #-}
 foldSequence
@@ -1020,7 +1020,7 @@ foldSequence _f _m = undefined
 -- This is the streaming equivalent of monad like sequenced application of
 -- folds where next fold is dependent on the previous fold.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE foldIterate #-}
 foldIterate
@@ -1058,7 +1058,7 @@ foldIterate _f _i _m = undefined
 -- Known Issues: When the parser fails there is no way to get the remaining
 -- stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE parseMany #-}
 parseMany
@@ -1081,7 +1081,7 @@ parseManyD p m =
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE parseSequence #-}
 parseSequence
@@ -1119,7 +1119,7 @@ parseManyTill = undefined
 -- This is the streaming equivalent of monad like sequenced application of
 -- parsers where next parser is dependent on the previous parser.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE parseIterate #-}
 parseIterate
@@ -1591,7 +1591,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- >>> splitOn'_ "ll" "hello"
 -- ["he","ll","o"]
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE splitBySeq #-}
 splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
@@ -1640,7 +1640,7 @@ splitBySeq patt f m =
 --
 -- > splitSuffixOn . intercalateSuffix == id
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
@@ -1686,7 +1686,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- >>> splitWithSuffixSeq' "." "a..b.."
 -- ["a.",".","b.","."]
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
@@ -1729,7 +1729,7 @@ chunksOf n f = D.fromStreamD . D.chunksOf n f . D.toStreamD
 
 -- |
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE chunksOf2 #-}
 chunksOf2
     :: (IsStream t, Monad m)
@@ -1743,7 +1743,7 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- > arraysOf n = Stream.foldMany (A.writeN n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
@@ -1929,7 +1929,7 @@ data SessionState t m k a b = SessionState
 -- a new session. This could be useful to alert or eject sessions when the
 -- number of sessions becomes too high.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE classifySessionsBy #-}
 classifySessionsBy
@@ -2163,7 +2163,7 @@ classifySessionsBy tick tmout reset ejectPred
 -- classifyKeepAliveSessions timeout pred = classifySessionsBy 1 timeout True pred
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE classifyKeepAliveSessions #-}
 classifyKeepAliveSessions ::
@@ -2236,7 +2236,7 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 --
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE classifySessionsOf #-}
 classifySessionsOf ::
@@ -2265,7 +2265,7 @@ classifySessionsOf interval =
 -- CAUTION! This is not a true streaming function as the container size after
 -- the split and merge may not be bounded.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE splitInnerBy #-}
 splitInnerBy
     :: (IsStream t, Monad m)
@@ -2279,7 +2279,7 @@ splitInnerBy splitter joiner xs =
 -- | Like 'splitInnerBy' but splits assuming the separator joins the segment in
 -- a suffix style.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE splitInnerBySuffix #-}
 splitInnerBySuffix
     :: (IsStream t, Monad m, Eq (f a), Monoid (f a))

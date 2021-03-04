@@ -43,7 +43,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 -- 0 ==> ()
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE unit #-}
 unit :: MonadCatch m => Parser m Word8 ()
@@ -62,7 +62,7 @@ word8ToBool w = Left ("Invalid Bool encoding " ++ Prelude.show w)
 -- 1 ==> True
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE bool #-}
 bool :: MonadCatch m => Parser m Word8 Bool
@@ -83,7 +83,7 @@ word8ToOrdering w = Left ("Invalid Ordering encoding " ++ Prelude.show w)
 -- 2 ==> GT
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE ordering #-}
 ordering :: MonadCatch m => Parser m Word8 Ordering
@@ -92,7 +92,7 @@ ordering = PR.either word8ToOrdering
 -- XXX should go in a Word8 parser module?
 -- | Accept the input byte only if it is equal to the specified value.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE eqWord8 #-}
 eqWord8 :: MonadCatch m => Word8 -> Parser m Word8 Word8
@@ -100,7 +100,7 @@ eqWord8 b = PR.satisfy (== b)
 
 -- | Accept any byte.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word8 #-}
 word8 :: MonadCatch m => Parser m Word8 Word8
@@ -127,7 +127,7 @@ word16beD = PRD.Parser step initial extract
 -- | Parse two bytes as a 'Word16', the first byte is the MSB of the Word16 and
 -- second byte is the LSB (big endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word16be #-}
 word16be :: MonadCatch m => Parser m Word8 Word16
@@ -152,7 +152,7 @@ word16leD = PRD.Parser step initial extract
 -- | Parse two bytes as a 'Word16', the first byte is the LSB of the Word16 and
 -- second byte is the MSB (little endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word16le #-}
 word16le :: MonadCatch m => Parser m Word8 Word16
@@ -179,7 +179,7 @@ word32beD = PRD.Parser step initial extract
 -- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
 -- and last byte is the LSB (big endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word32be #-}
 word32be :: MonadCatch m => Parser m Word8 Word32
@@ -205,7 +205,7 @@ word32leD = PRD.Parser step initial extract
 -- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
 -- and last byte is the LSB (big endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word32le #-}
 word32le :: MonadCatch m => Parser m Word8 Word32
@@ -232,7 +232,7 @@ word64beD = PRD.Parser step initial extract
 -- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
 -- and last byte is the LSB (big endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word64be #-}
 word64be :: MonadCatch m => Parser m Word8 Word64
@@ -258,7 +258,7 @@ word64leD = PRD.Parser step initial extract
 -- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
 -- and last byte is the LSB (big endian representation).
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word64le #-}
 word64le :: MonadCatch m => Parser m Word8 Word64
@@ -270,7 +270,7 @@ word64le = PRK.toParserK word64leD
 
 -- | Parse eight bytes as a 'Word64' in the host byte order.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE word64host #-}
 word64host :: (MonadIO m, MonadCatch m) => Parser m Word8 Word64

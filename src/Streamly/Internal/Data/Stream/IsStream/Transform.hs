@@ -275,7 +275,7 @@ import Prelude hiding
 
 -- | Use a 'Pipe' to transform a stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
@@ -312,7 +312,7 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 --
 -- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE foldrS #-}
 foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
 foldrS = K.foldrS
@@ -327,7 +327,7 @@ foldrS = K.foldrS
 -- 'foldrT' can be used to translate streamly streams to other transformer
 -- monads e.g.  to a different streaming type.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE foldrT #-}
 foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
@@ -431,7 +431,7 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 -- [0,2,4,6,8,10]
 
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE tapOffsetEvery #-}
 tapOffsetEvery :: (IsStream t, Monad m)
@@ -465,7 +465,7 @@ tapOffsetEvery offset n f xs =
 --
 -- Compare with 'tap'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
 tapAsync f xs = D.fromStreamD $ Par.tapAsyncF f (D.toStreamD xs)
@@ -485,7 +485,7 @@ tapAsync f xs = D.fromStreamD $ Par.tapAsyncF f (D.toStreamD xs)
 --
 -- Note: This may not work correctly on 32-bit machines.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE pollCounts #-}
 pollCounts ::
@@ -516,7 +516,7 @@ pollCounts predicate transf f xs =
 --
 -- Note: This may not work correctly on 32-bit machines.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE tapRate #-}
 tapRate ::
        (IsStream t, MonadAsync m, MonadCatch m)
@@ -555,7 +555,7 @@ trace f = mapM (\x -> void (f x) >> return x)
 --
 -- See also: 'trace'
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE trace_ #-}
 trace_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 trace_ eff = Serial.mapM (\x -> eff >> return x)
@@ -688,7 +688,7 @@ postscanl' step z m = fromStreamD $ D.postscanl' step z $ toStreamD m
 --
 -- | Like scanl' but does not stream the final value of the accumulator.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE prescanl' #-}
 prescanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
@@ -696,7 +696,7 @@ prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
 -- XXX this needs to be concurrent
 -- | Like prescanl' but with a monadic step function and a monadic seed.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE prescanlM' #-}
 prescanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
 prescanlM' step z m = fromStreamD $ D.prescanlM' step z $ toStreamD m
@@ -737,7 +737,7 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- filterWithRelTime = with timeIndexed filter
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE with #-}
 with :: forall (t :: (Type -> Type) -> Type -> Type) m a b s. Functor (t m) =>
        (t m a -> t m (s, a))
@@ -782,7 +782,7 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 --
 -- See also: 'nubBy'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE uniqBy #-}
 uniqBy :: (IsStream t, Monad m, Functor (t m)) =>
@@ -988,7 +988,7 @@ takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 -- No element is yielded if the duration is zero. At least one element is
 -- yielded if the duration is non-zero.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeByTime #-}
 takeByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
@@ -1021,7 +1021,7 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 --
 -- All elements are yielded if the duration is zero.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE dropByTime #-}
 dropByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
@@ -1106,7 +1106,7 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- >>> Stream.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') $ Stream.fromList "hello"
 -- h.e.l.l.o
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE intersperseM_ #-}
 intersperseM_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
@@ -1130,7 +1130,7 @@ intersperseBySpan _n _f _xs = undefined
 -- >>> Stream.toList $ Stream.trace putChar $ intersperseSuffix (putChar '.' >> return ',') $ Stream.fromList "hello"
 -- h.,e.,l.,l.,o.,"h,e,l,l,o,"
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE intersperseSuffix #-}
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
@@ -1141,7 +1141,7 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 -- > S.mapM_ putChar $ S.intersperseSuffix_ (threadDelay 1000000) $ S.fromList "hello"
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE intersperseSuffix_ #-}
 intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
@@ -1155,7 +1155,7 @@ intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 -- >>> Stream.toList $ Stream.intersperseSuffixBySpan 2 (return ',') $ Stream.fromList "hello"
 -- "he,ll,o,"
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE intersperseSuffixBySpan #-}
 intersperseSuffixBySpan :: (IsStream t, MonadAsync m)
@@ -1172,7 +1172,7 @@ intersperseSuffixBySpan n eff =
 --
 -- /Concurrent/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE interspersePrefix_ #-}
 interspersePrefix_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
@@ -1192,7 +1192,7 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE delay #-}
 delay :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
@@ -1208,7 +1208,7 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE delayPost #-}
 delayPost :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
@@ -1224,7 +1224,7 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE delayPre #-}
 delayPre :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
@@ -1302,7 +1302,7 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE timestampWith #-}
 timestampWith :: (IsStream t, MonadAsync m, Functor (t m))
@@ -1311,7 +1311,7 @@ timestampWith g stream = Z.zipWith (flip (,)) stream (absTimesWith g)
 
 -- TBD: check performance vs a custom implementation without using zipWith.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE timestamped #-}
 timestamped :: (IsStream t, MonadAsync m, Functor (t m))
@@ -1327,7 +1327,7 @@ timestamped = timestampWith 0.01
 -- (RelTime64 (NanoSecond64 ...),2)
 -- (RelTime64 (NanoSecond64 ...),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE timeIndexWith #-}
 timeIndexWith :: (IsStream t, MonadAsync m, Functor (t m))
@@ -1343,7 +1343,7 @@ timeIndexWith g stream = Z.zipWith (flip (,)) stream (relTimesWith g)
 -- (RelTime64 (NanoSecond64 ...),2)
 -- (RelTime64 (NanoSecond64 ...),3)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE timeIndexed #-}
 timeIndexed :: (IsStream t, MonadAsync m, Functor (t m))
@@ -1376,7 +1376,7 @@ elemIndices a = findIndices (== a)
 --
 -- This is the stream equivalent of the list idiom @zipWith f xs (tail xs)@.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE rollingMap #-}
 rollingMap :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
@@ -1384,7 +1384,7 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 
 -- | Like 'rollingMap' but with an effectful map function.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE rollingMapM #-}
 rollingMapM :: (IsStream t, Monad m) => (a -> a -> m b) -> t m a -> t m b
@@ -1431,7 +1431,7 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 
 -- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
 --
--- /Internal/
+-- /Pre-release/
 --
 catMaybes :: (IsStream t, Monad m, Functor (t m)) => t m (Maybe a) -> t m a
 catMaybes = fmap fromJust . filter isJust
@@ -1442,14 +1442,14 @@ catMaybes = fmap fromJust . filter isJust
 
 -- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 lefts :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m a
 lefts = fmap (fromLeft undefined) . filter isLeft
 
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 rights :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m b
 rights = fmap (fromRight undefined) . filter isRight

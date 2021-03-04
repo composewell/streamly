@@ -259,7 +259,7 @@ import Prelude hiding (concatMap, filter, map)
 -- state or the driver can use @extract@ on the state to get the result out.
 -- 'Done' returns the final result and the fold cannot be driven further.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# ANN type Step Fuse #-}
 data Step s b
@@ -269,7 +269,7 @@ data Step s b
 -- | A bifunctor instance on 'Step'. @first@ maps on the value held by 'Partial'
 -- and @second@ maps on the result held by 'Done'.
 --
--- /Internal/
+-- /Pre-release/
 --
 instance Bifunctor Step where
     {-# INLINE bimap #-}
@@ -289,7 +289,7 @@ instance Bifunctor Step where
 -- fmap = 'second'
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 instance Functor (Step s) where
     {-# INLINE fmap #-}
@@ -326,7 +326,7 @@ data Fold m a b =
 -- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
 -- can use @mkAccum*@ constructors.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkAccum #-}
 mkAccum :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
@@ -343,7 +343,7 @@ mkAccum step initial extract =
 -- mkAccum_ step initial = mkAccum step initial id
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkAccum_ #-}
 mkAccum_ :: Monad m => (b -> a -> b) -> b -> Fold m a b
@@ -352,7 +352,7 @@ mkAccum_ step initial = mkAccum step initial id
 -- | Make an accumulating (non-terminating) fold with an effectful step
 -- function, an initial state, and a state extraction function.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkAccumM #-}
 mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
@@ -366,7 +366,7 @@ mkAccumM step initial =
 -- mkAccumM_ step initial = mkAccumM step initial return
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkAccumM_ #-}
 mkAccumM_ :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
@@ -375,7 +375,7 @@ mkAccumM_ step initial = mkAccumM step initial return
 -- | Make a terminating fold using a pure step function, a pure initial state
 -- and a pure state extraction function.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkFold #-}
 mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
@@ -389,7 +389,7 @@ mkFold step initial extract =
 -- mkFold_ step initial = mkFold step initial id
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkFold_ #-}
 mkFold_ :: Monad m => (b -> a -> Step b b) -> Step b b -> Fold m a b
@@ -402,7 +402,7 @@ mkFold_ step initial = mkFold step initial id
 --
 --  We can just use 'Fold' but it is provided for completeness.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkFoldM #-}
 mkFoldM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
@@ -415,7 +415,7 @@ mkFoldM = Fold
 -- mkFoldM_ step initial = mkFoldM step initial return
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE mkFoldM_ #-}
 mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
@@ -515,7 +515,7 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 -- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
 -- the results. This has the same caveats as ParseD's @splitWith@
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE splitWith #-}
 splitWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
@@ -576,6 +576,7 @@ data GenericRunner sL sR bL bR
 -- of them terminate and combines their output using @k@.
 --
 -- @since 0.8.0
+--
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
@@ -684,7 +685,7 @@ data ConcatMapState m sa a c
 -- >>> Stream.fold (Fold.concatMap (flip Fold.takeLE Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
 -- 45
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Fold m a c) -> Fold m a b -> Fold m a c
@@ -801,7 +802,7 @@ lcatMaybes = filter isJust . map fromJust
 -- >>> Stream.fold (Fold.takeLE (-1) Fold.toList) $ Stream.fromList [1]
 -- []
 --
--- /Internal/
+-- /Pre-release/
 --
 -- @since 0.7.0
 {-# INLINE takeLE #-}
@@ -897,7 +898,7 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 --
 -- Stops when @collect@ stops.
 --
--- /Internal/
+-- /Pre-release/
 --
 -- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
 --
@@ -957,7 +958,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 --
 -- Stops when @collect@ stops.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
@@ -994,7 +995,7 @@ chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 --
 -- Stops when @fold@ stops or when the timeout occurs.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeByTime #-}
 takeByTime :: MonadAsync m => Double -> Fold m a b -> Fold m a b
@@ -1058,7 +1059,7 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
 --
 -- > intervalsOf n split collect = many collect (takeByTime n split)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE intervalsOf #-}
 intervalsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c

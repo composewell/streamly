@@ -51,7 +51,7 @@ data GbracketState s1 s2 v
 --
 -- /Inhibits stream fusion/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL gbracket_ #-}
 gbracket_
@@ -110,7 +110,7 @@ data GbracketIOState s1 s2 v wref
 --
 -- /Inhibits stream fusion/
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL gbracket #-}
 gbracket
     :: (MonadIO m, MonadBaseControl IO m)

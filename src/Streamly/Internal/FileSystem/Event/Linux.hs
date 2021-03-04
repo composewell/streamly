@@ -200,7 +200,7 @@ import qualified Streamly.Internal.Unicode.Stream as U
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Config = Config
     { watchRec :: Bool
@@ -213,7 +213,7 @@ data Config = Config
 
 -- | Whether a setting is 'On' or 'Off'.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Toggle = On | Off
 
@@ -238,7 +238,7 @@ setFlag mask status cfg@Config{..} =
 --
 -- /default: Off/
 --
--- /Internal/
+-- /Pre-release/
 --
 setRecursiveMode :: Bool -> Config -> Config
 setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
@@ -251,7 +251,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setFollowSymLinks :: Toggle -> Config -> Config
 setFollowSymLinks s = setFlag iN_DONT_FOLLOW (toggle s)
@@ -264,7 +264,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setUnwatchMoved :: Toggle -> Config -> Config
 setUnwatchMoved = setFlag iN_EXCL_UNLINK
@@ -280,7 +280,7 @@ foreign import capi
 -- | What to do if a watch already exists when 'openWatch' or 'addToWatch' is
 -- called for a path.
 --
--- /Internal/
+-- /Pre-release/
 --
 data WhenExists =
       AddIfExists -- ^ Do not set an existing setting to 'Off' only set to 'On'
@@ -294,7 +294,7 @@ data WhenExists =
 --
 -- /default: FailIfExists/
 --
--- /Internal/
+-- /Pre-release/
 --
 setWhenExists :: WhenExists -> Config -> Config
 setWhenExists val cfg =
@@ -312,7 +312,7 @@ foreign import capi
 --
 -- /default: Off/
 --
--- /Internal/
+-- /Pre-release/
 --
 setOneShot :: Toggle -> Config -> Config
 setOneShot = setFlag iN_ONESHOT
@@ -325,7 +325,7 @@ foreign import capi
 --
 -- /default: Off/
 --
--- /Internal/
+-- /Pre-release/
 --
 setOnlyDir :: Toggle -> Config -> Config
 setOnlyDir = setFlag iN_ONLYDIR
@@ -341,7 +341,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setRootDeleted :: Toggle -> Config -> Config
 setRootDeleted = setFlag iN_DELETE_SELF
@@ -353,7 +353,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setRootMoved :: Toggle -> Config -> Config
 setRootMoved = setFlag iN_MOVE_SELF
@@ -366,7 +366,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setMetadataChanged :: Toggle -> Config -> Config
 setMetadataChanged = setFlag iN_ATTRIB
@@ -378,7 +378,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setAccessed :: Toggle -> Config -> Config
 setAccessed = setFlag iN_ACCESS
@@ -390,7 +390,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setOpened :: Toggle -> Config -> Config
 setOpened = setFlag iN_OPEN
@@ -402,7 +402,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setWriteClosed :: Toggle -> Config -> Config
 setWriteClosed = setFlag iN_CLOSE_WRITE
@@ -414,7 +414,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setNonWriteClosed :: Toggle -> Config -> Config
 setNonWriteClosed = setFlag iN_CLOSE_NOWRITE
@@ -426,7 +426,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setCreated :: Toggle -> Config -> Config
 setCreated = setFlag iN_CREATE
@@ -438,7 +438,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setDeleted :: Toggle -> Config -> Config
 setDeleted = setFlag iN_DELETE
@@ -450,7 +450,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setMovedFrom :: Toggle -> Config -> Config
 setMovedFrom = setFlag iN_MOVED_FROM
@@ -462,7 +462,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setMovedTo :: Toggle -> Config -> Config
 setMovedTo = setFlag iN_MOVED_TO
@@ -474,7 +474,7 @@ foreign import capi
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModified :: Toggle -> Config -> Config
 setModified = setFlag iN_MODIFY
@@ -483,7 +483,7 @@ setModified = setFlag iN_MODIFY
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setAllEvents :: Toggle -> Config -> Config
 setAllEvents s cfg =
@@ -517,7 +517,7 @@ setAllEvents s cfg =
 -- * 'setWhenExists' 'AddIfExists'
 -- * 'setAllEvents' 'On'
 --
--- /Internal/
+-- /Pre-release/
 --
 defaultConfig :: Config
 defaultConfig =
@@ -556,7 +556,7 @@ foreign import ccall unsafe
 -- | Create a 'Watch' handle. 'addToWatch' can be used to add paths being
 -- monitored by this watch.
 --
--- /Internal/
+-- /Pre-release/
 --
 createWatch :: IO Watch
 createWatch = do
@@ -634,7 +634,7 @@ ensureTrailingSlash path =
 -- being monitored under @root@ via the watch handle @watch@.  @root@ must be
 -- an absolute path and @subpath@ must be relative to @root@.
 --
--- /Internal/
+-- /Pre-release/
 --
 addToWatch :: Config -> Watch -> Array Word8 -> Array Word8 -> IO ()
 addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
@@ -698,7 +698,7 @@ foreign import ccall unsafe
 -- adding you need to provide the original path which was used to add the
 -- Watch.
 --
--- /Internal/
+-- /Pre-release/
 --
 removeFromWatch :: Watch -> Array Word8 -> IO ()
 removeFromWatch (Watch handle wdMap) path = do
@@ -722,7 +722,7 @@ removeFromWatch (Watch handle wdMap) path = do
 -- monitoring the paths for file system events. Returns a 'Watch' handle which
 -- can then be used to read the event stream or to close the watch.
 --
--- /Internal/
+-- /Pre-release/
 --
 openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
 openWatch cfg paths = do
@@ -732,7 +732,7 @@ openWatch cfg paths = do
 
 -- | Close a 'Watch' handle.
 --
--- /Internal/
+-- /Pre-release/
 --
 closeWatch :: Watch -> IO ()
 closeWatch (Watch h _) = hClose h
@@ -746,7 +746,7 @@ newtype Cookie = Cookie Word32 deriving (Show, Eq)
 -- | An Event generated by the file system. Use the accessor functions to
 -- examine the event.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Event = Event
    { eventWd :: CInt
@@ -860,13 +860,28 @@ watchToStream cfg wt@(Watch handle _) = do
 --      [Array.fromCString\# "dir"#]
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 watch :: Bool -> Config -> NonEmpty (Array Word8) -> SerialT IO Event
 watch rec cfg paths =
     case rec of
         True -> watchTreesWith (\_ -> cfg) paths
         False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
+        
+watchPathsWith ::
+    (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
+
+-- | Like 'watchPathsWith' but uses the 'defaultConfig' options.
+--
+-- @
+-- watchPaths = watchPathsWith id
+-- @
+--
+-- /Pre-release/
+--
+watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
+watchPaths = watchPathsWith id
 
 -- XXX We should not go across the mount points of network file systems or file
 -- systems that are known to not generate any events.
@@ -892,7 +907,7 @@ watch rec cfg paths =
 --
 -- See the Linux __inotify__ man page for more details.
 --
--- /Internal/
+-- /Pre-release/
 --
 watchTreesWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
@@ -924,7 +939,7 @@ watchTrees = watchTreesWith id
 --
 -- TBD: we can possibly update the watch root on a move self event.
 --
--- /Internal/
+-- /Pre-release/
 --
 getRoot :: Event -> Array Word8
 getRoot Event{..} =
@@ -941,11 +956,20 @@ getRoot Event{..} =
 -- | Get the file system object path for which the event is generated, relative
 -- to the watched root. The path is a "/" separated array of bytes.
 --
--- /Internal/
+-- /Pre-release/
 --
 getRelPath :: Event -> Array Word8
 getRelPath Event{..} = eventRelPath
 
+<<<<<<< HEAD
+=======
+
+-- | Get the absolute file system object path for which the event is generated.
+-- The path is a "/" separated array of bytes.
+--
+-- /Pre-release/
+--
+>>>>>>> 305f89b5 (Replace /Internal/ annotation to /Pre-release/)
 getAbsPath :: Event -> Array Word8
 getAbsPath ev = getRoot ev <> getRelPath ev
 
@@ -954,7 +978,7 @@ getAbsPath ev = getRoot ev <> getRelPath ev
 -- connect the 'isMovedFrom' and 'isMovedTo' events, if both the events belong
 -- to the same move operation then they will have the same cookie value.
 --
--- /Internal/
+-- /Pre-release/
 --
 getCookie :: Event -> Cookie
 getCookie Event{..} = Cookie eventCookie
@@ -982,7 +1006,7 @@ foreign import capi
 -- some events..  The user application must scan everything under the watched
 -- paths to know the current state.
 --
--- /Internal/
+-- /Pre-release/
 --
 isOverflow :: Event -> Bool
 isOverflow = getFlag iN_Q_OVERFLOW
@@ -1001,7 +1025,7 @@ foreign import capi
 --
 -- /Occurs only for a watched path/
 --
--- /Internal/
+-- /Pre-release/
 --
 isRootUnwatched :: Event -> Bool
 isRootUnwatched = getFlag iN_IGNORED
@@ -1014,7 +1038,7 @@ isRootUnwatched = getFlag iN_IGNORED
 --
 -- /Occurs only for a watched path/
 --
--- /Internal/
+-- /Pre-release/
 --
 isRootDeleted :: Event -> Bool
 isRootDeleted = getFlag iN_DELETE_SELF
@@ -1023,7 +1047,7 @@ isRootDeleted = getFlag iN_DELETE_SELF
 --
 -- /Occurs only for a watched path/
 --
--- /Internal/
+-- /Pre-release/
 --
 isRootMoved :: Event -> Bool
 isRootMoved = getFlag iN_MOVE_SELF
@@ -1037,7 +1061,7 @@ foreign import capi
 --
 -- /Occurs only for a watched path/
 --
--- /Internal/
+-- /Pre-release/
 --
 isRootUnmounted :: Event -> Bool
 isRootUnmounted = getFlag iN_UNMOUNT
@@ -1058,7 +1082,7 @@ isRootUnmounted = getFlag iN_UNMOUNT
 --
 -- /Can occur for watched path or a file inside it/
 --
--- /Internal/
+-- /Pre-release/
 --
 isMetadataChanged :: Event -> Bool
 isMetadataChanged = getFlag iN_ATTRIB
@@ -1071,7 +1095,7 @@ isMetadataChanged = getFlag iN_ATTRIB
 --
 -- /Occurs only for a file inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isAccessed :: Event -> Bool
 isAccessed = getFlag iN_ACCESS
@@ -1080,7 +1104,7 @@ isAccessed = getFlag iN_ACCESS
 --
 -- /Occurs only for a file inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isOpened :: Event -> Bool
 isOpened = getFlag iN_OPEN
@@ -1089,7 +1113,7 @@ isOpened = getFlag iN_OPEN
 --
 -- /Occurs only for a file inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isWriteClosed :: Event -> Bool
 isWriteClosed = getFlag iN_CLOSE_WRITE
@@ -1101,7 +1125,7 @@ isWriteClosed = getFlag iN_CLOSE_WRITE
 --
 -- /Can occur for watched path or a file inside it/
 --
--- /Internal/
+-- /Pre-release/
 --
 isNonWriteClosed :: Event -> Bool
 isNonWriteClosed = getFlag iN_CLOSE_NOWRITE
@@ -1117,7 +1141,7 @@ isNonWriteClosed = getFlag iN_CLOSE_NOWRITE
 --
 -- /Occurs only for an object inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isCreated :: Event -> Bool
 isCreated = getFlag iN_CREATE
@@ -1126,7 +1150,7 @@ isCreated = getFlag iN_CREATE
 --
 -- /Occurs only for an object inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isDeleted :: Event -> Bool
 isDeleted = getFlag iN_DELETE
@@ -1139,7 +1163,7 @@ isDeleted = getFlag iN_DELETE
 --
 -- /Occurs only for an object inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isMovedFrom :: Event -> Bool
 isMovedFrom = getFlag iN_MOVED_FROM
@@ -1149,7 +1173,7 @@ isMovedFrom = getFlag iN_MOVED_FROM
 --
 -- /Occurs only for an object inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isMovedTo :: Event -> Bool
 isMovedTo = getFlag iN_MOVED_TO
@@ -1159,7 +1183,7 @@ isMovedTo = getFlag iN_MOVED_TO
 --
 -- /Occurs only for an object inside the watched directory/
 --
--- /Internal/
+-- /Pre-release/
 --
 isModified :: Event -> Bool
 isModified = getFlag iN_MODIFY
@@ -1173,7 +1197,7 @@ foreign import capi
 
 -- | Determine whether the event is for a directory path.
 --
--- /Internal/
+-- /Pre-release/
 --
 isDir :: Event -> Bool
 isDir = getFlag iN_ISDIR
