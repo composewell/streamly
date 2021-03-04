@@ -36,6 +36,7 @@
 
 * New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
   are added, these routines fail when they encounter any invalid characters.
+* `teeWith` is released as a part of `Streamly.Data.Fold`
 
 ### Bug Fixes
 
