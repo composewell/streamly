@@ -175,7 +175,7 @@ module Streamly.Data.Fold
 
     {-
     -- ** Trimming
-    , takeLE
+    , take
     -- takeByTime
     , ldrop
     , ldropWhile

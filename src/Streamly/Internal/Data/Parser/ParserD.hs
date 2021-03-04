@@ -45,7 +45,7 @@ module Streamly.Internal.Data.Parser.ParserD
     --
     -- Grab a sequence of input elements without inspecting them
     , takeBetween
-    -- , takeLE -- take   -- takeBetween 0 n
+    -- , take -- take   -- takeBetween 0 n
     -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound

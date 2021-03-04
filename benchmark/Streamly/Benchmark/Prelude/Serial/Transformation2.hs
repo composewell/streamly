@@ -138,7 +138,7 @@ foldMany :: Monad m => SerialT m Int -> m ()
 foldMany =
       S.drain
     . S.map getSum
-    . Internal.foldMany (FL.takeLE 2 FL.mconcat)
+    . Internal.foldMany (FL.take 2 FL.mconcat)
     . S.map Sum
 
 {-# INLINE _foldIterate #-}
@@ -146,7 +146,7 @@ _foldIterate :: Monad m => SerialT m Int -> m ()
 _foldIterate =
       S.drain
     . S.map getSum
-    . Internal.foldIterate (FL.takeLE 2 . FL.sconcat) (Sum 0)
+    . Internal.foldIterate (FL.take 2 . FL.sconcat) (Sum 0)
     . S.map Sum
 
 o_1_space_grouping :: Int -> [Benchmark]

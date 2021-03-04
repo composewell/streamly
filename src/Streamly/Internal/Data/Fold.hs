@@ -143,7 +143,7 @@ module Streamly.Internal.Data.Fold
     -}
 
     -- ** Trimming
-    , takeLE
+    , take
     , takeByTime
     -- By elements
     , sliceSepBy
@@ -643,10 +643,10 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- > rollingHashFirstN = takeLE n rollingHash
+-- > rollingHashFirstN = take n rollingHash
 {-# INLINABLE rollingHashFirstN #-}
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
-rollingHashFirstN n = takeLE n rollingHash
+rollingHashFirstN n = take n rollingHash
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
@@ -741,7 +741,7 @@ toListRev = mkAccum_ (flip (:)) []
 -- and discarding the results.
 {-# INLINABLE drainN #-}
 drainN :: Monad m => Int -> Fold m a ()
-drainN n = takeLE n drain
+drainN n = take n drain
 
 ------------------------------------------------------------------------------
 -- To Elements
@@ -971,7 +971,7 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- ([1,2,3],[])
 --
--- > splitAt n f1 f2 = splitWith (,) (takeLE n f1) f2
+-- > splitAt n f1 f2 = splitWith (,) (take n f1) f2
 --
 -- /Pre-release/
 
@@ -982,7 +982,7 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n fld = splitWith (,) (takeLE n fld)
+splitAt n fld = splitWith (,) (take n fld)
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs

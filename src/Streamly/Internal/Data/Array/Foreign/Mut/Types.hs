@@ -789,7 +789,7 @@ writeNAllocWith alloc n = Fold step initial extract
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- @writeN n = Fold.takeLE n writeNUnsafe@
+-- @writeN n = Fold.take n writeNUnsafe@
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}

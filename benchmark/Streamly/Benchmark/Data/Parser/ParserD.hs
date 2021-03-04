@@ -220,7 +220,7 @@ parseManyGroupsRolling b =
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
     let src = Source.source (Just (Producer.OuterLoop arrays))
-    let parser = PR.fromFold (FL.takeLE count FL.drain)
+    let parser = PR.fromFold (FL.take count FL.drain)
     let readSrc =
             Source.producer
                 $ Producer.concat Producer.fromList Array.producer

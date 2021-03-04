@@ -235,7 +235,7 @@ parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
     S.length
         $ IP.parseMany
-              (PR.fromFold $ FL.takeLE n FL.sum)
+              (PR.fromFold $ FL.take n FL.sum)
               (S.unfold Handle.read inh)
 
 -------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ parseManyChunksOfSum n inh =
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
     let src = Source.source (Just (Producer.OuterLoop arrays))
-    let parser = PR.fromFold (FL.takeLE count FL.drain)
+    let parser = PR.fromFold (FL.take count FL.drain)
     let readSrc =
             Source.producer
                 $ Producer.concat Producer.fromList Array.producer
@@ -304,7 +304,7 @@ parseMany :: MonadCatch m => Int -> SerialT m Int -> m ()
 parseMany n =
       S.drain
     . S.map getSum
-    . IP.parseMany (PR.fromFold $ FL.takeLE n FL.mconcat)
+    . IP.parseMany (PR.fromFold $ FL.take n FL.mconcat)
     . S.map Sum
 
 {-# INLINE parseIterate #-}
@@ -312,7 +312,7 @@ parseIterate :: MonadCatch m => Int -> SerialT m Int -> m ()
 parseIterate n =
       S.drain
     . S.map getSum
-    . IP.parseIterate (PR.fromFold . FL.takeLE n . FL.sconcat) (Sum 0)
+    . IP.parseIterate (PR.fromFold . FL.take n . FL.sconcat) (Sum 0)
     . S.map Sum
 
 -------------------------------------------------------------------------------

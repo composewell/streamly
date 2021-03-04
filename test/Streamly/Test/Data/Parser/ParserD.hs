@@ -185,7 +185,7 @@ take :: Property
 take =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.takeLE n FL.toList) (S.fromList ls) of
+            case S.parseD (P.fromFold $ FL.take n FL.toList) (S.fromList ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
                 Left _ -> property False
 
@@ -266,7 +266,7 @@ lookAheadPass :: Property
 lookAheadPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         let
-            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.takeLE n FL.toList
+            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
             parseTwice = do
                 parsed_list_1 <- takeWithoutConsume
                 parsed_list_2 <- takeWithoutConsume
@@ -282,7 +282,7 @@ lookAhead :: Property
 lookAhead =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         let
-            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.takeLE n FL.toList
+            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
             parseTwice = do
                 parsed_list_1 <- takeWithoutConsume
                 parsed_list_2 <- takeWithoutConsume
@@ -360,7 +360,7 @@ sliceSepByMax :: Property
 sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.sliceSepBy predicate (FL.takeLE n FL.toList)) (S.fromList ls) of
+            case S.parseD (P.fromFold $ FL.sliceSepBy predicate (FL.take n FL.toList)) (S.fromList ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
@@ -417,7 +417,7 @@ teeWithPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let
-                prsr = P.fromFold $ FL.takeLE n FL.toList
+                prsr = P.fromFold $ FL.take n FL.toList
             in
                 case S.parseD (P.teeWith (,) prsr prsr) (S.fromList ls) of
                     Right (ls_1, ls_2) -> checkListEqual (Prelude.take n ls) ls_1 .&&. checkListEqual ls_1 ls_2
@@ -557,8 +557,8 @@ applicative =
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser =
                         (,)
-                            <$> P.fromFold (FL.takeLE (length list1) FL.toList)
-                            <*> P.fromFold (FL.takeLE (length list2) FL.toList)
+                            <$> P.fromFold (FL.take (length list1) FL.toList)
+                            <*> P.fromFold (FL.take (length list2) FL.toList)
              in monadicIO $ do
                     (olist1, olist2) <-
                         run $ S.parseD parser (S.fromList $ list1 ++ list2)
@@ -568,7 +568,7 @@ applicative =
 sequence :: Property
 sequence =
     forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
-        let parsers = fmap (\xs -> P.fromFold $ FL.takeLE (length xs) FL.toList) ins
+        let parsers = fmap (\xs -> P.fromFold $ FL.take (length xs) FL.toList) ins
          in monadicIO $ do
                 outs <- run $
                         S.parseD
@@ -581,8 +581,8 @@ monad =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser = do
-                            olist1 <- P.fromFold (FL.takeLE (length list1) FL.toList)
-                            olist2 <- P.fromFold (FL.takeLE (length list2) FL.toList)
+                            olist1 <- P.fromFold (FL.take (length list1) FL.toList)
+                            olist2 <- P.fromFold (FL.take (length list2) FL.toList)
                             return (olist1, olist2)
              in monadicIO $ do
                     (olist1, olist2) <-
@@ -603,7 +603,7 @@ parseMany =
                     ( run
                     $ S.toList
                     $ S.parseManyD
-                        (P.fromFold $ FL.takeLE len FL.toList) (S.fromList $ concat ins)
+                        (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
                     )
                 listEquals (==) outs ins
 
@@ -622,7 +622,7 @@ parseUnfold = do
         monadicIO $ do
             arrays <- S.toList $ S.arraysOf clen (S.fromList ls)
             let src = Source.source (Just (Producer.OuterLoop arrays))
-            let parser = P.fromFold (FL.takeLE tlen FL.toList)
+            let parser = P.fromFold (FL.take tlen FL.toList)
             let readSrc =
                     Source.producer
                         $ Producer.concat Producer.fromList A.producer

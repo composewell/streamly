@@ -898,7 +898,7 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-chunksOf n f = foldMany (FL.takeLE n f)
+chunksOf n f = foldMany (FL.take n f)
 
 data GroupState2 s fs
     = GroupStart2 s
