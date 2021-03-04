@@ -70,7 +70,7 @@ takeLE value = IP.fold (FL.takeLE value FL.drain)
 
 {-# INLINE sequence_ #-}
 sequence_ :: Monad m => Int -> Fold m a ()
-sequence_ value = foldr f (pure ()) (Prelude.replicate value (FL.takeLE 1 FL.drain))
+sequence_ value = foldr f (FL.yield ()) (Prelude.replicate value (FL.takeLE 1 FL.drain))
 
     where
 
@@ -118,10 +118,14 @@ split_ value =
 teeSumLength :: Monad m => SerialT m Int -> m (Int, Int)
 teeSumLength = IP.fold (FL.teeWith (,) FL.sum FL.length)
 
-{-# INLINE teeApplicative #-}
-teeApplicative :: (Monad m, Ord a) => a -> SerialT m a -> m (Bool, Bool)
-teeApplicative value =
-    IP.fold ((,) <$> FL.all (<= value) <*> FL.any (> value))
+{-# INLINE teeAllAny #-}
+teeAllAny :: (Monad m, Ord a) => a -> SerialT m a -> m (Bool, Bool)
+teeAllAny value = IP.fold (FL.teeWith (,) all_ any_)
+
+    where
+
+    all_ = FL.all (<= value)
+    any_ = FL.any (> value)
 
 {-# INLINE distribute #-}
 distribute :: Monad m => SerialT m Int -> m [Int]
@@ -272,8 +276,7 @@ o_1_space_serial_composition value =
       [ bgroup
             "composition"
             [ benchIOSink value "splitWith (all, any)" $ splitAllAny value
-            , benchIOSink value "teeApplicative (all, any)"
-                $ teeApplicative value
+            , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (takeLE 1)" many
             , benchIOSink value "tee (sum, length)" teeSumLength
             , benchIOSink value "distribute [sum, length]" distribute

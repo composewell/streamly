@@ -199,7 +199,7 @@ module Streamly.Data.Fold
     -- To compute the average of numbers in a stream without going through the
     -- stream twice:
     --
-    -- >>> let avg = (/) <$> Fold.sum <*> fmap fromIntegral Fold.length
+    -- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
     -- >>> Stream.fold avg (Stream.enumerateFromTo 1.0 100.0)
     -- 50.5
     --
