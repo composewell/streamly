@@ -201,8 +201,7 @@ o_n_heap_buffering value =
 classifySessionsOf :: (S.MonadAsync m) => SerialT m Int -> m ()
 classifySessionsOf =
       S.drain
-    . Internal.classifySessionsOf
-        3 (const (return False)) (fmap Right FL.drain)
+    . Internal.classifySessionsOf (const (return False)) 3 FL.drain
     . S.map (\(ts,(k,a)) -> (k, a, ts))
     . Internal.timestamped
     . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
