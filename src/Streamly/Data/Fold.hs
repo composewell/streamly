@@ -208,7 +208,7 @@ module Streamly.Data.Fold
     -- Semigroup instances of the output types:
     --
     -- >>> import Data.Monoid (Sum(..))
-    -- >>> Stream.fold (Fold.head <> Fold.last) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
+    -- >>> Stream.fold (Fold.teeWith (<>) Fold.head Fold.last) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
     -- Just (Sum {getSum = 101.0})
     --
     -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
