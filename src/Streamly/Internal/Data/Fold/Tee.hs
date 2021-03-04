@@ -13,7 +13,11 @@ module Streamly.Internal.Data.Fold.Tee
     )
 where
 
+import Control.Applicative (liftA2)
 import Data.Coerce (coerce)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
 import Streamly.Internal.Data.Fold.Types (Fold)
 
 import qualified Streamly.Internal.Data.Fold.Types as Fold
@@ -49,3 +53,106 @@ instance Monad m => Applicative (Tee m a) where
 
     {-# INLINE (<*>) #-}
     (<*>) a b = fromFold (Fold.teeWith ($) (toFold a) (toFold b))
+
+-- | Combines the outputs (the type @b@) using their 'Semigroup' instances.
+instance (Semigroup b, Monad m) => Semigroup (Tee m a b) where
+    {-# INLINE (<>) #-}
+    (<>) = liftA2 (<>)
+
+-- | Combines the outputs (the type @b@) using their 'Monoid' instances.
+instance (Semigroup b, Monoid b, Monad m) => Monoid (Tee m a b) where
+    {-# INLINE mempty #-}
+    mempty = pure mempty
+
+    {-# INLINE mappend #-}
+    mappend = (<>)
+
+-- | Combines the outputs (type @b@) using their 'Num' instances.
+instance (Monad m, Num b) => Num (Tee m a b) where
+    {-# INLINE fromInteger #-}
+    fromInteger = pure . fromInteger
+
+    {-# INLINE negate #-}
+    negate = fmap negate
+
+    {-# INLINE abs #-}
+    abs = fmap abs
+
+    {-# INLINE signum #-}
+    signum = fmap signum
+
+    {-# INLINE (+) #-}
+    (+) = liftA2 (+)
+
+    {-# INLINE (*) #-}
+    (*) = liftA2 (*)
+
+    {-# INLINE (-) #-}
+    (-) = liftA2 (-)
+
+-- | Combines the outputs (type @b@) using their 'Fractional' instances.
+instance (Monad m, Fractional b) => Fractional (Tee m a b) where
+    {-# INLINE fromRational #-}
+    fromRational = pure . fromRational
+
+    {-# INLINE recip #-}
+    recip = fmap recip
+
+    {-# INLINE (/) #-}
+    (/) = liftA2 (/)
+
+-- | Combines the outputs using their 'Floating' instances.
+instance (Monad m, Floating b) => Floating (Tee m a b) where
+    {-# INLINE pi #-}
+    pi = pure pi
+
+    {-# INLINE exp #-}
+    exp = fmap exp
+
+    {-# INLINE sqrt #-}
+    sqrt = fmap sqrt
+
+    {-# INLINE log #-}
+    log = fmap log
+
+    {-# INLINE sin #-}
+    sin = fmap sin
+
+    {-# INLINE tan #-}
+    tan = fmap tan
+
+    {-# INLINE cos #-}
+    cos = fmap cos
+
+    {-# INLINE asin #-}
+    asin = fmap asin
+
+    {-# INLINE atan #-}
+    atan = fmap atan
+
+    {-# INLINE acos #-}
+    acos = fmap acos
+
+    {-# INLINE sinh #-}
+    sinh = fmap sinh
+
+    {-# INLINE tanh #-}
+    tanh = fmap tanh
+
+    {-# INLINE cosh #-}
+    cosh = fmap cosh
+
+    {-# INLINE asinh #-}
+    asinh = fmap asinh
+
+    {-# INLINE atanh #-}
+    atanh = fmap atanh
+
+    {-# INLINE acosh #-}
+    acosh = fmap acosh
+
+    {-# INLINE (**) #-}
+    (**) = liftA2 (**)
+
+    {-# INLINE logBase #-}
+    logBase = liftA2 logBase

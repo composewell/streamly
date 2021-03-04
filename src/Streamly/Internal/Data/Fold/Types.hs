@@ -238,9 +238,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
 import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
