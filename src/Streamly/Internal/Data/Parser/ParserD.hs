@@ -79,7 +79,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- * Binary Combinators
 
     -- ** Sequential Applicative
-    , splitWith
+    , serialWith
     , split_
 
     -- ** Parallel Applicatives

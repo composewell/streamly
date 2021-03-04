@@ -106,7 +106,7 @@ module Streamly.Internal.Data.Parser
     -- * Binary Combinators
 
     -- ** Sequential Applicative
-    , splitWith
+    , serialWith
     , split_
 
     -- ** Parallel Applicatives
@@ -708,7 +708,7 @@ eqBy cmp = K.toParserK . D.eqBy cmp
 -- This implementation is strict in the second argument, therefore, the
 -- following will fail:
 --
--- >>> Stream.parse (Parser.splitWith const (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
+-- >>> Stream.parse (Parser.serialWith const (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
 -- *** Exception: Prelude.undefined
 -- ...
 --
@@ -717,31 +717,31 @@ eqBy cmp = K.toParserK . D.eqBy cmp
 -- operations and can be faster than 'Applicative' instance for small number
 -- (less than 8) of compositions.
 --
--- Many combinators can be expressed using @splitWith@ and other parser
+-- Many combinators can be expressed using @serialWith@ and other parser
 -- primitives. Some common idioms are described below,
 --
 -- @
 -- span :: (a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
--- span pred f1 f2 = splitWith (,) ('takeWhile' pred f1) ('fromFold' f2)
+-- span pred f1 f2 = serialWith (,) ('takeWhile' pred f1) ('fromFold' f2)
 -- @
 --
 -- @
 -- spanBy :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
--- spanBy eq f1 f2 = splitWith (,) ('groupBy' eq f1) ('fromFold' f2)
+-- spanBy eq f1 f2 = serialWith (,) ('groupBy' eq f1) ('fromFold' f2)
 -- @
 --
 -- @
 -- spanByRolling :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a b
--- spanByRolling eq f1 f2 = splitWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
+-- spanByRolling eq f1 f2 = serialWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE splitWith #-}
-splitWith :: MonadCatch m
+{-# INLINE serialWith #-}
+serialWith :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
-splitWith f p1 p2 =
-    K.toParserK $ D.splitWith f (K.fromParserK p1) (K.fromParserK p2)
+serialWith f p1 p2 =
+    K.toParserK $ D.serialWith f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | Sequential parser application ignoring the output of the first parser.
 -- Apply two parsers sequentially to an input stream.  The input is provided to

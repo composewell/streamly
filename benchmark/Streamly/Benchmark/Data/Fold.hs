@@ -94,7 +94,7 @@ many = IP.fold (FL.many FL.drain (FL.take 1 FL.drain))
 splitAllAny :: Monad m => Int -> SerialT m Int -> m (Bool, Bool)
 splitAllAny value =
     IP.fold
-        (FL.splitWith (,)
+        (FL.serialWith (,)
             (FL.all (<= (value `div` 2)))
             (FL.any (> value))
         )
@@ -276,7 +276,7 @@ o_1_space_serial_composition :: Int -> [Benchmark]
 o_1_space_serial_composition value =
       [ bgroup
             "composition"
-            [ benchIOSink value "splitWith (all, any)" $ splitAllAny value
+            [ benchIOSink value "serialWith (all, any)" $ splitAllAny value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many
             , benchIOSink value "tee (sum, length)" teeSumLength

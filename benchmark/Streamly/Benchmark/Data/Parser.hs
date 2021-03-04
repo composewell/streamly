@@ -166,12 +166,12 @@ splitApAfter value =
         <* PR.drainWhile (<= value)
         )
 
-{-# INLINE splitWith #-}
-splitWith :: MonadCatch m
+{-# INLINE serialWith #-}
+serialWith :: MonadCatch m
     => Int -> SerialT m Int -> m ((), ())
-splitWith value =
+serialWith value =
     IP.parse
-        (PR.splitWith (,)
+        (PR.serialWith (,)
             (PR.drainWhile (<= (value `div` 2)))
             (PR.drainWhile (<= value))
         )
@@ -335,7 +335,7 @@ o_1_space_serial value =
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
-    , benchIOSink value "splitWith" $ splitWith value
+    , benchIOSink value "serialWith" $ serialWith value
     , benchIOSink value "sliceSepByP" $ sliceSepByP value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven

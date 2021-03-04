@@ -210,7 +210,7 @@ module Streamly.Internal.Data.Fold.Types
     , longest
 
     -- * Serial Application
-    , splitWith
+    , serialWith
     , split_
 
     -- * Nested Application
@@ -513,13 +513,13 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 --
 -- Note: This is a folding dual of appending streams using
 -- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
--- the results. This has the same caveats as ParseD's @splitWith@
+-- the results. This has the same caveats as ParseD's @serialWith@
 --
 -- /Pre-release/
 --
-{-# INLINE splitWith #-}
-splitWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+{-# INLINE serialWith #-}
+serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
