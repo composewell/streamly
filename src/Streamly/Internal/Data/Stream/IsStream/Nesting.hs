@@ -946,7 +946,7 @@ iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
 -- | Like 'foldMany' but appends empty fold output if the fold and stream
 -- termination aligns:
 --
--- >>> f = Fold.takeLE 2 Fold.sum
+-- >>> f = Fold.take 2 Fold.sum
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList []
 -- [0]
 -- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
@@ -969,7 +969,7 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 --
 -- To sum every two contiguous elements in a stream:
 --
--- >>> f = Fold.takeLE 2 Fold.sum
+-- >>> f = Fold.take 2 Fold.sum
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList [1..10]
 -- [3,7,11,15,19]
 --
@@ -978,7 +978,7 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
 -- []
 --
--- Note @foldMany (takeLE 0)@ would result in an infinite loop in a non-empty
+-- Note @foldMany (take 0)@ would result in an infinite loop in a non-empty
 -- stream.
 --
 -- /Pre-release/
@@ -1010,7 +1010,7 @@ foldSequence _f _m = undefined
 --
 -- @
 -- > import Data.Monoid (Sum(..))
--- > f x = Fold.takeLE 2 (Fold.sconcat x)
+-- > f x = Fold.take 2 (Fold.sconcat x)
 -- > s = Stream.map Sum $ Stream.fromList [1..10]
 -- > Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
 -- [3,10,21,36,55,55]
@@ -1715,10 +1715,10 @@ splitOnSuffixSeqAny subseq f m = undefined
 -- >>> Stream.toList $ Stream.chunksOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
 -- [3,7,11,15,19]
 --
--- This can be considered as an n-fold version of 'takeLE' where we apply
--- 'takeLE' repeatedly on the leftover stream until the stream exhausts.
+-- This can be considered as an n-fold version of 'take' where we apply
+-- 'take' repeatedly on the leftover stream until the stream exhausts.
 --
--- @chunksOf n f = foldMany (FL.takeLE n f)@
+-- @chunksOf n f = foldMany (FL.take n f)@
 --
 -- @since 0.7.0
 {-# INLINE chunksOf #-}

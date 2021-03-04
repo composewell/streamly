@@ -554,8 +554,8 @@ applicative =
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser =
                     (,)
-                        <$> P.fromFold (FL.takeLE (length list1) FL.toList)
-                        <*> P.fromFold (FL.takeLE (length list2) FL.toList)
+                        <$> P.fromFold (FL.take (length list1) FL.toList)
+                        <*> P.fromFold (FL.take (length list2) FL.toList)
              in monadicIO $ do
                     (olist1, olist2) <-
                         run $ S.parse parser (S.fromList $ list1 ++ list2)
@@ -565,7 +565,7 @@ applicative =
 sequence :: Property
 sequence =
     forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
-        let p xs = P.fromFold (FL.takeLE (length xs) FL.toList)
+        let p xs = P.fromFold (FL.take (length xs) FL.toList)
          in monadicIO $ do
                 outs <- run $
                         S.parse
@@ -578,8 +578,8 @@ monad =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
             let parser = do
-                    olist1 <- P.fromFold (FL.takeLE (length list1) FL.toList)
-                    olist2 <- P.fromFold (FL.takeLE (length list2) FL.toList)
+                    olist1 <- P.fromFold (FL.take (length list1) FL.toList)
+                    olist2 <- P.fromFold (FL.take (length list2) FL.toList)
                     return (olist1, olist2)
              in monadicIO $ do
                     (olist1, olist2) <-
@@ -597,7 +597,7 @@ parseMany =
         forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
             monadicIO $ do
                 outs <- do
-                    let p = P.fromFold $ FL.takeLE len FL.toList
+                    let p = P.fromFold $ FL.take len FL.toList
                     run
                         $ S.toList
                         $ S.parseMany p (S.fromList $ concat ins)

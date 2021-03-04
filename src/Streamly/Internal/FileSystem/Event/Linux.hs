@@ -787,7 +787,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
             pth <-
                 PR.fromFold
                     $ FL.sliceSepBy (== 0)
-                    $ FL.takeLE pathLen (A.writeN pathLen)
+                    $ FL.take pathLen (A.writeN pathLen)
             let remaining = pathLen - A.length pth - 1
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
             return pth

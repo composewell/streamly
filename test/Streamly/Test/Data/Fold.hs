@@ -22,7 +22,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 
 import Prelude hiding
-    (maximum, minimum, elem, notElem, null, product, sum, head, last)
+    (maximum, minimum, elem, notElem, null, product, sum, head, last, take)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
@@ -147,7 +147,7 @@ find f ls = do
             let fld = S.fold (FL.find f) (S.fromList ls)
             in fld `shouldReturn` Nothing
         Just idx ->
-            let fld = S.fold (FL.any f) (S.fromList $ take idx ls)
+            let fld = S.fold (FL.any f) (S.fromList $ Prelude.take idx ls)
             in fld `shouldReturn` False
 
 neg :: (a -> Bool) -> a -> Bool
@@ -165,7 +165,7 @@ findIndex f ls = do
             then
                 S.fold (FL.all f) (S.fromList []) `shouldReturn` True
             else
-                S.fold (FL.all f) (S.fromList $ take idx ls)
+                S.fold (FL.all f) (S.fromList $ Prelude.take idx ls)
                     `shouldReturn` False
 
 predicate :: Int -> Bool
@@ -179,7 +179,7 @@ elemIndex elm ls = do
             let fld = S.fold (FL.any (== elm)) (S.fromList ls)
             in fld `shouldReturn` False
         Just idx ->
-            let fld = S.fold (FL.any (== elm)) (S.fromList $ take idx ls)
+            let fld = S.fold (FL.any (== elm)) (S.fromList $ Prelude.take idx ls)
             in fld `shouldReturn` False
 
 null :: [Int] -> Expectation
@@ -215,10 +215,10 @@ and ls = S.fold FL.and (S.fromList ls) `shouldReturn` Prelude.and ls
 or :: [Bool] -> Expectation
 or ls = S.fold FL.or (S.fromList ls) `shouldReturn` Prelude.or ls
 
-takeLE :: [Int] -> Property
-takeLE ls =
+take :: [Int] -> Property
+take ls =
     forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
-            S.fold (F.takeLE n FL.toList) (S.fromList ls)
+            S.fold (F.take n FL.toList) (S.fromList ls)
                 `shouldReturn` Prelude.take n ls
 
 sliceSepBy :: Property
@@ -236,7 +236,7 @@ sliceSepByMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let p = (== 1)
-                f = F.sliceSepBy p (F.takeLE n FL.toList)
+                f = F.sliceSepBy p (F.take n FL.toList)
                 ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
              in case S.fold f (S.fromList ls) of
                     Right xs -> checkListEqual xs ys
@@ -443,7 +443,7 @@ main = hspec $
         prop "And" Main.and
         prop "Or" Main.or
         prop "mapMaybe" mapMaybe
-        prop "takeLE" takeLE
+        prop "take" take
         prop "sliceSepBy" sliceSepBy
         prop "sliceSepByMax" sliceSepByMax
         prop "drain" Main.drain

@@ -199,7 +199,7 @@ module Streamly.Internal.Data.Fold.Types
     , filter
     , filterM
     , lcatMaybes
-    , takeLE
+    , take
     , takeByTime
 
     -- * Distributing
@@ -241,7 +241,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import Prelude hiding (concatMap, filter, map)
+import Prelude hiding (concatMap, filter, map, take)
 
 -- $setup
 -- >>> :m
@@ -682,7 +682,7 @@ data ConcatMapState m sa a c
 -- Compare with 'Monad' instance method '>>='.
 --
 -- >>> import Data.Maybe (fromJust)
--- >>> Stream.fold (Fold.concatMap (flip Fold.takeLE Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
+-- >>> Stream.fold (Fold.concatMap (flip Fold.take Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
 -- 45
 --
 -- /Pre-release/
@@ -796,18 +796,18 @@ lcatMaybes = filter isJust . map fromJust
 
 -- | Take at most @n@ input elements and fold them using the supplied fold.
 --
--- >>> Stream.fold (Fold.takeLE 1 Fold.toList) $ Stream.fromList [1]
+-- >>> Stream.fold (Fold.take 1 Fold.toList) $ Stream.fromList [1]
 -- [1]
 --
--- >>> Stream.fold (Fold.takeLE (-1) Fold.toList) $ Stream.fromList [1]
+-- >>> Stream.fold (Fold.take (-1) Fold.toList) $ Stream.fromList [1]
 -- []
 --
 -- /Pre-release/
 --
 -- @since 0.7.0
-{-# INLINE takeLE #-}
-takeLE :: Monad m => Int -> Fold m a b -> Fold m a b
-takeLE n (Fold fstep finitial fextract) = Fold step initial extract
+{-# INLINE take #-}
+take :: Monad m => Int -> Fold m a b -> Fold m a b
+take n (Fold fstep finitial fextract) = Fold step initial extract
 
     where
 
@@ -954,7 +954,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
--- > chunksOf n split collect = many collect (takeLE n split)
+-- > chunksOf n split collect = many collect (take n split)
 --
 -- Stops when @collect@ stops.
 --
@@ -962,7 +962,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 --
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-chunksOf n split collect = many collect (takeLE n split)
+chunksOf n split collect = many collect (take n split)
 
 {-# INLINE chunksOf2 #-}
 chunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c

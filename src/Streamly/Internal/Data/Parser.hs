@@ -379,7 +379,7 @@ either = K.toParserK . D.either
 -- be defined in terms of takeBetween. For example:
 --
 -- @
--- take = takeBetween 0 n  -- equivalent of takeLE
+-- take = takeBetween 0 n  -- equivalent of take
 -- take1 = takeBetween 1 n -- equivalent of takeLE1
 -- takeEQ = takeBetween n n
 -- takeGE = takeBetween n maxBound
