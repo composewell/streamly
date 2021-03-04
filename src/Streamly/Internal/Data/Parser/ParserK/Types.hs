@@ -293,8 +293,8 @@ yield b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 yieldM :: Monad m => m b -> Parser m a b
 yieldM eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
 
--- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
--- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
+-- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
+-- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
 -- when fusion is important.
 --
 instance Monad m => Applicative (Parser m a) where

@@ -118,7 +118,7 @@ module Streamly.Internal.Data.Parser.ParserD.Types
 
     , yield
     , yieldM
-    , splitWith
+    , serialWith
     , split_
 
     , die
@@ -325,9 +325,9 @@ yieldM b = Parser undefined (IDone <$> b) undefined
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
--- | See 'Streamly.Internal.Data.Parser.splitWith'.
+-- | See 'Streamly.Internal.Data.Parser.serialWith'.
 --
--- Note: this implementation of splitWith is fast because of stream fusion but
+-- Note: this implementation of serialWith is fast because of stream fusion but
 -- has quadratic time complexity, because each composition adds a new branch
 -- that each subsequent parse's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions. After around 100
@@ -336,10 +336,10 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 --
 -- /Pre-release/
 --
-{-# INLINE splitWith #-}
-splitWith :: MonadThrow m
+{-# INLINE serialWith #-}
+serialWith :: MonadThrow m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
-splitWith func (Parser stepL initialL extractL)
+serialWith func (Parser stepL initialL extractL)
                (Parser stepR initialR extractR) =
     Parser step initial extract
 
@@ -457,7 +457,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
 {-# ANN type SeqAState Fuse #-}
 data SeqAState sl sr = SeqAL sl | SeqAR sr
 
--- This turns out to be slightly faster than splitWith
+-- This turns out to be slightly faster than serialWith
 -- | See 'Streamly.Internal.Data.Parser.split_'.
 --
 -- /Pre-release/
@@ -513,13 +513,13 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             IDone rR -> return rR
             IError err -> throwM $ ParseError err
 
--- | 'Applicative' form of 'splitWith'.
+-- | 'Applicative' form of 'serialWith'.
 instance MonadThrow m => Applicative (Parser m a) where
     {-# INLINE pure #-}
     pure = yield
 
     {-# INLINE (<*>) #-}
-    (<*>) = splitWith id
+    (<*>) = serialWith id
 
     {-# INLINE (*>) #-}
     (*>) = split_
