@@ -200,13 +200,13 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     -- -- *** Splitting By Streams
     -- -- | Splitting a stream using another stream as separator.
 
-    -- ** Windowed Classification
+    -- ** Keyed Window Classification
 
-    -- | Split the stream into windows or chunks in space or time. Each window
+    -- | Split the stream into chunks or windows in space or time. Each window
     -- can be associated with a key, all events associated with a particular
     -- key in the window can be folded to a single result. The stream is split
-    -- into windows of specified size, the window can be terminated early if
-    -- the closing flag is specified in the input stream.
+    -- into windows of specified size, the window termination can be
+    -- dynamically controlled by the fold.
     --
     -- The term "chunk" is used for a space window and the term "session" is
     -- used for a time window.
@@ -1902,32 +1902,41 @@ data SessionState t m k a b = SessionState
     }
 
 -- XXX Perhaps we should use an "Event a" type to represent timestamped data.
--- | @classifySessionsBy tick timeout idle pred f stream@ groups timestamped
--- events in an input event stream into sessions based on a session key. Each
--- element in the input stream is an event consisting of a triple @(session key,
--- sesssion data, timestamp)@.  @session key@ is a key that uniquely identifies
--- the session.  All the events belonging to a session are folded using the fold
--- @f@ until the fold terminates or a timeout has occurred.  The session key and
--- the result of the fold are emitted in the output stream when the session is
--- purged.
+
+-- | @classifySessionsBy tick timeout keepalive predicate fold stream@ classifies
+-- an input event @stream@ consisting of  @(key, value, timestamp)@ into
+-- sessions based on the @key@, folding all the values corresponding to the
+-- same key into a session using the supplied @fold@.
 --
--- When @idle@ is 'False', @timeout@ is the maximum lifetime of a session in
--- seconds, measured from the @timestamp@ of the first event in that session.
--- When @idle@ is 'True' then the timeout is an idle timeout, it is reset after
--- every event received in the session.
+-- When the fold terminates or a @timeout@ occurs, a tuple consisting of the
+-- session key and the folded value is emitted in the output stream. The
+-- timeout is measured from the first event in the session.  If the @keepalive@
+-- option is set to 'True' the timeout is reset to 0 whenever an event is
+-- received.
 --
--- @timestamp@ in an event characterizes the time when the input event was
--- generated, this is an absolute time measured from some @Epoch@.  The notion
--- of current time is maintained by a monotonic event time clock using the
+-- The @timestamp@ in the input stream is an absolute time from some epoch,
+-- characterizing the time when the input event was generated.  The notion of
+-- current time is maintained by a monotonic event time clock using the
 -- timestamps seen in the input stream. The latest timestamp seen till now is
 -- used as the base for the current time.  When no new events are seen, a timer
--- is started with a tick duration specified by @tick@. This timer is used to
+-- is started with a clock resolution of @tick@ seconds. This timer is used to
 -- detect session timeouts in the absence of new events.
 --
--- The predicate @pred@ is invoked with the current session count, if it
--- returns 'True' a session is ejected from the session cache before inserting
--- a new session. This could be useful to alert or eject sessions when the
--- number of sessions becomes too high.
+-- To ensure an upper bound on the memory used the number of sessions can be
+-- limited to an upper bound. If the ejection @predicate@ returns 'True', the
+-- oldest session is ejected before inserting a new session.
+--
+-- >>> :{
+-- Stream.mapM_ print
+--     $ Stream.classifySessionsBy 1 3 False (const (return False)) (Fold.takeLE 3 Fold.toList)
+--     $ Stream.map (\\(ts,(k,a)) -> (k, a, ts))
+--     $ Stream.timestamped
+--     $ Stream.delay 1
+--     $ (,) \<$> Stream.fromList [1,2,3] \<*> Stream.fromList [\'a',\'b',\'c']
+-- :}
+-- (1,"abc")
+-- (2,"abc")
+-- (3,"abc")
 --
 -- /Pre-release/
 --
@@ -2152,12 +2161,8 @@ classifySessionsBy tick tmout reset ejectPred
         liftIO $ threadDelay (round $ tick * 1000000)
         return Nothing
 
--- | Like 'classifySessionsOf' but the session is kept alive if an event is
--- received within the session window. The session times out and gets closed
--- only if no event is received within the specified session window size.
---
--- If the ejection predicate returns 'True', the session that was idle for
--- the longest time is ejected before inserting a new session.
+-- | Same as 'classifySessionsBy' with a timer tick of 1 second and keepalive
+-- option set to 'True'.
 --
 -- @
 -- classifyKeepAliveSessions timeout pred = classifySessionsBy 1 timeout True pred
@@ -2204,36 +2209,11 @@ classifyChunksOf
 classifyChunksOf wsize = classifyChunksBy wsize False
 -}
 
--- | Split the stream into fixed size time windows of specified interval in
--- seconds. Within each such window, fold the elements in sessions identified
--- by the session keys. The fold result is emitted in the output stream if the
--- fold returns a 'Left' result or if the time window ends.
---
--- Session @timestamp@ in the input stream is an absolute time from some epoch,
--- characterizing the time when the input element was generated.  To detect
--- session window end, a monotonic event time clock is maintained synced with
--- the timestamps with a clock resolution of 1 second.
---
--- If the ejection predicate returns 'True', the session with the longest
--- lifetime is ejected before inserting a new session.
+-- | Same as 'classifySessionsBy' with a timer tick of 1 second and keepalive
+-- option set to 'False'.
 --
 -- @
 -- classifySessionsOf interval pred = classifySessionsBy 1 interval False pred
--- @
---
--- @
--- > :{
---  Stream.mapM_ print
---      $ Stream.classifySessionsOf 3 (const (return False)) (fmap Right Fold.toList)
---      $ Stream.map (\\(ts,(k,a)) -> (k, a, ts))
---      $ Stream.timestamped
---      $ Stream.delay 1
---      $ (,) <$> Stream.fromList [1,2,3] <*> Stream.fromList [1,2,3]
--- :}
--- (1,Right [1,2,3])
--- (2,Right [1,2,3])
--- (3,Right [1,2,3])
---
 -- @
 --
 -- /Pre-release/
