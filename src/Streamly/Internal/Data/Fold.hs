@@ -269,7 +269,7 @@ import Streamly.Internal.Data.Fold.Types
 
 -- | Change the underlying monad of a fold
 --
--- /Internal/
+-- /Pre-release/
 hoist :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
 hoist f (Fold step initial extract) =
     Fold (\x a -> f $ step x a) (f initial) (f . extract)
@@ -278,7 +278,7 @@ hoist f (Fold step initial extract) =
 --
 -- > generally = hoist (return . runIdentity)
 --
--- /Internal/
+-- /Pre-release/
 generally :: Monad m => Fold Identity a b -> Fold m a b
 generally = hoist (return . runIdentity)
 
@@ -338,7 +338,7 @@ mapM = rmapM
 -- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
 -- [2,4,6,8,10]
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
 mapMaybe f = map f . filter isJust . map fromJust
@@ -656,7 +656,7 @@ rollingHashFirstN n = takeLE n rollingHash
 --
 -- > S.fold (FL.sconcat 10) (S.map Sum $ S.enumerateFromTo 1 10)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
@@ -973,7 +973,7 @@ or = any (== True)
 --
 -- > splitAt n f1 f2 = splitWith (,) (takeLE n f1) f2
 --
--- /Internal/
+-- /Pre-release/
 
 {-# INLINE splitAt #-}
 splitAt
@@ -1041,7 +1041,7 @@ splitAt n fld = splitWith (,) (takeLE n fld)
 --
 -- Stops - when the predicate succeeds.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE sliceSepBy #-}
 sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 sliceSepBy predicate (Fold fstep finitial fextract) =
@@ -1062,7 +1062,7 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
 --
 -- > Stream.splitWithSuffix pred f = Stream.foldMany (Fold.sliceEndWith pred f)
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE sliceEndWith #-}
 sliceEndWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
@@ -1355,7 +1355,7 @@ partition = partitionBy id
 --
 -- > demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
@@ -1394,7 +1394,7 @@ data DemuxState s b doneMap runMap =
 --
 -- Stops when all the folds, including the catchall fold, stop.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE demuxDefaultWith #-}
 demuxDefaultWith :: (Monad m, Ord k)
@@ -1528,7 +1528,7 @@ demuxDefault = demuxDefaultWith id
 --
 -- /Stops: never/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
@@ -1746,7 +1746,7 @@ indexed = zip (Stream.enumerateFrom 0 :: SerialT m Int)
 -- filterWithRelTime = with timeIndexed filter
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE with #-}
 with ::
        (Fold m (s, a) b -> Fold m a b)
@@ -1800,7 +1800,7 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
 toStream = mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
@@ -1814,7 +1814,7 @@ toStream = mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- /Internal/
+-- /Pre-release/
 
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}

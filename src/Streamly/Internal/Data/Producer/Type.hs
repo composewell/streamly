@@ -43,7 +43,7 @@ import Prelude hiding (concat, map)
 -- | A @Producer m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
--- /Internal/
+-- /Pre-release/
 
 data Producer m a b =
     -- | @Producer step inject extract@
@@ -81,7 +81,7 @@ unfoldrM next = Producer step return return
 
 -- | Convert a list of pure values to a 'Stream'
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => Producer m [a] a
 fromList = Producer step return return
@@ -98,7 +98,7 @@ fromList = Producer step return return
 
 -- | Interconvert the producer between two interconvertible input types.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL translate #-}
 translate :: Functor m =>
     (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
@@ -107,7 +107,7 @@ translate f g (Producer step inject extract) =
 
 -- | Map the producer input to another value of the same type.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> a) -> Producer m a b -> Producer m a b
 lmap f (Producer step inject extract) = Producer step (inject . f) extract
@@ -118,7 +118,7 @@ lmap f (Producer step inject extract) = Producer step (inject . f) extract
 
 -- | Map a function on the output of the producer (the type @b@).
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL map #-}
 map :: Functor m => (b -> c) -> Producer m a b -> Producer m a c
 map f (Producer ustep uinject uextract) = Producer step uinject uextract
@@ -144,7 +144,7 @@ data NestedLoop s1 s2 = OuterLoop s1 | InnerLoop s1 s2
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL concat #-}
 concat :: Monad m =>

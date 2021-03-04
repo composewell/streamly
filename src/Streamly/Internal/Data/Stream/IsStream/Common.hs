@@ -177,7 +177,7 @@ repeatMSerial = fromStreamS . S.repeatM
 --
 -- Note: This API is not safe on 32-bit machines.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE timesWith #-}
 timesWith :: (IsStream t, MonadAsync m) => Double -> t m (AbsTime, RelTime64)
@@ -195,7 +195,7 @@ timesWith g = fromStreamD $ D.times g
 --
 -- Note: This API is not safe on 32-bit machines.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE absTimesWith #-}
 absTimesWith :: (IsStream t, MonadAsync m, Functor (t m))
@@ -214,7 +214,7 @@ absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
 --
 -- Note: This API is not safe on 32-bit machines.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE relTimesWith #-}
 relTimesWith :: (IsStream t, MonadAsync m, Functor (t m))
@@ -263,7 +263,7 @@ fold = P.foldOnce
 -- scan and release it when the stream ends or to flush the internal state of
 -- the scan at the end.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE scanlMAfter' #-}
 scanlMAfter' :: (IsStream t, Monad m)
@@ -306,7 +306,7 @@ postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 --
 -- See also: 'scanlM''
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE smapM #-}
 smapM :: (IsStream t, Monad m) =>
@@ -393,7 +393,7 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 -- h,e,l,l,o
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interjectSuffix #-}
 interjectSuffix
     :: (IsStream t, MonadAsync m)
@@ -425,7 +425,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE reverse' #-}
 reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
@@ -508,7 +508,7 @@ concatM generator = concatMapM (\() -> generator) (yield ())
 --
 -- > splitOn . intercalate == id
 --
--- /Internal/
+-- /Pre-release/
 
 -- XXX We can use a polymorphic vector implemented by Array# to represent the
 -- sequence, that way we can avoid the Storable constraint. If we still need

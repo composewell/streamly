@@ -48,7 +48,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD.Types as D
 -- | The parse driver result. The driver may stop with a final result, pause
 -- with a continuation to resume, or fail with an error.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Driver m a r =
       Stop !Int r
@@ -66,7 +66,7 @@ instance Functor m => Functor (Driver m a) where
 
 -- The parser's result.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Parse b =
       Done !Int !b      -- Done, no more input needed
@@ -179,7 +179,7 @@ parseDToK pstep initial extract leftover (level, count) cont = do
 
 -- | Convert a direct style 'D.Parser' to a CPS style 'Parser'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_LATE toParserK #-}
 toParserK :: MonadCatch m => D.Parser m a b -> Parser m a b
@@ -200,7 +200,7 @@ parserDone _ (Error e) = return $ Failed e
 
 -- | When there is no more input to feed, extract the result from the Parser.
 --
--- /Internal/
+-- /Pre-release/
 --
 extractParse :: MonadThrow m => (Maybe a -> m (Driver m a b)) -> m b
 extractParse cont = do
@@ -218,7 +218,7 @@ data FromParserK b c = FPKDone !Int !b | FPKCont c
 -- "initial" returns a continuation which can be called one input at a time
 -- using the "step" function.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_LATE fromParserK #-}
 fromParserK :: MonadThrow m => Parser m a b -> D.Parser m a b
@@ -279,7 +279,7 @@ instance Functor m => Functor (Parser m a) where
 --
 -- | A parser that always yields a pure value without consuming any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE yield #-}
 yield :: b -> Parser m a b
@@ -287,7 +287,7 @@ yield b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 
 -- | See 'Streamly.Internal.Data.Parser.yieldM'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE yieldM #-}
 yieldM :: Monad m => m b -> Parser m a b
@@ -333,7 +333,7 @@ instance Monad m => Applicative (Parser m a) where
 -- | A parser that always fails with an error message without consuming
 -- any input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE die #-}
 die :: String -> Parser m a b
@@ -457,7 +457,7 @@ instance Monad m => Alternative (Parser m a) where
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
 --
--- /Internal/
+-- /Pre-release/
 --
 instance Monad m => MonadPlus (Parser m a) where
     {-# INLINE mzero #-}

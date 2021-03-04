@@ -277,14 +277,14 @@ once = yieldM
 --
 -- Generate an infinite stream by repeating a monadic value.
 --
--- /Internal/
+-- /Pre-release/
 repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
 repeatM = go
     where go m = m |: go m
 
 -- Generate an infinite stream by repeating a pure value.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE repeat #-}
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
@@ -568,7 +568,7 @@ tailPartial m = mkStream $ \st yld sng stp ->
 -- Note that the function @f@ must be lazy in its argument, that's why we use
 -- 'unsafeInterleaveIO' on @action@ because IO monad is strict.
 --
--- /Internal/
+-- /Pre-release/
 
 mfix :: (IsStream t, Monad m) => (m a -> t m a) -> t m a
 mfix f = mkStream $ \st yld sng stp ->

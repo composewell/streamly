@@ -134,7 +134,7 @@ shrinkArray (Array arr#) (I# n#) =
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
 write = FL.mkAccumM step initial extract
@@ -160,7 +160,7 @@ write = FL.mkAccumM step initial extract
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL writeN #-}
 writeN :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
 writeN limit = Fold step initial extract
@@ -190,7 +190,7 @@ data ArrayUnsafe a = ArrayUnsafe
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
 writeNUnsafe n = FL.mkAccumM step initial extract
@@ -303,7 +303,7 @@ data SpliceState s arr
 -- arrays if the size would exceed the specified size we do not coalesce
 -- therefore the actual array size may be less than the specified chunk size.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
        (MonadIO m, Prim a)

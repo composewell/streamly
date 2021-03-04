@@ -32,7 +32,7 @@ import Data.Char (isAsciiUpper, isAsciiLower)
 
 -- | Select alphabetic characters in the ascii character set.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE isAsciiAlpha #-}
 isAsciiAlpha :: Char -> Bool

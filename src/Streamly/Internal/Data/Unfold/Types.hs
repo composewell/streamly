@@ -63,7 +63,7 @@ data Unfold m a b =
 -- lmap f = concat (singleton f)
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
@@ -74,7 +74,7 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 
 -- | Map a function on the output of the unfold (the type @b@).
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL map #-}
 map :: Functor m => (b -> c) -> Unfold m a b -> Unfold m a c
 map f (Unfold ustep uinject) = Unfold step uinject
@@ -277,7 +277,7 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL concat #-}
 concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
@@ -357,7 +357,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- $ S.fromList [1..10]
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE zipWith #-}
 zipWith :: Monad m

@@ -28,7 +28,7 @@ import qualified Streamly.Internal.Data.Fold.Types as Fold
 -- @Tee@ is a wrapper over 'Fold' that uses 'teeWith' to define the applicative
 -- instance.
 --
--- /Internal/
+-- /Pre-release/
 newtype Tee m a b =
     Tee { runTee :: Fold m a b }
     deriving (Functor)

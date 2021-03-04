@@ -159,7 +159,7 @@ nil =
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
 write = FL.rmapM unsafeFreeze MA.write
@@ -167,7 +167,7 @@ write = FL.rmapM unsafeFreeze MA.write
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL writeN #-}
 writeN :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
 writeN limit = FL.rmapM unsafeFreeze (MA.writeN limit)
@@ -178,7 +178,7 @@ writeN limit = FL.rmapM unsafeFreeze (MA.writeN limit)
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
 writeNUnsafe limit = FL.rmapM unsafeFreeze (MA.writeNUnsafe limit)
@@ -239,7 +239,7 @@ toListFB c n arr = go 0
 
 -- | Convert an 'Array' into a list.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toList #-}
 toList :: Prim a => Array a -> [a]
 toList s = build (\c n -> toListFB c n s)
@@ -534,7 +534,7 @@ data SpliceState s arr1 arr2
 -- arrays if the size would exceed the specified size we do not coalesce
 -- therefore the actual array size may be less than the specified chunk size.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
        forall m a. (MonadIO m, Prim a)
@@ -655,7 +655,7 @@ data SplitState s arr
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL splitOn #-}
 splitOn ::
        MonadIO m

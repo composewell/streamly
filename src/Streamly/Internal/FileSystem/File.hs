@@ -135,7 +135,7 @@ import qualified Streamly.Prelude as S
 -- this exception will be raised by 'withFile' rather than any exception
 -- raised by 'act'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE withFile #-}
 withFile :: (IsStream t, MonadCatch m, MonadAsync m)
@@ -148,7 +148,7 @@ withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
 -- or in case of an exception.  If closing the handle raises an exception, then
 -- this exception will be raised by 'usingFile'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE usingFile #-}
 usingFile :: (MonadCatch m, MonadAsync m)
@@ -234,7 +234,7 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 -- @bufsize@. The size of an array in the resulting stream is always less than
 -- or equal to @bufsize@.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE readChunksWithBufferOf #-}
 readChunksWithBufferOf :: (MonadCatch m, MonadAsync m)
@@ -247,7 +247,7 @@ readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
 -- size of arrays in the resulting stream are therefore less than or equal to
 -- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE readChunks #-}
 readChunks :: (MonadCatch m, MonadAsync m) => Unfold m FilePath (Array Word8)
 readChunks = usingFile FH.readChunks
@@ -255,7 +255,7 @@ readChunks = usingFile FH.readChunks
 -- | Unfolds the tuple @(bufsize, filepath)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
 readWithBufferOf = usingFile2 FH.readWithBufferOf
@@ -273,7 +273,7 @@ read = UF.concat (usingFile FH.readChunks) A.read
 -- when EOF is encountered. File is locked using multiple reader and single
 -- writer locking mode.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadCatch m, MonadAsync m) => FilePath -> t m Word8
@@ -333,7 +333,7 @@ fromBytesWithBufferOf n file xs = fromChunks file $ AS.arraysOf n xs
 -- truncated to zero size before writing. If the file does not exist it is
 -- created. File is locked using single writer locking mode.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE fromBytes #-}
 fromBytes :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
 fromBytes = fromBytesWithBufferOf defaultChunkSize
@@ -347,7 +347,7 @@ write = toHandleWith A.defaultChunkSize
 -- | Write a stream of chunks to a handle. Each chunk in the stream is written
 -- to the device as a separate IO request.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, MonadCatch m, Storable a)
     => FilePath -> Fold m (Array a) ()
@@ -372,7 +372,7 @@ writeChunks path = Fold step initial extract
 -- Bytes in the input stream are collected into a buffer until we have a chunk
 -- of size @chunkSize@ and then written to the IO device.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
@@ -385,7 +385,7 @@ writeWithBufferOf n path =
 -- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before writing to
 -- the IO device.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE write #-}
 write :: (MonadIO m, MonadCatch m) => FilePath -> Fold m Word8 ()

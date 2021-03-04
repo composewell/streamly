@@ -53,14 +53,14 @@ data Source a b = Source [b] (Maybe a)
 
 -- | Make a source from a seed value. The buffer would start as empty.
 --
--- /Internal/
+-- /Pre-release/
 source :: Maybe a -> Source a b
 source = Source []
 
 -- | Return some unused data back to the source. The data is prepended (or
 -- consed) to the source.
 --
--- /Internal/
+-- /Pre-release/
 unread :: [b] -> Source a b -> Source a b
 unread xs (Source ys seed) = Source (xs ++ ys) seed
 
@@ -72,7 +72,7 @@ isEmpty _ = False
 -- | Convert a producer to a producer from a buffered source. Any buffered data
 -- is read first and then the seed is unfolded.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL producer #-}
 producer :: Monad m => Producer m a b -> Producer m (Source a b) b
 producer (Producer step1 inject1 extract1) = Producer step inject extract
@@ -195,7 +195,7 @@ parseD
 -- | Parse a buffered source using a parser, returning the parsed value and the
 -- remaining source.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE [3] parse #-}
 parse
     :: MonadThrow m
@@ -229,7 +229,7 @@ parseManyD parser reader = Producer step return return
 -- | Apply a parser repeatedly on a buffered source producer to generate a
 -- producer of parsed values.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE parseMany #-}
 parseMany :: MonadThrow m =>
        ParserK.Parser m a b

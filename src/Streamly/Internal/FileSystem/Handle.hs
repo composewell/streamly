@@ -237,7 +237,7 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 --
 -- > getChunks = toChunks stdin
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE getChunks #-}
 getChunks :: (IsStream t, MonadIO m) => t m (Array Word8)
@@ -247,7 +247,7 @@ getChunks = toChunks stdin
 --
 -- > getBytes = toBytes stdin
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE getBytes #-}
 getBytes :: (IsStream t, MonadIO m) => t m Word8
@@ -283,7 +283,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 -- | @toBytesWithBufferOf bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toBytesWithBufferOf #-}
 toBytesWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
@@ -303,7 +303,7 @@ read = UF.supplyFirst readWithBufferOf defaultChunkSize
 
 -- | Generate a byte stream from a file 'Handle'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadIO m) => Handle -> t m Word8
 toBytes = AS.concat . toChunks
@@ -347,7 +347,7 @@ fromChunks h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of chunks to standard output.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
@@ -357,7 +357,7 @@ putChunks = fromChunks stdout
 -- | Write a stream of strings to standard output using the supplied encoding.
 -- Output is flushed to the device for each string.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE putStrings #-}
 putStrings :: MonadAsync m
@@ -369,7 +369,7 @@ putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
 -- supplied encoding. Output is line buffered i.e. the output is written to the
 -- device as soon as a newline is encountered.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE putLines #-}
 putLines :: MonadAsync m
@@ -381,7 +381,7 @@ putLines encode = putChunks . S.mapM
 --
 -- > putBytes = fromBytes stdout
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE putBytes #-}
 putBytes :: MonadIO m => SerialT m Word8 -> m ()

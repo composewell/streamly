@@ -34,7 +34,7 @@ import Streamly.Internal.Data.SVar (captureMonadState, runInIO)
 --
 -- It is implemented using 'mkWeakIORef'.
 --
--- /Internal/
+-- /Pre-release/
 newtype IOFinalizer = IOFinalizer (IORef (Maybe (IO ())))
 
 -- | Make a finalizer from a monadic action @m a@ that can run in IO monad.
@@ -65,7 +65,7 @@ runFinalizerGC ref = do
 -- finalizer is run manually before GC we could run it with the current state
 -- of the monad but we want to keep both the cases consistent.
 --
--- /Internal/
+-- /Pre-release/
 newIOFinalizer :: (MonadIO m, MonadBaseControl IO m) => m a -> m IOFinalizer
 newIOFinalizer finalizer = do
     f <- mkIOFinalizer finalizer
@@ -77,7 +77,7 @@ newIOFinalizer finalizer = do
 -- never runs again.  Note, the finalizing action runs with async exceptions
 -- masked.
 --
--- /Internal/
+-- /Pre-release/
 runIOFinalizer :: MonadIO m => IOFinalizer -> m ()
 runIOFinalizer (IOFinalizer ref) = liftIO $ do
     res <- readIORef ref
@@ -94,7 +94,7 @@ runIOFinalizer (IOFinalizer ref) = liftIO $ do
 -- | Run an action clearing the finalizer atomically wrt async exceptions. The
 -- action is run with async exceptions masked.
 --
--- /Internal/
+-- /Pre-release/
 clearingIOFinalizer :: MonadBaseControl IO m => IOFinalizer -> m a -> m a
 clearingIOFinalizer (IOFinalizer ref) action = do
     control $ \runinio ->

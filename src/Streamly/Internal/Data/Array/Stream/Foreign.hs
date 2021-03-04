@@ -75,7 +75,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 --
 -- > arraysOf n = Stream.chunksOf n (Array.writeN n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
@@ -119,7 +119,7 @@ concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 -- | Flatten a stream of arrays after inserting the given element between
 -- arrays.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE interpose #-}
 interpose :: (MonadIO m, IsStream t, Storable a) => a -> t m (Array a) -> t m a
 interpose x = S.interpose x A.read

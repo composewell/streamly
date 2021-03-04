@@ -130,7 +130,7 @@ import Streamly.Internal.Data.Array.Foreign (Array)
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Config = Config
     { watchRec :: BOOL
@@ -143,7 +143,7 @@ data Config = Config
 
 -- | Whether a setting is 'On' or 'Off'.
 --
--- /Internal/
+-- /Pre-release/
 --
 data Toggle = On | Off
 
@@ -159,7 +159,7 @@ setFlag mask status cfg@Config{..} =
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setRecursiveMode :: BOOL -> Config -> Config
 setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
@@ -168,7 +168,7 @@ setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedFileName :: Toggle -> Config -> Config
 setModifiedFileName = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
@@ -177,7 +177,7 @@ setModifiedFileName = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedDirName :: Toggle -> Config -> Config
 setModifiedDirName = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
@@ -186,7 +186,7 @@ setModifiedDirName = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedAttribute :: Toggle -> Config -> Config
 setModifiedAttribute = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
@@ -195,7 +195,7 @@ setModifiedAttribute = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedSize :: Toggle -> Config -> Config
 setModifiedSize = setFlag fILE_NOTIFY_CHANGE_SIZE
@@ -204,7 +204,7 @@ setModifiedSize = setFlag fILE_NOTIFY_CHANGE_SIZE
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedLastWrite :: Toggle -> Config -> Config
 setModifiedLastWrite = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
@@ -213,7 +213,7 @@ setModifiedLastWrite = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setModifiedSecurity :: Toggle -> Config -> Config
 setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
@@ -222,7 +222,7 @@ setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
 --
 -- /default: On/
 --
--- /Internal/
+-- /Pre-release/
 --
 setAllEvents :: Toggle -> Config -> Config
 setAllEvents s =
@@ -394,7 +394,7 @@ utf8ToStringList = NonEmpty.map utf8ToString
 
 -- | Close a Directory handle.
 --
--- /Internal/
+-- /Pre-release/
 --
 closePathHandleStream :: SerialT IO (HANDLE, FilePath, Config) -> IO ()
 closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
@@ -406,7 +406,7 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- contents of subdirectories are not monitored.  Monitoring starts from the
 -- current time onwards.
 --
--- /Internal/
+-- /Pre-release/
 --
 watchPathsWith ::
        (Config -> Config)
@@ -420,7 +420,7 @@ watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
 -- watchPaths = watchPathsWith id
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
 watchPaths = watchPathsWith id
@@ -439,7 +439,7 @@ watchPaths = watchPathsWith id
 -- whole directory tree under it is watched recursively. Monitoring starts from
 -- the current time onwards.
 --
--- /Internal/
+-- /Pre-release/
 --
 watchTreesWith ::
        (Config -> Config)
@@ -485,7 +485,7 @@ getFlag mask Event{..} = eventFlags == mask
 -- | Get the file system object path for which the event is generated, relative
 -- to the watched root. The path is a UTF-8 encoded array of bytes.
 --
--- /Internal/
+-- /Pre-release/
 --
 getRelPath :: Event -> String
 getRelPath Event{..} = eventRelPath
@@ -494,7 +494,7 @@ getRelPath Event{..} = eventRelPath
 --
 -- | Get the watch root directory to which this event belongs.
 --
--- /Internal/
+-- /Pre-release/
 --
 getRoot :: Event -> String
 getRoot Event{..} = ensureTrailingSlash eventRootPath
@@ -504,7 +504,7 @@ getRoot Event{..} = ensureTrailingSlash eventRootPath
 -- | Get the absolute file system object path for which the event is generated.
 -- The path is a UTF-8 encoded array of bytes.
 --
--- /Internal/
+-- /Pre-release/
 --
 getAbsPath :: Event -> String
 getAbsPath ev = getRoot ev <> getRelPath ev
@@ -513,14 +513,14 @@ getAbsPath ev = getRoot ev <> getRelPath ev
 --
 -- | File/directory created in watched directory.
 --
--- /Internal/
+-- /Pre-release/
 --
 isCreated :: Event -> Bool
 isCreated = getFlag fILE_ACTION_ADDED
 
 -- | File/directory deleted from watched directory.
 --
--- /Internal/
+-- /Pre-release/
 --
 isDeleted :: Event -> Bool
 isDeleted = getFlag fILE_ACTION_REMOVED
@@ -528,7 +528,7 @@ isDeleted = getFlag fILE_ACTION_REMOVED
 -- | Generated for the original path when an object is moved from under a
 -- monitored directory.
 --
--- /Internal/
+-- /Pre-release/
 --
 isMovedFrom :: Event -> Bool
 isMovedFrom = getFlag fILE_ACTION_RENAMED_OLD_NAME
@@ -536,7 +536,7 @@ isMovedFrom = getFlag fILE_ACTION_RENAMED_OLD_NAME
 -- | Generated for the new path when an object is moved under a monitored
 -- directory.
 --
--- /Internal/
+-- /Pre-release/
 --
 isMovedTo :: Event -> Bool
 isMovedTo = getFlag fILE_ACTION_RENAMED_NEW_NAME
@@ -546,7 +546,7 @@ isMovedTo = getFlag fILE_ACTION_RENAMED_NEW_NAME
 -- | Determine whether the event indicates modification of an object within the
 -- monitored path.
 --
--- /Internal/
+-- /Pre-release/
 --
 isModified :: Event -> Bool
 isModified = getFlag fILE_ACTION_MODIFIED
@@ -555,7 +555,7 @@ isModified = getFlag fILE_ACTION_MODIFIED
 -- therefore, events are lost.  The user application must scan everything under
 -- the watched paths to know the current state.
 --
--- /Internal/
+-- /Pre-release/
 --
 isOverflow :: Event -> Bool
 isOverflow Event{..} = totalBytes == 0

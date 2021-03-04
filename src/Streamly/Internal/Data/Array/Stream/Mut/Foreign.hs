@@ -59,7 +59,7 @@ import Prelude hiding (length)
 --
 -- > arraysOf n = Stream.foldMany (MArray.writeN n)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)

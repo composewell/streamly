@@ -202,7 +202,7 @@ spliceTwo arr1 arr2 =
 --
 -- /Unsafe/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE fromPtr #-}
 fromPtr ::
@@ -249,7 +249,7 @@ fromPtr n ptr = MA.unsafeInlineIO $ do
 --
 -- /Time complexity: O(1)/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE fromAddr# #-}
 fromAddr# ::
@@ -281,7 +281,7 @@ fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 --
 -- /Time complexity: O(n) (computes the length of the string)/
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE fromCString# #-}
 fromCString# :: Addr# -> Array Word8
@@ -395,7 +395,7 @@ length arr =  MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 readRev = Unfold.lmap unsafeThaw MA.readRev
@@ -418,7 +418,7 @@ toStreamKRev arr = MA.toStreamKRev (unsafeThaw arr)
 
 -- | Convert an 'Array' into a stream.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_EARLY toStream #-}
 toStream :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
 toStream = D.fromStreamD . toStreamD
@@ -428,7 +428,7 @@ toStream = D.fromStreamD . toStreamD
 
 -- | Convert an 'Array' into a stream in reverse order.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
 toStreamRev :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
 toStreamRev = D.fromStreamD . toStreamDRev
@@ -476,7 +476,7 @@ writeN = fmap unsafeFreeze . MA.writeN
 -- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
 writeNAligned :: forall m a. (MonadIO m, Storable a)
@@ -488,7 +488,7 @@ writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 -- This could be useful to allocate memory that we need to allocate only once
 -- in the lifetime of the program.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAlignedUnmanaged #-}
 writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)

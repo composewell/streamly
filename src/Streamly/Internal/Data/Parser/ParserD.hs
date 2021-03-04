@@ -188,7 +188,7 @@ import Streamly.Internal.Data.Parser.ParserD.Types
 --
 -- | See 'Streamly.Internal.Data.Parser.fromFold'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
@@ -216,7 +216,7 @@ fromFold (Fold fstep finitial fextract) = Parser step initial fextract
 
 -- | See 'Streamly.Internal.Data.Parser.peek'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE peek #-}
 peek :: MonadThrow m => Parser m a a
@@ -232,7 +232,7 @@ peek = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.eof'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE eof #-}
 eof :: Monad m => Parser m a ()
@@ -246,7 +246,7 @@ eof = Parser step initial return
 
 -- | See 'Streamly.Internal.Data.Parser.satisfy'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE satisfy #-}
 satisfy :: MonadThrow m => (a -> Bool) -> Parser m a a
@@ -265,7 +265,7 @@ satisfy predicate = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.maybe'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE maybe #-}
 maybe :: MonadThrow m => (a -> Maybe b) -> Parser m a b
@@ -284,7 +284,7 @@ maybe parser = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.either'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE either #-}
 either :: MonadThrow m => (a -> Either String b) -> Parser m a b
@@ -307,7 +307,7 @@ either parser = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.takeBetween'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeBetween #-}
 takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
@@ -371,7 +371,7 @@ takeBetween low high (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeEQ #-}
 takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
@@ -427,7 +427,7 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.takeGE'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeGE #-}
 takeGE :: MonadThrow m => Int -> Fold m a b -> Parser m a b
@@ -479,7 +479,7 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -506,7 +506,7 @@ takeWhile predicate (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadThrow m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -548,7 +548,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
 --
--- /Internal/
+-- /Pre-release/
 --
 sliceSepByP :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
@@ -569,7 +569,7 @@ sliceSepByP cond (Parser pstep pinitial pextract) =
 
 -- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
--- /Internal/
+-- /Pre-release/
 --
 data SliceBeginWithState s = Left' s | Right' s
 
@@ -729,7 +729,7 @@ groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
 --
 -- | See 'Streamly.Internal.Data.Parser.eqBy'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE eqBy #-}
 eqBy :: MonadThrow m => (a -> a -> Bool) -> [a] -> Parser m a ()
@@ -781,7 +781,7 @@ eqBy cmp str = Parser step initial extract
 --
 -- @
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE span #-}
 span :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
 span p f1 f2 = noErrorUnsafeSplitWith (,) (takeWhile p f1) (fromFold f2)
@@ -790,7 +790,7 @@ span p f1 f2 = noErrorUnsafeSplitWith (,) (takeWhile p f1) (fromFold f2)
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE spanBy #-}
 spanBy ::
@@ -801,7 +801,7 @@ spanBy eq f1 f2 = noErrorUnsafeSplitWith (,) (groupBy eq f1) (fromFold f2)
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE spanByRolling #-}
 spanByRolling ::
        Monad m
@@ -815,7 +815,7 @@ spanByRolling eq f1 f2 =
 
 -- | See 'Streamly.Internal.Data.Parser.lookahead'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE lookAhead #-}
 lookAhead :: MonadThrow m => Parser m a b -> Parser m a b
@@ -899,7 +899,7 @@ choice _ps = undefined
 --
 -- | See 'Streamly.Internal.Data.Parser.many'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE many #-}
 many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -908,7 +908,7 @@ many = splitMany
 
 -- | See 'Streamly.Internal.Data.Parser.some'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE some #-}
 some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
@@ -944,7 +944,7 @@ data ManyTillState fs sr sl
 
 -- | See 'Streamly.Internal.Data.Parser.manyTill'.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m

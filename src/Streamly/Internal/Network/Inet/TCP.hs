@@ -208,7 +208,7 @@ connectionsOnAddrWith opts addr port =
 -- | Like 'connections' but binds on the specified IPv4 address of the machine
 -- and listens for TCP connections on the specified port.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE connectionsOnAddr #-}
 connectionsOnAddr
     :: MonadAsync m
@@ -223,7 +223,7 @@ connectionsOnAddr = connectionsOnAddrWith []
 --
 -- > connectionsOnPort = connectionsOnAddr (0,0,0,0)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE connectionsOnPort #-}
 connectionsOnPort :: MonadAsync m => PortNumber -> SerialT m Socket
 connectionsOnPort = connectionsOnAddr (0,0,0,0)
@@ -234,7 +234,7 @@ connectionsOnPort = connectionsOnAddr (0,0,0,0)
 --
 -- > connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE connectionsOnLocalHost #-}
 connectionsOnLocalHost :: MonadAsync m => PortNumber -> SerialT m Socket
 connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
@@ -260,7 +260,7 @@ connect addr port = do
 -- closing the socket raises an exception, then this exception will be raised
 -- by 'withConnectionM'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINABLE withConnectionM #-}
 withConnectionM :: (MonadMask m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> m ()) -> m ()
@@ -277,7 +277,7 @@ withConnectionM addr port =
 -- termination or in case of an exception.  If closing the socket raises an
 -- exception, then this exception will be raised by 'usingConnection'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINABLE usingConnection #-}
 usingConnection :: (MonadCatch m, MonadAsync m)
     => Unfold m Socket a
@@ -297,7 +297,7 @@ usingConnection =
 -- handle raises an exception, then this exception will be raised by
 -- 'withConnection' rather than any exception raised by 'act'.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINABLE withConnection #-}
 withConnection :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
@@ -444,7 +444,7 @@ withInputConnect addr port input f = S.bracket pre post handler
 -- the host. The server host just acts as a transformation function on the
 -- input stream.  Both sending and receiving happen asynchronously.
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINABLE transformBytesWith #-}
 transformBytesWith

@@ -224,7 +224,7 @@ printState st = liftIO $ do
 
 -- | Print debug information about an SVar when the stream ends
 --
--- /Internal/
+-- /Pre-release/
 --
 inspectMode :: IsStream t => t m a -> t m a
 inspectMode m = mkStream $ \st stp sng yld ->

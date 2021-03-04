@@ -504,7 +504,7 @@ TRAVERSABLE_INSTANCE(WSerialT)
 --  3
 -- @
 --
--- /Internal/
+-- /Pre-release/
 --
 {-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
