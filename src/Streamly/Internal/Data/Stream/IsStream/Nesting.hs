@@ -130,7 +130,7 @@ module Streamly.Internal.Data.Stream.IsStream.Nesting
     , foldMany
     , foldManyPost
     , foldSequence
-    , foldIterate
+    , foldIterateM
 
     -- ** Parsing
     -- | Apply parsers on a stream.
@@ -1009,9 +1009,9 @@ foldSequence _f _m = undefined
 --
 -- @
 -- > import Data.Monoid (Sum(..))
--- > f x = Fold.take 2 (Fold.sconcat x)
+-- > f x = return (Fold.take 2 (Fold.sconcat x))
 -- > s = Stream.map Sum $ Stream.fromList [1..10]
--- > Stream.toList $ Stream.map getSum $ Stream.foldIterate f 0 s
+-- > Stream.toList $ Stream.map getSum $ Stream.foldIterateM f 0 s
 -- [3,10,21,36,55,55]
 --
 -- @
@@ -1021,15 +1021,10 @@ foldSequence _f _m = undefined
 --
 -- /Pre-release/
 --
-{-# INLINE foldIterate #-}
-foldIterate
-    :: -- (IsStream t, Monad m) =>
-       (b -> Fold m a b)
-    -> b
-    -> t m a
-    -> t m b
-foldIterate _f _i _m = undefined
--- D.fromStreamD $ D.foldIterate f i (D.toStreamD m)
+{-# INLINE foldIterateM #-}
+foldIterateM ::
+       (IsStream t, Monad m) => (b -> m (Fold m a b)) -> b -> t m a -> t m b
+foldIterateM f i m = D.fromStreamD $ D.foldIterateM f i (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Parsing
