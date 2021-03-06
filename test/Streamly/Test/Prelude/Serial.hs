@@ -20,6 +20,7 @@ import Foreign.Storable (Storable)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
+import Data.Semigroup (Sum(..), getSum)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
@@ -43,7 +44,7 @@ import Streamly.Prelude (SerialT, IsStream, serial, serially)
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif
 import qualified Streamly.Prelude as S
-import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
 import qualified Streamly.Data.Array.Foreign as A
@@ -485,6 +486,22 @@ testFromCallback = do
         threadDelay 100000
         return Nothing
 
+foldIterateM :: Property
+foldIterateM =
+    forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
+        let s1 = Prelude.sum lst
+            strm = S.fromList lst
+        ms2 <-
+            S.last
+                $ S.map getSum
+                $ IS.foldIterateM
+                      (return . FL.take 1 . FL.sconcat)
+                      (Sum 0)
+                $ S.map Sum strm
+        case ms2 of
+            Nothing -> assert $ s1 == 0
+            Just s2 -> assert $ s1 == s2
+
 main :: IO ()
 main = hspec
     $ H.parallel
@@ -651,3 +668,6 @@ main = hspec
     describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
 
     it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
+
+    describe "Nesting" $ do
+        prop "foldIterateM" foldIterateM
