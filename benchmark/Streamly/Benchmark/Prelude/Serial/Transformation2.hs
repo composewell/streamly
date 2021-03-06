@@ -141,13 +141,13 @@ foldMany =
     . Internal.foldMany (FL.take 2 FL.mconcat)
     . S.map Sum
 
-{-# INLINE _foldIterate #-}
-_foldIterate :: Monad m => SerialT m Int -> m ()
-_foldIterate =
-      S.drain
-    . S.map getSum
-    . Internal.foldIterate (FL.take 2 . FL.sconcat) (Sum 0)
-    . S.map Sum
+{-# INLINE foldIterateM #-}
+foldIterateM :: Monad m => SerialT m Int -> m ()
+foldIterateM =
+    S.drain
+        . S.map getSum
+        . Internal.foldIterateM (return . FL.take 2 . FL.sconcat) (Sum 0)
+        . S.map Sum
 
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
@@ -159,7 +159,7 @@ o_1_space_grouping value =
         , benchIOSink value "groupsByRollingLT" groupsByRollingLT
         , benchIOSink value "groupsByRollingEq" groupsByRollingEq
         , benchIOSink value "foldMany" foldMany
-     -- , benchIOSink value "foldIterate" foldIterate
+        , benchIOSink value "foldIterateM" foldIterateM
         ]
     ]
 
