@@ -112,6 +112,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- ** Folding
     -- | Apply folds on a stream.
     , foldMany
+    , foldIterateM
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
@@ -956,6 +957,50 @@ gintercalate
     step _ (ICALFirstResume s1 s2 i1 i2 x) = do
         return $ Yield x (ICALFirstInner s1 s2 i1 i2)
     -}
+
+------------------------------------------------------------------------------
+-- Folding
+------------------------------------------------------------------------------
+
+{-# ANN type FIterState Fuse #-}
+data FIterState s f m a b
+    = FIterInit s f
+    | forall fs. FIterStream s (fs -> a -> m (FL.Step fs b)) fs (fs -> m b)
+    | FIterYield b (FIterState s f m a b)
+    | FIterStop
+
+{-# INLINE_NORMAL foldIterateM #-}
+foldIterateM ::
+       Monad m => (b -> m (FL.Fold m a b)) -> b -> Stream m a -> Stream m b
+foldIterateM func seed0 (Stream step state) =
+    Stream stepOuter (FIterInit state seed0)
+
+    where
+
+    {-# INLINE iterStep #-}
+    iterStep from st fstep extract = do
+        res <- from
+        return
+            $ Skip
+            $ case res of
+                  FL.Partial fs -> FIterStream st fstep fs extract
+                  FL.Done fb -> FIterYield fb $ FIterInit st fb
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ (FIterInit st seed) = do
+        (FL.Fold fstep initial extract) <- func seed
+        iterStep initial st fstep extract
+    stepOuter gst (FIterStream st fstep fs extract) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                iterStep (fstep fs x) s fstep extract
+            Skip s -> return $ Skip $ FIterStream s fstep fs extract
+            Stop -> do
+                b <- extract fs
+                return $ Skip $ FIterYield b FIterStop
+    stepOuter _ (FIterYield a next) = return $ Yield a next
+    stepOuter _ FIterStop = return Stop
 
 ------------------------------------------------------------------------------
 -- Parsing
