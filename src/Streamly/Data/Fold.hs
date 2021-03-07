@@ -1,79 +1,142 @@
 -- |
 -- Module      : Streamly.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- The 'Fold' type represents an effectful action that absorbs a value into an
--- accumulator. For example, a 'sum' 'Fold' represents adding the input to the
--- accumulated sum.  A fold driver e.g. 'Streamly.Prelude.fold' pushes values
--- from a stream to the 'Fold' one at a time, reducing the stream to a single
--- value. Therefore, a fold can also be thought of as a sink or a stream
--- consumer.
+-- A 'Fold' is a sink or a consumer of a stream of values.  The 'Fold' type
+-- consists of an accumulator and an effectful action that absorbs a value into
+-- the accumulator.
 --
--- A 'Fold' is in fact a data representation of a standard left fold ('foldl').
--- Unlike the standard left folds, 'Fold's can terminate at any point e.g. the
--- 'head' fold would terminate immediately after returning the head element.
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Prelude as Stream
 --
--- 'Fold's can be combined efficiently using combinators provided in this
--- module; a stream supplied to the combined fold is provided to the
--- constituent folds according to the behavior of the combinator.  For example,
--- the 'tee' combinator distributes the input stream to two folds and then
--- combines the resulting fold outputs.  Similarly, a 'partition' combinator
--- divides the input among constituent folds.
+-- For example, a 'sum' Fold represents adding the input to the accumulated
+-- sum.  A fold driver e.g. 'Streamly.Prelude.fold' pushes values from a stream
+-- to the 'Fold' one at a time, reducing the stream to a single value.
 --
--- = Accumulators and Terminating Folds
+-- >>> Stream.fold Fold.sum $ Stream.fromList [1..100]
+-- 5050
 --
--- Folds in this module can be classified in two categories viz. accumulators
--- and terminating folds. Accumulators do not have a terminating condition,
--- they run forever and consume the entire stream, for example the 'length'
--- fold. Terminating folds have a terminating condition and can terminate
--- without consuming the entire stream, for example, the 'head' fold.
+-- Conceptually, a 'Fold' is a data type that can mimic a strict left fold
+-- ('Data.List.foldl') as well as lazy right fold ('Prelude.foldr').  The above
+-- example is similar to a left fold using @(+)@ as the step and @0@ as the
+-- initial value of the accumulator:
 --
--- = Monoids
+-- >>> Data.List.foldl' (+) 0 [1..100]
+-- 5050
 --
--- Monoids allow generalized, modular folding.  The accumulators in this module
--- can be expressed using 'mconcat' and a suitable 'Monoid'.  Instead of
--- writing folds we can write Monoids and turn them into folds.
+-- 'Fold's have an early termination capability e.g. the 'head' fold would
+-- terminate on an infinite stream:
 --
--- = Performance Notes
+-- >>> Stream.fold Fold.head $ Stream.fromList [1..]
+-- Just 1
 --
--- 'Streamly.Prelude' module provides fold functions to directly fold streams
--- e.g.  Streamly.Prelude/'Streamly.Prelude.sum' serves the same purpose as
--- Fold/'sum'.  However, the functions in Streamly.Prelude cannot be
--- efficiently combined together e.g. we cannot drive the input stream through
--- @sum@ and @length@ fold functions simultaneously.  Using the 'Fold' type we
--- can efficiently split the stream across mutliple folds because it allows the
--- compiler to perform stream fusion optimizations.
+-- The above example is similar to the following right fold:
 --
--- = Programmer Notes
+-- >>> Prelude.foldr (\x _ -> Just x) Nothing [1..]
+-- Just 1
 --
--- > import qualified Streamly.Data.Fold as Fold
+-- 'Fold's can be combined together using combinators. For example, to create a
+-- fold that sums first two elements in a stream:
 --
--- More, not yet exposed, fold combinators can be found in
--- "Streamly.Internal.Data.Fold".
+-- >>> sumTwo = Fold.take 2 Fold.sum
+-- >>> Stream.fold sumTwo $ Stream.fromList [1..100]
+-- 3
+--
+-- Folds can be combined to run in parallel on the same input. For example, to
+-- compute the average of numbers in a stream without going through the stream
+-- twice:
+--
+-- >>> avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> Stream.fold avg $ Stream.fromList [1.0..100.0]
+-- 50.5
+--
+-- Folds can be combined so as to partition the input stream over multiple
+-- folds. For example, to count even and odd numbers in a stream:
+--
+-- >>> split n = if even n then Left n else Right n
+-- >>> stream = Stream.map split $ Stream.fromList [1..100]
+-- >>> countEven = fmap (("Even " ++) . show) Fold.length
+-- >>> countOdd = fmap (("Odd "  ++) . show) Fold.length
+-- >>> f = Fold.partition countEven countOdd
+-- >>> Stream.fold f stream
+-- ("Even 50","Odd 50")
+--
+-- Terminating folds can be combined to parse the stream serially such that the
+-- first fold consumes the input until it terminates and the second fold
+-- consumes the rest of the input until it terminates:
+--
+-- >>> f = Fold.serialWith (,) (Fold.take 8 Fold.toList) (Fold.takeEndBy (== '\n') Fold.toList)
+-- >>> Stream.fold f $ Stream.fromList "header: hello\n"
+-- ("header: ","hello\n")
+--
+-- A 'Fold' can be applied repeatedly on a stream to transform it to a stream
+-- of fold results. To split a stream on newlines:
+--
+-- >>> f = Fold.takeEndBy (== '\n') Fold.toList
+-- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList "Hello there!\nHow are you\n"
+-- ["Hello there!\n","How are you\n"]
+--
+-- Similarly, we can split the input of a fold too:
+--
+-- >>> Stream.fold (Fold.many f Fold.toList) $ Stream.fromList "Hello there!\nHow are you\n"
+-- ["Hello there!\n","How are you\n"]
+--
+-- Please see "Streamly.Internal.Data.Fold" for additional @Pre-release@
+-- functions.
+--
+-- = Folds vs. Streams
+--
+-- We can often use streams or folds to achieve the same goal. However, streams
+-- allow efficient composition of producers (e.g. 'Streamly.Prelude.serial' or
+-- 'Streamly.Prelude.mergeBy') whereas folds allow efficient composition of
+-- consumers (e.g.  'serialWith', 'partition' or 'teeWith').
+--
+-- Streams are producers, transformations on streams happen on the output side:
+--
+-- >>> f = Stream.sum . Stream.map (+1) . Stream.filter odd
+-- >>> f $ Stream.fromList [1..100]
+-- 2550
+--
+-- Folds are stream consumers with an input stream and an output value, stream
+-- transformations on folds happen on the input side:
+--
+-- >>> f = Fold.filter odd $ Fold.lmap (+1) $ Fold.sum
+-- >>> Stream.fold f $ Stream.fromList [1..100]
+-- 2550
+--
+-- Notice the composition by @.@ vs @$@ and the order of operations in the
+-- above examples, the difference is due to output vs input side
+-- transformations.
 
 module Streamly.Data.Fold
     (
     -- * Fold Type
-    -- |
-    -- A 'Fold' can be run over a stream using the 'Streamly.Prelude.fold'
-    -- combinator:
-    --
-    -- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
-    -- 5050
 
       Fold -- (..)
 
-    -- * Accumulators
-    -- ** Monoids
+    -- * Constructors
+    , mkFoldl
+    , mkFoldlM
+    , mkFoldr
+
+    -- * Folds
+    -- ** Accumulators
+    -- | Folds that never terminate, these folds are much like strict left
+    -- folds. 'mconcat' is the fundamental accumulator.  All other accumulators
+    -- can be expressed in terms of 'mconcat' using a suitable Monoid.  Instead
+    -- of writing folds we could write Monoids and turn them into folds.
+
+    -- Monoids
+    , sconcat
     , mconcat
     , foldMap
     , foldMapM
 
-    -- ** Reducers
+    -- Reducers
     , drain
     , drainBy
     , last
@@ -88,22 +151,16 @@ module Streamly.Data.Fold
     , variance
     , stdDev
 
-    -- ** Collectors
-    -- | Avoid using these folds in scalable or performance critical
-    -- applications, they buffer all the input in GC memory which can be
-    -- detrimental to performance if the input is large.
 
+    -- Collectors
     , toList
+    , toListRev
 
-    -- * Terminating Folds
-    -- , drainN
-    -- , drainWhile
-    -- , lastN
-    -- , (!!)
-    -- , genericIndex
+    -- ** Terminating Folds
+    -- | These are much like lazy right folds.
+
     , index
     , head
-    -- , findM
     , find
     , lookup
     , findIndex
@@ -116,143 +173,82 @@ module Streamly.Data.Fold
     , and
     , or
 
-    -- * Output Transformations
-    -- | Unlike stream producer types (e.g. @SerialT m a@) which have only
-    -- output side, folds have an input side as well as an output side.  In the
-    -- type @Fold m a b@, the input type is @a@ and the output type is @b@.
-    -- Transformations can be applied either on the input side or on the output
-    -- side. The 'Functor' instance of a fold maps on the output of the fold:
+    -- * Combinators
+    -- | Combinators are modifiers of folds.  In the type @Fold m a b@, @a@ is
+    -- the input type and @b@ is the output type.  Transformations can be
+    -- applied either on the input side or on the output side.  Therefore,
+    -- combinators are of one of the following general shapes:
+    --
+    -- * @... -> Fold m a b -> Fold m c b@ (input transformation)
+    -- * @... -> Fold m a b -> Fold m a c@ (output transformation)
+    --
+    -- Output transformations are also known as covariant transformations, and
+    -- input transformations are also known as contravariant transformations.
+    -- The input side transformations are more interesting for folds.  Most of
+    -- the following sections describe the input transformation operations on a
+    -- fold.  The names and signatures of the operations are consistent with
+    -- corresponding operations in "Streamly.Prelude". When an operation makes
+    -- sense on both input and output side we use the prefix @l@ (for left) for
+    -- input side operations and the prefix @r@ (for right) for output side
+    -- operations.
+
+    -- ** Mapping on output
+    -- | The 'Functor' instance of a fold maps on the output of the fold:
     --
     -- >>> Stream.fold (fmap show Fold.sum) (Stream.enumerateFromTo 1 100)
     -- "5050"
     --
-    -- Note: Output transformations are also known as covariant
-    -- transformations.
-    , sequence
     , rmapM
-    , mapM
 
-    {-
-    -- * Input Transformations
-    -- The input side transformations are more interesting for folds.  The
-    -- following sections describe the input transformation operations on a
-    -- fold.  The names and signatures of the operations are consistent with
-    -- corresponding operations in "Streamly.Prelude".
-    --
-    -- Note: Input transformations are also known as contravariant
-    -- transformations.
+    -- ** Mapping on Input
+    , lmap
+    , lmapM
 
-    -- ** Mapping
-    --, transform
-    -- , lmap
-    --, lsequence
-    -- , lmapM
+    -- ** Filtering
+    , filter
+    , filterM
 
-    -- -- ** Filtering
-    -- , filter
-    -- , filterM
-    -- , ldeleteBy
-    -- , luniq
+    -- -- ** Mapping Filters
+    , catMaybes
+    , mapMaybe
 
-    -- ** Mapping Filters
-    , lmapMaybe
-    , lmapMaybeM
-
-    -- ** Scanning Filters
-    , lfindIndices
-    , lelemIndices
-
-    -- ** Insertion
-    -- | Insertion adds more elements to the stream.
-
-    , linsertBy
-    , lintersperseM
-
-    -- ** Reordering
-    , lreverse
-    -}
-
-    {-
     -- ** Trimming
     , take
-    -- takeByTime
-    , ldrop
-    , ldropWhile
-    , ldropWhileM
-    -}
+    -- , takeInterval
+    , takeEndBy_
+    , takeEndBy
 
-    -- * Distributing
-    -- |
-    -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
-    -- of the stream to each fold and combines the results using a function.
-    --
-    -- @
-    --
-    --                 |-------Fold m a b--------|
-    -- ---stream m a---|                         |---m (b,c,...)
-    --                 |-------Fold m a c--------|
-    --                 |                         |
-    --                            ...
-    -- @
-    --
-    -- To compute the average of numbers in a stream without going through the
-    -- stream twice:
-    --
-    -- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
-    -- >>> Stream.fold avg (Stream.enumerateFromTo 1.0 100.0)
-    -- 50.5
-    --
-    -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
-    -- the input to both the folds and combines the outputs using Monoid or
-    -- Semigroup instances of the output types:
-    --
-    -- >>> import Data.Monoid (Sum(..))
-    -- >>> Stream.fold (Fold.teeWith (<>) Fold.head Fold.last) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
-    -- Just (Sum {getSum = 101.0})
-    --
-    -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
+    -- ** Serial Append
+    , serialWith
 
-    , tee
+    -- ** Parallel Distribution
+    -- | For applicative composition using distribution see
+    -- "Streamly.Internal.Data.Fold.Tee".
+
     , teeWith
+    , tee
     , distribute
 
-    -- * Partitioning
-    -- |
-    -- Direct items in the input stream to different folds using a binary
+    -- ** Partitioning
+    -- | Direct items in the input stream to different folds using a binary
     -- fold selector.
 
-    -- , partitionByM
-    -- , partitionBy
     , partition
 
-    {-
-    -- * Demultiplexing
-    -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector.
-
-    , demux
-    -- , demuxWith
-    , demux_
-    -- , demuxWith_
-
-    -- * Classifying
-    -- | In an input stream of key value pairs fold values for different keys
-    -- in individual output buckets using the given fold.
-
-    , classify
-    -- , classifyWith
-    -}
-
-    -- * Unzipping
+    -- ** Unzipping
     , unzip
-    -- These can be expressed using lmap/lmapM and unzip
-    -- , unzipWith
-    -- , unzipWithM
 
-    -- -- * Nesting
-    -- , concatMap
-    -- , chunksOf
-    -- , duplicate  -- experimental
+    -- ** Splitting
+    , many
+    , chunksOf
+    -- , intervalsOf
+
+    -- ** Nesting
+    , concatMap
+
+    -- * Deprecated
+    , sequence
+    , mapM
     )
 where
 
@@ -265,10 +261,3 @@ import Prelude
                span, splitAt, break, mapM)
 
 import Streamly.Internal.Data.Fold
-
---
--- $setup
--- >>> :m
--- >>> import Prelude hiding (head, sum, last, length)
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Data.Fold as Fold

@@ -980,7 +980,7 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 -- Note @foldMany (take 0)@ would result in an infinite loop in a non-empty
 -- stream.
 --
--- /Pre-release/
+-- @since 0.8.0
 --
 {-# INLINE foldMany #-}
 foldMany

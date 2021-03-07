@@ -247,6 +247,7 @@ module Streamly.Prelude
     -- $runningfolds
 
     , fold
+    , foldMany
 
     -- ** Full Folds
     -- | Folds that are guaranteed to evaluate the whole stream.
@@ -343,6 +344,7 @@ module Streamly.Prelude
     , mapM_
     , trace
     , tap
+    , delay
 
     -- ** Scanning
     --

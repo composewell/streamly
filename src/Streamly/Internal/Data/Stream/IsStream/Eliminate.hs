@@ -332,14 +332,17 @@ runSink = fold . toFold
 -- Running a Parser
 ------------------------------------------------------------------------------
 
--- | Parse a stream using the supplied 'Parser'.
+-- | Parse a stream using the supplied ParserD 'PRD.Parser'.
 --
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE_NORMAL parseD #-}
 parseD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m b
 parseD p = D.parse p . toStreamD
 
+-- | Parse a stream using the supplied ParserK 'PRK.Parser'.
+--
+-- /Internal/
 {-# INLINE parseK #-}
 parseK :: MonadThrow m => PRK.Parser m a b -> SerialT m a -> m b
 parseK = parse
@@ -877,7 +880,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 --
 -- /Pre-release/
 --
--- /Requires 'Storable' constraint/ - Help wanted.
+-- /Requires 'Storable' constraint/
 --
 {-# INLINE isInfixOf #-}
 isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a)

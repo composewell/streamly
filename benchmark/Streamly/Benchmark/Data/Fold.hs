@@ -19,7 +19,6 @@ import Streamly.Internal.Data.Fold (Fold(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Sink as Sink
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
