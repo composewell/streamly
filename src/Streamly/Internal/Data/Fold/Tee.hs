@@ -6,10 +6,35 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- The @Tee@ type is a newtype wrapper over the 'Fold' type providing
+-- distributing 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and
+-- 'Fractional' instances. The input received by the composed 'Tee' is
+-- replicated and distributed to both the constituent Tee's.
+--
+-- For example, to compute the average of numbers in a stream without going
+-- through the stream twice:
+--
+-- >>> import Streamly.Internal.Data.Fold.Tee (mkT, toFold)
+-- >>> import Streamly.Internal.Data.Fold as Fold
+--
+-- >>> avg = (/) <$> (mkT Fold.sum) <*> (mkT $ fmap fromIntegral Fold.length)
+-- >>> Stream.fold (toFold avg) $ Stream.fromList [1.0..100.0]
+-- 50.5
+--
+-- Similarly, the 'Semigroup' and 'Monoid' instances of 'Tee' distribute the
+-- input to both the folds and combines the outputs using Monoid or Semigroup
+-- instances of the output types:
+--
+-- >>> import Data.Monoid (Sum(..))
+-- >>> t = mkT Fold.head <> mkT Fold.last
+-- >>> Stream.fold (toFold t) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
+-- Just (Sum {getSum = 101.0})
+--
+-- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
+--
 module Streamly.Internal.Data.Fold.Tee
     ( Tee(..)
-    , fromFold
-    , toFold
+    , mkT
     )
 where
 
@@ -22,44 +47,44 @@ import Streamly.Internal.Data.Fold.Type (Fold)
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 
--- | The type @Tee m a b@ represents a left fold over an input stream of values
--- of type @a@ to a single value of type @b@ in 'Monad' @m@.
---
--- @Tee@ is a wrapper over 'Fold' that uses 'teeWith' to define the applicative
--- instance.
+-- | @Tee@ is a newtype wrapper over the 'Fold' type providing distributing
+-- 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional'
+-- instances.
 --
 -- /Pre-release/
 newtype Tee m a b =
-    Tee { runTee :: Fold m a b }
+    Tee { toFold :: Fold m a b }
     deriving (Functor)
 
--- | Convert a 'Tee' to 'Fold'.
-{-# INLINE toFold #-}
-toFold :: Tee m a b -> Fold m a b
-toFold = coerce
+-- | Make a 'Tee' from a 'Fold'.
+--
+-- /Pre-release/
+{-# INLINE mkT #-}
+mkT :: Fold m a b -> Tee m a b
+mkT = coerce
 
--- | Convert a 'Fold' to 'Tee'.
-{-# INLINE fromFold #-}
-fromFold :: Fold m a b -> Tee m a b
-fromFold = coerce
 
--- | The 'Tee' resulting from '<*>' distributes its input to both the argument
--- 'Tee's and combines their output using function application.
+-- | '<*>' distributes the input to both the argument 'Tee's and combines their
+-- outputs using function application.
 --
 instance Monad m => Applicative (Tee m a) where
 
     {-# INLINE pure #-}
-    pure a = fromFold (Fold.yield a)
+    pure a = mkT (Fold.yield a)
 
     {-# INLINE (<*>) #-}
-    (<*>) a b = fromFold (Fold.teeWith ($) (toFold a) (toFold b))
+    (<*>) a b = mkT (Fold.teeWith ($) (toFold a) (toFold b))
 
--- | Combines the outputs (the type @b@) using their 'Semigroup' instances.
+-- | '<>' distributes the input to both the argument 'Tee's and combines their
+-- outputs using the 'Semigroup' instance of the output type.
+--
 instance (Semigroup b, Monad m) => Semigroup (Tee m a b) where
     {-# INLINE (<>) #-}
     (<>) = liftA2 (<>)
 
--- | Combines the outputs (the type @b@) using their 'Monoid' instances.
+-- | '<>' distributes the input to both the argument 'Tee's and combines their
+-- outputs using the 'Monoid' instance of the output type.
+--
 instance (Semigroup b, Monoid b, Monad m) => Monoid (Tee m a b) where
     {-# INLINE mempty #-}
     mempty = pure mempty
@@ -67,7 +92,9 @@ instance (Semigroup b, Monoid b, Monad m) => Monoid (Tee m a b) where
     {-# INLINE mappend #-}
     mappend = (<>)
 
--- | Combines the outputs (type @b@) using their 'Num' instances.
+-- | Binary 'Num' operations distribute the input to both the argument 'Tee's
+-- and combine their outputs using the 'Num' instance of the output type.
+--
 instance (Monad m, Num b) => Num (Tee m a b) where
     {-# INLINE fromInteger #-}
     fromInteger = pure . fromInteger
@@ -90,7 +117,10 @@ instance (Monad m, Num b) => Num (Tee m a b) where
     {-# INLINE (-) #-}
     (-) = liftA2 (-)
 
--- | Combines the outputs (type @b@) using their 'Fractional' instances.
+-- | Binary 'Fractional' operations distribute the input to both the argument
+-- 'Tee's and combine their outputs using the 'Fractional' instance of the
+-- output type.
+--
 instance (Monad m, Fractional b) => Fractional (Tee m a b) where
     {-# INLINE fromRational #-}
     fromRational = pure . fromRational
@@ -101,7 +131,9 @@ instance (Monad m, Fractional b) => Fractional (Tee m a b) where
     {-# INLINE (/) #-}
     (/) = liftA2 (/)
 
--- | Combines the outputs using their 'Floating' instances.
+-- | Binary 'Floating' operations distribute the input to both the argument
+-- 'Tee's and combine their outputs using the 'Floating' instance of the output
+-- type.
 instance (Monad m, Floating b) => Floating (Tee m a b) where
     {-# INLINE pi #-}
     pi = pure pi

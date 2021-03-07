@@ -2,9 +2,11 @@
 
 ### Behavioral changes
 
-* `Streamly.Prelude.fold` can now terminate early without consuming the entire
+* `Streamly.Prelude.fold` may now terminate early without consuming the entire
   stream. For example, `fold Fold.head stream` would now terminate immediately
-  after consuming the head element from `stream`.
+  after consuming the head element from `stream`. This may result in change of
+  behavior in existing programs if the program relies on the evaluation of the
+  full stream.
 * Change the associativity of combinators `serial`, `wSerial`,
   `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
 * `encodeUtf8`, `decodeUtf8` now replace any invalid character encountered
@@ -26,14 +28,14 @@
   require an additional `MonadAsync` constraint. Several other
   functions that used these functions also now require the additional
   constraint.
-* Remove `Applicative` instance of folds. Please use `teeWith` or the `Tee` type
-  as an alternative to Fold applicative.
+* Remove `Applicative` instance of folds. Please use `teeWith` or the `Tee`
+  type as an alternative to Fold applicative.
 
 ### Enhancements
 
 * New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
   are added, these routines fail when they encounter any invalid characters.
-* `teeWith` is released as a part of `Streamly.Data.Fold`
+* Several new functions added to `Streamly.Data.Fold`
 
 ### Bug Fixes
 

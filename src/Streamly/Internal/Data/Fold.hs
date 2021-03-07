@@ -7,7 +7,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See "Streamly.Data.Fold" for an overview.
+-- See "Streamly.Data.Fold" for an overview and
+-- "Streamly.Internal.Data.Fold.Types" for design notes.
 --
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 
@@ -17,9 +18,10 @@ module Streamly.Internal.Data.Fold
       Step (..)
     , Fold (..)
 
-    -- * Creating
+    -- * Constructors
     , mkFoldl
     , mkFoldlM
+    , mkFoldl1
     , mkFoldr
     , mkFoldrM
     , mkFold
@@ -27,21 +29,21 @@ module Streamly.Internal.Data.Fold
     , mkFoldM
     , mkFoldM_
 
-    -- * Generators
+    -- * Folds
+    -- ** Identity
     , yield
     , yieldM
 
-    -- * Accumulators
-    -- ** Semigroups and Monoids
+    -- ** Accumulators
+    -- *** Semigroups and Monoids
     , sconcat
     , mconcat
     , foldMap
     , foldMapM
 
-    -- ** Reducers
+    -- *** Reducers
     , drain
     , drainBy
-    , drainBy2
     , last
     , length
     , mean
@@ -52,7 +54,7 @@ module Streamly.Internal.Data.Fold
     , rollingHashFirstN
     -- , rollingHashLastN
 
-    -- ** Saturating Reducers
+    -- *** Saturating Reducers
     -- | 'product' terminates if it becomes 0. Other folds can theoretically
     -- saturate on bounded types, and therefore terminate, however, they will
     -- run forever on unbounded types like Integer/Double.
@@ -63,14 +65,17 @@ module Streamly.Internal.Data.Fold
     , minimumBy
     , minimum
 
-    -- ** Collectors
+    -- *** Collectors
+    -- | Avoid using these folds in scalable or performance critical
+    -- applications, they buffer all the input in GC memory which can be
+    -- detrimental to performance if the input is large.
     , toList
     , toListRev
     -- $toListRev
     , toStream
     , toStreamRev
 
-    -- * Terminating Folds
+    -- ** Terminating Folds
     , drainN
     -- , lastN
     -- , (!!)
@@ -91,26 +96,21 @@ module Streamly.Internal.Data.Fold
     , or
     -- , the
 
-    -- * Adapting
+    -- * Combinators
+    -- ** Utilities
+    , with
+
+    -- ** Transforming the Monad
     , hoist
     , generally
 
-    -- * Running Incrementally
-    , initialize
-    , runStep
-
-    -- * Output Transformations
-    , sequence
+    -- ** Mapping on output
     , rmapM
-    , mapM
 
-    -- * Input Transformations
-
-    -- ** Mapping
+    -- ** Mapping on Input
     , transform
     , map
     , lmap
-
     --, lsequence
     , lmapM
     , indexed
@@ -125,63 +125,67 @@ module Streamly.Internal.Data.Fold
     -- ** Mapping Filters
     , catMaybes
     , mapMaybe
+    -- , mapMaybeM
 
     {-
     -- ** Scanning Filters
-    , lfindIndices
-    , lelemIndices
+    , findIndices
+    , elemIndices
 
     -- ** Insertion
     -- | Insertion adds more elements to the stream.
 
-    , linsertBy
-    , lintersperseM
+    , insertBy
+    , intersperseM
 
     -- ** Reordering
-    , lreverse
+    , reverse
     -}
 
     -- ** Trimming
     , take
     , takeInterval
+
     -- By elements
-    , takeEndBy_
     , takeEndBy
+    , takeEndBy_
     -- , takeEndBySeq
     {-
-    , ldrop
-    , ldropWhile
-    , ldropWhileM
+    , drop
+    , dropWhile
+    , dropWhileM
     -}
 
-    -- * Splitting
-
-    -- Binary
+    -- ** Serial Append
+    , serialWith
     -- , tail
     -- , init
     , splitAt -- spanN
     -- , splitIn -- sessionN
 
-    -- * Distributing
-
-    , tee
+    -- ** Parallel Distribution
     , teeWith
+    , tee
     , teeWithFst
     , teeWithMin
     , distribute
     -- , distributeFst
     -- , distributeMin
 
-    -- * Partitioning
+    -- ** Parallel Alternative
+    , shortest
+    , longest
 
+    -- ** Partitioning
     , partitionByM
     , partitionByFstM
     , partitionByMinM
     , partitionBy
     , partition
 
-    -- * Demultiplexing
-
+    -- ** Demultiplexing
+    -- | Direct values in the input stream to different folds using an n-ary
+    -- fold selector.
     , demux        -- XXX rename this to demux_
     , demuxWith
     , demuxDefault -- XXX rename this to demux
@@ -189,31 +193,47 @@ module Streamly.Internal.Data.Fold
     -- , demuxWithSel
     -- , demuxWithMin
 
-    -- * Classifying
-
+    -- ** Classifying
+    -- | In an input stream of key value pairs fold values for different keys
+    -- in individual output buckets using the given fold.
     , classify
     , classifyWith
     -- , classifyWithSel
     -- , classifyWithMin
 
-    -- * Unzipping
+    -- ** Unzipping
     , unzip
+    -- These two can be expressed using lmap/lmapM and unzip
     , unzipWith
     , unzipWithM
     , unzipWithFstM
     , unzipWithMinM
 
-    -- * Nesting
+    -- ** Zipping
+    , zipWithM
+    , zip
+
+    -- ** Splitting
     , many
     , intervalsOf
     , chunksOf
     , chunksBetween
-    , zipWithM
-    , zip
 
+    -- ** Nesting
     , concatSequence
     , concatMap
+
+    -- * Running Partially
+    , initialize
+    , runStep
     , duplicate
+
+    -- * Fold2
+    , drainBy2
+
+    -- * Deprecated
+    , sequence
+    , mapM
     )
 where
 
@@ -228,7 +248,6 @@ import Data.Semigroup (Semigroup((<>)))
 #endif
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
-import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -270,7 +289,7 @@ hoist f (Fold step initial extract) =
 
 -- | Adapt a pure fold to any monad
 --
--- > generally = hoist (return . runIdentity)
+-- > generally = Fold.hoist (return . runIdentity)
 --
 -- /Pre-release/
 generally :: Monad m => Fold Identity a b -> Fold m a b
@@ -305,7 +324,7 @@ mapM = rmapM
 -- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
 -- [2,4,6,8,10]
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
 mapMaybe f = map f . filter isJust . map fromJust
@@ -318,7 +337,7 @@ mapMaybe f = map f . filter isJust . map fromJust
 --
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
 transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
@@ -356,23 +375,6 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
     extract (Tuple' _ fs) = fextract fs
 
 ------------------------------------------------------------------------------
--- Utilities
-------------------------------------------------------------------------------
-
--- | @_Fold1 step@ returns a new 'Fold' using just a step function that has the
--- same type for the accumulator and the element. The result type is the
--- accumulator type wrapped in 'Maybe'. The initial accumulator is retrieved
--- from the 'Foldable', the result is 'None' for empty containers.
-{-# INLINABLE _Fold1 #-}
-_Fold1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-_Fold1 step = fmap toMaybe $ mkFoldl step_ Nothing'
-
-    where
-
-    step_ Nothing' a = Just' a
-    step_ (Just' x) a = Just' $ step x a
-
-------------------------------------------------------------------------------
 -- Left folds
 ------------------------------------------------------------------------------
 
@@ -382,10 +384,12 @@ _Fold1 step = fmap toMaybe $ mkFoldl step_ Nothing'
 
 -- |
 -- > drainBy f = lmapM f drain
--- > drainBy = FL.foldMapM (void . f)
+-- > drainBy = Fold.foldMapM (void . f)
 --
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
+--
+-- See also: "Streamly.Prelude.mapM_"
 --
 -- @since 0.7.0
 {-# INLINABLE drainBy #-}
@@ -401,12 +405,12 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --
--- > last = fmap getLast $ FL.foldMap (Last . Just)
+-- > last = fmap getLast $ Fold.foldMap (Last . Just)
 --
 -- @since 0.7.0
 {-# INLINABLE last #-}
 last :: Monad m => Fold m a (Maybe a)
-last = _Fold1 (\_ x -> x)
+last = mkFoldl1 (\_ x -> x)
 
 ------------------------------------------------------------------------------
 -- To Summary
@@ -416,14 +420,14 @@ last = _Fold1 (\_ x -> x)
 --
 -- > genericLength = fmap getSum $ foldMap (Sum . const  1)
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
 genericLength = mkFoldl (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
--- > length = fmap getSum $ foldMap (Sum . const  1)
+-- > length = fmap getSum $ Fold.foldMap (Sum . const  1)
 --
 -- @since 0.7.0
 {-# INLINE length #-}
@@ -434,7 +438,7 @@ length = genericLength
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- > sum = fmap getSum $ FL.foldMap Sum
+-- > sum = fmap getSum $ Fold.foldMap Sum
 --
 -- @since 0.7.0
 {-# INLINE sum #-}
@@ -445,7 +449,7 @@ sum =  mkFoldl (+) 0
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
 -- when it encounters (@0@) in its input.
 --
--- > product = fmap getProduct $ FL.foldMap Product
+-- Compare with @Fold.foldMap Product@.
 --
 -- @since 0.7.0
 -- /Since 0.8.0 (Added 'Eq' constraint)/
@@ -470,7 +474,7 @@ product =  mkFold_ step (Partial 1)
 -- @since 0.7.0
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-maximumBy cmp = _Fold1 max'
+maximumBy cmp = mkFoldl1 max'
 
     where
 
@@ -481,24 +485,24 @@ maximumBy cmp = _Fold1 max'
 
 -- |
 -- @
--- maximum = 'maximumBy' compare
+-- maximum = Fold.maximumBy compare
 -- @
 --
 -- Determine the maximum element in a stream.
 --
--- Compare with @FL.foldMap Max@.
+-- Compare with @Fold.foldMap Max@.
 --
 -- @since 0.7.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
-maximum = _Fold1 max
+maximum = mkFoldl1 max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
 -- @since 0.7.0
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-minimumBy cmp = _Fold1 min'
+minimumBy cmp = mkFoldl1 min'
 
     where
 
@@ -514,12 +518,12 @@ minimumBy cmp = _Fold1 min'
 -- minimum = 'minimumBy' compare
 -- @
 --
--- Compare with @FL.foldMap Min@.
+-- Compare with @Fold.foldMap Min@.
 --
 -- @since 0.7.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
-minimum = _Fold1 min
+minimum = mkFoldl1 min
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
@@ -603,7 +607,7 @@ defaultSalt = -2578643520546668380
 
 -- | Compute an 'Int' sized polynomial rolling hash of a stream.
 --
--- > rollingHash = rollingHashWithSalt defaultSalt
+-- > rollingHash = Fold.rollingHashWithSalt defaultSalt
 --
 -- /Pre-release/
 {-# INLINABLE rollingHash #-}
@@ -613,7 +617,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- > rollingHashFirstN = take n rollingHash
+-- > rollingHashFirstN = Fold.take n Fold.rollingHash
 --
 -- /Pre-release/
 {-# INLINABLE rollingHashFirstN #-}
@@ -626,10 +630,14 @@ rollingHashFirstN n = take n rollingHash
 
 -- | Append the elements of an input stream to a provided starting value.
 --
--- > S.fold (FL.sconcat 10) (S.map Sum $ S.enumerateFromTo 1 10)
+-- >>> Stream.fold (Fold.sconcat 10) (Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- Sum {getSum = 65}
 --
--- /Pre-release/
+-- @
+-- sconcat = Fold.mkFoldl (<>)
+-- @
 --
+-- @since 0.8.0
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
 sconcat = mkFoldl (<>)
@@ -637,7 +645,10 @@ sconcat = mkFoldl (<>)
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
 --
--- > S.fold FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
+-- >>> Stream.fold Fold.mconcat (Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- Sum {getSum = 55}
+--
+-- > mconcat = Fold.sconcat mempty
 --
 -- @since 0.7.0
 {-# INLINE mconcat #-}
@@ -650,12 +661,13 @@ mconcat ::
 mconcat = sconcat mempty
 
 -- |
--- > foldMap f = map f mconcat
+-- > foldMap f = Fold.lmap f Fold.mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > S.fold (FL.foldMap Sum) $ S.enumerateFromTo 1 10
+-- >>> Stream.fold (Fold.foldMap Data.Monoid.Sum) $ Stream.enumerateFromTo 1 10
+-- Sum {getSum = 55}
 --
 -- @since 0.7.0
 {-# INLINABLE foldMap #-}
@@ -664,15 +676,16 @@ foldMap :: (Monad m, Monoid b
     , Semigroup b
 #endif
     ) => (a -> b) -> Fold m a b
-foldMap f = map f mconcat
+foldMap f = lmap f mconcat
 
 -- |
--- > foldMapM f = lmapM f mconcat
+-- > foldMapM f = Fold.lmapM f Fold.mconcat
 --
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > S.fold (FL.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
+-- >>> Stream.fold (Fold.foldMapM (return . Data.Monoid.Sum)) $ Stream.enumerateFromTo 1 10
+-- Sum {getSum = 55}
 --
 -- @since 0.7.0
 {-# INLINABLE foldMapM #-}
@@ -695,10 +708,12 @@ foldMapM act = mkFoldlM step (pure mempty)
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
+-- > toListRev = Fold.mkFoldl (flip (:)) []
+--
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
 --
--- @since 0.7.0
+-- @since 0.8.0
 
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toListRev #-}
@@ -711,6 +726,10 @@ toListRev = mkFoldl (flip (:)) []
 
 -- | A fold that drains the first n elements of its input, running the effects
 -- and discarding the results.
+--
+-- > drainN n = Fold.take n Fold.drain
+--
+-- /Pre-release/
 {-# INLINABLE drainN #-}
 drainN :: Monad m => Int -> Fold m a ()
 drainN n = take n drain
@@ -735,6 +754,8 @@ genericIndex i = mkFold step (Partial 0) (const Nothing)
 
 -- | Lookup the element at the given index.
 --
+-- See also: "Streamly.Prelude.!!"
+--
 -- @since 0.7.0
 {-# INLINABLE index #-}
 index :: Monad m => Int -> Fold m a (Maybe a)
@@ -742,19 +763,12 @@ index = genericIndex
 
 -- | Extract the first element of the stream, if any.
 --
--- > head = fmap getFirst $ FL.foldMap (First . Just)
---
 -- @since 0.7.0
 {-# INLINABLE head #-}
 head :: Monad m => Fold m a (Maybe a)
 head = mkFold_ (const (Done . Just)) (Partial Nothing)
 
 -- | Returns the first element that satisfies the given predicate.
---
--- @
--- find p = fmap getFirst $
---     FL.foldMap (\x -> First (if p x then Just x else Nothing))
--- @
 --
 -- @since 0.7.0
 {-# INLINABLE find #-}
@@ -771,7 +785,7 @@ find predicate = mkFold step (Partial ()) (const Nothing)
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
 --
--- > lookup = snd <$> find ((==) . fst)
+-- > lookup = snd <$> Fold.find ((==) . fst)
 --
 -- @since 0.7.0
 {-# INLINABLE lookup #-}
@@ -801,7 +815,7 @@ findIndex predicate = mkFold step (Partial 0) (const Nothing)
 
 -- | Returns the first index where a given value is found in the stream.
 --
--- > elemIndex a = findIndex (== a)
+-- > elemIndex a = Fold.findIndex (== a)
 --
 -- @since 0.7.0
 {-# INLINABLE elemIndex #-}
@@ -814,21 +828,19 @@ elemIndex a = findIndex (a ==)
 
 -- | Return 'True' if the input stream is empty.
 --
--- > null = fmap isJust head
+-- > null = fmap isJust Fold.head
 --
 -- @since 0.7.0
 {-# INLINABLE null #-}
 null :: Monad m => Fold m a Bool
 null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 
---
--- > any p = map p or
--- > any p = fmap getAny . FL.foldMap (Any . p)
---
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
 --
 -- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
 -- True
+--
+-- > any p = Fold.lmap p Fold.or
 --
 -- @since 0.7.0
 {-# INLINE any #-}
@@ -846,21 +858,19 @@ any predicate = mkFold_ step initial
 
 -- | Return 'True' if the given element is present in the stream.
 --
--- > elem a = any (== a)
+-- > elem a = Fold.any (== a)
 --
 -- @since 0.7.0
 {-# INLINABLE elem #-}
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
 
---
--- > all p = map p and
--- > all p = fmap getAll . FL.foldMap (All . p)
---
 -- | Returns 'True' if all elements of a stream satisfy a predicate.
 --
 -- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
 -- False
+--
+-- > all p = Fold.lmap p Fold.and
 --
 -- @since 0.7.0
 {-# INLINABLE all #-}
@@ -878,7 +888,7 @@ all predicate = mkFold_ step initial
 
 -- | Returns 'True' if the given element is not present in the stream.
 --
--- > notElem a = all (/= a)
+-- > notElem a = Fold.all (/= a)
 --
 -- @since 0.7.0
 {-# INLINABLE notElem #-}
@@ -887,8 +897,7 @@ notElem a = all (a /=)
 
 -- | Returns 'True' if all elements are 'True', 'False' otherwise
 --
--- > and = all (== True)
--- > and = fmap getAll . FL.foldMap All
+-- > and = Fold.all (== True)
 --
 -- @since 0.7.0
 {-# INLINE and #-}
@@ -897,8 +906,7 @@ and = all (== True)
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
 --
--- > or = any (== True)
--- > or = fmap getAny . FL.foldMap Any
+-- > or = Fold.any (== True)
 --
 -- @since 0.7.0
 {-# INLINE or #-}
@@ -916,8 +924,6 @@ or = any (== True)
 ------------------------------------------------------------------------------
 -- Binary APIs
 ------------------------------------------------------------------------------
-
--- XXX These would just be applicative compositions of terminating folds.
 
 -- | @splitAt n f1 f2@ composes folds @f1@ and @f2@ such that first @n@
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
@@ -943,7 +949,7 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- ([1,2,3],[])
 --
--- > splitAt n f1 f2 = serialWith (,) (take n f1) f2
+-- > splitAt n f1 f2 = Fold.serialWith (,) (Fold.take n f1) f2
 --
 -- /Internal/
 
@@ -967,53 +973,22 @@ splitAt n fld = serialWith (,) (take n fld)
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the fold.
 --
--- | Consume the input until it encounters an infixed separator element (i.e.
--- when the supplied predicate succeeds), dropping the separator.
+-- XXX Use Fold.many instead once it is fixed.
 --
--- Repeated applications of 'takeEndBy_' splits the stream on separator
--- elements determined by the supplied predicate, separator is considered as
--- infixed between two segments, if one side of the separator is missing then
--- it is parsed as an empty stream.  The supplied 'Fold' is applied on the
--- split segments. With '-' representing non-separator elements and '.' as
--- separator, repeated 'takeEndBy_' splits the stream as follows:
+-- | Like 'takeEndBy' but drops the element on which the predicate succeeds.
 --
--- @
--- "--.--" => "--" "--"
--- "--."   => "--" ""
--- ".--"   => ""   "--"
--- @
+-- >>> Stream.fold (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- "hello"
 --
--- Repeated applications of @Fold.takeEndBy_ (== x)@ on the input stream gives us
--- an inverse of @Stream.intercalate (Stream.yield x)@
+-- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- ["hello","there"]
 --
--- > Stream.splitOn pred f = Stream.foldMany (Fold.takeEndBy_ pred f)
+-- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
 --
--- Let's use the following definition for illustration:
+-- See 'Streamly.Prelude.splitOnSuffix' for more details on splitting a
+-- stream using 'takeEndBy_'.
 --
--- >>> splitOn p = Stream.foldMany (Fold.takeEndBy_ pred Fold.toList)
--- >>> splitOn' p = Stream.toList . splitOn p . Stream.fromList
-
--- >>> splitOn' (== '.') ""
--- [""]
---
--- >>> splitOn' (== '.') "."
--- ["",""]
---
--- >>> splitOn' (== '.') ".a"
--- ["","a"]
---
--- >>> splitOn' (== '.') "a."
--- ["a",""]
---
--- >>> splitOn' (== '.') "a.b"
--- ["a","b"]
---
--- >>> splitOn' (== '.') "a..b"
--- ["a","","b"]
---
--- Stops - when the predicate succeeds.
---
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 takeEndBy_ predicate (Fold fstep finitial fextract) =
@@ -1026,16 +1001,21 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
         then fstep s a
         else Done <$> fextract s
 
--- | Collect stream elements until an element succeeds the predicate. Also take
--- the element on which the predicate succeeded. The succeeding element is
--- treated as a suffix separator which is kept in the output segement.
+-- | Take the input, stop when the predicate succeeds taking the succeeding
+-- element as well.
 --
--- * Stops - when the predicate succeeds.
+-- >>> Stream.fold (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- "hello\n"
 --
--- > Stream.splitWithSuffix pred f = Stream.foldMany (Fold.takeEndBy pred f)
+-- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- ["hello\n","there\n"]
 --
--- /Pre-release/
+-- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
 --
+-- See 'Streamly.Prelude.splitWithSuffix' for more details on splitting a
+-- stream using 'takeEndBy'.
+--
+-- @since 0.8.0
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 takeEndBy predicate (Fold fstep finitial fextract) =
@@ -1086,6 +1066,8 @@ breakOn pat f m = undefined
 -- >>> Stream.fold (Fold.tee Fold.sum Fold.length) (Stream.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
 --
+-- > tee = teeWith (,)
+--
 -- @since 0.7.0
 {-# INLINE tee #-}
 tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
@@ -1109,6 +1091,8 @@ tee = teeWith (,)
 --
 -- >>> Stream.fold (Fold.distribute [Fold.sum, Fold.length]) (Stream.enumerateFromTo 1 5)
 -- [15,5]
+--
+-- > distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.yield [])
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 --
@@ -1171,7 +1155,7 @@ distribute = foldr (teeWith (:)) (yield [])
 --
 -- /See also: 'partitionByFstM' and 'partitionByMinM'./
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
@@ -1270,7 +1254,7 @@ partitionByMinM = undefined
 -- :}
 -- ("Even 50","Odd 50")
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE partitionBy #-}
 partitionBy :: Monad m
     => (a -> Either b c) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
@@ -1346,7 +1330,9 @@ demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 -- :}
 -- fromList [("PRODUCT",8),("SUM",4)]
 --
--- @since 0.7.0
+-- > demux = demuxWith id
+--
+-- /Pre-release/
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
@@ -1476,6 +1462,10 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
         b <- dextract dacc
         return (doneMap, b)
 
+-- |
+-- > demuxDefault = demuxDefaultWith id
+--
+-- /Pre-release/
 {-# INLINE demuxDefault #-}
 demuxDefault :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
@@ -1555,12 +1545,11 @@ classifyWith f (Fold step1 initial1 extract1) =
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
--- @since 0.7.0
---
 -- Same as:
 --
--- > classify fld = classifyWith fst (map snd fld)
+-- > classify fld = Fold.classifyWith fst (map snd fld)
 --
+-- /Pre-release/
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
 classify fld = classifyWith fst (map snd fld)
@@ -1571,9 +1560,9 @@ classify fld = classifyWith fst (map snd fld)
 
 -- | Like 'unzipWith' but with a monadic splitter function.
 --
--- -- @unzipWithM k f1 f2 = lmapM k (unzip f1 f2)@
+-- @unzipWithM k f1 f2 = lmapM k (unzip f1 f2)@
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE unzipWithM #-}
 unzipWithM :: Monad m
     => (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
@@ -1653,11 +1642,11 @@ unzipWithMinM = undefined
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
 --
--- @unzipWith f fld1 fld2 = map f (unzip fld1 fld2)@
+-- @unzipWith f fld1 fld2 = Fold.lmap f (Fold.unzip fld1 fld2)@
 --
 -- This fold terminates when both the input folds terminate.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE unzipWith #-}
 unzipWith :: Monad m
     => (a -> (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
@@ -1673,6 +1662,8 @@ unzipWith f = unzipWithM (return . f)
 --                           |-------Fold m b y--------|
 --
 -- @
+--
+-- > unzip = Fold.unzipWith id
 --
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
@@ -1773,6 +1764,8 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
+-- > toStream = mkFoldr K.cons K.nil
+--
 -- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
@@ -1783,6 +1776,8 @@ toStream = mkFoldr K.cons K.nil
 --
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
+--
+-- > toStreamRev = mkFoldl (flip K.cons) K.nil
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.

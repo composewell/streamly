@@ -1192,7 +1192,7 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
 --
--- /Pre-release/
+-- @since 0.8.0
 --
 {-# INLINE delay #-}
 delay :: (IsStream t, MonadIO m) => Double -> t m a -> t m a

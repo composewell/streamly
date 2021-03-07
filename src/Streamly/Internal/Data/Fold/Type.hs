@@ -164,16 +164,41 @@
 -- can be used for the scan use case, instead of using extract. Extract would
 -- then be used only for the case when the stream stops before the fold
 -- completes.
-
+--
+-- = Accumulators and Terminating Folds
+--
+-- Folds in this module can be classified in two categories viz. accumulators
+-- and terminating folds. Accumulators do not have a terminating condition,
+-- they run forever and consume the entire stream, for example the 'length'
+-- fold. Terminating folds have a terminating condition and can terminate
+-- without consuming the entire stream, for example, the 'head' fold.
+--
+-- = Monoids
+--
+-- Monoids allow generalized, modular folding.  The accumulators in this module
+-- can be expressed using 'mconcat' and a suitable 'Monoid'.  Instead of
+-- writing folds we can write Monoids and turn them into folds.
+--
+-- = Performance Notes
+--
+-- 'Streamly.Prelude' module provides fold functions to directly fold streams
+-- e.g.  Streamly.Prelude/'Streamly.Prelude.sum' serves the same purpose as
+-- Fold/'sum'.  However, the functions in Streamly.Prelude cannot be
+-- efficiently combined together e.g. we cannot drive the input stream through
+-- @sum@ and @length@ fold functions simultaneously.  Using the 'Fold' type we
+-- can efficiently split the stream across multiple folds because it allows the
+-- compiler to perform stream fusion optimizations.
+--
 module Streamly.Internal.Data.Fold.Type
     (
     -- * Types
       Step (..)
     , Fold (..)
 
-    -- * Fold constructors
+    -- * Constructors
     , mkFoldl
     , mkFoldlM
+    , mkFoldl1
     , mkFoldr
     , mkFoldrM
     , mkFold
@@ -181,55 +206,64 @@ module Streamly.Internal.Data.Fold.Type
     , mkFoldM
     , mkFoldM_
 
-    -- * Fold2
-    , Fold2 (..)
-    , simplify
-
-    -- * Basic Folds
+    -- * Folds
+    , yield
+    , yieldM
     , drain
     , toList
 
-    -- * Generators
-    , yield
-    , yieldM
+    -- * Combinators
 
-    -- * Transformations
+    -- ** Mapping output
     , rmapM
+
+    -- ** Mapping Input
     , map
     , lmap
     , lmapM
+
+    -- ** Filtering
     , filter
     , filterM
     , catMaybes
+
+    -- ** Trimming
     , take
     , takeInterval
 
-    -- * Distributing
-    , teeWith
-    , teeWithFst
-    , teeWithMin
-    , shortest
-    , longest
-
-    -- * Serial Application
+    -- ** Serial Append
     , serialWith
     , serial_
 
-    -- * Nested Application
-    , concatMap
+    -- ** Parallel Distribution
+    , GenericRunner(..)
+    , teeWith
+    , teeWithFst
+    , teeWithMin
+
+    -- ** Parallel Alternative
+    , shortest
+    , longest
+
+    -- ** Splitting
     , ManyState
     , many
     , manyPost
-    , intervalsOf
     , chunksOf
-    , chunksOf2
+    , intervalsOf
 
+    -- ** Nesting
+    , concatMap
+
+    -- * Running Partially
     , duplicate
     , initialize
     , runStep
 
-    -- * Misc
-    , GenericRunner(..) -- Is used in multiple step functions
+    -- * Fold2
+    , Fold2 (..)
+    , simplify
+    , chunksOf2
     )
 where
 
@@ -242,6 +276,7 @@ import Control.Monad.Trans.Control (control)
 import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
@@ -255,8 +290,13 @@ import Prelude hiding (concatMap, filter, map, take)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 
 ------------------------------------------------------------------------------
--- Monadic left folds
+-- Step of a fold
 ------------------------------------------------------------------------------
+
+-- The Step functor around b allows expressing early termination like a right
+-- fold. Traditional list right folds use function composition and laziness to
+-- terminate early whereas we use data constructors. It allows stream fusion in
+-- contrast to the foldr/build fusion when composing with functions.
 
 -- | Represents the result of the @step@ of a 'Fold'.  'Partial' returns an
 -- intermediate state of the fold, the fold step can be called again with the
@@ -270,10 +310,7 @@ data Step s b
     = Partial !s
     | Done !b
 
--- | A bifunctor instance on 'Step'. @first@ maps on the value held by 'Partial'
--- and @second@ maps on the result held by 'Done'.
---
--- /Pre-release/
+-- | 'first' maps over 'Partial' and 'second' maps over 'Done'.
 --
 instance Bifunctor Step where
     {-# INLINE bimap #-}
@@ -288,17 +325,19 @@ instance Bifunctor Step where
     second _ (Partial x) = Partial x
     second f (Done a) = Done (f a)
 
--- | Maps the function over the result held by 'Done'.
+-- | 'fmap' maps over 'Done'.
+--
 -- @
 -- fmap = 'second'
 -- @
---
--- /Pre-release/
 --
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
 
+-- | Map a monadic function over the result @b@ in @Step s b@.
+--
+-- /Internal/
 {-# INLINE mapMStep #-}
 mapMStep :: Applicative m => (a -> m b) -> Step s a -> m (Step s b)
 mapMStep f res =
@@ -306,31 +345,37 @@ mapMStep f res =
         Partial s -> pure $ Partial s
         Done b -> Done <$> f b
 
--- The Step functor around b allows expressing early termination like a right
--- fold. Traditional list right folds use function composition and laziness to
--- terminate early whereas we use data constructors. It allows stream fusion in
--- contrast to the foldr/build fusion when composing with functions.
+------------------------------------------------------------------------------
+-- The Fold type
+------------------------------------------------------------------------------
 
 -- | The type @Fold m a b@ having constructor @Fold step initial extract@
--- represents a left fold over an input stream of values of type @a@ to a
--- single value of type @b@ in 'Monad' @m@. The constructor is not exposed via
--- exposed modules, smart constructors are provided to create folds.
+-- represents a fold over an input stream of values of type @a@ to a final
+-- value of type @b@ in 'Monad' @m@.
 --
 -- The fold uses an intermediate state @s@ as accumulator, the type @s@ is
--- specific to the fold. The initial value of the fold state @s@ is returned by
--- @initial@. The @step@ function consumes an input and either returns the
--- final result @b@ if the fold is done or the next intermediate state (see
--- 'Step'). At any point the fold driver can extract the result from the
--- intermediate state using the @extract@ function.
+-- internal to the specific fold definition. The initial value of the fold
+-- state @s@ is returned by @initial@. The @step@ function consumes an input
+-- and either returns the final result @b@ if the fold is done or the next
+-- intermediate state (see 'Step'). At any point the fold driver can extract
+-- the result from the intermediate state using the @extract@ function.
 --
--- NOTE: If you think you need the constructor of this type please consider
--- using the smart constructors in "Streamly.Internal.Data.Fold' instead.
+-- NOTE: The constructor is not yet exposed via exposed modules, smart
+-- constructors are provided to create folds.  If you think you need the
+-- constructor of this type please consider using the smart constructors in
+-- "Streamly.Internal.Data.Fold' instead.
+--
+-- /since 0.8.0 (type changed)/
 --
 -- @since 0.7.0
 
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
+
+------------------------------------------------------------------------------
+-- Mapping on the output
+------------------------------------------------------------------------------
 
 -- | Map a monadic function on the output of a fold.
 --
@@ -361,7 +406,9 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 -- mkfoldlx step initial extract = fmap extract (mkFoldl step initial)
 -- @
 --
--- /Pre-release/
+-- See also: "Streamly.Prelude.foldl'"
+--
+-- @since 0.8.0
 --
 {-# INLINE mkFoldl #-}
 mkFoldl :: Monad m => (b -> a -> b) -> b -> Fold m a b
@@ -377,41 +424,64 @@ mkFoldl step initial =
 -- A fold with an extract function can be expressed using rmapM:
 --
 -- @
--- mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
--- mkAccumM step initial extract = rmapM extract (mkFoldlM step initial)
+-- mkFoldlxM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
+-- mkFoldlxM step initial extract = rmapM extract (mkFoldlM step initial)
 -- @
 --
--- /Pre-release/
+-- See also: "Streamly.Prelude.foldlM'"
+--
+-- @since 0.8.0
 --
 {-# INLINE mkFoldlM #-}
 mkFoldlM :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 mkFoldlM step initial =
     Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
 
+-- | Make a strict left fold, for non-empty streams, using first element as the
+-- starting value. Returns Nothing if the stream is empty.
+--
+-- See also: "Streamly.Prelude.foldl1'"
+--
+-- /Pre-release/
+{-# INLINE mkFoldl1 #-}
+mkFoldl1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
+mkFoldl1 step = fmap toMaybe $ mkFoldl step1 Nothing'
+
+    where
+
+    step1 Nothing' a = Just' a
+    step1 (Just' x) a = Just' $ step x a
+
 ------------------------------------------------------------------------------
 -- Right fold constructors
 ------------------------------------------------------------------------------
 
 -- | Make a fold using a right fold style step function and a terminal value.
--- It performs a right fold via a left fold using function composition.
--- This can be useful for constructing structures. For reductions this may be
--- very inefficient compared to using a direct fold implementation using
--- 'mkFold'.
+-- It performs a strict right fold via a left fold using function composition.
+-- Note that this is strict fold, it can only be useful for constructing strict
+-- structures in memory. For reductions this will be very inefficient.
 --
 -- For example,
 --
 -- > toList = mkFoldr (:) []
 --
--- /Pre-release/
+-- See also: "Streamly.Prelude.foldr"
+--
+-- @since 0.8.0
 {-# INLINE mkFoldr #-}
 mkFoldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
 mkFoldr g z = fmap ($ z) $ mkFoldl (\f x -> f . g x) id
 
+-- XXX we have not seen any use of this yet, not releasing until we have a use
+-- case.
+--
 -- | Like 'mkFoldr' but with a monadic step function.
 --
 -- For example,
 --
 -- > toList = mkFoldrM (\a xs -> return $ a : xs) (return [])
+--
+-- See also: "Streamly.Prelude.foldrM"
 --
 -- /Pre-release/
 {-# INLINE mkFoldrM #-}
@@ -422,6 +492,17 @@ mkFoldrM g z =
 ------------------------------------------------------------------------------
 -- General fold constructors
 ------------------------------------------------------------------------------
+
+-- XXX If the Step yield gives the result each time along with the state then
+-- we can make the type of this as
+--
+-- mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> Fold m a b
+--
+-- Then similar to mkFoldl and mkFoldr we can just fmap extract on it to extend
+-- it to the version where an 'extract' function is required. Or do we even
+-- need that?
+--
+-- Until we investigate this we are not releasing these.
 
 -- | Make a terminating fold using a pure step function, a pure initial state
 -- and a pure state extraction function.
@@ -513,6 +594,8 @@ drain = mkFoldl (\_ _ -> ()) ()
 -- very inefficient, consider using "Streamly.Data.Array.Foreign"
 -- instead.
 --
+-- > toList = mkFoldr (:) []
+--
 -- @since 0.7.0
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
@@ -558,16 +641,26 @@ yieldM b = Fold undefined (Done <$> b) pure
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 
 -- | Sequential fold application. Apply two folds sequentially to an input
--- stream.  The input is provided to the first fold, when it is done the
+-- stream.  The input is provided to the first fold, when it is done - the
 -- remaining input is provided to the second fold. When the second fold is done
 -- or if the input stream is over, the outputs of the two folds are combined
 -- using the supplied function.
 --
--- Note: This is a folding dual of appending streams using
--- 'Streamly.Prelude.serial', it splits the streams using two folds and zips
--- the results. This has the same caveats as ParseD's @serialWith@
+-- >>> f = Fold.serialWith (,) (Fold.take 8 Fold.toList) (Fold.takeEndBy (== '\n') Fold.toList)
+-- >>> Stream.fold f $ Stream.fromList "header: hello\n"
+-- ("header: ","hello\n")
 --
--- /Pre-release/
+-- Note: This is dual to appending streams using 'Streamly.Prelude.serial'.
+--
+-- Note: this implementation allows for stream fusion but has quadratic time
+-- complexity, because each composition adds a new branch that each subsequent
+-- fold's input element has to traverse, therefore, it cannot scale to a large
+-- number of compositions. After around 100 compositions the performance starts
+-- dipping rapidly compared to a CPS style implementation.
+--
+-- /Time: O(n^2) where n is the number of compositions./
+--
+-- @since 0.8.0
 --
 {-# INLINE serialWith #-}
 serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
@@ -626,6 +719,17 @@ data GenericRunner sL sR bL bR
 
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
+--
+-- >>> avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> Stream.fold avg $ Stream.fromList [1.0..100.0]
+-- 50.5
+--
+-- > teeWith k f1 f2 = fmap (uncurry k) ((Fold.tee f1 f2)
+--
+-- For applicative composition using this combinator see
+-- "Streamly.Internal.Data.Fold.Tee".
+--
+-- See also: "Streamly.Internal.Data.Fold.Tee"
 --
 -- @since 0.8.0
 --
@@ -687,7 +791,7 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         bR <- doneR sR
         return $ f bL bR
 
--- | Like 'teeWith' but terminates when the first fold terminates.
+-- | Like 'teeWith' but terminates as soon as the first fold terminates.
 --
 -- /Unimplemented/
 --
@@ -695,7 +799,8 @@ teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 teeWithFst :: (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
 teeWithFst = undefined
 
--- | Like 'teeWith' but terminates when any fold terminates.
+-- | Like 'teeWith' but terminates as soon as any one of the two folds
+-- terminates.
 --
 -- /Unimplemented/
 --
@@ -729,14 +834,26 @@ data ConcatMapState m sa a c
     = B !sa
     | forall s. C (s -> a -> m (Step s c)) !s (s -> m c)
 
+-- Compare with foldIterate.
+--
 -- | Map a 'Fold' returning function on the result of a 'Fold' and run the
--- returned fold.
+-- returned fold. This operation can be used to express data dependencies
+-- between fold operations.
+--
+-- Let's say the first element in the stream is a count of the following
+-- elements that we have to add, then:
 --
 -- >>> import Data.Maybe (fromJust)
--- >>> Stream.fold (Fold.concatMap (flip Fold.take Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
+-- >>> count = fmap fromJust Fold.head
+-- >>> total n = Fold.take n Fold.sum
+-- >>> Stream.fold (Fold.concatMap total count) $ Stream.fromList [10,9..1]
 -- 45
 --
--- /Pre-release/
+-- /Time: O(n^2) where @n@ is the number of compositions./
+--
+-- See also: "Streamly.Internal.Data.Stream.IsStream.foldIterateM"
+--
+-- @since 0.8.0
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Fold m a c) -> Fold m a b -> Fold m a c
@@ -781,12 +898,14 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 -- Mapping on input
 ------------------------------------------------------------------------------
 
--- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
+-- | @lmap f fold@ maps the function @f@ on the input of the fold.
 --
 -- >>> Stream.fold (Fold.lmap (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
 -- 338350
 --
--- /Pre-release/
+-- > lmap = Fold.lmapM return
+--
+-- @since 0.8.0
 {-# INLINABLE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
 lmap f (Fold step begin done) = Fold step' begin done
@@ -800,9 +919,9 @@ lmap f (Fold step begin done) = Fold step' begin done
 map :: (a -> b) -> Fold m b r -> Fold m a r
 map = lmap
 
--- | @(lmapM f fold)@ maps the monadic function @f@ on the input of the fold.
+-- | @lmapM f fold@ maps the monadic function @f@ on the input of the fold.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINABLE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
 lmapM f (Fold step begin done) = Fold step' begin done
@@ -818,10 +937,9 @@ lmapM f (Fold step begin done) = Fold step' begin done
 -- >>> Stream.fold (Fold.filter (> 5) Fold.sum) $ Stream.fromList [1..10]
 -- 40
 --
--- >>> Stream.fold (Fold.filter (< 5) Fold.sum) $ Stream.fromList [1..10]
--- 10
+-- > filter f = Fold.filterM (return . f)
 --
--- @since 0.7.0
+-- @since 0.8.0
 {-# INLINABLE filter #-}
 filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
 filter f (Fold step begin done) = Fold step' begin done
@@ -830,7 +948,7 @@ filter f (Fold step begin done) = Fold step' begin done
 
 -- | Like 'filter' but with a monadic predicate.
 --
--- @since 0.7.0
+-- @since 0.8.0
 {-# INLINABLE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
 filterM f (Fold step begin done) = Fold step' begin done
@@ -842,7 +960,7 @@ filterM f (Fold step begin done) = Fold step' begin done
 -- | Modify a fold to receive a 'Maybe' input, the 'Just' values are unwrapped
 -- and sent to the original fold, 'Nothing' values are discarded.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 catMaybes = filter isJust . map fromJust
@@ -851,15 +969,13 @@ catMaybes = filter isJust . map fromJust
 -- Parsing
 ------------------------------------------------------------------------------
 
--- | Take at most @n@ input elements and fold them using the supplied fold.
+-- | Take at most @n@ input elements and fold them using the supplied fold. A
+-- negative count is treated as 0.
 --
--- >>> Stream.fold (Fold.take 1 Fold.toList) $ Stream.fromList [1]
--- [1]
+-- >>> Stream.fold (Fold.take 2 Fold.toList) $ Stream.fromList [1..10]
+-- [1,2]
 --
--- >>> Stream.fold (Fold.take (-1) Fold.toList) $ Stream.fromList [1]
--- []
---
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Fold m a b
 take n (Fold fstep finitial fextract) = Fold step initial extract
@@ -898,11 +1014,13 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- i.e. it uses the last accumulator value as the initial value of the
 -- accumulator. Thus we can resume the fold later and feed it more input.
 --
--- >> do
--- >    more <- S.fold (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
--- >    evenMore <- S.fold (FL.duplicate more) (S.enumerateFromTo 11 20)
--- >    S.fold evenMore (S.enumerateFromTo 21 30)
--- > 465
+-- >>> :{
+-- do
+--  more <- Stream.fold (Fold.duplicate Fold.sum) (Stream.enumerateFromTo 1 10)
+--  evenMore <- Stream.fold (Fold.duplicate more) (Stream.enumerateFromTo 11 20)
+--  Stream.fold evenMore (Stream.enumerateFromTo 21 30)
+-- :}
+-- 465
 --
 -- /Pre-release/
 {-# INLINABLE duplicate #-}
@@ -959,11 +1077,16 @@ data ManyState s1 s2
 -- the @split@ fold repeatedly on the input stream and accumulates zero or more
 -- fold results using @collect@.
 --
+-- >>> two = Fold.take 2 Fold.toList
+-- >>> twos = Fold.many two Fold.toList
+-- >>> Stream.fold twos $ Stream.fromList [1..10]
+-- [[1,2],[3,4],[5,6],[7,8],[9,10]]
+--
 -- Stops when @collect@ stops.
 --
--- /Pre-release/
+-- See also: "Streamly.Prelude.concatMap", "Streamly.Prelude.foldMany"
 --
--- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
+-- @since 0.8.0
 --
 {-# INLINE many #-}
 many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
@@ -1077,11 +1200,15 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
+-- >>> twos = Fold.chunksOf 2 Fold.toList Fold.toList
+-- >>> Stream.fold twos $ Stream.fromList [1..10]
+-- [[1,2],[3,4],[5,6],[7,8],[9,10]]
+--
 -- > chunksOf n split = many (take n split)
 --
 -- Stops when @collect@ stops.
 --
--- /Pre-release/
+-- @since 0.8.0
 --
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
@@ -1119,9 +1246,14 @@ chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 -- XXX We can use asyncClock here. A parser can be used to return an input that
 -- arrives after the timeout.
 -- XXX If n is 0 return immediately in initial.
+-- XXX we should probably discard the input received after the timeout like
+-- takeEndBy_.
 --
 -- | @takeInterval n fold@ uses @fold@ to fold the input items arriving within
 -- a window of first @n@ seconds.
+--
+-- >>> Stream.fold (Fold.takeInterval 1.0 Fold.toList) $ Stream.delay 0.1 $ Stream.fromList [1..]
+-- [1,2,3,4,5,6,7,8,9,10,11]
 --
 -- Stops when @fold@ stops or when the timeout occurs. Note that the fold needs
 -- an input after the timeout to stop. For example, if no input is pushed to
@@ -1177,18 +1309,16 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
     handleChildException :: MVar Bool -> SomeException -> IO ()
     handleChildException mv _ = void $ swapMVar mv True
 
--- | Group the input stream into windows of n second each and then fold each
--- group using the provided fold function.
---
 -- For example, we can copy and distribute a stream to multiple folds where
 -- each fold can group the input differently e.g. by one second, one minute and
 -- one hour windows respectively and fold each resulting stream of folds.
+
+-- | Group the input stream into windows of n second each using the first fold
+-- and then fold the resulting groups using the second fold.
 --
--- @
---
--- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
---
--- @
+-- >>> intervals = Fold.intervalsOf 0.5 Fold.toList Fold.toList
+-- >>> Stream.fold intervals $ Stream.delay 0.2 $ Stream.fromList [1..10]
+-- [[1,2,3,4],[5,6,7],[8,9,10]]
 --
 -- > intervalsOf n split = many (takeInterval n split)
 --

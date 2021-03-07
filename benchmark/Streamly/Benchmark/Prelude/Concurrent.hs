@@ -8,9 +8,12 @@
 
 import Control.Concurrent
 import Control.Monad (when, replicateM)
+import Streamly.Prelude
+    ( IsStream, SerialT, serial, async, asyncly, ahead, aheadly, wAsync
+    , wAsyncly, parallel, parallely
+    )
 
 import Gauge
-import Streamly.Prelude hiding (mapM_, replicateM)
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -28,8 +31,8 @@ append buflen tcount d t =
     let work = (\i -> when (d /= 0) (threadDelay d) >> return i)
     in S.drain
         $ t
-        $ maxBuffer buflen
-        $ maxThreads (-1)
+        $ S.maxBuffer buflen
+        $ S.maxThreads (-1)
         $ S.fromFoldableM $ fmap work [1..tcount]
 
 -- | Run @threads@ concurrently, each producing streams of @elems@ elements
@@ -48,28 +51,28 @@ concated
 concated buflen threads d elems t =
     let work = \i -> S.replicateM i (when (d /= 0) (threadDelay d) >> return i)
     in S.drain
-        $ adapt
-        $ maxThreads (-1)
-        $ maxBuffer buflen
+        $ S.adapt
+        $ S.maxThreads (-1)
+        $ S.maxBuffer buflen
         $ S.concatMapWith t work
         $ S.replicate threads elems
 
 appendGroup :: Int -> Int -> Int -> [Benchmark]
-appendGroup buflen threads delay =
+appendGroup buflen threads usec =
     [ -- bench "serial"   $ nfIO $ append buflen threads delay serially
-      bench "ahead"    $ nfIO $ append buflen threads delay aheadly
-    , bench "async"    $ nfIO $ append buflen threads delay asyncly
-    , bench "wAsync"   $ nfIO $ append buflen threads delay wAsyncly
-    , bench "parallel" $ nfIO $ append buflen threads delay parallely
+      bench "ahead"    $ nfIO $ append buflen threads usec aheadly
+    , bench "async"    $ nfIO $ append buflen threads usec asyncly
+    , bench "wAsync"   $ nfIO $ append buflen threads usec wAsyncly
+    , bench "parallel" $ nfIO $ append buflen threads usec parallely
     ]
 
 concatGroup :: Int -> Int -> Int -> Int -> [Benchmark]
-concatGroup buflen threads delay n =
-    [ bench "serial"   $ nfIO $ concated buflen threads delay n serial
-    , bench "ahead"    $ nfIO $ concated buflen threads delay n ahead
-    , bench "async"    $ nfIO $ concated buflen threads delay n async
-    , bench "wAsync"   $ nfIO $ concated buflen threads delay n wAsync
-    , bench "parallel" $ nfIO $ concated buflen threads delay n parallel
+concatGroup buflen threads usec n =
+    [ bench "serial"   $ nfIO $ concated buflen threads usec n serial
+    , bench "ahead"    $ nfIO $ concated buflen threads usec n ahead
+    , bench "async"    $ nfIO $ concated buflen threads usec n async
+    , bench "wAsync"   $ nfIO $ concated buflen threads usec n wAsync
+    , bench "parallel" $ nfIO $ concated buflen threads usec n parallel
     ]
 
 main :: IO ()
