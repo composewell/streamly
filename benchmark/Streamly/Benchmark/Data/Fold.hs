@@ -82,9 +82,9 @@ sequence_ value =
 -- Splitting by serial application
 -------------------------------------------------------------------------------
 
-{-# INLINE sliceSepBy #-}
-sliceSepBy :: Monad m => Int -> SerialT m Int -> m ()
-sliceSepBy value = IP.fold (FL.sliceSepBy (>= value) FL.drain)
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: Monad m => Int -> SerialT m Int -> m ()
+takeEndBy_ value = IP.fold (FL.takeEndBy_ (>= value) FL.drain)
 
 {-# INLINE many #-}
 many :: Monad m => SerialT m Int -> m ()
@@ -244,7 +244,7 @@ o_1_space_serial_elimination value =
         , benchIOSink value "all" $ all value
         , benchIOSink value "any" $ any value
         , benchIOSink value "take" $ take value
-        , benchIOSink value "sliceSepBy" $ sliceSepBy value
+        , benchIOSink value "takeEndBy_" $ takeEndBy_ value
         , benchIOSink value "and" (S.fold FL.and . S.map (<= (value + 1)))
         , benchIOSink value "or" (S.fold FL.or . S.map (> (value + 1)))
         ]

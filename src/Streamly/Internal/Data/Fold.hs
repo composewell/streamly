@@ -65,7 +65,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Collectors
     , toList
-    , toListRev  -- experimental
+    , toListRev
     -- $toListRev
     , toStream
     , toStreamRev
@@ -74,7 +74,7 @@ module Streamly.Internal.Data.Fold
     , drainN
     -- , lastN
     -- , (!!)
-    -- , genericIndex
+    , genericIndex
     , index
     , head
     -- , findM
@@ -110,6 +110,7 @@ module Streamly.Internal.Data.Fold
     -- ** Mapping
     , transform
     , map
+    , lmap
 
     --, lsequence
     , lmapM
@@ -121,13 +122,12 @@ module Streamly.Internal.Data.Fold
     , sampleFromthen
     -- , ldeleteBy
     -- , luniq
-    , lcatMaybes
-    , mapMaybe
-    {-
-    -- ** Mapping Filters
-    , lmapMaybe
-    , lmapMaybeM
 
+    -- ** Mapping Filters
+    , catMaybes
+    , mapMaybe
+
+    {-
     -- ** Scanning Filters
     , lfindIndices
     , lelemIndices
@@ -144,12 +144,11 @@ module Streamly.Internal.Data.Fold
 
     -- ** Trimming
     , take
-    , takeByTime
+    , takeInterval
     -- By elements
-    , sliceSepBy
-    -- , breakOn
-    , sliceEndWith
-    -- , breakAfter
+    , takeEndBy_
+    , takeEndBy
+    -- , takeEndBySeq
     {-
     , ldrop
     , ldropWhile
@@ -163,10 +162,6 @@ module Streamly.Internal.Data.Fold
     -- , init
     , splitAt -- spanN
     -- , splitIn -- sessionN
-
-    -- By sequences
-    -- , breakOnSeq
-    -- , breakOnStream -- on a stream
 
     -- * Distributing
 
@@ -425,6 +420,9 @@ _Fold1 step = mkAccum step_ Nothing' toMaybe
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = lmapM f drain
 
+-- |
+--
+-- /Internal/
 {-# INLINABLE drainBy2 #-}
 drainBy2 ::  Monad m => (a -> m b) -> Fold2 m c a ()
 drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
@@ -615,7 +613,7 @@ stdDev = sqrt <$> variance
 --
 -- See https://en.wikipedia.org/wiki/Rolling_hash
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINABLE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
 rollingHashWithSalt = mkAccum_ step
@@ -635,7 +633,7 @@ defaultSalt = -2578643520546668380
 --
 -- > rollingHash = rollingHashWithSalt defaultSalt
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINABLE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Fold m a Int64
 rollingHash = rollingHashWithSalt defaultSalt
@@ -644,6 +642,8 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- a stream.
 --
 -- > rollingHashFirstN = take n rollingHash
+--
+-- /Pre-release/
 {-# INLINABLE rollingHashFirstN #-}
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
 rollingHashFirstN n = take n rollingHash
@@ -749,7 +749,7 @@ drainN n = take n drain
 
 -- | Like 'index', except with a more general 'Integral' argument
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINABLE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
 genericIndex i = mkFold step (Partial 0) (const Nothing)
@@ -973,7 +973,7 @@ or = any (== True)
 --
 -- > splitAt n f1 f2 = serialWith (,) (take n f1) f2
 --
--- /Pre-release/
+-- /Internal/
 
 {-# INLINE splitAt #-}
 splitAt
@@ -998,12 +998,12 @@ splitAt n fld = serialWith (,) (take n fld)
 -- | Consume the input until it encounters an infixed separator element (i.e.
 -- when the supplied predicate succeeds), dropping the separator.
 --
--- Repeated applications of 'sliceSepBy' splits the stream on separator
+-- Repeated applications of 'takeEndBy_' splits the stream on separator
 -- elements determined by the supplied predicate, separator is considered as
 -- infixed between two segments, if one side of the separator is missing then
 -- it is parsed as an empty stream.  The supplied 'Fold' is applied on the
 -- split segments. With '-' representing non-separator elements and '.' as
--- separator, repeated 'sliceSepBy' splits the stream as follows:
+-- separator, repeated 'takeEndBy_' splits the stream as follows:
 --
 -- @
 -- "--.--" => "--" "--"
@@ -1011,14 +1011,14 @@ splitAt n fld = serialWith (,) (take n fld)
 -- ".--"   => ""   "--"
 -- @
 --
--- Repeated applications of @Fold.sliceSepBy (== x)@ on the input stream gives us
+-- Repeated applications of @Fold.takeEndBy_ (== x)@ on the input stream gives us
 -- an inverse of @Stream.intercalate (Stream.yield x)@
 --
--- > Stream.splitOn pred f = Stream.foldMany (Fold.sliceSepBy pred f)
+-- > Stream.splitOn pred f = Stream.foldMany (Fold.takeEndBy_ pred f)
 --
 -- Let's use the following definition for illustration:
 --
--- >>> splitOn p = Stream.foldMany (Fold.sliceSepBy pred Fold.toList)
+-- >>> splitOn p = Stream.foldMany (Fold.takeEndBy_ pred Fold.toList)
 -- >>> splitOn' p = Stream.toList . splitOn p . Stream.fromList
 
 -- >>> splitOn' (== '.') ""
@@ -1042,9 +1042,9 @@ splitAt n fld = serialWith (,) (take n fld)
 -- Stops - when the predicate succeeds.
 --
 -- /Pre-release/
-{-# INLINE sliceSepBy #-}
-sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-sliceSepBy predicate (Fold fstep finitial fextract) =
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+takeEndBy_ predicate (Fold fstep finitial fextract) =
     Fold step finitial fextract
 
     where
@@ -1060,13 +1060,13 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
 --
 -- * Stops - when the predicate succeeds.
 --
--- > Stream.splitWithSuffix pred f = Stream.foldMany (Fold.sliceEndWith pred f)
+-- > Stream.splitWithSuffix pred f = Stream.foldMany (Fold.takeEndBy pred f)
 --
 -- /Pre-release/
 --
-{-# INLINE sliceEndWith #-}
-sliceEndWith :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-sliceEndWith predicate (Fold fstep finitial fextract) =
+{-# INLINE takeEndBy #-}
+takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+takeEndBy predicate (Fold fstep finitial fextract) =
     Fold step finitial fextract
 
     where

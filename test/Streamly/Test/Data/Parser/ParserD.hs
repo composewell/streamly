@@ -356,11 +356,11 @@ groupByRolling =
         then x : groupByLF (Just x) xs
         else []
 
-sliceSepByMax :: Property
-sliceSepByMax =
+takeEndByOrMax :: Property
+takeEndByOrMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.sliceSepBy predicate (FL.take n FL.toList)) (S.fromList ls) of
+            case S.parseD (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
@@ -516,7 +516,7 @@ many =
                     FL.Fold fldstp (return (FL.Partial [])) return
                 prsr =
                     P.many concatFold
-                        $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
+                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
              in case S.parseD prsr (S.fromList ls) of
                     Right res_list ->
                         checkListEqual res_list (Prelude.filter (== 0) ls)
@@ -536,7 +536,7 @@ some =
                 concatFold = FL.Fold fldstp (return (FL.Partial [])) return
                 prsr =
                     P.some concatFold
-                        $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
+                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
              in case S.parseD prsr (S.fromList ls) of
                     Right res_list -> res_list == Prelude.filter (== 0) ls
                     Left _ -> False
@@ -747,7 +747,7 @@ main =
         prop "P.takeWhile1 = Prelude.takeWhile if taken something, else check why failed" takeWhile1
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "groupByRolling" groupByRolling
-        prop "P.sliceSepByMax = Prelude.take n (Prelude.takeWhile (not . predicate)" sliceSepByMax
+        prop "P.takeEndByOrMax = Prelude.take n (Prelude.takeWhile (not . predicate)" takeEndByOrMax
         prop "many (P.wordBy ' ') = words'" wordBy
         prop "parse 0, then 1, else fail" serialWith
         prop "fail due to die as left parser" splitWithFailLeft
@@ -765,8 +765,8 @@ main =
         prop "pass even if die is left parser" longestPassLeft
         prop "pass even if die is right parser" longestPassRight
         prop "fail due to die as both parsers" longestFailBoth
-        prop "P.many concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" many
+        prop "P.many concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" many
         prop "[] due to parser being die" many_empty
-        prop "P.some concatFold $ P.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" some
+        prop "P.some concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" some
         prop "fail due to parser being die" someFail
     takeProperties

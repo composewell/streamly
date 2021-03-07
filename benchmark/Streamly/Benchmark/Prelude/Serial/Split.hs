@@ -101,7 +101,7 @@ foldManySepBy :: Handle -> IO Int
 foldManySepBy inh =
     (S.length
         $ IP.foldMany
-            (FL.sliceSepBy (== lf) FL.drain)
+            (FL.takeEndBy_ (== lf) FL.drain)
             (S.unfold FH.read inh)
     ) -- >>= print
 
@@ -110,7 +110,7 @@ parseManySepBy :: Handle -> IO Int
 parseManySepBy inh =
     (S.length
         $ IP.parseMany
-            (PR.fromFold $ FL.sliceSepBy (== lf) FL.drain)
+            (PR.fromFold $ FL.takeEndBy_ (== lf) FL.drain)
             (S.unfold FH.read inh)
     ) -- >>= print
 
@@ -159,9 +159,9 @@ splitOnSuffixSeq str inh =
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
     [ bgroup "split"
-        [ mkBench "S.foldMany (FL.sliceSepBy (== lf) FL.drain)" env
+        [ mkBench "S.foldMany (FL.takeEndBy_ (== lf) FL.drain)" env
             $ \inh _ -> foldManySepBy inh
-        , mkBench "S.parseMany (FL.sliceSepBy (== lf) FL.drain)" env
+        , mkBench "S.parseMany (FL.takeEndBy_ (== lf) FL.drain)" env
             $ \inh _ -> parseManySepBy inh
         , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
             wordsBy inh

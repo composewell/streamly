@@ -221,22 +221,22 @@ take ls =
             S.fold (F.take n FL.toList) (S.fromList ls)
                 `shouldReturn` Prelude.take n ls
 
-sliceSepBy :: Property
-sliceSepBy =
+takeEndBy_ :: Property
+takeEndBy_ =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let p = (== 1)
-            f = F.sliceSepBy p FL.toList
+            f = F.takeEndBy_ p FL.toList
             ys = Prelude.takeWhile (not . p) ls
          in case S.fold f (S.fromList ls) of
             Right xs -> checkListEqual xs ys
             Left _ -> property False
 
-sliceSepByMax :: Property
-sliceSepByMax =
+takeEndByOrMax :: Property
+takeEndByOrMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let p = (== 1)
-                f = F.sliceSepBy p (F.take n FL.toList)
+                f = F.takeEndBy_ p (F.take n FL.toList)
                 ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
              in case S.fold f (S.fromList ls) of
                     Right xs -> checkListEqual xs ys
@@ -444,8 +444,8 @@ main = hspec $
         prop "Or" Main.or
         prop "mapMaybe" mapMaybe
         prop "take" take
-        prop "sliceSepBy" sliceSepBy
-        prop "sliceSepByMax" sliceSepByMax
+        prop "takeEndBy_" takeEndBy_
+        prop "takeEndByOrMax" takeEndByOrMax
         prop "drain" Main.drain
         prop "drainBy" Main.drainBy
         prop "mean" Main.mean

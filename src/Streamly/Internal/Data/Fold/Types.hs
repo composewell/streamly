@@ -83,7 +83,7 @@
 --
 -- This means: takeWhile, groupBy, wordBy would be implemented as parsers.
 -- "take 0" can implemented as a fold if we make initial return @Step@ type.
--- "takeByTime" can be implemented without @Done1@.
+-- "takeInterval" can be implemented without @Done1@.
 --
 -- == Parsers
 --
@@ -195,12 +195,13 @@ module Streamly.Internal.Data.Fold.Types
 
     -- * Transformations
     , map
+    , lmap
     , lmapM
     , filter
     , filterM
-    , lcatMaybes
+    , catMaybes
     , take
-    , takeByTime
+    , takeInterval
 
     -- * Distributing
     , teeWith
@@ -211,7 +212,7 @@ module Streamly.Internal.Data.Fold.Types
 
     -- * Serial Application
     , serialWith
-    , split_
+    , serial_
 
     -- * Nested Application
     , concatMap
@@ -430,11 +431,14 @@ mkFoldM_ step initial = mkFoldM step initial return
 -- each chunk to a different file, then we can generate the file name using a
 -- monadic action. This is a generalized version of 'Fold'.
 --
+-- /Internal/
 data Fold2 m c a b =
   -- | @Fold @ @ step @ @ inject @ @ extract@
   forall s. Fold2 (s -> a -> m s) (c -> m s) (s -> m b)
 
 -- | Convert more general type 'Fold2' into a simpler type 'Fold'
+--
+-- /Internal/
 simplify :: Functor m => Fold2 m c a b -> c -> Fold m a b
 simplify (Fold2 step inject extract) c =
     Fold (\x a -> Partial <$> step x a) (Partial <$> inject c) extract
@@ -485,7 +489,7 @@ instance Functor m => Functor (Fold m a) where
 --
 -- | A fold that always yields a pure value without consuming any input.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE yield #-}
 yield :: Applicative m => b -> Fold m a b
@@ -496,7 +500,7 @@ yield b = Fold undefined (pure $ Done b) pure
 -- | A fold that always yields the result of an effectful action without
 -- consuming any input.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE yieldM #-}
 yieldM :: Applicative m => m b -> Fold m a b
@@ -561,10 +565,10 @@ serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 -- /Unimplemented/
 --
-{-# INLINE split_ #-}
-split_ :: -- Monad m =>
+{-# INLINE serial_ #-}
+serial_ :: -- Monad m =>
     Fold m x a -> Fold m x b -> Fold m x b
-split_ _f1 _f2 = undefined
+serial_ _f1 _f2 = undefined
 
 {-# ANN type GenericRunner Fuse #-}
 data GenericRunner sL sR bL bR
@@ -677,9 +681,8 @@ data ConcatMapState m sa a c
     = B !sa
     | forall s. C (s -> a -> m (Step s c)) !s (s -> m c)
 
--- | Map a 'Fold' returning function on the result of a 'Fold'.
---
--- Compare with 'Monad' instance method '>>='.
+-- | Map a 'Fold' returning function on the result of a 'Fold' and run the
+-- returned fold.
 --
 -- >>> import Data.Maybe (fromJust)
 -- >>> Stream.fold (Fold.concatMap (flip Fold.take Fold.sum) (Fold.rmapM (return . fromJust) Fold.head)) $ Stream.fromList [10,9..1]
@@ -727,27 +730,31 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
             Done c -> return c
 
 ------------------------------------------------------------------------------
--- Internal APIs
+-- Mapping on input
 ------------------------------------------------------------------------------
 
--- | @(map f fold)@ maps the function @f@ on the input of the fold.
+-- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --
--- >>> Stream.fold (Fold.map (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
+-- >>> Stream.fold (Fold.lmap (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
 -- 338350
 --
--- __Note__: This is not the same as 'fmap'. @map@ is contravariant where as
--- @fmap@ is covariant.
---
--- @since 0.7.0
-{-# INLINABLE map #-}
-map :: (a -> b) -> Fold m b r -> Fold m a r
-map f (Fold step begin done) = Fold step' begin done
+-- /Pre-release/
+{-# INLINABLE lmap #-}
+lmap :: (a -> b) -> Fold m b r -> Fold m a r
+lmap f (Fold step begin done) = Fold step' begin done
     where
     step' x a = step x (f a)
 
+-- XXX should be removed
+-- |
+-- /Internal/
+{-# INLINE map #-}
+map :: (a -> b) -> Fold m b r -> Fold m a r
+map = lmap
+
 -- | @(lmapM f fold)@ maps the monadic function @f@ on the input of the fold.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINABLE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
 lmapM f (Fold step begin done) = Fold step' begin done
@@ -784,11 +791,13 @@ filterM f (Fold step begin done) = Fold step' begin done
       use <- f a
       if use then step x a else return $ Partial x
 
--- | Transform a fold from a pure input to a 'Maybe' input, consuming only
--- 'Just' values.
-{-# INLINE lcatMaybes #-}
-lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-lcatMaybes = filter isJust . map fromJust
+-- | Modify a fold to receive a 'Maybe' input, the 'Just' values are unwrapped
+-- and sent to the original fold, 'Nothing' values are discarded.
+--
+-- /Pre-release/
+{-# INLINE catMaybes #-}
+catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
+catMaybes = filter isJust . map fromJust
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -803,8 +812,6 @@ lcatMaybes = filter isJust . map fromJust
 -- []
 --
 -- /Pre-release/
---
--- @since 0.7.0
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Fold m a b
 take n (Fold fstep finitial fextract) = Fold step initial extract
@@ -849,7 +856,7 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- >    S.fold evenMore (S.enumerateFromTo 21 30)
 -- > 465
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINABLE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
 duplicate (Fold step1 initial1 extract1) =
@@ -864,6 +871,7 @@ duplicate (Fold step1 initial1 extract1) =
 -- | Run the initialization effect of a fold. The returned fold would use the
 -- value returned by this effect as its initial value.
 --
+-- /Pre-release/
 {-# INLINABLE initialize #-}
 initialize :: Monad m => Fold m a b -> m (Fold m a b)
 initialize (Fold step initial extract) = do
@@ -872,6 +880,8 @@ initialize (Fold step initial extract) = do
 
 -- | Run one step of a fold and store the accumulator as an initial value in
 -- the returned fold.
+--
+-- /Pre-release/
 {-# INLINABLE runStep #-}
 runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
 runStep (Fold step initial extract) a = return $ Fold step initial1 extract
@@ -892,6 +902,8 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 -- applied to a fold input stream. groupBy et al can be written as terminating
 -- folds and then we can apply "many" to use those repeatedly on a stream.
 
+-- XXXX flip the order of arguments
+--
 -- | Collect zero or more applications of a fold.  @many collect split@ applies
 -- the @split@ fold repeatedly on the input stream and accumulates zero or more
 -- fold results using @collect@.
@@ -964,6 +976,9 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksOf n split collect = many collect (take n split)
 
+-- |
+--
+-- /Internal/
 {-# INLINE chunksOf2 #-}
 chunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
 chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
@@ -990,16 +1005,23 @@ chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 
     extract' (Tuple3' _ r1 r2) = extract1 r1 >>= step2 r2 >>= extract2
 
--- | @takeByTime n fold@ uses @fold@ to fold the input items arriving within a
--- window of first @n@ seconds.
+-- XXX We can use asyncClock here. A parser can be used to return an input that
+-- arrives after the timeout.
+-- XXX If n is 0 return immediately in initial.
 --
--- Stops when @fold@ stops or when the timeout occurs.
+-- | @takeInterval n fold@ uses @fold@ to fold the input items arriving within
+-- a window of first @n@ seconds.
+--
+-- Stops when @fold@ stops or when the timeout occurs. Note that the fold needs
+-- an input after the timeout to stop. For example, if no input is pushed to
+-- the fold until one hour after the timeout had occurred, then the fold will
+-- be done only after consuming that input.
 --
 -- /Pre-release/
 --
-{-# INLINE takeByTime #-}
-takeByTime :: MonadAsync m => Double -> Fold m a b -> Fold m a b
-takeByTime n (Fold step initial done) = Fold step' initial' done'
+{-# INLINE takeInterval #-}
+takeInterval :: MonadAsync m => Double -> Fold m a b -> Fold m a b
+takeInterval n (Fold step initial done) = Fold step' initial' done'
 
     where
 
@@ -1057,10 +1079,10 @@ takeByTime n (Fold step initial done) = Fold step' initial' done'
 --
 -- @
 --
--- > intervalsOf n split collect = many collect (takeByTime n split)
+-- > intervalsOf n split collect = many collect (takeInterval n split)
 --
 -- /Pre-release/
 --
 {-# INLINE intervalsOf #-}
 intervalsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-intervalsOf n split collect = many collect (takeByTime n split)
+intervalsOf n split collect = many collect (takeInterval n split)
