@@ -1336,7 +1336,7 @@ splitOn predicate f =
     --
     -- Since a suffix split fold can be easily expressed using a
     -- non-backtracking fold, we use that.
-    foldManyPost (FL.sliceSepBy predicate f)
+    foldManyPost (FL.takeEndBy_ predicate f)
 
 -- | Split on a suffixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -1389,7 +1389,7 @@ splitOn predicate f =
 splitOnSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitOnSuffix predicate f = foldMany (FL.sliceSepBy predicate f)
+splitOnSuffix predicate f = foldMany (FL.takeEndBy_ predicate f)
 
 -- | Split on a prefixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -1511,7 +1511,7 @@ wordsBy predicate f m =
 splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitWithSuffix predicate f = foldMany (FL.sliceEndWith predicate f)
+splitWithSuffix predicate f = foldMany (FL.takeEndBy predicate f)
 
 ------------------------------------------------------------------------------
 -- Splitting - on a delimiter sequence
@@ -1763,7 +1763,7 @@ intervalsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
 intervalsOf n f xs =
-    splitWithSuffix isNothing (FL.lcatMaybes f)
+    splitWithSuffix isNothing (FL.catMaybes f)
         (interjectSuffix n (return Nothing) (Serial.map Just xs))
 
 ------------------------------------------------------------------------------

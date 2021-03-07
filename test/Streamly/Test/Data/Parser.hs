@@ -511,7 +511,7 @@ many =
         let fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                P.many concatFold $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
+                P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> checkListEqual res_list
@@ -532,7 +532,7 @@ some =
             fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                P.some concatFold $ P.fromFold $ FL.sliceSepBy (== 1) FL.toList
+                P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls
@@ -735,10 +735,10 @@ main =
         -- prop "" shortestFailLeft
         -- prop "" shortestFailRight
         -- prop "" shortestFailBoth
-        prop ("P.many concatFold $ P.sliceSepBy (== 1) FL.toList ="
+        prop ("P.many concatFold $ P.takeEndBy_ (== 1) FL.toList ="
                 ++ "Prelude.filter (== 0)") many
         -- prop "[] due to parser being die" many_empty
-        prop ("P.some concatFold $ P.sliceSepBy (== 1) FL.toList ="
+        prop ("P.some concatFold $ P.takeEndBy_ (== 1) FL.toList ="
                 ++ "Prelude.filter (== 0)") some
         -- prop "fail due to parser being die" someFail
     takeProperties
