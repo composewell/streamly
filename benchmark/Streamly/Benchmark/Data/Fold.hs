@@ -88,7 +88,7 @@ takeEndBy_ value = IP.fold (FL.takeEndBy_ (>= value) FL.drain)
 
 {-# INLINE many #-}
 many :: Monad m => SerialT m Int -> m ()
-many = IP.fold (FL.many FL.drain (FL.take 1 FL.drain))
+many = IP.fold (FL.many (FL.take 1 FL.drain) FL.drain)
 
 {-# INLINE splitAllAny #-}
 splitAllAny :: Monad m => Int -> SerialT m Int -> m (Bool, Bool)
