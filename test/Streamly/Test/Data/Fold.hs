@@ -419,45 +419,80 @@ unzip =
 
 main :: IO ()
 main = hspec $
-    describe "Fold s" $ do
-        prop "RollingHashFirstN" rollingHashFirstN
-        prop "Index" index
-        prop "Head" head
-        prop "Last" last
-        prop "Length" Main.length
-        prop "Sum" sum
-        prop "Product" product
-        prop "MaximumBy" $ maximumBy intMin compare
-        prop "Maximum" $ maximum intMin
-        prop "MinimumBy" $ minimumBy intMax compare
-        prop "Minimum" $ minimum intMax
-        prop "ToList" toList
-        prop "Find" $ find predicate
-        prop "FindIndex" $ findIndex predicate
-        prop "ElemIndex" $ elemIndex 10
-        prop "Null" null
-        prop "Elem" $ elem 10
-        prop "NotElem" $ notElem 10
-        prop "All" $ Main.all predicate
-        prop "Any" $ Main.any predicate
-        prop "And" Main.and
-        prop "Or" Main.or
-        prop "mapMaybe" mapMaybe
-        prop "take" take
-        prop "takeEndBy_" takeEndBy_
-        prop "takeEndByOrMax" takeEndByOrMax
-        prop "drain" Main.drain
-        prop "drainBy" Main.drainBy
-        prop "mean" Main.mean
-        prop "stdDev" Main.stdDev
-        prop "variance" Main.variance
+    describe "Fold" $ do
+        -- Folds
+        -- Accumulators
         prop "mconcat" Main.mconcat
         prop "foldMap" Main.foldMap
         prop "foldMapM" Main.foldMapM
+
+        prop "drain" Main.drain
+        prop "drainBy" Main.drainBy
+        prop "last" last
+        prop "length" Main.length
+        prop "sum" sum
+        prop "product" product
+        prop "maximumBy" $ maximumBy intMin compare
+        prop "maximum" $ maximum intMin
+        prop "minimumBy" $ minimumBy intMax compare
+        prop "minimum" $ minimum intMax
+        prop "mean" Main.mean
+        prop "stdDev" Main.stdDev
+        prop "variance" Main.variance
+        prop "rollingHashFirstN" rollingHashFirstN
+
+        prop "toList" toList
+
+        -- Terminating folds
+        prop "index" index
+        prop "head" head
+        prop "find" $ find predicate
         prop "lookup" Main.lookup
+        prop "findIndex" $ findIndex predicate
+        prop "elemIndex" $ elemIndex 10
+        prop "null" null
+        prop "elem" $ elem 10
+        prop "notElem" $ notElem 10
+        prop "all" $ Main.all predicate
+        prop "any" $ Main.any predicate
+        prop "and" Main.and
+        prop "or" Main.or
+
+        -- Combinators
+
+        -- Transformation
+        -- rsequence
+        -- Functor instance
         prop "rmapM" Main.rmapM
+        -- lmap/lmapM
+
+        -- Filtering
+        -- filter/filterM
+        -- catMaybes
+        prop "mapMaybe" mapMaybe
+
+        -- Trimming
+        prop "take" take
+        -- takeEndBy
+        prop "takeEndBy_" takeEndBy_
+        prop "takeEndByOrMax" takeEndByOrMax
+
+        -- Appending
+        -- serialWith
+
+        -- Distributing
+        -- tee
         prop "teeWithLength" Main.teeWithLength
         prop "teeWithMax" Main.teeWithMax
         prop "distribute" Main.distribute
+
+        -- Partitioning
         prop "partition" Main.partition
+
+        -- Unzipping
         prop "unzip" Main.unzip
+
+        -- Nesting
+        -- many
+        -- concatMap
+        -- chunksOf
