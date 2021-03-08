@@ -18,7 +18,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as F
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Data.Fold as FL
 
 import Prelude hiding
@@ -417,6 +417,20 @@ unzip =
     let v2 = (6, ["aa", "bb", "cc"])
     assert (v1 == v2)
 
+many :: Property
+many =
+    forAll (listOf (chooseInt (0, 100))) $ \lst ->
+    forAll (chooseInt (1, 100)) $ \i ->
+        monadicIO $ do
+            let strm = S.fromList lst
+            r1 <- S.fold (F.many (split i) F.toList) strm
+            r2 <- S.toList $ S.foldMany (split i) strm
+            assert $ r1 == r2
+
+    where
+
+    split i = F.take i F.toList
+
 main :: IO ()
 main = hspec $
     describe "Fold" $ do
@@ -493,6 +507,6 @@ main = hspec $
         prop "unzip" Main.unzip
 
         -- Nesting
-        -- many
+        prop "many" Main.many
         -- concatMap
         -- chunksOf
