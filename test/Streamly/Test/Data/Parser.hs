@@ -320,7 +320,7 @@ sliceSepByP =
             Left _ -> property False
         where
             predicate = (>= 100)
-            prsr = P.many FL.toList (P.satisfy (const True))
+            prsr = P.many (P.satisfy (const True)) FL.toList
             tkwhl ls = Prelude.takeWhile (not . predicate) ls
 
 sliceBeginWith :: Property
@@ -400,7 +400,7 @@ wordBy =
     where
 
     predicate = (== ' ')
-    parser = P.many FL.toList (P.wordBy predicate FL.toList)
+    parser = P.many (P.wordBy predicate FL.toList) FL.toList
     words' lst =
         let wrds = words lst
          in if wrds == [] then [""] else wrds
@@ -511,7 +511,7 @@ many =
         let fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+                flip P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> checkListEqual res_list
@@ -532,7 +532,7 @@ some =
             fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+                flip P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls

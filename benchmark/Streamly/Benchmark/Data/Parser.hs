@@ -111,11 +111,11 @@ wordBy value = IP.parse (PR.wordBy (>= value) FL.drain)
 
 {-# INLINE manyWordByEven #-}
 manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
-manyWordByEven = IP.parse (PR.many FL.drain (PR.wordBy (Prelude.even) FL.drain))
+manyWordByEven = IP.parse (PR.many (PR.wordBy (Prelude.even) FL.drain) FL.drain)
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
-many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
+many = IP.parse (PR.many (PR.satisfy (> 0)) FL.length)
 
 {-# INLINE manyAlt #-}
 manyAlt :: MonadCatch m => SerialT m Int -> m Int
@@ -125,7 +125,7 @@ manyAlt xs = do
 
 {-# INLINE some #-}
 some :: MonadCatch m => SerialT m Int -> m Int
-some = IP.parse (PR.some FL.length (PR.satisfy (> 0)))
+some = IP.parse (PR.some (PR.satisfy (> 0)) FL.length)
 
 {-# INLINE someAlt #-}
 someAlt :: MonadCatch m => SerialT m Int -> m Int
@@ -136,7 +136,7 @@ someAlt xs = do
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
 manyTill value =
-    IP.parse (PR.manyTill FL.length (PR.satisfy (> 0)) (PR.satisfy (== value)))
+    IP.parse (PR.manyTill (PR.satisfy (> 0)) (PR.satisfy (== value)) FL.length)
 
 {-# INLINE splitAp #-}
 splitAp :: MonadCatch m
