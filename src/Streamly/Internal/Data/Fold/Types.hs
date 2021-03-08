@@ -902,9 +902,7 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 -- applied to a fold input stream. groupBy et al can be written as terminating
 -- folds and then we can apply "many" to use those repeatedly on a stream.
 
--- XXXX flip the order of arguments
---
--- | Collect zero or more applications of a fold.  @many collect split@ applies
+-- | Collect zero or more applications of a fold.  @many split collect@ applies
 -- the @split@ fold repeatedly on the input stream and accumulates zero or more
 -- fold results using @collect@.
 --
@@ -915,8 +913,8 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 -- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
 --
 {-# INLINE many #-}
-many :: Monad m => Fold m b c -> Fold m a b -> Fold m a c
-many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
+many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     Fold step initial extract
 
     where
@@ -966,7 +964,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
--- > chunksOf n split collect = many collect (take n split)
+-- > chunksOf n split = many (take n split)
 --
 -- Stops when @collect@ stops.
 --
@@ -974,7 +972,7 @@ many (Fold cstep cinitial cextract) (Fold sstep sinitial sextract) =
 --
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-chunksOf n split collect = many collect (take n split)
+chunksOf n split = many (take n split)
 
 -- |
 --
@@ -1079,10 +1077,10 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
 --
 -- @
 --
--- > intervalsOf n split collect = many collect (takeInterval n split)
+-- > intervalsOf n split = many (takeInterval n split)
 --
 -- /Pre-release/
 --
 {-# INLINE intervalsOf #-}
 intervalsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-intervalsOf n split collect = many collect (takeInterval n split)
+intervalsOf n split = many (takeInterval n split)
