@@ -953,8 +953,8 @@ choice _ps = undefined
 --
 {-# INLINE manyP #-}
 manyP :: -- MonadCatch m =>
-    Parser m b c -> Parser m a b -> Parser m a c
-manyP _f _p = undefined -- K.toParserK $ D.manyP f (K.fromParserK p)
+    Parser m a b -> Parser m b c -> Parser m a c
+manyP _p _f = undefined -- K.toParserK $ D.manyP (K.fromParserK p) f
 
 -- | Collect zero or more parses. Apply the supplied parser repeatedly on the
 -- input stream and push the parse results to a downstream fold.
@@ -967,8 +967,8 @@ manyP _f _p = undefined -- K.toParserK $ D.manyP f (K.fromParserK p)
 -- /Pre-release/
 --
 {-# INLINE many #-}
-many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-many f p = K.toParserK $ D.many f (K.fromParserK p)
+many :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+many p f = K.toParserK $ D.many (K.fromParserK p) f
 -- many = countBetween 0 maxBound
 
 -- Note: many1 would perhaps be a better name for this and consistent with
@@ -988,9 +988,9 @@ many f p = K.toParserK $ D.many f (K.fromParserK p)
 -- /Pre-release/
 --
 {-# INLINE some #-}
-some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
-some f p = K.toParserK $ D.some f (K.fromParserK p)
--- some f p = manyP (takeGE 1 f) p
+some :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+some p f = K.toParserK $ D.some (K.fromParserK p) f
+-- some p f = manyP p (takeGE 1 f)
 -- many = countBetween 1 maxBound
 
 -- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
@@ -1002,9 +1002,9 @@ some f p = K.toParserK $ D.some f (K.fromParserK p)
 {-# INLINE countBetween #-}
 countBetween ::
     -- MonadCatch m =>
-    Int -> Int -> Fold m b c -> Parser m a b -> Parser m a c
-countBetween _m _n _f = undefined
--- countBetween m n f p = manyP (takeBetween m n f) p
+    Int -> Int -> Parser m a b -> Fold m b c -> Parser m a c
+countBetween _m _n _p = undefined
+-- countBetween m n p f = manyP (takeBetween m n f) p
 
 -- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
 -- the fold @f@.  Fails if the input ends or the parser fails before @n@
@@ -1015,9 +1015,9 @@ countBetween _m _n _f = undefined
 {-# INLINE count #-}
 count ::
     -- MonadCatch m =>
-    Int -> Fold m b c -> Parser m a b -> Parser m a c
+    Int -> Parser m a b -> Fold m b c -> Parser m a c
 count n = countBetween n n
--- count n f p = manyP (takeEQ n f) p
+-- count n p f = manyP (takeEQ n f) p
 
 -- | Like 'manyTill' but uses a 'Parser' to collect the results instead of a
 -- 'Fold'.  Parsing stops or fails if the collecting parser stops or fails.
@@ -1032,9 +1032,9 @@ count n = countBetween n n
 --
 {-# INLINE manyTillP #-}
 manyTillP :: -- MonadCatch m =>
-    Parser m b c -> Parser m a b -> Parser m a x -> Parser m a c
-manyTillP _f _p1 _p2 = undefined
-    -- K.toParserK $ D.manyTillP f (K.fromParserK p1) (K.fromParserK p2)
+    Parser m a b -> Parser m a x -> Parser m b c -> Parser m a c
+manyTillP _p1 _p2 _f = undefined
+    -- K.toParserK $ D.manyTillP (K.fromParserK p1) (K.fromParserK p2) f
 
 -- | @manyTill f collect test@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
@@ -1048,8 +1048,8 @@ manyTillP _f _p1 _p2 = undefined
 --
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m
-    => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-manyTill f p1 p2 =
+    => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+manyTill p1 p2 f =
     K.toParserK $ D.manyTill f (K.fromParserK p1) (K.fromParserK p2)
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
@@ -1064,8 +1064,8 @@ manyTill f p1 p2 =
 --
 {-# INLINE manyThen #-}
 manyThen :: -- (Foldable t, MonadCatch m) =>
-    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-manyThen _f _parser _recover = undefined
+    Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+manyThen _parser _recover _f = undefined
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
@@ -1079,8 +1079,8 @@ manyThen _f _parser _recover = undefined
 --
 {-# INLINE roundRobin #-}
 roundRobin :: -- (Foldable t, MonadCatch m) =>
-    Fold m b c -> t (Parser m a b) -> Parser m a c
-roundRobin _f _ps = undefined
+    t (Parser m a b) -> Fold m b c -> Parser m a c
+roundRobin _ps _f = undefined
 
 -------------------------------------------------------------------------------
 -- Repeated Alternatives
@@ -1094,8 +1094,8 @@ roundRobin _f _ps = undefined
 --
 {-# INLINE retryMaxTotal #-}
 retryMaxTotal :: -- (MonadCatch m) =>
-    Int -> Fold m b c -> Parser m a b -> Parser m a c
-retryMaxTotal _n _f _p = undefined
+    Int -> Parser m a b -> Fold m b c -> Parser m a c
+retryMaxTotal _n _p _f  = undefined
 
 -- | Like 'retryMaxTotal' but aborts after @n@ successive failures.
 --
@@ -1103,8 +1103,8 @@ retryMaxTotal _n _f _p = undefined
 --
 {-# INLINE retryMaxSuccessive #-}
 retryMaxSuccessive :: -- (MonadCatch m) =>
-    Int -> Fold m b c -> Parser m a b -> Parser m a c
-retryMaxSuccessive _n _f _p = undefined
+    Int -> Parser m a b -> Fold m b c -> Parser m a c
+retryMaxSuccessive _n _p _f = undefined
 
 -- | Keep trying a parser until it succeeds.  When the parser fails the input
 -- consumed till now is dropped and the new instance is tried on the fresh
