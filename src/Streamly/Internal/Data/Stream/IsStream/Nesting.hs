@@ -1922,7 +1922,7 @@ data SessionState t m k a b = SessionState
 -- Stream.mapM_ print
 --     $ Stream.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
 --     $ Stream.timestamped
---     $ Stream.delay 1
+--     $ Stream.delay 0.1
 --     $ (,) <$> Stream.fromList [1,2,3] <*> Stream.fromList ['a','b','c']
 -- :}
 -- (1,"abc")
