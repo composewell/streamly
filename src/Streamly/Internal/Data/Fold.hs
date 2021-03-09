@@ -1803,7 +1803,7 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = mkAccum (\f x -> f . (x `K.cons`)) id ($ K.nil)
+toStream = mkFoldr K.cons K.nil
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.

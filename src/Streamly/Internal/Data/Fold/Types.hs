@@ -172,6 +172,10 @@ module Streamly.Internal.Data.Fold.Types
     , Fold (..)
 
     -- * Fold constructors
+    , mkFoldl
+    , mkFoldlM
+    , mkFoldr
+    , mkFoldrM
     , mkAccum
     , mkAccum_
     , mkAccumM
@@ -230,10 +234,10 @@ module Streamly.Internal.Data.Fold.Types
     )
 where
 
+import Control.Monad (void, (>=>))
 import Control.Concurrent (threadDelay, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
-import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
 import Data.Bifunctor (Bifunctor(..))
@@ -296,6 +300,11 @@ instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
 
+-- The Step functor around b allows expressing early termination like a right
+-- fold. Traditional list right folds use function composition and laziness to
+-- terminate early whereas we use data constructors. It allows stream fusion in
+-- contrast to the foldr/build fusion when composing with functions.
+
 -- | The type @Fold m a b@ having constructor @Fold step initial extract@
 -- represents a left fold over an input stream of values of type @a@ to a
 -- single value of type @b@ in 'Monad' @m@. The constructor is not exposed via
@@ -318,8 +327,31 @@ data Fold m a b =
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
 
 ------------------------------------------------------------------------------
--- Smart constructors
+-- Left fold constructors
 ------------------------------------------------------------------------------
+
+-- | Make a fold from a left fold style pure step function and initial value of
+-- the accumulator.
+--
+-- /Pre-release/
+--
+{-# INLINE mkFoldl #-}
+mkFoldl :: Monad m => (b -> a -> b) -> b -> Fold m a b
+mkFoldl step initial =
+    Fold
+        (\s a -> return $ Partial $ step s a)
+        (return (Partial initial))
+        return
+
+-- | Make a fold from a left fold style monadic step function and initial value
+-- of the accumulator.
+--
+-- /Pre-release/
+--
+{-# INLINE mkFoldlM #-}
+mkFoldlM :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
+mkFoldlM step initial =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
 
 -- | Make an accumulating (non-terminating) fold using a pure step function, a
 -- pure initial state and a pure state extraction function.
@@ -327,7 +359,9 @@ data Fold m a b =
 -- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
 -- can use @mkAccum*@ constructors.
 --
--- /Pre-release/
+-- > mkAccum step initial extract = fmap extract (mkFoldl step initial)
+--
+-- /Internal/
 --
 {-# INLINE mkAccum #-}
 mkAccum :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
@@ -344,16 +378,18 @@ mkAccum step initial extract =
 -- mkAccum_ step initial = mkAccum step initial id
 -- @
 --
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE mkAccum_ #-}
 mkAccum_ :: Monad m => (b -> a -> b) -> b -> Fold m a b
-mkAccum_ step initial = mkAccum step initial id
+mkAccum_ = mkFoldl
 
 -- | Make an accumulating (non-terminating) fold with an effectful step
 -- function, an initial state, and a state extraction function.
 --
--- /Pre-release/
+-- > mkAccumM step initial extract = rmapM extract (mkFoldlM step initial)
+--
+-- /Internal/
 --
 {-# INLINE mkAccumM #-}
 mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
@@ -367,11 +403,45 @@ mkAccumM step initial =
 -- mkAccumM_ step initial = mkAccumM step initial return
 -- @
 --
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE mkAccumM_ #-}
 mkAccumM_ :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
-mkAccumM_ step initial = mkAccumM step initial return
+mkAccumM_ = mkFoldlM
+
+------------------------------------------------------------------------------
+-- Right fold constructors
+------------------------------------------------------------------------------
+
+-- | Make a fold using a right fold style step function and a terminal value.
+-- It performs a right fold via a left fold using function composition.
+-- This can be useful for constructing structures. For reductions this may be
+-- very inefficient compared to using a direct fold implementation using
+-- 'mkFold'.
+--
+-- For example,
+--
+-- > toList = mkFoldr (:) []
+--
+-- /Pre-release/
+{-# INLINE mkFoldr #-}
+mkFoldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
+mkFoldr g z = mkAccum (\f x -> f . g x) id ($ z)
+
+-- | Like 'mkFoldr' but with a monadic step function.
+--
+-- For example,
+--
+-- > toList = mkFoldrM (\a xs -> return $ a : xs) (return [])
+--
+-- /Pre-release/
+{-# INLINE mkFoldrM #-}
+mkFoldrM :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
+mkFoldrM g z = mkAccumM (\f x -> return $ g x >=> f) (return return) (z >>=)
+
+------------------------------------------------------------------------------
+-- General fold constructors
+------------------------------------------------------------------------------
 
 -- | Make a terminating fold using a pure step function, a pure initial state
 -- and a pure state extraction function.
@@ -464,11 +534,9 @@ drain = mkAccum_ (\_ _ -> ()) ()
 -- instead.
 --
 -- @since 0.7.0
-
--- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = mkAccum (\f x -> f . (x :)) id ($ [])
+toList = mkFoldr (:) []
 
 ------------------------------------------------------------------------------
 -- Instances
