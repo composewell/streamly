@@ -198,6 +198,7 @@ module Streamly.Internal.Data.Fold.Types
     , yieldM
 
     -- * Transformations
+    , rmapM
     , map
     , lmap
     , lmapM
@@ -300,6 +301,13 @@ instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
 
+{-# INLINE mapMStep #-}
+mapMStep :: Applicative m => (a -> m b) -> Step s a -> m (Step s b)
+mapMStep f res =
+    case res of
+        Partial s -> pure $ Partial s
+        Done b -> Done <$> f b
+
 -- The Step functor around b allows expressing early termination like a right
 -- fold. Traditional list right folds use function composition and laziness to
 -- terminate early whereas we use data constructors. It allows stream fusion in
@@ -325,6 +333,18 @@ instance Functor (Step s) where
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
+
+-- | Map a monadic function on the output of a fold.
+--
+-- @since 0.8.0
+{-# INLINE rmapM #-}
+rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
+rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
+
+    where
+
+    initial1 = initial >>= mapMStep f
+    step1 s a = step s a >>= mapMStep f
 
 ------------------------------------------------------------------------------
 -- Left fold constructors

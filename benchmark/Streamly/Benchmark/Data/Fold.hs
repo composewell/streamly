@@ -260,7 +260,7 @@ o_1_space_serial_transformation value =
         , benchIOSink
               value
               "rsequence"
-              (S.fold (FL.rsequence (return <$> FL.drain)))
+              (S.fold (FL.rmapM id (return <$> FL.drain)))
         , benchIOSink value "rmapM" (S.fold (FL.rmapM return FL.drain))
         , benchIOSink
               value

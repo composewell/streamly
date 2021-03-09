@@ -64,9 +64,9 @@
     * `encodeLatin1Lax` to `encodeLatin1`
     * `decodeUtf8Lenient` to `decodeUtf8`
 * Drop support for GHC 7.10.3.
-* The following functions in `Streamly.Data.Fold` have been renamed:
-    * `mapM` to `rmapM`
-    * `sequence` to `rsequence`
+* The following functions in `Streamly.Data.Fold` have been deprecated:
+    * `mapM` is replaced by `rmapM`
+    * `sequence` is dprecated, please use `rmapM id` instead.
 
 ### Internal APIs
 
