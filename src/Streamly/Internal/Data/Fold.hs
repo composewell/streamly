@@ -307,14 +307,7 @@ rsequence (Fold step initial extract) = Fold step' initial1 extract'
 {-# DEPRECATED sequence "Use rsequence instead" #-}
 {-# INLINE sequence #-}
 sequence :: Monad m => Fold m a (m b) -> Fold m a b
-sequence = rsequence
-
--- | Map a monadic function on the output of a fold.
---
--- @since 0.8.0
-{-# INLINE rmapM #-}
-rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
-rmapM f = sequence . fmap f
+sequence = rmapM id
 
 -- | Map a monadic function on the output of a fold.
 --
