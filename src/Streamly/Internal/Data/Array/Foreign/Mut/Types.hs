@@ -885,7 +885,8 @@ writeChunks = undefined -- Fold.many Fold.toStream (Array.writeN n)
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
-toArrayMinChunk alignSize elemCount = FL.mkAccumM step initial extract
+toArrayMinChunk alignSize elemCount =
+    FL.rmapM extract $ FL.mkFoldlM step initial
 
     where
 

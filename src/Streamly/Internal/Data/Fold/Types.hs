@@ -176,10 +176,6 @@ module Streamly.Internal.Data.Fold.Types
     , mkFoldlM
     , mkFoldr
     , mkFoldrM
-    , mkAccum
-    , mkAccum_
-    , mkAccumM
-    , mkAccumM_
     , mkFold
     , mkFold_
     , mkFoldM
@@ -353,6 +349,16 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 -- | Make a fold from a left fold style pure step function and initial value of
 -- the accumulator.
 --
+-- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
+-- can use @mkFoldl*@ constructors.
+--
+-- A fold with an extract function can be expressed using fmap:
+--
+-- @
+-- mkfoldlx :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
+-- mkfoldlx step initial extract = fmap extract (mkFoldl step initial)
+-- @
+--
 -- /Pre-release/
 --
 {-# INLINE mkFoldl #-}
@@ -366,68 +372,19 @@ mkFoldl step initial =
 -- | Make a fold from a left fold style monadic step function and initial value
 -- of the accumulator.
 --
+-- A fold with an extract function can be expressed using rmapM:
+--
+-- @
+-- mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
+-- mkAccumM step initial extract = rmapM extract (mkFoldlM step initial)
+-- @
+--
 -- /Pre-release/
 --
 {-# INLINE mkFoldlM #-}
 mkFoldlM :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 mkFoldlM step initial =
     Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
-
--- | Make an accumulating (non-terminating) fold using a pure step function, a
--- pure initial state and a pure state extraction function.
---
--- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
--- can use @mkAccum*@ constructors.
---
--- > mkAccum step initial extract = fmap extract (mkFoldl step initial)
---
--- /Internal/
---
-{-# INLINE mkAccum #-}
-mkAccum :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
-mkAccum step initial extract =
-    Fold
-        (\s a -> return $ Partial $ step s a)
-        (return (Partial initial))
-        (return . extract)
-
--- | Similar to 'mkAccum' but the final state extracted is identical to the
--- intermediate state.
---
--- @
--- mkAccum_ step initial = mkAccum step initial id
--- @
---
--- /Internal/
---
-{-# INLINE mkAccum_ #-}
-mkAccum_ :: Monad m => (b -> a -> b) -> b -> Fold m a b
-mkAccum_ = mkFoldl
-
--- | Make an accumulating (non-terminating) fold with an effectful step
--- function, an initial state, and a state extraction function.
---
--- > mkAccumM step initial extract = rmapM extract (mkFoldlM step initial)
---
--- /Internal/
---
-{-# INLINE mkAccumM #-}
-mkAccumM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
-mkAccumM step initial =
-    Fold (\s a -> Partial <$> step s a) (Partial <$> initial)
-
--- | Similar to 'mkAccumM' but the final state extracted is identical to the
--- intermediate state.
---
--- @
--- mkAccumM_ step initial = mkAccumM step initial return
--- @
---
--- /Internal/
---
-{-# INLINE mkAccumM_ #-}
-mkAccumM_ :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
-mkAccumM_ = mkFoldlM
 
 ------------------------------------------------------------------------------
 -- Right fold constructors
@@ -446,7 +403,7 @@ mkAccumM_ = mkFoldlM
 -- /Pre-release/
 {-# INLINE mkFoldr #-}
 mkFoldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
-mkFoldr g z = mkAccum (\f x -> f . g x) id ($ z)
+mkFoldr g z = fmap ($ z) $ mkFoldl (\f x -> f . g x) id
 
 -- | Like 'mkFoldr' but with a monadic step function.
 --
@@ -457,7 +414,8 @@ mkFoldr g z = mkAccum (\f x -> f . g x) id ($ z)
 -- /Pre-release/
 {-# INLINE mkFoldrM #-}
 mkFoldrM :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
-mkFoldrM g z = mkAccumM (\f x -> return $ g x >=> f) (return return) (z >>=)
+mkFoldrM g z =
+    rmapM (z >>=) $ mkFoldlM (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
 -- General fold constructors
@@ -545,7 +503,7 @@ simplify (Fold2 step inject extract) c =
 -- @since 0.7.0
 {-# INLINABLE drain #-}
 drain :: Monad m => Fold m a ()
-drain = mkAccum_ (\_ _ -> ()) ()
+drain = mkFoldl (\_ _ -> ()) ()
 
 -- | Folds the input stream to a list.
 --

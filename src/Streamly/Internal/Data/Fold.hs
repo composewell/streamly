@@ -18,10 +18,10 @@ module Streamly.Internal.Data.Fold
     , Fold (..)
 
     -- * Creating
-    , mkAccum
-    , mkAccum_
-    , mkAccumM
-    , mkAccumM_
+    , mkFoldl
+    , mkFoldlM
+    , mkFoldr
+    , mkFoldrM
     , mkFold
     , mkFold_
     , mkFoldM
@@ -100,7 +100,6 @@ module Streamly.Internal.Data.Fold
     , runStep
 
     -- * Output Transformations
-    , rsequence
     , sequence
     , rmapM
     , mapM
@@ -218,7 +217,7 @@ module Streamly.Internal.Data.Fold
     )
 where
 
-import Control.Monad (void, join)
+import Control.Monad (void)
 import Data.Bifunctor (first)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -283,28 +282,8 @@ generally = hoist (return . runIdentity)
 
 -- | Flatten the monadic output of a fold to pure output.
 --
--- @since 0.8.0
-{-# INLINE rsequence #-}
-rsequence :: Monad m => Fold m a (m b) -> Fold m a b
-rsequence (Fold step initial extract) = Fold step' initial1 extract'
-
-    where
-
-    eval res =
-        case res of
-            Partial x -> return $ Partial x
-            Done b -> Done <$> b
-
-    initial1 = initial >>= eval
-
-    step' s a = step s a >>= eval
-
-    extract' = join . extract
-
--- | Flatten the monadic output of a fold to pure output.
---
 -- @since 0.7.0
-{-# DEPRECATED sequence "Use rsequence instead" #-}
+{-# DEPRECATED sequence "Use \"rmapM id\" instead" #-}
 {-# INLINE sequence #-}
 sequence :: Monad m => Fold m a (m b) -> Fold m a b
 sequence = rmapM id
@@ -386,7 +365,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 -- from the 'Foldable', the result is 'None' for empty containers.
 {-# INLINABLE _Fold1 #-}
 _Fold1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-_Fold1 step = mkAccum step_ Nothing' toMaybe
+_Fold1 step = fmap toMaybe $ mkFoldl step_ Nothing'
 
     where
 
@@ -440,7 +419,7 @@ last = _Fold1 (\_ x -> x)
 -- @since 0.7.0
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
-genericLength = mkAccum_ (\n _ -> n + 1) 0
+genericLength = mkFoldl (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
@@ -460,7 +439,7 @@ length = genericLength
 -- @since 0.7.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum =  mkAccum_ (+) 0
+sum =  mkFoldl (+) 0
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
@@ -552,7 +531,7 @@ minimum = _Fold1 min
 -- @since 0.7.0
 {-# INLINABLE mean #-}
 mean :: (Monad m, Fractional a) => Fold m a a
-mean = mkAccum step begin done
+mean = fmap done $ mkFoldl step begin
 
     where
 
@@ -570,7 +549,7 @@ mean = mkAccum step begin done
 -- @since 0.7.0
 {-# INLINABLE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
-variance = mkAccum step begin done
+variance = fmap done $ mkFoldl step begin
 
     where
 
@@ -609,7 +588,7 @@ stdDev = sqrt <$> variance
 -- /Pre-release/
 {-# INLINABLE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
-rollingHashWithSalt = mkAccum_ step
+rollingHashWithSalt = mkFoldl step
 
     where
 
@@ -653,7 +632,7 @@ rollingHashFirstN n = take n rollingHash
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
-sconcat = mkAccum_ (<>)
+sconcat = mkFoldl (<>)
 
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
@@ -698,7 +677,7 @@ foldMap f = map f mconcat
 -- @since 0.7.0
 {-# INLINABLE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
-foldMapM act = mkAccumM_ step (pure mempty)
+foldMapM act = mkFoldlM step (pure mempty)
 
     where
 
@@ -724,7 +703,7 @@ foldMapM act = mkAccumM_ step (pure mempty)
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toListRev #-}
 toListRev :: Monad m => Fold m a [a]
-toListRev = mkAccum_ (flip (:)) []
+toListRev = mkFoldl (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1525,7 +1504,8 @@ demuxDefault = demuxDefaultWith id
 --
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
-classifyWith f (Fold step1 initial1 extract1) = mkAccumM step initial extract
+classifyWith f (Fold step1 initial1 extract1) =
+    rmapM extract $ mkFoldlM step initial
 
     where
 
@@ -1812,4 +1792,4 @@ toStream = mkFoldr K.cons K.nil
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = mkAccum_ (flip K.cons) K.nil
+toStreamRev = mkFoldl (flip K.cons) K.nil
