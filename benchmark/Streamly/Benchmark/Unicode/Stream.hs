@@ -39,6 +39,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+import qualified Streamly.Internal.Data.Fold.Types as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
@@ -50,6 +51,7 @@ moduleName :: String
 moduleName = "Unicode.Stream"
 
 -- | Copy file
+{-# NOINLINE copyCodecUtf8ArraysLenient #-}
 copyCodecUtf8ArraysLenient :: Handle -> Handle -> IO ()
 copyCodecUtf8ArraysLenient inh outh =
    S.fold (FH.write outh)
@@ -75,6 +77,7 @@ o_1_space_decode_encode_chunked env =
 -- copy with group/ungroup transformations
 -------------------------------------------------------------------------------
 
+{-# NOINLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     S.fold (FH.write outh)
@@ -84,6 +87,7 @@ linesUnlinesCopy inh outh =
       $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
+{-# NOINLINE linesUnlinesArrayWord8Copy #-}
 linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayWord8Copy inh outh =
     S.fold (FH.write outh)
@@ -93,6 +97,7 @@ linesUnlinesArrayWord8Copy inh outh =
 
 -- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
 -- | Lines and unlines
+{-# NOINLINE linesUnlinesArrayCharCopy #-}
 linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
 linesUnlinesArrayCharCopy inh outh =
     S.fold (FH.write outh)
@@ -122,6 +127,7 @@ linesUnlinesArrayUtf8Copy inh outh =
 -}
 
 -- | Word, unwords and copy
+{-# NOINLINE wordsUnwordsCopyWord8 #-}
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     S.fold (FH.write outh)
@@ -135,6 +141,7 @@ inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
 #endif
 
 -- | Word, unwords and copy
+{-# NOINLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.fold (FH.write outh)
@@ -157,6 +164,7 @@ wordsUnwordsCopy inh outh =
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
 #endif
 
+{-# NOINLINE wordsUnwordsCharArrayCopy #-}
 wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCharArrayCopy inh outh =
     S.fold (FH.write outh)
@@ -190,6 +198,7 @@ o_1_space_copy_read_group_ungroup env =
 -------------------------------------------------------------------------------
 
 -- | Copy file (encodeLatin1')
+{-# NOINLINE copyStreamLatin1' #-}
 copyStreamLatin1' :: Handle -> Handle -> IO ()
 copyStreamLatin1' inh outh =
    S.fold (FH.write outh)
@@ -202,11 +211,14 @@ inspect $ hasNoTypeClasses 'copyStreamLatin1'
 inspect $ 'copyStreamLatin1' `hasNoType` ''Step
 inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'copyStreamLatin1' `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+
+inspect $ 'copyStreamLatin1' `hasNoType` ''Fold.Step
 inspect $ 'copyStreamLatin1' `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1' `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
 
 -- | Copy file (encodeLatin1)
+{-# NOINLINE copyStreamLatin1 #-}
 copyStreamLatin1 :: Handle -> Handle -> IO ()
 copyStreamLatin1 inh outh =
    S.fold (FH.write outh)
@@ -219,6 +231,8 @@ inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
 inspect $ 'copyStreamLatin1 `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+
+inspect $ 'copyStreamLatin1 `hasNoType` ''Fold.Step
 inspect $ 'copyStreamLatin1 `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStreamLatin1 `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
@@ -239,6 +253,7 @@ inspect $ hasNoTypeClasses '_copyStreamUtf8'
 #endif
 
 -- | Copy file
+{-# NOINLINE copyStreamUtf8 #-}
 copyStreamUtf8 :: Handle -> Handle -> IO ()
 copyStreamUtf8 inh outh =
    S.fold (FH.write outh)
