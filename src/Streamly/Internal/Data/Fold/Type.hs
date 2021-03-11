@@ -1018,7 +1018,7 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- |Like many, but inner fold emits an output at the end even if no input is
+-- | Like many, but inner fold emits an output at the end even if no input is
 -- received.
 --
 -- /Internal/
