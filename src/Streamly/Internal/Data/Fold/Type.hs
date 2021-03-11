@@ -218,6 +218,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Nested Application
     , concatMap
     , many
+    , manyPost
     , intervalsOf
     , chunksOf
     , chunksOf2
@@ -961,6 +962,61 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 {-# INLINE many #-}
 many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
+    Fold step initial extract
+
+    where
+
+    -- cs = collect state
+    -- ss = split state
+    -- cres = collect state result
+    -- sres = split state result
+    -- cb = collect done
+    -- sb = split done
+
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
+
+    {-# INLINE handleSplitStep #-}
+    handleSplitStep cs sres =
+        case sres of
+            Partial ss1 -> return $ Partial $ Tuple' ss1 cs
+            Done sb -> runCollector cs sb
+
+    {-# INLINE handleCollectStep #-}
+    handleCollectStep cres =
+        case cres of
+            Partial cs -> do
+                sres <- sinitial
+                handleSplitStep cs sres
+            Done cb -> return $ Done cb
+
+    -- Do not inline this
+    runCollector cs sb = cstep cs sb >>= handleCollectStep
+
+    initial = cinitial >>= handleCollectStep
+
+    {-# INLINE step #-}
+    step (Tuple' ss cs) a = do
+        sres <- sstep ss a
+        handleSplitStep cs sres
+
+    extract (Tuple' ss cs) = do
+        sb <- sextract ss
+        cres <- cstep cs sb
+        case cres of
+            Partial s -> cextract s
+            Done b -> return b
+
+-- |Like many, but inner fold emits an output at the end even if no input is
+-- received.
+--
+-- /Internal/
+--
+-- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
+--
+{-# INLINE manyPost #-}
+manyPost :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     Fold step initial extract
 
     where
