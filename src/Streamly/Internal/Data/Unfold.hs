@@ -178,7 +178,7 @@ import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
@@ -188,13 +188,13 @@ import System.Mem (performMajorGC)
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.SVar
-import Streamly.Internal.Data.Unfold.Types
+import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)

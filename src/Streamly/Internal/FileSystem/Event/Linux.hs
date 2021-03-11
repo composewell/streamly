@@ -172,6 +172,7 @@ import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
 import System.FilePath ((</>))
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import System.IO (Handle, hClose, IOMode(ReadMode))
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
@@ -867,7 +868,7 @@ watch rec cfg paths =
     case rec of
         True -> watchTreesWith (\_ -> cfg) paths
         False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
-        
+
 watchPathsWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
 watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
@@ -961,15 +962,12 @@ getRoot Event{..} =
 getRelPath :: Event -> Array Word8
 getRelPath Event{..} = eventRelPath
 
-<<<<<<< HEAD
-=======
 
 -- | Get the absolute file system object path for which the event is generated.
 -- The path is a "/" separated array of bytes.
 --
 -- /Pre-release/
 --
->>>>>>> 305f89b5 (Replace /Internal/ annotation to /Pre-release/)
 getAbsPath :: Event -> Array Word8
 getAbsPath ev = getRoot ev <> getRelPath ev
 

@@ -216,8 +216,8 @@ import Data.Either (isLeft, isRight)
 import Data.Kind (Type)
 import Data.Maybe (isJust, fromJust)
 import Streamly.Internal.BaseCompat (fromLeft, fromRight)
-import Streamly.Internal.Data.Fold.Types (Fold (..))
-import Streamly.Internal.Data.Pipe.Types (Pipe (..))
+import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators
       ( inspectMode, maxBuffer, maxThreads, rate, avgRate, minRate
       , maxRate, constRate)

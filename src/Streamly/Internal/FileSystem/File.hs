@@ -94,9 +94,9 @@ import Prelude hiding (read)
 import qualified Control.Monad.Catch as MC
 import qualified System.IO as SIO
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Array.Foreign.Types
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
@@ -104,7 +104,7 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
@@ -243,9 +243,9 @@ readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
 --
 -- /Pre-release/
 {-# INLINE readChunks #-}
@@ -262,7 +262,7 @@ readWithBufferOf = usingFile2 FH.readWithBufferOf
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
@@ -382,7 +382,7 @@ writeWithBufferOf n path =
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize' before writing to
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing to
 -- the IO device.
 --
 -- /Pre-release/

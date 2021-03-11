@@ -16,7 +16,7 @@ import Data.Semigroup (Semigroup(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
@@ -552,7 +552,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -602,7 +602,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         res <- initial1
         return $ first (Tuple3' Nothing' 0) res

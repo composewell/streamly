@@ -40,8 +40,8 @@ import Streamly.Benchmark.Common.Handle
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Foreign.Types as AT
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
 import Test.Inspection
 #endif

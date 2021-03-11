@@ -29,18 +29,18 @@ type Array = A.SmallArray
 import Data.Word(Word8)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
-import qualified Streamly.Internal.Data.Array.Prim.Pinned.Types as A
+import qualified Streamly.Internal.Data.Array.Prim.Pinned.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM)
 import qualified Streamly.Internal.Data.Array.Prim as A
-import qualified Streamly.Internal.Data.Array.Prim.Types as A
+import qualified Streamly.Internal.Data.Array.Prim.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #else

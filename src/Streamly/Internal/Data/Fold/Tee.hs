@@ -18,9 +18,9 @@ import Data.Coerce (coerce)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Data.Fold.Types (Fold)
+import Streamly.Internal.Data.Fold.Type (Fold)
 
-import qualified Streamly.Internal.Data.Fold.Types as Fold
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 
 -- | The type @Tee m a b@ represents a left fold over an input stream of values
 -- of type @a@ to a single value of type @b@ in 'Monad' @m@.

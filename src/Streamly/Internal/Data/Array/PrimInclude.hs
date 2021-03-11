@@ -7,8 +7,8 @@
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Primitive.Types (Prim(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 

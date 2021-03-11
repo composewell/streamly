@@ -35,7 +35,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 
 -- | A value of type '()' is encoded as @0@ in binary encoding.
 --

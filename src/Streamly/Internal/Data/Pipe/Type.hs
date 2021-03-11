@@ -1,14 +1,14 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Pipe.Types
+-- Module      : Streamly.Internal.Data.Pipe.Type
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Pipe.Types
+module Streamly.Internal.Data.Pipe.Type
     ( Step (..)
     , Pipe (..)
     , PipeState (..)

@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Parser.ParserD.Types
+-- Module      : Streamly.Internal.Data.Parser.ParserD.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -11,7 +11,7 @@
 -- Streaming and backtracking parsers.
 --
 -- Parsers just extend folds.  Please read the 'Fold' design notes in
--- "Streamly.Internal.Data.Fold.Types" for background on the design.
+-- "Streamly.Internal.Data.Fold.Type" for background on the design.
 --
 -- = Parser Design
 --
@@ -109,7 +109,7 @@
 -- merge the resulting streams using different merge strategies (e.g.
 -- interleaving or serial).
 
-module Streamly.Internal.Data.Parser.ParserD.Types
+module Streamly.Internal.Data.Parser.ParserD.Type
     (
       Initial (..)
     , Step (..)
@@ -138,10 +138,10 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..), toList)
+import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 
 import Prelude hiding (concatMap)
 --
@@ -864,7 +864,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
 -- for small number of compositions but for a scalable implementation we need a
 -- CPS version.
 
--- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Types.Parser'.
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
 instance MonadThrow m => Monad (Parser m a) where
     {-# INLINE return #-}
@@ -873,7 +873,7 @@ instance MonadThrow m => Monad (Parser m a) where
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMap
 
--- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Types.Parser'.
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
 instance MonadCatch m => MonadPlus (Parser m a) where
     {-# INLINE mzero #-}

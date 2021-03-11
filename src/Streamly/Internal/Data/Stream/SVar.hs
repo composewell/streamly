@@ -49,11 +49,11 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 

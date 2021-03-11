@@ -96,12 +96,12 @@ import GHC.Base (build)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
-import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..), Fold2(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar (State, adaptState, defState)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 ------------------------------------------------------------------------------

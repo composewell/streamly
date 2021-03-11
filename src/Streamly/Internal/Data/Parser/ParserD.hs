@@ -163,15 +163,15 @@ where
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span)
 import Streamly.Internal.Data.Parser.ParserD.Tee
-import Streamly.Internal.Data.Parser.ParserD.Types
+import Streamly.Internal.Data.Parser.ParserD.Type
 
 --
 -- $setup
