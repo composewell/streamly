@@ -380,7 +380,7 @@ wordBy =
     parser = P.many (P.wordBy predicate FL.toList) FL.toList
     words' lst =
         let wrds = words lst
-         in if wrds == [] then [""] else wrds
+         in if wrds == [] && length lst > 0 then [""] else wrds
 
 
 serialWith :: Property

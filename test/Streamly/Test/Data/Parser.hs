@@ -403,7 +403,7 @@ wordBy =
     parser = P.many (P.wordBy predicate FL.toList) FL.toList
     words' lst =
         let wrds = words lst
-         in if wrds == [] then [""] else wrds
+         in if wrds == [] && length lst > 0 then [""] else wrds
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -666,6 +666,20 @@ parseMany2Events =
                 }
          in listEquals (==) xs (replicate 2 ev)
 
+manyEqParseMany :: Property
+manyEqParseMany =
+    forAll (listOf (chooseInt (0, 100))) $ \lst ->
+    forAll (chooseInt (1, 100)) $ \i ->
+        monadicIO $ do
+            let strm = S.fromList lst
+            r1 <- run $ S.parse (P.many (split i) FL.toList) strm
+            r2 <- run $ S.toList $ S.parseMany (split i) strm
+            assert $ r1 == r2
+
+    where
+
+    split i = P.fromFold (FL.take i FL.toList)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -741,4 +755,5 @@ main =
         prop ("P.some concatFold $ P.takeEndBy_ (== 1) FL.toList ="
                 ++ "Prelude.filter (== 0)") some
         -- prop "fail due to parser being die" someFail
+        prop "P.many == S.parseMany" manyEqParseMany
     takeProperties
