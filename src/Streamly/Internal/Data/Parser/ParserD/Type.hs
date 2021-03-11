@@ -646,6 +646,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 xs <- fextract fs
                 return $ Done cnt1 xs
 
+    extract (Tuple3' _ 0 fs) = fextract fs
     -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ fs) = do
         r <- try $ extract1 s
