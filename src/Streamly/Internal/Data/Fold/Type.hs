@@ -217,6 +217,7 @@ module Streamly.Internal.Data.Fold.Type
 
     -- * Nested Application
     , concatMap
+    , ManyState
     , many
     , manyPost
     , intervalsOf
@@ -949,6 +950,11 @@ runStep (Fold step initial extract) a = return $ Fold step initial1 extract
 -- applied to a fold input stream. groupBy et al can be written as terminating
 -- folds and then we can apply "many" to use those repeatedly on a stream.
 
+{-# ANN type ManyState Fuse #-}
+data ManyState s1 s2
+    = ManyFirst !s1 !s2
+    | ManyLoop !s1 !s2
+
 -- | Collect zero or more applications of a fold.  @many split collect@ applies
 -- the @split@ fold repeatedly on the input stream and accumulates zero or more
 -- fold results using @collect@.
@@ -977,30 +983,35 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     -- important.
 
     {-# INLINE handleSplitStep #-}
-    handleSplitStep cs sres =
+    handleSplitStep branch cs sres =
         case sres of
-            Partial ss1 -> return $ Partial $ Tuple' ss1 cs
-            Done sb -> runCollector cs sb
+            Partial ss1 -> return $ Partial $ branch ss1 cs
+            Done sb -> runCollector ManyFirst cs sb
 
     {-# INLINE handleCollectStep #-}
-    handleCollectStep cres =
+    handleCollectStep branch cres =
         case cres of
             Partial cs -> do
                 sres <- sinitial
-                handleSplitStep cs sres
+                handleSplitStep branch cs sres
             Done cb -> return $ Done cb
 
     -- Do not inline this
-    runCollector cs sb = cstep cs sb >>= handleCollectStep
+    runCollector branch cs sb = cstep cs sb >>= handleCollectStep branch
 
-    initial = cinitial >>= handleCollectStep
+    initial = cinitial >>= handleCollectStep ManyFirst
+
+    {-# INLINE step_ #-}
+    step_ ss cs a = do
+        sres <- sstep ss a
+        handleSplitStep ManyLoop cs sres
 
     {-# INLINE step #-}
-    step (Tuple' ss cs) a = do
-        sres <- sstep ss a
-        handleSplitStep cs sres
+    step (ManyFirst ss cs) a = step_ ss cs a
+    step (ManyLoop ss cs) a = step_ ss cs a
 
-    extract (Tuple' ss cs) = do
+    extract (ManyFirst _ cs) = cextract cs
+    extract (ManyLoop ss cs) = do
         sb <- sextract ss
         cres <- cstep cs sb
         case cres of
