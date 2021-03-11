@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
+-- Module      : Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
+module Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
     (
       Array (..)
 

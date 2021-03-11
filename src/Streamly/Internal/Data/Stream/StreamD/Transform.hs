@@ -133,16 +133,16 @@ import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Prelude hiding

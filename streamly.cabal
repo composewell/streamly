@@ -439,31 +439,31 @@ library
                      -- streamly-core-stream
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Stream.StreamK.Type
-                     , Streamly.Internal.Data.Fold.Types
+                     , Streamly.Internal.Data.Fold.Type
                      , Streamly.Internal.Data.Stream.StreamD.Step
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamDK.Type
-                     , Streamly.Internal.Data.Unfold.Types
+                     , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
                      , Streamly.Internal.Data.Producer.Source
-                     , Streamly.Internal.Data.Sink.Types
-                     , Streamly.Internal.Data.Parser.ParserK.Types
-                     , Streamly.Internal.Data.Parser.ParserD.Types
-                     , Streamly.Internal.Data.Pipe.Types
+                     , Streamly.Internal.Data.Sink.Type
+                     , Streamly.Internal.Data.Parser.ParserK.Type
+                     , Streamly.Internal.Data.Parser.ParserD.Type
+                     , Streamly.Internal.Data.Pipe.Type
 
                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Prim
 
                      -- streamly-core-array
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Foreign.Mut.Types
-                     , Streamly.Internal.Data.Array.Foreign.Types
-                     , Streamly.Internal.Data.Array.Prim.Mut.Types
-                     , Streamly.Internal.Data.Array.Prim.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Types
-                     , Streamly.Internal.Data.SmallArray.Types
+                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Prim.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Type
+                     , Streamly.Internal.Data.SmallArray.Type
 
                      -- streamly-base-streams
                      , Streamly.Internal.Data.Stream.StreamK

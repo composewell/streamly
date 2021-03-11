@@ -200,7 +200,7 @@ import qualified Prelude
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK.Type
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 
 -- $setup
 -- >>> :m

@@ -156,14 +156,14 @@ import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified System.IO as IO
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S

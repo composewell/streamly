@@ -28,7 +28,7 @@
 -- The underlying type, 'SmallArray#', was introduced in GHC 7.10, so prior to
 -- that version, this module simply implements small arrays as 'Array'.
 
-module Streamly.Internal.Data.SmallArray.Types
+module Streamly.Internal.Data.SmallArray.Type
   ( SmallArray(..)
   , SmallMutableArray(..)
   , newSmallArray

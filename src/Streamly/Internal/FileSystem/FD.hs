@@ -130,8 +130,8 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Data.Array.Foreign.Types (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
-import Streamly.Internal.Data.Array.Foreign.Mut.Types (mutableArray)
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)

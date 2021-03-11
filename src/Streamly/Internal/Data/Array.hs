@@ -55,13 +55,13 @@ import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
 import qualified GHC.Exts as Exts
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 {-# NOINLINE bottomElement #-}

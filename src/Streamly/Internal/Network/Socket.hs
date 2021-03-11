@@ -88,22 +88,22 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly.Prelude (MonadAsync)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
-import Streamly.Internal.Data.Array.Foreign.Types (Array(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Types (mutableArray)
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -381,9 +381,9 @@ readChunksWithBufferOf = Unfold step return
 
 -- | Unfolds a socket into a stream of 'Word8' arrays. Requests to the socket
 -- are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -430,7 +430,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Foreign.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}

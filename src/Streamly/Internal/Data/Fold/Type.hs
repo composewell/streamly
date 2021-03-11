@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Fold.Types
+-- Module      : Streamly.Internal.Data.Fold.Type
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -165,7 +165,7 @@
 -- then be used only for the case when the stream stops before the fold
 -- completes.
 
-module Streamly.Internal.Data.Fold.Types
+module Streamly.Internal.Data.Fold.Type
     (
     -- * Types
       Step (..)

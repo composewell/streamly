@@ -158,15 +158,15 @@ import GHC.Ptr (Ptr(..))
 import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
-import Streamly.Internal.Data.Array.Foreign.Types (Array(..), length)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial

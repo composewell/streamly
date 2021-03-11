@@ -43,7 +43,7 @@ import Prelude
        hiding (any, all, takeWhile)
 
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Parser.ParserD.Types
+import Streamly.Internal.Data.Parser.ParserD.Type
        (Initial(..), Parser(..), Step(..), ParseError)
 
 -------------------------------------------------------------------------------

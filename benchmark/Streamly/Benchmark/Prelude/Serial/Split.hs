@@ -41,7 +41,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Unfold as IUF
 
 import Test.Inspection

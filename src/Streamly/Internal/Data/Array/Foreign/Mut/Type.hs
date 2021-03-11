@@ -1,7 +1,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign.Mut.Types
+-- Module      : Streamly.Internal.Data.Array.Foreign.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -22,7 +22,7 @@
 -- Stream and Fold APIs allow easy, efficient and convenient operations on
 -- arrays.
 
-module Streamly.Internal.Data.Array.Foreign.Mut.Types
+module Streamly.Internal.Data.Array.Foreign.Mut.Type
     (
     -- * Type
     -- $arrayNotes
@@ -135,17 +135,17 @@ import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar (adaptState)
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
 import qualified GHC.Exts as Exts
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -463,7 +463,7 @@ arraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Types.fromStreamDArraysOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.fromStreamDArraysOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         Array start end bound <- liftIO $ newArray n
         return $ D.Skip (GroupBuffer st start end bound)

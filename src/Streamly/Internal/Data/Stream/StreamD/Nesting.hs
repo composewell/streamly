@@ -157,13 +157,13 @@ import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
-import Streamly.Internal.Data.Array.Foreign.Types (Array(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign.Types as A
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Ring.Foreign as RB

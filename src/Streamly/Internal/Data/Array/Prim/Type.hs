@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Prim.Types
+-- Module      : Streamly.Internal.Data.Array.Prim.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array.Prim.Types
+module Streamly.Internal.Data.Array.Prim.Type
     (
       Array (..)
     , unsafeFreeze
@@ -68,7 +68,7 @@ module Streamly.Internal.Data.Array.Prim.Types
     )
 where
 
-import qualified Streamly.Internal.Data.Array.Prim.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Prim.Mut.Type as MA
 
 #include "Streamly/Internal/Data/Array/Prim/TypesInclude.hs"
 

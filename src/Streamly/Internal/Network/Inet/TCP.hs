@@ -103,13 +103,13 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
-import Streamly.Internal.Data.Array.Foreign.Types (Array(..), defaultChunkSize, writeNUnsafe)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..), defaultChunkSize, writeNUnsafe)
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Prelude (MonadAsync)
 
@@ -119,7 +119,7 @@ import qualified Network.Socket as Net
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 import qualified Streamly.Internal.Network.Socket as ISK

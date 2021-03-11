@@ -24,7 +24,7 @@ import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as PR
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 

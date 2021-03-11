@@ -229,12 +229,12 @@ import Data.Semigroup (Semigroup((<>)))
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Prelude
@@ -246,7 +246,7 @@ import Prelude hiding
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
        , span, splitAt, break, mapM, zip)
-import Streamly.Internal.Data.Fold.Types
+import Streamly.Internal.Data.Fold.Type
 
 -- $setup
 -- >>> :m

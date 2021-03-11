@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign.Types
+-- Module      : Streamly.Internal.Data.Array.Foreign.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD3-3-Clause
@@ -9,9 +9,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See notes in "Streamly.Internal.Data.Array.Foreign.Mut.Types"
+-- See notes in "Streamly.Internal.Data.Array.Foreign.Mut.Type"
 --
-module Streamly.Internal.Data.Array.Foreign.Types
+module Streamly.Internal.Data.Array.Foreign.Type
     (
     -- $arrayNotes
       Array (..)
@@ -97,16 +97,16 @@ import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 #endif
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Unfold.Types as Unfold
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified GHC.Exts as Exts
 
 #if __GLASGOW_HASKELL__ < 808

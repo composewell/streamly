@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Parser.ParserK.Types
+-- Module      : Streamly.Internal.Data.Parser.ParserK.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 -- The direct style representation does not allow for recursive definitions of
 -- "some" and "many" whereas CPS allows that.
 
-module Streamly.Internal.Data.Parser.ParserK.Types
+module Streamly.Internal.Data.Parser.ParserK.Type
     (
       Parser (..)
     , yield
@@ -43,7 +43,7 @@ import Data.Semigroup ((<>))
 #endif
 import Streamly.Internal.Control.Exception
 
-import qualified Streamly.Internal.Data.Parser.ParserD.Types as D
+import qualified Streamly.Internal.Data.Parser.ParserD.Type as D
 
 -- | The parse driver result. The driver may stop with a final result, pause
 -- with a continuation to resume, or fail with an error.

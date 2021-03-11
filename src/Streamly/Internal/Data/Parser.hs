@@ -199,12 +199,12 @@ import Control.Monad.Catch (MonadCatch)
 import Prelude
        hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Parser.ParserK.Types (Parser)
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 
-import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
 --
 -- $setup

@@ -24,7 +24,7 @@ where
 
 import System.IO (Handle)
 import Prelude hiding (last, length)
-import Streamly.Internal.Data.Array.Foreign.Types (defaultChunkSize)
+import Streamly.Internal.Data.Array.Foreign.Type (defaultChunkSize)
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -43,8 +43,8 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
-import qualified Streamly.Internal.Data.Array.Foreign.Types as AT
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
 import Test.Inspection
 #endif

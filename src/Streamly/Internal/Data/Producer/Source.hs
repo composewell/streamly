@@ -42,7 +42,7 @@ import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as ParserK
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 
 import Prelude hiding (read)
 

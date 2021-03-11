@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Prim.Pinned.Types
+-- Module      : Streamly.Internal.Data.Array.Prim.Pinned.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array.Prim.Pinned.Types
+module Streamly.Internal.Data.Array.Prim.Pinned.Type
     (
       Array (..)
     , unsafeFreeze
@@ -77,7 +77,7 @@ import Foreign.C.Types (CSize(..))
 import GHC.IO (IO(..))
 import Foreign.Ptr (minusPtr, nullPtr, plusPtr)
 
-import qualified Streamly.Internal.Data.Array.Prim.Pinned.Mut.Types as MA
+import qualified Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type as MA
 
 #include "Streamly/Internal/Data/Array/Prim/TypesInclude.hs"
 
