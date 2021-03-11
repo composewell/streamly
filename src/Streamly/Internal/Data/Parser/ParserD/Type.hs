@@ -125,6 +125,7 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , dieM
     , splitSome -- parseSome?
     , splitMany -- parseMany?
+    , splitManyPost
     , alt
     , concatMap
 
@@ -603,6 +604,67 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 {-# INLINE splitMany #-}
 splitMany :: MonadCatch m =>  Parser m a b -> Fold m b c -> Parser m a c
 splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
+
+    {-# INLINE handleCollect #-}
+    handleCollect partial done fres =
+        case fres of
+            FL.Partial fs -> do
+                pres <- initial1
+                case pres of
+                    IPartial ps -> return $ partial $ Tuple3' ps 0 fs
+                    IDone pb ->
+                        runCollectorWith (handleCollect partial done) fs pb
+                    IError _ -> done <$> fextract fs
+            FL.Done fb -> return $ done fb
+
+    -- Do not inline this
+    runCollectorWith cont fs pb = fstep fs pb >>= cont
+
+    initial = finitial >>= handleCollect IPartial IDone
+
+    {-# INLINE step #-}
+    step (Tuple3' st cnt fs) a = do
+        r <- step1 st a
+        let cnt1 = cnt + 1
+        case r of
+            Partial n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+            Continue n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+            Done n b -> do
+                assert (cnt1 - n >= 0) (return ())
+                fstep fs b >>= handleCollect (Partial n) (Done n)
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    -- XXX The "try" may impact performance if this parser is used as a scan
+    extract (Tuple3' s _ fs) = do
+        r <- try $ extract1 s
+        case r of
+            Left (_ :: ParseError) -> fextract fs
+            Right b -> do
+                fs1 <- fstep fs b
+                case fs1 of
+                    FL.Partial s1 -> fextract s1
+                    FL.Done b1 -> return b1
+
+-- | Like splitMany, but inner fold emits an output at the end even if no input
+-- is received.
+--
+-- /Internal/
+--
+{-# INLINE splitManyPost #-}
+splitManyPost :: MonadCatch m =>  Parser m a b -> Fold m b c -> Parser m a c
+splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where
