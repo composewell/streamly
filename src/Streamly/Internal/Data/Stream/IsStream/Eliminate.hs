@@ -420,7 +420,6 @@ runN = drainN
 
 -- |
 -- > drainWhile p = drain . takeWhile p
--- > drainWhile p = fold (Fold.sliceSepBy (not . p) Fold.drain)
 --
 -- Run a stream as long as the predicate holds true.
 --
