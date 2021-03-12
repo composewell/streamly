@@ -303,14 +303,14 @@ takeWhileTrue value n = composeN n $ S.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
 
-{-# INLINE takeByTime #-}
-takeByTime :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
-takeByTime i n = composeN n (Internal.takeByTime i)
+{-# INLINE takeInterval #-}
+takeInterval :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
+takeInterval i n = composeN n (Internal.takeInterval i)
 
 #ifdef INSPECTION
--- inspect $ hasNoType 'takeByTime ''SPEC
-inspect $ hasNoTypeClasses 'takeByTime
--- inspect $ 'takeByTime `hasNoType` ''D.Step
+-- inspect $ hasNoType 'takeInterval ''SPEC
+inspect $ hasNoTypeClasses 'takeInterval
+-- inspect $ 'takeInterval `hasNoType` ''D.Step
 #endif
 
 {-# INLINE dropOne #-}
@@ -338,13 +338,13 @@ dropWhileFalse value n = composeN n $ S.dropWhile (> (value + 1))
 _intervalsOfSum :: MonadAsync m => Double -> Int -> SerialT m Int -> m ()
 _intervalsOfSum i n = composeN n (S.intervalsOf i FL.sum)
 
-{-# INLINE dropByTime #-}
-dropByTime :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
-dropByTime i n = composeN n (Internal.dropByTime i)
+{-# INLINE dropInterval #-}
+dropInterval :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
+dropInterval i n = composeN n (Internal.dropInterval i)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropByTime
--- inspect $ 'dropByTime `hasNoType` ''D.Step
+inspect $ hasNoTypeClasses 'dropInterval
+-- inspect $ 'dropInterval `hasNoType` ''D.Step
 #endif
 
 {-# INLINE findIndices #-}
@@ -399,16 +399,16 @@ o_1_space_filtering value =
         , benchIOSink value "take-all" (takeAll value 1)
         , benchIOSink
               value
-              "takeByTime-all"
-              (takeByTime (NanoSecond64 maxBound) 1)
+              "takeInterval-all"
+              (takeInterval (NanoSecond64 maxBound) 1)
         , benchIOSink value "takeWhile-true" (takeWhileTrue value 1)
      -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 1)
         , benchIOSink value "drop-one" (dropOne 1)
         , benchIOSink value "drop-all" (dropAll value 1)
         , benchIOSink
               value
-              "dropByTime-all"
-              (dropByTime (NanoSecond64 maxBound) 1)
+              "dropInterval-all"
+              (dropInterval (NanoSecond64 maxBound) 1)
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
      -- , benchIOSink value "dropWhileM-true" (_dropWhileMTrue value 1)
         , benchIOSink

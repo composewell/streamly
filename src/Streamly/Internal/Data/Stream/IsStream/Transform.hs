@@ -82,20 +82,20 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- | Produce a subset of the stream trimmed at ends.
 
     , take
-    , takeByTime -- takeInterval
-    , takeEnd
-    , takeEndInterval
+    , takeInterval
+    , takeLast
+    , takeLastInterval
     , takeWhile
     , takeWhileM
-    , takeWhileEnd
+    , takeWhileLast
     , takeWhileAround
     , drop
-    , dropByTime -- dropInterval
-    , dropEnd
-    , dropEndInterval
+    , dropInterval
+    , dropLast
+    , dropLastInterval
     , dropWhile
     , dropWhileM
-    , dropWhileEnd
+    , dropWhileLast
     , dropWhileAround
 
     -- * Inserting Elements
@@ -931,27 +931,27 @@ takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 
 -- See the lastN fold for impl hints. Use a Data.Array based ring buffer.
 --
--- takeEnd n = Stream.concatM . fmap Array.toStream . fold Fold.lastN
+-- takeLast n = Stream.concatM . fmap Array.toStream . fold Fold.lastN
 --
 -- | Take @n@ elements at the end of the stream.
 --
 -- O(n) space, where n is the number elements taken.
 --
 -- /Unimplemented/
-{-# INLINE takeEnd #-}
-takeEnd :: -- (IsStream t, Monad m) =>
+{-# INLINE takeLast #-}
+takeLast :: -- (IsStream t, Monad m) =>
     Int -> t m a -> t m a
-takeEnd = undefined -- fromStreamD $ D.takeEnd n $ toStreamD m
+takeLast = undefined -- fromStreamD $ D.takeLast n $ toStreamD m
 
 -- | Take time interval @i@ seconds at the end of the stream.
 --
 -- O(n) space, where n is the number elements taken.
 --
 -- /Unimplemented/
-{-# INLINE takeEndInterval #-}
-takeEndInterval :: -- (IsStream t, Monad m) =>
+{-# INLINE takeLastInterval #-}
+takeLastInterval :: -- (IsStream t, Monad m) =>
     Double -> t m a -> t m a
-takeEndInterval = undefined -- fromStreamD $ D.takeEnd n $ toStreamD m
+takeLastInterval = undefined -- fromStreamD $ D.takeLast n $ toStreamD m
 
 -- | Take all consecutive elements at the end of the stream for which the
 -- predicate is true.
@@ -959,12 +959,12 @@ takeEndInterval = undefined -- fromStreamD $ D.takeEnd n $ toStreamD m
 -- O(n) space, where n is the number elements taken.
 --
 -- /Unimplemented/
-{-# INLINE takeWhileEnd #-}
-takeWhileEnd :: -- (IsStream t, Monad m) =>
+{-# INLINE takeWhileLast #-}
+takeWhileLast :: -- (IsStream t, Monad m) =>
     (a -> Bool) -> t m a -> t m a
-takeWhileEnd = undefined -- fromStreamD $ D.takeWhileEnd n $ toStreamD m
+takeWhileLast = undefined -- fromStreamD $ D.takeWhileLast n $ toStreamD m
 
--- | Like 'takeWhile' and 'takeWhileEnd' combined.
+-- | Like 'takeWhile' and 'takeWhileLast' combined.
 --
 -- O(n) space, where n is the number elements taken from the end.
 --
@@ -974,7 +974,7 @@ takeWhileAround :: -- (IsStream t, Monad m) =>
     (a -> Bool) -> t m a -> t m a
 takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 
--- | @takeByTime duration@ yields stream elements upto specified time
+-- | @takeInterval duration@ yields stream elements upto specified time
 -- @duration@. The duration starts when the stream is evaluated for the first
 -- time, before the first element is yielded. The time duration is checked
 -- before generating each element, if the duration has expired the stream
@@ -990,9 +990,9 @@ takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 --
 -- /Pre-release/
 --
-{-# INLINE takeByTime #-}
-takeByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
-takeByTime d = fromStreamD . D.takeByTime d . toStreamD
+{-# INLINE takeInterval #-}
+takeInterval ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
+takeInterval d = fromStreamD . D.takeByTime d . toStreamD
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -1009,7 +1009,7 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 
--- | @dropByTime duration@ drops stream elements until specified @duration@ has
+-- | @dropInterval duration@ drops stream elements until specified @duration@ has
 -- passed.  The duration begins when the stream is evaluated for the first
 -- time. The time duration is checked /after/ generating a stream element, the
 -- element is yielded if the duration has expired otherwise it is dropped.
@@ -1023,29 +1023,29 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 --
 -- /Pre-release/
 --
-{-# INLINE dropByTime #-}
-dropByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
-dropByTime d = fromStreamD . D.dropByTime d . toStreamD
+{-# INLINE dropInterval #-}
+dropInterval ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
+dropInterval d = fromStreamD . D.dropByTime d . toStreamD
 
 -- | Drop @n@ elements at the end of the stream.
 --
 -- O(n) space, where n is the number elements dropped.
 --
 -- /Unimplemented/
-{-# INLINE dropEnd #-}
-dropEnd :: -- (IsStream t, Monad m) =>
+{-# INLINE dropLast #-}
+dropLast :: -- (IsStream t, Monad m) =>
     Int -> t m a -> t m a
-dropEnd = undefined -- fromStreamD $ D.dropEnd n $ toStreamD m
+dropLast = undefined -- fromStreamD $ D.dropLast n $ toStreamD m
 
 -- | Drop time interval @i@ seconds at the end of the stream.
 --
 -- O(n) space, where n is the number elements dropped.
 --
 -- /Unimplemented/
-{-# INLINE dropEndInterval #-}
-dropEndInterval :: -- (IsStream t, Monad m) =>
+{-# INLINE dropLastInterval #-}
+dropLastInterval :: -- (IsStream t, Monad m) =>
     Int -> t m a -> t m a
-dropEndInterval = undefined
+dropLastInterval = undefined
 
 -- | Drop all consecutive elements at the end of the stream for which the
 -- predicate is true.
@@ -1053,12 +1053,12 @@ dropEndInterval = undefined
 -- O(n) space, where n is the number elements dropped.
 --
 -- /Unimplemented/
-{-# INLINE dropWhileEnd #-}
-dropWhileEnd :: -- (IsStream t, Monad m) =>
+{-# INLINE dropWhileLast #-}
+dropWhileLast :: -- (IsStream t, Monad m) =>
     (a -> Bool) -> t m a -> t m a
-dropWhileEnd = undefined -- fromStreamD $ D.dropWhileEnd n $ toStreamD m
+dropWhileLast = undefined -- fromStreamD $ D.dropWhileLast n $ toStreamD m
 
--- | Like 'dropWhile' and 'dropWhileEnd' combined.
+-- | Like 'dropWhile' and 'dropWhileLast' combined.
 --
 -- O(n) space, where n is the number elements dropped from the end.
 --
