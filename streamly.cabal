@@ -502,7 +502,8 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Generate
                      , Streamly.Internal.Data.Stream.IsStream.Eliminate
                      , Streamly.Internal.Data.Stream.IsStream.Transform
-                     , Streamly.Internal.Data.Stream.IsStream.Nesting
+                     , Streamly.Internal.Data.Stream.IsStream.Expand
+                     , Streamly.Internal.Data.Stream.IsStream.Reduce
                      , Streamly.Internal.Data.Stream.IsStream.Exception
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top

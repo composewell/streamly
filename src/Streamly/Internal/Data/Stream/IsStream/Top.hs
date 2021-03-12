@@ -72,7 +72,8 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
-import qualified Streamly.Internal.Data.Stream.IsStream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Stream
+import qualified Streamly.Internal.Data.Stream.IsStream.Reduce as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
