@@ -300,6 +300,7 @@ foldbWith f = K.foldb f K.nil
 -- Equivalent to:
 --
 -- @
+-- concatFoldableWith f = Prelude.foldr f S.nil
 -- concatFoldableWith f = S.concatMapFoldableWith f id
 -- @
 --
@@ -320,6 +321,7 @@ concatFoldableWith f = Prelude.foldr f K.nil
 -- Equivalent to:
 --
 -- @
+-- concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
 -- concatMapFoldableWith f g xs = S.concatMapWith f g (S.fromFoldable xs)
 -- @
 --
@@ -337,6 +339,7 @@ concatMapFoldableWith f g = Prelude.foldr (f . g) K.nil
 -- Equivalent to:
 --
 -- @
+-- concatForFoldableWith f xs g = Prelude.foldr (f . g) S.nil xs
 -- concatForFoldableWith = flip S.concatMapFoldableWith
 -- @
 --
