@@ -42,6 +42,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     -- * Nesting
     , concatM
     , concatMapM
+    , concatMap
     , splitOnSeq
     )
 where
@@ -72,7 +73,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
-import Prelude hiding (take, takeWhile, drop, reverse)
+import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 
 --
 -- $setup
@@ -451,6 +452,21 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 {-# INLINE concatMapM #-}
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
+
+-- | Map a stream producing function on each element of the stream and then
+-- flatten the results into a single stream.
+--
+-- @
+-- concatMap f = 'concatMapM' (return . f)
+-- concatMap = 'concatMapWith' 'Serial.serial'
+-- concatMap f = 'concat . map f'
+-- concatMap f = 'concatUnfold' (UF.lmap f UF.fromStream)
+-- @
+--
+-- @since 0.6.0
+{-# INLINE concatMap #-}
+concatMap ::(IsStream t, Monad m) => (a -> t m b) -> t m a -> t m b
+concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 
 -- | Given a stream value in the underlying monad, lift and join the underlying
 -- monad with the stream monad.

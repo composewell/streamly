@@ -15,7 +15,8 @@ module Streamly.Internal.Data.Stream.IsStream
     , module Streamly.Internal.Data.Stream.IsStream.Generate
     , module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , module Streamly.Internal.Data.Stream.IsStream.Transform
-    , module Streamly.Internal.Data.Stream.IsStream.Nesting
+    , module Streamly.Internal.Data.Stream.IsStream.Expand
+    , module Streamly.Internal.Data.Stream.IsStream.Reduce
     , module Streamly.Internal.Data.Stream.IsStream.Exception
     , module Streamly.Internal.Data.Stream.IsStream.Lift
     , module Streamly.Internal.Data.Stream.IsStream.Top
@@ -27,6 +28,7 @@ import Streamly.Internal.Data.Stream.IsStream.Eliminate
 import Streamly.Internal.Data.Stream.IsStream.Exception
 import Streamly.Internal.Data.Stream.IsStream.Generate
 import Streamly.Internal.Data.Stream.IsStream.Lift
-import Streamly.Internal.Data.Stream.IsStream.Nesting
+import Streamly.Internal.Data.Stream.IsStream.Expand
+import Streamly.Internal.Data.Stream.IsStream.Reduce
 import Streamly.Internal.Data.Stream.IsStream.Transform
 import Streamly.Internal.Data.Stream.IsStream.Types
