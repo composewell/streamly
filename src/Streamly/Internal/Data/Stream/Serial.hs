@@ -186,15 +186,21 @@ instance IsStream SerialT where
 instance Monad m => Monad (SerialT m) where
     return = pure
 
+    -- Benchmarks better with StreamD bind and pure:
+    -- toList, filterAllout, *>, *<, >> (~2x)
+    --
+    -- pure = SerialT . D.fromStreamD . D.yield
+    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
+
+    -- Benchmarks better with CPS bind and pure:
+    -- Prime sieve (25x)
+    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
+    --
     {-# INLINE (>>=) #-}
     (>>=) = K.bindWith K.serial
 
     {-# INLINE (>>) #-}
     (>>)  = (*>)
-
-    -- StreamD based implementation
-    -- return = SerialT . D.fromStreamD . D.yield
-    -- m >>= f = D.fromStreamD $ D.concatMap (\a -> D.toStreamD (f a)) (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Other instances
