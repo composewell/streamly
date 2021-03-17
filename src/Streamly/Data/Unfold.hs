@@ -55,8 +55,64 @@ module Streamly.Data.Unfold
     (
     -- * Unfold Type
       Unfold
+
+    -- * Folding
+    , fold
+
+    -- * Unfolds
+    -- One to one correspondence with
+    -- "Streamly.Internal.Data.Stream.IsStream.Generate"
+
+    -- ** Generators
+    -- | Generate a monadic stream from a seed.
+    , unfoldrM
+    , repeatM
+    , replicateM
+    , iterateM
+
+    -- ** From Containers
+    , fromList
+    , fromListM
+    , fromStream
+
+    -- * Combinators
+    -- ** Mapping on Input
+    , lmap
+    , lmapM
+
+    -- ** Mapping on Output
+    , mapM
+
+    -- ** Filtering
+    , takeWhileM
+    , takeWhile
+    , take
+    , filter
+    , filterM
+    , drop
+    , dropWhile
+    , dropWhileM
+
+    -- ** Zipping
+    , zipWithM
+    , zipWith
+
+    -- ** Nesting
+    , cross
+    , many
+
+    -- ** Exceptions
+    , before
+    , after
+    , onException
+    , finally
+    , bracket
+    , handle
     )
 where
 
-import Prelude hiding (concat, map, takeWhile, take, filter, const)
+import Prelude hiding
+    ( concat, map, mapM, takeWhile, take, filter, const, drop, dropWhile
+    , zipWith
+    )
 import Streamly.Internal.Data.Unfold

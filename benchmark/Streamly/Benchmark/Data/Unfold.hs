@@ -115,7 +115,7 @@ lmapM size start =
 {-# INLINE supply #-}
 supply :: Monad m => Int -> Int -> m ()
 supply size start =
-    drainTransformationDefault (size + start) (flip UF.supply start) undefined
+    drainTransformationDefault (size + start) (UF.supply start) undefined
 
 
 {-# INLINE supplyFirst #-}
@@ -123,7 +123,7 @@ supplyFirst :: Monad m => Int -> Int -> m ()
 supplyFirst size start =
     drainTransformation
         (UF.take size UF.enumerateFromStepIntegral)
-        (flip UF.supplyFirst start)
+        (UF.supplyFirst start)
         1
 
 {-# INLINE supplySecond #-}
@@ -131,7 +131,7 @@ supplySecond :: Monad m => Int -> Int -> m ()
 supplySecond size start =
     drainTransformation
         (UF.take size UF.enumerateFromStepIntegral)
-        (flip UF.supplySecond 1)
+        (UF.supplySecond 1)
         start
 
 {-# INLINE discardFirst #-}
@@ -181,11 +181,6 @@ consM :: Monad m => Int -> Int -> m ()
 consM size start =
     drainTransformationDefault (size + start) (UF.consM return) start
 
-{-# INLINE _effect #-}
-_effect :: Monad m => Int -> Int -> m ()
-_effect _ start =
-    drainGeneration (UF.effect (return start)) undefined
-
 {-# INLINE _singletonM #-}
 _singletonM :: Monad m => Int -> Int -> m ()
 _singletonM _ start = drainGeneration (UF.singletonM return) start
@@ -201,7 +196,7 @@ _identity _ start = drainGeneration UF.identity start
 {-# INLINE _const #-}
 _const :: Monad m => Int -> Int -> m ()
 _const size start =
-    drainGeneration (UF.take size (UF.const (return start))) undefined
+    drainGeneration (UF.take size (UF.yieldM (return start))) undefined
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => Int -> Int -> m ()
@@ -413,7 +408,8 @@ toNullAp :: Monad m => Int -> Int -> m ()
 toNullAp value start =
     let end = start + nthRoot 2 value
         s = source end
-    in UF.fold ((+) <$> s <*> s) FL.drain start
+    -- in UF.fold ((+) <$> s <*> s) FL.drain start
+    in UF.fold ((+) `fmap` s `UF.apply` s) FL.drain start
 
 {-# INLINE _apDiscardFst #-}
 _apDiscardFst :: Int -> Int -> m ()
@@ -446,10 +442,15 @@ toNull :: Monad m => Int -> Int -> m ()
 toNull value start =
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
             return (x + y)
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
+                UF.yield (x + y)
      in UF.fold u FL.drain start
 
 
@@ -458,11 +459,16 @@ toNull3 :: Monad m => Int -> Int -> m ()
 toNull3 value start =
     let end = start + nthRoot 3 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
             z <- src
             return (x + y + z)
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
+                UF.yield (x + y)
      in UF.fold u FL.drain start
 
 {-# INLINE toList #-}
@@ -470,10 +476,15 @@ toList :: Monad m => Int -> Int -> m [Int]
 toList value start = do
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
             return (x + y)
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
+                UF.yield (x + y)
      in UF.fold u FL.toList start
 
 {-# INLINE toListSome #-}
@@ -481,10 +492,15 @@ toListSome :: Monad m => Int -> Int -> m [Int]
 toListSome value start = do
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
             return (x + y)
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
+                UF.yield (x + y)
      in UF.fold (UF.take 1000 u) FL.toList start
 
 {-# INLINE filterAllOut #-}
@@ -492,13 +508,17 @@ filterAllOut :: Monad m => Int -> Int -> m ()
 filterAllOut value start = do
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
             let s = x + y
-            if s < 0
-            then return s
-            else UF.nilM (return . const ())
+             in if s < 0
+                then UF.yield s
+                else UF.nilM (return . const ())
      in UF.fold u FL.drain start
 
 {-# INLINE filterAllIn #-}
@@ -506,13 +526,17 @@ filterAllIn :: Monad m => Int -> Int -> m ()
 filterAllIn value start = do
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
             let s = x + y
-            if s > 0
-            then return s
-            else UF.nilM (return . const ())
+             in if s > 0
+                then UF.yield s
+                else UF.nilM (return . const ())
      in UF.fold u FL.drain start
 
 {-# INLINE filterSome #-}
@@ -520,13 +544,17 @@ filterSome :: Monad m => Int -> Int -> m ()
 filterSome value start = do
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
             let s = x + y
-            if s > 1100000
-            then return s
-            else UF.nilM (return . const ())
+             in if s > 1100000
+                then UF.yield s
+                else UF.nilM (return . const ())
      in UF.fold u FL.drain start
 
 {-# INLINE breakAfterSome #-}
@@ -534,13 +562,17 @@ breakAfterSome :: Int -> Int -> IO ()
 breakAfterSome value start =
     let end = start + nthRoot 2 value
         src = source end
+        {-
         u = do
             x <- src
             y <- src
+        -}
+        u = src `UF.bind` \x ->
+            src `UF.bind` \y ->
             let s = x + y
-            if s > 1100000
-            then error "break"
-            else return s
+             in if s > 1100000
+                then error "break"
+                else UF.yield s
      in do
         (_ :: Either ErrorCall ()) <- try $ UF.fold u FL.drain start
         return ()
@@ -594,7 +626,6 @@ o_1_space_generation size =
           -- Very small benchmarks, reporting in ns
           -- , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
-          -- , benchIO "effect" $ effect size
           -- , benchIO "singletonM" $ singletonM size
           -- , benchIO "singleton" $ singleton size
           -- , benchIO "identity" $ identity size

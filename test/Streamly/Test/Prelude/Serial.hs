@@ -457,7 +457,7 @@ unfold0 :: Property
 unfold0 = monadicIO $ do
     a <- pick $ choose (0, max_length `div` 2)
     b <- pick $ choose (0, max_length)
-    let unf = UF.supply (UF.enumerateFromToIntegral b) a
+    let unf = UF.supply a (UF.enumerateFromToIntegral b)
     ls <- S.toList $ IS.unfold0 unf
     return $ ls == [a..b]
 

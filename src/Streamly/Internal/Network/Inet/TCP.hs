@@ -161,7 +161,7 @@ acceptOnAddr = acceptOnAddrWith []
 acceptOnPortWith :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m PortNumber Socket
-acceptOnPortWith opts = UF.supplyFirst (acceptOnAddrWith opts) (0,0,0,0)
+acceptOnPortWith opts = UF.supplyFirst (0,0,0,0) (acceptOnAddrWith opts)
 
 -- | Like 'acceptOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
@@ -172,7 +172,7 @@ acceptOnPortWith opts = UF.supplyFirst (acceptOnAddrWith opts) (0,0,0,0)
 -- @since 0.7.0
 {-# INLINE acceptOnPort #-}
 acceptOnPort :: MonadIO m => Unfold m PortNumber Socket
-acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
+acceptOnPort = UF.supplyFirst (0,0,0,0) acceptOnAddr
 
 -- | Like 'acceptOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
@@ -183,7 +183,7 @@ acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
 -- @since 0.7.0
 {-# INLINE acceptOnPortLocal #-}
 acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
-acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
+acceptOnPortLocal = UF.supplyFirst (127,0,0,1) acceptOnAddr
 
 -------------------------------------------------------------------------------
 -- Accept (streams)

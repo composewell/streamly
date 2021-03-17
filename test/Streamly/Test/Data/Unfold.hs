@@ -72,17 +72,17 @@ lmapM =
 
 supply :: Bool
 supply =
-    let unf = UF.supply (UF.singleton id) 1
+    let unf = UF.supply 1 (UF.singleton id)
      in testUnfold unf undefined ([1] :: [Int])
 
 supplyFirst :: Bool
 supplyFirst =
-    let unf = UF.supplyFirst (UF.singleton id) 1
+    let unf = UF.supplyFirst 1 (UF.singleton id)
      in testUnfold unf 2 ([(1, 2)] :: [(Int, Int)])
 
 supplySecond :: Bool
 supplySecond =
-    let unf = UF.supplySecond (UF.singleton id) 1
+    let unf = UF.supplySecond 1 (UF.singleton id)
      in testUnfold unf 2 ([(2, 1)] :: [(Int, Int)])
 
 discardFirst :: Bool
@@ -134,11 +134,6 @@ consM =
         unf = cns $ cns $ UF.nilM $ \a -> modify (+ a)
      in testUnfoldMD unf 1 0 3 [1, 2]
 
-effect :: Bool
-effect =
-    let unf = UF.effect (modify (+ 1) >> get)
-     in testUnfoldMD unf undefined 0 1 [1]
-
 singletonM :: Bool
 singletonM =
     let unf = UF.singletonM (\a -> modify (+ a) >> get)
@@ -146,7 +141,7 @@ singletonM =
 
 const :: Bool
 const =
-    let unf = UF.const (modify (+ 1) >> get)
+    let unf = UF.yieldM (modify (+ 1) >> get)
      in testUnfoldMD unf (0 :: Int) 0 1 [1]
 
 unfoldrM :: Property
@@ -380,7 +375,6 @@ testGeneration =
             prop "fromStreamD" fromStreamD
             prop "nilM" nilM
             prop "consM" consM
-            prop "effect" effect
             prop "singletonM" singletonM
             -- prop "singleton" singleton
             -- prop "identity" identity
