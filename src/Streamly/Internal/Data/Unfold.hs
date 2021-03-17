@@ -75,9 +75,61 @@
 module Streamly.Internal.Data.Unfold
     (
     -- * Unfold Type
-      Unfold
+      Step(..)
+    , Unfold
 
-    -- * Operations on Input
+    -- * Folding
+    , fold
+    -- pipe
+
+    -- * Unfolds
+    -- One to one correspondence with
+    -- "Streamly.Internal.Data.Stream.IsStream.Generate"
+    -- ** Primitives
+    , singletonM
+    , singleton
+    , identity
+    , yieldM
+    , yield
+    , nilM
+    , consM
+
+    -- ** Generators
+    -- | Generate a monadic stream from a seed.
+    , unfoldrM
+    , repeatM
+    , replicateM
+    , fromIndicesM
+    , iterateM
+
+    -- ** Enumerations
+    -- *** Enumerate Num
+    , enumerateFromStepNum
+    , numFrom
+
+    -- *** Enumerate Integral
+    , enumerateFromStepIntegral
+    , enumerateFromToIntegral
+    , enumerateFromIntegral
+
+    -- *** Enumerate Fractional
+    -- | Use 'Num' enumerations for fractional or floating point number
+    -- enumerations.
+    , enumerateFromToFractional
+
+    -- ** From Containers
+    , fromList
+    , fromListM
+
+    , fromStream
+    , fromStreamK
+    , fromStreamD
+
+    , fromSVar
+    , fromProducer
+
+    -- * Combinators
+    -- ** Mapping on Input
     , lmap
     , lmapM
     , supply
@@ -89,51 +141,12 @@ module Streamly.Internal.Data.Unfold
     -- coapply
     -- comonad
 
-    -- * Operations on Output
-    , fold
-    -- pipe
-
-    -- * Unfolds
-    , fromStream
-    , fromStreamK
-    , fromStreamD
-    , nilM
-    , consM
-    , effect
-    , singletonM
-    , singleton
-    , identity
-    , const
-    , unfoldrM
-
-    , fromList
-    , fromListM
-
-    , fromSVar
-    , fromProducer
-
-    -- ** Specialized Generation
-    -- | Generate a monadic stream from a seed.
-    , replicateM
-    , repeatM
-    , iterateM
-    , fromIndicesM
-
-    -- ** Enumerations
-    , enumerateFromStepIntegral
-    , enumerateFromToIntegral
-    , enumerateFromIntegral
-
-    , enumerateFromStepNum
-    , numFrom
-    , enumerateFromToFractional
-
-    -- * Transformations
+    -- ** Mapping on Output
     , map
     , mapM
     , mapMWithInput
 
-    -- * Filtering
+    -- ** Filtering
     , takeWhileM
     , takeWhile
     , take
@@ -143,18 +156,21 @@ module Streamly.Internal.Data.Unfold
     , dropWhile
     , dropWhileM
 
-    -- * Zipping
+    -- ** Zipping
     , zipWithM
     , zipWith
     , teeZipWith
 
-    -- * Nesting
+    -- ** Nesting
+    , cross
+    , apply
     , ConcatState (..)
     , many
     , concatMapM
+    , bind
     , outerProduct
 
-    -- * Exceptions
+    -- ** Exceptions
     , gbracket_
     , gbracket
     , before
@@ -206,7 +222,7 @@ import Prelude
 -- | Map an action on the input argument of the 'Unfold'.
 --
 -- @
--- lmapM f = many (singletonM f)
+-- lmapM f = Unfold.many (Unfold.singletonM f)
 -- @
 --
 -- /Pre-release/
@@ -214,46 +230,53 @@ import Prelude
 lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
 lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
 
--- XXX change the signature to the following?
--- supply :: a -> Unfold m a b -> Unfold m Void b
---
 -- | Supply the seed to an unfold closing the input end of the unfold.
+--
+-- @
+-- supply a = Unfold.lmap (Prelude.const a)
+-- @
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL supply #-}
-supply :: Unfold m a b -> a -> Unfold m Void b
-supply unf a = lmap (Prelude.const a) unf
+supply :: a -> Unfold m a b -> Unfold m Void b
+supply a = lmap (Prelude.const a)
 
--- XXX change the signature to the following?
--- supplyFirst :: a -> Unfold m (a, b) c -> Unfold m b c
---
 -- | Supply the first component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the second component of the tuple
 -- as a seed.
 --
+-- @
+-- supplyFirst a = Unfold.lmap (a, )
+-- @
+--
 -- /Pre-release/
 --
 {-# INLINE_NORMAL supplyFirst #-}
-supplyFirst :: Unfold m (a, b) c -> a -> Unfold m b c
-supplyFirst unf a = lmap (a, ) unf
+supplyFirst :: a -> Unfold m (a, b) c -> Unfold m b c
+supplyFirst a = lmap (a, )
 
--- XXX change the signature to the following?
--- supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
---
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
 -- as a seed.
 --
+-- @
+-- supplySecond b = Unfold.lmap (, b)
+-- @
+--
 -- /Pre-release/
 --
 {-# INLINE_NORMAL supplySecond #-}
-supplySecond :: Unfold m (a, b) c -> b -> Unfold m a c
-supplySecond unf b = lmap (, b) unf
+supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
+supplySecond b = lmap (, b)
 
 -- | Convert an 'Unfold' into an unfold accepting a tuple as an argument,
 -- using the argument of the original fold as the second element of tuple and
 -- discarding the first element of the tuple.
+--
+-- @
+-- discardFirst = Unfold.lmap snd
+-- @
 --
 -- /Pre-release/
 --
@@ -265,6 +288,10 @@ discardFirst = lmap snd
 -- using the argument of the original fold as the first element of tuple and
 -- discarding the second element of the tuple.
 --
+-- @
+-- discardSecond = Unfold.lmap fst
+-- @
+--
 -- /Pre-release/
 --
 {-# INLINE_NORMAL discardSecond #-}
@@ -273,6 +300,10 @@ discardSecond = lmap fst
 
 -- | Convert an 'Unfold' that accepts a tuple as an argument into an unfold
 -- that accepts a tuple with elements swapped.
+--
+-- @
+-- swap = Unfold.lmap Tuple.swap
+-- @
 --
 -- /Pre-release/
 --
@@ -393,7 +424,8 @@ nilM f = Unfold step return
     {-# INLINE_LATE step #-}
     step x = f x >> return Stop
 
--- | Prepend a monadic single element generator function to an 'Unfold'.
+-- | Prepend a monadic single element generator function to an 'Unfold'. The
+-- same seed is used in the action as well as the unfold.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL consM #-}
@@ -413,17 +445,6 @@ consM action unf = Unfold step inject
             Yield x s -> return $ Yield x (Right (Stream step1 s))
             Skip s -> return $ Skip (Right (Stream step1 s))
             Stop -> return Stop
-
--- | Lift a monadic effect into an unfold generating a singleton stream.
---
-{-# INLINE effect #-}
-effect :: Monad m => m b -> Unfold m Void b
-effect eff = Unfold step inject
-    where
-    inject _ = return True
-    {-# INLINE_LATE step #-}
-    step True = eff >>= \r -> return $ Yield r False
-    step False = return Stop
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
@@ -513,6 +534,10 @@ iterateM f = Unfold step id
 
 -- | @fromIndicesM gen@ generates an infinite stream of values using @gen@
 -- starting from the seed.
+--
+-- @
+-- fromIndicesM f = Unfold.mapM f $ Unfold.enumerateFrom 0
+-- @
 --
 -- /Pre-release/
 --
@@ -655,9 +680,37 @@ dropWhileM f (Unfold step inject) = Unfold step' inject'
 dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 dropWhile f = dropWhileM (return . f)
 
--------------------------------------------------------------------------------
--- Enumeration
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+-- Enumeration of Num
+------------------------------------------------------------------------------
+
+-- | Generate an infinite stream starting from a starting value with increments
+-- of the given stride.  The implementation is numerically stable for floating
+-- point values.
+--
+-- Note 'enumerateFromStepIntegral' is faster for integrals.
+--
+-- /Pre-release/
+--
+{-# INLINE enumerateFromStepNum #-}
+enumerateFromStepNum :: (Monad m, Num a) => a -> Unfold m a a
+enumerateFromStepNum stride = Unfold step return
+    where
+    -- XXX This is numerically unstable.
+    {-# INLINE_LATE step #-}
+    step !s = return $ (Yield $! s) $! (s + stride)
+
+-- | @numFrom = enumerateFromStepNum 1@
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL numFrom #-}
+numFrom :: (Monad m, Num a) => Unfold m a a
+numFrom = enumerateFromStepNum 1
+
+------------------------------------------------------------------------------
+-- Enumeration of Integrals
+------------------------------------------------------------------------------
 
 -- | Can be used to enumerate unbounded integrals. This does not check for
 -- overflow or underflow for bounded integrals.
@@ -674,33 +727,19 @@ enumerateFromStepIntegral = Unfold step inject
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> Unfold m a a
 enumerateFromToIntegral to =
-    takeWhile (<= to) $ supplySecond enumerateFromStepIntegral 1
+    takeWhile (<= to) $ supplySecond 1 enumerateFromStepIntegral
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => Unfold m a a
 enumerateFromIntegral = enumerateFromToIntegral maxBound
 
--- | Generate an infinite stream starting from the seed with increments of the
--- given stride.
---
--- /Pre-release/
---
-{-# INLINE enumerateFromStepNum #-}
-enumerateFromStepNum :: (Monad m, Num a) => a -> Unfold m a a
-enumerateFromStepNum stride = Unfold step return
-    where
-    {-# INLINE_LATE step #-}
-    step !s = return $ (Yield $! s) $! (s + stride)
-
--- | @numFrom = enumerateFromStepNum 1@
---
--- /Pre-release/
---
-{-# INLINE_NORMAL numFrom #-}
-numFrom :: (Monad m, Num a) => Unfold m a a
-numFrom = enumerateFromStepNum 1
+------------------------------------------------------------------------------
+-- Enumeration of Fractionals
+------------------------------------------------------------------------------
 
 -- | /Internal/
+--
+-- > enumerateFromToFractional to = takeWhile (<= to + 1 / 2) $ enumerateFromStepNum 1
 --
 {-# INLINE_NORMAL enumerateFromToFractional #-}
 enumerateFromToFractional :: (Monad m, Fractional a, Ord a) => a -> Unfold m a a
@@ -862,6 +901,7 @@ data OuterProductState s1 s2 sy x y =
     OuterProductOuter s1 y | OuterProductInner s1 sy s2 x
 
 -- XXX this can be written in terms of "cross".
+-- XXX Remove this in favor of cross?
 --
 -- | Create an outer product (vector product or cartesian product) of the
 -- output streams of two unfolds.

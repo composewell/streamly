@@ -8,19 +8,31 @@
 
 module Streamly.Internal.Data.Unfold.Type
     ( Unfold (..)
+
+    -- * From values
     , singletonM
     , singleton
     , identity
-    , ConcatState (..)
-    , many
+    , yieldM
+    , yield
+
+    -- * Transformations
     , lmap
     , map
-    , const
+
+    -- * Nesting
+    , ConcatState (..)
+    , many
+
     , apSequence
     , apDiscardSnd
     , cross
+    , apply
+    , bind
+
     , concatMapM
     , concatMap
+
     , zipWithM
     , zipWith
     )
@@ -28,8 +40,8 @@ where
 
 #include "inline.hs"
 
-import Control.Arrow (Arrow(..))
-import Control.Category (Category(..))
+-- import Control.Arrow (Arrow(..))
+-- import Control.Category (Category(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
@@ -60,7 +72,7 @@ data Unfold m a b =
 -- | Map a function on the input argument of the 'Unfold'.
 --
 -- @
--- lmap f = many (singleton f)
+-- lmap f = Unfold.many (Unfold.singleton f)
 -- @
 --
 -- /Pre-release/
@@ -93,9 +105,12 @@ instance Functor m => Functor (Unfold m a) where
 -- Applicative
 ------------------------------------------------------------------------------
 
-{-# INLINE const #-}
-const :: Applicative m => m b -> Unfold m a b
-const m = Unfold step inject
+-- | The unfold discards its input and generates a singleton stream using the
+-- supplied monadic action.
+--
+{-# INLINE yieldM #-}
+yieldM :: Applicative m => m b -> Unfold m a b
+yieldM m = Unfold step inject
 
     where
 
@@ -103,6 +118,10 @@ const m = Unfold step inject
 
     step False = (`Yield` True) <$> m
     step True = pure Stop
+
+-- | Discards the unfold input and always returns the argument of 'yield'.
+yield :: Applicative m => b -> Unfold m a b
+yield = yieldM . pure
 
 -- | Outer product discarding the first element.
 --
@@ -154,9 +173,15 @@ cross (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Skip s    -> Skip (CrossInner a s1 b s)
             Stop      -> Skip (CrossOuter a s1)
 
+apply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
+apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
+
+{-
 -- | Example:
 --
--- >>> Stream.toList $ Stream.unfold ((,) <$> Unfold.lmap fst Unfold.fromList <*> Unfold.lmap snd Unfold.fromList) ([1,2],[3,4])
+-- >>> rlist = Unfold.lmap fst Unfold.fromList
+-- >>> llist = Unfold.lmap snd Unfold.fromList
+-- >>> Stream.toList $ Stream.unfold ((,) <$> rlist <*> llist) ([1,2],[3,4])
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
 instance Monad m => Applicative (Unfold m a) where
@@ -164,13 +189,14 @@ instance Monad m => Applicative (Unfold m a) where
     pure = const Prelude.. return
 
     {-# INLINE (<*>) #-}
-    u1 <*> u2 = fmap (\(a, b) -> a b) (cross u1 u2)
+    (<*>) = apply
 
     -- {-# INLINE (*>) #-}
     -- (*>) = apSequence
 
     -- {-# INLINE (<*) #-}
     -- (<*) = apDiscardSnd
+-}
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -216,15 +242,30 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
 concatMap f = concatMapM (return Prelude.. f)
 
+infixl 1 `bind`
+
+{-# INLINE bind #-}
+bind :: Monad m => Unfold m a b -> (b -> Unfold m a c) -> Unfold m a c
+bind = flip concatMap
+
+{-
 -- Note: concatMap and Monad instance for unfolds have performance comparable
 -- to Stream. In fact, concatMap is slower than Stream, that may be some
 -- optimization issue though.
 --
+-- Monad allows an unfold to depend on the output of a previous unfold.
+-- However, it is probably easier to use streams in such situations.
+--
 -- | Example:
 --
--- >>>  u = do { x <- Unfold.lmap fst Unfold.fromList; y <- Unfold.lmap snd Unfold.fromList; return (x,y); }
--- >>> Stream.toList $ Stream.unfold u ([1,2],[3,4])
--- [(1,3),(1,4),(2,3),(2,4)]
+-- >>> :{
+--  u = do
+--   x <- Unfold.enumerateFromToIntegral 4
+--   y <- Unfold.enumerateFromToIntegral x
+--   return (x, y)
+-- :}
+-- >>> Stream.toList $ Stream.unfold u 1
+-- [(1,1),(2,1),(2,2),(3,1),(3,2),(3,3),(4,1),(4,2),(4,3),(4,4)]
 --
 instance Monad m => Monad (Unfold m a) where
     {-# INLINE return #-}
@@ -235,6 +276,7 @@ instance Monad m => Monad (Unfold m a) where
 
     -- {-# INLINE (>>) #-}
     -- (>>) = (*>)
+-}
 
 -------------------------------------------------------------------------------
 -- Category
@@ -258,6 +300,8 @@ singletonM f = Unfold step inject
 
 -- | Lift a pure function into an unfold generating a singleton stream.
 --
+-- > singleton f = singletonM $ return . f
+--
 {-# INLINE singleton #-}
 singleton :: Monad m => (a -> b) -> Unfold m a b
 singleton f = singletonM $ return Prelude.. f
@@ -265,11 +309,11 @@ singleton f = singletonM $ return Prelude.. f
 -- | Identity unfold. Generates a singleton stream with the seed as the only
 -- element in the stream.
 --
--- > identity = singletonM return
+-- > identity = singleton Prelude.id
 --
 {-# INLINE identity #-}
 identity :: Monad m => Unfold m a a
-identity = singletonM return
+identity = singleton Prelude.id
 
 {-# ANN type ConcatState Fuse #-}
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
@@ -306,17 +350,25 @@ many (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Skip s    -> Skip (ConcatInner ost s)
             Stop      -> Skip (ConcatOuter ost)
 
+{-
+-- XXX There are multiple possible ways to combine the unfolds, "many" appends
+-- them, we could also have other variants of "many" e.g. manyInterleave.
+-- Should we even have a category instance or just use these functions
+-- directly?
+--
 instance Monad m => Category (Unfold m) where
     {-# INLINE id #-}
     id = identity
 
     {-# INLINE (.) #-}
     (.) = flip many
+-}
 
 -------------------------------------------------------------------------------
 -- Arrow
 -------------------------------------------------------------------------------
 
+-- | Stops as soon as any of the unfolds stops.
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
     => (a -> b -> m c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
@@ -364,6 +416,16 @@ zipWith :: Monad m
     => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
 zipWith f = zipWithM (\a b -> return (f a b))
 
+{-
+-- XXX There are multiple ways of combining the outputs of two unfolds, we
+-- could zip, merge, append and more. What is the preferred way for Arrow
+-- instance? Should we even have an arrow instance or just use these functions
+-- directly?
+--
+-- | '***' is a zip like operation, in fact it is the same as @Unfold.zipWith
+-- (,)@, '&&&' is a tee like operation  i.e. distributes the input to both the
+-- unfolds and then zips the output.
+--
 {-# ANN module "HLint: ignore Use zip" #-}
 instance Monad m => Arrow (Unfold m) where
     {-# INLINE arr #-}
@@ -371,3 +433,4 @@ instance Monad m => Arrow (Unfold m) where
 
     {-# INLINE (***) #-}
     (***) = zipWith (,)
+-}
