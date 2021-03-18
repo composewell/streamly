@@ -333,7 +333,7 @@ concat :: Bool
 concat =
     let unfIn = UF.replicateM 10
         unfOut = UF.map return $ UF.enumerateFromToIntegral 10
-        unf = UF.concat unfOut unfIn
+        unf = UF.many unfOut unfIn
         lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
      in testUnfoldD unf 1 lst
 

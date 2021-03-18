@@ -83,7 +83,7 @@ copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStream
 inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
-inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'copyStream `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
@@ -137,7 +137,7 @@ _readChunks inh devNull = IUF.fold unf fld inh
     where
 
     fld = FH.write devNull
-    unf = IUF.concat FH.readChunks A.read
+    unf = IUF.many FH.readChunks A.read
 
 -- | Send the chunk content to /dev/null
 -- Implicitly benchmarked via 'readWithBufferOfFromBytesNull'
@@ -147,7 +147,7 @@ _readChunksWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
     where
 
     fld = FH.write devNull
-    unf = IUF.concat FH.readChunksWithBufferOf A.read
+    unf = IUF.many FH.readChunksWithBufferOf A.read
 
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
@@ -173,7 +173,7 @@ writeReadWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadWithBufferOf
 inspect $ 'writeReadWithBufferOf `hasNoType` ''Step
-inspect $ 'writeReadWithBufferOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'writeReadWithBufferOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'writeReadWithBufferOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'writeReadWithBufferOf `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 #endif
@@ -191,7 +191,7 @@ writeRead inh devNull = IUF.fold unf fld inh
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeRead
 inspect $ 'writeRead `hasNoType` ''Step
-inspect $ 'writeRead `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'writeRead `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'writeRead `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'writeRead `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 #endif

@@ -425,7 +425,7 @@ toBytes = AS.concat . toChunks
 -- @since 0.7.0
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: MonadIO m => Unfold m (Int, Socket) Word8
-readWithBufferOf = UF.concat readChunksWithBufferOf A.read
+readWithBufferOf = UF.many readChunksWithBufferOf A.read
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
