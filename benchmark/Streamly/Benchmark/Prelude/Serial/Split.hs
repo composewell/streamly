@@ -66,7 +66,7 @@ splitOn inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
 inspect $ 'splitOn `hasNoType` ''Step
-inspect $ 'splitOn `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitOn `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'splitOn `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -79,7 +79,7 @@ splitOnSuffix inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSuffix
 inspect $ 'splitOnSuffix `hasNoType` ''Step
-inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'splitOnSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -92,7 +92,7 @@ splitWithSuffix inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitWithSuffix
 inspect $ 'splitWithSuffix `hasNoType` ''Step
-inspect $ 'splitWithSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'splitWithSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'splitWithSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -123,7 +123,7 @@ wordsBy inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
 inspect $ 'wordsBy `hasNoType` ''Step
-inspect $ 'wordsBy `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'wordsBy `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'wordsBy `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 

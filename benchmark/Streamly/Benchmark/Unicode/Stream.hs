@@ -209,7 +209,7 @@ copyStreamLatin1' inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1'
 inspect $ 'copyStreamLatin1' `hasNoType` ''Step
-inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStreamLatin1' `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'copyStreamLatin1' `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 
 inspect $ 'copyStreamLatin1' `hasNoType` ''Fold.Step
@@ -229,7 +229,7 @@ copyStreamLatin1 inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
-inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'copyStreamLatin1 `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'copyStreamLatin1 `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 
 inspect $ 'copyStreamLatin1 `hasNoType` ''Fold.ManyState

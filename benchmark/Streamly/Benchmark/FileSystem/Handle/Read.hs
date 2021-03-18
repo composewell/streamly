@@ -161,7 +161,7 @@ readLast = S.last . S.unfold FH.read
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
 inspect $ 'readLast `hasNoType` ''Step -- S.unfold
-inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'readLast `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -173,7 +173,7 @@ readCountBytes = S.length . S.unfold FH.read
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
-inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'readCountBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -188,7 +188,7 @@ readCountLines =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
-inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'readCountLines `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -212,7 +212,7 @@ readSumBytes = S.sum . S.unfold FH.read
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
-inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'readSumBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
@@ -332,7 +332,7 @@ inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
 inspect $ 'chunksOf `hasNoType` ''FoldMany
 inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
-inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.concat
+inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
