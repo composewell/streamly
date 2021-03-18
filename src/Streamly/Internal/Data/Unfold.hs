@@ -150,7 +150,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Nesting
     , ConcatState (..)
-    , concat
+    , many
     , concatMapM
     , outerProduct
 
@@ -196,7 +196,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
-       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith
+       hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
 
 -------------------------------------------------------------------------------
@@ -206,7 +206,7 @@ import Prelude
 -- | Map an action on the input argument of the 'Unfold'.
 --
 -- @
--- lmapM f = concat (singletonM f)
+-- lmapM f = many (singletonM f)
 -- @
 --
 -- /Pre-release/

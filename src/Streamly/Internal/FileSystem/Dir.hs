@@ -189,7 +189,7 @@ readChunks = UF.supplyFirst readChunksWithBufferOf defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
-readWithBufferOf = UF.concat readChunksWithBufferOf A.read
+readWithBufferOf = UF.many readChunksWithBufferOf A.read
 
 -- | @toStreamWithBufferOf bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.

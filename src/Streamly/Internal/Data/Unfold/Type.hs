@@ -12,7 +12,7 @@ module Streamly.Internal.Data.Unfold.Type
     , singleton
     , identity
     , ConcatState (..)
-    , concat
+    , many
     , lmap
     , map
     , const
@@ -33,7 +33,7 @@ import Control.Category (Category(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
-import Prelude hiding (const, map, concat, concatMap, zipWith)
+import Prelude hiding (const, map, concatMap, zipWith)
 
 -- $setup
 -- >>> :m
@@ -60,7 +60,7 @@ data Unfold m a b =
 -- | Map a function on the input argument of the 'Unfold'.
 --
 -- @
--- lmap f = concat (singleton f)
+-- lmap f = many (singleton f)
 -- @
 --
 -- /Pre-release/
@@ -279,9 +279,9 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL concat #-}
-concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
-concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+{-# INLINE_NORMAL many #-}
+many :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
+many (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
@@ -311,7 +311,7 @@ instance Monad m => Category (Unfold m) where
     id = identity
 
     {-# INLINE (.) #-}
-    (.) = flip concat
+    (.) = flip many
 
 -------------------------------------------------------------------------------
 -- Arrow

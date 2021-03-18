@@ -559,7 +559,7 @@ concat :: Monad m => Int -> Int -> m ()
 concat linearCount start = do
     let end = start + concatCount linearCount
     UF.fold
-        (UF.concat (source end) (source end))
+        (UF.many (source end) (source end))
         FL.drain start
 
 -------------------------------------------------------------------------------
