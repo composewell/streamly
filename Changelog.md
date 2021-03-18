@@ -87,6 +87,18 @@
 * `Streamly.Internal.Data.Fold.Tee` module added for folds with tee-like
   applicative behaviour.
 
+### Miscellaneous
+
+* The examples in this package are removed to a new github repo
+  [streamly-examples](https://github.com/composewell/streamly-examples)
+
+## 0.7.3 (February 2021)
+
+### Build Issues
+
+* Fix build issues with primitive package version >= 0.7.1.
+* Fix build issues on armv7.
+
 ## 0.7.2 (April 2020)
 
 ### Bug Fixes
