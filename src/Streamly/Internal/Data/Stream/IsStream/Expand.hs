@@ -89,12 +89,13 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
 
     -- ** Append Many (Unfold)
     -- | Unfold and flatten streams.
+    , unfoldMany
+    , unfoldManyInterleave
+    , unfoldManyRoundRobin
     , concatUnfold
-    , concatUnfoldInterleave
-    , concatUnfoldRoundrobin
 
     -- ** Interpose
-    -- | Insert effects between streams. Like concatUnfold but intersperses an
+    -- | Insert effects between streams. Like unfoldMany but intersperses an
     -- effect between the streams. A special case of gintercalate.
     , interpose
     , interposeSuffix
@@ -102,7 +103,7 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
 
     -- ** Intercalate
     -- | Insert Streams between Streams.
-    -- Like concatUnfold but intersperses streams from another source between
+    -- Like unfoldMany but intersperses streams from another source between
     -- the streams from the first source.
     , intercalate
     , intercalateSuffix
@@ -449,40 +450,45 @@ mergeAsyncByM f m1 m2 =
         let par = Par.mkParallelD . toStreamD
         in D.mergeByM f (par m1) (par m2)
 
+
+-- @since 0.7.0
+{-# DEPRECATED concatUnfold "Please use unfoldMany instead." #-}
+{-# INLINE concatUnfold #-}
+concatUnfold ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
+concatUnfold u m = fromStreamD $ D.unfoldMany u (toStreamD m)
+
 ------------------------------------------------------------------------------
--- Combine N Streams - concatUnfold
+-- Combine N Streams - unfoldMany
 ------------------------------------------------------------------------------
 
--- XXX Rename to unfoldMany
---
 -- | Like 'concatMap' but uses an 'Unfold' for stream generation. Unlike
 -- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
 -- therefore provide many times better performance.
 --
--- @since 0.7.0
-{-# INLINE concatUnfold #-}
-concatUnfold ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
-concatUnfold u m = fromStreamD $ D.concatUnfold u (toStreamD m)
+-- @since 0.8.0
+{-# INLINE unfoldMany #-}
+unfoldMany ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
+unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 
--- | Like 'concatUnfold' but interleaves the streams in the same way as
+-- | Like 'unfoldMany' but interleaves the streams in the same way as
 -- 'interleave' behaves instead of appending them.
 --
 -- /Pre-release/
-{-# INLINE concatUnfoldInterleave #-}
-concatUnfoldInterleave ::(IsStream t, Monad m)
+{-# INLINE unfoldManyInterleave #-}
+unfoldManyInterleave ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
-concatUnfoldInterleave u m =
-    fromStreamD $ D.concatUnfoldInterleave u (toStreamD m)
+unfoldManyInterleave u m =
+    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
 
--- | Like 'concatUnfold' but executes the streams in the same way as
+-- | Like 'unfoldMany' but executes the streams in the same way as
 -- 'roundrobin'.
 --
 -- /Pre-release/
-{-# INLINE concatUnfoldRoundrobin #-}
-concatUnfoldRoundrobin ::(IsStream t, Monad m)
+{-# INLINE unfoldManyRoundRobin #-}
+unfoldManyRoundRobin ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
-concatUnfoldRoundrobin u m =
-    fromStreamD $ D.concatUnfoldRoundrobin u (toStreamD m)
+unfoldManyRoundRobin u m =
+    fromStreamD $ D.unfoldManyRoundRobin u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
@@ -521,11 +527,11 @@ interposeSuffix x unf str =
 ------------------------------------------------------------------------------
 
 -- XXX we can swap the order of arguments to gintercalate so that the
--- definition of concatUnfold becomes simpler? The first stream should be
+-- definition of unfoldMany becomes simpler? The first stream should be
 -- infixed inside the second one. However, if we change the order in
 -- "interleave" as well similarly, then that will make it a bit unintuitive.
 --
--- > concatUnfold unf str =
+-- > unfoldMany unf str =
 -- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
 --
 -- | 'interleaveInfix' followed by unfold and concat.
@@ -547,7 +553,7 @@ gintercalate unf1 str1 unf2 str2 =
 -- will be starting with the second stream.
 
 -- > intercalate seed unf str = gintercalate unf str unf (repeatM seed)
--- > intercalate a unf str = concatUnfold unf $ intersperse a str
+-- > intercalate a unf str = unfoldMany unf $ intersperse a str
 --
 -- | 'intersperse' followed by unfold and concat.
 --
@@ -561,7 +567,7 @@ gintercalate unf1 str1 unf2 str2 =
 intercalate :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
 intercalate seed unf str = D.fromStreamD $
-    D.concatUnfold unf $ D.intersperse seed (toStreamD str)
+    D.unfoldMany unf $ D.intersperse seed (toStreamD str)
 
 -- | 'interleaveSuffix' followed by unfold and concat.
 --
@@ -576,7 +582,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
         unf2 (D.toStreamD str2)
 
 -- > intercalateSuffix seed unf str = gintercalateSuffix unf str unf (repeatM seed)
--- > intercalateSuffix a unf str = concatUnfold unf $ intersperseSuffix a str
+-- > intercalateSuffix a unf str = unfoldMany unf $ intersperseSuffix a str
 --
 -- | 'intersperseSuffix' followed by unfold and concat.
 --
@@ -589,7 +595,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
-intercalateSuffix seed unf str = fromStreamD $ D.concatUnfold unf
+intercalateSuffix seed unf str = fromStreamD $ D.unfoldMany unf
     $ D.intersperseSuffix (return seed) (D.toStreamD str)
 
 {-

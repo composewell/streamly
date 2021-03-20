@@ -352,7 +352,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 --
 -- @
 --   S.mapM_ print
--- $ S.concatUnfold (UF.zipWith (,) UF.identity (UF.singleton sqrt))
+-- $ S.unfoldMany (UF.zipWith (,) UF.identity (UF.singleton sqrt))
 -- $ S.map (\x -> (x,x))
 -- $ S.fromList [1..10]
 -- @

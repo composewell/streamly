@@ -163,7 +163,7 @@ testArraysOf =
             monadicIO $ do
                 xs <- run
                     $ S.toList
-                    $ S.concatUnfold A.read
+                    $ S.unfoldMany A.read
                     $ arraysOf 240
                     $ S.fromList list
                 assert (xs == list)

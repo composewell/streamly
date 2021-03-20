@@ -1129,7 +1129,7 @@ reverse' m = Stream step Nothing
         return $ Yield x (Just (start, next))
 -}
 reverse' =
-          A.flattenArraysRev -- concatUnfold A.readRev
+          A.flattenArraysRev -- unfoldMany A.readRev
         . fromStreamK
         . K.reverse
         . toStreamK

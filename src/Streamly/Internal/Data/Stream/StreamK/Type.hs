@@ -1181,7 +1181,7 @@ instance Monad m => Monad (Stream m) where
 
 {-
 -- Like concatMap but generates stream using an unfold function. Similar to
--- concatUnfold but for StreamK.
+-- unfoldMany but for StreamK.
 concatUnfoldr :: IsStream t
     => (b -> t m (Maybe (a, b))) -> t m b -> t m a
 concatUnfoldr = undefined

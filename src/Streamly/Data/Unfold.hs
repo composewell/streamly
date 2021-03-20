@@ -30,7 +30,7 @@
 -- much less efficient when compared to combinators using 'Unfold'.  For
 -- example, the 'Streamly.Prelude.concatMap' combinator which uses @a -> t m b@
 -- (where @t@ is a stream type) to generate streams is much less efficient
--- compared to 'Streamly.Prelude.concatUnfold'.
+-- compared to 'Streamly.Prelude.unfoldMany'.
 --
 -- On the other hand, transformation operations on stream types are as
 -- efficient as transformations on 'Unfold'.

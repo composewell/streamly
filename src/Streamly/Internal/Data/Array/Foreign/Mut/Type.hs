@@ -569,7 +569,7 @@ data FlattenState s a =
 
 -- | Use the "read" unfold instead.
 --
--- @flattenArrays = concatUnfold read@
+-- @flattenArrays = unfoldMany read@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
@@ -603,7 +603,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
 
 -- | Use the "readRev" unfold instead.
 --
--- @flattenArrays = concatUnfold readRev@
+-- @flattenArrays = unfoldMany readRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
@@ -987,7 +987,7 @@ fromStreamD :: (MonadIO m, Storable a) => D.Stream m a -> m (Array a)
 fromStreamD m = do
     buffered <- bufferChunks m
     len <- K.foldl' (+) 0 (K.map length buffered)
-    fromStreamDN len $ D.concatUnfold read $ D.fromStreamK buffered
+    fromStreamDN len $ D.unfoldMany read $ D.fromStreamK buffered
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --

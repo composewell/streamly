@@ -52,7 +52,7 @@ The haddock documentation includes a note when an operation cannot fuse.
 ### Unfolds
 
 * Use unfolds especially when higher order operations are involved. For
-  example, `concatUnfold` can fuse completely whereas `concatMap` would
+  example, `unfoldMany` can fuse completely whereas `concatMap` would
   not fuse.
 * Use `outerProduct` in `Unfold` module instead of using the monad instance of
   streams to fuse nested loops where performance matters. See the unfold

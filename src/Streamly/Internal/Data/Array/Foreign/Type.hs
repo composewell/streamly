@@ -334,7 +334,7 @@ arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
 
 -- | Use the "read" unfold instead.
 --
--- @flattenArrays = concatUnfold read@
+-- @flattenArrays = unfoldMany read@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
@@ -345,7 +345,7 @@ flattenArrays = MA.flattenArrays . D.map unsafeThaw
 
 -- | Use the "readRev" unfold instead.
 --
--- @flattenArrays = concatUnfold readRev@
+-- @flattenArrays = unfoldMany readRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --

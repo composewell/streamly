@@ -402,20 +402,20 @@ inspect $ hasNoTypeClasses 'concatMapRepl
 inspect $ 'concatMapRepl `hasNoType` ''SPEC
 #endif
 
--- concatUnfold replicate/unfoldrM
+-- unfoldMany replicate/unfoldrM
 
-{-# INLINE concatUnfoldRepl #-}
-concatUnfoldRepl :: Int -> Int -> Int -> IO ()
-concatUnfoldRepl outer inner n =
+{-# INLINE unfoldManyRepl #-}
+unfoldManyRepl :: Int -> Int -> Int -> IO ()
+unfoldManyRepl outer inner n =
     S.drain
-         $ S.concatUnfold
+         $ S.unfoldMany
                (UF.lmap return (UF.replicateM inner))
                (sourceUnfoldrMN outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldRepl
-inspect $ 'concatUnfoldRepl `hasNoType` ''S.ConcatMapUState
-inspect $ 'concatUnfoldRepl `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldManyRepl
+inspect $ 'unfoldManyRepl `hasNoType` ''S.ConcatMapUState
+inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
@@ -488,11 +488,11 @@ o_1_space =
         , benchIOSrc1 "concatMap (1 of n)"
             (concatMap 1 value)
 
-        -- concatMap vs concatUnfold
+        -- concatMap vs unfoldMany
         , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
             (concatMapRepl value2 value2)
-        , benchIOSrc1 "concatUnfoldRepl (sqrt n of sqrt n)"
-            (concatUnfoldRepl value2 value2)
+        , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
+            (unfoldManyRepl value2 value2)
         ]
       , bgroup "filtering"
         [ benchFold "filter-even"     (filterEven     1) sourceUnfoldrM
