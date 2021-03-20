@@ -35,13 +35,13 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 
     -- *** Appending
     -- | Append a stream after another. A special case of concatMap or
-    -- concatUnfold.
+    -- unfoldMany.
       AppendState(..)
     , append
 
     -- *** Interleaving
     -- | Interleave elements from two streams alternately. A special case of
-    -- concatUnfoldInterleave.
+    -- unfoldManyInterleave.
     , InterleaveState(..)
     , interleave
     , interleaveMin
@@ -51,7 +51,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- *** Scheduling
     -- | Execute streams alternately irrespective of whether they generate
     -- elements or not. Note 'interleave' would execute a stream until it
-    -- yields an element. A special case of concatUnfoldRoundrobin.
+    -- yields an element. A special case of unfoldManyRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
 
     -- *** Zipping
@@ -70,7 +70,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- @
     -- concat: f (t m a) -> t m a
     -- concatMap: (a -> t m b) -> t m a -> t m b
-    -- concatUnfold: Unfold m a b -> t m a -> t m b
+    -- unfoldMany: Unfold m a b -> t m a -> t m b
     -- @
 
     -- *** ConcatMap
@@ -83,19 +83,19 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Generate streams by using an unfold on each element of an input
     -- stream, append the resulting streams and flatten. A special case of
     -- gintercalate.
-    , concatUnfold
+    , unfoldMany
     , ConcatUnfoldInterleaveState (..)
-    , concatUnfoldInterleave
-    , concatUnfoldRoundrobin
+    , unfoldManyInterleave
+    , unfoldManyRoundRobin
 
     -- *** Interpose
-    -- | Like concatUnfold but intersperses an effect between the streams. A
+    -- | Like unfoldMany but intersperses an effect between the streams. A
     -- special case of gintercalate.
     , interpose
     , interposeSuffix
 
     -- *** Intercalate
-    -- | Like concatUnfold but intersperses streams from another source between
+    -- | Like unfoldMany but intersperses streams from another source between
     -- the streams from the first source.
     , gintercalate
     , gintercalateSuffix
@@ -116,7 +116,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
-    -- concatUnfold. concatMap generates a stream from single values in a
+    -- unfoldMany. concatMap generates a stream from single values in a
     -- stream and flattens, parseMany does the opposite of flattening by
     -- splitting the stream and then folds each such split to single value in
     -- the output stream.
@@ -477,7 +477,7 @@ mergeBy
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 ------------------------------------------------------------------------------
--- Combine N Streams - concatUnfold
+-- Combine N Streams - unfoldMany
 ------------------------------------------------------------------------------
 
 data ConcatUnfoldInterleaveState o i =
@@ -502,9 +502,9 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 --
-{-# INLINE_NORMAL concatUnfoldInterleave #-}
-concatUnfoldInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-concatUnfoldInterleave (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldManyInterleave #-}
+unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
     {-# INLINE_LATE step #-}
@@ -553,11 +553,11 @@ concatUnfoldInterleave (Unfold istep inject) (Stream ostep ost) =
 --
 -- This could be inefficient if the tasks are too small.
 --
--- Compared to concatUnfoldInterleave this one switches streams on Skips.
+-- Compared to unfoldManyInterleave this one switches streams on Skips.
 --
-{-# INLINE_NORMAL concatUnfoldRoundrobin #-}
-concatUnfoldRoundrobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-concatUnfoldRoundrobin (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldManyRoundRobin #-}
+unfoldManyRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldManyRoundRobin (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
     {-# INLINE_LATE step #-}

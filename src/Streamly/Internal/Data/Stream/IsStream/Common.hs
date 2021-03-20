@@ -460,7 +460,7 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- concatMap f = 'concatMapM' (return . f)
 -- concatMap = 'concatMapWith' 'Serial.serial'
 -- concatMap f = 'concat . map f'
--- concatMap f = 'concatUnfold' (UF.lmap f UF.fromStream)
+-- concatMap f = 'unfoldMany' (UF.lmap f UF.fromStream)
 -- @
 --
 -- @since 0.6.0

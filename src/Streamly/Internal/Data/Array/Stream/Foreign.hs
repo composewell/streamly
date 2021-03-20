@@ -93,19 +93,19 @@ arraysOf n str = D.fromStreamD $ A.arraysOf n (D.toStreamD str)
 --
 -- Same as the following but more efficient:
 --
--- > concat = Stream.concatUnfold Array.read
+-- > concat = Stream.unfoldMany Array.read
 --
 -- @since 0.7.0
 {-# INLINE concat #-}
 concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 -- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
-concat m = D.fromStreamD $ D.concatUnfold A.read (D.toStreamD m)
+concat m = D.fromStreamD $ D.unfoldMany A.read (D.toStreamD m)
 
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
 --
--- > concatRev = Stream.concatUnfold Array.readRev
+-- > concatRev = Stream.unfoldMany Array.readRev
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}

@@ -167,7 +167,7 @@ we can resolve this using fusion-plugin in future.
 ### Delayed INLINE
 
 When a function is passed to a higher order function e.g. a function
-passed to `concatMap` or `concatUnfold` then we want the function to be
+passed to `concatMap` or `unfoldMany` then we want the function to be
 inlined after the higher order is inlined so that proper fusion of the
 higher order function can occur. For such cases we usually add INLINE[1]
 on the function being passed to instruct GHC not to inline it too early.

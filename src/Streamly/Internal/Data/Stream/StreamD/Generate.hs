@@ -10,7 +10,7 @@
 -- Prefer unfolds ("Streamly.Internal.Data.Unfold") over the combinators in
 -- this module. They are more powerful and efficient as they can be transformed
 -- and composed on the input side efficiently and they can fuse in nested
--- operations (e.g.  concatUnfold). All the combinators in this module can be
+-- operations (e.g.  unfoldMany). All the combinators in this module can be
 -- expressed using unfolds with the same efficiency.
 --
 -- Operations in this module that are not in "Streamly.Internal.Data.Unfold":

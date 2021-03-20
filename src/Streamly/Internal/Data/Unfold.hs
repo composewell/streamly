@@ -17,13 +17,13 @@
 --
 -- This allows an important optimization to occur in several cases, making the
 -- 'Unfold' a more efficient abstraction. Consider the 'concatMap' and
--- 'concatUnfold' operations, the latter is more efficient.  'concatMap'
+-- 'unfoldMany' operations, the latter is more efficient.  'concatMap'
 -- generates a new stream object from each element in the stream by applying
 -- the supplied function to the element, the stream object includes the "step"
 -- function as well as the initial "state" of the stream.  Since the stream is
 -- generated dynamically the compiler does not know the step function or the
 -- state type statically at compile time, therefore, it cannot inline it. On
--- the other hand in case of 'concatUnfold' the compiler has visibility into
+-- the other hand in case of 'unfoldMany' the compiler has visibility into
 -- the unfold's state generation function, therefore, the compiler knows all
 -- the types statically and it can inline the inject as well as the step
 -- functions, generating efficient code. Essentially, the stream is not opaque
@@ -844,7 +844,7 @@ fromProducer = Unfold step (return . FromSVarRead)
 -- stream.
 --
 -- @
--- S.mapM_ print $ S.concatUnfold (UF.teeZipWith (,) UF.identity (UF.singleton sqrt)) $ S.fromList [1..10]
+-- S.mapM_ print $ S.unfoldMany (UF.teeZipWith (,) UF.identity (UF.singleton sqrt)) $ S.fromList [1..10]
 -- @
 --
 -- /Pre-release/

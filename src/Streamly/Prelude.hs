@@ -596,6 +596,7 @@ module Streamly.Prelude
     , concatMap
     , concatMapM
     , concatUnfold
+    , unfoldMany
 
     -- ** Folding Containers of Streams
     -- | These are variants of standard 'Foldable' fold functions that use a

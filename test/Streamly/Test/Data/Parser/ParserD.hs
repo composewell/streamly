@@ -630,7 +630,7 @@ parseUnfold = do
                     Producer.simplify (Source.parseManyD parser readSrc)
             xs <- run
                 $ S.toList
-                $ S.concatUnfold Unfold.fromList
+                $ S.unfoldMany Unfold.fromList
                 $ S.unfold streamParser src
 
             listEquals (==) xs ls

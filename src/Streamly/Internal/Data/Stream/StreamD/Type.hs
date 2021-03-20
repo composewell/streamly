@@ -75,7 +75,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 
     -- * Nesting
     , ConcatMapUState (..)
-    , concatUnfold
+    , unfoldMany
     , concatMap
     , concatMapM
     , FoldMany (..) -- for inspection testing
@@ -690,7 +690,7 @@ instance Applicative f => Applicative (Stream f) where
     (<*) = apDiscardSnd
 
 ------------------------------------------------------------------------------
--- Combine N Streams - concatUnfold
+-- Combine N Streams - unfoldMany
 ------------------------------------------------------------------------------
 
 -- Define a unique structure to use in inspection testing
@@ -698,7 +698,7 @@ data ConcatMapUState o i =
       ConcatMapUOuter o
     | ConcatMapUInner o i
 
--- | @concatUnfold unfold stream@ uses @unfold@ to map the input stream elements
+-- | @unfoldMany unfold stream@ uses @unfold@ to map the input stream elements
 -- to streams and then flattens the generated streams into a single output
 -- stream.
 
@@ -707,9 +707,9 @@ data ConcatMapUState o i =
 -- optimization via fusion.  This can be many times more efficient than
 -- 'concatMap'.
 
-{-# INLINE_NORMAL concatUnfold #-}
-concatUnfold :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-concatUnfold (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldMany #-}
+unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldMany (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatMapUOuter ost)
   where
     {-# INLINE_LATE step #-}
@@ -728,7 +728,7 @@ concatUnfold (Unfold istep inject) (Stream ostep ost) =
             Yield x i' -> Yield x (ConcatMapUInner o i')
             Skip i'    -> Skip (ConcatMapUInner o i')
             Stop       -> Skip (ConcatMapUOuter o)
-
+      
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------

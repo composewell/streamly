@@ -261,22 +261,22 @@ inspect $ hasNoTypeClasses 'concatMapWithAppend
 inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 #endif
 
--- concatUnfold
+-- unfoldMany
 
--- concatUnfold replicate/unfoldrM
+-- unfoldMany replicate/unfoldrM
 
-{-# INLINE concatUnfoldRepl #-}
-concatUnfoldRepl :: Int -> Int -> Int -> IO ()
-concatUnfoldRepl outer inner n =
+{-# INLINE unfoldManyRepl #-}
+unfoldManyRepl :: Int -> Int -> Int -> IO ()
+unfoldManyRepl outer inner n =
     S.drain
-         $ S.concatUnfold
+         $ S.unfoldMany
                (UF.lmap return (UF.replicateM inner))
                (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldRepl
-inspect $ 'concatUnfoldRepl `hasNoType` ''D.ConcatMapUState
-inspect $ 'concatUnfoldRepl `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldManyRepl
+inspect $ 'unfoldManyRepl `hasNoType` ''D.ConcatMapUState
+inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 #endif
 
 o_1_space_concat :: Int -> [Benchmark]
@@ -322,11 +322,11 @@ o_1_space_concat value = sqrtVal `seq`
         , benchIOSrc1 "concatMapWithAppend (2 of n/2)"
             (concatMapWithAppend 2 (value `div` 2))
 
-        -- concatMap vs concatUnfold
+        -- concatMap vs unfoldMany
         , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
             (concatMapRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "concatUnfoldRepl (sqrt n of sqrt n)"
-            (concatUnfoldRepl sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
+            (unfoldManyRepl sqrtVal sqrtVal)
         ]
     ]
 

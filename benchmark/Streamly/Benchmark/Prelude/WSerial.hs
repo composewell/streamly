@@ -122,31 +122,31 @@ o_1_space_concat value =
         ]
     ]
 
-{-# INLINE concatUnfoldInterleaveRepl4xN #-}
-concatUnfoldInterleaveRepl4xN :: Int -> Int -> IO ()
-concatUnfoldInterleaveRepl4xN value n =
-    S.drain $ Internal.concatUnfoldInterleave
+{-# INLINE unfoldManyInterleaveRepl4xN #-}
+unfoldManyInterleaveRepl4xN :: Int -> Int -> IO ()
+unfoldManyInterleaveRepl4xN value n =
+    S.drain $ Internal.unfoldManyInterleave
         (UF.lmap return (UF.replicateM 4))
         (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldInterleaveRepl4xN
--- inspect $ 'concatUnfoldInterleaveRepl4xN `hasNoType` ''SPEC
--- inspect $ 'concatUnfoldInterleaveRepl4xN `hasNoType`
+inspect $ hasNoTypeClasses 'unfoldManyInterleaveRepl4xN
+-- inspect $ 'unfoldManyInterleaveRepl4xN `hasNoType` ''SPEC
+-- inspect $ 'unfoldManyInterleaveRepl4xN `hasNoType`
 --      ''D.ConcatUnfoldInterleaveState
 #endif
 
-{-# INLINE concatUnfoldRoundrobinRepl4xN #-}
-concatUnfoldRoundrobinRepl4xN :: Int -> Int -> IO ()
-concatUnfoldRoundrobinRepl4xN value n =
-    S.drain $ Internal.concatUnfoldRoundrobin
+{-# INLINE unfoldManyRoundRobinRepl4xN #-}
+unfoldManyRoundRobinRepl4xN :: Int -> Int -> IO ()
+unfoldManyRoundRobinRepl4xN value n =
+    S.drain $ Internal.unfoldManyRoundRobin
         (UF.lmap return (UF.replicateM 4))
         (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN
--- inspect $ 'concatUnfoldRoundrobinRepl4xN `hasNoType` ''SPEC
--- inspect $ 'concatUnfoldRoundrobinRepl4xN `hasNoType`
+inspect $ hasNoTypeClasses 'unfoldManyRoundRobinRepl4xN
+-- inspect $ 'unfoldManyRoundRobinRepl4xN `hasNoType` ''SPEC
+-- inspect $ 'unfoldManyRoundRobinRepl4xN `hasNoType`
 --      ''D.ConcatUnfoldInterleaveState
 #endif
 
@@ -159,11 +159,11 @@ o_n_heap_concat value =
           -- WSerial expands slowly because of binary interleave behavior and
           -- this expands immediately because of Nary interleave behavior.
           benchIOSrc1
-              "concatUnfoldInterleaveRepl (x/4,4)"
-              (concatUnfoldInterleaveRepl4xN value)
+              "unfoldManyInterleaveRepl (x/4,4)"
+              (unfoldManyInterleaveRepl4xN value)
         , benchIOSrc1
-              "concatUnfoldRoundrobinRepl (x/4,4)"
-              (concatUnfoldRoundrobinRepl4xN value)
+              "unfoldManyRoundRobinRepl (x/4,4)"
+              (unfoldManyRoundRobinRepl4xN value)
         ]
     ]
 
