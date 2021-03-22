@@ -28,7 +28,7 @@ jobs:
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
       RESOLVER: ${{ matrix.resolver }}
-      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
       STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
