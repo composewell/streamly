@@ -10,6 +10,11 @@ flag fusion-plugin
   manual: True
   default: False
 
+flag limit-build-mem
+  description: Limits memory when building the executables
+  manual: True
+  default: False
+
 flag dev
   description: Development build
   manual: True
@@ -53,6 +58,7 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
+                      -fno-ignore-asserts
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -61,8 +67,8 @@ common compile-options
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
-    ghc-options:    -fno-ignore-asserts
-                    +RTS -M512M -RTS
+    if flag(limit-build-mem)
+      ghc-options: +RTS -M512M -RTS
 
 common default-extensions
     default-extensions:
@@ -146,10 +152,12 @@ common lib-options
 
 library
     import: lib-options, test-dependencies
-    ghc-options: +RTS -M1500M -RTS
     hs-source-dirs: lib
     exposed-modules: Streamly.Test.Common
                    , Streamly.Test.Prelude.Common
+    if flag(limit-build-mem)
+      ghc-options: +RTS -M1500M -RTS
+
 
 -------------------------------------------------------------------------------
 -- Test suite options
@@ -222,13 +230,15 @@ test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
-  ghc-options: +RTS -M1000M -RTS
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
 test-suite Data.Parser.ParserD
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
-  ghc-options: +RTS -M1000M -RTS
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
 test-suite Data.SmallArray
   import: test-options
@@ -287,7 +297,8 @@ test-suite Prelude.Concurrent
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Concurrent.hs
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
-               +RTS -M2000M -RTS
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M2000M -RTS
 
 test-suite Prelude.Fold
   import: test-options
@@ -316,7 +327,9 @@ test-suite Prelude.Serial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Serial.hs
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
-               +RTS -M1500M -RTS
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
 
 test-suite Prelude.WAsync
   import: test-options
