@@ -19,6 +19,11 @@ flag fusion-plugin
   manual: True
   default: False
 
+flag limit-build-mem
+  description: Limits memory when building the executables
+  manual: True
+  default: False
+
 flag inspection
   description: Enable inspection testing
   manual: True
@@ -173,11 +178,13 @@ benchmark Prelude.Serial
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split
-  ghc-options: +RTS -M2000M -RTS
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M2000M -RTS
+
 
 benchmark Prelude.WSerial
   import: bench-options
@@ -202,13 +209,15 @@ benchmark Prelude.ZipSerial
 benchmark Prelude.ZipAsync
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M1000M -RTS
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: ZipAsync.hs
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
+
 
 benchmark Prelude.Ahead
   import: bench-options-threaded
@@ -243,13 +252,15 @@ benchmark Prelude.WAsync
 benchmark Prelude.Parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  ghc-options: +RTS -M2000M -RTS
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Parallel.hs
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M2000M -RTS
+
 
 benchmark Data.Unfold
   import: bench-options
@@ -276,12 +287,14 @@ benchmark Data.Parser.ParserD
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserD.hs
-  ghc-options: +RTS -M750M -RTS
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
+
 
 benchmark Data.Parser.ParserK
   import: bench-options
@@ -314,13 +327,14 @@ benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
-  ghc-options: +RTS -M1000M -RTS
   main-is: Parser.hs
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
 -------------------------------------------------------------------------------
 -- Raw Streams
