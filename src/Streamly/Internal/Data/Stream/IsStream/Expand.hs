@@ -92,7 +92,6 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , unfoldMany
     , unfoldManyInterleave
     , unfoldManyRoundRobin
-    , concatUnfold
 
     -- ** Interpose
     -- | Insert effects between streams. Like unfoldMany but intersperses an
@@ -151,6 +150,9 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , iterateMapWith
     , iterateSmapMWith
     , iterateMapLeftsWith
+
+    -- * Deprecated
+    , concatUnfold
     )
 where
 

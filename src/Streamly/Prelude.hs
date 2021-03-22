@@ -595,7 +595,6 @@ module Streamly.Prelude
     , concatMapWith
     , concatMap
     , concatMapM
-    , concatUnfold
     , unfoldMany
 
     -- ** Folding Containers of Streams
@@ -646,6 +645,7 @@ module Streamly.Prelude
     , runWhile
     , fromHandle
     , toHandle
+    , concatUnfold
     )
 where
 
