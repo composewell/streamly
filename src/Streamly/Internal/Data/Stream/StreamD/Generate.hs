@@ -175,20 +175,38 @@ replicate :: Monad m => Int -> a -> Stream m a
 replicate n x = replicateM n (return x)
 
 ------------------------------------------------------------------------------
--- Enumeration
+-- Enumeration of Num
 ------------------------------------------------------------------------------
 
--- This would not work properly for floats, therefore we put an Integral
--- constraint.
--- | Can be used to enumerate unbounded integrals. This does not check for
--- overflow or underflow for bounded integrals.
-{-# INLINE_NORMAL enumerateFromStepIntegral #-}
-enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
-enumerateFromStepIntegral from stride =
-    from `seq` stride `seq` Stream step from
+-- | For floating point numbers if the increment is less than the precision then
+-- it just gets lost. Therefore we cannot always increment it correctly by just
+-- repeated addition.
+-- 9007199254740992 + 1 + 1 :: Double => 9.007199254740992e15
+-- 9007199254740992 + 2     :: Double => 9.007199254740994e15
+--
+-- Instead we accumulate the increment counter and compute the increment
+-- every time before adding it to the starting number.
+--
+-- This works for Integrals as well as floating point numbers, but
+-- enumerateFromStepIntegral is faster for integrals.
+{-# INLINE_NORMAL enumerateFromStepNum #-}
+enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
+enumerateFromStepNum from stride = Stream step 0
     where
-        {-# INLINE_LATE step #-}
-        step _ !x = return $ Yield x $! (x + stride)
+    {-# INLINE_LATE step #-}
+    step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
+
+{-# INLINE_NORMAL numFrom #-}
+numFrom :: (Monad m, Num a) => a -> Stream m a
+numFrom from = enumerateFromStepNum from 1
+
+{-# INLINE_NORMAL numFromThen #-}
+numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
+numFromThen from next = enumerateFromStepNum from (next - from)
+
+------------------------------------------------------------------------------
+-- Enumeration of Integrals
+------------------------------------------------------------------------------
 
 data EnumState a = EnumInit | EnumYield a a a | EnumStop
 
@@ -258,8 +276,19 @@ enumerateFromThenIntegral from next =
     then enumerateFromThenToIntegralUp from next maxBound
     else enumerateFromThenToIntegralDn from next minBound
 
--- We are assuming that "to" is constrained by the type to be within
--- max/min bounds.
+-- | Can be used to enumerate unbounded integrals. This does not check for
+-- overflow or underflow for bounded integrals.
+--
+{-# INLINE_NORMAL enumerateFromStepIntegral #-}
+enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
+enumerateFromStepIntegral from stride =
+    from `seq` stride `seq` Stream step from
+    where
+        {-# INLINE_LATE step #-}
+        step _ !x = return $ Yield x $! (x + stride)
+
+-- | Enumerate upwards from @from@ to @to@. We are assuming that "to" is
+-- constrained by the type to be within max/min bounds.
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
 enumerateFromToIntegral from to =
@@ -269,7 +298,11 @@ enumerateFromToIntegral from to =
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
 enumerateFromIntegral from = enumerateFromToIntegral from maxBound
 
--- We cannot write a general function for Num.  The only way to write code
+------------------------------------------------------------------------------
+-- Enumeration of Fractionals
+------------------------------------------------------------------------------
+
+-- | We cannot write a general function for Num.  The only way to write code
 -- portable between the two is to use a 'Real' constraint and convert between
 -- Fractional and Integral using fromRational which is horribly slow.
 {-# INLINE_NORMAL enumerateFromToFractional #-}
@@ -289,32 +322,6 @@ enumerateFromThenToFractional from next to =
     mid = (next - from) / 2
     predicate | next >= from  = (<= to + mid)
               | otherwise     = (>= to + mid)
-
--- For floating point numbers if the increment is less than the precision then
--- it just gets lost. Therefore we cannot always increment it correctly by just
--- repeated addition.
--- 9007199254740992 + 1 + 1 :: Double => 9.007199254740992e15
--- 9007199254740992 + 2     :: Double => 9.007199254740994e15
-
--- Instead we accumulate the increment counter and compute the increment
--- every time before adding it to the starting number.
---
--- This works for Integrals as well as floating point numbers, but
--- enumerateFromStepIntegral is faster for integrals.
-{-# INLINE_NORMAL enumerateFromStepNum #-}
-enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
-enumerateFromStepNum from stride = Stream step 0
-    where
-    {-# INLINE_LATE step #-}
-    step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
-
-{-# INLINE_NORMAL numFrom #-}
-numFrom :: (Monad m, Num a) => a -> Stream m a
-numFrom from = enumerateFromStepNum from 1
-
-{-# INLINE_NORMAL numFromThen #-}
-numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
-numFromThen from next = enumerateFromStepNum from (next - from)
 
 ------------------------------------------------------------------------------
 -- Time Enumeration
