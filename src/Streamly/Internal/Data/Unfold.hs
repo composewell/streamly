@@ -694,11 +694,14 @@ dropWhile f = dropWhileM (return . f)
 --
 {-# INLINE enumerateFromStepNum #-}
 enumerateFromStepNum :: (Monad m, Num a) => a -> Unfold m a a
-enumerateFromStepNum stride = Unfold step return
+enumerateFromStepNum stride = Unfold step inject
+
     where
-    -- XXX This is numerically unstable.
+
+    inject !from = return (from, 0)
+
     {-# INLINE_LATE step #-}
-    step !s = return $ (Yield $! s) $! (s + stride)
+    step (from, !i) = return $ (Yield $! (from + i * stride)) $! (from, i + 1)
 
 -- | @numFrom = enumerateFromStepNum 1@
 --
