@@ -94,7 +94,6 @@ module Streamly.Data.Unfold
     , dropWhileM
 
     -- ** Zipping
-    , zipWithM
     , zipWith
 
     -- ** Cross Product

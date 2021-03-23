@@ -54,8 +54,8 @@ import Prelude hiding (const, map, concatMap, zipWith)
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
@@ -125,7 +125,7 @@ yieldM m = Unfold step inject
 
 -- | Discards the unfold input and always returns the argument of 'yield'.
 yield :: Applicative m => b -> Unfold m a b
-yield = yieldM . pure
+yield = yieldM Prelude.. pure
 
 -- | Outer product discarding the first element.
 --
@@ -218,7 +218,7 @@ apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 --
 instance Monad m => Applicative (Unfold m a) where
     {-# INLINE pure #-}
-    pure = const Prelude.. return
+    pure = yield
 
     {-# INLINE (<*>) #-}
     (<*>) = apply
@@ -314,8 +314,6 @@ instance Monad m => Monad (Unfold m a) where
 -- Category
 -------------------------------------------------------------------------------
 
--- XXX change it to yieldM or change yieldM in Prelude to singletonM
---
 -- | Lift a monadic function into an unfold generating a singleton stream.
 --
 {-# INLINE singletonM #-}
@@ -397,20 +395,25 @@ instance Monad m => Category (Unfold m) where
 -}
 
 -------------------------------------------------------------------------------
--- Arrow
+-- Zipping
 -------------------------------------------------------------------------------
 
--- | Stops as soon as any of the unfolds stops.
+-- | Distribute the input to two unfolds and then zip the outputs to a single
+-- stream using a monadic zip function.
+--
+-- Stops as soon as any of the unfolds stops.
+--
+-- /Pre-release/
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
-    => (a -> b -> m c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+    => (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
 zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
-    inject (x, y) = do
+    inject x = do
         s1 <- inject1 x
-        s2 <- inject2 y
+        s2 <- inject2 x
         return (s1, s2, Nothing)
 
     {-# INLINE_LATE step #-}
@@ -431,22 +434,26 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Skip s -> return $ Skip (s1, s, Just x)
             Stop   -> return Stop
 
--- | Divide the input into two unfolds and then zip the outputs to a single
--- stream.
+-- | Like 'zipWithM' but with a pure zip function.
 --
--- @
---   S.mapM_ print
--- $ S.unfoldMany (UF.zipWith (,) UF.identity (UF.singleton sqrt))
--- $ S.map (\x -> (x,x))
--- $ S.fromList [1..10]
--- @
+-- >>> square = fmap (\x -> x * x) Unfold.fromList
+-- >>> cube = fmap (\x -> x * x * x) Unfold.fromList
+-- >>> u = Unfold.zipWith (,) square cube
+-- >>> Unfold.fold u Fold.toList [1..5]
+-- [(1,1),(4,8),(9,27),(16,64),(25,125)]
+--
+-- > zipWith f = zipWithM (\a b -> return $ f a b)
 --
 -- /Pre-release/
 --
 {-# INLINE zipWith #-}
 zipWith :: Monad m
-    => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+    => (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
 zipWith f = zipWithM (\a b -> return (f a b))
+
+-------------------------------------------------------------------------------
+-- Arrow
+-------------------------------------------------------------------------------
 
 {-
 -- XXX There are multiple ways of combining the outputs of two unfolds, we
@@ -464,5 +471,5 @@ instance Monad m => Arrow (Unfold m) where
     arr = singleton
 
     {-# INLINE (***) #-}
-    (***) = zipWith (,)
+    u1 *** u2 = zipWith (,) (lmap fst u1) (lmap snd u2)
 -}

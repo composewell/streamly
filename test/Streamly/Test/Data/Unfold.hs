@@ -319,7 +319,7 @@ zipWithM =
                   unf2 = UF.enumerateFromToIntegral 20
                   fA = applyFun2 f :: Int -> Int -> Int
                   fM a b = modify (+ 1) >> return (fA a b)
-                  unf = UF.zipWithM fM unf1 unf2
+                  unf = UF.zipWithM fM (UF.lmap fst unf1) (UF.lmap snd unf2)
                   lst = Prelude.zipWith fA [1 .. 10] [1 .. 20]
                in testUnfoldMD unf (1, 1) 0 10 lst
 

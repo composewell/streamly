@@ -159,7 +159,6 @@ module Streamly.Internal.Data.Unfold
     -- ** Zipping
     , zipWithM
     , zipWith
-    , teeZipWith
 
     -- ** Cross product
     , crossWithM
@@ -880,24 +879,6 @@ fromProducer = Unfold step (return . FromSVarRead)
         return Stop
 
     step (FromSVarInit _) = undefined
-
--------------------------------------------------------------------------------
--- Zipping
--------------------------------------------------------------------------------
-
--- | Distribute the input to two unfolds and then zip the outputs to a single
--- stream.
---
--- @
--- S.mapM_ print $ S.unfoldMany (UF.teeZipWith (,) UF.identity (UF.singleton sqrt)) $ S.fromList [1..10]
--- @
---
--- /Pre-release/
---
-{-# INLINE_NORMAL teeZipWith #-}
-teeZipWith :: Monad m
-    => (a -> b -> c) -> Unfold m x a -> Unfold m x b -> Unfold m x c
-teeZipWith f unf1 unf2 = lmap (\x -> (x,x)) $ zipWith f unf1 unf2
 
 ------------------------------------------------------------------------------
 -- Exceptions
