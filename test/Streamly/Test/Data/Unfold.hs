@@ -203,15 +203,14 @@ enumerateFromStepNum =
                   lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
                in testUnfoldD unf f lst
 
+#if MIN_VERSION_base(4,12,0)
 enumerateFromToFractional :: Property
 enumerateFromToFractional =
     property
         $ \f t ->
               let unf = UF.enumerateFromToFractional (t :: Double)
-                  list =
-                      Prelude.takeWhile (<= t + 0.5)
-                          $ List.unfoldr (\x -> Just (x, x + 1)) f
-               in testUnfold unf (f :: Double) list
+               in testUnfold unf (f :: Double) [f..(t :: Double)]
+#endif
 
 enumerateFromStepIntegral :: Property
 enumerateFromStepIntegral =
@@ -393,7 +392,9 @@ testGeneration =
             -- prop "enumerateFromIntegral" enumerateFromIntegral
             prop "enumerateFromStepNum" enumerateFromStepNum
             -- prop "numFrom" numFrom
+#if MIN_VERSION_base(4,12,0)
             prop "enumerateFromToFractional" enumerateFromToFractional
+#endif
 
 testTransformation :: Spec
 testTransformation =
