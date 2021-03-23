@@ -384,7 +384,7 @@ dropWhileMFalse size start =
 {-# INLINE zipWith #-}
 zipWith :: Monad m => Int -> Int -> m ()
 zipWith size start =
-    drainProductDefault (size + start) (UF.zipWith (+)) (start, start + 1)
+    drainProductDefault (size + start) (UF.zipWith (+)) start
 
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m => Int -> Int -> m ()
@@ -392,12 +392,12 @@ zipWithM size start =
     drainProductDefault
         (size + start)
         (UF.zipWithM (\a b -> return $ a + b))
-        (start, start + 1)
+        start
 
 {-# INLINE teeZipWith #-}
 teeZipWith :: Monad m => Int -> Int -> m ()
 teeZipWith size start =
-    drainProductDefault (size + start) (UF.teeZipWith (+)) start
+    drainProductDefault (size + start) (UF.zipWith (+)) start
 
 -------------------------------------------------------------------------------
 -- Applicative
