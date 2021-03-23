@@ -24,14 +24,18 @@ module Streamly.Internal.Data.Unfold.Type
     , ConcatState (..)
     , many
 
+    -- Applicative
     , apSequence
     , apDiscardSnd
+    , crossWithM
+    , crossWith
     , cross
     , apply
-    , bind
 
+    -- Monad
     , concatMapM
     , concatMap
+    , bind
 
     , zipWithM
     , zipWith
@@ -144,11 +148,13 @@ apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 
 -- | Create a cross product (vector product or cartesian product) of the
--- output streams of two unfolds.
+-- output streams of two unfolds using a monadic combining function.
 --
-{-# INLINE_NORMAL cross #-}
-cross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
-cross (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+-- /Pre-release/
+{-# INLINE_NORMAL crossWithM #-}
+crossWithM :: Monad m =>
+    (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
@@ -168,10 +174,36 @@ cross (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     step (CrossInner a s1 b s2) = do
         r <- step2 s2
-        return $ case r of
-            Yield c s -> Yield (b, c) (CrossInner a s1 b s)
-            Skip s    -> Skip (CrossInner a s1 b s)
-            Stop      -> Skip (CrossOuter a s1)
+        case r of
+            Yield c s -> f b c >>= \d -> return $ Yield d (CrossInner a s1 b s)
+            Skip s    -> return $ Skip (CrossInner a s1 b s)
+            Stop      -> return $ Skip (CrossOuter a s1)
+
+-- | Like 'crossWithM' but uses a pure combining function.
+--
+-- > crossWith f = crossWithM (\b c -> return $ f b c)
+--
+-- /Pre-release/
+{-# INLINE crossWith #-}
+crossWith :: Monad m =>
+    (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+crossWith f = crossWithM (\b c -> return $ f b c)
+
+-- | See 'crossWith'.
+--
+-- > cross = crossWith (,)
+--
+-- To cross the streams from a tuple we can write:
+--
+-- @
+-- crossProduct :: Monad m => Unfold m a b -> Unfold m c d -> Unfold m (a, c) (b, d)
+-- crossProduct u1 u2 = cross (lmap fst u1) (lmap snd u2)
+-- @
+--
+-- /Pre-release/
+{-# INLINE_NORMAL cross #-}
+cross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
+cross = crossWith (,)
 
 apply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
 apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)

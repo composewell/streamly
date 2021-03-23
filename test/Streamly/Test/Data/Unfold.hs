@@ -335,9 +335,13 @@ outerProduct :: Bool
 outerProduct =
     let unf1 = UF.enumerateFromToIntegral 10
         unf2 = UF.enumerateFromToIntegral 20
-        unf = UF.outerProduct unf1 unf2
+        unf = crossProduct unf1 unf2
         lst = [(a, b) :: (Int, Int) | a <- [0 .. 10], b <- [0 .. 20]]
      in testUnfold unf ((0, 0) :: (Int, Int)) lst
+
+    where
+
+    crossProduct u1 u2 = UF.cross (UF.lmap fst u1) (UF.lmap snd u2)
 
 concatMapM :: Bool
 concatMapM =
