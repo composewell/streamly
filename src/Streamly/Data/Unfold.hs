@@ -97,8 +97,10 @@ module Streamly.Data.Unfold
     , zipWithM
     , zipWith
 
+    -- ** Cross Product
+    , crossWith
+
     -- ** Nesting
-    , cross
     , many
 
     -- ** Exceptions

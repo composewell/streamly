@@ -161,14 +161,17 @@ module Streamly.Internal.Data.Unfold
     , zipWith
     , teeZipWith
 
-    -- ** Nesting
+    -- ** Cross product
+    , crossWithM
+    , crossWith
     , cross
     , apply
+
+    -- ** Nesting
     , ConcatState (..)
     , many
     , concatMapM
     , bind
-    , outerProduct
 
     -- ** Exceptions
     , gbracket_
@@ -895,45 +898,6 @@ fromProducer = Unfold step (return . FromSVarRead)
 teeZipWith :: Monad m
     => (a -> b -> c) -> Unfold m x a -> Unfold m x b -> Unfold m x c
 teeZipWith f unf1 unf2 = lmap (\x -> (x,x)) $ zipWith f unf1 unf2
-
--------------------------------------------------------------------------------
--- Nested
--------------------------------------------------------------------------------
-
-data OuterProductState s1 s2 sy x y =
-    OuterProductOuter s1 y | OuterProductInner s1 sy s2 x
-
--- XXX this can be written in terms of "cross".
--- XXX Remove this in favor of cross?
---
--- | Create an outer product (vector product or cartesian product) of the
--- output streams of two unfolds.
---
-{-# INLINE_NORMAL outerProduct #-}
-outerProduct :: Monad m
-    => Unfold m a b -> Unfold m c d -> Unfold m (a, c) (b, d)
-outerProduct (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
-    where
-    inject (x, y) = do
-        s1 <- inject1 x
-        return $ OuterProductOuter s1 y
-
-    {-# INLINE_LATE step #-}
-    step (OuterProductOuter st1 sy) = do
-        r <- step1 st1
-        case r of
-            Yield x s -> do
-                s2 <- inject2 sy
-                return $ Skip (OuterProductInner s sy s2 x)
-            Skip s    -> return $ Skip (OuterProductOuter s sy)
-            Stop      -> return Stop
-
-    step (OuterProductInner ost sy ist x) = do
-        r <- step2 ist
-        return $ case r of
-            Yield y s -> Yield (x, y) (OuterProductInner ost sy s x)
-            Skip s    -> Skip (OuterProductInner ost sy s x)
-            Stop      -> Skip (OuterProductOuter ost sy)
 
 ------------------------------------------------------------------------------
 -- Exceptions
