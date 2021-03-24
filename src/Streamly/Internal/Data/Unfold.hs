@@ -328,8 +328,8 @@ swap = lmap Tuple.swap
 -- /Pre-release/
 --
 {-# INLINE_NORMAL fold #-}
-fold :: Monad m => Unfold m a b -> Fold m b c -> a -> m c
-fold (Unfold ustep inject) (Fold fstep initial extract) a = do
+fold :: Monad m => Fold m b c -> Unfold m a b -> a -> m c
+fold (Fold fstep initial extract) (Unfold ustep inject) a = do
     res <- initial
     case res of
         FL.Partial x -> inject a >>= go SPEC x

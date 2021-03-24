@@ -62,7 +62,7 @@ source n = UF.enumerateFromToIntegral n
 
 {-# INLINE drainGeneration #-}
 drainGeneration :: Monad m => Unfold m a b -> a -> m ()
-drainGeneration unf seed = UF.fold unf FL.drain seed
+drainGeneration unf seed = UF.fold FL.drain unf seed
 
 {-# INLINE drainTransformation #-}
 drainTransformation ::
@@ -409,7 +409,7 @@ toNullAp value start =
     let end = start + nthRoot 2 value
         s = source end
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
-    in UF.fold ((+) `fmap` s `UF.apply` s) FL.drain start
+    in UF.fold FL.drain ((+) `fmap` s `UF.apply` s) start
 
 {-# INLINE _apDiscardFst #-}
 _apDiscardFst :: Int -> Int -> m ()
@@ -451,7 +451,7 @@ toNull value start =
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
                 UF.yield (x + y)
-     in UF.fold u FL.drain start
+     in UF.fold FL.drain u start
 
 
 {-# INLINE toNull3 #-}
@@ -469,7 +469,7 @@ toNull3 value start =
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
                 UF.yield (x + y)
-     in UF.fold u FL.drain start
+     in UF.fold FL.drain u start
 
 {-# INLINE toList #-}
 toList :: Monad m => Int -> Int -> m [Int]
@@ -485,7 +485,7 @@ toList value start = do
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
                 UF.yield (x + y)
-     in UF.fold u FL.toList start
+     in UF.fold FL.toList u start
 
 {-# INLINE toListSome #-}
 toListSome :: Monad m => Int -> Int -> m [Int]
@@ -501,7 +501,7 @@ toListSome value start = do
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
                 UF.yield (x + y)
-     in UF.fold (UF.take 1000 u) FL.toList start
+     in UF.fold FL.toList (UF.take 1000 u) start
 
 {-# INLINE filterAllOut #-}
 filterAllOut :: Monad m => Int -> Int -> m ()
@@ -519,7 +519,7 @@ filterAllOut value start = do
              in if s < 0
                 then UF.yield s
                 else UF.nilM (return . const ())
-     in UF.fold u FL.drain start
+     in UF.fold FL.drain u start
 
 {-# INLINE filterAllIn #-}
 filterAllIn :: Monad m => Int -> Int -> m ()
@@ -537,7 +537,7 @@ filterAllIn value start = do
              in if s > 0
                 then UF.yield s
                 else UF.nilM (return . const ())
-     in UF.fold u FL.drain start
+     in UF.fold FL.drain u start
 
 {-# INLINE filterSome #-}
 filterSome :: Monad m => Int -> Int -> m ()
@@ -555,7 +555,7 @@ filterSome value start = do
              in if s > 1100000
                 then UF.yield s
                 else UF.nilM (return . const ())
-     in UF.fold u FL.drain start
+     in UF.fold FL.drain u start
 
 {-# INLINE breakAfterSome #-}
 breakAfterSome :: Int -> Int -> IO ()
@@ -574,7 +574,7 @@ breakAfterSome value start =
                 then error "break"
                 else UF.yield s
      in do
-        (_ :: Either ErrorCall ()) <- try $ UF.fold u FL.drain start
+        (_ :: Either ErrorCall ()) <- try $ UF.fold FL.drain u start
         return ()
 
 -------------------------------------------------------------------------------
@@ -590,9 +590,7 @@ concatCount linearCount =
 concat :: Monad m => Int -> Int -> m ()
 concat linearCount start = do
     let end = start + concatCount linearCount
-    UF.fold
-        (UF.many (source end) (source end))
-        FL.drain start
+    UF.fold FL.drain (UF.many (source end) (source end)) start
 
 -------------------------------------------------------------------------------
 -- Benchmarks
