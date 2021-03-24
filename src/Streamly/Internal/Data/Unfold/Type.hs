@@ -5,6 +5,12 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- To run the examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 
 module Streamly.Internal.Data.Unfold.Type
     ( Unfold (..)
@@ -56,12 +62,6 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import Prelude hiding (const, map, concatMap, zipWith)
-
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
@@ -121,6 +121,14 @@ unfoldrM next = Unfold step pure
 
 -- | Like 'unfoldrM' but uses a pure step function.
 --
+-- >>> :{
+--  f [] = Nothing
+--  f (x:xs) = Just (x, xs)
+-- :}
+--
+-- >>> Unfold.fold Fold.toList (Unfold.unfoldr f) [1,2,3]
+-- [1,2,3]
+--
 -- /Pre-release/
 --
 {-# INLINE unfoldr #-}
@@ -132,6 +140,10 @@ unfoldr step = unfoldrM (pure . step)
 ------------------------------------------------------------------------------
 
 -- | Map a function on the input argument of the 'Unfold'.
+--
+-- >>> u = Unfold.lmap (fmap (+1)) Unfold.fromList
+-- >>> Unfold.fold Fold.toList u [1..5]
+-- [2,3,4,5,6]
 --
 -- @
 -- lmap f = Unfold.many (Unfold.function f)
@@ -245,6 +257,12 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- | Like 'crossWithM' but uses a pure combining function.
 --
 -- > crossWith f = crossWithM (\b c -> return $ f b c)
+--
+-- >>> u1 = Unfold.lmap fst Unfold.fromList
+-- >>> u2 = Unfold.lmap snd Unfold.fromList
+-- >>> u = Unfold.crossWith (,) u1 u2
+-- >>> Unfold.fold Fold.toList u ([1,2,3], [4,5,6])
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
 -- /Pre-release/
 {-# INLINE crossWith #-}
@@ -507,7 +525,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- >>> square = fmap (\x -> x * x) Unfold.fromList
 -- >>> cube = fmap (\x -> x * x * x) Unfold.fromList
 -- >>> u = Unfold.zipWith (,) square cube
--- >>> Unfold.fold u Fold.toList [1..5]
+-- >>> Unfold.fold Fold.toList u [1..5]
 -- [(1,1),(4,8),(9,27),(16,64),(25,125)]
 --
 -- > zipWith f = zipWithM (\a b -> return $ f a b)

@@ -36,6 +36,7 @@
 * New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
   are added, these routines fail when they encounter any invalid characters.
 * Several new functions added to `Streamly.Data.Fold`
+* Several Unfold routines and combinators added to `Streamly.Data.Unfold`.
 
 ### Bug Fixes
 

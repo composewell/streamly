@@ -8,6 +8,11 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run the examples in this module:
+--
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+--
 -- = Unfolds and Streams
 --
 -- An 'Unfold' type is the same as the direct style 'Stream' type except that
@@ -72,6 +77,33 @@
 -- representation. We can use that for composable folds in StreamK
 -- representation.
 --
+
+-- = Performance Notes
+--
+-- 'Unfold' representation is more efficient than using streams when combining
+-- streams.  'Unfold' type allows multiple unfold actions to be composed into a
+-- single unfold function in an efficient manner by enabling the compiler to
+-- perform stream fusion optimization.
+-- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
+-- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
+-- use a function of the shape @a -> t m b@. However, working with stream types
+-- like t'Streamly.SerialT' does not allow the compiler to perform stream fusion
+-- optimization when merging, appending or concatenating multiple streams.
+-- Even though stream based combinator have excellent performance, they are
+-- much less efficient when compared to combinators using 'Unfold'.  For
+-- example, the 'Streamly.Prelude.concatMap' combinator which uses @a -> t m b@
+-- (where @t@ is a stream type) to generate streams is much less efficient
+-- compared to 'Streamly.Prelude.unfoldMany'.
+--
+-- On the other hand, transformation operations on stream types are as
+-- efficient as transformations on 'Unfold'.
+--
+-- We should note that in some cases working with stream types may be more
+-- convenient compared to working with the 'Unfold' type.  However, if extra
+-- performance boost is important then 'Unfold' based composition should be
+-- preferred compared to stream based composition when merging or concatenating
+-- streams.
+
 module Streamly.Internal.Data.Unfold
     (
     -- * Unfold Type
@@ -177,17 +209,19 @@ module Streamly.Internal.Data.Unfold
     , concatMapM
     , bind
 
-    -- ** Exceptions
+    -- ** Resource Management
     , gbracket_
     , gbracket
     , before
-    , after_
     , after
-    , onException
-    , finally_
+    , after_
     , finally
-    , bracket_
+    , finally_
     , bracket
+    , bracket_
+
+    -- ** Exceptions
+    , onException
     , handle
     )
 where
@@ -325,6 +359,9 @@ swap = lmap Tuple.swap
 -- | Compose an 'Unfold' and a 'Fold'. Given an @Unfold m a b@ and a
 -- @Fold m b c@, returns a monadic action @a -> m c@ representing the
 -- application of the fold on the unfolded stream.
+--
+-- >>> Unfold.fold Fold.sum Unfold.fromList [1..100]
+-- 5050
 --
 -- /Pre-release/
 --
@@ -544,6 +581,11 @@ fromIndicesM gen = Unfold step return
 -- Filtering
 -------------------------------------------------------------------------------
 
+-- |
+-- >>> u = Unfold.take 2 Unfold.fromList
+-- >>> Unfold.fold Fold.toList u [1..100]
+-- [1,2]
+--
 {-# INLINE_NORMAL take #-}
 take :: Monad m => Int -> Unfold m a b -> Unfold m a b
 take n (Unfold step1 inject1) = Unfold step inject

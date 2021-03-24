@@ -8,56 +8,92 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- 'Unfold' type represents an effectful action that generates a stream of
--- values from a single starting value often called a seed value. Values can be
--- generated and /pulled/ from the 'Unfold' one at a time. It can also be
--- called a producer or a source of stream.  It is a data representation of the
--- standard 'Streamly.Prelude.unfoldr' function.  An 'Unfold' can be converted
--- into a stream type using 'Streamly.Prelude.unfold' by supplying the seed.
+-- An 'Unfold' is a source or a producer of a stream of values.  It takes a
+-- seed value as an input and unfolds it into a sequence of values.
 --
--- = Performance Notes
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Prelude as Stream
 --
--- 'Unfold' representation is more efficient than using streams when combining
--- streams.  'Unfold' type allows multiple unfold actions to be composed into a
--- single unfold function in an efficient manner by enabling the compiler to
--- perform stream fusion optimization.
--- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
--- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
--- use a function of the shape @a -> t m b@. However, working with stream types
--- like t'Streamly.SerialT' does not allow the compiler to perform stream fusion
--- optimization when merging, appending or concatenating multiple streams.
--- Even though stream based combinator have excellent performance, they are
--- much less efficient when compared to combinators using 'Unfold'.  For
--- example, the 'Streamly.Prelude.concatMap' combinator which uses @a -> t m b@
--- (where @t@ is a stream type) to generate streams is much less efficient
--- compared to 'Streamly.Prelude.unfoldMany'.
+-- For example, the 'fromList' Unfold generates a stream of values from a
+-- supplied list.  Unfolds can be converted to 'Streamly.Prelude.SerialT'
+-- stream using the Stream.unfold operation.
 --
--- On the other hand, transformation operations on stream types are as
--- efficient as transformations on 'Unfold'.
+-- >>> stream = Stream.unfold Unfold.fromList [1..100]
+-- >>> Stream.sum stream
+-- 5050
 --
--- We should note that in some cases working with stream types may be more
--- convenient compared to working with the 'Unfold' type.  However, if extra
--- performance boost is important then 'Unfold' based composition should be
--- preferred compared to stream based composition when merging or concatenating
--- streams.
+-- All the serial stream generation operations in "Streamly.Prelude"
+-- can be expressed using unfolds:
 --
--- = Programmer Notes
+-- > Stream.fromList = Stream.unfold Unfold.fromList [1..100]
 --
--- > import qualified Streamly.Data.Unfold as UF
+-- Conceptually, an 'Unfold' is just like "Data.List.unfoldr". Let us write a
+-- step function to unfold a list using "Data.List.unfoldr":
 --
--- More, not yet exposed, unfold combinators can be found in
--- "Streamly.Internal.Data.Unfold".
+-- >>> :{
+--  f [] = Nothing
+--  f (x:xs) = Just (x, xs)
+-- :}
+--
+-- >>> Data.List.unfoldr f [1,2,3]
+-- [1,2,3]
+--
+-- Unfold.unfoldr is just the same, it uses the same step function:
+--
+-- >>> Stream.toList $ Stream.unfold (Unfold.unfoldr f) [1,2,3]
+-- [1,2,3]
+--
+-- The input of an unfold can be transformed using 'lmap':
+--
+-- >>> u = Unfold.lmap (fmap (+1)) Unfold.fromList
+-- >>> Stream.toList $ Stream.unfold u [1..5]
+-- [2,3,4,5,6]
+--
+-- 'Unfold' streams can be transformed using transformation combinators. For
+-- example, to retain only the first two elements of an unfold:
+--
+-- >>> u = Unfold.take 2 Unfold.fromList
+-- >>> Stream.toList $ Stream.unfold u [1..100]
+-- [1,2]
+--
+-- Multiple unfolds can be combined in several interesting ways. For example,
+-- to generate nested looping as in imperative languages (also known as cross
+-- product of the two streams):
+--
+-- >>> u1 = Unfold.lmap fst Unfold.fromList
+-- >>> u2 = Unfold.lmap snd Unfold.fromList
+-- >>> u = Unfold.crossWith (,) u1 u2
+-- >>> Stream.toList $ Stream.unfold u ([1,2,3], [4,5,6])
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+-- Nested loops using unfolds provide C like performance due to complete stream
+-- fusion.
+--
+-- Please see "Streamly.Internal.Data.Unfold" for additional @Pre-release@
+-- functions.
+--
+-- = Unfolds vs. Streams
+--
+-- Unfolds' raison d'etre is their efficiency in nested stream operations due
+-- to complete stream fusion.  'Streamly.Prelude.concatMap' or the 'Monad'
+-- instance of streams use stream generation operations of the shape @a -> t m
+-- b@ and then flatten the resulting stream.  This implementation is more
+-- powerful but does not allow for complete stream fusion.  Unfolds provide
+-- less powerful but more efficient 'Streamly.Prelude.unfoldMany', 'many' and
+-- 'crossWith' operations as an alternative to a subset of use cases of
+-- 'concatMap' and 'Applicative' stream operations.
+--
+-- "Streamly.Prelude" exports polymorphic stream generation operations that
+-- provide the same functionality as unfolds in this module.  Since unfolds can
+-- be easily converted to streams, several modules in streamly provide only
+-- unfolds for serial stream generation.  We cannot use unfolds exclusively for
+-- stream generation as they do not support concurrency.
 
--- The stream types (e.g. t'Streamly.SerialT') can be considered as a special
--- case of 'Unfold' with no starting seed.
---
 module Streamly.Data.Unfold
     (
     -- * Unfold Type
       Unfold
-
-    -- * Folding
-    , fold
 
     -- * Unfolds
     -- One to one correspondence with
@@ -106,14 +142,6 @@ module Streamly.Data.Unfold
 
     -- ** Nesting
     , many
-
-    -- ** Resource Management
-    , finally
-    , bracket
-
-    -- ** Exceptions
-    , onException
-    , handle
     )
 where
 
