@@ -67,37 +67,37 @@ testUnfoldD = testUnfold
 
 lmapM :: Bool
 lmapM =
-    let unf = UF.lmapM (\x -> modify (+ 1) >> return x) (UF.singleton id)
+    let unf = UF.lmapM (\x -> modify (+ 1) >> return x) (UF.function id)
      in testUnfoldMD unf 1 0 1 [1]
 
 supply :: Bool
 supply =
-    let unf = UF.supply 1 (UF.singleton id)
+    let unf = UF.supply 1 (UF.function id)
      in testUnfold unf undefined ([1] :: [Int])
 
 supplyFirst :: Bool
 supplyFirst =
-    let unf = UF.supplyFirst 1 (UF.singleton id)
+    let unf = UF.supplyFirst 1 (UF.function id)
      in testUnfold unf 2 ([(1, 2)] :: [(Int, Int)])
 
 supplySecond :: Bool
 supplySecond =
-    let unf = UF.supplySecond 1 (UF.singleton id)
+    let unf = UF.supplySecond 1 (UF.function id)
      in testUnfold unf 2 ([(2, 1)] :: [(Int, Int)])
 
 discardFirst :: Bool
 discardFirst =
-    let unf = UF.discardFirst (UF.singleton id)
+    let unf = UF.discardFirst (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [2]
 
 discardSecond :: Bool
 discardSecond =
-    let unf = UF.discardSecond (UF.singleton id)
+    let unf = UF.discardSecond (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [1]
 
 swap :: Bool
 swap =
-    let unf = UF.swap (UF.singleton id)
+    let unf = UF.swap (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [(2, 1)]
 
 -------------------------------------------------------------------------------
@@ -134,9 +134,9 @@ consM =
         unf = cns $ cns $ UF.nilM $ \a -> modify (+ a)
      in testUnfoldMD unf 1 0 3 [1, 2]
 
-singletonM :: Bool
-singletonM =
-    let unf = UF.singletonM (\a -> modify (+ a) >> get)
+functionM :: Bool
+functionM =
+    let unf = UF.functionM (\a -> modify (+ a) >> get)
      in testUnfoldMD unf 1 0 1 [1]
 
 const :: Bool
@@ -378,8 +378,8 @@ testGeneration =
             prop "fromStreamD" fromStreamD
             prop "nilM" nilM
             prop "consM" consM
-            prop "singletonM" singletonM
-            -- prop "singleton" singleton
+            prop "functionM" functionM
+            -- prop "function" function
             -- prop "identity" identity
             prop "const" const
             prop "unfoldrM" unfoldrM

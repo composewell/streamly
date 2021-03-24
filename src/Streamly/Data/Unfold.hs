@@ -63,9 +63,13 @@ module Streamly.Data.Unfold
     -- One to one correspondence with
     -- "Streamly.Internal.Data.Stream.IsStream.Generate"
 
+    -- ** Basic Constructors
+    , unfoldrM
+    , function
+    , functionM
+
     -- ** Generators
     -- | Generate a monadic stream from a seed.
-    , unfoldrM
     , repeatM
     , replicateM
     , iterateM

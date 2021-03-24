@@ -85,18 +85,22 @@ module Streamly.Internal.Data.Unfold
     -- * Unfolds
     -- One to one correspondence with
     -- "Streamly.Internal.Data.Stream.IsStream.Generate"
-    -- ** Primitives
-    , singletonM
-    , singleton
+    -- ** Basic Constructors
+    , mkUnfoldM
+    , mkUnfoldrM
+    , unfoldrM
+    , functionM
+    , function
     , identity
-    , yieldM
-    , yield
     , nilM
     , consM
 
+    -- ** From Values
+    , yieldM
+    , yield
+
     -- ** Generators
     -- | Generate a monadic stream from a seed.
-    , unfoldrM
     , repeatM
     , replicateM
     , fromIndicesM
@@ -224,7 +228,7 @@ import Prelude
 -- | Map an action on the input argument of the 'Unfold'.
 --
 -- @
--- lmapM f = Unfold.many (Unfold.singletonM f)
+-- lmapM f = Unfold.many (Unfold.functionM f)
 -- @
 --
 -- /Pre-release/
@@ -467,23 +471,6 @@ fromListM = Unfold step inject
     {-# INLINE_LATE step #-}
     step (x:xs) = x >>= \r -> return $ Yield r xs
     step []     = return Stop
-
--- | Build a stream by unfolding a /monadic/ step function starting from a seed.
--- The step function returns the next element in the stream and the next seed
--- value. When it is done it returns 'Nothing' and the stream ends.
---
--- /Pre-release/
---
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (a -> m (Maybe (b, a))) -> Unfold m a b
-unfoldrM next = Unfold step return
-  where
-    {-# INLINE_LATE step #-}
-    step st = do
-        r <- next st
-        return $ case r of
-            Just (x, s) -> Yield x s
-            Nothing     -> Stop
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
