@@ -985,37 +985,20 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
             Skip s    -> return $ Skip (Left s)
             Stop      -> return Stop
 
--- The custom implementation of "before" is slightly faster (5-7%) than
--- "_before".  This is just to document and make sure that we can always use
--- gbracket to implement before. The same applies to other combinators as well.
---
-{-# INLINE_NORMAL _before #-}
-_before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-_before action = gbracket_ (\x -> action x >> return x) (fmap Right)
-                             (\_ -> return ()) undefined
-
 -- | Run a side effect @a -> m c@ on the input @a@ before unfolding it using
 -- @Unfold m a b@.
 --
+-- > before f = lmapM (\a -> f a >> return a)
+--
 -- /Pre-release/
 {-# INLINE_NORMAL before #-}
-before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
-before action (Unfold step1 inject1) = Unfold step inject
+before :: (a -> m c) -> Unfold m a b -> Unfold m a b
+before action (Unfold step inject) = Unfold step (action >> inject)
 
-    where
-
-    inject x = do
-        _ <- action x
-        inject1 x
-
-    {-# INLINE_LATE step #-}
-    step st = do
-        res <- step1 st
-        case res of
-            Yield x s -> return $ Yield x s
-            Skip s    -> return $ Skip s
-            Stop      -> return Stop
-
+-- The custom implementation of "after_" is slightly faster (5-7%) than
+-- "_after".  This is just to document and make sure that we can always use
+-- gbracket to implement after_ The same applies to other combinators as well.
+--
 {-# INLINE_NORMAL _after #-}
 _after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _after aft = gbracket_ return (fmap Right) aft undefined
