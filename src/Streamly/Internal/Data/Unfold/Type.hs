@@ -13,6 +13,7 @@ module Streamly.Internal.Data.Unfold.Type
     , mkUnfoldM
     , mkUnfoldrM
     , unfoldrM
+    , unfoldr
     , functionM
     , function
     , identity
@@ -117,6 +118,14 @@ unfoldrM next = Unfold step pure
         (\case
             Just (x, s) -> Yield x s
             Nothing     -> Stop) <$> next st
+
+-- | Like 'unfoldrM' but uses a pure step function.
+--
+-- /Pre-release/
+--
+{-# INLINE unfoldr #-}
+unfoldr :: Applicative m => (a -> Maybe (b, a)) -> Unfold m a b
+unfoldr step = unfoldrM (pure . step)
 
 ------------------------------------------------------------------------------
 -- Map input
