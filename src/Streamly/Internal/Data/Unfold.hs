@@ -89,6 +89,7 @@ module Streamly.Internal.Data.Unfold
     , mkUnfoldM
     , mkUnfoldrM
     , unfoldrM
+    , unfoldr
     , functionM
     , function
     , identity

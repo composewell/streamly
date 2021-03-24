@@ -65,6 +65,7 @@ module Streamly.Data.Unfold
 
     -- ** Basic Constructors
     , unfoldrM
+    , unfoldr
     , function
     , functionM
 
