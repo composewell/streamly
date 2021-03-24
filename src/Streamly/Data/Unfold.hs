@@ -106,12 +106,12 @@ module Streamly.Data.Unfold
     -- ** Nesting
     , many
 
-    -- ** Exceptions
-    , before
-    , after
-    , onException
+    -- ** Resource Management
     , finally
     , bracket
+
+    -- ** Exceptions
+    , onException
     , handle
     )
 where
