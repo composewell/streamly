@@ -132,7 +132,7 @@ inspect $ 'readWithBufferOfFromBytesNull `hasNoType` ''D.FoldMany
 -- | Send the chunk content ('defaultChunkSize') to /dev/null
 -- Implicitly benchmarked via 'readFromBytesNull'
 _readChunks :: Handle -> Handle -> IO ()
-_readChunks inh devNull = IUF.fold unf fld inh
+_readChunks inh devNull = IUF.fold fld unf inh
 
     where
 
@@ -142,7 +142,7 @@ _readChunks inh devNull = IUF.fold unf fld inh
 -- | Send the chunk content to /dev/null
 -- Implicitly benchmarked via 'readWithBufferOfFromBytesNull'
 _readChunksWithBufferOf :: Handle -> Handle -> IO ()
-_readChunksWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
+_readChunksWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
     where
 
@@ -163,7 +163,7 @@ o_1_space_copy_fromBytes env =
 -- | Send the file contents ('defaultChunkSize') to /dev/null
 {-# NOINLINE writeReadWithBufferOf #-}
 writeReadWithBufferOf :: Handle -> Handle -> IO ()
-writeReadWithBufferOf inh devNull = IUF.fold unf fld (defaultChunkSize, inh)
+writeReadWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
     where
 
@@ -181,7 +181,7 @@ inspect $ 'writeReadWithBufferOf `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeN
 -- | Send the file contents ('AT.defaultChunkSize') to /dev/null
 {-# NOINLINE writeRead #-}
 writeRead :: Handle -> Handle -> IO ()
-writeRead inh devNull = IUF.fold unf fld inh
+writeRead inh devNull = IUF.fold fld unf inh
 
     where
 

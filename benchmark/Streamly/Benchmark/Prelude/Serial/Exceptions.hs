@@ -135,7 +135,7 @@ o_1_space_copy_stream_exceptions env =
 readChunksOnException :: Handle -> Handle -> IO ()
 readChunksOnException inh devNull =
     let readEx = IUF.onException (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
+    in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksOnException
@@ -146,7 +146,7 @@ inspect $ hasNoTypeClasses 'readChunksOnException
 readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
     let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
+    in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksBracket_
@@ -156,7 +156,7 @@ inspect $ hasNoTypeClasses 'readChunksBracket_
 readChunksBracket :: Handle -> Handle -> IO ()
 readChunksBracket inh devNull =
     let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold readEx (IFH.writeChunks devNull) inh
+    in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
