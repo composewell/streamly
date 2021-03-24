@@ -9,10 +9,15 @@
 module Streamly.Internal.Data.Unfold.Type
     ( Unfold (..)
 
-    -- * From values
-    , singletonM
-    , singleton
+    -- * Basic Constructors
+    , mkUnfoldM
+    , mkUnfoldrM
+    , unfoldrM
+    , functionM
+    , function
     , identity
+
+    -- * From Values
     , yieldM
     , yield
 
@@ -73,10 +78,54 @@ data Unfold m a b =
     -- | @Unfold step inject@
     forall s. Unfold (s -> m (Step s b)) (a -> m s)
 
+------------------------------------------------------------------------------
+-- Basic constructors
+------------------------------------------------------------------------------
+
+-- | Make an unfold from @step@ and @inject@ functions.
+--
+-- /Pre-release/
+{-# INLINE mkUnfoldM #-}
+mkUnfoldM :: (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
+mkUnfoldM = Unfold
+
+-- | Make an unfold from a step function.
+--
+-- See also: 'unfoldrM'
+--
+-- /Pre-release/
+{-# INLINE mkUnfoldrM #-}
+mkUnfoldrM :: Applicative m => (a -> m (Step a b)) -> Unfold m a b
+mkUnfoldrM step = Unfold step pure
+
+-- The type 'Step' is isomorphic to 'Maybe'. Ideally unfoldrM should be the
+-- same as mkUnfoldrM, this is for compatibility with traditional Maybe based
+-- unfold step functions.
+--
+-- | Build a stream by unfolding a /monadic/ step function starting from a seed.
+-- The step function returns the next element in the stream and the next seed
+-- value. When it is done it returns 'Nothing' and the stream ends.
+--
+-- /Pre-release/
+--
+{-# INLINE unfoldrM #-}
+unfoldrM :: Applicative m => (a -> m (Maybe (b, a))) -> Unfold m a b
+unfoldrM next = Unfold step pure
+  where
+    {-# INLINE_LATE step #-}
+    step st =
+        (\case
+            Just (x, s) -> Yield x s
+            Nothing     -> Stop) <$> next st
+
+------------------------------------------------------------------------------
+-- Map input
+------------------------------------------------------------------------------
+
 -- | Map a function on the input argument of the 'Unfold'.
 --
 -- @
--- lmap f = Unfold.many (Unfold.singleton f)
+-- lmap f = Unfold.many (Unfold.function f)
 -- @
 --
 -- /Pre-release/
@@ -109,9 +158,10 @@ instance Functor m => Functor (Unfold m a) where
 -- Applicative
 ------------------------------------------------------------------------------
 
--- | The unfold discards its input and generates a singleton stream using the
+-- | The unfold discards its input and generates a function stream using the
 -- supplied monadic action.
 --
+-- /Pre-release/
 {-# INLINE yieldM #-}
 yieldM :: Applicative m => m b -> Unfold m a b
 yieldM m = Unfold step inject
@@ -124,6 +174,10 @@ yieldM m = Unfold step inject
     step True = pure Stop
 
 -- | Discards the unfold input and always returns the argument of 'yield'.
+--
+-- > yield = yieldM . pure
+--
+-- /Pre-release/
 yield :: Applicative m => b -> Unfold m a b
 yield = yieldM Prelude.. pure
 
@@ -314,36 +368,41 @@ instance Monad m => Monad (Unfold m a) where
 -- Category
 -------------------------------------------------------------------------------
 
--- | Lift a monadic function into an unfold generating a singleton stream.
+-- | Lift a monadic function into an unfold. The unfold generates a singleton
+-- stream.
 --
-{-# INLINE singletonM #-}
-singletonM :: Monad m => (a -> m b) -> Unfold m a b
-singletonM f = Unfold step inject
+-- /Pre-release/
+{-# INLINE functionM #-}
+functionM :: Applicative m => (a -> m b) -> Unfold m a b
+functionM f = Unfold step inject
 
     where
 
-    inject x = return $ Just x
+    inject x = pure $ Just x
 
     {-# INLINE_LATE step #-}
-    step (Just x) = f x >>= \r -> return $ Yield r Nothing
-    step Nothing = return Stop
+    step (Just x) = (`Yield` Nothing) <$> f x
+    step Nothing = pure Stop
 
--- | Lift a pure function into an unfold generating a singleton stream.
+-- | Lift a pure function into an unfold. The unfold generates a singleton
+-- stream.
 --
--- > singleton f = singletonM $ return . f
+-- > function f = functionM $ return . f
 --
-{-# INLINE singleton #-}
-singleton :: Monad m => (a -> b) -> Unfold m a b
-singleton f = singletonM $ return Prelude.. f
+-- /Pre-release/
+{-# INLINE function #-}
+function :: Applicative m => (a -> b) -> Unfold m a b
+function f = functionM $ pure Prelude.. f
 
--- | Identity unfold. Generates a singleton stream with the seed as the only
--- element in the stream.
+-- | Identity unfold. The unfold generates a singleton stream having the input
+-- as the only element.
 --
--- > identity = singleton Prelude.id
+-- > identity = function Prelude.id
 --
+-- /Pre-release/
 {-# INLINE identity #-}
-identity :: Monad m => Unfold m a a
-identity = singleton Prelude.id
+identity :: Applicative m => Unfold m a a
+identity = function Prelude.id
 
 {-# ANN type ConcatState Fuse #-}
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
@@ -468,7 +527,7 @@ zipWith f = zipWithM (\a b -> return (f a b))
 {-# ANN module "HLint: ignore Use zip" #-}
 instance Monad m => Arrow (Unfold m) where
     {-# INLINE arr #-}
-    arr = singleton
+    arr = function
 
     {-# INLINE (***) #-}
     u1 *** u2 = zipWith (,) (lmap fst u1) (lmap snd u2)

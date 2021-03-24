@@ -181,13 +181,13 @@ consM :: Monad m => Int -> Int -> m ()
 consM size start =
     drainTransformationDefault (size + start) (UF.consM return) start
 
-{-# INLINE _singletonM #-}
-_singletonM :: Monad m => Int -> Int -> m ()
-_singletonM _ start = drainGeneration (UF.singletonM return) start
+{-# INLINE _functionM #-}
+_functionM :: Monad m => Int -> Int -> m ()
+_functionM _ start = drainGeneration (UF.functionM return) start
 
-{-# INLINE _singleton #-}
-_singleton :: Monad m => Int -> Int -> m ()
-_singleton _ start = drainGeneration (UF.singleton id) start
+{-# INLINE _function #-}
+_function :: Monad m => Int -> Int -> m ()
+_function _ start = drainGeneration (UF.function id) start
 
 {-# INLINE _identity #-}
 _identity :: Monad m => Int -> Int -> m ()
@@ -626,8 +626,8 @@ o_1_space_generation size =
           -- Very small benchmarks, reporting in ns
           -- , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
-          -- , benchIO "singletonM" $ singletonM size
-          -- , benchIO "singleton" $ singleton size
+          -- , benchIO "functionM" $ functionM size
+          -- , benchIO "function" $ function size
           -- , benchIO "identity" $ identity size
           -- , benchIO "const" $ const size
           , benchIO "unfoldrM" $ unfoldrM size
@@ -736,7 +736,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
-        readEx = UF.handle (UF.singletonM handler) FH.read
+        readEx = UF.handle (UF.functionM handler) FH.read
     in SP.fold (FH.write devNull) $ SP.unfold readEx inh
 
 #ifdef INSPECTION
