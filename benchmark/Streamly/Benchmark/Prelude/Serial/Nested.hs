@@ -261,6 +261,32 @@ inspect $ hasNoTypeClasses 'concatMapWithAppend
 inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 #endif
 
+-- concatPairWith
+
+{-# INLINE concatPairWithAppend #-}
+concatPairWithAppend :: Int -> Int -> Int -> IO ()
+concatPairWithAppend = concatPairsWith Internal.append
+
+{-# INLINE concatPairWithInterleave #-}
+concatPairWithInterleave :: Int -> Int -> Int -> IO ()
+concatPairWithInterleave = concatPairsWith Internal.interleave
+
+{-# INLINE concatPairWithInterleaveSuffix #-}
+concatPairWithInterleaveSuffix :: Int -> Int -> Int -> IO ()
+concatPairWithInterleaveSuffix = concatPairsWith Internal.interleaveSuffix
+
+{-# INLINE concatPairWithInterleaveInfix #-}
+concatPairWithInterleaveInfix :: Int -> Int -> Int -> IO ()
+concatPairWithInterleaveInfix = concatPairsWith Internal.interleaveInfix
+
+{-# INLINE concatPairWithInterleaveMin #-}
+concatPairWithInterleaveMin :: Int -> Int -> Int -> IO ()
+concatPairWithInterleaveMin = concatPairsWith Internal.interleaveMin
+
+{-# INLINE concatPairWithRoundrobin #-}
+concatPairWithRoundrobin :: Int -> Int -> Int -> IO ()
+concatPairWithRoundrobin = concatPairsWith Internal.roundrobin
+
 -- unfoldMany
 
 -- unfoldMany replicate/unfoldrM
@@ -327,6 +353,26 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapRepl sqrtVal sqrtVal)
         , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
             (unfoldManyRepl sqrtVal sqrtVal)
+
+        -------------------concatPairsWith-----------------
+
+        , benchIOSrc1 "concatPairWithAppend"
+            (concatPairWithAppend 2 (value `div` 2))
+        , benchIOSrc1 "concatPairWithInterleave"
+        (concatPairWithInterleave 2 (value `div` 2))
+
+        , benchIOSrc1 "concatPairWithInterleaveSuffix"
+        (concatPairWithInterleaveSuffix 2 (value `div` 2))
+
+        , benchIOSrc1 "concatPairWithInterleaveInfix"
+        (concatPairWithInterleaveInfix 2 (value `div` 2))
+
+        , benchIOSrc1 "concatPairWithInterleaveMin"
+        (concatPairWithInterleaveMin 2 (value `div` 2))
+
+        , benchIOSrc1 "concatPairWithRoundrobin"
+        (concatPairWithRoundrobin 2 (value `div` 2))
+
         ]
     ]
 

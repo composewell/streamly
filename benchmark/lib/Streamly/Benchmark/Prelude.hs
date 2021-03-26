@@ -354,6 +354,18 @@ concatStreamsWith op outer inner n =
         (S.serially . sourceUnfoldrM inner)
         (S.serially $ sourceUnfoldrM outer n)
 
+{-# INLINE concatPairsWith #-}
+concatPairsWith
+    :: (forall c. S.SerialT IO c -> S.SerialT IO c -> S.SerialT IO c)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+concatPairsWith op outer inner n =
+    S.drain $ Internal.concatPairsWith op
+        (S.serially . sourceUnfoldrM inner)
+        (S.serially $ sourceUnfoldrM outer n)
+
 -------------------------------------------------------------------------------
 -- Monadic outer product
 -------------------------------------------------------------------------------
