@@ -544,7 +544,6 @@ o_1_space_nested streamLen =
 o_1_space_transformation :: Int -> Benchmark
 o_1_space_transformation streamLen =
     bgroup "transformation"
-      [ bgroup "X1"
         [ benchFold "foldrS" (foldrS 1) (sourceUnfoldrM streamLen)
         , benchFold "scan"   (scan 1) (sourceUnfoldrM streamLen)
         , benchFold "map"    (map  1) (sourceUnfoldrM streamLen)
@@ -552,7 +551,10 @@ o_1_space_transformation streamLen =
         , benchFold "mapM"   (mapM 1) (sourceUnfoldrM streamLen)
         , benchFold "mapMSerial"  (mapMSerial 1) (sourceUnfoldrM streamLen)
         ]
-      , bgroup "X4"
+
+o_1_space_transformationX4 :: Int -> Benchmark
+o_1_space_transformationX4 streamLen =
+    bgroup "transformationX4"
         [ benchFold "scan"   (scan 4) (sourceUnfoldrM streamLen)
         , benchFold "map"    (map  4) (sourceUnfoldrM streamLen)
         , benchFold "fmap"   (fmapK 4) (sourceUnfoldrM streamLen)
@@ -561,7 +563,6 @@ o_1_space_transformation streamLen =
         -- XXX this is horribly slow
         -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrM streamLen16)
         ]
-      ]
 
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
@@ -600,7 +601,6 @@ o_1_space_concat streamLen =
 o_1_space_filtering :: Int -> Benchmark
 o_1_space_filtering streamLen =
     bgroup "filtering"
-      [ bgroup "X1"
         [ benchFold "filter-even"     (filterEven     1) (sourceUnfoldrM streamLen)
         , benchFold "filter-all-out"  (filterAllOut streamLen   1) (sourceUnfoldrM streamLen)
         , benchFold "filter-all-in"   (filterAllIn streamLen    1) (sourceUnfoldrM streamLen)
@@ -611,7 +611,10 @@ o_1_space_filtering streamLen =
         , benchFold "dropWhile-true"  (dropWhileTrue streamLen  1) (sourceUnfoldrM streamLen)
         , benchFold "dropWhile-false" (dropWhileFalse 1) (sourceUnfoldrM streamLen)
         ]
-      , bgroup "X4"
+
+o_1_space_filteringX4 :: Int -> Benchmark
+o_1_space_filteringX4 streamLen =
+    bgroup "filteringX4"
         [ benchFold "filter-even"     (filterEven     4) (sourceUnfoldrM streamLen)
         , benchFold "filter-all-out"  (filterAllOut streamLen   4) (sourceUnfoldrM streamLen)
         , benchFold "filter-all-in"   (filterAllIn streamLen    4) (sourceUnfoldrM streamLen)
@@ -622,7 +625,6 @@ o_1_space_filtering streamLen =
         , benchFold "dropWhile-true"  (dropWhileTrue streamLen  4) (sourceUnfoldrM streamLen)
         , benchFold "dropWhile-false" (dropWhileFalse 4) (sourceUnfoldrM streamLen)
         ]
-      ]
 
 o_1_space_zipping :: Int -> Benchmark
 o_1_space_zipping streamLen =
@@ -633,7 +635,6 @@ o_1_space_zipping streamLen =
 o_1_space_mixed :: Int -> Benchmark
 o_1_space_mixed streamLen =
     bgroup "mixed"
-      [ bgroup "X1"
         [ benchFold "scan-map"    (scanMap    1) (sourceUnfoldrM streamLen)
         , benchFold "drop-map"    (dropMap    1) (sourceUnfoldrM streamLen)
         , benchFold "drop-scan"   (dropScan   1) (sourceUnfoldrM streamLen)
@@ -645,7 +646,10 @@ o_1_space_mixed streamLen =
         , benchFold "filter-scan" (filterScan streamLen 1) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 1) (sourceUnfoldrM streamLen)
         ]
-      , bgroup "X2"
+
+o_1_space_mixedX2 :: Int -> Benchmark
+o_1_space_mixedX2 streamLen =
+    bgroup "mixedX2"
         [ benchFold "scan-map"    (scanMap    2) (sourceUnfoldrM streamLen)
         , benchFold "drop-map"    (dropMap    2) (sourceUnfoldrM streamLen)
         , benchFold "drop-scan"   (dropScan   2) (sourceUnfoldrM streamLen)
@@ -657,7 +661,10 @@ o_1_space_mixed streamLen =
         , benchFold "filter-scan" (filterScan streamLen 2) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 2) (sourceUnfoldrM streamLen)
         ]
-      , bgroup "X4"
+
+o_1_space_mixedX4 :: Int -> Benchmark
+o_1_space_mixedX4 streamLen =
+    bgroup "mixedX4"
         [ benchFold "scan-map"    (scanMap    4) (sourceUnfoldrM streamLen)
         , benchFold "drop-map"    (dropMap    4) (sourceUnfoldrM streamLen)
         , benchFold "drop-scan"   (dropScan   4) (sourceUnfoldrM streamLen)
@@ -669,7 +676,6 @@ o_1_space_mixed streamLen =
         , benchFold "filter-scan" (filterScan streamLen 4) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 4) (sourceUnfoldrM streamLen)
         ]
-      ]
 
 o_1_space_list :: Int -> Benchmark
 o_1_space_list streamLen =
@@ -697,10 +703,14 @@ o_1_space streamLen =
       , o_1_space_elimination streamLen
       , o_1_space_nested streamLen
       , o_1_space_transformation streamLen
+      , o_1_space_transformationX4 streamLen
       , o_1_space_concat streamLen
       , o_1_space_filtering streamLen
+      , o_1_space_filteringX4 streamLen
       , o_1_space_zipping streamLen
       , o_1_space_mixed streamLen
+      , o_1_space_mixedX2 streamLen
+      , o_1_space_mixedX4 streamLen
       , o_1_space_list streamLen
       ]
 
