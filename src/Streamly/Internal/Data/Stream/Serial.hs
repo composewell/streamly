@@ -9,6 +9,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
 --
 module Streamly.Internal.Data.Stream.Serial
     (
@@ -84,61 +87,41 @@ import Prelude hiding (map, mapM, errorWithoutStackTrace)
 -- SerialT
 ------------------------------------------------------------------------------
 
--- | The 'Semigroup' operation for 'SerialT' behaves like a regular append
--- operation.  Therefore, when @a <> b@ is evaluated, stream @a@ is evaluated
--- first until it exhausts and then stream @b@ is evaluated. In other words,
--- the elements of stream @b@ are appended to the elements of stream @a@. This
--- operation can be used to fold an infinite lazy container of streams.
+-- | The 'Semigroup' operation @a <> b@ (same as 'Streamly.Prelude.serial')
+-- appends stream @b@ to stream @a@:
 --
--- @
--- import Streamly
--- import qualified "Streamly.Prelude" as S
---
--- main = (S.toList . 'serially' $ (S.fromList [1,2]) \<\> (S.fromList [3,4])) >>= print
--- @
--- @
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ stream1 <> stream2
 -- [1,2,3,4]
--- @
 --
--- The 'Monad' instance runs the /monadic continuation/ for each
--- element of the stream, serially.
+-- This operation can be used to fold an infinite lazy container of streams.
+-- Since the ordering of elements is important in serial streams, this
+-- operation is not commutative i.e. a <> b and b <> a are not the same.
 --
--- @
--- main = S.drain . 'serially' $ do
---     x <- return 1 \<\> return 2
---     S.yieldM $ print x
--- @
--- @
+-- Monad bind is same as @flip . concatMapWith serial@. A single 'Monad' bind
+-- behaves like a @for@ loop:
+--
+-- >>> :{
+-- Stream.drain $ do
+--      x <- Stream.fromList [1,2] -- foreach x in stream
+--      Stream.yieldM $ print x
+-- :}
 -- 1
 -- 2
--- @
 --
--- 'SerialT' nests streams serially in a depth first manner.
+-- Nested monad binds behave like nested @for@ loops:
 --
--- @
--- main = S.drain . 'serially' $ do
---     x <- return 1 \<\> return 2
---     y <- return 3 \<\> return 4
---     S.yieldM $ print (x, y)
--- @
--- @
+-- >>> :{
+-- Stream.drain $ do
+--     x <- Stream.fromList [1,2] -- foreach x in stream
+--     y <- Stream.fromList [3,4] -- foreach y in stream
+--     Stream.yieldM $ print (x, y)
+-- :}
 -- (1,3)
 -- (1,4)
 -- (2,3)
 -- (2,4)
--- @
---
--- We call the monadic code being run for each element of the stream a monadic
--- continuation. In imperative paradigm we can think of this composition as
--- nested @for@ loops and the monadic continuation is the body of the loop. The
--- loop iterates for all elements of the stream.
---
--- Note that the behavior and semantics  of 'SerialT', including 'Semigroup'
--- and 'Monad' instances are exactly like Haskell lists except that 'SerialT'
--- can contain effectful actions while lists are pure.
---
--- In the code above, the 'serially' combinator can be omitted as the default
--- stream type is 'SerialT'.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
@@ -275,12 +258,13 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- WSerialT
 ------------------------------------------------------------------------------
 
--- | The 'Semigroup' operation for 'WSerialT' interleaves the elements from the
--- two streams.  Therefore, when @a <> b@ is evaluated, stream @a@ is evaluated
--- first to produce the first element of the combined stream and then stream
--- @b@ is evaluated to produce the next element of the combined stream, and
--- then we go back to evaluating stream @a@ and so on. In other words, the
--- elements of stream @a@ are interleaved with the elements of stream @b@.
+-- | The 'Semigroup' operation @a <> b@ (same as 'Streamly.Prelude.wSerial')
+-- interleaves stream @a@ and stream @b@:
+--
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
+-- [1,3,2,4]
 --
 -- Note that evaluation of @a <> b <> c@ does not schedule @a@, @b@ and @c@
 -- with equal priority.  This expression is equivalent to @a <> (b <> c)@,
@@ -290,6 +274,9 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- leftmost stream gets the same scheduling priority as the rest of the
 -- streams taken together. The same is true for each subexpression on the right.
 --
+-- This also means that this operation is associative only if we disregard the
+-- ordering of elements in the resulting stream.
+--
 -- Note that this operation cannot be used to fold a container of infinite
 -- streams as the state that it needs to maintain is proportional to the number
 -- of streams.
@@ -297,32 +284,34 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
 -- contrast to the depth wise scheduling behavior of 'SerialT'.
 --
--- @
--- import Streamly
--- import qualified "Streamly.Prelude" as S
+-- Monad bind is same as @flip . concatMapWith wSerial@.  A single 'Monad' bind
+-- behaves like a @for@ loop:
 --
--- main = (S.toList . 'wSerially' $ (S.fromList [1,2]) \<\> (S.fromList [3,4])) >>= print
--- @
--- @
--- [1,3,2,4]
--- @
+-- >>> :{
+-- Stream.drain $ Stream.wSerially $ do
+--      x <- Stream.fromList [1,2] -- foreach x in stream
+--      Stream.yieldM $ print x
+-- :}
+-- 1
+-- 2
 --
--- Similarly, the 'Monad' instance interleaves the iterations of the
--- inner and the outer loop, nesting loops in a breadth first manner.
+-- Nested monad binds behave like interleaved nested @for@ loops:
 --
---
--- @
--- main = S.drain . 'wSerially' $ do
---     x <- return 1 \<\> return 2
---     y <- return 3 \<\> return 4
---     S.yieldM $ print (x, y)
--- @
--- @
+-- >>> :{
+-- Stream.drain $ Stream.wSerially $ do
+--     x <- Stream.fromList [1,2] -- foreach x in stream
+--     y <- Stream.fromList [3,4] -- foreach y in stream
+--     Stream.yieldM $ print (x, y)
+-- :}
 -- (1,3)
 -- (2,3)
 -- (1,4)
 -- (2,4)
--- @
+--
+-- It is a result of interleaving all the nested iterations of @1@ and all the
+-- nested iterations of @2@:
+--
+-- > Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
