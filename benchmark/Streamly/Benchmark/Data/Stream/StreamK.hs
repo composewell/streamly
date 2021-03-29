@@ -326,10 +326,9 @@ filterDrop streamLen n = composeN n $ S.drop 1 . S.filter (<= streamLen)
 filterTake :: Monad m => Int -> Int -> Stream m Int -> m ()
 filterTake streamLen n = composeN n $ S.take streamLen . S.filter (<= streamLen)
 
--- Initially, this used maxBound not streamLen
 {-# INLINE filterScan #-}
-filterScan :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterScan streamLen n = composeN n $ S.scanl' (+) 0 . S.filter (<= streamLen)
+filterScan :: Monad m => Int -> Stream m Int -> m ()
+filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 
 {-# INLINE filterMap #-}
 filterMap :: Monad m => Int -> Int -> Stream m Int -> m ()
@@ -643,7 +642,7 @@ o_1_space_mixed streamLen =
         , benchFold "take-map"    (takeMap streamLen   1) (sourceUnfoldrM streamLen)
         , benchFold "filter-drop" (filterDrop streamLen 1) (sourceUnfoldrM streamLen)
         , benchFold "filter-take" (filterTake streamLen 1) (sourceUnfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan streamLen 1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan 1) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 1) (sourceUnfoldrM streamLen)
         ]
 
@@ -658,7 +657,7 @@ o_1_space_mixedX2 streamLen =
         , benchFold "take-map"    (takeMap streamLen   2) (sourceUnfoldrM streamLen)
         , benchFold "filter-drop" (filterDrop streamLen 2) (sourceUnfoldrM streamLen)
         , benchFold "filter-take" (filterTake streamLen 2) (sourceUnfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan streamLen 2) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan 2) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 2) (sourceUnfoldrM streamLen)
         ]
 
@@ -673,7 +672,7 @@ o_1_space_mixedX4 streamLen =
         , benchFold "take-map"    (takeMap streamLen   4) (sourceUnfoldrM streamLen)
         , benchFold "filter-drop" (filterDrop streamLen 4) (sourceUnfoldrM streamLen)
         , benchFold "filter-take" (filterTake streamLen 4) (sourceUnfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan streamLen 4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan 4) (sourceUnfoldrM streamLen)
         , benchFold "filter-map"  (filterMap streamLen 4) (sourceUnfoldrM streamLen)
         ]
 
