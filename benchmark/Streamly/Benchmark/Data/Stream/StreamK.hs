@@ -715,8 +715,8 @@ o_1_space_list value =
     value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
     value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
 
-o_1_space :: Benchmark
-o_1_space =
+o_1_space :: Int -> Benchmark
+o_1_space value =
     bgroup (o_1_space_prefix moduleName)
       [ o_1_space_generation value
       , o_1_space_elimination value
@@ -728,26 +728,21 @@ o_1_space =
       , o_1_space_mixed value
       , o_1_space_list value
       ]
-    where
-    value = 100000
 
-o_n_heap :: Benchmark
-o_n_heap =
+o_n_heap :: Int -> Benchmark
+o_n_heap value =
     bgroup (o_n_heap_prefix moduleName)
       [ bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) (sourceUnfoldrM value)
         ]
       ]
-    where
-
-    value = 100000
 
 {-# INLINE benchK #-}
 benchK :: P.String -> (Int -> Stream P.IO Int) -> Benchmark
 benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
 
-o_n_stack :: Benchmark
-o_n_stack =
+o_n_stack :: Int -> Int -> Int -> Benchmark
+o_n_stack value iterStreamLen maxIters =
     bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "tail"   tail     (sourceUnfoldrM value)
@@ -775,29 +770,33 @@ o_n_stack =
         ]
       ]
     where
-
-    value = 100000
     value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
     value16 = round (P.fromIntegral value**(1/16::P.Double)) -- triple nested loop
     maxValue = value
-    maxIters = 10000
-    iterStreamLen = 10
 
-o_n_space :: Benchmark
-o_n_space =
+o_n_space :: Int -> Benchmark
+o_n_space value =
     bgroup (o_n_space_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "toList" toList   (sourceUnfoldrM value)
         ]
       ]
-    where
-
-    value = 100000
-
 
 {-# INLINE benchList #-}
 benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
 benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 main :: IO ()
-main = defaultMain [o_1_space, o_n_stack, o_n_heap, o_n_space]
+main =
+    defaultMain
+        [ o_1_space value
+        , o_n_stack value iterStreamLen maxIters
+        , o_n_heap value
+        , o_n_space value
+        ]
+
+    where
+
+    value = 100000
+    maxIters = 10000
+    iterStreamLen = 10
