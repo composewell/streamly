@@ -114,16 +114,24 @@
 --
 -- Like 'consM', there are several other stream generation operations whose
 -- execution behavior depends on the stream type, they all follow behavior
--- similar to 'consM'.  For example, 'replicateM' in the following example
--- executes the replicated actions concurrently, just like 'consM':
+-- similar to 'consM'.
+--
+-- By default, folds like 'drain' force the stream type to be 'SerialT', so
+-- 'replicateM' in the following code runs serially, and takes 10 seconds:
+--
+-- >>> Stream.drain $ Stream.replicateM 10 $ delay 1
+-- ...
+--
+-- We can use the 'asyncly' combinator to force the argument stream to be of
+-- 'AsyncT' type, 'replicateM' in the following example executes the replicated
+-- actions concurrently, thus taking only 1 second:
 --
 -- >>> Stream.drain $ Stream.asyncly $ Stream.replicateM 10 $ delay 1
 -- ...
 --
--- Above, the 'asyncly' combinator forces the argument stream to be of type
--- 'AsyncT'.  By default, there is a limit on how many concurrent actions may
--- be executed at a time, the "Concurrency Control" section describes
--- combinators that can be used to control the concurrency.
+-- By default, there is a limit on how many concurrent actions may be executed
+-- at a time, the "Concurrency Control" section describes combinators that can
+-- be used to control the concurrency.
 --
 -- We can use 'mapM' to map an action concurrently:
 --
@@ -156,7 +164,7 @@
 --
 -- >>> stream1 = Stream.fromListM [delay 1, delay 2]
 -- >>> stream2 = Stream.fromListM [delay 3, delay 4]
--- >>> Stream.drain $ Stream.serially $ stream1 <> stream2
+-- >>> Stream.drain $ stream1 <> stream2
 -- 1 sec
 -- 2 sec
 -- 3 sec
@@ -188,7 +196,7 @@
 --
 -- >>> stream1 = Stream.fromListM [delay 1, delay 2]
 -- >>> stream2 = Stream.fromListM [delay 3, delay 4]
--- >>> Stream.drain $ Stream.asyncly $ stream1 `parallel` stream2
+-- >>> Stream.drain $ stream1 `parallel` stream2
 -- 1 sec
 -- 2 sec
 -- 3 sec
@@ -216,6 +224,18 @@
 -- See the documentation for individual stream types for the specific execution
 -- behavior of the stream as well as the behavior of 'Semigroup' and 'Monad'
 -- instances.
+--
+-- == Caveats
+--
+-- When we use combinators like 'asyncly' on a piece of code, all combinators
+-- inside the argument of asyncly become concurrent which is often counter
+-- productive.  Therefore, we recommend that in a pipeline, you identify the
+-- combinators that you really want to be concurrent and add a 'serially' after
+-- those combinators so that the code following the combinator remains serial:
+--
+-- @
+-- Stream.asyncly $ ... concurrent combinator here ... $ Stream.serially $ ...
+-- @
 --
 -- == Polymorphic Combinators
 --
@@ -869,27 +889,11 @@ import Streamly.Internal.Data.Stream.IsStream
 
 -- $serial
 --
--- When a stream consumer demands an element from a serial stream constructed
--- as @a \`consM` b \`consM` ... nil@, the action @a@ at the head of the stream
--- sequence is executed and the result is supplied to the consumer. When the
--- next element is demanded, the action @b@ is executed and its result is
--- supplied.  Thus, the effects are performed and results are consumed strictly
--- in a serial order.  Serial streams can be considered as /spatially ordered/
--- streams as the order of execution and consumption is the same as the spatial
--- order in which the actions are composed by the programmer.
+-- Serial streams are /spatially ordered/, they execute the actions in the
+-- stream strictly one after the other.
 --
--- Serial streams enforce the side effects as well as the results of the
--- actions to be in the same order in which the actions are added to the
--- stream.  Therefore, the semigroup operation for serial streams is not
--- commutative:
---
--- @
--- a <> b is not the same as b <> a
--- @
---
--- There are two serial stream types 'SerialT' and 'WSerialT'. The stream
--- evaluation of both the variants works in the same way as described above,
--- they differ only in the 'Semigroup' and 'Monad' implementaitons.
+-- There are two serial stream types 'SerialT' and 'WSerialT'.  They differ
+-- only in the 'Semigroup' and 'Monad' instance behavior.
 
 -- $ahead
 --
