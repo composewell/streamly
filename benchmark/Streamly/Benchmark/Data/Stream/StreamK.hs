@@ -516,10 +516,9 @@ filterAllInNestedList str = do
 moduleName :: String
 moduleName = "Data.Stream.StreamK"
 
-o_1_space :: [Benchmark]
-o_1_space =
-    [ bgroup (o_1_space_prefix moduleName)
-      [ bgroup "generation"
+o_1_space_generation :: Int -> Benchmark
+o_1_space_generation value =
+    bgroup "generation"
         [ benchFold "unfoldr"       toNull (sourceUnfoldr value)
         , benchFold "unfoldrM"      toNull (sourceUnfoldrM value)
 
@@ -530,7 +529,10 @@ o_1_space =
         , benchFold "concatMapFoldableWith"  toNull (sourceFoldMapWith value)
         , benchFold "concatMapFoldableWithM" toNull (sourceFoldMapWithM value)
         ]
-      , bgroup "elimination"
+
+o_1_space_elimination :: Int -> Benchmark
+o_1_space_elimination value =
+    bgroup "elimination"
         [ benchFold "toNull"   toNull   (sourceUnfoldrM value)
         , benchFold "mapM_"    mapM_    (sourceUnfoldrM value)
         , benchFold "uncons"   uncons   (sourceUnfoldrM value)
@@ -538,7 +540,10 @@ o_1_space =
         , benchFold "foldl'" foldl    (sourceUnfoldrM value)
         , benchFold "last"   last     (sourceUnfoldrM value)
         ]
-      , bgroup "nested"
+
+o_1_space_nested :: Int -> Benchmark
+o_1_space_nested value =
+    bgroup "nested"
         [ benchFold "toNullAp" toNullApNested (sourceUnfoldrMN value2)
         , benchFold "toNull"   toNullNested   (sourceUnfoldrMN value2)
         , benchFold "toNull3"  toNullNested3  (sourceUnfoldrMN value3)
@@ -550,7 +555,14 @@ o_1_space =
         , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldrN value2)
         , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldrN value2)
         ]
-      , bgroup "transformation"
+    where
+    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+
+o_1_space_transformation :: Int -> Benchmark
+o_1_space_transformation value =
+    bgroup "transformation"
+      [ bgroup "X1"
         [ benchFold "foldrS" (foldrS 1) (sourceUnfoldrM value)
         , benchFold "scan"   (scan 1) (sourceUnfoldrM value)
         , benchFold "map"    (map  1) (sourceUnfoldrM value)
@@ -558,7 +570,7 @@ o_1_space =
         , benchFold "mapM"   (mapM 1) (sourceUnfoldrM value)
         , benchFold "mapMSerial"  (mapMSerial 1) (sourceUnfoldrM value)
         ]
-      , bgroup "transformationX4"
+      , bgroup "X4"
         [ benchFold "scan"   (scan 4) (sourceUnfoldrM value)
         , benchFold "map"    (map  4) (sourceUnfoldrM value)
         , benchFold "fmap"   (fmapK 4) (sourceUnfoldrM value)
@@ -567,7 +579,11 @@ o_1_space =
         -- XXX this is horribly slow
         -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
         ]
-      , bgroup "concat"
+      ]
+
+o_1_space_concat :: Int -> Benchmark
+o_1_space_concat value =
+    bgroup "concat"
         [ benchIOSrc1 "concatMapPure (n of 1)"
             (concatMapPure value 1)
         , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
@@ -596,7 +612,13 @@ o_1_space =
         , benchIOSrc1 "concatMapWith (1 of n)"
             (concatStreamsWith 1 value)
         ]
-      , bgroup "filtering"
+    where
+    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+
+o_1_space_filtering :: Int -> Benchmark
+o_1_space_filtering value =
+    bgroup "filtering"
+      [ bgroup "X1"
         [ benchFold "filter-even"     (filterEven     1) (sourceUnfoldrM value)
         , benchFold "filter-all-out"  (filterAllOut maxValue   1) (sourceUnfoldrM value)
         , benchFold "filter-all-in"   (filterAllIn maxValue    1) (sourceUnfoldrM value)
@@ -607,7 +629,7 @@ o_1_space =
         , benchFold "dropWhile-true"  (dropWhileTrue maxValue  1) (sourceUnfoldrM value)
         , benchFold "dropWhile-false" (dropWhileFalse 1) (sourceUnfoldrM value)
         ]
-      , bgroup "filteringX4"
+      , bgroup "X4"
         [ benchFold "filter-even"     (filterEven     4) (sourceUnfoldrM value)
         , benchFold "filter-all-out"  (filterAllOut maxValue   4) (sourceUnfoldrM value)
         , benchFold "filter-all-in"   (filterAllIn maxValue    4) (sourceUnfoldrM value)
@@ -618,10 +640,22 @@ o_1_space =
         , benchFold "dropWhile-true"  (dropWhileTrue maxValue  4) (sourceUnfoldrM value)
         , benchFold "dropWhile-false" (dropWhileFalse 4) (sourceUnfoldrM value)
         ]
-      , bgroup "zipping"
+      ]
+    where
+
+    maxValue = value
+
+
+o_1_space_zipping :: Int -> Benchmark
+o_1_space_zipping value =
+    bgroup "zipping"
         [ benchFold "zip" zip (sourceUnfoldrM value)
         ]
-      , bgroup "mixed"
+
+o_1_space_mixed :: Int -> Benchmark
+o_1_space_mixed value =
+    bgroup "mixed"
+      [ bgroup "X1"
         [ benchFold "scan-map"    (scanMap    1) (sourceUnfoldrM value)
         , benchFold "drop-map"    (dropMap    1) (sourceUnfoldrM value)
         , benchFold "drop-scan"   (dropScan   1) (sourceUnfoldrM value)
@@ -633,7 +667,7 @@ o_1_space =
         , benchFold "filter-scan" (filterScan maxValue 1) (sourceUnfoldrM value)
         , benchFold "filter-map"  (filterMap maxValue 1) (sourceUnfoldrM value)
         ]
-      , bgroup "mixedX2"
+      , bgroup "X2"
         [ benchFold "scan-map"    (scanMap    2) (sourceUnfoldrM value)
         , benchFold "drop-map"    (dropMap    2) (sourceUnfoldrM value)
         , benchFold "drop-scan"   (dropScan   2) (sourceUnfoldrM value)
@@ -645,7 +679,7 @@ o_1_space =
         , benchFold "filter-scan" (filterScan maxValue 2) (sourceUnfoldrM value)
         , benchFold "filter-map"  (filterMap maxValue 2) (sourceUnfoldrM value)
         ]
-      , bgroup "mixedX4"
+      , bgroup "X4"
         [ benchFold "scan-map"    (scanMap    4) (sourceUnfoldrM value)
         , benchFold "drop-map"    (dropMap    4) (sourceUnfoldrM value)
         , benchFold "drop-scan"   (dropScan   4) (sourceUnfoldrM value)
@@ -658,14 +692,44 @@ o_1_space =
         , benchFold "filter-map"  (filterMap maxValue 4) (sourceUnfoldrM value)
         ]
       ]
-    ]
     where
 
-    value = 100000
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
-    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
     maxValue = value
 
+o_1_space_list :: Int -> Benchmark
+o_1_space_list value =
+    bgroup "list"
+      [ bgroup "elimination"
+        [ benchList "last" (\xs -> [List.last xs]) (sourceUnfoldrList value)
+        ]
+      , bgroup "nested"
+        [ benchList "toNullAp" toNullApNestedList (sourceUnfoldrList value2)
+        , benchList "toNull"   toNullNestedList (sourceUnfoldrList value2)
+        , benchList "toNull3"  toNullNestedList3 (sourceUnfoldrList value3)
+        , benchList "filterAllIn"  filterAllInNestedList (sourceUnfoldrList value2)
+        , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList value2)
+        ]
+      ]
+    where
+
+    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+
+o_1_space :: Benchmark
+o_1_space =
+    bgroup (o_1_space_prefix moduleName)
+      [ o_1_space_generation value
+      , o_1_space_elimination value
+      , o_1_space_nested value
+      , o_1_space_transformation value
+      , o_1_space_concat value
+      , o_1_space_filtering value
+      , o_1_space_zipping value
+      , o_1_space_mixed value
+      , o_1_space_list value
+      ]
+    where
+    value = 100000
 
 o_n_heap :: [Benchmark]
 o_n_heap =
@@ -738,31 +802,9 @@ o_n_space =
 benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
 benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
-o_1_space_list :: [Benchmark]
-o_1_space_list =
-    [ bgroup "list"
-      [ bgroup "elimination"
-        [ benchList "last" (\xs -> [List.last xs]) (sourceUnfoldrList value)
-        ]
-      , bgroup "nested"
-        [ benchList "toNullAp" toNullApNestedList (sourceUnfoldrList value2)
-        , benchList "toNull"   toNullNestedList (sourceUnfoldrList value2)
-        , benchList "toNull3"  toNullNestedList3 (sourceUnfoldrList value3)
-        , benchList "filterAllIn"  filterAllInNestedList (sourceUnfoldrList value2)
-        , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList value2)
-        ]
-      ]
-    ]
-    where
-
-    value = 100000
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
-    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
-
 main :: IO ()
 main = defaultMain $ concat
-    [ o_1_space
-    , [bgroup (o_1_space_prefix moduleName) o_1_space_list]
+    [ [ o_1_space ]
     , o_n_stack
     , o_n_heap
     , o_n_space
