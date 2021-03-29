@@ -48,30 +48,30 @@ type Stream m a = S.Stream m a
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: Int -> Int -> Stream m Int
-sourceUnfoldr value n = S.unfoldr step n
+sourceUnfoldr streamLen n = S.unfoldr step n
     where
     step cnt =
-        if cnt > n + value
+        if cnt > n + streamLen
         then Nothing
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: S.MonadAsync m => Int -> Int -> Stream m Int
-sourceUnfoldrM value n = S.unfoldrM step n
+sourceUnfoldrM streamLen n = S.unfoldrM step n
     where
     step cnt =
-        if cnt > n + value
+        if cnt > n + streamLen
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: Int -> Int -> Stream m Int
-sourceFromFoldable value n = S.fromFoldable [n..n+value]
+sourceFromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
 
 {-# INLINE sourceFromFoldableM #-}
 sourceFromFoldableM :: S.MonadAsync m => Int -> Int -> Stream m Int
-sourceFromFoldableM value n =
-    Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+value])
+sourceFromFoldableM streamLen n =
+    Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
 
 {-# INLINABLE concatMapFoldableWith #-}
 concatMapFoldableWith :: (S.IsStream t, Foldable f)
@@ -80,12 +80,12 @@ concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Int -> Stream m Int
-sourceFoldMapWith value n = concatMapFoldableWith S.serial S.yield [n..n+value]
+sourceFoldMapWith streamLen n = concatMapFoldableWith S.serial S.yield [n..n+streamLen]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Int -> Stream m Int
-sourceFoldMapWithM value n =
-    concatMapFoldableWith S.serial (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM streamLen n =
+    concatMapFoldableWith S.serial (S.yieldM . return) [n..n+streamLen]
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -192,11 +192,11 @@ filterEven n = composeN n $ S.filter even
 
 {-# INLINE filterAllOut #-}
 filterAllOut :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterAllOut maxValue n = composeN n $ S.filter (> maxValue)
+filterAllOut streamLen n = composeN n $ S.filter (> streamLen)
 
 {-# INLINE filterAllIn #-}
 filterAllIn :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterAllIn maxValue n = composeN n $ S.filter (<= maxValue)
+filterAllIn streamLen n = composeN n $ S.filter (<= streamLen)
 
 {-# INLINE _takeOne #-}
 _takeOne :: Monad m => Int -> Stream m Int -> m ()
@@ -204,11 +204,11 @@ _takeOne n = composeN n $ S.take 1
 
 {-# INLINE takeAll #-}
 takeAll :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeAll maxValue n = composeN n $ S.take maxValue
+takeAll streamLen n = composeN n $ S.take streamLen
 
 {-# INLINE takeWhileTrue #-}
 takeWhileTrue :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeWhileTrue maxValue n = composeN n $ S.takeWhile (<= maxValue)
+takeWhileTrue streamLen n = composeN n $ S.takeWhile (<= streamLen)
 
 {-# INLINE dropOne #-}
 dropOne :: Monad m => Int -> Stream m Int -> m ()
@@ -216,11 +216,11 @@ dropOne n = composeN n $ S.drop 1
 
 {-# INLINE dropAll #-}
 dropAll :: Monad m => Int -> Int -> Stream m Int -> m ()
-dropAll maxValue n = composeN n $ S.drop maxValue
+dropAll streamLen n = composeN n $ S.drop streamLen
 
 {-# INLINE dropWhileTrue #-}
 dropWhileTrue :: Monad m => Int -> Int -> Stream m Int -> m ()
-dropWhileTrue maxValue n = composeN n $ S.dropWhile (<= maxValue)
+dropWhileTrue streamLen n = composeN n $ S.dropWhile (<= streamLen)
 
 {-# INLINE dropWhileFalse #-}
 dropWhileFalse :: Monad m => Int -> Stream m Int -> m ()
@@ -236,7 +236,7 @@ foldlS n = composeN n $ S.foldlS (flip S.cons) S.nil
 
 {-# INLINE intersperse #-}
 intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
-intersperse maxValue n = composeN n $ S.intersperse maxValue
+intersperse streamLen n = composeN n $ S.intersperse streamLen
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -259,8 +259,8 @@ iterateScan iterStreamLen maxIters = iterateSource iterStreamLen (S.scanl' (+) 0
 -- this is quadratic
 {-# INLINE iterateDropWhileFalse #-}
 iterateDropWhileFalse :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileFalse maxValue iterStreamLen maxIters =
-    iterateSource iterStreamLen (S.dropWhile (> maxValue)) (maxIters `div` 10)
+iterateDropWhileFalse streamLen iterStreamLen maxIters =
+    iterateSource iterStreamLen (S.dropWhile (> streamLen)) (maxIters `div` 10)
 
 {-# INLINE iterateMapM #-}
 iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
@@ -272,7 +272,7 @@ iterateFilterEven iterStreamLen maxIters = iterateSource iterStreamLen (S.filter
 
 {-# INLINE iterateTakeAll #-}
 iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateTakeAll maxValue iterStreamLen maxIters = iterateSource iterStreamLen (S.take maxValue) maxIters
+iterateTakeAll streamLen iterStreamLen maxIters = iterateSource iterStreamLen (S.take streamLen) maxIters
 
 {-# INLINE iterateDropOne #-}
 iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
@@ -280,7 +280,7 @@ iterateDropOne iterStreamLen maxIters = iterateSource iterStreamLen (S.drop 1) m
 
 {-# INLINE iterateDropWhileTrue #-}
 iterateDropWhileTrue :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileTrue maxValue iterStreamLen maxIters = iterateSource iterStreamLen (S.dropWhile (<= maxValue)) maxIters
+iterateDropWhileTrue streamLen iterStreamLen maxIters = iterateSource iterStreamLen (S.dropWhile (<= streamLen)) maxIters
 
 -------------------------------------------------------------------------------
 -- Zipping
@@ -308,32 +308,32 @@ dropScan n = composeN n $ S.scanl' (+) 0 . S.drop 1
 
 {-# INLINE takeDrop #-}
 takeDrop :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeDrop maxValue n = composeN n $ S.drop 1 . S.take maxValue
+takeDrop streamLen n = composeN n $ S.drop 1 . S.take streamLen
 
 {-# INLINE takeScan #-}
 takeScan :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeScan maxValue n = composeN n $ S.scanl' (+) 0 . S.take maxValue
+takeScan streamLen n = composeN n $ S.scanl' (+) 0 . S.take streamLen
 
 {-# INLINE takeMap #-}
 takeMap :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeMap maxValue n = composeN n $ S.map (subtract 1) . S.take maxValue
+takeMap streamLen n = composeN n $ S.map (subtract 1) . S.take streamLen
 
 {-# INLINE filterDrop #-}
 filterDrop :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterDrop maxValue n = composeN n $ S.drop 1 . S.filter (<= maxValue)
+filterDrop streamLen n = composeN n $ S.drop 1 . S.filter (<= streamLen)
 
 {-# INLINE filterTake #-}
 filterTake :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterTake maxValue n = composeN n $ S.take maxValue . S.filter (<= maxValue)
+filterTake streamLen n = composeN n $ S.take streamLen . S.filter (<= streamLen)
 
--- Initially, this used maxBound not maxValue
+-- Initially, this used maxBound not streamLen
 {-# INLINE filterScan #-}
 filterScan :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterScan maxValue n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxValue)
+filterScan streamLen n = composeN n $ S.scanl' (+) 0 . S.filter (<= streamLen)
 
 {-# INLINE filterMap #-}
 filterMap :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterMap maxValue n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+filterMap streamLen n = composeN n $ S.map (subtract 1) . S.filter (<= streamLen)
 
 -------------------------------------------------------------------------------
 -- ConcatMap
@@ -499,223 +499,216 @@ moduleName :: String
 moduleName = "Data.Stream.StreamK"
 
 o_1_space_generation :: Int -> Benchmark
-o_1_space_generation value =
+o_1_space_generation streamLen =
     bgroup "generation"
-        [ benchFold "unfoldr"       toNull (sourceUnfoldr value)
-        , benchFold "unfoldrM"      toNull (sourceUnfoldrM value)
+        [ benchFold "unfoldr"       toNull (sourceUnfoldr streamLen)
+        , benchFold "unfoldrM"      toNull (sourceUnfoldrM streamLen)
 
-        , benchFold "fromFoldable"  toNull (sourceFromFoldable value)
-        , benchFold "fromFoldableM" toNull (sourceFromFoldableM value)
+        , benchFold "fromFoldable"  toNull (sourceFromFoldable streamLen)
+        , benchFold "fromFoldableM" toNull (sourceFromFoldableM streamLen)
 
         -- appends
-        , benchFold "concatMapFoldableWith"  toNull (sourceFoldMapWith value)
-        , benchFold "concatMapFoldableWithM" toNull (sourceFoldMapWithM value)
+        , benchFold "concatMapFoldableWith"  toNull (sourceFoldMapWith streamLen)
+        , benchFold "concatMapFoldableWithM" toNull (sourceFoldMapWithM streamLen)
         ]
 
 o_1_space_elimination :: Int -> Benchmark
-o_1_space_elimination value =
+o_1_space_elimination streamLen =
     bgroup "elimination"
-        [ benchFold "toNull"   toNull   (sourceUnfoldrM value)
-        , benchFold "mapM_"    mapM_    (sourceUnfoldrM value)
-        , benchFold "uncons"   uncons   (sourceUnfoldrM value)
-        , benchFold "init"   init     (sourceUnfoldrM value)
-        , benchFold "foldl'" foldl    (sourceUnfoldrM value)
-        , benchFold "last"   last     (sourceUnfoldrM value)
+        [ benchFold "toNull"   toNull   (sourceUnfoldrM streamLen)
+        , benchFold "mapM_"    mapM_    (sourceUnfoldrM streamLen)
+        , benchFold "uncons"   uncons   (sourceUnfoldrM streamLen)
+        , benchFold "init"   init     (sourceUnfoldrM streamLen)
+        , benchFold "foldl'" foldl    (sourceUnfoldrM streamLen)
+        , benchFold "last"   last     (sourceUnfoldrM streamLen)
         ]
 
 o_1_space_nested :: Int -> Benchmark
-o_1_space_nested value =
+o_1_space_nested streamLen =
     bgroup "nested"
-        [ benchFold "toNullAp" toNullApNested (sourceUnfoldrM value2)
-        , benchFold "toNull"   toNullNested   (sourceUnfoldrM value2)
-        , benchFold "toNull3"  toNullNested3  (sourceUnfoldrM value3)
-        , benchFold "filterAllIn"  filterAllInNested  (sourceUnfoldrM value2)
-        , benchFold "filterAllOut" filterAllOutNested (sourceUnfoldrM value2)
-        , benchFold "toNullApPure" toNullApNested (sourceUnfoldr value2)
-        , benchFold "toNullPure"   toNullNested   (sourceUnfoldr value2)
-        , benchFold "toNull3Pure"  toNullNested3  (sourceUnfoldr value3)
-        , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldr value2)
-        , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldr value2)
+        [ benchFold "toNullAp" toNullApNested (sourceUnfoldrM streamLen2)
+        , benchFold "toNull"   toNullNested   (sourceUnfoldrM streamLen2)
+        , benchFold "toNull3"  toNullNested3  (sourceUnfoldrM streamLen3)
+        , benchFold "filterAllIn"  filterAllInNested  (sourceUnfoldrM streamLen2)
+        , benchFold "filterAllOut" filterAllOutNested (sourceUnfoldrM streamLen2)
+        , benchFold "toNullApPure" toNullApNested (sourceUnfoldr streamLen2)
+        , benchFold "toNullPure"   toNullNested   (sourceUnfoldr streamLen2)
+        , benchFold "toNull3Pure"  toNullNested3  (sourceUnfoldr streamLen3)
+        , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldr streamLen2)
+        , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldr streamLen2)
         ]
     where
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
-    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+    streamLen3 = round (P.fromIntegral streamLen**(1/3::P.Double)) -- triple nested loop
 
 o_1_space_transformation :: Int -> Benchmark
-o_1_space_transformation value =
+o_1_space_transformation streamLen =
     bgroup "transformation"
       [ bgroup "X1"
-        [ benchFold "foldrS" (foldrS 1) (sourceUnfoldrM value)
-        , benchFold "scan"   (scan 1) (sourceUnfoldrM value)
-        , benchFold "map"    (map  1) (sourceUnfoldrM value)
-        , benchFold "fmap"   (fmapK 1) (sourceUnfoldrM value)
-        , benchFold "mapM"   (mapM 1) (sourceUnfoldrM value)
-        , benchFold "mapMSerial"  (mapMSerial 1) (sourceUnfoldrM value)
+        [ benchFold "foldrS" (foldrS 1) (sourceUnfoldrM streamLen)
+        , benchFold "scan"   (scan 1) (sourceUnfoldrM streamLen)
+        , benchFold "map"    (map  1) (sourceUnfoldrM streamLen)
+        , benchFold "fmap"   (fmapK 1) (sourceUnfoldrM streamLen)
+        , benchFold "mapM"   (mapM 1) (sourceUnfoldrM streamLen)
+        , benchFold "mapMSerial"  (mapMSerial 1) (sourceUnfoldrM streamLen)
         ]
       , bgroup "X4"
-        [ benchFold "scan"   (scan 4) (sourceUnfoldrM value)
-        , benchFold "map"    (map  4) (sourceUnfoldrM value)
-        , benchFold "fmap"   (fmapK 4) (sourceUnfoldrM value)
-        , benchFold "mapM"   (mapM 4) (sourceUnfoldrM value)
-        , benchFold "mapMSerial" (mapMSerial 4) (sourceUnfoldrM value)
+        [ benchFold "scan"   (scan 4) (sourceUnfoldrM streamLen)
+        , benchFold "map"    (map  4) (sourceUnfoldrM streamLen)
+        , benchFold "fmap"   (fmapK 4) (sourceUnfoldrM streamLen)
+        , benchFold "mapM"   (mapM 4) (sourceUnfoldrM streamLen)
+        , benchFold "mapMSerial" (mapMSerial 4) (sourceUnfoldrM streamLen)
         -- XXX this is horribly slow
-        -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrM value16)
+        -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrM streamLen16)
         ]
       ]
 
 o_1_space_concat :: Int -> Benchmark
-o_1_space_concat value =
+o_1_space_concat streamLen =
     bgroup "concat"
         [ benchIOSrc1 "concatMapPure (n of 1)"
-            (concatMapPure value 1)
+            (concatMapPure streamLen 1)
         , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
-            (concatMapPure value2 value2)
+            (concatMapPure streamLen2 streamLen2)
         , benchIOSrc1 "concatMapPure (1 of n)"
-            (concatMapPure 1 value)
+            (concatMapPure 1 streamLen)
 
         , benchIOSrc1 "concatMap (n of 1)"
-            (concatMap value 1)
+            (concatMap streamLen 1)
         , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
-            (concatMap value2 value2)
+            (concatMap streamLen2 streamLen2)
         , benchIOSrc1 "concatMap (1 of n)"
-            (concatMap 1 value)
+            (concatMap 1 streamLen)
 
         , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
-            (concatMapRepl value2 value2)
+            (concatMapRepl streamLen2 streamLen2)
 
         -- This is for comparison with concatMapFoldableWith
         , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
-            (S.drain . S.concatMapBy S.serial id . sourceConcatMapId value)
+            (S.drain . S.concatMapBy S.serial id . sourceConcatMapId streamLen)
 
         , benchIOSrc1 "concatMapWith (n of 1)"
-            (concatStreamsWith value 1)
+            (concatStreamsWith streamLen 1)
         , benchIOSrc1 "concatMapWith (sqrt n of sqrt n)"
-            (concatStreamsWith value2 value2)
+            (concatStreamsWith streamLen2 streamLen2)
         , benchIOSrc1 "concatMapWith (1 of n)"
-            (concatStreamsWith 1 value)
+            (concatStreamsWith 1 streamLen)
         ]
     where
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
 
 o_1_space_filtering :: Int -> Benchmark
-o_1_space_filtering value =
+o_1_space_filtering streamLen =
     bgroup "filtering"
       [ bgroup "X1"
-        [ benchFold "filter-even"     (filterEven     1) (sourceUnfoldrM value)
-        , benchFold "filter-all-out"  (filterAllOut maxValue   1) (sourceUnfoldrM value)
-        , benchFold "filter-all-in"   (filterAllIn maxValue    1) (sourceUnfoldrM value)
-        , benchFold "take-all"        (takeAll maxValue        1) (sourceUnfoldrM value)
-        , benchFold "takeWhile-true"  (takeWhileTrue maxValue  1) (sourceUnfoldrM value)
-        , benchFold "drop-one"        (dropOne        1) (sourceUnfoldrM value)
-        , benchFold "drop-all"        (dropAll maxValue        1) (sourceUnfoldrM value)
-        , benchFold "dropWhile-true"  (dropWhileTrue maxValue  1) (sourceUnfoldrM value)
-        , benchFold "dropWhile-false" (dropWhileFalse 1) (sourceUnfoldrM value)
+        [ benchFold "filter-even"     (filterEven     1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-all-out"  (filterAllOut streamLen   1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-all-in"   (filterAllIn streamLen    1) (sourceUnfoldrM streamLen)
+        , benchFold "take-all"        (takeAll streamLen        1) (sourceUnfoldrM streamLen)
+        , benchFold "takeWhile-true"  (takeWhileTrue streamLen  1) (sourceUnfoldrM streamLen)
+        , benchFold "drop-one"        (dropOne        1) (sourceUnfoldrM streamLen)
+        , benchFold "drop-all"        (dropAll streamLen        1) (sourceUnfoldrM streamLen)
+        , benchFold "dropWhile-true"  (dropWhileTrue streamLen  1) (sourceUnfoldrM streamLen)
+        , benchFold "dropWhile-false" (dropWhileFalse 1) (sourceUnfoldrM streamLen)
         ]
       , bgroup "X4"
-        [ benchFold "filter-even"     (filterEven     4) (sourceUnfoldrM value)
-        , benchFold "filter-all-out"  (filterAllOut maxValue   4) (sourceUnfoldrM value)
-        , benchFold "filter-all-in"   (filterAllIn maxValue    4) (sourceUnfoldrM value)
-        , benchFold "take-all"        (takeAll maxValue        4) (sourceUnfoldrM value)
-        , benchFold "takeWhile-true"  (takeWhileTrue maxValue  4) (sourceUnfoldrM value)
-        , benchFold "drop-one"        (dropOne        4) (sourceUnfoldrM value)
-        , benchFold "drop-all"        (dropAll maxValue        4) (sourceUnfoldrM value)
-        , benchFold "dropWhile-true"  (dropWhileTrue maxValue  4) (sourceUnfoldrM value)
-        , benchFold "dropWhile-false" (dropWhileFalse 4) (sourceUnfoldrM value)
+        [ benchFold "filter-even"     (filterEven     4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-all-out"  (filterAllOut streamLen   4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-all-in"   (filterAllIn streamLen    4) (sourceUnfoldrM streamLen)
+        , benchFold "take-all"        (takeAll streamLen        4) (sourceUnfoldrM streamLen)
+        , benchFold "takeWhile-true"  (takeWhileTrue streamLen  4) (sourceUnfoldrM streamLen)
+        , benchFold "drop-one"        (dropOne        4) (sourceUnfoldrM streamLen)
+        , benchFold "drop-all"        (dropAll streamLen        4) (sourceUnfoldrM streamLen)
+        , benchFold "dropWhile-true"  (dropWhileTrue streamLen  4) (sourceUnfoldrM streamLen)
+        , benchFold "dropWhile-false" (dropWhileFalse 4) (sourceUnfoldrM streamLen)
         ]
       ]
-    where
-
-    maxValue = value
-
 
 o_1_space_zipping :: Int -> Benchmark
-o_1_space_zipping value =
+o_1_space_zipping streamLen =
     bgroup "zipping"
-        [ benchFold "zip" zip (sourceUnfoldrM value)
+        [ benchFold "zip" zip (sourceUnfoldrM streamLen)
         ]
 
 o_1_space_mixed :: Int -> Benchmark
-o_1_space_mixed value =
+o_1_space_mixed streamLen =
     bgroup "mixed"
       [ bgroup "X1"
-        [ benchFold "scan-map"    (scanMap    1) (sourceUnfoldrM value)
-        , benchFold "drop-map"    (dropMap    1) (sourceUnfoldrM value)
-        , benchFold "drop-scan"   (dropScan   1) (sourceUnfoldrM value)
-        , benchFold "take-drop"   (takeDrop maxValue   1) (sourceUnfoldrM value)
-        , benchFold "take-scan"   (takeScan maxValue   1) (sourceUnfoldrM value)
-        , benchFold "take-map"    (takeMap maxValue   1) (sourceUnfoldrM value)
-        , benchFold "filter-drop" (filterDrop maxValue 1) (sourceUnfoldrM value)
-        , benchFold "filter-take" (filterTake maxValue 1) (sourceUnfoldrM value)
-        , benchFold "filter-scan" (filterScan maxValue 1) (sourceUnfoldrM value)
-        , benchFold "filter-map"  (filterMap maxValue 1) (sourceUnfoldrM value)
+        [ benchFold "scan-map"    (scanMap    1) (sourceUnfoldrM streamLen)
+        , benchFold "drop-map"    (dropMap    1) (sourceUnfoldrM streamLen)
+        , benchFold "drop-scan"   (dropScan   1) (sourceUnfoldrM streamLen)
+        , benchFold "take-drop"   (takeDrop streamLen   1) (sourceUnfoldrM streamLen)
+        , benchFold "take-scan"   (takeScan streamLen   1) (sourceUnfoldrM streamLen)
+        , benchFold "take-map"    (takeMap streamLen   1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-drop" (filterDrop streamLen 1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-take" (filterTake streamLen 1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan streamLen 1) (sourceUnfoldrM streamLen)
+        , benchFold "filter-map"  (filterMap streamLen 1) (sourceUnfoldrM streamLen)
         ]
       , bgroup "X2"
-        [ benchFold "scan-map"    (scanMap    2) (sourceUnfoldrM value)
-        , benchFold "drop-map"    (dropMap    2) (sourceUnfoldrM value)
-        , benchFold "drop-scan"   (dropScan   2) (sourceUnfoldrM value)
-        , benchFold "take-drop"   (takeDrop maxValue   2) (sourceUnfoldrM value)
-        , benchFold "take-scan"   (takeScan maxValue   2) (sourceUnfoldrM value)
-        , benchFold "take-map"    (takeMap maxValue   2) (sourceUnfoldrM value)
-        , benchFold "filter-drop" (filterDrop maxValue 2) (sourceUnfoldrM value)
-        , benchFold "filter-take" (filterTake maxValue 2) (sourceUnfoldrM value)
-        , benchFold "filter-scan" (filterScan maxValue 2) (sourceUnfoldrM value)
-        , benchFold "filter-map"  (filterMap maxValue 2) (sourceUnfoldrM value)
+        [ benchFold "scan-map"    (scanMap    2) (sourceUnfoldrM streamLen)
+        , benchFold "drop-map"    (dropMap    2) (sourceUnfoldrM streamLen)
+        , benchFold "drop-scan"   (dropScan   2) (sourceUnfoldrM streamLen)
+        , benchFold "take-drop"   (takeDrop streamLen   2) (sourceUnfoldrM streamLen)
+        , benchFold "take-scan"   (takeScan streamLen   2) (sourceUnfoldrM streamLen)
+        , benchFold "take-map"    (takeMap streamLen   2) (sourceUnfoldrM streamLen)
+        , benchFold "filter-drop" (filterDrop streamLen 2) (sourceUnfoldrM streamLen)
+        , benchFold "filter-take" (filterTake streamLen 2) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan streamLen 2) (sourceUnfoldrM streamLen)
+        , benchFold "filter-map"  (filterMap streamLen 2) (sourceUnfoldrM streamLen)
         ]
       , bgroup "X4"
-        [ benchFold "scan-map"    (scanMap    4) (sourceUnfoldrM value)
-        , benchFold "drop-map"    (dropMap    4) (sourceUnfoldrM value)
-        , benchFold "drop-scan"   (dropScan   4) (sourceUnfoldrM value)
-        , benchFold "take-drop"   (takeDrop maxValue   4) (sourceUnfoldrM value)
-        , benchFold "take-scan"   (takeScan maxValue   4) (sourceUnfoldrM value)
-        , benchFold "take-map"    (takeMap maxValue   4) (sourceUnfoldrM value)
-        , benchFold "filter-drop" (filterDrop maxValue 4) (sourceUnfoldrM value)
-        , benchFold "filter-take" (filterTake maxValue 4) (sourceUnfoldrM value)
-        , benchFold "filter-scan" (filterScan maxValue 4) (sourceUnfoldrM value)
-        , benchFold "filter-map"  (filterMap maxValue 4) (sourceUnfoldrM value)
+        [ benchFold "scan-map"    (scanMap    4) (sourceUnfoldrM streamLen)
+        , benchFold "drop-map"    (dropMap    4) (sourceUnfoldrM streamLen)
+        , benchFold "drop-scan"   (dropScan   4) (sourceUnfoldrM streamLen)
+        , benchFold "take-drop"   (takeDrop streamLen   4) (sourceUnfoldrM streamLen)
+        , benchFold "take-scan"   (takeScan streamLen   4) (sourceUnfoldrM streamLen)
+        , benchFold "take-map"    (takeMap streamLen   4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-drop" (filterDrop streamLen 4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-take" (filterTake streamLen 4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-scan" (filterScan streamLen 4) (sourceUnfoldrM streamLen)
+        , benchFold "filter-map"  (filterMap streamLen 4) (sourceUnfoldrM streamLen)
         ]
       ]
-    where
-
-    maxValue = value
 
 o_1_space_list :: Int -> Benchmark
-o_1_space_list value =
+o_1_space_list streamLen =
     bgroup "list"
       [ bgroup "elimination"
-        [ benchList "last" (\xs -> [List.last xs]) (sourceUnfoldrList value)
+        [ benchList "last" (\xs -> [List.last xs]) (sourceUnfoldrList streamLen)
         ]
       , bgroup "nested"
-        [ benchList "toNullAp" toNullApNestedList (sourceUnfoldrList value2)
-        , benchList "toNull"   toNullNestedList (sourceUnfoldrList value2)
-        , benchList "toNull3"  toNullNestedList3 (sourceUnfoldrList value3)
-        , benchList "filterAllIn"  filterAllInNestedList (sourceUnfoldrList value2)
-        , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList value2)
+        [ benchList "toNullAp" toNullApNestedList (sourceUnfoldrList streamLen2)
+        , benchList "toNull"   toNullNestedList (sourceUnfoldrList streamLen2)
+        , benchList "toNull3"  toNullNestedList3 (sourceUnfoldrList streamLen3)
+        , benchList "filterAllIn"  filterAllInNestedList (sourceUnfoldrList streamLen2)
+        , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList streamLen2)
         ]
       ]
     where
 
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
-    value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+    streamLen3 = round (P.fromIntegral streamLen**(1/3::P.Double)) -- triple nested loop
 
 o_1_space :: Int -> Benchmark
-o_1_space value =
+o_1_space streamLen =
     bgroup (o_1_space_prefix moduleName)
-      [ o_1_space_generation value
-      , o_1_space_elimination value
-      , o_1_space_nested value
-      , o_1_space_transformation value
-      , o_1_space_concat value
-      , o_1_space_filtering value
-      , o_1_space_zipping value
-      , o_1_space_mixed value
-      , o_1_space_list value
+      [ o_1_space_generation streamLen
+      , o_1_space_elimination streamLen
+      , o_1_space_nested streamLen
+      , o_1_space_transformation streamLen
+      , o_1_space_concat streamLen
+      , o_1_space_filtering streamLen
+      , o_1_space_zipping streamLen
+      , o_1_space_mixed streamLen
+      , o_1_space_list streamLen
       ]
 
 o_n_heap :: Int -> Benchmark
-o_n_heap value =
+o_n_heap streamLen =
     bgroup (o_n_heap_prefix moduleName)
       [ bgroup "transformation"
-        [ benchFold "foldlS" (foldlS 1) (sourceUnfoldrM value)
+        [ benchFold "foldlS" (foldlS 1) (sourceUnfoldrM streamLen)
         ]
       ]
 
@@ -724,43 +717,42 @@ benchK :: P.String -> (Int -> Stream P.IO Int) -> Benchmark
 benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
 
 o_n_stack :: Int -> Int -> Int -> Benchmark
-o_n_stack value iterStreamLen maxIters =
+o_n_stack streamLen iterStreamLen maxIters =
     bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
-        [ benchFold "tail"   tail     (sourceUnfoldrM value)
-        , benchFold "nullTail" nullTail (sourceUnfoldrM value)
-        , benchFold "headTail" headTail (sourceUnfoldrM value)
+        [ benchFold "tail"   tail     (sourceUnfoldrM streamLen)
+        , benchFold "nullTail" nullTail (sourceUnfoldrM streamLen)
+        , benchFold "headTail" headTail (sourceUnfoldrM streamLen)
         ]
       , bgroup "transformation"
         [
           -- XXX why do these need so much stack
-          benchFold "intersperse" (intersperse maxValue 1) (sourceUnfoldrM value2)
-        , benchFold "interspersePure" (intersperse maxValue 1) (sourceUnfoldr value2)
+          benchFold "intersperse" (intersperse streamLen 1) (sourceUnfoldrM streamLen2)
+        , benchFold "interspersePure" (intersperse streamLen 1) (sourceUnfoldr streamLen2)
         ]
       , bgroup "transformationX4"
         [
-          benchFold "intersperse" (intersperse maxValue 4) (sourceUnfoldrM value16)
+          benchFold "intersperse" (intersperse streamLen 4) (sourceUnfoldrM streamLen16)
         ]
       , bgroup "iterated"
         [ benchK "mapM"                 (iterateMapM iterStreamLen maxIters)
         , benchK "scan(1/10)"           (iterateScan iterStreamLen maxIters)
         , benchK "filterEven"           (iterateFilterEven iterStreamLen maxIters)
-        , benchK "takeAll"              (iterateTakeAll maxValue iterStreamLen maxIters)
+        , benchK "takeAll"              (iterateTakeAll streamLen iterStreamLen maxIters)
         , benchK "dropOne"              (iterateDropOne iterStreamLen maxIters)
-        , benchK "dropWhileFalse(1/10)" (iterateDropWhileFalse maxValue iterStreamLen maxIters)
-        , benchK "dropWhileTrue"        (iterateDropWhileTrue maxValue iterStreamLen maxIters)
+        , benchK "dropWhileFalse(1/10)" (iterateDropWhileFalse streamLen iterStreamLen maxIters)
+        , benchK "dropWhileTrue"        (iterateDropWhileTrue streamLen iterStreamLen maxIters)
         ]
       ]
     where
-    value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
-    value16 = round (P.fromIntegral value**(1/16::P.Double)) -- triple nested loop
-    maxValue = value
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+    streamLen16 = round (P.fromIntegral streamLen**(1/16::P.Double)) -- triple nested loop
 
 o_n_space :: Int -> Benchmark
-o_n_space value =
+o_n_space streamLen =
     bgroup (o_n_space_prefix moduleName)
       [ bgroup "elimination"
-        [ benchFold "toList" toList   (sourceUnfoldrM value)
+        [ benchFold "toList" toList   (sourceUnfoldrM streamLen)
         ]
       ]
 
@@ -771,14 +763,14 @@ benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 main :: IO ()
 main =
     defaultMain
-        [ o_1_space value
-        , o_n_stack value iterStreamLen maxIters
-        , o_n_heap value
-        , o_n_space value
+        [ o_1_space streamLen
+        , o_n_stack streamLen iterStreamLen maxIters
+        , o_n_heap streamLen
+        , o_n_space streamLen
         ]
 
     where
 
-    value = 100000
+    streamLen = 100000
     maxIters = 10000
     iterStreamLen = 10
