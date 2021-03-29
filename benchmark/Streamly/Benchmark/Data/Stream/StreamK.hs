@@ -731,14 +731,13 @@ o_1_space =
     where
     value = 100000
 
-o_n_heap :: [Benchmark]
+o_n_heap :: Benchmark
 o_n_heap =
-    [ bgroup (o_n_heap_prefix moduleName)
+    bgroup (o_n_heap_prefix moduleName)
       [ bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) (sourceUnfoldrM value)
         ]
       ]
-    ]
     where
 
     value = 100000
@@ -747,9 +746,9 @@ o_n_heap =
 benchK :: P.String -> (Int -> Stream P.IO Int) -> Benchmark
 benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
 
-o_n_stack :: [Benchmark]
+o_n_stack :: Benchmark
 o_n_stack =
-    [ bgroup (o_n_stack_prefix moduleName)
+    bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "tail"   tail     (sourceUnfoldrM value)
         , benchFold "nullTail" nullTail (sourceUnfoldrM value)
@@ -775,7 +774,6 @@ o_n_stack =
         , benchK "dropWhileTrue"        (iterateDropWhileTrue maxValue iterStreamLen maxIters)
         ]
       ]
-   ]
     where
 
     value = 100000
@@ -785,14 +783,13 @@ o_n_stack =
     maxIters = 10000
     iterStreamLen = 10
 
-o_n_space :: [Benchmark]
+o_n_space :: Benchmark
 o_n_space =
-    [ bgroup (o_n_space_prefix moduleName)
+    bgroup (o_n_space_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "toList" toList   (sourceUnfoldrM value)
         ]
       ]
-   ]
     where
 
     value = 100000
@@ -803,9 +800,4 @@ benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
 benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 main :: IO ()
-main = defaultMain $ concat
-    [ [ o_1_space ]
-    , o_n_stack
-    , o_n_heap
-    , o_n_space
-    ]
+main = defaultMain [o_1_space, o_n_stack, o_n_heap, o_n_space]
