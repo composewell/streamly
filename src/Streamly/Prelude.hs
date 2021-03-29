@@ -129,10 +129,6 @@
 -- >>> Stream.drain $ Stream.asyncly $ Stream.replicateM 10 $ delay 1
 -- ...
 --
--- By default, there is a limit on how many concurrent actions may be executed
--- at a time, the "Concurrency Control" section describes combinators that can
--- be used to control the concurrency.
---
 -- We can use 'mapM' to map an action concurrently:
 --
 -- >>> f x = delay 1 >> return (x + 1)
@@ -147,6 +143,20 @@
 -- or not. The concurrent combinators necessarily have a @MonadAsync m@
 -- constraint. However, a @MonadAsync m@ constraint does not necessarily mean
 -- that the combinator is concurrent.
+--
+-- == Automatic Concurrency Control
+--
+-- 'SerialT' (and 'WSerialT') runs all tasks serially whereas 'ParallelT' runs
+-- all tasks concurrently i.e. one thread per task. The stream types 'AsyncT',
+-- 'WAsyncT', and 'AheadT' provide demand driven concurrency. It means that
+-- based on the rate at which the consumer is consuming the stream, it
+-- maintains the optimal number of threads to increase or decrease parallelism.
+--
+-- However, the programmer can control the maximum number of threads using
+-- 'maxThreads'. It provides an upper bound on the concurrent IO requests or
+-- CPU cores that can be used. 'maxBuffer' limits the number of evaluated
+-- stream elements that we can buffer.  See the "Concurrency Control" section
+-- for details.
 --
 -- == Combining Two streams
 --
