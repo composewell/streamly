@@ -55,30 +55,12 @@ sourceUnfoldr value n = S.unfoldr step n
         then Nothing
         else Just (cnt, cnt + 1)
 
-{-# INLINE sourceUnfoldrN #-}
-sourceUnfoldrN :: Int -> Int -> Stream m Int
-sourceUnfoldrN m n = S.unfoldr step n
-    where
-    step cnt =
-        if cnt > n + m
-        then Nothing
-        else Just (cnt, cnt + 1)
-
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: S.MonadAsync m => Int -> Int -> Stream m Int
 sourceUnfoldrM value n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
-        then return Nothing
-        else return (Just (cnt, cnt + 1))
-
-{-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: S.MonadAsync m => Int -> Int -> Stream m Int
-sourceUnfoldrMN m n = S.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + m
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
@@ -264,7 +246,7 @@ intersperse maxValue n = composeN n $ S.intersperse maxValue
 iterateSource
     :: S.MonadAsync m
     => Int -> (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
-iterateSource iterStreamLen g i n = f i (sourceUnfoldrMN iterStreamLen n)
+iterateSource iterStreamLen g i n = f i (sourceUnfoldrM iterStreamLen n)
     where
         f (0 :: Int) m = g m
         f x m = g (f (x P.- 1) m)
@@ -363,8 +345,8 @@ filterMap maxValue n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
     S.drain $ S.concatMap
-        (\_ -> sourceUnfoldrMN inner n)
-        (sourceUnfoldrMN outer n)
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
@@ -376,8 +358,8 @@ inspect $ hasNoTypeClasses 'concatMap
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
     S.drain $ S.concatMap
-        (\_ -> sourceUnfoldrN inner n)
-        (sourceUnfoldrN outer n)
+        (\_ -> sourceUnfoldr inner n)
+        (sourceUnfoldr outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapPure
@@ -388,7 +370,7 @@ inspect $ hasNoTypeClasses 'concatMapPure
 {-# INLINE concatMapRepl #-}
 concatMapRepl :: Int -> Int -> Int -> IO ()
 concatMapRepl outer inner n =
-    S.drain $ S.concatMap (S.replicate inner) (sourceUnfoldrMN outer n)
+    S.drain $ S.concatMap (S.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl
@@ -406,8 +388,8 @@ sourceConcatMapId val n =
 concatStreamsWith :: Int -> Int -> Int -> IO ()
 concatStreamsWith outer inner n =
     S.drain $ S.concatMapBy S.serial
-        (sourceUnfoldrMN inner)
-        (sourceUnfoldrMN outer n)
+        (sourceUnfoldrM inner)
+        (sourceUnfoldrM outer n)
 
 -------------------------------------------------------------------------------
 -- Nested Composition
@@ -544,16 +526,16 @@ o_1_space_elimination value =
 o_1_space_nested :: Int -> Benchmark
 o_1_space_nested value =
     bgroup "nested"
-        [ benchFold "toNullAp" toNullApNested (sourceUnfoldrMN value2)
-        , benchFold "toNull"   toNullNested   (sourceUnfoldrMN value2)
-        , benchFold "toNull3"  toNullNested3  (sourceUnfoldrMN value3)
-        , benchFold "filterAllIn"  filterAllInNested  (sourceUnfoldrMN value2)
-        , benchFold "filterAllOut" filterAllOutNested (sourceUnfoldrMN value2)
-        , benchFold "toNullApPure" toNullApNested (sourceUnfoldrN value2)
-        , benchFold "toNullPure"   toNullNested   (sourceUnfoldrN value2)
-        , benchFold "toNull3Pure"  toNullNested3  (sourceUnfoldrN value3)
-        , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldrN value2)
-        , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldrN value2)
+        [ benchFold "toNullAp" toNullApNested (sourceUnfoldrM value2)
+        , benchFold "toNull"   toNullNested   (sourceUnfoldrM value2)
+        , benchFold "toNull3"  toNullNested3  (sourceUnfoldrM value3)
+        , benchFold "filterAllIn"  filterAllInNested  (sourceUnfoldrM value2)
+        , benchFold "filterAllOut" filterAllOutNested (sourceUnfoldrM value2)
+        , benchFold "toNullApPure" toNullApNested (sourceUnfoldr value2)
+        , benchFold "toNullPure"   toNullNested   (sourceUnfoldr value2)
+        , benchFold "toNull3Pure"  toNullNested3  (sourceUnfoldr value3)
+        , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldr value2)
+        , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldr value2)
         ]
     where
     value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
@@ -577,7 +559,7 @@ o_1_space_transformation value =
         , benchFold "mapM"   (mapM 4) (sourceUnfoldrM value)
         , benchFold "mapMSerial" (mapMSerial 4) (sourceUnfoldrM value)
         -- XXX this is horribly slow
-        -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
+        -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrM value16)
         ]
       ]
 
@@ -752,12 +734,12 @@ o_n_stack value iterStreamLen maxIters =
       , bgroup "transformation"
         [
           -- XXX why do these need so much stack
-          benchFold "intersperse" (intersperse maxValue 1) (sourceUnfoldrMN value2)
-        , benchFold "interspersePure" (intersperse maxValue 1) (sourceUnfoldrN value2)
+          benchFold "intersperse" (intersperse maxValue 1) (sourceUnfoldrM value2)
+        , benchFold "interspersePure" (intersperse maxValue 1) (sourceUnfoldr value2)
         ]
       , bgroup "transformationX4"
         [
-          benchFold "intersperse" (intersperse maxValue 4) (sourceUnfoldrMN value16)
+          benchFold "intersperse" (intersperse maxValue 4) (sourceUnfoldrM value16)
         ]
       , bgroup "iterated"
         [ benchK "mapM"                 (iterateMapM iterStreamLen maxIters)
