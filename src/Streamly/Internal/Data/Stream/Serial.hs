@@ -87,41 +87,31 @@ import Prelude hiding (map, mapM, errorWithoutStackTrace)
 -- SerialT
 ------------------------------------------------------------------------------
 
--- | The 'Semigroup' operation @a <> b@ (same as 'Streamly.Prelude.serial')
--- appends stream @b@ to stream @a@:
+-- | For 'SerialT' streams:
 --
--- >>> stream1 = Stream.fromList [1,2]
--- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ stream1 <> stream2
--- [1,2,3,4]
+-- @
+-- (<>) = 'Streamly.Prelude.serial'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.serial'
+-- @
 --
--- This operation can be used to fold an infinite lazy container of streams.
--- Since the ordering of elements is important in serial streams, this
--- operation is not commutative i.e. a <> b and b <> a are not the same.
---
--- Monad bind is same as @flip . concatMapWith serial@. A single 'Monad' bind
--- behaves like a @for@ loop:
+-- A single 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.drain $ do
+-- Stream.toList $ do
 --      x <- Stream.fromList [1,2] -- foreach x in stream
---      Stream.yieldM $ print x
+--      return x
 -- :}
--- 1
--- 2
+-- [1,2]
 --
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.drain $ do
+-- Stream.toList $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [3,4] -- foreach y in stream
---     Stream.yieldM $ print (x, y)
+--     return (x, y)
 -- :}
--- (1,3)
--- (1,4)
--- (2,3)
--- (2,4)
+-- [(1,3),(1,4),(2,3),(2,4)]
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
@@ -258,60 +248,44 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- WSerialT
 ------------------------------------------------------------------------------
 
--- | The 'Semigroup' operation @a <> b@ (same as 'Streamly.Prelude.wSerial')
--- interleaves stream @a@ and stream @b@:
+-- | For 'WSerialT' streams:
 --
--- >>> stream1 = Stream.fromList [1,2]
--- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
--- [1,3,2,4]
+-- @
+-- (<>) = 'Streamly.Prelude.wSerial'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.wSerial'
+-- @
 --
--- Note that evaluation of @a <> b <> c@ does not schedule @a@, @b@ and @c@
--- with equal priority.  This expression is equivalent to @a <> (b <> c)@,
--- therefore, it fairly interleaves @a@ with the result of @b <> c@.  For
--- example, @S.fromList [1,2] <> S.fromList [3,4] <> S.fromList [5,6] ::
--- WSerialT Identity Int@ would result in [1,3,2,5,4,6].  In other words, the
--- leftmost stream gets the same scheduling priority as the rest of the
--- streams taken together. The same is true for each subexpression on the right.
+-- Note that '<>' is associative only if we disregard the ordering of elements
+-- in the resulting stream.
 --
--- This also means that this operation is associative only if we disregard the
--- ordering of elements in the resulting stream.
---
--- Note that this operation cannot be used to fold a container of infinite
--- streams as the state that it needs to maintain is proportional to the number
--- of streams.
---
--- The @W@ in the name stands for @wide@ or breadth wise scheduling in
--- contrast to the depth wise scheduling behavior of 'SerialT'.
---
--- Monad bind is same as @flip . concatMapWith wSerial@.  A single 'Monad' bind
--- behaves like a @for@ loop:
+-- A single 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.drain $ Stream.wSerially $ do
+-- Stream.toList $ Stream.wSerially $ do
 --      x <- Stream.fromList [1,2] -- foreach x in stream
---      Stream.yieldM $ print x
+--      return x
 -- :}
--- 1
--- 2
+-- [1,2]
 --
 -- Nested monad binds behave like interleaved nested @for@ loops:
 --
 -- >>> :{
--- Stream.drain $ Stream.wSerially $ do
+-- Stream.toList $ Stream.wSerially $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [3,4] -- foreach y in stream
---     Stream.yieldM $ print (x, y)
+--     return (x, y)
 -- :}
--- (1,3)
--- (2,3)
--- (1,4)
--- (2,4)
+-- [(1,3),(2,3),(1,4),(2,4)]
 --
--- It is a result of interleaving all the nested iterations of @1@ and all the
--- nested iterations of @2@:
+-- It is a result of interleaving all the nested iterations corresponding to
+-- element @1@ in the first stream with all the nested iterations of element
+-- @2@:
 --
--- > Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
+-- >>> Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
+-- [(1,3),(2,3),(1,4),(2,4)]
+--
+-- The @W@ in the name stands for @wide@ or breadth wise scheduling in
+-- contrast to the depth wise scheduling behavior of 'SerialT'.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
@@ -377,10 +351,27 @@ infixr 6 `wSerial`
 --
 -- Similar combinators can be implemented using WAhead style.
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
--- Interleaves two streams, yielding one element from each stream alternately.
--- When one stream stops the rest of the other stream is used in the output
--- stream.
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ Stream.wSerially $ stream1 `wSerial` stream2
+-- [1,3,2,4]
+--
+-- Note that evaluation of @a \`wSerial` b \`wSerial` c@ does not interleave
+-- @a@, @b@ and @c@ with equal priority.  This expression is equivalent to @a
+-- \`wSerial` (b \`wSerial` c)@, therefore, it fairly interleaves @a@ with the
+-- result of @b \`wSerial` c@.  For example, @Stream.fromList [1,2] \`wSerial`
+-- Stream.fromList [3,4] \`wSerial` Stream.fromList [5,6]@ would result in
+-- [1,3,2,5,4,6].  In other words, the leftmost stream gets the same scheduling
+-- priority as the rest of the streams taken together. The same is true for
+-- each subexpression on the right.
+--
+-- Note that this operation cannot be used to fold a container of infinite
+-- streams but it can be used for very large streams as the state that it needs
+-- to maintain is proportional to the logarithm of the number of streams.
 --
 -- @since 0.8.0
 --

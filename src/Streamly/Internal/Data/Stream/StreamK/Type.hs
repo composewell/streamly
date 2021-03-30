@@ -806,9 +806,15 @@ foldl' step begin = foldlx' step begin id
 
 infixr 6 `serial`
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'SerialT'.
--- Appends two streams sequentially, yielding all elements from the first
+-- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
+--
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ stream1 `serial` stream2
+-- [1,2,3,4]
+--
+-- This operation can be used to fold an infinite lazy container of streams.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
