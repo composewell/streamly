@@ -152,11 +152,15 @@ testWriteWithChunk =
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
+moduleName :: String
+moduleName = "FileSystem.Handle"
+
 main :: IO ()
 main =
     hspec $
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
+      describe moduleName $ do
         describe "Read From Handle" $ do
             prop "read" $ testRead readFromHandle
             prop "readWithBufferOf" $ testRead readWithBufferFromHandle

@@ -68,13 +68,16 @@ wSerialMinLengthProp =
     infiniteStream = S.repeat 1
     combined len = infiniteStream `Serial.wSerialMin` finiteStream len
 
+moduleName :: String
+moduleName = "Prelude.WSerial"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
         wSerialOps spec = mapOps spec $ makeOps wSerially
 #ifndef COVERAGE_BUILD

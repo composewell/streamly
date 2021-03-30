@@ -701,11 +701,16 @@ parseMany2Events =
 -- Main
 -------------------------------------------------------------------------------
 
+moduleName :: String
+moduleName = "Data.Parser.ParserD"
+
 main :: IO ()
 main =
-    hspec $
-    H.parallel $
-    modifyMaxSuccess (const maxTestCount) $ do
+  hspec $
+  H.parallel $
+  modifyMaxSuccess (const maxTestCount) $ do
+  describe moduleName $ do
+
     describe "Instances" $ do
         prop "applicative" applicative
         prop "monad" monad

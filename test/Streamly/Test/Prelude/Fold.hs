@@ -142,13 +142,17 @@ checkFoldrLaziness = do
                         $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
         `shouldReturn` [True]
 
+moduleName :: String
+moduleName = "Prelude.Fold"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
+
     ---------------------------------------------------------------------------
     -- Left folds are strict enough
     ---------------------------------------------------------------------------
