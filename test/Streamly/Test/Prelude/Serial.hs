@@ -502,13 +502,16 @@ foldIterateM =
             Nothing -> assert $ s1 == 0
             Just s2 -> assert $ s1 == s2
 
+moduleName :: String
+moduleName = "Prelude.Serial"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps serially
 #ifndef COVERAGE_BUILD

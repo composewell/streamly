@@ -393,7 +393,10 @@ testDesc =
       )
     ]
 
+moduleName :: String
+moduleName = "FileSystem.Event"
+
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    hspec $ sequence_ $ map driver testDesc
+    hspec $ describe moduleName $ sequence_ $ map driver testDesc

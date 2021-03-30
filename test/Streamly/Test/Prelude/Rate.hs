@@ -140,8 +140,12 @@ measureBuffers desc t buffers count = do
         duration = (expectedTime * 0.9, expectedTime * 1.1)
     measureRate' desc t buffers (-1) (Right count) 0 (1,1) duration
 
+moduleName :: String
+moduleName = "Prelude.Rate"
+
 main :: IO ()
 main = hspec $ do
+  describe moduleName $ do
 
     describe "maxBuffers" $ do
         measureBuffers "asyncly" asyncly (-1) 5

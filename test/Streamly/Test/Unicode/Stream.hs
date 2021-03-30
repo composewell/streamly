@@ -156,11 +156,14 @@ testUnwords =
               $ S.fromList list
           assert (xs == unwords (words list))
 
+moduleName :: String
+moduleName = "Unicode.Stream"
+
 main :: IO ()
 main = H.hspec
-    $ H.parallel
-    $ modifyMaxSuccess (const 1000)
-    $ do
+  $ H.parallel
+  $ modifyMaxSuccess (const 1000)
+  $ H.describe moduleName $ do
     H.describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8' . encodeUtf8' == id" propDecodeEncodeId'
         prop "decodeUtf8 . encodeUtf8' == id" propDecodeEncodeId

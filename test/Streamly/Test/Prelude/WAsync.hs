@@ -24,13 +24,16 @@ import qualified Streamly.Prelude as S
 
 import Streamly.Test.Prelude.Common
 
+moduleName :: String
+moduleName = "Prelude.WAsync"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
         wAsyncOps spec = mapOps spec $ makeOps wAsyncly
 #ifndef COVERAGE_BUILD

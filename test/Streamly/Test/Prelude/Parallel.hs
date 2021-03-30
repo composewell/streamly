@@ -21,13 +21,16 @@ import qualified Streamly.Prelude as S
 
 import Streamly.Test.Prelude.Common
 
+moduleName :: String
+moduleName = "Prelude.Parallel"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let
 #ifndef COVERAGE_BUILD
         parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]

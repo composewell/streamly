@@ -40,13 +40,16 @@ associativityCheck desc t = prop desc assocCheckProp
             assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
 
+moduleName :: String
+moduleName = "Prelude.Ahead"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps spec = mapOps spec $ makeOps S.aheadly
 #ifndef COVERAGE_BUILD
