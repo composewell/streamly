@@ -907,33 +907,15 @@ import Streamly.Internal.Data.Stream.IsStream
 
 -- $ahead
 --
--- When a stream consumer demands an element from a speculative stream
--- constructed as @a \`consM` b \`consM` ... nil@, the action @a@ at the head
--- of the stream is executed and the output of the action is supplied to the
--- consumer. However, in addition to the action at the head multiple actions
--- following it may also be executed concurrently and the results buffered.
--- When the next element is demanded it may be served from the buffer and we
--- may execute the next action in the sequence to keep the buffer adequately
--- filled.  Thus, the actions are executed concurrently but results consumed in
--- serial order just like serial streams.  `consM` can be used to fold an
--- infinite lazy container of effects, as the number of concurrent executions
--- is limited.
+-- Speculative streams evaluate some future actions speculatively and
+-- concurrently, and keep the results ready for consumption. As in serial
+-- streams, results are consumed in the same order as the actions in the
+-- stream.
 --
--- Similar to 'consM', the monadic stream generation (e.g. replicateM) and
--- transformation operations (e.g. mapM) on speculative streams can execute
--- multiple effects concurrently in a speculative manner.
---
--- How many effects can be executed concurrently and how many results can be
--- buffered are controlled by 'maxThreads' and 'maxBuffer' combinators
--- respectively.  The actual number of concurrent threads is adjusted according
--- to the rate at which the consumer is consuming the stream. It may even
--- execute actions serially in a single thread if that is enough to match the
--- consumer's speed.
---
--- Speculative streams enforce ordering of the results of actions in the stream
--- but the side effects are only partially ordered.  Therefore, the semigroup
--- operation for speculative streams is not commutative from the pure outputs
--- perspective but commutative from side effects perspective.
+-- Even though the results of actions are ordered, the side effects are only
+-- partially ordered.  Therefore, the semigroup operation is not commutative
+-- from the pure outputs perspective but commutative from side effects
+-- perspective.
 
 -- $async
 --
