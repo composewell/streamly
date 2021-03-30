@@ -137,9 +137,13 @@ validateChunksWithBufferOf = monadicIO $ do
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
+moduleName :: String
+moduleName = "Network.Socket"
+
 main :: IO ()
 main = hspec $ do
     modifyMaxSuccess (const 1) $ do
+      describe moduleName $ do
         describe "Read/Write" $ do
             prop "read/write" validateRW
             prop "readWithBufferOf/writeWithBufferOf" validateWithBufferOf

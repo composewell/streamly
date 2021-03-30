@@ -20,13 +20,16 @@ import qualified Streamly.Prelude as S
 
 import Streamly.Test.Prelude.Common
 
+moduleName :: String
+moduleName = "Prelude.ZipSerial"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     let zipSerialOps :: IsStream t
             => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps spec = mapOps spec $ makeOps zipSerially

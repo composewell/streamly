@@ -31,8 +31,16 @@ infixr 5 `Cons`
 {-# COMPLETE Nil, Cons #-}
 #endif
 
+moduleName :: String
+#ifdef USE_STREAMLY_LIST
+moduleName = "Data.List+Data.List.Base"
+#else
+moduleName = "Data.List.Base"
+#endif
+
 main :: IO ()
-main = hspec $ do
+main = hspec $
+  describe moduleName $ do
 #ifdef USE_STREAMLY_LIST
     describe "OverloadedLists for 'SerialT Identity' type" $ do
         it "Overloaded lists" $ do

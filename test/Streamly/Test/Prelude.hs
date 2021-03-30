@@ -169,9 +169,12 @@ parallelLoops = do
                >> print rnd
         return (name, rnd) `S.parallel` loop name
 
+moduleName :: String
+moduleName = "Prelude"
 
 main :: IO ()
 main = hspec $ H.parallel $ do
+  describe moduleName $ do
     describe "Miscellaneous combined examples" mixedOps
     describe "Miscellaneous combined examples aheadly" mixedOpsAheadly
     describe "Simple MonadError and MonadThrow" simpleMonadError

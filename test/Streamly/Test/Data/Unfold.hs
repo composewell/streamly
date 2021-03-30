@@ -434,10 +434,13 @@ testCombination =
 -- Main
 -------------------------------------------------------------------------------
 
+moduleName :: String
+moduleName = "Data.Unfold"
+
 main :: IO ()
 main =
     hspec
-        $ describe "Unfold tests"
+        $ describe moduleName
         $ do
             testInputOps
             testGeneration

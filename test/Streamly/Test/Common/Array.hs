@@ -48,6 +48,19 @@ import qualified Streamly.Internal.Data.Array as A
 type Array = A.Array
 #endif
 
+moduleName :: String
+#ifdef TEST_SMALL_ARRAY
+moduleName = "Data.SmallArray"
+#elif defined(TEST_ARRAY)
+moduleName = "Data.Array.Foreign"
+#elif defined(DATA_ARRAY_PRIM_PINNED)
+moduleName = "Data.Array.Prim.Pinned"
+#elif defined(DATA_ARRAY_PRIM)
+moduleName = "Data.Array.Prim"
+#else
+moduleName = "Data.Array"
+#endif
+
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
 #ifdef DEVBUILD
@@ -213,6 +226,7 @@ main =
     hspec $
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
+      describe moduleName $ do
         describe "Construction" $ do
             prop "length . writeN n === n" testLength
             prop "length . fromStreamN n === n" testLengthFromStreamN

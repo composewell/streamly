@@ -124,9 +124,13 @@ validateOnPortLocal = monadicIO $ do
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
 
+moduleName :: String
+moduleName = "Network.Inet.TCP"
+
 main :: IO ()
 main = hspec $ do
     modifyMaxSuccess (const 1) $ do
+      describe moduleName $ do
         describe "Accept Connections" $ do
             prop "acceptOnPort" validateOnPort
             prop "acceptOnPortLocal" validateOnPortLocal

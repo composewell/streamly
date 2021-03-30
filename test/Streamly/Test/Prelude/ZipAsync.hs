@@ -17,13 +17,16 @@ import qualified Streamly.Prelude as S
 
 import Streamly.Test.Prelude.Common
 
+moduleName :: String
+moduleName = "Prelude.ZipAsync"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec

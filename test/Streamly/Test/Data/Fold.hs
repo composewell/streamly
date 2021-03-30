@@ -444,9 +444,12 @@ headAndRest ls = monadicIO $ do
     taill [] = []
     taill (_:xs) = xs
 
+moduleName :: String
+moduleName = "Data.Fold"
+
 main :: IO ()
 main = hspec $ do
-    describe "Fold" $ do
+    describe moduleName $ do
         -- Folds
         -- Accumulators
         prop "mconcat" Main.mconcat
@@ -523,5 +526,5 @@ main = hspec $ do
         prop "many" Main.many
         -- concatMap
         -- chunksOf
-    describe "FoldAndReturn s" $ do
+
         prop "head from fold_" headAndRest

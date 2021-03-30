@@ -323,13 +323,16 @@ takeInfinite t =
         S.drain (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
         `shouldReturn` ()
 
+moduleName :: String
+moduleName = "Prelude.Concurrent"
+
 main :: IO ()
 main = hspec
-    $ H.parallel
+  $ H.parallel
 #ifdef COVERAGE_BUILD
-    $ modifyMaxSuccess (const 10)
+  $ modifyMaxSuccess (const 10)
 #endif
-    $ do
+  $ describe moduleName $ do
     -- We can have these in Test.Prelude, but I think it's unnecessary.
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps serially
