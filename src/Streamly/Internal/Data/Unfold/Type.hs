@@ -107,7 +107,7 @@ mkUnfoldrM step = Unfold step pure
 -- The step function returns the next element in the stream and the next seed
 -- value. When it is done it returns 'Nothing' and the stream ends.
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 --
 {-# INLINE unfoldrM #-}
 unfoldrM :: Applicative m => (a -> m (Maybe (b, a))) -> Unfold m a b
@@ -129,7 +129,7 @@ unfoldrM next = Unfold step pure
 -- >>> Unfold.fold Fold.toList (Unfold.unfoldr f) [1,2,3]
 -- [1,2,3]
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 --
 {-# INLINE unfoldr #-}
 unfoldr :: Applicative m => (a -> Maybe (b, a)) -> Unfold m a b
@@ -149,7 +149,7 @@ unfoldr step = unfoldrM (pure . step)
 -- lmap f = Unfold.many (Unfold.function f)
 -- @
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
@@ -264,7 +264,8 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- >>> Unfold.fold Fold.toList u ([1,2,3], [4,5,6])
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
--- /Pre-release/
+-- /Since: 0.8.0/
+--
 {-# INLINE crossWith #-}
 crossWith :: Monad m =>
     (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
@@ -398,7 +399,8 @@ instance Monad m => Monad (Unfold m a) where
 -- | Lift a monadic function into an unfold. The unfold generates a singleton
 -- stream.
 --
--- /Pre-release/
+-- /Since: 0.8.0/
+
 {-# INLINE functionM #-}
 functionM :: Applicative m => (a -> m b) -> Unfold m a b
 functionM f = Unfold step inject
@@ -416,7 +418,8 @@ functionM f = Unfold step inject
 --
 -- > function f = functionM $ return . f
 --
--- /Pre-release/
+-- /Since: 0.8.0/
+
 {-# INLINE function #-}
 function :: Applicative m => (a -> b) -> Unfold m a b
 function f = functionM $ pure Prelude.. f
@@ -437,7 +440,7 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 -- | Apply the second unfold to each output element of the first unfold and
 -- flatten the output in a single stream.
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL many #-}
 many :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
@@ -530,7 +533,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 --
 -- > zipWith f = zipWithM (\a b -> return $ f a b)
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 --
 {-# INLINE zipWith #-}
 zipWith :: Monad m

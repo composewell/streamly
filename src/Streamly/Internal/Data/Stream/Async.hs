@@ -515,7 +515,6 @@ mkAsyncD m = D.Stream step Nothing
             D.Skip s    -> D.Skip (Just $ D.Stream step1 s)
             D.Stop      -> D.Stop
 
--- /Since: 0.8.0 ("Streamly.Prelude")/
 --
 -- This is slightly faster than the CPS version above
 --
@@ -525,7 +524,7 @@ mkAsyncD m = D.Stream step Nothing
 -- kicked off again to evaluate the remaining stream when there is space in the
 -- buffer.  The consumer consumes the stream lazily from the buffer.
 --
--- /Pre-release/
+-- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL mkAsync #-}
 mkAsync :: (K.IsStream t, MonadAsync m) => t m a -> t m a
