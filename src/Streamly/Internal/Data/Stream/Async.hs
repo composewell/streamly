@@ -11,6 +11,16 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 --
 module Streamly.Internal.Data.Stream.Async
     (
@@ -60,6 +70,15 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 #include "Instances.hs"
+
+-- $setup
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 
 -------------------------------------------------------------------------------
 -- Async
@@ -637,27 +656,33 @@ infixr 6 `async`
 -- | Merges two streams, both the streams may be evaluated concurrently,
 -- outputs from both are used as they arrive:
 --
+-- >>> import Streamly.Prelude (async)
 -- >>> stream1 = Stream.yieldM (delay 4)
 -- >>> stream2 = Stream.yieldM (delay 2)
 -- >>> Stream.toList $ stream1 `async` stream2
--- [4,2]
+-- 2 sec
+-- 4 sec
+-- [2,4]
 --
 -- Multiple streams can be combined. With enough threads, all of them can be
 -- scheduled simultaneously:
 --
 -- >>> stream3 = Stream.yieldM (delay 1)
 -- >>> Stream.toList $ stream1 `async` stream2 `async` stream3
+-- ...
 -- [1,2,4]
 --
 -- With 2 threads, only two can be scheduled at a time, when one of those
 -- finishes, the third one gets scheduled:
 --
 -- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
+-- ...
 -- [2,1,4]
 --
 -- With a single thread, it becomes serial:
 --
 -- >>> Stream.toList $ Stream.maxThreads 1 $ stream1 `async` stream2 `async` stream3
+-- ...
 -- [4,2,1]
 --
 -- Only streams are scheduled for async evaluation, how actions within a
@@ -667,16 +692,18 @@ infixr 6 `async`
 -- In the following example, both the streams are scheduled for concurrent
 -- evaluation but each individual stream is evaluated serially:
 --
--- >>> stream1 = Stream.fromListM $ map delay [3,3] -- SerialT IO Int
--- >>> stream2 = Stream.fromListM $ map delay [1,1] -- SerialT IO Int
+-- >>> stream1 = Stream.fromListM $ Prelude.map delay [3,3] -- SerialT IO Int
+-- >>> stream2 = Stream.fromListM $ Prelude.map delay [1,1] -- SerialT IO Int
 -- >>> Stream.toList $ stream1 `async` stream2 -- IO [Int]
+-- ...
 -- [1,1,3,3]
 --
 -- If total threads are 2, the third stream is scheduled only after one of the
 -- first two has finished:
 --
--- >>> stream3 = Stream.fromListM $ map delay [2,2] -- SerialT IO Int
+-- >>> stream3 = Stream.fromListM $ Prelude.map delay [2,2] -- SerialT IO Int
 -- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3 -- IO [Int]
+-- ...
 -- [1,1,3,2,3,2]
 --
 -- Thus 'async' goes deep in first few streams rather than going wide in all
@@ -867,6 +894,7 @@ infixr 6 `wAsync`
 -- With a single thread, 'async' starts behaving like 'serial' while 'wAsync'
 -- starts behaving like 'wSerial'.
 --
+-- >>> import Streamly.Prelude (wAsync)
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
 -- >>> Stream.toList $ Stream.asyncly $ Stream.maxThreads 1 $ stream1 `async` stream2
