@@ -87,11 +87,11 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Prelude (MonadAsync)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
+import Streamly.Internal.Data.Stream.IsStream (MonadAsync)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -103,7 +103,7 @@ import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | @'handleWithM' socket act@ runs the monadic computation @act@ passing the
