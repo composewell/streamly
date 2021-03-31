@@ -9,6 +9,16 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 --
 module Streamly.Internal.Data.Stream.Ahead
     (
@@ -52,6 +62,15 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import Prelude hiding (map)
 
 #include "Instances.hs"
+
+-- $setup
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 
 -------------------------------------------------------------------------------
 -- Ahead
@@ -600,9 +619,10 @@ infixr 6 `ahead`
 -- original streams, side effects will happen in the order in which the streams
 -- are evaluated:
 --
--- >>> stream1 = Stream.yieldM (delay 4) -- SerialT IO Int
--- >>> stream2 = Stream.yieldM (delay 2) -- SerialT IO Int
--- >>> Stream.toList $ stream1 `ahead` stream2 -- IO [Int]
+-- >>> import Streamly.Prelude (ahead)
+-- >>> stream1 = Stream.yieldM (delay 4) :: SerialT IO Int
+-- >>> stream2 = Stream.yieldM (delay 2) :: SerialT IO Int
+-- >>> Stream.toList $ stream1 `ahead` stream2 :: IO [Int]
 -- 2 sec
 -- 4 sec
 -- [4,2]

@@ -29,7 +29,7 @@
 -- which is more or less the same as a list:
 --
 -- >>> import Streamly.Prelude (SerialT, cons, consM, nil)
--- >>> stream :: SerialT IO Int = 1 `cons` 2 `cons` nil
+-- >>> stream = 1 `cons` 2 `cons` nil :: SerialT IO Int
 -- >>> Stream.toList stream -- IO [Int]
 -- [1,2]
 --
@@ -43,8 +43,10 @@
 --      putStrLn (show n ++ " sec") -- print "n sec"
 --      return n                    -- IO Int
 -- :}
+--
 -- >>> delay 1
 -- 1 sec
+-- 1
 --
 -- 'consM' constructs a stream from effectful actions:
 --
@@ -62,11 +64,15 @@
 -- Finally, 'drain' folds the stream to IO discarding the () values, thus
 -- producing only effects.
 --
--- >>> :{
+-- >>> import Data.Function ((&))
+--
+-- @
+-- :{
 --  Stream.repeatM getLine      -- SerialT IO String
 --      & Stream.mapM putStrLn  -- SerialT IO ()
 --      & Stream.drain          -- IO ()
 -- :}
+-- @
 --
 -- This is a console echo program. It is an example of a declarative loop.
 -- Compare it with an imperative @while@ loop.
@@ -84,7 +90,7 @@
 -- 'SerialT' executes actions serially, so the total delay in the following
 -- example is @2 + 1 = 3@ seconds:
 --
--- >>> stream :: SerialT IO Int = delay 2 `consM` delay 1 `consM` nil
+-- >>> stream = delay 2 `consM` delay 1 `consM` nil
 -- >>> Stream.toList stream -- IO [Int]
 -- 2 sec
 -- 1 sec
@@ -93,8 +99,7 @@
 -- 'AsyncT' executes the actions concurrently, so the total delay is @max 2 1 =
 -- 2@ seconds:
 --
--- >>> stream :: AsyncT IO Int = delay 2 `consM` delay 1 `consM` nil
--- >>> Stream.toList stream -- IO [Int]
+-- >>> Stream.toList $ Stream.asyncly stream -- IO [Int]
 -- 1 sec
 -- 2 sec
 -- [1,2]
@@ -106,8 +111,7 @@
 -- 'AheadT' is similar to 'AsyncT' but the order of results is the same as the
 -- order of actions, even though they execute concurrently:
 --
--- >>> stream :: AheadT IO Int = delay 2 `consM` delay 1 `consM` nil
--- >>> Stream.toList stream -- IO [Int]
+-- >>> Stream.toList $ Stream.aheadly stream -- IO [Int]
 -- 1 sec
 -- 2 sec
 -- [2,1]
@@ -187,8 +191,6 @@
 -- action from the first stream and then one action from the second stream and
 -- so on:
 --
--- >>> stream1 = Stream.fromListM [delay 1, delay 2]
--- >>> stream2 = Stream.fromListM [delay 3, delay 4]
 -- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
 -- 1 sec
 -- 3 sec
@@ -211,11 +213,7 @@
 -- >>> stream1 = Stream.fromListM [delay 3, delay 4]
 -- >>> stream2 = Stream.fromListM [delay 1, delay 2]
 -- >>> Stream.toList $ stream1 `parallel` stream2
--- 1 sec
--- 2 sec
--- 3 sec
--- 4 sec
--- [1,2,3,4]
+-- ...
 --
 -- We can use @concatMapWith parallel@ to read concurrently from all incoming
 -- network connections and combine the input streams into a single output

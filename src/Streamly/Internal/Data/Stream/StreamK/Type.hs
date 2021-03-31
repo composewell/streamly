@@ -809,6 +809,7 @@ infixr 6 `serial`
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
+-- >>> import Streamly.Prelude (serial)
 -- >>> stream1 = Stream.fromList [1,2]
 -- >>> stream2 = Stream.fromList [3,4]
 -- >>> Stream.toList $ stream1 `serial` stream2

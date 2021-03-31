@@ -281,7 +281,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- element @1@ in the first stream with all the nested iterations of element
 -- @2@:
 --
--- >>> Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
+-- >>> Stream.toList $ Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
 -- [(1,3),(2,3),(1,4),(2,4)]
 --
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
@@ -355,6 +355,7 @@ infixr 6 `wSerial`
 -- alternately.  When one stream stops the rest of the other stream is used in
 -- the output stream.
 --
+-- >>> import Streamly.Prelude (wSerial)
 -- >>> stream1 = Stream.fromList [1,2]
 -- >>> stream2 = Stream.fromList [3,4]
 -- >>> Stream.toList $ Stream.wSerially $ stream1 `wSerial` stream2

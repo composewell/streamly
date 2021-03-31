@@ -11,6 +11,16 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 --
 module Streamly.Internal.Data.Stream.Parallel
     (
@@ -74,10 +84,13 @@ import qualified Streamly.Internal.Data.Stream.SVar as SVar
 
 --
 -- $setup
--- >>> :m
--- >>> import Prelude hiding (map)
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
 
 -------------------------------------------------------------------------------
 -- Parallel
@@ -229,6 +242,7 @@ infixr 6 `parallel`
 -- The only limit that applies to 'parallel' is 'Streamly.Prelude.maxBuffer'.
 -- Evaluation may block if the output buffer becomes full.
 --
+-- >>> import Streamly.Prelude (parallel)
 -- >>> stream = Stream.yieldM (delay 2) `parallel` Stream.yieldM (delay 1)
 -- >>> Stream.toList stream -- IO [Int]
 -- 1 sec

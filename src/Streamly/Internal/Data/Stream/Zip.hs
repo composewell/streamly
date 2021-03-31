@@ -9,6 +9,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
 --
 module Streamly.Internal.Data.Stream.Zip
     (
@@ -121,15 +124,11 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 -- i.e. it produces one element from each stream serially and then zips all
 -- those elements.
 --
--- @
--- main = (toList . 'zipSerially' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
---     where s1 = fromFoldable [1, 2]
---           s2 = fromFoldable [3, 4]
---           s3 = fromFoldable [5, 6]
--- @
--- @
+-- >>> s1 = Stream.fromFoldable [1, 2]
+-- >>> s2 = Stream.fromFoldable [3, 4]
+-- >>> s3 = Stream.fromFoldable [5, 6]
+-- >>> Stream.toList $ Stream.zipSerially $ (,,) <$> s1 <*> s2 <*> s3
 -- [(1,3,5),(2,4,6)]
--- @
 --
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'SerialT'.
