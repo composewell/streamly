@@ -90,8 +90,8 @@ import Prelude hiding (map, mapM, errorWithoutStackTrace)
 -- | For 'SerialT' streams:
 --
 -- @
--- (<>) = 'Streamly.Prelude.serial'
--- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.serial'
+-- (<>) = 'Streamly.Prelude.serial'                       -- 'Semigroup'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.serial' -- 'Monad'
 -- @
 --
 -- A single 'Monad' bind behaves like a @for@ loop:
@@ -251,8 +251,8 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- | For 'WSerialT' streams:
 --
 -- @
--- (<>) = 'Streamly.Prelude.wSerial'
--- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.wSerial'
+-- (<>) = 'Streamly.Prelude.wSerial'                       -- 'Semigroup'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.wSerial' -- 'Monad'
 -- @
 --
 -- Note that '<>' is associative only if we disregard the ordering of elements
@@ -360,6 +360,18 @@ infixr 6 `wSerial`
 -- >>> Stream.toList $ Stream.wSerially $ stream1 `wSerial` stream2
 -- [1,3,2,4]
 --
+-- Note, for singleton streams 'wSerial' and 'serial' are identical.
+--
+-- Note that this operation cannot be used to fold a container of infinite
+-- streams but it can be used for very large streams as the state that it needs
+-- to maintain is proportional to the logarithm of the number of streams.
+--
+-- @since 0.8.0
+--
+-- /Since: 0.2.0 ("Streamly")/
+
+-- Scheduling Notes:
+--
 -- Note that evaluation of @a \`wSerial` b \`wSerial` c@ does not interleave
 -- @a@, @b@ and @c@ with equal priority.  This expression is equivalent to @a
 -- \`wSerial` (b \`wSerial` c)@, therefore, it fairly interleaves @a@ with the
@@ -369,13 +381,6 @@ infixr 6 `wSerial`
 -- priority as the rest of the streams taken together. The same is true for
 -- each subexpression on the right.
 --
--- Note that this operation cannot be used to fold a container of infinite
--- streams but it can be used for very large streams as the state that it needs
--- to maintain is proportional to the logarithm of the number of streams.
---
--- @since 0.8.0
---
--- /Since: 0.2.0 ("Streamly")/
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
 wSerial m1 m2 = mkStream $ \st yld sng stp -> do

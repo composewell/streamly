@@ -222,48 +222,27 @@ consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
 infixr 6 `parallel`
 
--- | Execute two streams concurrently and merge their outputs.  For example, if
--- stream @a@ is a serial stream consisting of @a1, a2, a3@ and stream @b@ is a
--- serial stream consisting of @b1, b2, b3@ then stream @a `parallel` b@ may
--- produce @a1, b1, a2, b2, a3, b3@ or @a1, a2, b1, a3, b2, b3@ or some other
--- combination depending on the rate at which the two streams produce elements.
--- However, the relative order of outputs from a single stream e.g. @a1, a2,
--- a3@ would remain the same in the resulting stream. The effects in the two
--- streams may occur concurrently.
+-- | Like 'Streamly.Prelude.async' except that the execution is much more
+-- strict. There is no limit on the number of threads. While
+-- 'Streamly.Prelude.async' may not schedule a stream if there is no demand
+-- from the consumer, 'parallel' always evaluates both the streams immediately.
+-- The only limit that applies to 'parallel' is 'Streamly.Prelude.maxBuffer'.
+-- Evaluation may block if the output buffer becomes full.
 --
--- To run single actions (instead of streams) in parallel wrap them into
--- singleton streams.  The following trivial example is semantically equivalent
--- to running the action @putStrLn "hello"@ in the current thread:
+-- >>> stream = Stream.yieldM (delay 2) `parallel` Stream.yieldM (delay 1)
+-- >>> Stream.toList stream -- IO [Int]
+-- 1 sec
+-- 2 sec
+-- [1,2]
 --
--- >>> Stream.toList $ Stream.yieldM (putStrLn "hello") `Stream.parallel` Stream.nil
--- hello
--- [()]
+-- 'parallel' guarantees that all the streams are scheduled for execution
+-- immediately, therefore, we could use things like starting timers inside the
+-- streams and relying on the fact that all timers were started at the same
+-- time.
 --
--- Run two actions concurrently:
---
--- >>> import Control.Concurrent (threadDelay)
--- >>> Stream.toList $ Stream.yieldM (putStrLn "hello") `Stream.parallel` Stream.yieldM (threadDelay 100000 >> putStrLn "world")
--- hello
--- world
--- [(),()]
---
--- Run effects concurrently, disregarding their outputs:
---
--- >>> Stream.toList $ nilM (putStrLn "hello") `parallel` Stream.nilM (threadDelay 100000 >> putStrLn "world")
--- hello
--- world
--- []
---
--- Run an effectful action, and a pure effect without any output, concurrently:
---
--- >>> Stream.toList $ Stream.yieldM (return 1) `Stream.parallel` Stream.nilM (putStrLn "world")
--- world
--- [1]
---
--- Note that 'parallel' is a polymorphic version of the @Semigroup@ operation
--- @<>@ of 'ParallelT'.
---
--- `nilM` is currently @Internal@.
+-- Unlike 'async' this operation cannot be used to fold an infinite lazy
+-- container of streams, because it schedules all the streams strictly
+-- concurrently.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
@@ -371,7 +350,7 @@ mkParallel = D.fromStreamD . mkParallelD . D.toStreamD
 --
 -- | Redirect a copy of the stream to a supplied fold and run it concurrently
 -- in an independent thread. The fold may buffer some elements. The buffer size
--- is determined by the prevailing 'maxBuffer' setting.
+-- is determined by the prevailing 'Streamly.Prelude.maxBuffer' setting.
 --
 -- @
 --               Stream m a -> m b
@@ -481,69 +460,16 @@ distributeAsync_ = flip (foldr tapAsync)
 -- ParallelT
 ------------------------------------------------------------------------------
 
--- | Async composition with strict concurrent execution of all streams.
---
--- The 'Semigroup' instance of 'ParallelT' executes both the streams
--- concurrently without any delay or without waiting for the consumer demand
--- and /merges/ the results as they arrive. If the consumer does not consume
--- the results, they are buffered upto a configured maximum, controlled by the
--- 'maxBuffer' primitive. If the buffer becomes full the concurrent tasks will
--- block until there is space in the buffer.
---
--- Both 'WAsyncT' and 'ParallelT', evaluate the constituent streams fairly in a
--- round robin fashion. The key difference is that 'WAsyncT' might wait for the
--- consumer demand before it executes the tasks whereas 'ParallelT' starts
--- executing all the tasks immediately without waiting for the consumer demand.
--- For 'WAsyncT' the 'maxThreads' limit applies whereas for 'ParallelT' it does
--- not apply. In other words, 'WAsyncT' can be lazy whereas 'ParallelT' is
--- strict.
---
--- 'ParallelT' is useful for cases when the streams are required to be
--- evaluated simultaneously irrespective of how the consumer consumes them e.g.
--- when we want to race two tasks and want to start both strictly at the same
--- time or if we have timers in the parallel tasks and our results depend on
--- the timers being started at the same time. If we do not have such
--- requirements then 'AsyncT' or 'AheadT' are recommended as they can be more
--- efficient than 'ParallelT'.
+-- | For 'ParallelT' streams:
 --
 -- @
--- main = (S.'toList' . S.'parallely' $ (S.fromFoldable [1,2]) \<> (S.fromFoldable [3,4])) >>= print
--- @
--- @
--- [1,3,2,4]
+-- (<>) = 'Streamly.Prelude.parallel'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.parallel'
 -- @
 --
--- When streams with more than one element are merged, it yields whichever
--- stream yields first without any bias, unlike the 'Async' style streams.
---
--- Any exceptions generated by a constituent stream are propagated to the
--- output stream. The output and exceptions from a single stream are guaranteed
--- to arrive in the same order in the resulting stream as they were generated
--- in the input stream. However, the relative ordering of elements from
--- different streams in the resulting stream can vary depending on scheduling
--- and generation delays.
---
--- Similarly, the 'Monad' instance of 'ParallelT' runs /all/ iterations
--- of the loop concurrently.
---
--- @
--- import qualified "Streamly.Prelude" as S
--- import Control.Concurrent
---
--- main = S.'drain' . S.'parallely' $ do
---     n <- return 3 \<\> return 2 \<\> return 1
---     S.yieldM $ do
---          threadDelay (n * 1000000)
---          myThreadId >>= \\tid -> putStrLn (show tid ++ ": Delay " ++ show n)
--- @
--- @
--- ThreadId 40: Delay 1
--- ThreadId 39: Delay 2
--- ThreadId 38: Delay 3
--- @
---
--- Note that parallel composition can only combine a finite number of
--- streams as it needs to retain state for each unfinished stream.
+-- See 'Streamly.Prelude.AsyncT', 'ParallelT' is similar except that all
+-- iterations are strictly concurrent while in 'AsyncT' it depends on the
+-- consumer demand and available threads. See 'parallel' for more details.
 --
 -- /Since: 0.1.0 ("Streamly")/
 --
