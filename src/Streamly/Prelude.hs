@@ -300,7 +300,6 @@ module Streamly.Prelude
     , AsyncT
     , WAsyncT
     , ParallelT
-    , mkAsync
 
     -- ** Zipping Streams
     -- $zipping
@@ -785,6 +784,7 @@ module Streamly.Prelude
     , async
     , wAsync
     , parallel
+    , mkAsync
 
     -- ** Merging
     -- | Streams form a commutative semigroup under the merge
