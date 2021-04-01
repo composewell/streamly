@@ -18,23 +18,8 @@
 --
 -- We will add some more imports in the examples as needed.
 --
--- = Overview
---
--- Streamly is a framework for modular data flow based programming and
--- declarative concurrency.  Streamly API is similar to Haskell lists.
---
--- The type @SerialT IO a@ is an effectful equivalent of a list @[a]@ using the
--- IO monad.  Streams can be constructed like lists, except that they use 'nil'
--- instead of '[]' and 'cons' instead of ':'. `cons` constructs a pure stream
--- which is more or less the same as a list:
---
--- >>> import Streamly.Prelude (SerialT, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: SerialT IO Int
--- >>> Stream.toList stream -- IO [Int]
--- [1,2]
---
--- To demonstrate the serial vs. concurrent execution behavior we will use the
--- following blocking IO action that blocks for @n@ seconds:
+-- For effectful streams we will use the following IO action that blocks for
+-- @n@ seconds:
 --
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
@@ -48,15 +33,34 @@
 -- 1 sec
 -- 1
 --
+-- = Overview
+--
+-- Streamly is a framework for modular data flow based programming and
+-- declarative concurrency.  Powerful stream fusion framework in streamly
+-- allows high performance combinatorial programming even when using byte level
+-- streams.  Streamly API is similar to Haskell lists.
+--
+-- The basic stream type is 'SerialT'. The type @SerialT IO a@ is an effectful
+-- equivalent of a list @[a]@ using the IO monad.  Streams can be constructed
+-- like lists, except that they use 'nil' instead of '[]' and 'cons' instead of
+-- ':'.
+--
+-- `cons` constructs a pure stream which is more or less the same as a list:
+--
+-- >>> import Streamly.Prelude (SerialT, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: SerialT IO Int
+-- >>> Stream.toList stream -- IO [Int]
+-- [1,2]
+--
 -- 'consM' constructs a stream from effectful actions:
 --
--- @
--- > stream = delay 1 \`consM` delay 2 \`consM` 'nil'
--- > Stream.'toList' stream
+-- >>> stream = delay 1 `consM` delay 2 `consM` nil
+-- >>> Stream.toList stream
 -- 1 sec
 -- 2 sec
 -- [1,2]
--- @
+--
+-- == Console Echo Program
 --
 -- In the following example, 'repeatM' generates an infinite stream of 'String'
 -- by repeatedly performing the 'getLine' IO action. 'mapM' then applies
@@ -74,18 +78,105 @@
 -- :}
 -- @
 --
--- This is a console echo program. It is an example of a declarative loop.
--- Compare it with an imperative @while@ loop.
+-- This is a console echo program. It is an example of a declarative loop
+-- written using streaming combinators.  Compare it with an imperative @while@
+-- loop.
 --
 -- Hopefully, this gives you an idea how we can program declaratively by
--- represneting loops using streams.  For more details please see the
--- "Streamly.Tutorial" module.
+-- representing loops using streams. In this module, you can find all
+-- "Data.List" like functions and many more powerful combinators to perform
+-- common programming tasks. Also see "Streamly.Internal.Data.Stream.IsStream"
+-- module for many more @Pre-release@ combinators. See the
+-- <https://github.com/composewell/streamly-examples> repository for many more
+-- real world examples of stream programming.
+--
+-- == Polymorphic Combinators
+--
+-- Streamly has several stream types, 'SerialT' is one type of stream with
+-- serial execution of actions, 'AsyncT' is another with concurrent execution.
+-- The combinators in this module are polymorphic in stream type. For example,
+--
+-- @
+-- repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
+-- @
+--
+-- @t@ is the stream type, @m@ is the underlying 'Monad' of the stream (e.g.
+-- IO) and @a@ is the type of elements in the stream (e.g. Int).
+--
+-- Stream elimination combinators accept a 'SerialT' type instead of a
+-- polymorphic type to force a concrete monomorphic type by default, reducing
+-- type errors. That's why in the console echo example above the stream type is
+-- 'SerialT'.
+--
+-- @
+-- drain :: Monad m => SerialT m a -> m ()
+-- @
+--
+-- We can force a certain stream type in polymorphic code by using "Stream Type
+-- Adaptors". For example, to force 'AsyncT':
+--
+-- >>> Stream.drain $ Stream.asyncly $ Stream.replicateM 10 $ delay 1
+-- ...
+--
+-- == Combining two streams
+--
+-- Two streams can be combined to form a single stream in various interesting
+-- ways. 'serial' (append), 'wSerial' (interleave), 'ahead' (concurrent,
+-- ordered append), 'async' (lazy concurrent, unordered append) , 'wAsync'
+-- (lazy concurrent, unordered interleave), 'parallel' (strict concurrent
+-- merge), 'zipWith', 'zipAsyncWith' (concurrent zip), 'mergeBy',
+-- 'mergeAsyncBy' (concurrent merge) are some ways of combining two streams.
+--
+-- For example, the `parallel` combinator schedules both the streams
+-- concurrently.
+--
+-- >>> stream1 = Stream.fromListM [delay 3, delay 4]
+-- >>> stream2 = Stream.fromListM [delay 1, delay 2]
+-- >>> Stream.toList $ stream1 `parallel` stream2
+-- ...
+--
+-- We can chain the operations to combine more than two streams:
+--
+-- >>> stream3 = Stream.fromListM [delay 1, delay 2]
+-- >>> Stream.toList $ stream1 `parallel` stream2 `parallel` stream3
+-- ...
+--
+-- Concurrent generation ('consM') and concurrent merging of streams is the
+-- fundamental basis of all concurrency in streamly.
+--
+-- == Combining many streams
+--
+-- The 'concatMapWith' combinator can be used to generalize the two stream
+-- combining combinators to @n@ streams.  For example, we can use
+-- @concatMapWith parallel@ to read concurrently from all incoming network
+-- connections and combine the input streams into a single output stream:
+--
+-- @
+-- import qualified Streamly.Network.Inet.TCP as TCP
+-- import qualified Streamly.Network.Socket as Socket
+--
+-- Stream.unfold TCP.acceptOnPort 8090
+--  & Stream.concatMapWith Stream.parallel (Stream.unfold Socket.read)
+-- @
+--
+-- See the @streamly-examples@ repository for a full working example.
+--
+-- == Concurrent Nested Loops
+--
+-- The Monad instance of 'SerialT' is an example of nested looping. It is in
+-- fact a list transformer. Different stream types provide different variants
+-- of nested looping.  For example, the 'Monad' instance of 'ParallelT' uses
+-- @concatMapWith parallel@ as its bind operation. Therefore, each iteration of
+-- the loop for 'ParallelT' stream can run concurrently.  See the documentation
+-- for individual stream types for the specific execution behavior of the
+-- stream as well as the behavior of 'Semigroup' and 'Monad' instances.
 --
 -- == Stream Types
 --
--- One way in which stream types are distinguished is how the sequence of
--- actions forming the stream are executed. Below we will see how 'SerialT',
--- 'AsyncT' and 'AheadT' stream types differ from each other.
+-- Streamly has several stream types. These types differ in three fundamental
+-- operations, 'consM' ('IsStream' instance), '<>' ('Semigroup' instance) and
+-- '>>=' ('Monad' instance).  Below we will see how 'consM' behaves for
+-- 'SerialT', 'AsyncT' and 'AheadT' stream types.
 --
 -- 'SerialT' executes actions serially, so the total delay in the following
 -- example is @2 + 1 = 3@ seconds:
@@ -115,6 +206,44 @@
 -- 1 sec
 -- 2 sec
 -- [2,1]
+--
+-- == Semigroup Instance
+--
+-- Earlier we distinguished stream types based on the execution behavior of
+-- actions within a stream. Stream types are also distinguished based on how
+-- actions from different streams are scheduled for execution when two streams
+-- are combined together.
+--
+-- For example, both 'SerialT' and 'WSerialT' execute actions within the stream
+-- serially, however, they differ in how actions from individual streams are
+-- executed when two streams are combined with '<>' (the 'Semigroup' instance).
+--
+-- For 'SerialT', '<>' has an appending behavior i.e. it executes the actions
+-- from the second stream after executing actions from the first stream:
+--
+-- >>> stream1 = Stream.fromListM [delay 1, delay 2]
+-- >>> stream2 = Stream.fromListM [delay 3, delay 4]
+-- >>> Stream.toList $ stream1 <> stream2
+-- 1 sec
+-- 2 sec
+-- 3 sec
+-- 4 sec
+-- [1,2,3,4]
+--
+-- For 'WSerialT', '<>' has an interleaving behavior i.e. it executes one
+-- action from the first stream and then one action from the second stream and
+-- so on:
+--
+-- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
+-- 1 sec
+-- 3 sec
+-- 2 sec
+-- 4 sec
+-- [1,3,2,4]
+--
+-- The '<>' operation of 'SerialT' and 'WSerialT' is the same as 'serial' and
+-- 'wSerial' respectively. The 'serial' combinator combines two streams of any
+-- type in the same way as a serial stream combines.
 --
 -- == Concurrent Combinators
 --
@@ -164,80 +293,6 @@
 -- stream elements that we can buffer.  See the "Concurrency Control" section
 -- for details.
 --
--- == Combining Two streams
---
--- Earlier we distinguished stream types based on the execution behavior of
--- actions within a stream. Stream types are also distinguished based on how
--- actions from different streams are scheduled for execution when two streams
--- are combined together.
---
--- For example, both 'SerialT' and 'WSerialT' execute actions within the stream
--- serially, however, they differ in how actions from individual streams are
--- executed when two streams are combined with '<>' (the 'Semigroup' instance).
---
--- For 'SerialT', '<>' has an appending behavior i.e. it executes the actions
--- from the second stream after executing actions from the first stream:
---
--- >>> stream1 = Stream.fromListM [delay 1, delay 2]
--- >>> stream2 = Stream.fromListM [delay 3, delay 4]
--- >>> Stream.toList $ stream1 <> stream2
--- 1 sec
--- 2 sec
--- 3 sec
--- 4 sec
--- [1,2,3,4]
---
--- For 'WSerialT', '<>' has an interleaving behavior i.e. it executes one
--- action from the first stream and then one action from the second stream and
--- so on:
---
--- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
--- 1 sec
--- 3 sec
--- 2 sec
--- 4 sec
--- [1,3,2,4]
---
--- The '<>' operation of 'SerialT' and 'WSerialT' is the same as 'serial' and
--- 'wSerial' respectively. The 'serial' combinator combines two streams of any
--- type in the same way as a serial stream combines.
---
--- == Combining N streams
---
--- The 'concatMapWith' combinator can be used to generalize the two stream
--- combining combinators to @n@ streams.
---
--- Let's take an example of the `parallel` combinator ('<>' operation of
--- 'ParallelT'), it schedules both the streams concurrently.
---
--- >>> stream1 = Stream.fromListM [delay 3, delay 4]
--- >>> stream2 = Stream.fromListM [delay 1, delay 2]
--- >>> Stream.toList $ stream1 `parallel` stream2
--- ...
---
--- We can use @concatMapWith parallel@ to read concurrently from all incoming
--- network connections and combine the input streams into a single output
--- stream:
---
--- @
--- import qualified Streamly.Network.Inet.TCP as TCP
--- import qualified Streamly.Network.Socket as Socket
---
--- Stream.unfold TCP.acceptOnPort 8090
---  & Stream.concatMapWith Stream.parallel (Stream.unfold Socket.read)
--- @
---
--- See the @streamly-examples@ repository for a full working example.
---
--- The 'Monad' instance of 'ParallelT' uses @concatMapWith parallel@ as its
--- bind operation. Therefore, the monad composition behaves in the same way.
--- The monad instance of stream types is essentially nested looping, it means
--- each iteration of the loop for 'ParallelT' stream can run concurrently.
---
--- See the documentation for individual stream types for the specific execution
--- behavior of the stream as well as the behavior of 'Semigroup' and 'Monad'
--- instances.
---
 -- == Caveats
 --
 -- When we use combinators like 'asyncly' on a piece of code, all combinators
@@ -249,22 +304,6 @@
 -- @
 -- Stream.asyncly $ ... concurrent combinator here ... $ Stream.serially $ ...
 -- @
---
--- == Polymorphic Combinators
---
--- The combinators in this module are polymorphic in stream type. The stream is
--- usually specified as @t m a@ where the stream type @t@ is a member of the
--- 'IsStream' type class (e.g. 'SerialT' or 'AsyncT'), @m@ is the underlying
--- 'Monad' of the stream (e.g. IO) and @a@ is the type of elements in the
--- stream (e.g. Int).
---
--- Deconstruction and folding combinators accept a 'SerialT' type instead of a
--- polymorphic type to ensure that streams always have a concrete monomorphic
--- type by default, reducing type errors.
---
--- In case you want to adapt a stream type to another stream type you can use
--- one of the type adapting combinators provided in the section "Stream Type
--- Adaptors".
 --
 -- == Conventions
 --
