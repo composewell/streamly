@@ -67,7 +67,7 @@
 -- >>> import Data.Function ((&))
 --
 -- @
--- :{
+-- > :{
 --  Stream.repeatM getLine      -- SerialT IO String
 --      & Stream.mapM putStrLn  -- SerialT IO ()
 --      & Stream.drain          -- IO ()

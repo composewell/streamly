@@ -73,6 +73,15 @@ import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 
 #include "Instances.hs"
 
+-- $setup
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
+
 -- | Like 'zipWith' but using a monadic zipping function.
 --
 -- @since 0.4.0
@@ -120,18 +129,20 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 -- Serially Zipping Streams
 ------------------------------------------------------------------------------
 
--- | The applicative instance of 'ZipSerialM' zips a number of streams serially
--- i.e. it produces one element from each stream serially and then zips all
--- those elements.
+-- | For 'ZipSerialM' streams:
+--
+-- @
+-- (<>) = 'Streamly.Prelude.serial'
+-- (<*>) = 'Streamly.Prelude.serial.zipWith' id
+-- @
+--
+-- Applicative evaluates the streams being zipped serially:
 --
 -- >>> s1 = Stream.fromFoldable [1, 2]
 -- >>> s2 = Stream.fromFoldable [3, 4]
 -- >>> s3 = Stream.fromFoldable [5, 6]
 -- >>> Stream.toList $ Stream.zipSerially $ (,,) <$> s1 <*> s2 <*> s3
 -- [(1,3,5),(2,4,6)]
---
--- The 'Semigroup' instance of this type works the same way as that of
--- 'SerialT'.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
@@ -202,21 +213,20 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
 --
--- | Like 'ZipSerialM' but zips in parallel, it generates all the elements to
--- be zipped concurrently.
+-- | For 'ZipAsyncM' streams:
 --
 -- @
--- main = (toList . 'zipAsyncly' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
---     where s1 = fromFoldable [1, 2]
---           s2 = fromFoldable [3, 4]
---           s3 = fromFoldable [5, 6]
--- @
--- @
--- [(1,3,5),(2,4,6)]
+-- (<>) = 'Streamly.Prelude.serial'
+-- (<*>) = 'Streamly.Prelude.serial.zipAsyncWith' id
 -- @
 --
--- The 'Semigroup' instance of this type works the same way as that of
--- 'SerialT'.
+-- Applicative evaluates the streams being zipped concurrently, the following
+-- would take half the time that it would take in serial zipping:
+--
+-- >>> s = Stream.fromFoldableM $ Prelude.map delay [1, 1, 1]
+-- >>> Stream.toList $ Stream.zipAsyncly $ (,) <$> s <*> s
+-- ...
+-- [(1,1),(1,1),(1,1)]
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
