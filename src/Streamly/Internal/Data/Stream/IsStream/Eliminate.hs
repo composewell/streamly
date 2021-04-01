@@ -17,6 +17,9 @@
 
 module Streamly.Internal.Data.Stream.IsStream.Eliminate
     (
+    -- * Running Examples
+    -- $setup
+
     -- * Running a 'Fold'
     --  See "Streamly.Internal.Data.Fold".
       fold
@@ -183,8 +186,9 @@ import Prelude hiding
 
 -- $setup
 -- >>> :m
+-- >>> import Streamly.Prelude (SerialT)
 -- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Fold as Fold
 
@@ -362,7 +366,7 @@ parseK = parse
 -- Note:
 --
 -- @
--- fold f = parse (Parser.fromFold f)
+-- fold f = Stream.parse (Parser.fromFold f)
 -- @
 --
 -- @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
@@ -393,7 +397,7 @@ parse_ = parseD_ . PRK.fromParserK
 
 -- XXX this can utilize parallel mapping if we implement it as drain . mapM
 -- |
--- > mapM_ = drain . mapM
+-- > mapM_ = Stream.drain . Stream.mapM
 --
 -- Apply a monadic action to each element of the stream and discard the output
 -- of the action. This is not really a pure transformation operation but a
@@ -406,11 +410,11 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 
 -- |
 -- > drain = mapM_ (\_ -> return ())
--- > drain = fold Fold.drain
+-- > drain = Stream.fold Fold.drain
 --
 -- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @drain . 'asyncly'@.
+-- combinators for example @Stream.drain . 'asyncly'@.
 --
 -- @since 0.7.0
 {-# INLINE drain #-}
@@ -418,8 +422,8 @@ drain :: Monad m => SerialT m a -> m ()
 drain = P.drain
 
 -- |
--- > drainN n = drain . take n
--- > drainN n = fold (Fold.take n Fold.drain)
+-- > drainN n = Stream.drain . Stream.take n
+-- > drainN n = Stream.fold (Fold.take n Fold.drain)
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
@@ -440,7 +444,7 @@ runN :: Monad m => Int -> SerialT m a -> m ()
 runN = drainN
 
 -- |
--- > drainWhile p = drain . takeWhile p
+-- > drainWhile p = Stream.drain . Stream.takeWhile p
 --
 -- Run a stream as long as the predicate holds true.
 --
@@ -472,7 +476,7 @@ runStream = drain
 
 -- | Determine whether the stream is empty.
 --
--- > null = fold Fold.null
+-- > null = Stream.fold Fold.null
 --
 -- @since 0.1.1
 {-# INLINE null #-}
@@ -482,7 +486,7 @@ null = S.null . toStreamS
 -- | Extract the first element of the stream, if any.
 --
 -- > head = (!! 0)
--- > head = fold Fold.head
+-- > head = Stream.fold Fold.head
 --
 -- @since 0.1.0
 {-# INLINE head #-}
@@ -499,7 +503,7 @@ headElse :: Monad m => a -> SerialT m a -> m a
 headElse x = D.headElse x . toStreamD
 
 -- |
--- > tail = fmap (fmap snd) . uncons
+-- > tail = fmap (fmap snd) . Stream.uncons
 --
 -- Extract all but the first element of the stream, if any.
 --
@@ -517,8 +521,8 @@ init m = K.init (K.adapt m)
 
 -- | Extract the last element of the stream, if any.
 --
--- > last xs = xs !! (length xs - 1)
--- > last = fold Fold.last
+-- > last xs = xs !! (Stream.length xs - 1)
+-- > last = Stream.fold Fold.last
 --
 -- @since 0.1.1
 {-# INLINE last #-}
@@ -527,7 +531,7 @@ last m = S.last $ toStreamS m
 
 -- | Determine whether an element is present in the stream.
 --
--- > elem = fold Fold.elem
+-- > elem = Stream.fold Fold.elem
 --
 -- @since 0.1.0
 {-# INLINE elem #-}
@@ -536,7 +540,7 @@ elem e m = S.elem e (toStreamS m)
 
 -- | Determine whether an element is not present in the stream.
 --
--- > notElem = fold Fold.length
+-- > notElem = Stream.fold Fold.length
 --
 -- @since 0.1.0
 {-# INLINE notElem #-}
@@ -552,7 +556,7 @@ length = foldl' (\n _ -> n + 1) 0
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
--- > all = fold Fold.all
+-- > all = Stream.fold Fold.all
 --
 -- @since 0.1.0
 {-# INLINE all #-}
@@ -561,7 +565,7 @@ all p m = S.all p (toStreamS m)
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
--- > any = fold Fold.any
+-- > any = Stream.fold Fold.any
 --
 -- @since 0.1.0
 {-# INLINE any #-}
@@ -570,7 +574,7 @@ any p m = S.any p (toStreamS m)
 
 -- | Determines if all elements of a boolean stream are True.
 --
--- > and = fold Fold.and
+-- > and = Stream.fold Fold.and
 --
 -- @since 0.5.0
 {-# INLINE and #-}
@@ -579,7 +583,7 @@ and = all (==True)
 
 -- | Determines whether at least one element of a boolean stream is True.
 --
--- > or = fold Fold.or
+-- > or = Stream.fold Fold.or
 --
 -- @since 0.5.0
 {-# INLINE or #-}
@@ -590,7 +594,7 @@ or = any (==True)
 -- the stream is empty. Note that this is not numerically stable for floating
 -- point numbers.
 --
--- > sum = fold Fold.sum
+-- > sum = Stream.fold Fold.sum
 --
 -- @since 0.1.0
 {-# INLINE sum #-}
@@ -600,7 +604,7 @@ sum = foldl' (+) 0
 -- | Determine the product of all elements of a stream of numbers. Returns @1@
 -- when the stream is empty.
 --
--- > product = fold Fold.product
+-- > product = Stream.fold Fold.product
 --
 -- @since 0.1.1
 {-# INLINE product #-}
@@ -609,7 +613,7 @@ product = foldl' (*) 1
 
 -- | Fold a stream of monoid elements by appending them.
 --
--- > mconcat = fold Fold.mconcat
+-- > mconcat = Stream.fold Fold.mconcat
 --
 -- /Pre-release/
 {-# INLINE mconcat #-}
@@ -619,7 +623,7 @@ mconcat = foldr mappend mempty
 -- |
 -- @
 -- minimum = 'minimumBy' compare
- -- minimum = fold Fold.minimum
+ -- minimum = Stream.fold Fold.minimum
 -- @
 --
 -- Determine the minimum element in a stream.
@@ -632,7 +636,7 @@ minimum m = S.minimum (toStreamS m)
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
 --
--- > minimumBy = fold Fold.minimumBy
+-- > minimumBy = Stream.fold Fold.minimumBy
 --
 -- @since 0.6.0
 {-# INLINE minimumBy #-}
@@ -642,7 +646,7 @@ minimumBy cmp m = S.minimumBy cmp (toStreamS m)
 -- |
 -- @
 -- maximum = 'maximumBy' compare
--- maximum = fold Fold.maximum
+-- maximum = Stream.fold Fold.maximum
 -- @
 --
 -- Determine the maximum element in a stream.
@@ -655,7 +659,7 @@ maximum = P.maximum
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
 --
--- > maximumBy = fold Fold.maximumBy
+-- > maximumBy = Stream.fold Fold.maximumBy
 --
 -- @since 0.6.0
 {-# INLINE maximumBy #-}
@@ -684,8 +688,8 @@ m !! i = toStreamS m S.!! i
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
 --
--- > lookup = snd <$> find ((==) . fst)
--- > lookup = fold Fold.lookup
+-- > lookup = snd <$> Stream.find ((==) . fst)
+-- > lookup = Stream.fold Fold.lookup
 --
 -- @since 0.5.0
 {-# INLINE lookup #-}
@@ -695,7 +699,7 @@ lookup a m = S.lookup a (toStreamS m)
 -- | Like 'findM' but with a non-monadic predicate.
 --
 -- > find p = findM (return . p)
--- > find = fold Fold.find
+-- > find = Stream.fold Fold.find
 --
 -- @since 0.5.0
 {-# INLINE find #-}
@@ -704,7 +708,7 @@ find p m = S.find p (toStreamS m)
 
 -- | Returns the first element that satisfies the given predicate.
 --
--- > findM = fold Fold.findM
+-- > findM = Stream.fold Fold.findM
 --
 -- @since 0.6.0
 {-# INLINE findM #-}
@@ -713,7 +717,7 @@ findM p m = S.findM p (toStreamS m)
 
 -- | Returns the first index that satisfies the given predicate.
 --
--- > findIndex = fold Fold.findIndex
+-- > findIndex = Stream.fold Fold.findIndex
 --
 -- @since 0.5.0
 {-# INLINE findIndex #-}
@@ -722,7 +726,7 @@ findIndex p = head . findIndices p
 
 -- | Returns the first index where a given value is found in the stream.
 --
--- > elemIndex a = findIndex (== a)
+-- > elemIndex a = Stream.findIndex (== a)
 --
 -- @since 0.5.0
 {-# INLINE elemIndex #-}
@@ -735,7 +739,7 @@ elemIndex a = findIndex (== a)
 
 -- |
 -- @
--- toList = S.foldr (:) []
+-- toList = Stream.foldr (:) []
 -- @
 --
 -- Convert a stream into a list in the underlying monad. The list can be
@@ -752,7 +756,7 @@ toList = P.toList
 
 -- |
 -- @
--- toListRev = S.foldl' (flip (:)) []
+-- toListRev = Stream.foldl' (flip (:)) []
 -- @
 --
 -- Convert a stream into a list in reverse order in the underlying monad.
@@ -787,7 +791,7 @@ toHandle h = go
 -- | Convert a stream to a pure stream.
 --
 -- @
--- toStream = foldr cons nil
+-- toStream = Stream.foldr Stream.cons Stream.nil
 -- @
 --
 -- /Pre-release/
@@ -799,7 +803,7 @@ toStream = foldr K.cons K.nil
 -- | Convert a stream to a pure stream in reverse order.
 --
 -- @
--- toStreamRev = foldl' (flip cons) nil
+-- toStreamRev = Stream.foldl' (flip Stream.cons) Stream.nil
 -- @
 --
 -- /Pre-release/
@@ -825,10 +829,18 @@ toStreamRev = foldl' (flip K.cons) K.nil
 -- The @.@ at the end of the operator is a mnemonic for termination of the
 -- stream.
 --
--- @
---    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
---       |$. S.repeatM (threadDelay 1000000 >> return 1)
--- @
+-- In the example below, each stage introduces a delay of 1 sec but output is
+-- printed every second because both stages are concurrent.
+--
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Streamly.Prelude ((|$.))
+-- >>> :{
+--  Stream.foldlM' (\_ a -> threadDelay 1000000 >> print a) (return ())
+--      |$. Stream.replicateM 3 (threadDelay 1000000 >> return 1)
+-- :}
+-- 1
+-- 1
+-- 1
 --
 -- /Concurrent/
 --
@@ -850,13 +862,9 @@ infixr 0 |$.
 foldAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 foldAsync = (|$.)
 
--- | Parallel reverse function application operator for applying a run or fold
--- functions to a stream. Just like '|$.' except that the operands are reversed.
+-- | Same as '|$.' but with arguments reversed.
 --
--- @
---        S.repeatM (threadDelay 1000000 >> return 1)
---    |&. S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
--- @
+-- > (|&.) = flip (|$.)
 --
 -- /Concurrent/
 --
@@ -876,10 +884,8 @@ infixl 1 |&.
 -- | Returns 'True' if the first stream is the same as or a prefix of the
 -- second. A stream is a prefix of itself.
 --
--- @
--- > S.isPrefixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- >>> Stream.isPrefixOf (Stream.fromList "hello") (Stream.fromList "hello" :: SerialT IO Char)
 -- True
--- @
 --
 -- @since 0.6.0
 {-# INLINE isPrefixOf #-}
@@ -889,10 +895,8 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- | Returns 'True' if the first stream is an infix of the second. A stream is
 -- considered an infix of itself.
 --
--- @
--- > S.isInfixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- > Stream.isInfixOf (Stream.fromList "hello") (Stream.fromList "hello" :: SerialT IO Char)
 -- True
--- @
 --
 -- Space: @O(n)@ worst case where @n@ is the length of the infix.
 --
@@ -928,10 +932,8 @@ isInfixOf infx stream = do
 -- | Returns 'True' if the first stream is a suffix of the second. A stream is
 -- considered a suffix of itself.
 --
--- @
--- > S.isSuffixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- >>> Stream.isSuffixOf (Stream.fromList "hello") (Stream.fromList "hello" :: SerialT IO Char)
 -- True
--- @
 --
 -- Space: @O(n)@, buffers entire input stream and the suffix.
 --
@@ -947,10 +949,8 @@ isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
 -- the second stream. The elements do not have to occur consecutively. A stream
 -- is a subsequence of itself.
 --
--- @
--- > S.isSubsequenceOf (S.fromList "hlo") (S.fromList "hello" :: SerialT IO Char)
+-- >>> Stream.isSubsequenceOf (Stream.fromList "hlo") (Stream.fromList "hello" :: SerialT IO Char)
 -- True
--- @
 --
 -- @since 0.6.0
 {-# INLINE isSubsequenceOf #-}

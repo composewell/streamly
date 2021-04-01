@@ -234,17 +234,18 @@ relTimesWith = fmap snd . timesWith
 -- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
 -- 5050
 --
--- @fold f = parse (Parser.fromFold f)@
---
--- Folds can never fail, therefore, they always produce a default value even
--- when no input is provided. It means we can always fold an empty stream and
--- get a valid result.  For example:
+-- Folds never fail, therefore, they produce a default value even when no input
+-- is provided. It means we can always fold an empty stream and get a valid
+-- result.  For example:
 --
 -- >>> Stream.fold Fold.sum Stream.nil
 -- 0
 --
 -- However, 'foldMany' on an empty stream results in an empty stream.
--- Therefore, @fold f@ is not the same as @head . foldMany f@.
+-- Therefore, @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany
+-- f@.
+--
+-- @fold f = Stream.parse (Parser.fromFold f)@
 --
 -- @since 0.7.0
 {-# INLINE fold #-}
