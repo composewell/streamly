@@ -281,8 +281,8 @@ foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
 -- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList []
 -- []
 --
--- Note @foldMany (take 0)@ would result in an infinite loop in a non-empty
--- stream.
+-- Note @Stream.foldMany (Fold.take 0)@ would result in an infinite loop in a
+-- non-empty stream.
 --
 -- @since 0.8.0
 --

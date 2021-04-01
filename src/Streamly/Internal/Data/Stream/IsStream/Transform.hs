@@ -566,12 +566,28 @@ trace_ eff = Serial.mapM (\x -> eff >> return x)
 
 -- | Scan a stream using the given monadic fold.
 --
+-- >>> Stream.toList $ Stream.takeWhile (< 10) $ Stream.scan Fold.sum (Stream.fromList [1..10])
+-- [0,1,3,6]
+--
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
 scan = P.scanOnce
 
 -- | Postscan a stream using the given monadic fold.
+--
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
+--
+-- >>> import Data.Maybe (fromJust)
+-- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> :{
+--  Stream.toList
+--   $ Stream.map (fromJust . fst)
+--   $ Stream.takeWhile (\(_,x) -> x <= 10)
+--   $ Stream.postscan (Fold.tee Fold.last avg) (Stream.enumerateFromTo 1.0 100.0)
+-- :}
+-- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
@@ -1473,11 +1489,16 @@ rights = fmap (fromRight undefined) . filter isRight
 -- 1 second delay.
 --
 --
--- @
--- drain $
---    S.mapM (\\x -> threadDelay 1000000 >> print x)
---      |$ S.repeatM (threadDelay 1000000 >> return 1)
--- @
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Streamly.Prelude ((|$))
+-- >>> :{
+-- Stream.drain $
+--    Stream.mapM (\x -> threadDelay 1000000 >> print x)
+--      |$ Stream.replicateM 3 (threadDelay 1000000 >> return 1)
+-- :}
+-- 1
+-- 1
+-- 1
 --
 -- /Concurrent/
 --
@@ -1500,15 +1521,9 @@ applyAsync :: (IsStream t, MonadAsync m)
     => (t m a -> t m b) -> (t m a -> t m b)
 applyAsync = (|$)
 
--- | Parallel reverse function application operator for streams; just like the
--- regular reverse function application operator '&' except that it is
--- concurrent.
+-- | Same as '|$' but with arguments reversed.
 --
--- @
--- drain $
---       S.repeatM (threadDelay 1000000 >> return 1)
---    |& S.mapM (\\x -> threadDelay 1000000 >> print x)
--- @
+-- (|&) = flip (|$)
 --
 -- /Concurrent/
 --
