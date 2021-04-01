@@ -22,6 +22,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
 
     -- ** Reordering
     , sortBy
+    , sortByD
 
     -- * Nesting
     -- ** Set like operations
@@ -78,6 +79,9 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
+
+
+
 
 -- $setup
 -- >>> :m
@@ -194,6 +198,10 @@ sortBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
 -- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
 sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 
+{-# INLINE sortByD #-}
+sortByD :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
+-- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
+sortByD f = Stream.concatPairsWithD (NS.mergeBy f) yield
 ------------------------------------------------------------------------------
 -- SQL Joins
 ------------------------------------------------------------------------------
