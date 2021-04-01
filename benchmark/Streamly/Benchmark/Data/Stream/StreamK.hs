@@ -352,7 +352,7 @@ iterateDropWhileTrue streamLen iterStreamLen maxIters = iterateSource iterStream
 -------------------------------------------------------------------------------
 
 {-# INLINE zipWith #-}
-zipWith :: Monad m => Stream m Int -> m ()
+zipWith :: S.MonadAsync m => Stream m Int -> m ()
 zipWith src = drain $ S.zipWith (,) src src
 
 -------------------------------------------------------------------------------
