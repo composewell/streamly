@@ -206,6 +206,9 @@ import Prelude hiding
 -- individual elements and we can loop over them as we deem fit. For example,
 -- this can be used to convert a streamly stream into other stream types.
 --
+-- All the folds in this module can be expressed in terms of 'uncons', however
+-- the specific implementations are generally more efficient.
+--
 -- @since 0.1.0
 {-# INLINE uncons #-}
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))

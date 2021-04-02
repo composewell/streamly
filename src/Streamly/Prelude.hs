@@ -320,6 +320,8 @@
 module Streamly.Prelude
     (
     -- * Construction
+    -- | Functions ending in the general shape @b -> t m a@
+
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
     -- All other stream construction and generation combinators described later
@@ -386,17 +388,22 @@ module Streamly.Prelude
     , fromFoldableM
 
     -- * Elimination
+    -- | Functions ending in the general shape @t m a -> m b@
+
+    -- ** Running a 'Fold'
+    -- $runningfolds
+
+    , fold
+    , foldMany
 
     -- ** Deconstruction
-    -- | It is easy to express all the folds in terms of the 'uncons' primitive,
-    -- however the specific implementations provided later are generally more
-    -- efficient.
-    --
+    -- | Functions ending in the general shape @t m a -> m (b, t m a)@
+
     , uncons
     , tail
     , init
 
-    -- ** Folding
+    -- ** General Folds
 -- | In imperative terms a fold can be considered as a loop over the stream
 -- that reduces the stream to a single value.
 -- Left and right folds both use a fold function @f@ and an identity element
@@ -466,24 +473,19 @@ module Streamly.Prelude
 -- the previous step. However, it is possible to fold parts of the stream in
 -- parallel and then combine the results using a monoid.
 
-    -- ** Right Folds
+    -- *** Right Folds
     -- $rightfolds
     , foldrM
     , foldr
 
-    -- ** Left Folds
+    -- *** Left Folds
     -- $leftfolds
     , foldl'
     , foldl1'
     , foldlM'
 
-    -- ** Composable Left Folds
-    -- $runningfolds
-
-    , fold
-    , foldMany
-
-    -- ** Full Folds
+    -- ** Specific Folds
+    -- *** Full Folds
     -- | Folds that are guaranteed to evaluate the whole stream.
 
     -- -- ** To Summary (Full Folds)
@@ -503,17 +505,7 @@ module Streamly.Prelude
     , minimum
     , the
 
-    -- ** Lazy Folds
-    --
-    -- | Folds that generate a lazy structure. Note that the generated
-    -- structure may not be lazy if the underlying monad is strict.
-
-    -- -- ** To Containers (Full Folds)
-    -- -- | Convert or divert a stream into an output structure, container or
-    -- sink.
-    , toList
-
-    -- ** Partial Folds
+    -- *** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
     -- folds strictly evaluate the stream until the result is determined.
 
@@ -540,6 +532,14 @@ module Streamly.Prelude
     , and
     , or
 
+    -- *** To Containers
+    -- | Convert a stream into a container holding all the values.
+    , toList
+
+    -- ** Folding Concurrently
+    , (|$.)
+    , (|&.)
+
     -- ** Multi-Stream folds
     , eqBy
     , cmpBy
@@ -553,8 +553,6 @@ module Streamly.Prelude
     -- $application
     , (|$)
     , (|&)
-    , (|$.)
-    , (|&.)
 
     -- * Transformation
 
