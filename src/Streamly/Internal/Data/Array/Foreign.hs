@@ -121,6 +121,8 @@ module Streamly.Internal.Data.Array.Foreign
     -- , foldtWith
     -- , foldbWith
 
+    , unsafeSlice
+
     -- * Immutable Transformations
     , streamTransform
 
@@ -149,6 +151,7 @@ import Data.Word (Word8)
 -- import Data.Functor.Identity (Identity)
 import Foreign.C.String (CString)
 import Foreign.ForeignPtr (withForeignPtr, castForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -174,6 +177,15 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Ring.Foreign as RB
+
+#if MIN_VERSION_base(4,10,0)
+import Foreign.ForeignPtr (plusForeignPtr)
+#else
+import GHC.Base (Int(..), plusAddr#)
+import GHC.ForeignPtr (ForeignPtr(..))
+plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
+plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
+#endif
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -334,9 +346,27 @@ findIndices = undefined
 -- Slice and splice
 -------------------------------------------------------------------------------
 
+-- | /O(1)/ Slice an array in constant time.
+--
+-- Caution: The bounds of the slice are not checked.
+--
+-- /Unsafe/
+--
+-- /Pre-release/
+{-# INLINE unsafeSlice #-}
+unsafeSlice ::
+       forall a. Storable a
+    => Int -- ^ starting index
+    -> Int -- ^ length of the slice
+    -> Array a
+    -> Array a
+unsafeSlice start len (Array fp _) =
+    let size = sizeOf (undefined :: a)
+        fp1 = fp `plusForeignPtr` (start * size)
+        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
+     in Array fp1 end
+
 {-
-slice :: Int -> Int -> Array a
-slice begin end arr = undefined
 
 splitAt :: Int -> Array a -> (Array a, Array a)
 splitAt i arr = undefined
