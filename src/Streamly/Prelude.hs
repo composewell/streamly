@@ -319,57 +319,6 @@
 
 module Streamly.Prelude
     (
-    -- * Stream Types
-    -- | Stream types that end with a @T@ (e.g. 'SerialT') are monad
-    -- transformers.
-
-    -- ** Serial Streams
-    -- $serial
-      SerialT
-    , WSerialT
-
-    -- ** Speculative Streams
-    -- $ahead
-    , AheadT
-
-    -- ** Asynchronous Streams
-    -- $async
-    , AsyncT
-    , WAsyncT
-    , ParallelT
-
-    -- ** Zipping Streams
-    -- $zipping
-    , ZipSerialM
-    , ZipAsyncM
-
-    -- * IO Streams
-    , Serial
-    , WSerial
-    , Ahead
-    , Async
-    , WAsync
-    , Parallel
-    , ZipSerial
-    , ZipAsync
-
-    -- * Type Synonyms
-    , MonadAsync
-
-    -- * Stream Type Adapters
-    -- $adapters
-    , IsStream ()
-
-    , serially
-    , wSerially
-    , asyncly
-    , aheadly
-    , wAsyncly
-    , parallely
-    , zipSerially
-    , zipAsyncly
-    , adapt
-
     -- * Construction
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
@@ -378,7 +327,7 @@ module Streamly.Prelude
     -- versions provided in this module can be much more efficient in most
     -- cases. Users can create custom combinators using these primitives.
 
-    , nil
+      nil
     , cons
     , (.:)
 
@@ -920,6 +869,57 @@ module Streamly.Prelude
     , minRate
     , maxRate
     , constRate
+
+    -- * Stream Types
+    -- | Stream types that end with a @T@ (e.g. 'SerialT') are monad
+    -- transformers.
+
+    -- ** Serial Streams
+    -- $serial
+    , SerialT
+    , WSerialT
+
+    -- ** Speculative Streams
+    -- $ahead
+    , AheadT
+
+    -- ** Asynchronous Streams
+    -- $async
+    , AsyncT
+    , WAsyncT
+    , ParallelT
+
+    -- ** Zipping Streams
+    -- $zipping
+    , ZipSerialM
+    , ZipAsyncM
+
+    -- * IO Streams
+    , Serial
+    , WSerial
+    , Ahead
+    , Async
+    , WAsync
+    , Parallel
+    , ZipSerial
+    , ZipAsync
+
+    -- * Type Synonyms
+    , MonadAsync
+
+    -- * Stream Type Adapters
+    -- $adapters
+    , IsStream ()
+
+    , serially
+    , wSerially
+    , asyncly
+    , aheadly
+    , wAsyncly
+    , parallely
+    , zipSerially
+    , zipAsyncly
+    , adapt
 
     -- * Deprecated
     , once
