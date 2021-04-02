@@ -219,6 +219,12 @@ concatArrayW8 =
               f2 <- S.toList $ AS.concat $ S.fromList w8ArrList
               w8List `shouldBe` f2
 
+unsafeSlice :: Int -> Int -> [Int] -> Bool
+unsafeSlice i n list =
+    let lst = take n $ drop i $ list
+        arr = A.toList $ A.unsafeSlice i n $ A.fromList list
+     in arr == lst
+
 #endif
 
 main :: IO ()
@@ -252,6 +258,10 @@ main =
 
 #ifdef TEST_ARRAY
             prop "AS.concat . (A.fromList . (:[]) <$>) === id" $ concatArrayW8
+        describe "unsafeSlice" $ do
+            it "partial" $ unsafeSlice 2 4 [1..10]
+            it "none" $ unsafeSlice 10 0 [1..10]
+            it "full" $ unsafeSlice 0 10 [1..10]
         describe "Fold" $ do
             prop "lastN : 0 <= n <= len" $ testLastN
             describe "lastN boundary conditions" $ do
