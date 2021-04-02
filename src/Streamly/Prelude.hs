@@ -857,6 +857,14 @@ module Streamly.Prelude
     , finally
     , handle
 
+    -- * Lifting Inner Monad
+    -- | See also: "Streamly.Internal.Data.Stream.IsStream.Lift" for
+    -- @Pre-release@ functions.
+
+    , liftInner
+    , runReaderT
+    , runStateT
+
     -- * Stream Types
     -- | Stream types that end with a @T@ (e.g. 'SerialT') are monad
     -- transformers.
