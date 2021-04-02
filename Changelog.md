@@ -37,6 +37,7 @@
   are added, these routines fail when they encounter any invalid characters.
 * Several new functions added to `Streamly.Data.Fold`
 * Several Unfold routines and combinators added to `Streamly.Data.Unfold`.
+* Added delay, liftInner, runStateT, runReaderT to Streamly.Prelude
 
 ### Bug Fixes
 

@@ -31,7 +31,7 @@ import Test.QuickCheck
        (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 
-import Streamly.Prelude hiding (fold, replicate, replicateM, reverse)
+import Streamly.Prelude hiding (fold, replicate, replicateM, reverse, runStateT)
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common
