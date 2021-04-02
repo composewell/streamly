@@ -394,7 +394,6 @@ module Streamly.Prelude
     -- $runningfolds
 
     , fold
-    , foldMany
 
     -- ** Deconstruction
     -- | Functions ending in the general shape @t m a -> m (b, t m a)@
@@ -785,7 +784,13 @@ module Streamly.Prelude
     , concatMapFoldableWith
     , concatForFoldableWith
 
-    -- * Splitting
+    -- * Reducing
+    -- ** Nested Folds
+    , foldMany
+    , chunksOf
+    , intervalsOf
+
+    -- ** Splitting
     -- | In general we can express splitting in terms of parser combinators.
     -- These are some common use functions for convenience and efficiency.
     -- While parsers can fail these functions are designed to transform a
@@ -806,11 +811,6 @@ module Streamly.Prelude
     -- combinators that use 'With' in their names keep the separator. When a
     -- segment is missing it is considered as empty, therefore, we never
     -- encounter an error in parsing.
-
-    -- -- ** Breaking
-
-    , chunksOf
-    , intervalsOf
 
     -- -- ** Splitting By Elements
     , splitOn
