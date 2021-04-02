@@ -549,11 +549,6 @@ module Streamly.Prelude
     -- trimming sequences
     , stripPrefix
 
-    -- * Parallel Function Application
-    -- $application
-    , (|$)
-    , (|&)
-
     -- * Transformation
 
     -- ** Mapping
@@ -572,7 +567,7 @@ module Streamly.Prelude
     , sequence
     , mapM
 
-    -- ** Special Maps
+    -- ** Mapping Side Effects
     , mapM_
     , trace
     , tap
@@ -638,7 +633,7 @@ module Streamly.Prelude
     , scanl1'
     , scanl1M'
 
-    -- ** Scan Using Fold
+    -- ** Scanning By 'Fold'
     , scan
     , postscan
 
@@ -647,35 +642,10 @@ module Streamly.Prelude
     -- imperative terms a filter over a stream corresponds to a loop with a
     -- @continue@ clause for the cases when the predicate fails.
 
+    , deleteBy
     , filter
     , filterM
-
-    -- ** Mapping Filters
-    -- | Mapping along with filtering
-
-    , mapMaybe
-    , mapMaybeM
-
-    -- ** Deleting Elements
-    -- | Deleting elements is a special case of de-interleaving streams.
-    , deleteBy
     , uniq
-
-    -- ** Inserting Elements
-    -- | Inserting elements is a special case of interleaving/merging streams.
-
-    , insertBy
-    , intersperseM
-    , intersperse
-
-    -- ** Indexing
-    -- | Indexing can be considered as a special type of zipping where we zip a
-    -- stream with an index stream.
-    , indexed
-    , indexedR
-
-    -- ** Reordering Elements
-    , reverse
 
     -- ** Trimming
     -- | Take or remove elements from one or both ends of a stream.
@@ -686,10 +656,21 @@ module Streamly.Prelude
     , dropWhile
     , dropWhileM
 
-    -- -- ** Breaking
+    -- ** Inserting Elements
+    -- | Inserting elements is a special case of interleaving/merging streams.
 
-    , chunksOf
-    , intervalsOf
+    , insertBy
+    , intersperseM
+    , intersperse
+
+    -- ** Reordering Elements
+    , reverse
+
+    -- ** Indexing
+    -- | Indexing can be considered as a special type of zipping where we zip a
+    -- stream with an index stream.
+    , indexed
+    , indexedR
 
     -- ** Searching
     -- | Finding the presence or location of an element, a sequence of elements
@@ -699,7 +680,30 @@ module Streamly.Prelude
     , findIndices
     , elemIndices
 
-    -- ** Splitting
+    -- ** Maybe Streams
+    , mapMaybe
+    , mapMaybeM
+
+    -- * Concurrent Transformation
+    -- ** Concurrent Pipelines
+    -- $application
+    , (|$)
+    , (|&)
+
+    -- ** Concurrency Control
+    -- $concurrency
+    , maxThreads
+    , maxBuffer
+
+    -- ** Rate Limiting
+    , Rate (..)
+    , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
+
+    -- * Splitting
     -- | In general we can express splitting in terms of parser combinators.
     -- These are some common use functions for convenience and efficiency.
     -- While parsers can fail these functions are designed to transform a
@@ -720,6 +724,11 @@ module Streamly.Prelude
     -- combinators that use 'With' in their names keep the separator. When a
     -- segment is missing it is considered as empty, therefore, we never
     -- encounter an error in parsing.
+
+    -- -- ** Breaking
+
+    , chunksOf
+    , intervalsOf
 
     -- -- ** Splitting By Elements
     , splitOn
@@ -859,19 +868,6 @@ module Streamly.Prelude
     , onException
     , finally
     , handle
-
-    -- * Concurrency Control
-    -- $concurrency
-    , maxThreads
-    , maxBuffer
-
-    -- * Rate Limiting
-    , Rate (..)
-    , rate
-    , avgRate
-    , minRate
-    , maxRate
-    , constRate
 
     -- * Stream Types
     -- | Stream types that end with a @T@ (e.g. 'SerialT') are monad
