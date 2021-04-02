@@ -334,6 +334,12 @@ module Streamly.Prelude
     , consM
     , (|:)
 
+    -- ** Unfolding
+    -- | Generalized way of generating a stream efficiently.
+    , unfold
+    , unfoldr
+    , unfoldrM
+
     -- ** From Values
     -- | Generate a monadic stream from a seed value or values.
     , yield
@@ -362,13 +368,12 @@ module Streamly.Prelude
     , enumerate
     , enumerateTo
 
-    -- ** From Generators
-    -- | Generate a monadic stream from a seed value and a generator function.
-    , unfoldr
-    , unfoldrM
-    , unfold
+    -- ** Iteration
     , iterate
     , iterateM
+
+    -- ** From Generators
+    -- | Generate a monadic stream from a seed value and a generator function.
     , fromIndices
     , fromIndicesM
 
