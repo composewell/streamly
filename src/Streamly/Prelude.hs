@@ -320,7 +320,10 @@
 module Streamly.Prelude
     (
     -- * Construction
-    -- | Functions ending in the general shape @b -> t m a@
+    -- | Functions ending in the general shape @b -> t m a@.
+    --
+    -- See also: "Streamly.Internal.Data.Stream.IsStream.Generate" for
+    -- @Pre-release@ functions.
 
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
@@ -389,6 +392,9 @@ module Streamly.Prelude
 
     -- * Elimination
     -- | Functions ending in the general shape @t m a -> m b@
+    --
+    -- See also: "Streamly.Internal.Data.Stream.IsStream.Eliminate" for
+    -- @Pre-release@ functions.
 
     -- ** Running a 'Fold'
     -- $runningfolds
@@ -549,6 +555,8 @@ module Streamly.Prelude
     , stripPrefix
 
     -- * Transformation
+    -- | See also: "Streamly.Internal.Data.Stream.IsStream.Transform" for
+    -- @Pre-release@ functions.
 
     -- ** Mapping
     -- | In imperative terms a map operation can be considered as a loop over
@@ -714,6 +722,9 @@ module Streamly.Prelude
     --
     -- See 'maxThreads' and 'maxBuffer' to control the concurrency of the
     -- concurrent combinators.
+    --
+    -- See also: "Streamly.Internal.Data.Stream.IsStream.Expand" for
+    -- @Pre-release@ functions.
 
     -- ** Linear combinators
     -- | These functions have O(n) append performance.  They can be used
@@ -785,6 +796,10 @@ module Streamly.Prelude
     , concatForFoldableWith
 
     -- * Reducing
+    -- |
+    -- See also: "Streamly.Internal.Data.Stream.IsStream.Reduce" for
+    -- @Pre-release@ functions.
+
     -- ** Nested Folds
     , foldMany
     , chunksOf
@@ -832,6 +847,9 @@ module Streamly.Prelude
     -- For example, instead of calling them on a stream of chars call them on a
     -- stream of arrays before flattening it to a stream of chars.
     --
+    -- See also: "Streamly.Internal.Data.Stream.IsStream.Exception" for
+    -- @Pre-release@ functions.
+
     , before
     , after
     , bracket
