@@ -56,6 +56,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , unsafeIndex
 
     -- * Mutation
+    , unsafeWriteIndex
     , unsafeSnoc
     , snoc
 
@@ -312,6 +313,14 @@ withNewArray count f = do
 -------------------------------------------------------------------------------
 -- snoc
 -------------------------------------------------------------------------------
+
+{-# INLINE unsafeWriteIndex #-}
+unsafeWriteIndex :: forall a. Storable a => Array a -> Int -> a -> IO (Array a)
+unsafeWriteIndex arr@Array {..} i x =
+    withForeignPtr aStart
+        $ \begin -> do
+              poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
+              return arr
 
 -- XXX grow the array when we are beyond bound.
 --
