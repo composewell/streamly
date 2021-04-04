@@ -30,6 +30,7 @@ import Data.Word(Word8)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 type Array = A.Array
@@ -187,6 +188,13 @@ testArraysOf =
 
 #ifdef TEST_ARRAY
 
+unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
+unsafeWriteIndex xs i x = do
+    let arr = MA.fromList xs
+    arr1 <- MA.unsafeWriteIndex arr i x
+    x1 <- MA.unsafeIndexIO arr1 i
+    return $ x1 == x
+
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
 
@@ -262,6 +270,10 @@ main =
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]
             it "full" $ unsafeSlice 0 10 [1..10]
+        describe "Mut.unsafeWriteIndex" $ do
+            it "first" (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
+            it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
+            it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
         describe "Fold" $ do
             prop "lastN : 0 <= n <= len" $ testLastN
             describe "lastN boundary conditions" $ do
