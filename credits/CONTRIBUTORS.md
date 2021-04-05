@@ -6,7 +6,25 @@ contributors between two repository tags.
 
 ## HEAD
 
+* Harendra Kumar
+* Adithya Kumar
+* Pranay Sashank
+* Anurag Hooda
+* Ahmed Zaheer Dadarkar
+* Ranjeet Ranjan
+* Shruti Umat
+* Sanchayan Maity
+* Kirill Elagin
+* Shlok Datye
+* Julian Ospald
+* endgame
 * Google LLC.
+
+## 0.7.3
+
+* Pranay Sashank
+* Adithya Kumar
+* Julian Ospald
 
 ## 0.7.2
 
