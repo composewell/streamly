@@ -179,6 +179,7 @@ common always-optimized
                -fdicts-strict
                -fmax-worker-args=16
                -fspec-constr-recursive=16
+               -rtsopts
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
 

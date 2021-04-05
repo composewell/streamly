@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.MaxRate where
+module Streamly.Test.Prelude.Rate where
 
 import qualified Streamly.Prelude as S
 

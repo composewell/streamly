@@ -1456,7 +1456,7 @@ bracketPartialStreamProp t vec =
                                  (S.fromList vec))
                 run $ do
                     performMajorGC
-                    threadDelay 10000
+                    threadDelay 1000000
                 refValue <- run $ readIORef ioRef
                 when (refValue /= 0 && refValue /= 3) $
                     error $ "refValue == " ++ show refValue
@@ -1516,7 +1516,7 @@ finallyPartialStreamProp t vec =
                              (S.fromList vec))
                 run $ do
                     performMajorGC
-                    threadDelay 10000
+                    threadDelay 100000
                 refValue <- run $ readIORef ioRef
                 when (refValue /= 0 && refValue /= 2) $
                     error $ "refValue == " ++ show refValue
