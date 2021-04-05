@@ -51,7 +51,7 @@
 * _Examples_:
 
     * Update
-      [streamly-examples][https://github.com/composewell/streamly-examples]
+      [streamly-examples](https://github.com/composewell/streamly-examples)
       to make sure it runs with the latest release.
 
 * _Update Package Metadata:_
