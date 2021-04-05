@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8+stack+lts-16.2, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
+        name: [8.10.4+stack+lts-17.8, 8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8.4+stack+lts-16.31, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
         cabal_version: ["3.2"]
         include:
           #- name: 9.0.1+no-bench
@@ -51,6 +51,12 @@ jobs:
           #  cabal_build_targets: "streamly streamly-tests"
           #  disable_sdist_build: "y"
           #  runner: ubuntu-latest
+          - name: 8.10.4+stack+lts-17.8
+            build: stack
+            resolver: lts-17.8
+            sdist_options: "--ignore-check"
+            stack_build_options: "--flag streamly-benchmarks:-opt"
+            runner: ubuntu-latest
           - name: 8.10.2+macOS
             ghc_version: 8.10.2
             build: cabal-v2
@@ -62,9 +68,9 @@ jobs:
             cabal_project: cabal.project.ci
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             runner: ubuntu-latest
-          - name: 8.8+stack+lts-16.2
+          - name: 8.8.4+stack+lts-16.31
             build: stack
-            resolver: lts-16.12
+            resolver: lts-16.31
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             runner: ubuntu-latest
