@@ -32,7 +32,25 @@
   functions that used these functions also now require the additional
   constraint.
 * Remove `Applicative` instance of folds. Please use `teeWith` or the `Tee`
-  type as an alternative to Fold applicative.
+  type as an alternative to Fold applicative. To convert existing code:
+
+  ```
+    avg = (/) <$> Fold.sum <*> Fold.length
+  ```
+
+  Would become:
+
+  ```
+    import Streamly.Internal.Data.Fold.Tee (Tee(..))
+    import qualified Streamly.Internal.Data.Fold.Tee as Tee
+    avg = Tee.toFold $ (/) <$> Tee Fold.sum <*> Tee Fold.length
+  ```
+
+  Or
+
+  ```
+    avg = Fold.teeWith (/) Fold.sum Fold.length
+  ```
 
 ### Enhancements
 
