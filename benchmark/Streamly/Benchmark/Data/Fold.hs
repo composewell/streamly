@@ -98,6 +98,14 @@ splitAllAny value =
             (FL.any (> value))
         )
 
+{-# INLINE shortest #-}
+shortest :: Monad m => SerialT m Int -> m (Either Int Int)
+shortest = IP.fold (FL.shortest FL.sum FL.length)
+
+{-# INLINE longest #-}
+longest :: Monad m => SerialT m Int -> m (Either Int Int)
+longest = IP.fold (FL.longest FL.sum FL.length)
+
 {-
 {-# INLINE split_ #-}
 split_ :: Monad m
@@ -127,6 +135,14 @@ teeAllAny value = IP.fold (FL.teeWith (,) all_ any_)
     all_ = FL.all (<= value)
     any_ = FL.any (> value)
 
+{-# INLINE teeWithFst #-}
+teeWithFst :: Monad m => SerialT m Int -> m (Int, Int)
+teeWithFst = IP.fold (FL.teeWithFst (,) FL.sum FL.length)
+
+{-# INLINE teeWithMin #-}
+teeWithMin :: Monad m => SerialT m Int -> m (Int, Int)
+teeWithMin = IP.fold (FL.teeWithMin (,) FL.sum FL.length)
+
 {-# INLINE distribute #-}
 distribute :: Monad m => SerialT m Int -> m [Int]
 distribute = IP.fold (FL.distribute [FL.sum, FL.length])
@@ -143,6 +159,18 @@ partition =
             then Left a
             else Right a
      in IP.fold $ FL.lmap f (FL.partition FL.sum FL.length)
+
+{-# INLINE partitionByFstM #-}
+partitionByFstM :: Monad m => SerialT m Int -> m (Int, Int)
+partitionByFstM = do
+    let f x = if odd x then return (Left x) else return (Right x)
+    IP.fold (FL.partitionByFstM f FL.length FL.length)
+
+{-# INLINE partitionByMinM #-}
+partitionByMinM :: Monad m => SerialT m Int -> m (Int, Int)
+partitionByMinM = do
+    let f x = if odd x then return (Left x) else return (Right x)
+    IP.fold (FL.partitionByMinM f FL.length FL.length)
 
 {-# INLINE demuxWith  #-}
 demuxWith ::
@@ -174,6 +202,18 @@ classifyWith f = S.fold (FL.classifyWith f FL.sum)
 {-# INLINE unzip #-}
 unzip :: Monad m => SerialT m Int -> m (Int, Int)
 unzip = IP.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
+
+{-# INLINE unzipWithFstM #-}
+unzipWithFstM :: Monad m => SerialT m Int -> m (Int, Int)
+unzipWithFstM = do
+    let f = \a -> return (a+1, a)
+    IP.fold (FL.unzipWithFstM f FL.sum FL.length)
+
+{-# INLINE unzipWithMinM #-}
+unzipWithMinM :: Monad m => SerialT m Int -> m (Int, Int)
+unzipWithMinM = do
+    let f = \a -> return (a+1, a)
+    IP.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -278,10 +318,18 @@ o_1_space_serial_composition value =
             [ benchIOSink value "serialWith (all, any)" $ splitAllAny value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many
+            , benchIOSink value "shortest (sum, length)" shortest
+            , benchIOSink value "longest (sum, length)" longest
             , benchIOSink value "tee (sum, length)" teeSumLength
+            , benchIOSink value "teeWithFst (sum, length)" teeWithFst
+            , benchIOSink value "teeWithMin (sum, length)" teeWithMin
             , benchIOSink value "distribute [sum, length]" distribute
             , benchIOSink value "partition (sum, length)" partition
+            , benchIOSink value "partitionByFstM (length, length)" partitionByFstM
+            , benchIOSink value "partitionByMinM (length, length)" partitionByMinM
             , benchIOSink value "unzip (sum, length)" unzip
+            , benchIOSink value "unzipWithFstM (sum, length)" unzipWithFstM
+            , benchIOSink value "unzipWithMinM (sum, length)" unzipWithMinM
             , benchIOSink value "demuxDefaultWith [sum, length] sum"
                   $ demuxDefaultWith fn mp
             , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp

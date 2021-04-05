@@ -1225,21 +1225,111 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 
 -- | Similar to 'partitionByM' but terminates when the first fold terminates.
 --
--- /Unimplemented/
 --
 {-# INLINE partitionByFstM #-}
-partitionByFstM :: -- Monad m =>
-       (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByFstM = undefined
+partitionByFstM :: Monad m
+    => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+partitionByFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
+
+    where
+
+    begin = do
+        resL <- beginL
+        resR <- beginR
+        case resL of
+            Partial sL -> return $
+                case resR of
+                    Partial sR -> Partial $ RunFstBoth sL sR
+                    Done bR -> Partial $ RunFstLeft sL bR
+            Done bL -> do
+                case resR of
+                    Partial sR -> do
+                        bR <- doneR sR
+                        return $ Done (bL, bR)
+                    Done bR -> return $ Done (bL, bR)
+
+    step (RunFstBoth sL sR) a = do
+        r <- f a
+        case r of
+            Left b -> do
+                res <- stepL sL b
+                case res of
+                    Partial sres -> return $ Partial $ RunFstBoth sres sR
+                    Done bL -> do
+                        bR <- doneR sR
+                        return $ Done (bL, bR)
+
+            Right c -> do
+                res <- stepR sR c
+                return
+                    $ Partial
+                    $ case res of
+                        Partial sres -> RunFstBoth sL sres
+                        Done bres -> RunFstLeft sL bres
+    step (RunFstLeft sL bR) a = do
+        r <- f a
+        case r of
+            Left b -> do
+                res <- stepL sL b
+                return
+                    $ case res of
+                        Partial sres -> Partial $ RunFstLeft sres bR
+                        Done bres -> Done (bres, bR)
+            Right _ -> return $ Partial $ RunFstLeft sL bR
+
+    done (RunFstBoth sL sR) = (,) <$> doneL sL <*> doneR sR
+
+    done (RunFstLeft sL bR) = (,bR) <$> doneL sL
 
 -- | Similar to 'partitionByM' but terminates when any fold terminates.
 --
--- /Unimplemented/
 --
 {-# INLINE partitionByMinM #-}
-partitionByMinM :: -- Monad m =>
-       (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByMinM = undefined
+partitionByMinM :: Monad m =>
+    (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+partitionByMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
+
+    where
+
+    begin = do
+        resL <- beginL
+        resR <- beginR
+        case resL of
+            Partial sL ->
+                case resR of
+                    Partial sR -> return $ Partial $ Tuple' sL sR
+                    Done bR -> do
+                        bL <- doneL sL
+                        return $ Done (bL, bR)
+            Done bL -> do
+                case resR of
+                    Partial sR -> do
+                        bR <- doneR sR
+                        return $ Done (bL, bR)
+                    Done bR -> return $ Done (bL, bR)
+
+    step (Tuple' sL sR) a = do
+        r <- f a
+        case r of
+            Left b -> do
+                res <- stepL sL b
+                case res of
+                    Partial sres -> return $ Partial $ Tuple' sres sR
+                    Done bL -> do
+                        bR <- doneR sR
+                        return $ Done (bL, bR)
+
+            Right c -> do
+                res <- stepR sR c
+                case res of
+                        Partial sres -> return $ Partial $ Tuple' sL sres
+                        Done bR -> do
+                            bL <- doneL sL
+                            return $ Done (bL, bR)
+
+    done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
@@ -1625,21 +1715,105 @@ unzipWithM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 
 -- | Similar to 'unzipWithM' but terminates when the first fold terminates.
 --
--- /Unimplemented/
 --
 {-# INLINE unzipWithFstM #-}
-unzipWithFstM :: -- Monad m =>
-     (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-unzipWithFstM = undefined
+unzipWithFstM :: Monad m =>
+    (a -> m (b, c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+unzipWithFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
+
+    where
+
+    begin = do
+        resL <- beginL
+        resR <- beginR
+        case resL of
+                  Partial sL -> return $ Partial $
+                      case resR of
+                                Partial sR -> RunFstBoth sL sR
+                                Done bR -> RunFstLeft sL bR
+                  Done bL -> do
+                      case resR of
+                          Partial sR -> do
+                            bR <- doneR sR
+                            return $ Done (bL, bR)
+                          Done bR -> return $ Done (bL, bR)
+
+    step (RunFstBoth sL sR) a = do
+        (b, c) <- f a
+        resL <- stepL sL b
+        resR <- stepR sR c
+        case resL of
+            Partial sresL -> return $ Partial $
+                case resR of
+                          Partial sresR -> RunFstBoth sresL sresR
+                          Done bresR -> RunFstLeft sresL bresR
+            Done bL -> do
+                case resR of
+                    Partial sresR -> do
+                        bR <- doneR sresR
+                        return $ Done (bL, bR)
+                    Done bR -> return $ Done (bL, bR)
+
+    step (RunFstLeft sL bR) a = do
+        (b, _) <- f a
+        resL <- stepL sL b
+        return
+            $ case resL of
+                  Partial sresL -> Partial $ RunFstLeft sresL bR
+                  Done bresL -> Done (bresL, bR)
+
+    done (RunFstBoth sL sR) = (,) <$> doneL sL <*> doneR sR
+    done (RunFstLeft sL bR) = (,bR) <$> doneL sL
 
 -- | Similar to 'unzipWithM' but terminates when any fold terminates.
 --
--- /Unimplemented/
 --
 {-# INLINE unzipWithMinM #-}
-unzipWithMinM :: -- Monad m =>
-     (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-unzipWithMinM = undefined
+unzipWithMinM :: Monad m =>
+    (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
+unzipWithMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
+
+    where
+
+    begin = do
+        resL <- beginL
+        resR <- beginR
+        case resL of
+                  Partial sL ->
+                      case resR of
+                                Partial sR -> return $ Partial $ Tuple' sL sR
+                                Done bR -> do
+                                    bL <- doneL sL
+                                    return $ Done (bL, bR)
+                  Done bL -> do
+                      case resR of
+                          Partial sR -> do
+                            bR <- doneR sR
+                            return $ Done (bL, bR)
+                          Done bR -> return $ Done (bL, bR)
+
+    step (Tuple' sL sR) a = do
+        (b, c) <- f a
+        resL <- stepL sL b
+        resR <- stepR sR c
+        case resL of
+            Partial sresL ->
+                case resR of
+                          Partial sresR -> return $ Partial $ Tuple' sresL sresR
+                          Done bR -> do
+                                bL <- doneL sL
+                                return $ Done (bL, bR)
+            Done bL -> do
+                case resR of
+                    Partial sresR -> do
+                        bR <- doneR sresR
+                        return $ Done (bL, bR)
+                    Done bR -> return $ Done (bL, bR)
+
+    done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
+
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.

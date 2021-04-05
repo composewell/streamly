@@ -241,6 +241,8 @@ module Streamly.Data.Fold
     -- "Streamly.Internal.Data.Fold.Tee".
 
     , teeWith
+    --, teeWithFst
+    --, teeWithMin
     , tee
     , distribute
 
@@ -249,6 +251,10 @@ module Streamly.Data.Fold
     -- fold selector.
 
     , partition
+    --, partitionByM
+    --, partitionByFstM
+    --, partitionByMinM
+    --, partitionBy
 
     -- ** Unzipping
     , unzip
