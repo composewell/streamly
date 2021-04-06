@@ -895,7 +895,7 @@ toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
 toArrayMinChunk alignSize elemCount =
-    FL.rmapM extract $ FL.mkFoldlM step initial
+    FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
