@@ -14,10 +14,10 @@
 -- For example, to compute the average of numbers in a stream without going
 -- through the stream twice:
 --
--- >>> import Streamly.Internal.Data.Fold.Tee (mkT, toFold)
+-- >>> import Streamly.Internal.Data.Fold.Tee (Tee(..), toFold)
 -- >>> import Streamly.Internal.Data.Fold as Fold
 --
--- >>> avg = (/) <$> (mkT Fold.sum) <*> (mkT $ fmap fromIntegral Fold.length)
+-- >>> avg = (/) <$> (Tee Fold.sum) <*> (Tee $ fmap fromIntegral Fold.length)
 -- >>> Stream.fold (toFold avg) $ Stream.fromList [1.0..100.0]
 -- 50.5
 --
@@ -26,20 +26,18 @@
 -- instances of the output types:
 --
 -- >>> import Data.Monoid (Sum(..))
--- >>> t = mkT Fold.head <> mkT Fold.last
+-- >>> t = Tee Fold.head <> Tee Fold.last
 -- >>> Stream.fold (toFold t) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
 -- Just (Sum {getSum = 101.0})
 --
 -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
 --
 module Streamly.Internal.Data.Fold.Tee
-    ( Tee(..)
-    , mkT
+    ( Tee(..)    
     )
 where
 
 import Control.Applicative (liftA2)
-import Data.Coerce (coerce)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -56,24 +54,16 @@ newtype Tee m a b =
     Tee { toFold :: Fold m a b }
     deriving (Functor)
 
--- | Make a 'Tee' from a 'Fold'.
---
--- /Pre-release/
-{-# INLINE mkT #-}
-mkT :: Fold m a b -> Tee m a b
-mkT = coerce
-
-
 -- | '<*>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using function application.
 --
 instance Monad m => Applicative (Tee m a) where
 
     {-# INLINE pure #-}
-    pure a = mkT (Fold.yield a)
+    pure a = Tee (Fold.yield a)
 
     {-# INLINE (<*>) #-}
-    (<*>) a b = mkT (Fold.teeWith ($) (toFold a) (toFold b))
+    (<*>) a b = Tee (Fold.teeWith ($) (toFold a) (toFold b))
 
 -- | '<>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using the 'Semigroup' instance of the output type.
