@@ -19,11 +19,11 @@ module Streamly.Internal.Data.Fold
     , Fold (..)
 
     -- * Constructors
-    , mkFoldl
-    , mkFoldlM
-    , mkFoldl1
-    , mkFoldr
-    , mkFoldrM
+    , foldl'
+    , foldlM'
+    , foldl1
+    , foldr
+    , foldrM
     , mkFold
     , mkFold_
     , mkFoldM
@@ -259,8 +259,8 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Prelude
 
 import Prelude hiding
-       ( filter, drop, dropWhile, take, takeWhile, zipWith
-       , foldl, map, mapM_, sequence, all, any, sum, product, elem
+       ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith
+       , foldl, foldr, map, mapM_, sequence, all, any, sum, product, elem
        , notElem, maximum, minimum, head, last, tail, length, null
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
@@ -410,7 +410,7 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 -- @since 0.7.0
 {-# INLINABLE last #-}
 last :: Monad m => Fold m a (Maybe a)
-last = mkFoldl1 (\_ x -> x)
+last = foldl1 (\_ x -> x)
 
 ------------------------------------------------------------------------------
 -- To Summary
@@ -423,7 +423,7 @@ last = mkFoldl1 (\_ x -> x)
 -- /Pre-release/
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
-genericLength = mkFoldl (\n _ -> n + 1) 0
+genericLength = foldl' (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
@@ -443,7 +443,7 @@ length = genericLength
 -- @since 0.7.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum =  mkFoldl (+) 0
+sum =  foldl' (+) 0
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
@@ -474,7 +474,7 @@ product =  mkFold_ step (Partial 1)
 -- @since 0.7.0
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-maximumBy cmp = mkFoldl1 max'
+maximumBy cmp = foldl1 max'
 
     where
 
@@ -495,14 +495,14 @@ maximumBy cmp = mkFoldl1 max'
 -- @since 0.7.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
-maximum = mkFoldl1 max
+maximum = foldl1 max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
 -- @since 0.7.0
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-minimumBy cmp = mkFoldl1 min'
+minimumBy cmp = foldl1 min'
 
     where
 
@@ -523,7 +523,7 @@ minimumBy cmp = mkFoldl1 min'
 -- @since 0.7.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
-minimum = mkFoldl1 min
+minimum = foldl1 min
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
@@ -535,7 +535,7 @@ minimum = mkFoldl1 min
 -- @since 0.7.0
 {-# INLINABLE mean #-}
 mean :: (Monad m, Fractional a) => Fold m a a
-mean = fmap done $ mkFoldl step begin
+mean = fmap done $ foldl' step begin
 
     where
 
@@ -553,7 +553,7 @@ mean = fmap done $ mkFoldl step begin
 -- @since 0.7.0
 {-# INLINABLE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
-variance = fmap done $ mkFoldl step begin
+variance = fmap done $ foldl' step begin
 
     where
 
@@ -592,7 +592,7 @@ stdDev = sqrt <$> variance
 -- /Pre-release/
 {-# INLINABLE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
-rollingHashWithSalt = mkFoldl step
+rollingHashWithSalt = foldl' step
 
     where
 
@@ -634,13 +634,13 @@ rollingHashFirstN n = take n rollingHash
 -- Sum {getSum = 65}
 --
 -- @
--- sconcat = Fold.mkFoldl (<>)
+-- sconcat = Fold.foldl' (<>)
 -- @
 --
 -- @since 0.8.0
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
-sconcat = mkFoldl (<>)
+sconcat = foldl' (<>)
 
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
@@ -690,7 +690,7 @@ foldMap f = lmap f mconcat
 -- @since 0.7.0
 {-# INLINABLE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
-foldMapM act = mkFoldlM step (pure mempty)
+foldMapM act = foldlM' step (pure mempty)
 
     where
 
@@ -708,7 +708,7 @@ foldMapM act = mkFoldlM step (pure mempty)
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
--- > toListRev = Fold.mkFoldl (flip (:)) []
+-- > toListRev = Fold.foldl' (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -718,7 +718,7 @@ foldMapM act = mkFoldlM step (pure mempty)
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toListRev #-}
 toListRev :: Monad m => Fold m a [a]
-toListRev = mkFoldl (flip (:)) []
+toListRev = foldl' (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1101,7 +1101,7 @@ tee = teeWith (,)
 -- @since 0.7.0
 {-# INLINE distribute #-}
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
-distribute = foldr (teeWith (:)) (yield [])
+distribute = Prelude.foldr (teeWith (:)) (yield [])
 
 ------------------------------------------------------------------------------
 -- Partitioning
@@ -1495,7 +1495,7 @@ demuxDefault = demuxDefaultWith id
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
 classifyWith f (Fold step1 initial1 extract1) =
-    rmapM extract $ mkFoldlM step initial
+    rmapM extract $ foldlM' step initial
 
     where
 
@@ -1764,12 +1764,12 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- > toStream = mkFoldr K.cons K.nil
+-- > toStream = foldr K.cons K.nil
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = mkFoldr K.cons K.nil
+toStream = foldr K.cons K.nil
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -1777,7 +1777,7 @@ toStream = mkFoldr K.cons K.nil
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- > toStreamRev = mkFoldl (flip K.cons) K.nil
+-- > toStreamRev = foldl' (flip K.cons) K.nil
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
@@ -1787,4 +1787,4 @@ toStream = mkFoldr K.cons K.nil
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = mkFoldl (flip K.cons) K.nil
+toStreamRev = foldl' (flip K.cons) K.nil
