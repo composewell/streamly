@@ -196,11 +196,11 @@ module Streamly.Internal.Data.Fold.Type
     , Fold (..)
 
     -- * Constructors
-    , mkFoldl
-    , mkFoldlM
-    , mkFoldl1
-    , mkFoldr
-    , mkFoldrM
+    , foldl'
+    , foldlM'
+    , foldl1
+    , foldr
+    , foldrM
     , mkFold
     , mkFold_
     , mkFoldM
@@ -280,7 +280,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import Prelude hiding (concatMap, filter, map, take)
+import Prelude hiding (concatMap, filter, foldl1, foldr, map, take)
 
 -- $setup
 -- >>> :m
@@ -397,22 +397,22 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 -- the accumulator.
 --
 -- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
--- can use @mkFoldl*@ constructors.
+-- can use @foldl'*@ constructors.
 --
 -- A fold with an extract function can be expressed using fmap:
 --
 -- @
 -- mkfoldlx :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
--- mkfoldlx step initial extract = fmap extract (mkFoldl step initial)
+-- mkfoldlx step initial extract = fmap extract (foldl' step initial)
 -- @
 --
 -- See also: "Streamly.Prelude.foldl'"
 --
 -- @since 0.8.0
 --
-{-# INLINE mkFoldl #-}
-mkFoldl :: Monad m => (b -> a -> b) -> b -> Fold m a b
-mkFoldl step initial =
+{-# INLINE foldl' #-}
+foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
+foldl' step initial =
     Fold
         (\s a -> return $ Partial $ step s a)
         (return (Partial initial))
@@ -425,16 +425,16 @@ mkFoldl step initial =
 --
 -- @
 -- mkFoldlxM :: Functor m => (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
--- mkFoldlxM step initial extract = rmapM extract (mkFoldlM step initial)
+-- mkFoldlxM step initial extract = rmapM extract (foldlM' step initial)
 -- @
 --
 -- See also: "Streamly.Prelude.foldlM'"
 --
 -- @since 0.8.0
 --
-{-# INLINE mkFoldlM #-}
-mkFoldlM :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
-mkFoldlM step initial =
+{-# INLINE foldlM' #-}
+foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
+foldlM' step initial =
     Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
@@ -443,9 +443,9 @@ mkFoldlM step initial =
 -- See also: "Streamly.Prelude.foldl1'"
 --
 -- /Pre-release/
-{-# INLINE mkFoldl1 #-}
-mkFoldl1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-mkFoldl1 step = fmap toMaybe $ mkFoldl step1 Nothing'
+{-# INLINE foldl1 #-}
+foldl1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
+foldl1 step = fmap toMaybe $ foldl' step1 Nothing'
 
     where
 
@@ -463,31 +463,31 @@ mkFoldl1 step = fmap toMaybe $ mkFoldl step1 Nothing'
 --
 -- For example,
 --
--- > toList = mkFoldr (:) []
+-- > toList = foldr (:) []
 --
 -- See also: "Streamly.Prelude.foldr"
 --
 -- @since 0.8.0
-{-# INLINE mkFoldr #-}
-mkFoldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
-mkFoldr g z = fmap ($ z) $ mkFoldl (\f x -> f . g x) id
+{-# INLINE foldr #-}
+foldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
+foldr g z = fmap ($ z) $ foldl' (\f x -> f . g x) id
 
 -- XXX we have not seen any use of this yet, not releasing until we have a use
 -- case.
 --
--- | Like 'mkFoldr' but with a monadic step function.
+-- | Like 'foldr' but with a monadic step function.
 --
 -- For example,
 --
--- > toList = mkFoldrM (\a xs -> return $ a : xs) (return [])
+-- > toList = foldrM (\a xs -> return $ a : xs) (return [])
 --
 -- See also: "Streamly.Prelude.foldrM"
 --
 -- /Pre-release/
-{-# INLINE mkFoldrM #-}
-mkFoldrM :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
-mkFoldrM g z =
-    rmapM (z >>=) $ mkFoldlM (\f x -> return $ g x >=> f) (return return)
+{-# INLINE foldrM #-}
+foldrM :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
+foldrM g z =
+    rmapM (z >>=) $ foldlM' (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
 -- General fold constructors
@@ -498,7 +498,7 @@ mkFoldrM g z =
 --
 -- mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> Fold m a b
 --
--- Then similar to mkFoldl and mkFoldr we can just fmap extract on it to extend
+-- Then similar to foldl' and foldr we can just fmap extract on it to extend
 -- it to the version where an 'extract' function is required. Or do we even
 -- need that?
 --
@@ -586,7 +586,7 @@ simplify (Fold2 step inject extract) c =
 -- @since 0.7.0
 {-# INLINABLE drain #-}
 drain :: Monad m => Fold m a ()
-drain = mkFoldl (\_ _ -> ()) ()
+drain = foldl' (\_ _ -> ()) ()
 
 -- | Folds the input stream to a list.
 --
@@ -594,12 +594,12 @@ drain = mkFoldl (\_ _ -> ()) ()
 -- very inefficient, consider using "Streamly.Data.Array.Foreign"
 -- instead.
 --
--- > toList = mkFoldr (:) []
+-- > toList = foldr (:) []
 --
 -- @since 0.7.0
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = mkFoldr (:) []
+toList = foldr (:) []
 
 ------------------------------------------------------------------------------
 -- Instances

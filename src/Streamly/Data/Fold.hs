@@ -119,9 +119,9 @@ module Streamly.Data.Fold
       Fold -- (..)
 
     -- * Constructors
-    , mkFoldl
-    , mkFoldlM
-    , mkFoldr
+    , foldl'
+    , foldlM'
+    , foldr
 
     -- * Folds
     -- ** Accumulators

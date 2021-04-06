@@ -137,7 +137,7 @@ shrinkArray (Array arr#) (I# n#) =
 -- /Pre-release/
 {-# INLINE_NORMAL write #-}
 write :: (MonadIO m, Prim a) => Fold m a (Array a)
-write = FL.rmapM extract $ FL.mkFoldlM step initial
+write = FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
@@ -193,7 +193,7 @@ data ArrayUnsafe a = ArrayUnsafe
 -- /Pre-release/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeNUnsafe n = FL.rmapM extract $ FL.mkFoldlM step initial
+writeNUnsafe n = FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
