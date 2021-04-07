@@ -24,7 +24,7 @@ module Streamly.Internal.Data.Stream.Ahead
     (
       AheadT
     , Ahead
-    , aheadly
+    , fromAhead
     , ahead
     )
 where
@@ -692,7 +692,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- order, but results in order:
 --
 -- >>> :{
--- Stream.toList $ Stream.aheadly $ do
+-- Stream.toList $ Stream.fromAhead $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
 --      Stream.yieldM $ delay x
 -- :}
@@ -704,7 +704,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- executed concurrently, ahead of time:
 --
 -- >>> :{
--- Stream.toList $ Stream.aheadly $ do
+-- Stream.toList $ Stream.fromAhead $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
 --     Stream.yieldM $ delay (x + y)
@@ -739,8 +739,8 @@ type Ahead = AheadT IO
 -- /Since: 0.3.0 ("Streamly")/
 --
 -- @since 0.8.0
-aheadly :: IsStream t => AheadT m a -> t m a
-aheadly = K.adapt
+fromAhead :: IsStream t => AheadT m a -> t m a
+fromAhead = K.adapt
 
 instance IsStream AheadT where
     toStream = getAheadT

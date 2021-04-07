@@ -66,6 +66,7 @@
     * `foldWith` to `concatFoldableWith`
     * `foldMapWith` to `concatMapFoldableWith`
     * `forEachWith` to `concatForFoldableWith`
+    * `serially` to `fromSerial` and so on
 * In `Streamly.Prelude`, `concatUnfold` is renamed to `unfoldMany`
 * The following encoding/decoding routines have been renamed:
     * `encodeUtf8Lax` to `encodeUtf8`

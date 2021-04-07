@@ -378,38 +378,38 @@ runStreamT = P.drain
 runStream :: Monad m => SerialT m a -> m ()
 runStream = P.drain
 
--- | Same as @runStream . wSerially@.
+-- | Same as @drain . fromWSerial@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
+{-# DEPRECATED runInterleavedT "Please use 'drain . interleaving' instead." #-}
 runInterleavedT :: Monad m => WSerialT m a -> m ()
 runInterleavedT = P.drain . K.adapt
 
--- | Same as @runStream . parallely@.
+-- | Same as @drain . fromParallel@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
+{-# DEPRECATED runParallelT "Please use 'drain . fromParallel' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
 runParallelT = P.drain . K.adapt
 
--- | Same as @runStream . asyncly@.
+-- | Same as @drain . fromAsync@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runAsyncT "Please use 'runStream . asyncly' instead." #-}
+{-# DEPRECATED runAsyncT "Please use 'drain . fromAsync' instead." #-}
 runAsyncT :: Monad m => AsyncT m a -> m ()
 runAsyncT = P.drain . K.adapt
 
--- | Same as @runStream . zipping@.
+-- | Same as @drain . zipping@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runZipStream "Please use 'runStream . zipSerially instead." #-}
+{-# DEPRECATED runZipStream "Please use 'drain . fromZipSerial instead." #-}
 runZipStream :: Monad m => ZipSerialM m a -> m ()
 runZipStream = P.drain . K.adapt
 
--- | Same as @runStream . zippingAsync@.
+-- | Same as @drain . zippingAsync@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runZipAsync "Please use 'runStream . zipAsyncly instead." #-}
+{-# DEPRECATED runZipAsync "Please use 'drain . fromZipAsync instead." #-}
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
 runZipAsync = P.drain . K.adapt
 
@@ -627,7 +627,7 @@ mkAsync = return . Async.mkAsync
 -- To adapt from one monomorphic type (e.g. 'AsyncT') to another monomorphic
 -- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
--- use the type specific combinators e.g. 'asyncly' or 'wSerially'. You
+-- use the type specific combinators e.g. 'fromAsync' or 'fromWSerial'. You
 -- cannot adapt polymorphic code to polymorphic code, as the compiler would not know
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'
@@ -656,3 +656,35 @@ foldMapWith = P.concatMapFoldableWith
 {-# INLINEABLE forEachWith #-}
 forEachWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
 forEachWith = P.concatForFoldableWith
+
+{-# DEPRECATED serially "Please use 'Streamly.Prelude.fromSerial' instead." #-}
+serially :: IsStream t => SerialT m a -> t m a
+serially = fromSerial
+
+{-# DEPRECATED wSerially "Please use 'Streamly.Prelude.fromWSerial' instead." #-}
+wSerially :: IsStream t => WSerialT m a -> t m a
+wSerially = fromWSerial
+
+{-# DEPRECATED asyncly "Please use 'Streamly.Prelude.fromAsync' instead." #-}
+asyncly :: IsStream t => AsyncT m a -> t m a
+asyncly = fromAsync
+
+{-# DEPRECATED aheadly "Please use 'Streamly.Prelude.fromAhead' instead." #-}
+aheadly :: IsStream t => AheadT m a -> t m a
+aheadly = fromAhead
+
+{-# DEPRECATED wAsyncly "Please use 'Streamly.Prelude.fromWAsync' instead." #-}
+wAsyncly :: IsStream t => WAsyncT m a -> t m a
+wAsyncly = fromWAsync
+
+{-# DEPRECATED parallely "Please use 'Streamly.Prelude.fromParallel' instead." #-}
+parallely :: IsStream t => ParallelT m a -> t m a
+parallely = fromParallel
+
+{-# DEPRECATED zipSerially "Please use 'Streamly.Prelude.fromZipSerial' instead." #-}
+zipSerially :: IsStream t => ZipSerialM m a -> t m a
+zipSerially = fromZipSerial
+
+{-# DEPRECATED zipAsyncly "Please use 'Streamly.Prelude.fromZipAsync' instead." #-}
+zipAsyncly :: IsStream t => ZipAsyncM m a -> t m a
+zipAsyncly = fromZipAsync

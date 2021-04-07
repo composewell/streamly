@@ -19,7 +19,7 @@ import qualified GHC.Exts as GHC
 import qualified Streamly.Prelude  as S
 
 import Gauge
-import Streamly.Prelude (SerialT, serially, MonadAsync)
+import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (repeat, replicate, iterate)
@@ -118,37 +118,37 @@ fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
-        [ benchIOSrc serially "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc serially "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc serially "repeat" (repeat value)
-        , benchIOSrc serially "repeatM" (repeatM value)
-        , benchIOSrc serially "replicate" (replicate value)
-        , benchIOSrc serially "replicateM" (replicateM value)
-        , benchIOSrc serially "iterate" (iterate value)
-        , benchIOSrc serially "iterateM" (iterateM value)
-        , benchIOSrc serially "fromIndices" (fromIndices value)
-        , benchIOSrc serially "fromIndicesM" (fromIndicesM value)
-        , benchIOSrc serially "intFromTo" (sourceIntFromTo value)
-        , benchIOSrc serially "intFromThenTo" (sourceIntFromThenTo value)
-        , benchIOSrc serially "integerFromStep" (sourceIntegerFromStep value)
-        , benchIOSrc serially "fracFromThenTo" (sourceFracFromThenTo value)
-        , benchIOSrc serially "fracFromTo" (sourceFracFromTo value)
-        , benchIOSrc serially "fromList" (sourceFromList value)
+        [ benchIOSrc fromSerial "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc fromSerial "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc fromSerial "repeat" (repeat value)
+        , benchIOSrc fromSerial "repeatM" (repeatM value)
+        , benchIOSrc fromSerial "replicate" (replicate value)
+        , benchIOSrc fromSerial "replicateM" (replicateM value)
+        , benchIOSrc fromSerial "iterate" (iterate value)
+        , benchIOSrc fromSerial "iterateM" (iterateM value)
+        , benchIOSrc fromSerial "fromIndices" (fromIndices value)
+        , benchIOSrc fromSerial "fromIndicesM" (fromIndicesM value)
+        , benchIOSrc fromSerial "intFromTo" (sourceIntFromTo value)
+        , benchIOSrc fromSerial "intFromThenTo" (sourceIntFromThenTo value)
+        , benchIOSrc fromSerial "integerFromStep" (sourceIntegerFromStep value)
+        , benchIOSrc fromSerial "fracFromThenTo" (sourceFracFromThenTo value)
+        , benchIOSrc fromSerial "fracFromTo" (sourceFracFromTo value)
+        , benchIOSrc fromSerial "fromList" (sourceFromList value)
         , benchPureSrc "IsList.fromList" (sourceIsList value)
         , benchPureSrc "IsString.fromString" (sourceIsString value)
-        , benchIOSrc serially "fromListM" (sourceFromListM value)
-        , benchIOSrc serially "enumerateFrom" (enumerateFrom value)
-        , benchIOSrc serially "enumerateFromTo" (enumerateFromTo value)
-        , benchIOSrc serially "enumerateFromThen" (enumerateFromThen value)
-        , benchIOSrc serially "enumerateFromThenTo" (enumerateFromThenTo value)
-        , benchIOSrc serially "enumerate" (enumerate value)
-        , benchIOSrc serially "enumerateTo" (enumerateTo value)
+        , benchIOSrc fromSerial "fromListM" (sourceFromListM value)
+        , benchIOSrc fromSerial "enumerateFrom" (enumerateFrom value)
+        , benchIOSrc fromSerial "enumerateFromTo" (enumerateFromTo value)
+        , benchIOSrc fromSerial "enumerateFromThen" (enumerateFromThen value)
+        , benchIOSrc fromSerial "enumerateFromThenTo" (enumerateFromThenTo value)
+        , benchIOSrc fromSerial "enumerate" (enumerate value)
+        , benchIOSrc fromSerial "enumerateTo" (enumerateTo value)
 
           -- These essentially test cons and consM
-        , benchIOSrc serially "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc serially "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc fromSerial "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
 
-        , benchIOSrc serially "absTimes" $ absTimes value
+        , benchIOSrc fromSerial "absTimes" $ absTimes value
         ]
     ]
 

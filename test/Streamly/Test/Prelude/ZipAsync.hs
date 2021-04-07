@@ -30,7 +30,7 @@ main = hspec
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
-        zipAsyncOps spec = mapOps spec $ makeOps zipAsyncly
+        zipAsyncOps spec = mapOps spec $ makeOps fromZipAsync
 
     describe "Functor operations" $ do
         zipAsyncOps  $ functorOps S.fromFoldable "zipAsyncly" (==)

@@ -861,7 +861,7 @@ printSVar sv how = do
     svInfo <- dumpSVar sv
     hPutStrLn stderr $ "\n" <> how <> "\n" <> svInfo
 
--- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
+-- MVar diagnostics has some overhead - around 5% on AsyncT null benchmark, we
 -- can keep it on in production to debug problems quickly if and when they
 -- happen, but it may result in unexpected output when threads are left hanging
 -- until they are GCed because the consumer went away.

@@ -36,7 +36,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import Gauge
-import Streamly.Prelude (SerialT, serially, serial)
+import Streamly.Prelude (SerialT, fromSerial, serial)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (concatMap)
@@ -176,17 +176,17 @@ o_1_space_joining value =
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc serially "foldMapWith (<>) (List)"
+        [ benchIOSrc fromSerial "foldMapWith (<>) (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc serially "foldMapWith (<>) (Stream)"
+        , benchIOSrc fromSerial "foldMapWith (<>) (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc serially "foldMapWithM (<>) (List)"
+        , benchIOSrc fromSerial "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatFoldableWith (<>) (List)"
             (concatFoldableWith value)
-        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatForFoldableWith (<>) (List)"
             (concatForFoldableWith value)
-        , benchIOSrc serially "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc fromSerial "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -316,7 +316,7 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapPure 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc serially "concatMapId (n of 1) (fromFoldable)"
+        , benchIOSrc fromSerial "concatMapId (n of 1) (fromFoldable)"
             (S.concatMap id . sourceConcatMapId value)
 
         , benchIOSrc1 "concatMap (n of 1)"
@@ -334,7 +334,7 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapM 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+        , benchIOSrc fromSerial "concatMapWithId (n of 1) (fromFoldable)"
             (S.concatMapWith serial id . sourceConcatMapId value)
 
         , benchIOSrc1 "concatMapWith (n of 1)"
@@ -387,23 +387,23 @@ o_1_space_concat value = sqrtVal `seq`
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value serially
-        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value serially
-        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value serially
-        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value serially
+        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value fromSerial
+        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value fromSerial
+        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value fromSerial
+        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value fromSerial
         ]
     ]
 
 o_n_space_applicative :: Int -> [Benchmark]
 o_n_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIOSrc serially "(*>) (n times)" $
+        [ benchIOSrc fromSerial "(*>) (n times)" $
             iterateSingleton ((*>) . pure) value
-        , benchIOSrc serially "(<*) (n times)" $
+        , benchIOSrc fromSerial "(<*) (n times)" $
             iterateSingleton (\x xs -> xs <* pure x) value
-        , benchIOSrc serially "(<*>) (n times)" $
+        , benchIOSrc fromSerial "(<*>) (n times)" $
             iterateSingleton (\x xs -> pure (+ x) <*> xs) value
-        , benchIOSrc serially "liftA2 (n times)" $
+        , benchIOSrc fromSerial "liftA2 (n times)" $
             iterateSingleton (AP.liftA2 (+) . pure) value
         ]
     ]
@@ -415,18 +415,18 @@ o_n_space_applicative value =
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value serially
-        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value serially
+        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value fromSerial
+        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value fromSerial
         , benchIO "(>>=) (sqrt n x sqrt n) (filterAllOut)" $
-            filterAllOutM value serially
+            filterAllOutM value fromSerial
         , benchIO "(>>=) (sqrt n x sqrt n) (filterAllIn)" $
-            filterAllInM value serially
+            filterAllInM value fromSerial
         , benchIO "(>>=) (sqrt n x sqrt n) (filterSome)" $
-            filterSome value serially
+            filterSome value fromSerial
         , benchIO "(>>=) (sqrt n x sqrt n) (breakAfterSome)" $
-            breakAfterSome value serially
+            breakAfterSome value fromSerial
         , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
-            toNullM3 value serially
+            toNullM3 value fromSerial
         ]
     ]
 
@@ -444,14 +444,14 @@ sieve s = do
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
     [ bgroup "Monad"
-        [ benchIOSrc serially "(>>) (n times)" $
+        [ benchIOSrc fromSerial "(>>) (n times)" $
             iterateSingleton ((>>) . pure) value
-        , benchIOSrc serially "(>>=) (n times)" $
+        , benchIOSrc fromSerial "(>>=) (n times)" $
             iterateSingleton (\x xs -> xs >>= \y -> return (x + y)) value
         , benchIO "(>>=) (sqrt n x sqrt n) (toList)" $
-            toListM value serially
+            toListM value fromSerial
         , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
-            toListSome value serially
+            toListSome value fromSerial
         , benchIO "naive prime sieve (n/4)"
             (\n -> S.sum $ sieve $ S.enumerateFromTo 2 (value `div` 4 + n))
         ]

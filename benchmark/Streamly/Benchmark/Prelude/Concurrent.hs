@@ -9,8 +9,8 @@
 import Control.Concurrent
 import Control.Monad (when, replicateM)
 import Streamly.Prelude
-    ( IsStream, SerialT, serial, async, asyncly, ahead, aheadly, wAsync
-    , wAsyncly, parallel, parallely
+    ( IsStream, SerialT, serial, async, fromAsync, ahead, fromAhead, wAsync
+    , fromWAsync, parallel, fromParallel
     )
 
 import Gauge
@@ -59,11 +59,11 @@ concated buflen threads d elems t =
 
 appendGroup :: Int -> Int -> Int -> [Benchmark]
 appendGroup buflen threads usec =
-    [ -- bench "serial"   $ nfIO $ append buflen threads delay serially
-      bench "ahead"    $ nfIO $ append buflen threads usec aheadly
-    , bench "async"    $ nfIO $ append buflen threads usec asyncly
-    , bench "wAsync"   $ nfIO $ append buflen threads usec wAsyncly
-    , bench "parallel" $ nfIO $ append buflen threads usec parallely
+    [ -- bench "serial"   $ nfIO $ append buflen threads delay fromSerial
+      bench "ahead"    $ nfIO $ append buflen threads usec fromAhead
+    , bench "async"    $ nfIO $ append buflen threads usec fromAsync
+    , bench "wAsync"   $ nfIO $ append buflen threads usec fromWAsync
+    , bench "parallel" $ nfIO $ append buflen threads usec fromParallel
     ]
 
 concatGroup :: Int -> Int -> Int -> Int -> [Benchmark]

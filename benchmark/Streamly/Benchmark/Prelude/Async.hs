@@ -7,7 +7,7 @@
 
 import Prelude hiding (mapM)
 
-import Streamly.Prelude (asyncly, async, maxBuffer, maxThreads, serially)
+import Streamly.Prelude (fromAsync, async, maxBuffer, maxThreads, fromSerial)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as Internal
 
@@ -27,14 +27,14 @@ o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     -- These basically test the performance of consMAsync
     [ bgroup "generation"
-        [ benchIOSrc asyncly "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc asyncly "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc asyncly "fromListM" (sourceFromListM value)
-        , benchIOSrc asyncly "fromFoldable (List)" (sourceFromFoldable value)
-        , benchIOSrc asyncly "fromFoldableM (List)" (sourceFromFoldableM value)
-        , benchIOSrc asyncly "unfoldrM maxThreads 1"
+        [ benchIOSrc fromAsync "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc fromAsync "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc fromAsync "fromListM" (sourceFromListM value)
+        , benchIOSrc fromAsync "fromFoldable (List)" (sourceFromFoldable value)
+        , benchIOSrc fromAsync "fromFoldableM (List)" (sourceFromFoldableM value)
+        , benchIOSrc fromAsync "unfoldrM maxThreads 1"
             (maxThreads 1 . sourceUnfoldrM value)
-        , benchIOSrc asyncly "unfoldrM maxBuffer 1 (x/10 ops)"
+        , benchIOSrc fromAsync "unfoldrM maxBuffer 1 (x/10 ops)"
             (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
@@ -47,19 +47,19 @@ o_1_space_generation value =
 foldrSShared :: Int -> Int -> IO ()
 foldrSShared count n =
       S.drain
-    $ asyncly
+    $ fromAsync
     $ Internal.foldrSShared (\x xs -> S.consM (return x) xs) S.nil
-    $ serially
+    $ fromSerial
     $ sourceUnfoldrM count n
 
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "map" $ mapN asyncly 1
-        , benchIOSink value "fmap" $ fmapN asyncly 1
+        [ benchIOSink value "map" $ mapN fromAsync 1
+        , benchIOSink value "fmap" $ fmapN fromAsync 1
         , benchIOSrc1 "foldrSShared" (foldrSShared value)
         -- This basically tests the performance of consMAsync
-        , benchIOSink value "mapM" $ mapM asyncly 1 . serially
+        , benchIOSink value "mapM" $ mapM fromAsync 1 . fromSerial
         ]
     ]
 
@@ -69,7 +69,7 @@ o_1_space_mapping value =
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
-    [bgroup "buffered" [benchIOSink value "mkAsync" (mkAsync asyncly)]]
+    [bgroup "buffered" [benchIOSink value "mkAsync" (mkAsync fromAsync)]]
 
 -------------------------------------------------------------------------------
 -- Joining
@@ -116,17 +116,17 @@ o_1_space_joining value =
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc asyncly "foldMapWith (<>) (List)"
+        [ benchIOSrc fromAsync "foldMapWith (<>) (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc asyncly "foldMapWith (<>) (Stream)"
+        , benchIOSrc fromAsync "foldMapWith (<>) (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc asyncly "foldMapWithM (<>) (List)"
+        , benchIOSrc fromAsync "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatFoldableWith (<>) (List)"
             (concatFoldableWith value)
-        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatForFoldableWith (<>) (List)"
             (concatForFoldableWith value)
-        , benchIOSrc asyncly "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc fromAsync "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -136,7 +136,7 @@ o_1_space_concatMap value =
     value2 `seq`
         [ bgroup "concat"
             -- This is for comparison with foldMapWith
-            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+            [ benchIOSrc fromSerial "concatMapWithId (n of 1) (fromFoldable)"
                 (S.concatMapWith async id . sourceConcatMapId value)
 
             , benchIO "concatMapWith (n of 1)"
@@ -159,13 +159,13 @@ o_1_space_concatMap value =
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp"       $ toNullAp value asyncly
-        , benchIO "toNull"         $ toNullM value asyncly
-        , benchIO "toNull3"        $ toNullM3 value asyncly
-        , benchIO "filterAllOut"   $ filterAllOutM value asyncly
-        , benchIO "filterAllIn"    $ filterAllInM value asyncly
-        , benchIO "filterSome"     $ filterSome value asyncly
-        , benchIO "breakAfterSome" $ breakAfterSome value asyncly
+        [ benchIO "toNullAp"       $ toNullAp value fromAsync
+        , benchIO "toNull"         $ toNullM value fromAsync
+        , benchIO "toNull3"        $ toNullM3 value fromAsync
+        , benchIO "filterAllOut"   $ filterAllOutM value fromAsync
+        , benchIO "filterAllIn"    $ filterAllInM value fromAsync
+        , benchIO "filterSome"     $ filterSome value fromAsync
+        , benchIO "breakAfterSome" $ breakAfterSome value fromAsync
 
         ]
     ]
@@ -173,8 +173,8 @@ o_1_space_outerProduct value =
 o_n_space_outerProduct :: Int -> [Benchmark]
 o_n_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toList"         $ toListM value asyncly
-        , benchIO "toListSome"     $ toListSome value asyncly
+        [ benchIO "toList"         $ toListM value fromAsync
+        , benchIO "toListSome"     $ toListSome value fromAsync
         ]
     ]
 

@@ -79,10 +79,10 @@ main = hspec
 #endif
   $ describe moduleName $ do
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
-        wSerialOps spec = mapOps spec $ makeOps wSerially
+        wSerialOps spec = mapOps spec $ makeOps fromWSerial
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", wSerially . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromWSerial . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", fromWSerial . maxBuffer (-1))]
 #endif
 
     describe "Construction" $ do
@@ -104,8 +104,8 @@ main = hspec
 
     describe "Bind and Monoidal composition combinations" $ do
         -- XXX Taking a long time when wSerialOps is used.
-        bindAndComposeSimpleOps "WSerial" sortEq wSerially
-        bindAndComposeHierarchyOps "WSerial" wSerially
+        bindAndComposeSimpleOps "WSerial" sortEq fromWSerial
+        bindAndComposeHierarchyOps "WSerial" fromWSerial
         wSerialOps $ nestTwoStreams "WSerial" id sort
         wSerialOps $ nestTwoStreamsApp "WSerial" id sort
         composeAndComposeSimpleSerially
@@ -115,7 +115,7 @@ main = hspec
             , [1, 4, 2, 7, 3, 5, 8, 6, 9]
             , [1, 7, 4, 8, 2, 9, 5, 3, 6]
             ]
-            wSerially
+            fromWSerial
         composeAndComposeSimpleWSerially
             "WSerial <> "
             [ [1, 4, 2, 7, 3, 5, 8, 6, 9]
@@ -123,7 +123,7 @@ main = hspec
             , [1, 4, 3, 7, 2, 6, 9, 5, 8]
             , [1, 7, 4, 9, 3, 8, 6, 2, 5]
             ]
-            wSerially
+            fromWSerial
 
     describe "Semigroup operations" $ do
         wSerialOps $ semigroupOps "wSerially" (==)
@@ -168,12 +168,12 @@ main = hspec
     ---------------------------------------------------------------------------
 
     describe "WSerial interleaved (<>) ordering check" $
-        interleaveCheck wSerially (<>)
+        interleaveCheck fromWSerial (<>)
     describe "WSerial interleaved mappend ordering check" $
-        interleaveCheck wSerially mappend
+        interleaveCheck fromWSerial mappend
 
     describe "Tests for exceptions" $ wSerialOps $ exceptionOps "wSerially"
-    describe "Composed MonadThrow wSerially" $ composeWithMonadThrow wSerially
+    describe "Composed MonadThrow wSerially" $ composeWithMonadThrow fromWSerial
 
     ---------------------------------------------------------------------------
     -- Termination checks

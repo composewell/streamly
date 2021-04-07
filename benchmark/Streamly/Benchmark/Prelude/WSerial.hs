@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Streamly.Prelude (wSerial, wSerially)
+import Streamly.Prelude (wSerial, fromWSerial)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -46,7 +46,7 @@ moduleName = "Prelude.WSerial"
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "fmap" $ fmapN wSerially 1 ]
+        [ benchIOSink value "fmap" $ fmapN fromWSerial 1 ]
     ]
 
 -------------------------------------------------------------------------------
@@ -174,13 +174,13 @@ o_n_heap_concat value =
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp" $ toNullAp value wSerially
-        , benchIO "toNullM" $ toNullM value wSerially
-        , benchIO "toNullM3" $ toNullM3 value wSerially
-        , benchIO "filterAllOutM" $ filterAllOutM value wSerially
-        , benchIO "filterAllInM" $ filterAllInM value wSerially
-        , benchIO "filterSome" $ filterSome value wSerially
-        , benchIO "breakAfterSome" $ breakAfterSome value wSerially
+        [ benchIO "toNullAp" $ toNullAp value fromWSerial
+        , benchIO "toNullM" $ toNullM value fromWSerial
+        , benchIO "toNullM3" $ toNullM3 value fromWSerial
+        , benchIO "filterAllOutM" $ filterAllOutM value fromWSerial
+        , benchIO "filterAllInM" $ filterAllInM value fromWSerial
+        , benchIO "filterSome" $ filterSome value fromWSerial
+        , benchIO "breakAfterSome" $ breakAfterSome value fromWSerial
         ]
     ]
 
@@ -188,8 +188,8 @@ o_n_space_outerProduct :: Int -> [Benchmark]
 o_n_space_outerProduct value =
     [ bgroup
         "monad-outer-product"
-        [ benchIO "toList" $ toListM value wSerially
-        , benchIO "toListSome" $ toListSome value wSerially
+        [ benchIO "toList" $ toListM value fromWSerial
+        , benchIO "toListSome" $ toListSome value fromWSerial
         ]
     ]
 

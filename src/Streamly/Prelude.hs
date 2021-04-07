@@ -115,7 +115,7 @@
 -- We can force a certain stream type in polymorphic code by using "Stream Type
 -- Adaptors". For example, to force 'AsyncT':
 --
--- >>> Stream.drain $ Stream.asyncly $ Stream.replicateM 10 $ delay 1
+-- >>> Stream.drain $ Stream.fromAsync $ Stream.replicateM 10 $ delay 1
 -- ...
 --
 -- == Combining two streams
@@ -190,7 +190,7 @@
 -- 'AsyncT' executes the actions concurrently, so the total delay is @max 2 1 =
 -- 2@ seconds:
 --
--- >>> Stream.toList $ Stream.asyncly stream -- IO [Int]
+-- >>> Stream.toList $ Stream.fromAsync stream -- IO [Int]
 -- 1 sec
 -- 2 sec
 -- [1,2]
@@ -202,7 +202,7 @@
 -- 'AheadT' is similar to 'AsyncT' but the order of results is the same as the
 -- order of actions, even though they execute concurrently:
 --
--- >>> Stream.toList $ Stream.aheadly stream -- IO [Int]
+-- >>> Stream.toList $ Stream.fromAhead stream -- IO [Int]
 -- 1 sec
 -- 2 sec
 -- [2,1]
@@ -234,7 +234,7 @@
 -- action from the first stream and then one action from the second stream and
 -- so on:
 --
--- >>> Stream.toList $ Stream.wSerially $ stream1 <> stream2
+-- >>> Stream.toList $ Stream.fromWSerial $ stream1 <> stream2
 -- 1 sec
 -- 3 sec
 -- 2 sec
@@ -257,21 +257,21 @@
 -- >>> Stream.drain $ Stream.replicateM 10 $ delay 1
 -- ...
 --
--- We can use the 'asyncly' combinator to force the argument stream to be of
+-- We can use the 'fromAsync' combinator to force the argument stream to be of
 -- 'AsyncT' type, 'replicateM' in the following example executes the replicated
 -- actions concurrently, thus taking only 1 second:
 --
--- >>> Stream.drain $ Stream.asyncly $ Stream.replicateM 10 $ delay 1
+-- >>> Stream.drain $ Stream.fromAsync $ Stream.replicateM 10 $ delay 1
 -- ...
 --
 -- We can use 'mapM' to map an action concurrently:
 --
 -- >>> f x = delay 1 >> return (x + 1)
--- >>> Stream.toList $ Stream.aheadly $ Stream.mapM f $ Stream.fromList [1..3]
+-- >>> Stream.toList $ Stream.fromAhead $ Stream.mapM f $ Stream.fromList [1..3]
 -- ...
 -- [2,3,4]
 --
--- 'aheadly' forces mapM to happen in 'AheadT' style, thus all three actions
+-- 'fromAhead' forces mapM to happen in 'AheadT' style, thus all three actions
 -- take only one second even though each individual action blocks for a second.
 --
 -- See the documentation of individual combinators to check if it is concurrent
@@ -295,14 +295,14 @@
 --
 -- == Caveats
 --
--- When we use combinators like 'asyncly' on a piece of code, all combinators
--- inside the argument of asyncly become concurrent which is often counter
+-- When we use combinators like 'fromAsync' on a piece of code, all combinators
+-- inside the argument of fromAsync become concurrent which is often counter
 -- productive.  Therefore, we recommend that in a pipeline, you identify the
--- combinators that you really want to be concurrent and add a 'serially' after
+-- combinators that you really want to be concurrent and add a 'fromSerial' after
 -- those combinators so that the code following the combinator remains serial:
 --
 -- @
--- Stream.asyncly $ ... concurrent combinator here ... $ Stream.serially $ ...
+-- Stream.fromAsync $ ... concurrent combinator here ... $ Stream.fromSerial $ ...
 -- @
 --
 -- == Conventions
@@ -906,14 +906,14 @@ module Streamly.Prelude
     -- $adapters
     , IsStream ()
 
-    , serially
-    , wSerially
-    , asyncly
-    , aheadly
-    , wAsyncly
-    , parallely
-    , zipSerially
-    , zipAsyncly
+    , fromSerial
+    , fromWSerial
+    , fromAsync
+    , fromAhead
+    , fromWAsync
+    , fromParallel
+    , fromZipSerial
+    , fromZipAsync
     , adapt
 
     -- * Deprecated
@@ -1223,7 +1223,7 @@ import Streamly.Internal.Data.Stream.IsStream
 -- To adapt from one monomorphic type (e.g. 'AsyncT') to another monomorphic
 -- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
--- use the type specific combinators e.g. 'asyncly' or 'wSerially'. You
+-- use the type specific combinators e.g. 'fromAsync' or 'fromWSerial'. You
 -- cannot adapt polymorphic code to polymorphic code, as the compiler would not know
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'

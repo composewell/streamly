@@ -417,7 +417,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 --
 -- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @Stream.drain . 'asyncly'@.
+-- combinators for example @Stream.drain . 'fromAsync'@.
 --
 -- @since 0.7.0
 {-# INLINE drain #-}
@@ -469,7 +469,7 @@ runWhile = drainWhile
 
 -- | Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @runStream . 'asyncly'@.
+-- combinators for example @runStream . 'fromAsync'@.
 --
 -- @since 0.2.0
 {-# DEPRECATED runStream "Please use \"drain\" instead" #-}

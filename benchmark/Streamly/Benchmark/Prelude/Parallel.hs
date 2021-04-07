@@ -11,7 +11,7 @@ import Prelude hiding (mapM)
 
 import Data.Function ((&))
 import Streamly.Prelude
-       ( SerialT, parallely, parallel, serially, maxBuffer, maxThreads)
+       ( SerialT, fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
@@ -81,9 +81,9 @@ tapAsync n = composeN n $ Internal.tapAsync FL.sum
 o_1_space_merge_app_tap :: Int -> [Benchmark]
 o_1_space_merge_app_tap value =
     [ bgroup "merge-app-tap"
-        [ benchIOSrc serially "mergeAsyncBy (2,x/2)"
+        [ benchIOSrc fromSerial "mergeAsyncBy (2,x/2)"
               (mergeAsyncBy (value `div` 2))
-        , benchIOSrc serially "mergeAsyncByM (2,x/2)"
+        , benchIOSrc fromSerial "mergeAsyncByM (2,x/2)"
               (mergeAsyncByM (value `div` 2))
         -- Parallel stages in a pipeline
         , benchIOSink value "parAppMap" parAppMap
@@ -103,13 +103,13 @@ o_n_heap_generation :: Int -> [Benchmark]
 o_n_heap_generation value =
     [ bgroup
         "generation"
-        [ benchIOSrc parallely "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc parallely "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc parallely "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc parallely "fromFoldableM" (sourceFromFoldableM value)
-        , benchIOSrc parallely "unfoldrM maxThreads 1"
+        [ benchIOSrc fromParallel "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc fromParallel "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc fromParallel "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc fromParallel "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc fromParallel "unfoldrM maxThreads 1"
               (maxThreads 1 . sourceUnfoldrM value)
-        , benchIOSrc parallely "unfoldrM maxBuffer 1 (x/10 ops)"
+        , benchIOSrc fromParallel "unfoldrM maxBuffer 1 (x/10 ops)"
               (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
@@ -121,9 +121,9 @@ o_n_heap_generation value =
 o_n_heap_mapping :: Int -> [Benchmark]
 o_n_heap_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "map" $ mapN parallely 1
-        , benchIOSink value "fmap" $ fmapN parallely 1
-        , benchIOSink value "mapM" $ mapM parallely 1 . serially
+        [ benchIOSink value "map" $ mapN fromParallel 1
+        , benchIOSink value "fmap" $ fmapN fromParallel 1
+        , benchIOSink value "mapM" $ mapM fromParallel 1 . fromSerial
         ]
     ]
 
@@ -153,17 +153,17 @@ o_n_heap_concatFoldable :: Int -> [Benchmark]
 o_n_heap_concatFoldable value =
     [ bgroup
         "concat-foldable"
-        [ benchIOSrc parallely "foldMapWith (<>) (List)"
+        [ benchIOSrc fromParallel "foldMapWith (<>) (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc parallely "foldMapWith (<>) (Stream)"
+        , benchIOSrc fromParallel "foldMapWith (<>) (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc parallely "foldMapWithM (<>) (List)"
+        , benchIOSrc fromParallel "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatFoldableWith (<>) (List)"
             (concatFoldableWith value)
-        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatForFoldableWith (<>) (List)"
             (concatForFoldableWith value)
-        , benchIOSrc parallely "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc fromParallel "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -172,7 +172,7 @@ o_n_heap_concat value =
     value2 `seq`
         [ bgroup "concat"
             -- This is for comparison with foldMapWith
-            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+            [ benchIOSrc fromSerial "concatMapWithId (n of 1) (fromFoldable)"
                 (S.concatMapWith parallel id . sourceConcatMapId value)
 
             , benchIO "concatMapWith (n of 1)"
@@ -195,22 +195,22 @@ o_n_heap_concat value =
 o_n_heap_outerProduct :: Int -> [Benchmark]
 o_n_heap_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp" $ toNullAp value parallely
-        , benchIO "toNull" $ toNullM value parallely
-        , benchIO "toNull3" $ toNullM3 value parallely
-        , benchIO "filterAllOut" $ filterAllOutM value parallely
-        , benchIO "filterAllIn" $ filterAllInM value parallely
-        , benchIO "filterSome" $ filterSome value parallely
-        , benchIO "breakAfterSome" $ breakAfterSome value parallely
+        [ benchIO "toNullAp" $ toNullAp value fromParallel
+        , benchIO "toNull" $ toNullM value fromParallel
+        , benchIO "toNull3" $ toNullM3 value fromParallel
+        , benchIO "filterAllOut" $ filterAllOutM value fromParallel
+        , benchIO "filterAllIn" $ filterAllInM value fromParallel
+        , benchIO "filterSome" $ filterSome value fromParallel
+        , benchIO "breakAfterSome" $ breakAfterSome value fromParallel
         ]
     ]
 
 o_n_space_outerProduct :: Int -> [Benchmark]
 o_n_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toList" $ toListM value parallely
+        [ benchIO "toList" $ toListM value fromParallel
         -- XXX disabled due to a bug for now
-        -- , benchIO "toListSome" $ toListSome value parallely
+        -- , benchIO "toListSome" $ toListSome value fromParallel
         ]
     ]
 

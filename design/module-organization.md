@@ -122,7 +122,7 @@ at the type he/she wants to use it. However, it has some disadvantages:
 * Some constraints e.g. "MonadAsync" are unnecessarily imposed on all APIs even
   though they are needed by only concurrent types.
 * type errors could be harder to resolve when using polymorphic types
-* combinators like `asyncly` can make all the combinators concurrent in one go
+* combinators like `fromAsync` can make all the combinators concurrent in one go
   which is usually problematic. If we use monorphic combinators it encourages
   to pick the required concurrent combinators one at a time which is
   usually better for performance.

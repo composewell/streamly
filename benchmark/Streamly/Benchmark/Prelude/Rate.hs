@@ -7,7 +7,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Streamly.Prelude (asyncly, aheadly, maxThreads, IsStream, MonadAsync)
+import Streamly.Prelude (fromAsync, fromAhead, maxThreads, IsStream, MonadAsync)
 import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common
@@ -54,32 +54,32 @@ o_1_space_async value =
           "asyncly"
           [ bgroup
                 "avgRate"
-                -- benchIO "unfoldr" $ toNull asyncly
-                -- benchIOSrc asyncly "unfoldrM" (sourceUnfoldrM value)
-                [ benchIOSrc asyncly "Nothing" $ rateNothing value
-                , benchIOSrc asyncly "1M" $ avgRate value 1000000
-                , benchIOSrc asyncly "3M" $ avgRate value 3000000
-                , benchIOSrc asyncly "10M/maxThreads1"
+                -- benchIO "unfoldr" $ toNull fromAsync
+                -- benchIOSrc fromAsync "unfoldrM" (sourceUnfoldrM value)
+                [ benchIOSrc fromAsync "Nothing" $ rateNothing value
+                , benchIOSrc fromAsync "1M" $ avgRate value 1000000
+                , benchIOSrc fromAsync "3M" $ avgRate value 3000000
+                , benchIOSrc fromAsync "10M/maxThreads1"
                       $ avgRateThreads1 value 10000000
-                , benchIOSrc asyncly "10M" $ avgRate value 10000000
-                , benchIOSrc asyncly "20M" $ avgRate value 20000000
+                , benchIOSrc fromAsync "10M" $ avgRate value 10000000
+                , benchIOSrc fromAsync "20M" $ avgRate value 20000000
                 ]
           , bgroup
                 "minRate"
-                [ benchIOSrc asyncly "1M" $ minRate value 1000000
-                , benchIOSrc asyncly "10M" $ minRate value 10000000
-                , benchIOSrc asyncly "20M" $ minRate value 20000000
+                [ benchIOSrc fromAsync "1M" $ minRate value 1000000
+                , benchIOSrc fromAsync "10M" $ minRate value 10000000
+                , benchIOSrc fromAsync "20M" $ minRate value 20000000
                 ]
           , bgroup
                 "maxRate"
-                [ -- benchIOSrc asyncly "10K" $ maxRate value 10000
-                  benchIOSrc asyncly "10M" $ maxRate value 10000000
+                [ -- benchIOSrc fromAsync "10K" $ maxRate value 10000
+                  benchIOSrc fromAsync "10M" $ maxRate value 10000000
                 ]
           , bgroup
                 "constRate"
-                [ -- benchIOSrc asyncly "10K" $ constRate value 10000
-                  benchIOSrc asyncly "1M" $ constRate value 1000000
-                , benchIOSrc asyncly "10M" $ constRate value 10000000
+                [ -- benchIOSrc fromAsync "10K" $ constRate value 10000
+                  benchIOSrc fromAsync "1M" $ constRate value 1000000
+                , benchIOSrc fromAsync "10M" $ constRate value 10000000
                 ]
           ]
     ]
@@ -88,10 +88,10 @@ o_1_space_ahead :: Int -> [Benchmark]
 o_1_space_ahead value =
     [ bgroup
           "aheadly"
-          [ benchIOSrc aheadly "avgRate/1M" $ avgRate value 1000000
-          , benchIOSrc aheadly "minRate/1M" $ minRate value 1000000
-          , benchIOSrc aheadly "maxRate/1M" $ maxRate value 1000000
-          , benchIOSrc asyncly "constRate/1M" $ constRate value 1000000
+          [ benchIOSrc fromAhead "avgRate/1M" $ avgRate value 1000000
+          , benchIOSrc fromAhead "minRate/1M" $ minRate value 1000000
+          , benchIOSrc fromAhead "maxRate/1M" $ maxRate value 1000000
+          , benchIOSrc fromAsync "constRate/1M" $ constRate value 1000000
           ]
     ]
 

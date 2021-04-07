@@ -35,9 +35,9 @@ main = hspec
 #endif
   $ describe moduleName $ do
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
-        wAsyncOps spec = mapOps spec $ makeOps wAsyncly
+        wAsyncOps spec = mapOps spec $ makeOps fromWAsync
 #ifndef COVERAGE_BUILD
-            <> [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
+            <> [("maxBuffer (-1)", fromWAsync . maxBuffer (-1))]
 #endif
 
     describe "Construction" $ do
@@ -55,7 +55,7 @@ main = hspec
     describe "Monoid operations" $ do
         wAsyncOps $ monoidOps "wAsyncly" mempty sortEq
 
-    describe "WAsync loops" $ loops wAsyncly sort sort
+    describe "WAsync loops" $ loops fromWAsync sort sort
 
     describe "Bind and Monoidal composition combinations" $ do
         wAsyncOps $ bindAndComposeSimpleOps "WAsync" sortEq
@@ -104,35 +104,35 @@ main = hspec
         wAsyncOps $ eliminationOpsWord8 folded "wAsyncly folded"
 
     -- describe "WAsync interleaved (<>) ordering check" $
-    --     interleaveCheck wAsyncly (<>)
+    --     interleaveCheck fromWAsync (<>)
     -- describe "WAsync interleaved mappend ordering check" $
-    --     interleaveCheck wAsyncly mappend
+    --     interleaveCheck fromWAsync mappend
 
     -- XXX this keeps failing intermittently, need to investigate
     -- describe "WAsync (<>) time order check" $
-    --     parallelCheck wAsyncly (<>)
+    --     parallelCheck fromWAsync (<>)
     -- describe "WAsync mappend time order check" $
-    --     parallelCheck wAsyncly mappend
+    --     parallelCheck fromWAsync mappend
 
     describe "Tests for exceptions" $ wAsyncOps $ exceptionOps "wAsyncly"
-    describe "Composed MonadThrow wAsyncly" $ composeWithMonadThrow wAsyncly
+    describe "Composed MonadThrow wAsyncly" $ composeWithMonadThrow fromWAsync
 
     -- Ad-hoc tests
-    it "takes n from stream of streams" (takeCombined 3 wAsyncly)
+    it "takes n from stream of streams" (takeCombined 3 fromWAsync)
 
 #ifdef DEVBUILD
     let timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
         timed x = S.yieldM (threadDelay (x * 100000)) >> return x
 
-    -- These are not run parallely because the timing gets affected
+    -- These are not run fromParallel because the timing gets affected
     -- unpredictably when other tests are running on the same machine.
     --
     -- Also, they fail intermittently due to scheduling delays, so not run on
     -- CI machines.
     describe "Nested parallel and serial compositions" $ do
         let t = timed
-            p = wAsyncly
-            s = serially
+            p = fromWAsync
+            s = fromSerial
         {-
         -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
         -- because of parallelism of [8,0] and [8,0].
@@ -144,7 +144,7 @@ main = hspec
             `shouldReturn` ([4,4,8,8,0,0,2,2])
         -}
         it "Nest <|>, <>, <|> (2)" $
-            (S.toList . wAsyncly) (
+            (S.toList . fromWAsync) (
                    s (p (t 4 <> t 8) <> p (t 1 <> t 2))
                 <> s (p (t 4 <> t 8) <> p (t 1 <> t 2)))
             `shouldReturn` ([4,4,8,8,1,1,2,2])
@@ -165,7 +165,7 @@ main = hspec
             `shouldReturn` ([4,4,1,1,8,2,9,2])
         -}
         it "Nest <|>, <|>, <|>" $
-            (S.toList . wAsyncly) (
+            (S.toList . fromWAsync) (
                     ((t 4 <> t 8) <> (t 0 <> t 2))
                 <> ((t 4 <> t 8) <> (t 0 <> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])

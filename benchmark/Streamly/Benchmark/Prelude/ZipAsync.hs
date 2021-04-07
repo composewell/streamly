@@ -7,7 +7,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-import Streamly.Prelude (serially)
+import Streamly.Prelude (fromSerial)
 import qualified Streamly.Prelude  as S
 
 import Streamly.Benchmark.Common
@@ -38,18 +38,18 @@ zipAsyncWithM count n =
 {-# INLINE zipAsyncAp #-}
 zipAsyncAp :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsyncAp count n =
-    S.zipAsyncly $
+    S.fromZipAsync $
         (,) <$> sourceUnfoldrM count n <*> sourceUnfoldrM count (n + 1)
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
-        [ benchIOSrc serially "zipAsyncWith (2,x/2)" (zipAsyncWith
+        [ benchIOSrc fromSerial "zipAsyncWith (2,x/2)" (zipAsyncWith
                                                       (value `div` 2))
-        , benchIOSrc serially "zipAsyncWithM (2,x/2)" (zipAsyncWithM
+        , benchIOSrc fromSerial "zipAsyncWithM (2,x/2)" (zipAsyncWithM
                                                        (value `div` 2))
-        , benchIOSrc serially "zipAsyncAp (2,x/2)" (zipAsyncAp (value `div` 2))
-        , benchIOSink value "fmap zipAsyncly" $ fmapN S.zipAsyncly 1
+        , benchIOSrc fromSerial "zipAsyncAp (2,x/2)" (zipAsyncAp (value `div` 2))
+        , benchIOSink value "fmap zipAsyncly" $ fmapN S.fromZipAsync 1
         ]
     ]
 
@@ -60,7 +60,7 @@ o_1_space_joining value =
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp" $ toNullAp value S.zipAsyncly
+        [ benchIO "toNullAp" $ toNullAp value S.fromZipAsync
         ]
     ]
 

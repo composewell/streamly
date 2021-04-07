@@ -7,7 +7,7 @@
 
 import Prelude hiding (mapM)
 
-import Streamly.Prelude (aheadly, serially, ahead, maxBuffer, maxThreads)
+import Streamly.Prelude (fromAhead, fromSerial, ahead, maxBuffer, maxThreads)
 import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common
@@ -27,13 +27,13 @@ moduleName = "Prelude.Ahead"
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
-        [ benchIOSrc aheadly "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc aheadly "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc aheadly "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc aheadly "fromFoldableM" (sourceFromFoldableM value)
-        , benchIOSrc aheadly "unfoldrM maxThreads 1"
+        [ benchIOSrc fromAhead "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc fromAhead "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc fromAhead "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc fromAhead "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc fromAhead "unfoldrM maxThreads 1"
             (maxThreads 1 . sourceUnfoldrM value)
-        , benchIOSrc aheadly "unfoldrM maxBuffer 1 (x/10 ops)"
+        , benchIOSrc fromAhead "unfoldrM maxBuffer 1 (x/10 ops)"
             (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
@@ -41,9 +41,9 @@ o_1_space_generation value =
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "map" $ mapN aheadly 1
-        , benchIOSink value "fmap" $ fmapN aheadly 1
-        , benchIOSink value "mapM" $ mapM aheadly 1 . serially
+        [ benchIOSink value "map" $ mapN fromAhead 1
+        , benchIOSink value "fmap" $ fmapN fromAhead 1
+        , benchIOSink value "mapM" $ mapM fromAhead 1 . fromSerial
         ]
     ]
 
@@ -51,17 +51,17 @@ o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup
         "concat-foldable"
-        [ benchIOSrc aheadly "foldMapWith (<>) (List)"
+        [ benchIOSrc fromAhead "foldMapWith (<>) (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc aheadly "foldMapWith (<>) (Stream)"
+        , benchIOSrc fromAhead "foldMapWith (<>) (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc aheadly "foldMapWithM (<>) (List)"
+        , benchIOSrc fromAhead "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc serially "S.concatFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatFoldableWith (<>) (List)"
             (concatFoldableWith value)
-        , benchIOSrc serially "S.concatForFoldableWith (<>) (List)"
+        , benchIOSrc fromSerial "S.concatForFoldableWith (<>) (List)"
             (concatForFoldableWith value)
-        , benchIOSrc aheadly "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc fromAhead "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -70,7 +70,7 @@ o_1_space_concatMap value =
     value2 `seq`
         [ bgroup "concat"
             -- This is for comparison with foldMapWith
-            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+            [ benchIOSrc fromSerial "concatMapWithId (n of 1) (fromFoldable)"
                 (S.concatMapWith ahead id . sourceConcatMapId value)
 
             , benchIO "concatMapWith (n of 1)"
@@ -93,13 +93,13 @@ o_1_space_concatMap value =
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp"       $ toNullAp value aheadly
-        , benchIO "toNull"         $ toNullM value aheadly
-        , benchIO "toNull3"        $ toNullM3 value aheadly
-        , benchIO "filterAllOut"   $ filterAllOutM value aheadly
-        , benchIO "filterAllIn"    $ filterAllInM value aheadly
-        , benchIO "filterSome"     $ filterSome value aheadly
-        , benchIO "breakAfterSome" $ breakAfterSome value aheadly
+        [ benchIO "toNullAp"       $ toNullAp value fromAhead
+        , benchIO "toNull"         $ toNullM value fromAhead
+        , benchIO "toNull3"        $ toNullM3 value fromAhead
+        , benchIO "filterAllOut"   $ filterAllOutM value fromAhead
+        , benchIO "filterAllIn"    $ filterAllInM value fromAhead
+        , benchIO "filterSome"     $ filterSome value fromAhead
+        , benchIO "breakAfterSome" $ breakAfterSome value fromAhead
 
         ]
     ]
@@ -107,8 +107,8 @@ o_1_space_outerProduct value =
 o_n_space_outerProduct :: Int -> [Benchmark]
 o_n_space_outerProduct value =
     [ bgroup "monad-outer-product"
-        [ benchIO "toList"         $ toListM value aheadly
-        , benchIO "toListSome"     $ toListSome value aheadly
+        [ benchIO "toList"         $ toListM value fromAhead
+        , benchIO "toListSome"     $ toListSome value fromAhead
         ]
     ]
 

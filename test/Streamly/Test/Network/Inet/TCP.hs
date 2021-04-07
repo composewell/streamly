@@ -71,8 +71,8 @@ server
     -> IO ()
 server listener port sem handler = do
     putMVar sem ()
-    Stream.serially (Stream.unfold listener port)
-        & (Stream.asyncly . Stream.mapM (Socket.handleWithM handler))
+    Stream.fromSerial (Stream.unfold listener port)
+        & (Stream.fromAsync . Stream.mapM (Socket.handleWithM handler))
         & Stream.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)

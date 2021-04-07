@@ -26,7 +26,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Prelude  as S
 
 import Gauge
-import Streamly.Prelude (SerialT, serially)
+import Streamly.Prelude (SerialT, fromSerial)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (reverse, tail)
@@ -92,14 +92,14 @@ o_n_space_functor value =
     [ bgroup "Functor"
         [ benchIO "(+) (n times) (baseline)" $ \i0 ->
             iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
-        , benchIOSrc serially "(<$) (n times)" $
+        , benchIOSrc fromSerial "(<$) (n times)" $
             iterateSingleton (<$) value
-        , benchIOSrc serially "fmap (n times)" $
+        , benchIOSrc fromSerial "fmap (n times)" $
             iterateSingleton (fmap . (+)) value
         {-
-        , benchIOSrc serially "_(<$) (n times)" $
+        , benchIOSrc fromSerial "_(<$) (n times)" $
             _iterateSingleton (<$) value
-        , benchIOSrc serially "_fmap (n times)" $
+        , benchIOSrc fromSerial "_fmap (n times)" $
             _iterateSingleton (fmap . (+)) value
         -}
         ]
@@ -189,7 +189,7 @@ o_n_heap_buffering value =
         , benchIOSink value "sortBy" (sortBy 1)
         , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
 
-        , benchIOSink value "mkAsync" (mkAsync serially)
+        , benchIOSink value "mkAsync" (mkAsync fromSerial)
         ]
     ]
 
@@ -369,18 +369,18 @@ nullHeadTail s = do
 o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value = by10 `seq` by100 `seq`
     [ bgroup "iterated"
-        [ benchIOSrc serially "mapM (n/10 x 10)" $ iterateMapM by10 10
-        , benchIOSrc serially "scanl' (quadratic) (n/100 x 100)" $
+        [ benchIOSrc fromSerial "mapM (n/10 x 10)" $ iterateMapM by10 10
+        , benchIOSrc fromSerial "scanl' (quadratic) (n/100 x 100)" $
             iterateScan by100 100
-        , benchIOSrc serially "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
-        , benchIOSrc serially "filterEven (n/10 x 10)" $
+        , benchIOSrc fromSerial "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
+        , benchIOSrc fromSerial "filterEven (n/10 x 10)" $
             iterateFilterEven by10 10
-        , benchIOSrc serially "takeAll (n/10 x 10)" $
+        , benchIOSrc fromSerial "takeAll (n/10 x 10)" $
             iterateTakeAll value by10 10
-        , benchIOSrc serially "dropOne (n/10 x 10)" $ iterateDropOne by10 10
-        , benchIOSrc serially "dropWhileFalse (n/10 x 10)" $
+        , benchIOSrc fromSerial "dropOne (n/10 x 10)" $ iterateDropOne by10 10
+        , benchIOSrc fromSerial "dropWhileFalse (n/10 x 10)" $
             iterateDropWhileFalse value by10 10
-        , benchIOSrc serially "dropWhileTrue (n/10 x 10)" $
+        , benchIOSrc fromSerial "dropWhileTrue (n/10 x 10)" $
             iterateDropWhileTrue value by10 10
         , benchIOSink value "tail" tail
         , benchIOSink value "nullHeadTail" nullHeadTail
@@ -399,12 +399,12 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
 o_1_space_pipes :: Int -> [Benchmark]
 o_1_space_pipes value =
     [ bgroup "pipes"
-        [ benchIOSink value "mapM" (transformMapM serially 1)
-        , benchIOSink value "compose" (transformComposeMapM serially 1)
-        , benchIOSink value "tee" (transformTeeMapM serially 1)
+        [ benchIOSink value "mapM" (transformMapM fromSerial 1)
+        , benchIOSink value "compose" (transformComposeMapM fromSerial 1)
+        , benchIOSink value "tee" (transformTeeMapM fromSerial 1)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM serially 1)
+        , benchIOSink value "zip" (transformZipMapM fromSerial 1)
 #endif
         ]
     ]
@@ -412,12 +412,12 @@ o_1_space_pipes value =
 o_1_space_pipesX4 :: Int -> [Benchmark]
 o_1_space_pipesX4 value =
     [ bgroup "pipesX4"
-        [ benchIOSink value "mapM" (transformMapM serially 4)
-        , benchIOSink value "compose" (transformComposeMapM serially 4)
-        , benchIOSink value "tee" (transformTeeMapM serially 4)
+        [ benchIOSink value "mapM" (transformMapM fromSerial 4)
+        , benchIOSink value "compose" (transformComposeMapM fromSerial 4)
+        , benchIOSink value "tee" (transformTeeMapM fromSerial 4)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM serially 4)
+        , benchIOSink value "zip" (transformZipMapM fromSerial 4)
 #endif
         ]
     ]

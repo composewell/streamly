@@ -37,12 +37,12 @@ main = hspec
 #endif
         parallelCommonOps = []
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", parallely . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromParallel . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", fromParallel . maxBuffer (-1))]
 #endif
     let parallelOps :: IsStream t
             => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
-        parallelOps spec = mapOps spec $ makeOps parallely <> parallelCommonOps
+        parallelOps spec = mapOps spec $ makeOps fromParallel <> parallelCommonOps
 
     describe "Construction" $ do
         parallelOps $ prop "parallely replicateM" . constructWithReplicateM
@@ -58,12 +58,12 @@ main = hspec
     describe "Monoid operations" $ do
         parallelOps $ monoidOps "parallely" mempty sortEq
 
-    describe "Parallel loops" $ loops parallely sort sort
+    describe "Parallel loops" $ loops fromParallel sort sort
 
     describe "Bind and Monoidal composition combinations" $ do
         -- XXX Taking a long time when parallelOps is used.
-        bindAndComposeSimpleOps "Parallel" sortEq parallely
-        bindAndComposeHierarchyOps "Parallel" parallely
+        bindAndComposeSimpleOps "Parallel" sortEq fromParallel
+        bindAndComposeHierarchyOps "Parallel" fromParallel
         parallelOps $ nestTwoStreams "Parallel" sort sort
         parallelOps $ nestTwoStreamsApp "Parallel" sort sort
 
@@ -107,16 +107,16 @@ main = hspec
     -- deriving can cause us to pick wrong instances sometimes.
 
 #ifdef DEVBUILD
-    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
-    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+    describe "Parallel (<>) time order check" $ parallelCheck fromParallel (<>)
+    describe "Parallel mappend time order check" $ parallelCheck fromParallel mappend
 #endif
 
     describe "Tests for exceptions" $ parallelOps $ exceptionOps "parallely"
-    describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
+    describe "Composed MonadThrow parallely" $ composeWithMonadThrow fromParallel
 
 #ifdef DEVBUILD
-    -- parallely fails on CI machines, may need more difference in times of
+    -- fromParallel fails on CI machines, may need more difference in times of
     -- the events, but that would make tests even slower.
-    it "take 1 parallely" $ checkCleanup 3 parallely (S.take 1)
-    it "takeWhile (< 0) parallely" $ checkCleanup 3 parallely (S.takeWhile (< 0))
+    it "take 1 parallely" $ checkCleanup 3 fromParallel (S.take 1)
+    it "takeWhile (< 0) parallely" $ checkCleanup 3 fromParallel (S.takeWhile (< 0))
 #endif

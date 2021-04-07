@@ -19,7 +19,7 @@ module Streamly.Internal.Data.Stream.Serial
       SerialT
     , Serial
     , K.serial
-    , serially
+    , fromSerial
 
     -- * Serial interleaving stream
     , WSerialT
@@ -27,7 +27,7 @@ module Streamly.Internal.Data.Stream.Serial
     , wSerial
     , wSerialFst
     , wSerialMin
-    , wSerially
+    , fromWSerial
 
     -- * Construction
     , unfoldrM
@@ -138,8 +138,8 @@ type StreamT = SerialT
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-serially :: IsStream t => SerialT m a -> t m a
-serially = adapt
+fromSerial :: IsStream t => SerialT m a -> t m a
+fromSerial = adapt
 
 {-# INLINE consMSerial #-}
 {-# SPECIALIZE consMSerial :: IO a -> SerialT IO a -> SerialT IO a #-}
@@ -261,7 +261,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- A single 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.toList $ Stream.wSerially $ do
+-- Stream.toList $ Stream.fromWSerial $ do
 --      x <- Stream.fromList [1,2] -- foreach x in stream
 --      return x
 -- :}
@@ -270,7 +270,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- Nested monad binds behave like interleaved nested @for@ loops:
 --
 -- >>> :{
--- Stream.toList $ Stream.wSerially $ do
+-- Stream.toList $ Stream.fromWSerial $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [3,4] -- foreach y in stream
 --     return (x, y)
@@ -311,15 +311,15 @@ type InterleavedT = WSerialT
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-wSerially :: IsStream t => WSerialT m a -> t m a
-wSerially = adapt
+fromWSerial :: IsStream t => WSerialT m a -> t m a
+fromWSerial = adapt
 
--- | Same as 'wSerially'.
+-- | Same as 'fromWSerial'.
 --
 -- @since 0.1.0
-{-# DEPRECATED interleaving "Please use wSerially instead." #-}
+{-# DEPRECATED interleaving "Please use fromWSerial instead." #-}
 interleaving :: IsStream t => WSerialT m a -> t m a
-interleaving = wSerially
+interleaving = fromWSerial
 
 consMWSerial :: Monad m => m a -> WSerialT m a -> WSerialT m a
 consMWSerial m ms = fromStream $ K.consMStream m (toStream ms)
@@ -358,7 +358,7 @@ infixr 6 `wSerial`
 -- >>> import Streamly.Prelude (wSerial)
 -- >>> stream1 = Stream.fromList [1,2]
 -- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ Stream.wSerially $ stream1 `wSerial` stream2
+-- >>> Stream.toList $ Stream.fromWSerial $ stream1 `wSerial` stream2
 -- [1,3,2,4]
 --
 -- Note, for singleton streams 'wSerial' and 'serial' are identical.

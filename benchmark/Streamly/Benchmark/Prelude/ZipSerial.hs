@@ -60,8 +60,8 @@ zipWith count n =
     S.drain $
     S.zipWith
         (,)
-        (S.serially $ sourceUnfoldrM count n)
-        (S.serially $ sourceUnfoldrM count (n + 1))
+        (S.fromSerial $ sourceUnfoldrM count n)
+        (S.fromSerial $ sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zipWith
@@ -99,7 +99,7 @@ o_1_space_joining value =
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
-        [ benchIOSink value "fmap" $ fmapN S.zipSerially 1
+        [ benchIOSink value "fmap" $ fmapN S.fromZipSerial 1
         ]
     ]
 

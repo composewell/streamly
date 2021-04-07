@@ -32,9 +32,9 @@ main = hspec
 #endif
   $ describe moduleName $ do
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
-        asyncOps spec = mapOps spec $ makeOps asyncly
+        asyncOps spec = mapOps spec $ makeOps fromAsync
 #ifndef COVERAGE_BUILD
-            <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
+            <> [("maxBuffer (-1)", fromAsync . maxBuffer (-1))]
 #endif
 
     describe "Construction" $ do
@@ -51,7 +51,7 @@ main = hspec
     describe "Monoid operations" $ do
         asyncOps     $ monoidOps "asyncly" mempty sortEq
 
-    describe "Async loops" $ loops asyncly sort sort
+    describe "Async loops" $ loops fromAsync sort sort
 
     describe "Bind and Monoidal composition combinations" $ do
         asyncOps $ bindAndComposeSimpleOps "Async" sortEq
@@ -102,12 +102,12 @@ main = hspec
     -- deriving can cause us to pick wrong instances sometimes.
 
 #ifdef DEVBUILD
-    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
-    describe "Async mappend time order check" $ parallelCheck asyncly mappend
+    describe "Async (<>) time order check" $ parallelCheck fromAsync (<>)
+    describe "Async mappend time order check" $ parallelCheck fromAsync mappend
 #endif
 
     describe "Tests for exceptions" $ asyncOps $ exceptionOps "asyncly"
-    describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
+    describe "Composed MonadThrow asyncly" $ composeWithMonadThrow fromAsync
 
     -- Ad-hoc tests
-    it "takes n from stream of streams" $ takeCombined 2 asyncly
+    it "takes n from stream of streams" $ takeCombined 2 fromAsync

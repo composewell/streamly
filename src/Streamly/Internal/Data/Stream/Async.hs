@@ -26,7 +26,7 @@ module Streamly.Internal.Data.Stream.Async
     (
       AsyncT
     , Async
-    , asyncly
+    , fromAsync
     , async
     , (<|)             --deprecated
     , mkAsync
@@ -34,7 +34,7 @@ module Streamly.Internal.Data.Stream.Async
 
     , WAsyncT
     , WAsync
-    , wAsyncly
+    , fromWAsync
     , wAsync
     )
 where
@@ -753,7 +753,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- side effects of iterations out of order:
 --
 -- >>> :{
--- Stream.toList $ Stream.asyncly $ do
+-- Stream.toList $ Stream.fromAsync $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
 --      Stream.yieldM $ delay x
 -- :}
@@ -765,7 +765,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- executed concurrently, a la the 'async' combinator:
 --
 -- >>> :{
--- Stream.toList $ Stream.asyncly $ do
+-- Stream.toList $ Stream.fromAsync $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
 --     Stream.yieldM $ delay (x + y)
@@ -800,8 +800,8 @@ type Async = AsyncT IO
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-asyncly :: IsStream t => AsyncT m a -> t m a
-asyncly = adapt
+fromAsync :: IsStream t => AsyncT m a -> t m a
+fromAsync = adapt
 
 instance IsStream AsyncT where
     toStream = getAsyncT
@@ -897,19 +897,19 @@ infixr 6 `wAsync`
 -- >>> import Streamly.Prelude (wAsync)
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
--- >>> Stream.toList $ Stream.asyncly $ Stream.maxThreads 1 $ stream1 `async` stream2
+-- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 1 $ stream1 `async` stream2
 -- [1,2,3,4,5,6]
 --
--- >>> Stream.toList $ Stream.wAsyncly $ Stream.maxThreads 1 $ stream1 `wAsync` stream2
+-- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 1 $ stream1 `wAsync` stream2
 -- [1,4,2,5,3,6]
 --
 -- With two threads available, and combining three streams:
 --
 -- >>> stream3 = Stream.fromList [7,8,9]
--- >>> Stream.toList $ Stream.asyncly $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
+-- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
 -- [1,2,3,4,5,6,7,8,9]
 --
--- >>> Stream.toList $ Stream.wAsyncly $ Stream.maxThreads 2 $ stream1 `wAsync` stream2 `wAsync` stream3
+-- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 2 $ stream1 `wAsync` stream2 `wAsync` stream3
 -- [1,4,2,7,5,3,8,6,9]
 --
 -- This operation cannot be used to fold an infinite lazy container of streams,
@@ -966,7 +966,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- side effects of iterations out of order:
 --
 -- >>> :{
--- Stream.toList $ Stream.wAsyncly $ do
+-- Stream.toList $ Stream.fromWAsync $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
 --      Stream.yieldM $ delay x
 -- :}
@@ -978,7 +978,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- executed concurrently, a la the 'wAsync' combinator:
 --
 -- >>> :{
--- Stream.toList $ Stream.wAsyncly $ do
+-- Stream.toList $ Stream.fromWAsync $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
 --     Stream.yieldM $ delay (x + y)
@@ -1002,7 +1002,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = (S.toList . S.'wAsyncly' . S.maxThreads 1 $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
+-- main = (S.toList . S.'fromWAsync' . S.maxThreads 1 $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -1013,7 +1013,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- now take a more general example:
 --
 -- @
--- main = (S.toList . S.'wAsyncly' . S.maxThreads 1 $ (S.fromList [1,2,3]) \<> (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])) >>= print
+-- main = (S.toList . S.'fromWAsync' . S.maxThreads 1 $ (S.fromList [1,2,3]) \<> (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])) >>= print
 -- @
 -- @
 -- [1,4,2,7,5,3,8,6,9]
@@ -1069,7 +1069,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- concurrently using a round robin scheduling.
 --
 -- @
--- main = S.'drain' . S.'wAsyncly' $ do
+-- main = S.'drain' . S.'fromWAsync' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -1100,8 +1100,8 @@ type WAsync = WAsyncT IO
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-wAsyncly :: IsStream t => WAsyncT m a -> t m a
-wAsyncly = adapt
+fromWAsync :: IsStream t => WAsyncT m a -> t m a
+fromWAsync = adapt
 
 instance IsStream WAsyncT where
     toStream = getWAsyncT

@@ -206,7 +206,7 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 -- previous step.
 --
 -- @
--- (asyncly $ S.unfoldrM (\\n -> liftIO (threadDelay 1000000) >> return (Just (n, n + 1))) 0)
+-- (fromAsync $ S.unfoldrM (\\n -> liftIO (threadDelay 1000000) >> return (Just (n, n + 1))) 0)
 --     & S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
 -- @
 --
@@ -264,8 +264,8 @@ replicate n = fromStreamS . S.replicate n
 -- Generate a stream by performing a monadic action @n@ times. Same as:
 --
 -- @
--- drain $ serially $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
--- drain $ asyncly  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- drain $ fromSerial $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- drain $ fromAsync  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
 -- @
 --
 -- /Concurrent/
@@ -465,10 +465,10 @@ iterate step = fromStreamS . S.iterate step
 -- previous iteration.
 --
 -- @
--- drain $ serially $ S.take 10 $ S.iterateM
+-- drain $ fromSerial $ S.take 10 $ S.iterateM
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) (return 0)
 --
--- drain $ asyncly  $ S.take 10 $ S.iterateM
+-- drain $ fromAsync  $ S.take 10 $ S.iterateM
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) (return 0)
 -- @
 --
@@ -498,11 +498,11 @@ iterateMSerial step = fromStreamS . S.iterateM step
 -- Construct a stream from a 'Foldable' containing monadic actions.
 --
 -- @
--- drain $ serially $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
--- drain $ asyncly  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
+-- drain $ fromSerial $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
+-- drain $ fromAsync  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
 -- @
 --
--- /Concurrent (do not use with 'parallely' on infinite containers)/
+-- /Concurrent (do not use with 'fromParallel' on infinite containers)/
 --
 -- @since 0.3.0
 {-# INLINE fromFoldableM #-}
