@@ -198,7 +198,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Constructors
     , foldl'
     , foldlM'
-    , foldl1
+    , foldl1'
     , foldr
     , foldrM
     , mkFold
@@ -280,7 +280,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar (MonadAsync)
 
-import Prelude hiding (concatMap, filter, foldl1, foldr, map, take)
+import Prelude hiding (concatMap, filter, foldr, map, take)
 
 -- $setup
 -- >>> :m
@@ -443,9 +443,9 @@ foldlM' step initial =
 -- See also: "Streamly.Prelude.foldl1'"
 --
 -- /Pre-release/
-{-# INLINE foldl1 #-}
-foldl1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-foldl1 step = fmap toMaybe $ foldl' step1 Nothing'
+{-# INLINE foldl1' #-}
+foldl1' :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
+foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 
     where
 

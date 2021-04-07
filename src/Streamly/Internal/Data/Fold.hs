@@ -21,7 +21,7 @@ module Streamly.Internal.Data.Fold
     -- * Constructors
     , foldl'
     , foldlM'
-    , foldl1
+    , foldl1'
     , foldr
     , foldrM
     , mkFold
@@ -410,7 +410,7 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 -- @since 0.7.0
 {-# INLINABLE last #-}
 last :: Monad m => Fold m a (Maybe a)
-last = foldl1 (\_ x -> x)
+last = foldl1' (\_ x -> x)
 
 ------------------------------------------------------------------------------
 -- To Summary
@@ -474,7 +474,7 @@ product =  mkFold_ step (Partial 1)
 -- @since 0.7.0
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-maximumBy cmp = foldl1 max'
+maximumBy cmp = foldl1' max'
 
     where
 
@@ -495,14 +495,14 @@ maximumBy cmp = foldl1 max'
 -- @since 0.7.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
-maximum = foldl1 max
+maximum = foldl1' max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
 -- @since 0.7.0
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
-minimumBy cmp = foldl1 min'
+minimumBy cmp = foldl1' min'
 
     where
 
@@ -523,7 +523,7 @@ minimumBy cmp = foldl1 min'
 -- @since 0.7.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
-minimum = foldl1 min
+minimum = foldl1' min
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
