@@ -349,18 +349,14 @@ o_1_space_serial_unfold bound arrays =
         $ nfIO $ parseManyUnfoldArrays 1 arrays
     ]
 
-o_1_space_serial_array :: Int -> [Benchmark]
-o_1_space_serial_array bound =
-    [ benchIO "parseArray (100)" (arrayStream 100) $ parseArray bound
-    , benchIO "parseArray (bound)" (arrayStream bound) $ parseArray bound
+o_1_space_serial_array ::
+    Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
+o_1_space_serial_array bound arraysSmall arraysBig =
+    [ benchIO "parseArray (100)" (\_ -> IP.fromList arraysSmall)
+        $ parseArray bound
+    , benchIO "parseArray (bound)" (\_ -> IP.fromList arraysBig)
+        $ parseArray bound
     ]
-
-    where
-
-    {-# INLINE arrayStream #-}
-    arrayStream chunkSize start =
-        IP.chunksOf chunkSize (Array.writeN chunkSize)
-            $ sourceUnfoldrM bound start
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
@@ -391,18 +387,21 @@ o_n_space_serial value =
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    arrays <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value arrays)
+    arraysSmall <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
+    arraysBig <- IP.toList $ IP.arraysOf value $ sourceUnfoldrM value 0
+    value `seq` runMode (mode cfg) cfg benches
+        (allBenchmarks value arraysSmall arraysBig)
 
     where
 
-    allBenchmarks value arrays =
+    allBenchmarks value arraysSmall arraysBig =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
         , bgroup (o_1_space_prefix moduleName)
-            (o_1_space_serial_unfold value arrays)
-        , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_array value)
+            (o_1_space_serial_unfold value arraysSmall)
+        , bgroup (o_1_space_prefix moduleName)
+            (o_1_space_serial_array value arraysSmall arraysBig)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
