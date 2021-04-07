@@ -649,7 +649,7 @@ parseArray = do
             <*> chooseInt (0, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
             (ls1, str) <-
-                run $ S.parseArrayD
+                run $ ArrayStream.parse
                           (P.fromFold (FL.take tlen FL.toList))
                           (S.chunksOf clen (A.writeN clen) (S.fromList ls))
             ls2 <- run $ S.toList $ ArrayStream.concat str

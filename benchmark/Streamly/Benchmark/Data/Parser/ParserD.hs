@@ -28,6 +28,7 @@ import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -242,7 +243,7 @@ parseManyUnfoldArrays count arrays = do
 
 {-# INLINE parseArray #-}
 parseArray :: Int -> SerialT IO (Array.Array Int) -> IO ()
-parseArray value s = void $ IP.parseArrayD (drainWhile (< value)) s
+parseArray value s = void $ ArrayStream.parse (drainWhile (< value)) s
 
 -------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
