@@ -141,7 +141,7 @@ application (`&`) operator is enough.
 `consM` or its operator form `|:` can be used to construct a stream from
 monadic actions. A stream constructed with `consM` can run the monadic actions
 in the stream concurrently when used with appropriate stream type combinator
-(e.g. `asyncly`, `aheadly` or `parallely`).
+(e.g. `fromAsync`, `fromAhead` or `fromParallel`).
 
 The following code finishes in 3 seconds (6 seconds when serial), note the
 order of elements in the resulting output, the outputs are consumed as soon as
@@ -149,15 +149,15 @@ each action is finished (asyncly):
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.toList $ S.asyncly $ p 3 |: p 2 |: p 1 |: S.nil
+> S.toList $ S.fromAsync $ p 3 |: p 2 |: p 1 |: S.nil
 [1,2,3]
 ```
 
-Use `aheadly` if you want speculative concurrency i.e. execute the actions in
+Use `fromAhead` if you want speculative concurrency i.e. execute the actions in
 the stream concurrently but consume the results in the specified order:
 
 ``` haskell
-> S.toList $ S.aheadly $ p 3 |: p 2 |: p 1 |: S.nil
+> S.toList $ S.fromAhead $ p 3 |: p 2 |: p 1 |: S.nil
 [3,2,1]
 ```
 
@@ -167,7 +167,7 @@ Monadic stream generation functions e.g. `unfoldrM`, `replicateM`, `repeatM`,
 The following finishes in 10 seconds (100 seconds when serial):
 
 ``` haskell
-S.drain $ S.asyncly $ S.replicateM 10 $ p 10
+S.drain $ S.fromAsync $ S.replicateM 10 $ p 10
 ```
 
 ## Concurrency Auto Scaling
@@ -197,7 +197,7 @@ We can use `mapM` or `sequence` functions concurrently on a stream.
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.drain $ S.aheadly $ S.mapM (\x -> p 1 >> print x) (S.serially $ S.repeatM (p 1))
+> S.drain $ S.fromAhead $ S.mapM (\x -> p 1 >> print x) (S.fromSerial $ S.repeatM (p 1))
 ```
 
 ## Serial and Concurrent Merging
@@ -211,7 +211,7 @@ actions are concurrent we see one output printed every second:
 import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
 
-main = S.toList $ S.parallely $ foldMap delay [1..10]
+main = S.toList $ S.fromParallel $ foldMap delay [1..10]
  where delay n = S.yieldM $ threadDelay (n * 1000000) >> print n
 ```
 
@@ -242,7 +242,7 @@ ThreadId 36: Delay 1
 ### Parallel
 
 ``` haskell
-main = S.drain . S.parallely $ delay 3 <> delay 2 <> delay 1
+main = S.drain . S.fromParallel $ delay 3 <> delay 2 <> delay 1
 ```
 ```
 ThreadId 42: Delay 1
@@ -278,18 +278,18 @@ loop can run concurrently but the results are presented to the consumer of the
 output in the same order as serial execution:
 
 ``` haskell
-main = S.drain $ S.aheadly $ loops
+main = S.drain $ S.fromAhead $ loops
 ```
 
 Different stream types execute the loop iterations in different ways. For
-example, `wSerially` interleaves the loop iterations. There are several
+example, `fromWSerial` interleaves the loop iterations. There are several
 concurrent stream styles to execute the loop iterations concurrently in
 different ways, see the `Streamly.Tutorial` module for a detailed treatment.
 
 ## Magical Concurrency
 
 Streams can perform semigroup (<>) and monadic bind (>>=) operations
-concurrently using combinators like `asyncly`, `parallelly`. For example,
+concurrently using combinators like `fromAsync`, `parallelly`. For example,
 to concurrently generate squares of a stream of numbers and then concurrently
 sum the square roots of all combinations of two streams:
 
@@ -297,7 +297,7 @@ sum the square roots of all combinations of two streams:
 import qualified Streamly.Prelude as S
 
 main = do
-    s <- S.sum $ S.asyncly $ do
+    s <- S.sum $ S.fromAsync $ do
         -- Each square is performed concurrently, (<>) is concurrent
         x2 <- foldMap (\x -> return $ x * x) [1..100]
         y2 <- foldMap (\y -> return $ y * y) [1..100]
@@ -347,7 +347,7 @@ example, to print hello once every second you can simply write this:
 ``` haskell
 import Streamly.Prelude as S
 
-main = S.drain $ S.asyncly $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
+main = S.drain $ S.fromAsync $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
 ```
 
 For some practical uses of rate control, see

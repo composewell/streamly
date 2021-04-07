@@ -53,7 +53,7 @@
 --
 --     server spec addr =
 --           S.unfold SK.accept (maxListenQueue, spec, addr) -- SerialT IO Socket
---         & parallely . S.mapM (handleWithM echo)           -- SerialT IO ()
+--         & fromParallel . S.mapM (handleWithM echo)        -- SerialT IO ()
 --         & S.drain                                         -- IO ()
 --
 --     echo sk =

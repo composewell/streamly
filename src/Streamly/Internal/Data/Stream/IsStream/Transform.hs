@@ -350,13 +350,13 @@ foldrT f z s = S.foldrT f z (toStreamS s)
 -- abc
 --
 -- drain $ S.replicateM 10 (return 1)
---           & (serially . S.mapM (\\x -> threadDelay 1000000 >> print x))
+--           & (fromSerial . S.mapM (\\x -> threadDelay 1000000 >> print x))
 --
 -- drain $ S.replicateM 10 (return 1)
---           & (asyncly . S.mapM (\\x -> threadDelay 1000000 >> print x))
+--           & (fromAsync . S.mapM (\\x -> threadDelay 1000000 >> print x))
 -- @
 --
--- /Concurrent (do not use with 'parallely' on infinite streams)/
+-- /Concurrent (do not use with 'fromParallel' on infinite streams)/
 --
 -- @since 0.1.0
 {-# INLINE_EARLY mapM #-}
@@ -381,13 +381,13 @@ mapMSerial = Serial.mapM
 -- abc
 --
 -- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (serially . S.sequence)
+--           & (fromSerial . S.sequence)
 --
 -- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (asyncly . S.sequence)
+--           & (fromAsync . S.sequence)
 -- @
 --
--- /Concurrent (do not use with 'parallely' on infinite streams)/
+-- /Concurrent (do not use with 'fromParallel' on infinite streams)/
 --
 -- @since 0.1.0
 {-# INLINE sequence #-}
@@ -1432,7 +1432,7 @@ mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
 -- mapMaybeM f = S.map 'fromJust' . S.filter 'isJust' . S.mapM f
 -- @
 --
--- /Concurrent (do not use with 'parallely' on infinite streams)/
+-- /Concurrent (do not use with 'fromParallel' on infinite streams)/
 --
 -- @since 0.3.0
 {-# INLINE_EARLY mapMaybeM #-}

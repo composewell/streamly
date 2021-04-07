@@ -75,10 +75,10 @@ checkCleanupFold t op = do
 testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
 testFoldOpsCleanup name f = do
     let testOp op x = op x >> return Nothing
-    it (name <> " asyncly") $ checkCleanupFold S.asyncly (testOp f)
-    it (name <> " wAsyncly") $ checkCleanupFold S.wAsyncly (testOp f)
-    it (name <> " aheadly") $ checkCleanupFold S.aheadly (testOp f)
-    it (name <> " parallely") $ checkCleanupFold S.parallely (testOp f)
+    it (name <> " asyncly") $ checkCleanupFold S.fromAsync (testOp f)
+    it (name <> " wAsyncly") $ checkCleanupFold S.fromWAsync (testOp f)
+    it (name <> " aheadly") $ checkCleanupFold S.fromAhead (testOp f)
+    it (name <> " parallely") $ checkCleanupFold S.fromParallel (testOp f)
 #endif
 
 checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()

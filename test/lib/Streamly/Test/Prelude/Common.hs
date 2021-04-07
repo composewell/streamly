@@ -127,7 +127,7 @@ import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), serially)
+import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 #endif
@@ -807,22 +807,22 @@ bindAndComposeSimpleOps
 bindAndComposeSimpleOps desc eq t = do
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream serially/")
-        S.serially
+        S.fromSerial
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream wSerially/")
-        S.wSerially
+        S.fromWSerial
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream aheadly/")
-        S.aheadly
+        S.fromAhead
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream asyncly/")
-        S.asyncly
+        S.fromAsync
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream wAsyncly/")
-        S.wAsyncly
+        S.fromWAsync
     bindAndComposeSimple
         ("Bind and compose " <> desc <> " Stream parallely/")
-        S.parallely
+        S.fromParallel
 
     where
 
@@ -862,29 +862,29 @@ bindAndComposeHierarchyOps desc t1 = do
         fldrdesc = "Bind and compose foldr, " <> desc <> " Stream "
 
     bindAndComposeHierarchy
-        (fldldesc <> "serially") S.serially fldl
+        (fldldesc <> "serially") S.fromSerial fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "serially") S.serially fldr
+        (fldrdesc <> "serially") S.fromSerial fldr
     bindAndComposeHierarchy
-        (fldldesc <> "wSerially") S.wSerially fldl
+        (fldldesc <> "wSerially") S.fromWSerial fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "wSerially") S.wSerially fldr
+        (fldrdesc <> "wSerially") S.fromWSerial fldr
     bindAndComposeHierarchy
-        (fldldesc <> "aheadly") S.aheadly fldl
+        (fldldesc <> "aheadly") S.fromAhead fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "aheadly") S.aheadly fldr
+        (fldrdesc <> "aheadly") S.fromAhead fldr
     bindAndComposeHierarchy
-        (fldldesc <> "asyncly") S.asyncly fldl
+        (fldldesc <> "asyncly") S.fromAsync fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "asyncly") S.asyncly fldr
+        (fldrdesc <> "asyncly") S.fromAsync fldr
     bindAndComposeHierarchy
-        (fldldesc <> "wAsyncly") S.wAsyncly fldl
+        (fldldesc <> "wAsyncly") S.fromWAsync fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "wAsyncly") S.wAsyncly fldr
+        (fldrdesc <> "wAsyncly") S.fromWAsync fldr
     bindAndComposeHierarchy
-        (fldldesc <> "parallely") S.parallely fldl
+        (fldldesc <> "parallely") S.fromParallel fldl
     bindAndComposeHierarchy
-        (fldrdesc <> "parallely")  S.parallely fldr
+        (fldrdesc <> "parallely")  S.fromParallel fldr
 
   where
 
@@ -1002,7 +1002,7 @@ composeAndComposeSimpleSerially
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 composeAndComposeSimpleSerially desc answer t = do
-    describe (desc <> " and Serial <>") $ composeAndComposeSimple t S.serially answer
+    describe (desc <> " and Serial <>") $ composeAndComposeSimple t S.fromSerial answer
 
 composeAndComposeSimpleAheadly
     :: (IsStream t, Semigroup (t IO Int))
@@ -1011,7 +1011,7 @@ composeAndComposeSimpleAheadly
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 composeAndComposeSimpleAheadly desc answer t = do
-    describe (desc <> " and Ahead <>") $ composeAndComposeSimple t S.aheadly answer
+    describe (desc <> " and Ahead <>") $ composeAndComposeSimple t S.fromAhead answer
 
 composeAndComposeSimpleWSerially
     :: (IsStream t, Semigroup (t IO Int))
@@ -1020,7 +1020,7 @@ composeAndComposeSimpleWSerially
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 composeAndComposeSimpleWSerially desc answer t = do
-    describe (desc <> " and WSerial <>") $ composeAndComposeSimple t S.wSerially answer
+    describe (desc <> " and WSerial <>") $ composeAndComposeSimple t S.fromWSerial answer
 
 -------------------------------------------------------------------------------
 -- Semigroup operations
@@ -1579,7 +1579,7 @@ handleProp t vec =
             S.toList . t $
             S.handle
                 (\(ExampleException i) -> read i `S.cons` S.fromList vec)
-                (S.serially $ S.fromList vec <> throwM (ExampleException "0"))
+                (S.fromSerial $ S.fromList vec <> throwM (ExampleException "0"))
         assert $ res == vec ++ [0] ++ vec
 
 exceptionOps ::
@@ -1629,16 +1629,16 @@ composeWithMonadThrow t = do
     it "Compose nil, throwM" $
         try (tl (S.nil <> throwM (ExampleException "E")))
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
-    oneLevelNestedSum "serially" S.serially
-    oneLevelNestedSum "wSerially" S.wSerially
-    oneLevelNestedSum "asyncly" S.asyncly
-    oneLevelNestedSum "wAsyncly" S.wAsyncly
+    oneLevelNestedSum "serially" S.fromSerial
+    oneLevelNestedSum "wSerially" S.fromWSerial
+    oneLevelNestedSum "asyncly" S.fromAsync
+    oneLevelNestedSum "wAsyncly" S.fromWAsync
     -- XXX add two level nesting
 
-    oneLevelNestedProduct "serially" S.serially
-    oneLevelNestedProduct "wSerially" S.wSerially
-    oneLevelNestedProduct "asyncly" S.asyncly
-    oneLevelNestedProduct "wAsyncly"  S.wAsyncly
+    oneLevelNestedProduct "serially" S.fromSerial
+    oneLevelNestedProduct "wSerially" S.fromWSerial
+    oneLevelNestedProduct "asyncly" S.fromAsync
+    oneLevelNestedProduct "wAsyncly"  S.fromWAsync
 
     where
     tl = S.toList . t
@@ -1673,7 +1673,7 @@ checkCleanup :: IsStream t
     -> IO ()
 checkCleanup d t op = do
     r <- newIORef (-1 :: Int)
-    S.drain . serially $ do
+    S.drain . fromSerial $ do
         _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
         return ()
     performMajorGC
@@ -1701,7 +1701,7 @@ takeCombined n t = do
 
 folded :: IsStream t => [a] -> t IO a
 folded =
-    serially .
+    fromSerial .
     (\xs ->
          case xs of
              [x] -> return x -- singleton stream case

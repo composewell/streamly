@@ -82,8 +82,8 @@ basePort = 64000
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    Stream.serially (Stream.unfold TCP.acceptOnPort port)
-        & Stream.asyncly . Stream.mapM (Socket.handleWithM handler)
+    Stream.fromSerial (Stream.unfold TCP.acceptOnPort port)
+        & Stream.fromAsync . Stream.mapM (Socket.handleWithM handler)
         & Stream.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)

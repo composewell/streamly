@@ -206,10 +206,10 @@ func = S.mapM (\x -> threadDelay 1000000 >> print x) $ S.replicate 10 1
 main = runStream func
 ```
 
-To run it concurrently, just run the same code with `asyncly` combinator:
+To run it concurrently, just run the same code with `fromAsync` combinator:
 
 ```haskell
-main = runStream $ asyncly func
+main = runStream $ fromAsync func
 ```
 
 The `mapM` combinator now maps the monadic delay action concurrently on all the
@@ -217,7 +217,7 @@ stream elements.  It prints all the 10 elements after one second because all
 the delay actions run concurrently. Alternatively we can write:
 
 ```
-func = S.mapM $ asyncly $ S.replicateM (threadDelay 1000000 >> print 1)
+func = S.mapM $ fromAsync $ S.replicateM (threadDelay 1000000 >> print 1)
 main = runStream func
 ```
 

@@ -27,7 +27,7 @@ import Streamly.Prelude (SerialT, IsStream)
 import qualified Streamly.Prelude as S
 
 toListSerial :: SerialT IO a -> IO [a]
-toListSerial = S.toList . S.serially
+toListSerial = S.toList . S.fromSerial
 
 -- XXX need to test that we have promptly cleaned up everything after the error
 -- XXX We can also check the output that we are expected to get before the
@@ -82,14 +82,14 @@ mixedOps =
         let x = 1
         let y = 2
         z <- do
-                x1 <- S.wAsyncly $ return 1 <> return 2
+                x1 <- S.fromWAsync $ return 1 <> return 2
                 S.yieldM $ return ()
                 S.yieldM $ putStr ""
-                y1 <- S.asyncly $ return 1 <> return 2
+                y1 <- S.fromAsync $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
-                    y11 <- S.asyncly $ return 1 <> return 2
-                    z11 <- S.wSerially $ return 1 <> return 2
+                    y11 <- S.fromAsync $ return 1 <> return 2
+                    z11 <- S.fromWSerial $ return 1 <> return 2
                     S.yieldM $ return ()
                     S.yieldM $ putStr ""
                     return (x11 + y11 + z11)
@@ -112,14 +112,14 @@ mixedOpsAheadly =
         let x = 1
         let y = 2
         z <- do
-                x1 <- S.wAsyncly $ return 1 <> return 2
+                x1 <- S.fromWAsync $ return 1 <> return 2
                 S.yieldM $ return ()
                 S.yieldM $ putStr ""
-                y1 <- S.aheadly $ return 1 <> return 2
+                y1 <- S.fromAhead $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
-                    y11 <- S.aheadly $ return 1 <> return 2
-                    z11 <- S.parallely $ return 1 <> return 2
+                    y11 <- S.fromAhead $ return 1 <> return 2
+                    z11 <- S.fromParallel $ return 1 <> return 2
                     S.yieldM $ return ()
                     S.yieldM $ putStr ""
                     return (x11 + y11 + z11)
@@ -139,7 +139,7 @@ nestedLoops = S.drain $ do
     where
 
     -- we can just use
-    -- parallely $ mconcat $ replicate n $ yieldM (...)
+    -- fromParallel $ mconcat $ replicate n $ yieldM (...)
     loop :: String -> Int -> SerialT IO String
     loop name n = do
         rnd <- S.yieldM (randomIO :: IO Int)
@@ -159,7 +159,7 @@ parallelLoops = do
     where
 
     -- we can just use
-    -- parallely $ cycle1 $ yieldM (...)
+    -- fromParallel $ cycle1 $ yieldM (...)
     loop :: String -> SerialT IO (String, Int)
     loop name = do
         S.yieldM $ threadDelay 1000000
@@ -176,14 +176,14 @@ main :: IO ()
 main = hspec $ H.parallel $ do
   describe moduleName $ do
     describe "Miscellaneous combined examples" mixedOps
-    describe "Miscellaneous combined examples aheadly" mixedOpsAheadly
+    describe "Miscellaneous combined examples fromAhead" mixedOpsAheadly
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
     it "Nested loops" nestedLoops
     it "Parallel loops" parallelLoops
     {-
-    describe "Composed MonadError serially" $ composeWithMonadError serially
-    describe "Composed MonadError wSerially" $ composeWithMonadError wSerially
-    describe "Composed MonadError asyncly" $ composeWithMonadError asyncly
-    describe "Composed MonadError wAsyncly" $ composeWithMonadError wAsyncly
+    describe "Composed MonadError fromSerial" $ composeWithMonadError fromSerial
+    describe "Composed MonadError fromWSerial" $ composeWithMonadError fromWSerial
+    describe "Composed MonadError fromAsync" $ composeWithMonadError fromAsync
+    describe "Composed MonadError fromWAsync" $ composeWithMonadError fromWAsync
     -}

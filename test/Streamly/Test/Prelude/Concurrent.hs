@@ -282,7 +282,7 @@ stateCompOp
 stateCompOp op = do
     -- Each task in a concurrent composition inherits the state and maintains
     -- its own modifications to it, not affecting the parent computation.
-    asyncly (snapshot `op` (modify (+1) >> (snapshot1 `op` snapshot2)))
+    fromAsync (snapshot `op` (modify (+1) >> (snapshot1 `op` snapshot2)))
     -- The above modify statement does not affect our state because that is
     -- used in a parallel composition. In a serial composition it will affect
     -- our state.
@@ -299,8 +299,8 @@ checkMonadicStateTransfer op = evalStateT str (0 :: Int)
     str =
         S.drain $
         maxBuffer 1 $
-        (serially $ S.mapM snapshoti $ S.fromList [1..10]) `op`
-        (serially $ S.mapM snapshoti $ S.fromList [1..10])
+        (fromSerial $ S.mapM snapshoti $ S.fromList [1..10]) `op`
+        (fromSerial $ S.mapM snapshoti $ S.fromList [1..10])
     snapshoti y = do
         modify (+ 1)
         x <- get
@@ -335,22 +335,22 @@ main = hspec
   $ describe moduleName $ do
     -- We can have these in Test.Prelude, but I think it's unnecessary.
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
-        serialOps spec = mapOps spec $ makeOps serially
+        serialOps spec = mapOps spec $ makeOps fromSerial
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
-            <> [("maxBuffer -1", serially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromSerial . avgRate 0.00000001)]
+            <> [("maxBuffer -1", fromSerial . maxBuffer (-1))]
 #endif
 
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
-        aheadOps spec = mapOps spec $ makeOps aheadly
+        aheadOps spec = mapOps spec $ makeOps fromAhead
 #ifndef COVERAGE_BUILD
-              <> [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
+              <> [("maxBuffer (-1)", fromAhead . maxBuffer (-1))]
 #endif
 
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
-        asyncOps spec = mapOps spec $ makeOps asyncly
+        asyncOps spec = mapOps spec $ makeOps fromAsync
 #ifndef COVERAGE_BUILD
-            <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
+            <> [("maxBuffer (-1)", fromAsync . maxBuffer (-1))]
 #endif
 
     -- For concurrent application test we need a buffer of at least size 2 to
@@ -373,14 +373,14 @@ main = hspec
 #endif
         parallelCommonOps = []
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", parallely . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromParallel . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", fromParallel . maxBuffer (-1))]
 #endif
 
     let parallelConcurrentAppOps :: IsStream t
             => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelConcurrentAppOps spec =
-            mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
+            mapOps spec $ makeConcurrentAppOps fromParallel <> parallelCommonOps
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
@@ -402,15 +402,15 @@ main = hspec
 
     let forOps ops spec = forM_ ops (\(desc, f) -> describe desc $ spec f)
     describe "Stream concurrent operations" $ do
-        forOps (mkOps aheadly)   $ concurrentOps S.fromFoldable "aheadly" (==)
-        forOps (mkOps asyncly)   $ concurrentOps S.fromFoldable "asyncly" sortEq
-        forOps (mkOps wAsyncly)  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
-        forOps (mkOps parallely) $ concurrentOps S.fromFoldable "parallely" sortEq
+        forOps (mkOps fromAhead)   $ concurrentOps S.fromFoldable "aheadly" (==)
+        forOps (mkOps fromAsync)   $ concurrentOps S.fromFoldable "asyncly" sortEq
+        forOps (mkOps fromWAsync)  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
+        forOps (mkOps fromParallel) $ concurrentOps S.fromFoldable "parallely" sortEq
 
-        forOps (mkOps aheadly)   $ concurrentOps folded "aheadly folded" (==)
-        forOps (mkOps asyncly)   $ concurrentOps folded "asyncly folded" sortEq
-        forOps (mkOps wAsyncly)  $ concurrentOps folded "wAsyncly folded" sortEq
-        forOps (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
+        forOps (mkOps fromAhead)   $ concurrentOps folded "aheadly folded" (==)
+        forOps (mkOps fromAsync)   $ concurrentOps folded "asyncly folded" sortEq
+        forOps (mkOps fromWAsync)  $ concurrentOps folded "wAsyncly folded" sortEq
+        forOps (mkOps fromParallel) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
         serialOps $ prop "serial" . concurrentApplication (==)
@@ -425,9 +425,9 @@ main = hspec
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
 
-    describe "take on infinite concurrent stream" $ takeInfinite asyncly
-    describe "take on infinite concurrent stream" $ takeInfinite wAsyncly
-    describe "take on infinite concurrent stream" $ takeInfinite aheadly
+    describe "take on infinite concurrent stream" $ takeInfinite fromAsync
+    describe "take on infinite concurrent stream" $ takeInfinite fromWAsync
+    describe "take on infinite concurrent stream" $ takeInfinite fromAhead
 
     ---------------------------------------------------------------------------
     -- Monadic state transfer in concurrent tasks
@@ -448,21 +448,21 @@ main = hspec
 
     describe "Monadic state snapshot in concurrent tasks" $ do
         it "asyncly maintains independent states in concurrent tasks"
-            (monadicStateSnapshot asyncly)
+            (monadicStateSnapshot fromAsync)
         it "asyncly limited maintains independent states in concurrent tasks"
-            (monadicStateSnapshot (asyncly . S.take 10000))
+            (monadicStateSnapshot (fromAsync . S.take 10000))
 
         it "wAsyncly maintains independent states in concurrent tasks"
-            (monadicStateSnapshot wAsyncly)
+            (monadicStateSnapshot fromWAsync)
         it "wAsyncly limited maintains independent states in concurrent tasks"
-            (monadicStateSnapshot (wAsyncly . S.take 10000))
+            (monadicStateSnapshot (fromWAsync . S.take 10000))
 
         it "aheadly maintains independent states in concurrent tasks"
-            (monadicStateSnapshot aheadly)
+            (monadicStateSnapshot fromAhead)
         it "aheadly limited maintains independent states in concurrent tasks"
-            (monadicStateSnapshot (aheadly . S.take 10000))
+            (monadicStateSnapshot (fromAhead . S.take 10000))
         it "parallely maintains independent states in concurrent tasks"
-            (monadicStateSnapshot parallely)
+            (monadicStateSnapshot fromParallel)
 
 
         it "async maintains independent states in concurrent tasks"
@@ -483,22 +483,22 @@ main = hspec
     ---------------------------------------------------------------------------
 
     it "asyncly crosses thread limit (2000 threads)" $
-        S.drain (asyncly $ fold $
+        S.drain (fromAsync $ fold $
                    replicate 2000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
     it "aheadly crosses thread limit (4000 threads)" $
-        S.drain (aheadly $ fold $
+        S.drain (fromAhead $ fold $
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
 #ifdef DEVBUILD
     describe "restricts concurrency and cleans up extra tasks" $ do
-        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
-        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
-        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
+        it "take 1 asyncly" $ checkCleanup 2 fromAsync (S.take 1)
+        it "take 1 wAsyncly" $ checkCleanup 2 fromWAsync (S.take 1)
+        it "take 1 aheadly" $ checkCleanup 2 fromAhead (S.take 1)
 
-        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
+        it "takeWhile (< 0) asyncly" $ checkCleanup 2 fromAsync (S.takeWhile (< 0))
+        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 fromWAsync (S.takeWhile (< 0))
+        it "takeWhile (< 0) aheadly" $ checkCleanup 2 fromAhead (S.takeWhile (< 0))
 #endif

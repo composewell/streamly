@@ -51,9 +51,9 @@ main = hspec
 #endif
   $ describe moduleName $ do
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
-        aheadOps spec = mapOps spec $ makeOps S.aheadly
+        aheadOps spec = mapOps spec $ makeOps S.fromAhead
 #ifndef COVERAGE_BUILD
-              <> [("maxBuffer (-1)", S.aheadly . S.maxBuffer (-1))]
+              <> [("maxBuffer (-1)", S.fromAhead . S.maxBuffer (-1))]
 #endif
 
     describe "Construction" $ do
@@ -70,19 +70,19 @@ main = hspec
     describe "Monoid operations" $ do
         aheadOps     $ monoidOps "aheadly" mempty (==)
 
-    describe "Ahead loops" $ loops S.aheadly id reverse
+    describe "Ahead loops" $ loops S.fromAhead id reverse
 
     describe "Bind and Monoidal composition combinations" $ do
         aheadOps $ bindAndComposeSimpleOps "Ahead" sortEq
         aheadOps $ bindAndComposeHierarchyOps "Ahead"
         aheadOps $ nestTwoStreams "Ahead" id id
         aheadOps $ nestTwoStreamsApp "Ahead" id id
-        composeAndComposeSimpleSerially "Ahead <> " (repeat [1..9]) S.aheadly
-        composeAndComposeSimpleAheadly "Ahead <> " (repeat [1 .. 9]) S.aheadly
+        composeAndComposeSimpleSerially "Ahead <> " (repeat [1..9]) S.fromAhead
+        composeAndComposeSimpleAheadly "Ahead <> " (repeat [1 .. 9]) S.fromAhead
         composeAndComposeSimpleWSerially
             "Ahead <> "
             [[1..9], [1..9], [1,3,2,4,6,5,7,9,8], [1,3,2,4,6,5,7,9,8]]
-            S.aheadly
+            S.fromAhead
 
     describe "Semigroup operations" $ do
         aheadOps $ semigroupOps "aheadly" (==)
@@ -132,7 +132,7 @@ main = hspec
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
 
     describe "Tests for exceptions" $ aheadOps $ exceptionOps "aheadly"
-    describe "Composed MonadThrow aheadly" $ composeWithMonadThrow S.aheadly
+    describe "Composed MonadThrow aheadly" $ composeWithMonadThrow S.fromAhead
 
     -- Ad-hoc tests
-    it "takes n from stream of streams" $ takeCombined 1 S.aheadly
+    it "takes n from stream of streams" $ takeCombined 1 S.fromAhead

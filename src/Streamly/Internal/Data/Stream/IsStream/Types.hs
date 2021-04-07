@@ -45,14 +45,14 @@ module Streamly.Internal.Data.Stream.IsStream.Types
     -- * Stream Type Adapters
     , IsStream ()
 
-    , serially
-    , wSerially
-    , asyncly
-    , aheadly
-    , wAsyncly
-    , parallely
-    , zipSerially
-    , zipAsyncly
+    , fromSerial
+    , fromWSerial
+    , fromAsync
+    , fromAhead
+    , fromWAsync
+    , fromParallel
+    , fromZipSerial
+    , fromZipAsync
     , adapt
 
     -- * Type Synonyms
@@ -60,15 +60,15 @@ module Streamly.Internal.Data.Stream.IsStream.Types
     )
 where
 
-import Streamly.Internal.Data.Stream.Ahead (AheadT, Ahead, aheadly)
+import Streamly.Internal.Data.Stream.Ahead (AheadT, Ahead, fromAhead)
 import Streamly.Internal.Data.Stream.Async
-       ( AsyncT, Async, WAsyncT, WAsync, mkAsync, asyncly
-       , wAsyncly)
-import Streamly.Internal.Data.Stream.Parallel (ParallelT, Parallel, parallely)
+       ( AsyncT, Async, WAsyncT, WAsync, mkAsync, fromAsync
+       , fromWAsync)
+import Streamly.Internal.Data.Stream.Parallel (ParallelT, Parallel, fromParallel)
 import Streamly.Internal.Data.Stream.Serial
-       ( SerialT, WSerialT, Serial, WSerial, serially
-       , wSerially)
+       ( SerialT, WSerialT, Serial, WSerial, fromSerial
+       , fromWSerial)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(), adapt)
 import Streamly.Internal.Data.Stream.Zip
-       (ZipSerialM, ZipSerial, ZipAsyncM, ZipAsync, zipSerially, zipAsyncly)
+       (ZipSerialM, ZipSerial, ZipAsyncM, ZipAsync, fromZipSerial, fromZipAsync)
 import Streamly.Internal.Data.SVar (MonadAsync)

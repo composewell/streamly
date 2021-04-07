@@ -19,7 +19,7 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Gauge
-import Streamly.Prelude (SerialT, serially)
+import Streamly.Prelude (SerialT, fromSerial)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (reverse, tail)
@@ -55,8 +55,8 @@ withState value n =
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =
     [ bgroup "hoisting"
-        [ benchIOSrc serially "evalState" (evalStateT value)
-        , benchIOSrc serially "withState" (withState value)
+        [ benchIOSrc fromSerial "evalState" (evalStateT value)
+        , benchIOSrc fromSerial "withState" (withState value)
         ]
     ]
 

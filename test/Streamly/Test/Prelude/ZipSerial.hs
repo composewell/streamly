@@ -32,10 +32,10 @@ main = hspec
   $ describe moduleName $ do
     let zipSerialOps :: IsStream t
             => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
-        zipSerialOps spec = mapOps spec $ makeOps zipSerially
+        zipSerialOps spec = mapOps spec $ makeOps fromZipSerial
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
-            <> [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromZipSerial . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", fromZipSerial . maxBuffer (-1))]
 #endif
 
     describe "Functor operations" $ do

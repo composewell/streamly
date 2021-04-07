@@ -258,7 +258,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- combinators or type annotations, without any cost, to achieve the desired
 -- composition style.  To force a particular type of composition, we coerce the
 -- stream type using the corresponding type adapting combinator from
--- 'serially', 'aheadly', 'asyncly', or 'parallely'.  The default stream type
+-- 'fromSerial', 'fromAhead', 'fromAsync', or 'fromParallel'.  The default stream type
 -- is inferred as 'Serial' unless you change it by using one of the combinators
 -- or by using a type annotation.
 
@@ -308,11 +308,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrent. Please be aware that all concurrency capable APIs that you may
 -- have used under the scope of a concurrent stream combinator will become
 -- concurrent. For example if you have a 'repeatM' somewhere in your program
--- and you use 'parallely' on top, the 'repeatM' becomes fully parallel,
+-- and you use 'fromParallel' on top, the 'repeatM' becomes fully parallel,
 -- resulting into an infinite parallel execution . Instead, use the
 -- /Keep It Serial and Stupid/ principle, start with the default serial
 -- composition and enable concurrent combinators only when and where necessary.
--- When you use a concurrent combinator you can use an explicit 'serially'
+-- When you use a concurrent combinator you can use an explicit 'fromSerial'
 -- combinator to suppress any unnecessary concurrency under the scope of that
 -- combinator.
 
@@ -412,17 +412,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
 -- > :set +s
--- > S.'toList' $ S.'parallely' $ p 3 |: p 2 |: p 1 |: S.'nil'
+-- > S.'toList' $ S.'fromParallel' $ p 3 |: p 2 |: p 1 |: S.'nil'
 -- [1,2,3]
 -- (3.01 secs, 2,018,432 bytes)
--- > S.'toList' $ S.'aheadly' $ p 3 |: p 2 |: p 1 |: S.'nil'
+-- > S.'toList' $ S.'fromAhead' $ p 3 |: p 2 |: p 1 |: S.'nil'
 -- [3,2,1]
 -- (3.01 secs, 2,055,880 bytes)
 -- @
 -- The following finishes in 10 seconds (100 seconds when serial):
 --
 -- @
--- > S.'drain' $ S.'asyncly' $ S.'replicateM' 10 $ p 10
+-- > S.'drain' $ S.'fromAsync' $ S.'replicateM' 10 $ p 10
 -- (10.01 secs, 2,080,320 bytes)
 -- @
 --
@@ -484,7 +484,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
--- > S.'drain' $ S.'aheadly' $ S.'mapM' (\\x -> p 1 >> print x) (S.'serially' $ S.'repeatM' (p 1))
+-- > S.'drain' $ S.'fromAhead' $ S.'mapM' (\\x -> p 1 >> print x) (S.'fromSerial' $ S.'repeatM' (p 1))
 -- @
 --
 
@@ -538,7 +538,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $serial
 --
 -- The 'Semigroup' operation '<>' of the 'Serial' type combines the two streams
--- in a /serial depth first/ manner. We use the 'serially' type combinator to
+-- in a /serial depth first/ manner. We use the 'fromSerial' type combinator to
 -- effect 'Serial' style of composition. We can also use an explicit 'Serial'
 -- type annotation for the stream to achieve the same effect.  However, since
 -- 'Serial' is the default type unless explicitly specified by using a
@@ -587,7 +587,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $interleaved
 --
 -- The 'Semigroup' operation '<>' of the 'WSerial' type combines the two
--- streams in a /serial breadth first/ manner. We use the 'wSerially' type
+-- streams in a /serial breadth first/ manner. We use the 'fromWSerial' type
 -- combinator to effect 'WSerial' style of composition. We can also use the
 -- 'WSerial' type annotation for the stream to achieve the same effect.
 --
@@ -598,7 +598,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The following example prints the sequence 1, 3, 2, 4
 --
 -- @
--- main = S.'drain' . S.'wSerially' $ (print 1 |: print 2 |: S.'nil') <> (print 3 |: print 4 |: S.'nil')
+-- main = S.'drain' . S.'fromWSerial' $ (print 1 |: print 2 |: S.'nil') <> (print 3 |: print 4 |: S.'nil')
 -- @
 -- @
 -- 1
@@ -613,7 +613,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
--- main = S.'drain' . S.'wSerially' $ delay 3 <> delay 2 <> delay 1
+-- main = S.'drain' . S.'fromWSerial' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -623,7 +623,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- The polymorphic version of the 'WSerial' binary operation '<>' is called
 -- 'wSerial'. We can use 'wSerial' to join streams in an interleaved manner
--- irrespective of the type, notice that we have not used the 'wSerially'
+-- irrespective of the type, notice that we have not used the 'fromWSerial'
 -- combinator in the following example:
 --
 -- @
@@ -642,7 +642,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $ahead
 --
 -- The 'Semigroup' operation '<>' of the 'Ahead' type combines two streams in a
--- /serial depth first/ manner with concurrent lookahead. We use the 'aheadly'
+-- /serial depth first/ manner with concurrent lookahead. We use the 'fromAhead'
 -- type combinator to effect 'Ahead' style of composition. We can also use an
 -- explicit 'Ahead' type annotation for the stream to achieve the same effect.
 --
@@ -657,7 +657,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---  xs \<- S.'toList' . S.'aheadly' $ (p 1 |: p 2 |: S.nil) <> (p 3 |: p 4 |: S.nil)
+--  xs \<- S.'toList' . S.'fromAhead' $ (p 1 |: p 2 |: S.nil) <> (p 3 |: p 4 |: S.nil)
 --  print xs
 --  where p n = threadDelay 1000000 >> return n
 -- @
@@ -676,7 +676,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- The 'Semigroup' operation '<>' of the 'Async' type combines the two
 -- streams in a depth first manner with parallel look ahead. We use the
--- 'asyncly' type combinator to effect 'Async' style of composition. We
+-- 'fromAsync' type combinator to effect 'Async' style of composition. We
 -- can also use the 'Async' type annotation for the stream type to achieve
 -- the same effect.
 --
@@ -694,7 +694,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- S.'toList' . S.'asyncly' $ (p 1 |: p 2 |: S.'nil') <> (p 3 |: p 4 |: S.'nil')
+--   xs \<- S.'toList' . S.'fromAsync' $ (p 1 |: p 2 |: S.'nil') <> (p 3 |: p 4 |: S.'nil')
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -709,7 +709,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- S.'toList' . S.'asyncly' $ (S.'serially' $ p 1 |: p 2 |: S.'nil') <> (serially $ p 3 |: p 4 |: S.'nil')
+--   xs \<- S.'toList' . S.'fromAsync' $ (S.'fromSerial' $ p 1 |: p 2 |: S.'nil') <> (fromSerial $ p 3 |: p 4 |: S.'nil')
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -723,7 +723,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- (3, 2, 1) = 3@ seconds:
 --
 -- @
--- main = S.'drain' . S.'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
+-- main = S.'drain' . S.'fromAsync' $ delay 3 '<>' delay 2 '<>' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -742,7 +742,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- second as all of the actions are concurrent.
 --
 -- @
--- main = S.'drain' . S.'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
+-- main = S.'drain' . S.'fromAsync' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
 -- @
 -- @
 -- 1
@@ -759,7 +759,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- even if none of them blocks:
 --
 -- @
--- main = S.'drain' . S.'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
+-- main = S.'drain' . S.'fromAsync' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
 --  where traced m = S.'yieldM' (myThreadId >>= print) >> return m
 -- @
 -- @
@@ -774,7 +774,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The polymorphic version of the 'Async' binary operation '<>' is called
 -- 'async'. We can use 'async' to join streams in a left biased
 -- adaptively concurrent manner irrespective of the type, notice that we have
--- not used the 'asyncly' combinator in the following example:
+-- not used the 'fromAsync' combinator in the following example:
 --
 -- @
 -- main = S.'drain' $ delay 3 \`S.'async'` delay 2 \`S.'async'` delay 1
@@ -805,7 +805,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $wasync
 --
 -- The 'Semigroup' operation '<>' of the 'WAsync' type combines two streams in
--- a concurrent manner using /breadth first traversal/. We use the 'wAsyncly'
+-- a concurrent manner using /breadth first traversal/. We use the 'fromWAsync'
 -- type combinator to effect 'WAsync' style of composition. We can also use the
 -- 'WAsync' type annotation for the stream to achieve the same effect.
 --
@@ -820,7 +820,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- first traversal order but this is not guaranteed.
 --
 -- @
--- main = S.'drain' . S.'wAsyncly' $ (S.'serially' $ print 1 |: print 2 |: S.'nil') <> (S.'serially' $ print 3 |: print 4 |: S.'nil')
+-- main = S.'drain' . S.'fromWAsync' $ (S.'fromSerial' $ print 1 |: print 2 |: S.'nil') <> (S.'fromSerial' $ print 3 |: print 4 |: S.'nil')
 -- @
 -- @
 -- 1
@@ -832,7 +832,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The polymorphic version of the binary operation '<>' of the 'WAsync' type is
 -- 'wAsync'.  We can use 'wAsync' to join streams using a breadth first
 -- concurrent traversal irrespective of the type, notice that we have not used
--- the 'wAsyncly' combinator in the following example:
+-- the 'fromWAsync' combinator in the following example:
 --
 -- @
 -- main = S.'drain' $ delay 3 \S.`wAsync` delay 2 \S.`wAsync` delay 1
@@ -856,7 +856,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- The 'Semigroup' operation '<>' of the 'Parallel' type combines the two
 -- streams in a fairly concurrent manner with round robin scheduling. We use
--- the 'parallely' type combinator to effect 'Parallel' style of composition.
+-- the 'fromParallel' type combinator to effect 'Parallel' style of composition.
 -- We can also use the 'Parallel' type annotation for the stream type to
 -- achieve the same effect.
 --
@@ -877,7 +877,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streamly.Prelude as S
 -- import Network.HTTP.Simple
 --
--- main = S.'drain' . S.'parallely' $ google \<> bing \<> duckduckgo
+-- main = S.'drain' . S.'fromParallel' $ google \<> bing \<> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -888,7 +888,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The polymorphic version of the binary operation '<>' of the 'Parallel' type
 -- is 'parallel'. We can use 'parallel' to join streams in a fairly concurrent
 -- manner irrespective of the type, notice that we have not used the
--- 'parallely' combinator in the following example:
+-- 'fromParallel' combinator in the following example:
 --
 -- @
 -- main = S.'drain' $ delay 3 \`S.'parallel'` delay 2 \`S.'wAsync'` delay 1
@@ -937,7 +937,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Control.Concurrent
 --
 -- main = do
---  S.'drain' $ S.'asyncly' $ foldMap delay [1..10]
+--  S.'drain' $ S.'fromAsync' $ foldMap delay [1..10]
 --  S.'drain' $ S.'concatFoldableWith' S.'async' (map delay [1..10])
 --  S.'drain' $ S.'concatMapFoldableWith' S.'async' delay [1..10]
 --  S.'drain' $ S.'concatForFoldableWith' S.'async' [1..10] delay
@@ -976,7 +976,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- The 'Monad' composition of the 'Serial' type behaves like a standard list
 -- transformer. This is the default when we do not use an explicit type
--- combinator. However, the 'serially' type combinator can be used to switch to
+-- combinator. However, the 'fromSerial' type combinator can be used to switch to
 -- this style of composition. We will see how this style of composition works
 -- in the following examples.
 --
@@ -1043,14 +1043,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- that it can speculatively perform a bounded number of next iterations of a
 -- loop concurrently.
 --
--- The 'aheadly' type combinator can be used to switch to this style of
+-- The 'fromAhead' type combinator can be used to switch to this style of
 -- composition. Alternatively, a type annotation can be used to specify the
 -- type of the stream as 'Ahead'.
 --
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- comp = S.'toList' . S.'aheadly' $ do
+-- comp = S.'toList' . S.'fromAhead' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x >> return x
 --
@@ -1083,14 +1083,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- exactly the same way as the merging of two streams 'asyncly' works.
 -- This is the concurrent analogue of 'Serial' style monadic composition.
 --
--- The 'asyncly' type combinator can be used to switch to this style of
+-- The 'fromAsync' type combinator can be used to switch to this style of
 -- composition. Alternatively, a type annotation can be used to specify the
 -- type of the stream as 'Async'.
 --
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . S.'asyncly' $ do
+-- main = S.'drain' . S.'fromAsync' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1116,7 +1116,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . S.'asyncly' $ do
+-- main = S.'drain' . S.'fromAsync' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1133,14 +1133,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The 'Monad' composition of 'WSerial' type interleaves the iterations of
 -- outer and inner loops in a nested loop composition. This works exactly the
 -- same way as the merging of two streams in 'wSerially' fashion works.  The
--- 'wSerially' type combinator can be used to switch to this style of
+-- 'fromWSerial' type combinator can be used to switch to this style of
 -- composition. Alternatively, a type annotation can be used to specify the
 -- type of the stream as 'WSerial'.
 --
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . S.'wSerially' $ do
+-- main = S.'drain' . S.'fromWSerial' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.yieldM $ putStrLn $ show (x, y)
@@ -1160,14 +1160,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- nested loops in this type are traversed and executed in a breadth first
 -- manner rather than the depth first manner of 'Async' style.
 -- The loop nesting works exactly the same way as the merging of streams
--- 'wAsyncly' works.  The 'wAsyncly' type combinator can be used to switch to
+-- 'wAsyncly' works.  The 'fromWAsync' type combinator can be used to switch to
 -- this style of composition. Alternatively, a type annotation can be used to
 -- specify the type of the stream as 'WAsync'.
 --
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . S.'wAsyncly' $ do
+-- main = S.'drain' . S.'fromWAsync' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1185,14 +1185,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- iterations of a loop concurrently. The difference is in the nested loop
 -- behavior. The streams at each nest level is run fully concurrently
 -- irrespective of the demand.  The loop nesting works exactly the same way as
--- the merging of streams 'parallely' works.  The 'parallely' type combinator
+-- the merging of streams 'parallely' works.  The 'fromParallel' type combinator
 -- can be used to switch to this style of composition. Alternatively, a type
 -- annotation can be used to specify the type of the stream as 'Parallel'.
 --
 -- @
 -- import qualified "Streamly.Prelude" as S
 --
--- main = S.'drain' . S.'parallely' $ do
+-- main = S.'drain' . S.'fromParallel' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1229,11 +1229,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = S.'drain' . S.'serially'  $ composed
--- main = S.'drain' . S.'wSerially' $ composed
--- main = S.'drain' . S.'asyncly'   $ composed
--- main = S.'drain' . S.'wAsyncly'  $ composed
--- main = S.'drain' . S.'parallely' $ composed
+-- main = S.'drain' . S.'fromSerial'  $ composed
+-- main = S.'drain' . S.'fromWSerial' $ composed
+-- main = S.'drain' . S.'fromAsync'   $ composed
+-- main = S.'drain' . S.'fromWAsync'  $ composed
+-- main = S.'drain' . S.'fromParallel' $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of
@@ -1271,7 +1271,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- s2 = d 3 <> d 4
 -- d n = delay n >> return n
 --
--- main = (S.'toList' . S.'serially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'fromSerial' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -1287,7 +1287,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- order but since it is serial it takes a total of 17 seconds:
 --
 -- @
--- main = (S.'toList' . S.'wSerially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'fromWSerial' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -1303,7 +1303,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- of 6 seconds which is max (1, 2) + max (3, 4):
 --
 -- @
--- main = (S.'toList' . S.'asyncly' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'fromAsync' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -1319,7 +1319,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- therefore takes a total of 6 seconds (2 + 4):
 --
 -- @
--- main = (S.'toList' . S.'wAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'fromWAsync' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -1343,7 +1343,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $serialzip
 --
 -- The applicative instance of 'ZipSerial' type zips streams serially.
--- 'zipSerially' type combinator can be used to switch to serial applicative
+-- 'fromZipSerial' type combinator can be used to switch to serial applicative
 -- zip composition:
 --
 -- @
@@ -1351,10 +1351,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Control.Concurrent
 --
 -- d n = delay n >> return n
--- s1 = S.'serially' $ d 1 <> d 2
--- s2 = S.'serially' $ d 3 <> d 4
+-- s1 = S.'fromSerial' $ d 1 <> d 2
+-- s2 = S.'fromSerial' $ d 3 <> d 4
 --
--- main = (S.'toList' . S.'zipSerially' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . S.'fromZipSerial' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes total 10 seconds to zip, which is (1 + 2 + 3 + 4) since
@@ -1371,7 +1371,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $parallelzip
 --
 -- The applicative instance of 'ZipAsync' type zips streams concurrently.
--- 'zipAsyncly' type combinator can be used to switch to parallel applicative
+-- 'fromZipAsync' type combinator can be used to switch to parallel applicative
 -- zip composition:
 --
 --
@@ -1381,12 +1381,12 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
 -- d n = delay n >> return n
--- s1 = S.'serially' $ d 1 <> d 2
--- s2 = S.'serially' $ d 3 <> d 4
+-- s1 = S.'fromSerial' $ d 1 <> d 2
+-- s2 = S.'fromSerial' $ d 3 <> d 4
 --
 -- main = do
 --     hSetBuffering stdout LineBuffering
---     (S.'toList' . S.'zipAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
+--     (S.'toList' . S.'fromZipAsync' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
@@ -1413,7 +1413,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrently using the 'async' operation and the square roots of their
 -- sum are computed serially because of the 'streamly' combinator. We can
 -- choose different combinators for the monadic processing and the stream
--- generation, to control the concurrency.  We can also use the 'asyncly'
+-- generation, to control the concurrency.  We can also use the 'fromAsync'
 -- combinator instead of explicitly folding with 'async'.
 --
 -- @
@@ -1422,7 +1422,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- main = do
 --     z \<-   S.'toList'
---          $ S.'serially'     -- Serial monadic processing (sqrt below)
+--          $ S.'fromSerial'     -- Serial monadic processing (sqrt below)
 --          $ do
 --              x2 \<- S.'concatForFoldableWith' S.'async' [1..100] $ -- Concurrent @"for"@ loop
 --                          \\x -> return $ x * x  -- body of the loop
@@ -1481,7 +1481,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             _        -> putStrLn "Type potion or harm or quit" >> askUser
 --
 -- acidRain :: MonadAsync m => 'SerialT' m Event
--- acidRain = S.'asyncly' $ S.'constRate' 1 $ S.'repeatM' $ liftIO $ return $ Harm 1
+-- acidRain = S.'fromAsync' $ S.'constRate' 1 $ S.'repeatM' $ liftIO $ return $ Harm 1
 --
 -- data Result = Check | Done
 --

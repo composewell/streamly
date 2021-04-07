@@ -12,7 +12,7 @@ module Streamly.Test.Prelude.Rate where
 import qualified Streamly.Prelude as S
 
 import Streamly.Prelude
-    ( aheadly, asyncly, wAsyncly, avgRate, maxBuffer, maxThreads, rate,
+    ( fromAhead, fromAsync, fromWAsync, avgRate, maxBuffer, maxThreads, rate,
       SerialT, IsStream )
 import Streamly.Internal.Data.Time.Clock (getTime, Clock(..))
 import Streamly.Internal.Data.Time.Units
@@ -148,19 +148,19 @@ main = hspec $ do
   describe moduleName $ do
 
     describe "maxBuffers" $ do
-        measureBuffers "asyncly" asyncly (-1) 5
+        measureBuffers "asyncly" fromAsync (-1) 5
         -- XXX this test fails due to a known issue
-        -- measureBuffers "maxBuffers" asyncly 1 5
-        measureBuffers "asyncly" asyncly 5 5
+        -- measureBuffers "maxBuffers" fromAsync 1 5
+        measureBuffers "asyncly" fromAsync 5 5
 
     describe "maxThreads" $ do
-        measureThreads "asyncly" asyncly (-1) 5
-        measureThreads "asyncly" asyncly 1 5
-        measureThreads "asyncly" asyncly 5 5
+        measureThreads "asyncly" fromAsync (-1) 5
+        measureThreads "asyncly" fromAsync 1 5
+        measureThreads "asyncly" fromAsync 5 5
 
-        measureThreads "aheadly" aheadly (-1) 5
-        measureThreads "aheadly" aheadly 1 5
-        measureThreads "aheadly" aheadly 5 5
+        measureThreads "aheadly" fromAhead (-1) 5
+        measureThreads "aheadly" fromAhead 1 5
+        measureThreads "aheadly" fromAhead 5 5
 
     let range = (8,12)
 
@@ -174,7 +174,7 @@ main = hspec $ do
 #endif
                 ]
      in describe "asyncly no consumer delay no producer delay" $
-            forM_ rates (\r -> measureRate "asyncly" asyncly r 0 0 range)
+            forM_ rates (\r -> measureRate "asyncly" fromAsync r 0 0 range)
 
     -- XXX try staggering the dispatches to achieve higher rates
     let rates = [1, 10, 100, 1000
@@ -183,7 +183,7 @@ main = hspec $ do
 #endif
                 ]
      in describe "asyncly no consumer delay and 1 sec producer delay" $
-            forM_ rates (\r -> measureRate "asyncly" asyncly r 0 1 range)
+            forM_ rates (\r -> measureRate "asyncly" fromAsync r 0 1 range)
 
     -- At lower rates (1/10) this is likely to vary quite a bit depending on
     -- the spread of random producer latencies generated.
@@ -194,23 +194,23 @@ main = hspec $ do
                 ]
      in describe "asyncly no consumer delay and variable producer delay" $
             forM_ rates $ \r ->
-                measureRateVariable "asyncly" asyncly r 0 (0.1, 3) range
+                measureRateVariable "asyncly" fromAsync r 0 (0.1, 3) range
 
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
                 , 100000, 1000000
 #endif
                 ]
-     in describe "wAsyncly no consumer delay no producer delay" $
-            forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 0 range)
+     in describe "fromWAsync no consumer delay no producer delay" $
+            forM_ rates (\r -> measureRate "fromWAsync" fromWAsync r 0 0 range)
 
     let rates = [1, 10, 100, 1000
 #ifndef __GHCJS__
                 , 10000, 25000
 #endif
                 ]
-     in describe "wAsyncly no consumer delay and 1 sec producer delay" $
-            forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 1 range)
+     in describe "fromWAsync no consumer delay and 1 sec producer delay" $
+            forM_ rates (\r -> measureRate "fromWAsync" fromWAsync r 0 1 range)
 
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
@@ -218,7 +218,7 @@ main = hspec $ do
 #endif
                 ]
      in describe "aheadly no consumer delay no producer delay" $
-            forM_ rates (\r -> measureRate "aheadly" aheadly r 0 0 range)
+            forM_ rates (\r -> measureRate "aheadly" fromAhead r 0 0 range)
 
     -- XXX after the change to stop workers when the heap is clearing
     -- thi does not work well at a 25000 ops per second, need to fix.
@@ -228,17 +228,17 @@ main = hspec $ do
 #endif
                 ]
      in describe "aheadly no consumer delay and 1 sec producer delay" $
-            forM_ rates (\r -> measureRate "aheadly" aheadly r 0 1 range)
+            forM_ rates (\r -> measureRate "aheadly" fromAhead r 0 1 range)
 
     describe "asyncly with 1 sec producer delay and some consumer delay" $ do
         -- ideally it should take 10 x 1 + 1 seconds
-        forM_ [1] (\r -> measureRate "asyncly" asyncly r 1 1 (11, 16))
+        forM_ [1] (\r -> measureRate "asyncly" fromAsync r 1 1 (11, 16))
         -- ideally it should take 10 x 2 + 1 seconds
-        forM_ [1] (\r -> measureRate "asyncly" asyncly r 2 1 (21, 23))
+        forM_ [1] (\r -> measureRate "asyncly" fromAsync r 2 1 (21, 23))
         -- ideally it should take 10 x 3 + 1 seconds
-        forM_ [1] (\r -> measureRate "asyncly" asyncly r 3 1 (31, 33))
+        forM_ [1] (\r -> measureRate "asyncly" fromAsync r 3 1 (31, 33))
 
     describe "aheadly with 1 sec producer delay and some consumer delay" $ do
-        forM_ [1] (\r -> measureRate "aheadly" aheadly r 1 1 (11, 16))
-        forM_ [1] (\r -> measureRate "aheadly" aheadly r 2 1 (21, 23))
-        forM_ [1] (\r -> measureRate "aheadly" aheadly r 3 1 (31, 33))
+        forM_ [1] (\r -> measureRate "aheadly" fromAhead r 1 1 (11, 16))
+        forM_ [1] (\r -> measureRate "aheadly" fromAhead r 2 1 (21, 23))
+        forM_ [1] (\r -> measureRate "aheadly" fromAhead r 3 1 (31, 33))

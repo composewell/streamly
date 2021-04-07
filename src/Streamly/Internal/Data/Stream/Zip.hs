@@ -17,11 +17,11 @@ module Streamly.Internal.Data.Stream.Zip
     (
       ZipSerialM
     , ZipSerial
-    , zipSerially
+    , fromZipSerial
 
     , ZipAsyncM
     , ZipAsync
-    , zipAsyncly
+    , fromZipAsync
 
     , zipWith
     , zipWithM
@@ -156,7 +156,7 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 -- >>> s1 = Stream.fromFoldable [1, 2]
 -- >>> s2 = Stream.fromFoldable [3, 4]
 -- >>> s3 = Stream.fromFoldable [5, 6]
--- >>> Stream.toList $ Stream.zipSerially $ (,,) <$> s1 <*> s2 <*> s3
+-- >>> Stream.toList $ Stream.fromZipSerial $ (,,) <$> s1 <*> s2 <*> s3
 -- [(1,3,5),(2,4,6)]
 --
 -- /Since: 0.2.0 ("Streamly")/
@@ -182,15 +182,15 @@ type ZipSerial = ZipSerialM IO
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-zipSerially :: IsStream t => ZipSerialM m a -> t m a
-zipSerially = K.adapt
+fromZipSerial :: IsStream t => ZipSerialM m a -> t m a
+fromZipSerial = K.adapt
 
--- | Same as 'zipSerially'.
+-- | Same as 'fromZipSerial'.
 --
 -- @since 0.1.0
-{-# DEPRECATED zipping "Please use zipSerially instead." #-}
+{-# DEPRECATED zipping "Please use fromZipSerial instead." #-}
 zipping :: IsStream t => ZipSerialM m a -> t m a
-zipping = zipSerially
+zipping = fromZipSerial
 
 consMZip :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
 consMZip m ms = fromStream $ K.consMStream m (toStream ms)
@@ -242,7 +242,7 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- would take half the time that it would take in serial zipping:
 --
 -- >>> s = Stream.fromFoldableM $ Prelude.map delay [1, 1, 1]
--- >>> Stream.toList $ Stream.zipAsyncly $ (,) <$> s <*> s
+-- >>> Stream.toList $ Stream.fromZipAsync $ (,) <$> s <*> s
 -- ...
 -- [(1,1),(1,1),(1,1)]
 --
@@ -264,15 +264,15 @@ type ZipAsync = ZipAsyncM IO
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-zipAsyncly :: IsStream t => ZipAsyncM m a -> t m a
-zipAsyncly = K.adapt
+fromZipAsync :: IsStream t => ZipAsyncM m a -> t m a
+fromZipAsync = K.adapt
 
--- | Same as 'zipAsyncly'.
+-- | Same as 'fromZipAsync'.
 --
 -- @since 0.1.0
-{-# DEPRECATED zippingAsync "Please use zipAsyncly instead." #-}
+{-# DEPRECATED zippingAsync "Please use fromZipAsync instead." #-}
 zippingAsync :: IsStream t => ZipAsyncM m a -> t m a
-zippingAsync = zipAsyncly
+zippingAsync = fromZipAsync
 
 consMZipAsync :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
 consMZipAsync m ms = fromStream $ K.consMStream m (toStream ms)

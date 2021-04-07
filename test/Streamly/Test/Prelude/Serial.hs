@@ -39,7 +39,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
-import Streamly.Prelude (SerialT, IsStream, serial, serially)
+import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif
@@ -513,20 +513,20 @@ main = hspec
 #endif
   $ describe moduleName $ do
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
-        serialOps spec = mapOps spec $ makeOps serially
+        serialOps spec = mapOps spec $ makeOps fromSerial
 #ifndef COVERAGE_BUILD
-            <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
-            <> [("maxBuffer -1", serially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", fromSerial . avgRate 0.00000001)]
+            <> [("maxBuffer -1", fromSerial . maxBuffer (-1))]
 #endif
     let toListSerial :: SerialT IO a -> IO [a]
-        toListSerial = S.toList . serially
+        toListSerial = S.toList . fromSerial
 
     describe "Runners" $ do
         -- XXX use an IORef to store and check the side effects
         it "simple serially" $
-            (S.drain . serially) (return (0 :: Int)) `shouldReturn` ()
+            (S.drain . fromSerial) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (S.drain . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
+            (S.drain . fromSerial) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $
         it "Monoid - mempty" $
@@ -578,20 +578,20 @@ main = hspec
     describe "Monoid operations" $ do
         serialOps $ monoidOps "serially" mempty (==)
 
-    describe "Serial loops" $ loops serially id reverse
+    describe "Serial loops" $ loops fromSerial id reverse
 
     describe "Bind and Monoidal composition combinations" $ do
         -- XXX Taking a long time when serialOps is used.
-        bindAndComposeSimpleOps "Serial" sortEq serially
-        bindAndComposeHierarchyOps "Serial" serially
+        bindAndComposeSimpleOps "Serial" sortEq fromSerial
+        bindAndComposeHierarchyOps "Serial" fromSerial
         serialOps $ nestTwoStreams "Serial" id id
         serialOps $ nestTwoStreamsApp "Serial" id id
-        composeAndComposeSimpleSerially "Serial <> " (repeat [1..9]) serially
-        composeAndComposeSimpleAheadly "Serial <> " (repeat [1 .. 9]) serially
+        composeAndComposeSimpleSerially "Serial <> " (repeat [1..9]) fromSerial
+        composeAndComposeSimpleAheadly "Serial <> " (repeat [1 .. 9]) fromSerial
         composeAndComposeSimpleWSerially
             "Serial <> "
             [[1..9], [1..9], [1,3,2,4,6,5,7,9,8], [1,3,2,4,6,5,7,9,8]]
-            serially
+            fromSerial
 
     describe "Semigroup operations" $ do
         serialOps $ semigroupOps "serially" (==)
@@ -668,7 +668,7 @@ main = hspec
 
     describe "Tests for exceptions" $ serialOps $ exceptionOps "serially"
 
-    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
+    describe "Composed MonadThrow serially" $ composeWithMonadThrow fromSerial
 
     it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
 

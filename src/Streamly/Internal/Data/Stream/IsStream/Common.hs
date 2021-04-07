@@ -141,11 +141,11 @@ yieldM = K.yieldM
 -- Generate a stream by repeatedly executing a monadic action forever.
 --
 -- @
--- drain $ serially $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
--- drain $ asyncly  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- drain $ fromSerial $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- drain $ fromAsync  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
 -- @
 --
--- /Concurrent, infinite (do not use with 'parallely')/
+-- /Concurrent, infinite (do not use with 'fromParallel')/
 --
 -- @since 0.2.0
 {-# INLINE_EARLY repeatM #-}

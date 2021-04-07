@@ -36,7 +36,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Prelude
 
 import Gauge
-import Streamly.Prelude (SerialT, serially, MonadAsync)
+import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Streamly.Internal.Data.Time.Units
@@ -189,10 +189,10 @@ o_1_space_mapping value =
         , benchIOSink value "foldrTMap" (foldrTMap 1)
 
         -- Mapping
-        , benchIOSink value "map" (mapN serially 1)
+        , benchIOSink value "map" (mapN fromSerial 1)
         , bench "sequence" $ nfIO $ randomRIO (1, 1000) >>= \n ->
-              sequence serially (sourceUnfoldrAction value n)
-        , benchIOSink value "mapM" (mapM serially 1)
+              sequence fromSerial (sourceUnfoldrAction value n)
+        , benchIOSink value "mapM" (mapM fromSerial 1)
         , benchIOSink value "tap" (tap 1)
         , benchIOSink value "tapRate 1 second" (tapRate 1)
         , benchIOSink value "pollCounts 1 second" (pollCounts 1)
@@ -214,8 +214,8 @@ o_1_space_mapping value =
 o_1_space_mappingX4 :: Int -> [Benchmark]
 o_1_space_mappingX4 value =
     [ bgroup "mappingX4"
-        [ benchIOSink value "map" (mapN serially 4)
-        , benchIOSink value "mapM" (mapM serially 4)
+        [ benchIOSink value "map" (mapN fromSerial 4)
+        , benchIOSink value "mapM" (mapM fromSerial 4)
         , benchIOSink value "trace" (trace 4)
 
         , benchIOSink value "scanl'" (scanl' 4)
@@ -254,8 +254,8 @@ o_n_space_mapping value =
 o_1_space_functor :: Int -> [Benchmark]
 o_1_space_functor value =
     [ bgroup "Functor"
-        [ benchIOSink value "fmap" (fmapN serially 1)
-        , benchIOSink value "fmap x 4" (fmapN serially 4)
+        [ benchIOSink value "fmap" (fmapN fromSerial 1)
+        , benchIOSink value "fmap x 4" (fmapN fromSerial 4)
         ]
     ]
 

@@ -38,7 +38,7 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Gauge
-import Streamly.Prelude (SerialT, IsStream, serially)
+import Streamly.Prelude (SerialT, IsStream, fromSerial)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
@@ -435,7 +435,7 @@ o_1_space_elimination_folds value =
         , benchIOSink value "init" init
 
         -- draining
-        , benchIOSink value "drain" $ toNull serially
+        , benchIOSink value "drain" $ toNull fromSerial
         , benchIOSink value "drainN" $ drainN value
         , benchIOSink value "drainWhile" drainWhile
         , benchPureSink value "drain (pure)" id

@@ -159,7 +159,7 @@ class
     -- ["hello","world"]
     -- @
     --
-    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
+    -- /Concurrent (do not use 'fromParallel' to construct infinite streams)/
     --
     -- @since 0.2.0
     consM :: MonadAsync m => m a -> t m a -> t m a
@@ -175,11 +175,11 @@ class
     --
     -- @
     -- let delay = threadDelay 1000000 >> print 1
-    -- drain $ serially  $ delay |: delay |: delay |: nil
-    -- drain $ parallely $ delay |: delay |: delay |: nil
+    -- drain $ fromSerial  $ delay |: delay |: delay |: nil
+    -- drain $ fromParallel $ delay |: delay |: delay |: nil
     -- @
     --
-    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
+    -- /Concurrent (do not use 'fromParallel' to construct infinite streams)/
     --
     -- @since 0.2.0
     (|:) :: MonadAsync m => m a -> t m a -> t m a

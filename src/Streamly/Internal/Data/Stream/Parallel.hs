@@ -27,7 +27,7 @@ module Streamly.Internal.Data.Stream.Parallel
     -- * Parallel Stream Type
       ParallelT
     , Parallel
-    , parallely
+    , fromParallel
 
     -- * Merge Concurrently
     , parallel
@@ -506,8 +506,8 @@ type Parallel = ParallelT IO
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-parallely :: IsStream t => ParallelT m a -> t m a
-parallely = adapt
+fromParallel :: IsStream t => ParallelT m a -> t m a
+fromParallel = adapt
 
 instance IsStream ParallelT where
     toStream = getParallelT
