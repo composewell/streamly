@@ -84,6 +84,7 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
 
 import Prelude hiding
        ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
@@ -150,15 +151,18 @@ parse_
     => PRD.Parser m a b
     -> Stream m a
     -> m (b, Stream m a)
-parse_ (PRD.Parser pstep initial extract) (Stream step state) = do
+parse_ (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
-        PRD.IDone b -> return (b, Stream (\_ _ -> return Stop) ())
+        PRD.IDone b -> return (b, stream)
         PRD.IError err -> throwM $ ParseError err
 
     where
 
+    -- "buf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
@@ -181,7 +185,14 @@ parse_ (PRD.Parser pstep initial extract) (Stream step state) = do
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                    PR.Done _ b -> return (b, Stream step_rest (Left (s, buf)))
+                    PR.Done 0 b -> return (b, Stream step st)
+                    PR.Done n b -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        -- XXX This would make it quadratic. We should probably
+                        -- use StreamK if we have to append many times.
+                        return (b, Nesting.append (fromList src) (Stream step s))
                     PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
             Stop   -> do
@@ -206,19 +217,12 @@ parse_ (PRD.Parser pstep initial extract) (Stream step state) = do
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s (List buf1) (List src) pst1
-            PR.Done _ b -> return (b, Stream step_rest (Left (s, buf)))
+            PR.Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                return (b, Nesting.append (fromList src) (Stream step s))
             PR.Error err -> throwM $ ParseError err
-
-    {-# INLINE_LATE step_rest #-}
-    step_rest _ (Left (st, List [])) = return $ Skip (Right st)
-    step_rest _ (Left (st, List (x:[]))) = return $ Yield x (Right st)
-    step_rest _ (Left (st, List (x:xs))) = return $ Yield x (Left (st, List xs))
-    step_rest gst (Right st) = do
-        r <- step gst st
-        return $ case r of
-            Yield x s -> Yield x (Right s)
-            Skip s -> Skip (Right s)
-            Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
