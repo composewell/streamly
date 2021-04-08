@@ -15,7 +15,6 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
@@ -28,7 +27,6 @@ import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Array.Foreign as Array
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -61,13 +59,6 @@ benchIOSink
     => Int -> String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
-
-{-# INLINE benchIO #-}
-benchIO
-    :: NFData b
-    => String -> (Int -> t IO a) -> (t IO a -> IO b) -> Benchmark
-benchIO name src sink =
-    bench name $ nfIO $ randomRIO (1,1) >>= sink . src
 
 -------------------------------------------------------------------------------
 -- Parsers
@@ -238,14 +229,6 @@ parseManyUnfoldArrays count arrays = do
     S.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------
--- Array parsers
--------------------------------------------------------------------------------
-
-{-# INLINE parseArray #-}
-parseArray :: Int -> SerialT IO (Array.Array Int) -> IO ()
-parseArray value s = void $ ArrayStream.parse (drainWhile (< value)) s
-
--------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
 -------------------------------------------------------------------------------
 
@@ -349,15 +332,6 @@ o_1_space_serial_unfold bound arrays =
         $ nfIO $ parseManyUnfoldArrays 1 arrays
     ]
 
-o_1_space_serial_array ::
-    Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
-o_1_space_serial_array bound arraysSmall arraysBig =
-    [ benchIO "parseArray (100)" (\_ -> IP.fromList arraysSmall)
-        $ parseArray bound
-    , benchIO "parseArray (bound)" (\_ -> IP.fromList arraysBig)
-        $ parseArray bound
-    ]
-
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
@@ -388,20 +362,17 @@ main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     arraysSmall <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
-    arraysBig <- IP.toList $ IP.arraysOf value $ sourceUnfoldrM value 0
     value `seq` runMode (mode cfg) cfg benches
-        (allBenchmarks value arraysSmall arraysBig)
+        (allBenchmarks value arraysSmall)
 
     where
 
-    allBenchmarks value arraysSmall arraysBig =
+    allBenchmarks value arraysSmall =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
         , bgroup (o_1_space_prefix moduleName)
             (o_1_space_serial_unfold value arraysSmall)
-        , bgroup (o_1_space_prefix moduleName)
-            (o_1_space_serial_array value arraysSmall arraysBig)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
