@@ -424,7 +424,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
             -- Assume that the first parser can never fail, therefore we do not
             -- need to keep the input for backtracking.
             Partial n s -> return $ Partial n (SeqParseL s)
-            Continue n s -> return $ Partial n (SeqParseL s)
+            Continue n s -> return $ Continue n (SeqParseL s)
             Done n b -> do
                 res <- initialR
                 return
@@ -438,7 +438,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
         r <- stepR st a
         return $ case r of
             Partial n s -> Partial n (SeqParseR f s)
-            Continue n s -> Partial n (SeqParseR f s)
+            Continue n s -> Continue n (SeqParseR f s)
             Done n b -> Done n (f b)
             Error err -> Error err
 
