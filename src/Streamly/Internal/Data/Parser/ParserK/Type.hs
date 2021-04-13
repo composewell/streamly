@@ -87,9 +87,13 @@ newtype Parser m a b = MkParser
            -- it is done. The used element count is a count of elements
            -- consumed by the Alternative. If the Alternative fails we need to
            -- backtrack by this amount.
+           --
+           -- The nesting level is used in parseDToK to optimize the case when
+           -- we are not in an alternative, in that case we do not need to
+           -- maintain the element count for backtracking.
         -> (Int, Int)
            -- The first argument is the (nest level, used count) tuple as
-           -- described above. The leftover element count carried as part of
+           -- described above. The leftover element count is carried as part of
            -- 'Done' constructor of 'Parse'.
         -> ((Int, Int) -> Parse b -> m (Driver m a r))
         -> m (Driver m a r)
