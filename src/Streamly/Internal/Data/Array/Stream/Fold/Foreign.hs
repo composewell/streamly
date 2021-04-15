@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
     -- * Construction
     , fromFold
+    , fromParser
     , fromArrayFold
 
     -- * Mapping
@@ -126,6 +127,55 @@ fromFold (Fold.Fold fstep finitial fextract) =
                     return $ Done ((end `minusPtr` next) `div` elemSize) b
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
+
+-- | Convert an element 'Parser' into an array stream fold. If the parser fails
+-- the fold would throw an exception.
+--
+-- /Pre-release/
+{-# INLINE fromParser #-}
+fromParser :: forall m a b. (MonadIO m, Storable a) =>
+    ParserD.Parser m a b -> Fold m a b
+fromParser (ParserD.Parser step1 initial1 extract1) =
+    Fold (ParserD.Parser step initial extract1)
+
+    where
+
+    initial = do
+        res <- initial1
+        return
+            $ case res of
+                  IPartial s1 -> IPartial s1
+                  IDone b -> IDone b
+                  IError err -> IError err
+
+    step s (Array fp@(ForeignPtr start _) end) = do
+        if Ptr start >= end
+        then return $ Continue 0 s
+        else goArray SPEC (Ptr start) s
+
+        where
+
+        goArray !_ !cur !fs = do
+            x <- liftIO $ peek cur
+            liftIO $ touchForeignPtr fp
+            res <- step1 fs x
+            let elemSize = sizeOf (undefined :: a)
+                next = cur `plusPtr` elemSize
+                arrRem = (end `minusPtr` next) `div` elemSize
+            case res of
+                ParserD.Done n b -> do
+                    return $ Done (arrRem + n) b
+                ParserD.Partial n fs1 -> do
+                    let next1 = next `plusPtr` negate (n * elemSize)
+                    if next1 >= Ptr start && cur < end
+                    then goArray SPEC next1 fs1
+                    else return $ Partial (arrRem + n) fs1
+                ParserD.Continue n fs1 -> do
+                    let next1 = next `plusPtr` negate (n * elemSize)
+                    if next1 >= Ptr start && cur < end
+                    then goArray SPEC next1 fs1
+                    else return $ Continue (arrRem + n) fs1
+                Error err -> return $ Error err
 
 -- | Adapt an array stream fold.
 --
