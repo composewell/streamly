@@ -22,6 +22,10 @@ module Streamly.Internal.Data.Array.Stream.Foreign
     , unlines
 
     -- * Elimination
+    , fold
+    -- , parse
+    , parseD
+    , foldMany
     , toArray
 
     -- * Compaction
@@ -39,30 +43,40 @@ where
 
 #include "inline.hs"
 
+import Control.Exception (assert)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
+import Fusion.Plugin.Types (Fuse(..))
+import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
-import Prelude hiding (length, null, last, map, (!!), read, concat, unlines)
+import GHC.Types (SPEC(..))
+import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 #if !defined(mingw32_HOST_OS)
 import Streamly.Internal.FileSystem.FDIO (IOVec(..))
 #endif
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
-import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.SVar (adaptState, defState)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
+import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as ASF
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Parser as PR
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -300,6 +314,56 @@ splitOnSuffix byte s =
 -- Elimination
 -------------------------------------------------------------------------------
 
+-- When we have to take an array partially, take the last part of the array.
+{-# INLINE takeArrayListRev #-}
+takeArrayListRev :: forall a. Storable a => Int -> [Array a] -> [Array a]
+takeArrayListRev = go
+
+    where
+
+    go _ [] = []
+    go n _ | n <= 0 = []
+    go n (x:xs) =
+        let len = Array.length x
+        in if n > len
+           then x : go (n - len) xs
+           else if n == len
+           then [x]
+           else let !(Array (ForeignPtr _ contents) end) = x
+                    sz = sizeOf (undefined :: a)
+                    !(Ptr start) = end `plusPtr` negate (n * sz)
+                 in [Array (ForeignPtr start contents) end]
+
+-- When we have to take an array partially, take the last part of the array in
+-- the first split.
+{-# INLINE splitAtArrayListRev #-}
+splitAtArrayListRev :: forall a. Storable a =>
+    Int -> [Array a] -> ([Array a],[Array a])
+splitAtArrayListRev n ls
+  | n <= 0 = ([], ls)
+  | otherwise = go n ls
+    where
+        go :: Int -> [Array a] -> ([Array a], [Array a])
+        go _  []     = ([], [])
+        go m (x:xs) =
+            let len = Array.length x
+                (xs', xs'') = go (m - len) xs
+             in if m > len
+                then (x:xs', xs'')
+                else if m == len
+                then ([x],xs)
+                else let !(Array (ForeignPtr start contents) end) = x
+                         sz = sizeOf (undefined :: a)
+                         end1 = end `plusPtr` negate (m * sz)
+                         arr2 = Array (ForeignPtr start contents) end1
+                         !(Ptr addrEnd1) = end1
+                         arr1 = Array (ForeignPtr addrEnd1 contents) end
+                      in ([arr1], arr2:xs)
+
+-------------------------------------------------------------------------------
+-- Fold to a single Array
+-------------------------------------------------------------------------------
+
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
@@ -326,7 +390,7 @@ _spliceArrays :: (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
-    len <- S.sum (S.map length buffered)
+    len <- S.sum (S.map Array.length buffered)
     arr <- liftIO $ MA.newArray len
     end <- S.foldlM' writeArr (return $ MA.aEnd arr) s
     return $ A.unsafeFreeze $ arr {MA.aEnd = end}
@@ -344,7 +408,7 @@ _spliceArraysBuffered :: (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
     buffered <- S.foldr S.cons S.nil s
-    len <- S.sum (S.map length buffered)
+    len <- S.sum (S.map Array.length buffered)
     A.unsafeFreeze <$> spliceArraysLenUnsafe len (S.map A.unsafeThaw s)
 
 {-# INLINE spliceArraysRealloced #-}
@@ -357,6 +421,8 @@ spliceArraysRealloced s = do
     arr <- S.foldlM' MA.spliceWithDoubling idst (S.map A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.shrinkToFit arr
 
+-- XXX This should just be "fold A.write"
+--
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.
 --
@@ -385,3 +451,242 @@ _toArraysOf :: (MonadIO m, Storable a)
     => Int -> Fold m a (SerialT Identity (Array a))
 _toArraysOf n = FL.chunksOf n (A.writeNF n) FL.toStream
 -}
+
+-------------------------------------------------------------------------------
+-- Parsing
+-------------------------------------------------------------------------------
+
+-- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
+-- to make a newtype.
+{-# ANN type List NoSpecConstr #-}
+newtype List a = List {getList :: [a]}
+
+{-# INLINE_NORMAL parseD #-}
+parseD ::
+       forall m a b. (MonadIO m, MonadThrow m, Storable a)
+    => PRD.Parser m (Array a) b
+    -> D.Stream m (Array.Array a)
+    -> m (b, D.Stream m (Array.Array a))
+parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
+    res <- initial
+    case res of
+        PRD.IPartial s -> go SPEC state (List []) s
+        PRD.IDone b -> return (b, stream)
+        PRD.IError err -> throwM $ ParseError err
+
+    where
+
+    -- "backBuf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    {-# INLINE go #-}
+    go !_ st backBuf !pst = do
+        r <- step defState st
+        case r of
+            D.Yield x s -> gobuf SPEC [x] s backBuf pst
+            D.Skip s -> go SPEC s backBuf pst
+            D.Stop -> do
+                b <- extract pst
+                return (b, D.nil)
+
+    gobuf !_ [] s backBuf !pst = go SPEC s backBuf pst
+    gobuf !_ (x:xs) s backBuf !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                 gobuf SPEC xs s (List []) pst1
+            PR.Partial n pst1 -> do
+                assert
+                    (n <= sum (map Array.length (x:getList backBuf)))
+                    (return ())
+                let src0 = takeArrayListRev n (x:getList backBuf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC src s (List []) pst1
+            PR.Continue 0 pst1 ->
+                gobuf SPEC xs s (List (x:getList backBuf)) pst1
+            PR.Continue n pst1 -> do
+                assert
+                    (n <= sum (map Array.length (x:getList backBuf)))
+                    (return ())
+                let (src0, buf1) = splitAtArrayListRev n (x:getList backBuf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC src s (List buf1) pst1
+            PR.Done 0 b ->
+                return (b, D.Stream step s)
+            PR.Done n b -> do
+                assert
+                    (n <= sum (map Array.length (x:getList backBuf)))
+                    (return ())
+                let src0 = takeArrayListRev n (x:getList backBuf)
+                    src = Prelude.reverse src0 ++ xs
+                return (b, D.append (D.fromList src) (D.Stream step s))
+            PR.Error err -> throwM $ ParseError err
+
+{-
+-- | Parse an array stream using the supplied 'Parser'.  Returns the parse
+-- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
+--
+-- /Internal/
+--
+{-# INLINE parse #-}
+parse ::
+       (MonadIO m, MonadThrow m, Storable a)
+    => PRD.Parser m a b
+    -> SerialT m (A.Array a)
+    -> m (b, SerialT m (A.Array a))
+parse p s = fmap D.fromStreamD <$> parseD p (D.toStreamD s)
+-}
+
+-- | Fold an array stream using the supplied array stream 'Fold'.
+--
+-- /Pre-release/
+--
+{-# INLINE fold #-}
+fold :: (MonadIO m, MonadThrow m, Storable a) =>
+    ASF.Fold m a b -> SerialT m (A.Array a) -> m b
+fold (ASF.Fold p) s = fst <$> parseD p (D.toStreamD s)
+
+{-# ANN type ParseChunksState Fuse #-}
+data ParseChunksState x inpBuf st pst =
+      ParseChunksInit inpBuf st
+    | ParseChunksInitLeftOver inpBuf
+    | ParseChunksStream st inpBuf !pst
+    | ParseChunksBuf inpBuf st inpBuf !pst
+    | ParseChunksYield x (ParseChunksState x inpBuf st pst)
+
+{-# INLINE_NORMAL foldManyD #-}
+foldManyD
+    :: (MonadThrow m, Storable a)
+    => ASF.Fold m a b
+    -> D.Stream m (Array a)
+    -> D.Stream m b
+foldManyD (ASF.Fold (PRD.Parser pstep initial extract)) (D.Stream step state) =
+    D.Stream stepOuter (ParseChunksInit [] state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    -- Buffer is empty, get the first element from the stream, initialize the
+    -- fold and then go to stream processing loop.
+    stepOuter gst (ParseChunksInit [] st) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                res <- initial
+                case res of
+                    PRD.IPartial ps ->
+                        return $ D.Skip $ ParseChunksBuf [x] s [] ps
+                    PRD.IDone pb ->
+                        let next = ParseChunksInit [x] s
+                         in return $ D.Skip $ ParseChunksYield pb next
+                    PRD.IError err -> throwM $ ParseError err
+            D.Skip s -> return $ D.Skip $ ParseChunksInit [] s
+            D.Stop   -> return D.Stop
+
+    -- Buffer is not empty, go to buffered processing loop
+    stepOuter _ (ParseChunksInit src st) = do
+        res <- initial
+        case res of
+            PRD.IPartial ps ->
+                return $ D.Skip $ ParseChunksBuf src st [] ps
+            PRD.IDone pb ->
+                let next = ParseChunksInit src st
+                 in return $ D.Skip $ ParseChunksYield pb next
+            PRD.IError err -> throwM $ ParseError err
+
+    -- XXX we just discard any leftover input at the end
+    stepOuter _ (ParseChunksInitLeftOver _) = return D.Stop
+
+    -- Buffer is empty, process elements from the stream
+    stepOuter gst (ParseChunksStream st backBuf pst) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    PR.Partial 0 pst1 ->
+                        return $ D.Skip $ ParseChunksStream s [] pst1
+                    PR.Partial n pst1 -> do
+                        assert
+                            (n <= sum (map Array.length (x:backBuf)))
+                            (return ())
+                        let src0 = takeArrayListRev n (x:backBuf)
+                            src  = Prelude.reverse src0
+                        return $ D.Skip $ ParseChunksBuf src s [] pst1
+                    PR.Continue 0 pst1 ->
+                        return $ D.Skip $ ParseChunksStream s (x:backBuf) pst1
+                    PR.Continue n pst1 -> do
+                        assert
+                            (n <= sum (map Array.length (x:backBuf)))
+                            (return ())
+                        let (src0, buf1) = splitAtArrayListRev n (x:backBuf)
+                            src  = Prelude.reverse src0
+                        return $ D.Skip $ ParseChunksBuf src s buf1 pst1
+                    PR.Done 0 b -> do
+                        return $ D.Skip $
+                            ParseChunksYield b (ParseChunksInit [] s)
+                    PR.Done n b -> do
+                        assert
+                            (n <= sum (map Array.length (x:backBuf)))
+                            (return ())
+                        let src0 = takeArrayListRev n (x:backBuf)
+                        let src = Prelude.reverse src0
+                        return $ D.Skip $
+                            ParseChunksYield b (ParseChunksInit src s)
+                    PR.Error err -> throwM $ ParseError err
+            D.Skip s -> return $ D.Skip $ ParseChunksStream s backBuf pst
+            D.Stop   -> do
+                b <- extract pst
+                let src = Prelude.reverse backBuf
+                return $ D.Skip $
+                    ParseChunksYield b (ParseChunksInitLeftOver src)
+
+    -- go back to stream processing mode
+    stepOuter _ (ParseChunksBuf [] s buf pst) =
+        return $ D.Skip $ ParseChunksStream s buf pst
+
+    -- buffered processing loop
+    stepOuter _ (ParseChunksBuf (x:xs) s backBuf pst) = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                return $ D.Skip $ ParseChunksBuf xs s [] pst1
+            PR.Partial n pst1 -> do
+                assert (n <= sum (map Array.length (x:backBuf))) (return ())
+                let src0 = takeArrayListRev n (x:backBuf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ D.Skip $ ParseChunksBuf src s [] pst1
+            PR.Continue 0 pst1 ->
+                return $ D.Skip $ ParseChunksBuf xs s (x:backBuf) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= sum (map Array.length (x:backBuf))) (return ())
+                let (src0, buf1) = splitAtArrayListRev n (x:backBuf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ D.Skip $ ParseChunksBuf src s buf1 pst1
+            PR.Done 0 b ->
+                return $ D.Skip $ ParseChunksYield b (ParseChunksInit xs s)
+            PR.Done n b -> do
+                assert (n <= sum (map Array.length (x:backBuf))) (return ())
+                let src0 = takeArrayListRev n (x:backBuf)
+                    src = Prelude.reverse src0 ++ xs
+                return $ D.Skip $ ParseChunksYield b (ParseChunksInit src s)
+            PR.Error err -> throwM $ ParseError err
+
+    stepOuter _ (ParseChunksYield a next) = return $ D.Yield a next
+
+-- | Apply an array stream 'Fold' repeatedly on an array stream and emit the
+-- fold outputs in the output stream.
+--
+-- See "Streamly.Prelude.foldMany" for more details.
+--
+-- /Pre-release/
+{-# INLINE foldMany #-}
+foldMany
+    :: (IsStream t, MonadThrow m, Storable a)
+    => ASF.Fold m a b
+    -> t m (Array a)
+    -> t m b
+foldMany p m = D.fromStreamD $ foldManyD p (D.toStreamD m)
