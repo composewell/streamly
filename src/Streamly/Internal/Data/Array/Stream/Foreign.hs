@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Array.Stream.Foreign
     -- * Elimination
     , toArray
     , parse
+    , parseD
 
     -- * Compaction
     , lpackArraysChunksOf
