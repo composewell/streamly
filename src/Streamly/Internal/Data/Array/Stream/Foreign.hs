@@ -23,6 +23,7 @@ module Streamly.Internal.Data.Array.Stream.Foreign
 
     -- * Elimination
     , fold
+    , fold_
     -- , parse
     , parseD
     , foldMany
@@ -43,6 +44,7 @@ where
 
 #include "inline.hs"
 
+import Data.Bifunctor (second)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -548,6 +550,15 @@ parse p s = fmap D.fromStreamD <$> parseD p (D.toStreamD s)
 fold :: (MonadIO m, MonadThrow m, Storable a) =>
     ASF.Fold m a b -> SerialT m (A.Array a) -> m b
 fold (ASF.Fold p) s = fst <$> parseD p (D.toStreamD s)
+
+-- | Like 'fold' but also returns the remaining stream.
+--
+-- /Pre-release/
+--
+{-# INLINE fold_ #-}
+fold_ :: (MonadIO m, MonadThrow m, Storable a) =>
+    ASF.Fold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
+fold_ (ASF.Fold p) s = second D.fromStreamD <$> parseD p (D.toStreamD s)
 
 {-# ANN type ParseChunksState Fuse #-}
 data ParseChunksState x inpBuf st pst =
