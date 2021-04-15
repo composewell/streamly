@@ -481,6 +481,7 @@ library
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
                     -- Memory storage
                      , Streamly.Internal.Ring.Foreign

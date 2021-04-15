@@ -16,6 +16,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , ParseError (..)
     , Step (..)
     , Initial (..)
+    , rmapM
 
     -- First order parsers
     -- * Accumulators
