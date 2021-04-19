@@ -100,9 +100,15 @@ bench_rts_opts_specific () {
 # Speed options
 #------------------------------------------------------------------------------
 
-# Do not keep time limit as 0 otherwise GC stats may remain 0 in some cases.
-SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0.01 --include-first-iter"
-QUICKER_OPTIONS="--min-samples 3 --time-limit 1"
+if test "$USE_GAUGE" -eq 0
+then
+  SUPER_QUICK_OPTIONS="--stdev 1000000"
+  QUICKER_OPTIONS="--stdev 1000"
+else
+  # Do not keep time limit as 0 otherwise GC stats may remain 0 in some cases.
+  SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0.01 --include-first-iter"
+  QUICKER_OPTIONS="--min-samples 3 --time-limit 1"
+fi
 
 # For certain long benchmarks if the user has not requested super quick
 # mode we anyway use a slightly quicker mode.
@@ -152,12 +158,37 @@ bench_quick_opts () {
   esac
 }
 
-last=""
+bench_output_file() {
+    local bench_name=$1
+    echo "charts/$bench_name/results.csv"
+}
+
+BENCH_NAME_ORIG=""
 for i in "$@"
 do
-    BENCH_NAME="$last"
-    last="$i"
+    BENCH_NAME_ORIG="$i"
 done
+
+if test "$USE_GAUGE" -eq 0
+then
+  # XXX this is a hack to make the "/" separated names used in the functions
+  # determining options based on benchmark name. For tasty-bench the benchmark
+  # names are separated by "." instead of "/".
+  BENCH_NAME=$(echo $BENCH_NAME_ORIG | sed -e s/^All\.//)
+  BENCH_NAME1=$(echo $BENCH_NAME | cut -f1 -d '/')
+  BENCH_NAME2=$(echo $BENCH_NAME | cut -f2- -d '/' | sed -e 's/\./\//g')
+  BENCH_NAME="$BENCH_NAME1/$BENCH_NAME2"
+  JOB_OPT=" -j 1"
+else
+  BENCH_NAME=$BENCH_NAME_ORIG
+  JOB_OPT=""
+fi
+if test "$LONG" -eq 0
+then
+  SIZE_OPT=""
+else
+  SIZE_OPT="--stream-size 1000000"
+fi
 
 RTS_OPTIONS=\
 "+RTS -T \
@@ -168,17 +199,27 @@ $RTS_OPTIONS \
 -RTS"
 
 QUICK_BENCH_OPTIONS="\
+$(if test "$QUICK_MODE" -ne 0; then echo $SUPER_QUICK_OPTIONS; else :; fi)
 $(bench_exe_quick_opts $(basename $BENCH_EXEC_PATH)) \
 $(bench_quick_opts $BENCH_NAME)"
 
-if test -n "$STREAM_SIZE"
-then
-  STREAM_LEN=$(env LC_ALL=en_US.UTF-8 printf "\--stream-size %'.f\n" $STREAM_SIZE)
-fi
+output_file=$(bench_output_file $(basename $BENCH_EXEC_PATH))
+mkdir -p `dirname $output_file`
 
 echo "$BENCH_NAME: \
-$STREAM_LEN \
 $QUICK_BENCH_OPTIONS \
 $RTS_OPTIONS"
 
-$BENCH_EXEC_PATH $RTS_OPTIONS "$@" $QUICK_BENCH_OPTIONS
+rm -f ${output_file}.tmp
+if test $USE_GAUGE -eq 0
+then
+  BENCH_NAME_ESC=$(echo "$BENCH_NAME_ORIG" | sed -e 's/\\/\\\\/g' | sed -e 's/"/\\"/g')
+  $BENCH_EXEC_PATH $SIZE_OPT $JOB_OPT $RTS_OPTIONS $QUICK_BENCH_OPTIONS --csv=${output_file}.tmp \
+    -p '$0 == "'"$BENCH_NAME_ESC"'"'
+  tail -n +2 ${output_file}.tmp | \
+    awk 'BEGIN {FPAT = "([^,]+)|(\"[^\"]+\")";OFS=","} {$2=$2/1000000000000;print}' >> $output_file
+else
+  $BENCH_EXEC_PATH $SIZE_OPT $RTS_OPTIONS $QUICK_BENCH_OPTIONS --csvraw=${output_file}.tmp \
+    -m exact "$BENCH_NAME"
+  tail -n +2 ${output_file}.tmp >> $output_file
+fi

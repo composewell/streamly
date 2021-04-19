@@ -183,9 +183,7 @@ defStreamSize = defaultStreamSize
 #endif
 
 main :: IO ()
-main = do
-    (value, cfg, benches) <- parseCLIOpts defStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+main = runWithCLIOpts defStreamSize allBenchmarks
 
     where
 

@@ -22,7 +22,6 @@ import qualified Serial.Transformation1 as Transformation1
 import qualified Serial.Transformation2 as Transformation2
 import qualified Serial.Transformation3 as Transformation3
 
-import Gauge hiding (env)
 import Streamly.Benchmark.Common
 
 moduleName :: String
@@ -37,12 +36,12 @@ moduleName = "Prelude.Serial"
 --
 main :: IO ()
 main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value env)
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
+
     where
 
-    allBenchmarks size env = Prelude.concat
+    allBenchmarks env size = Prelude.concat
         [ Generation.benchmarks moduleName size
         , Elimination.benchmarks moduleName size
         , Exceptions.benchmarks moduleName env

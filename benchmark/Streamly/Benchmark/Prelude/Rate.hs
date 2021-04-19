@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 
 -- |
 -- Module      : Main
@@ -87,12 +88,12 @@ o_1_space_async value =
 o_1_space_ahead :: Int -> [Benchmark]
 o_1_space_ahead value =
     [ bgroup
-          "aheadly"
-          [ benchIOSrc fromAhead "avgRate/1M" $ avgRate value 1000000
-          , benchIOSrc fromAhead "minRate/1M" $ minRate value 1000000
-          , benchIOSrc fromAhead "maxRate/1M" $ maxRate value 1000000
-          , benchIOSrc fromAsync "constRate/1M" $ constRate value 1000000
-          ]
+        "aheadly"
+        [ benchIOSrc fromAhead "avgRate/1M" $ avgRate value 1000000
+        , benchIOSrc fromAhead "minRate/1M" $ minRate value 1000000
+        , benchIOSrc fromAhead "maxRate/1M" $ maxRate value 1000000
+        , benchIOSrc fromAsync "constRate/1M" $ constRate value 1000000
+        ]
     ]
 
 -------------------------------------------------------------------------------
@@ -100,13 +101,10 @@ o_1_space_ahead value =
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 
     allBenchmarks value =
         [ bgroup (o_1_space_prefix moduleName)
-              $ concat [o_1_space_async value, o_1_space_ahead value]
-        ]
+        $ concat [o_1_space_async value, o_1_space_ahead value]]

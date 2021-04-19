@@ -288,9 +288,8 @@ o_1_space_decode_encode_read env =
 
 main :: IO ()
 main = do
-    (_, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    runMode (mode cfg) cfg benches (allBenchmarks env)
+    defaultMain (allBenchmarks env)
 
     where
 

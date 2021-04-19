@@ -16,7 +16,9 @@ module Streamly.Benchmark.Common
     , o_n_heap_prefix
     , o_n_stack_prefix
 
+   -- , parseEnvOpts
     , parseCLIOpts
+    , runWithCLIOpts
 
     , benchIOSink1
     , benchPure
@@ -31,19 +33,34 @@ module Streamly.Benchmark.Common
     , mkListString
 
     , defaultStreamSize
+    , BenchOpts(..)
+#ifndef MIN_VERSION_gauge
+    , OptionDescription(..)
+    , includingOptions
+    , lookupOption
+    , defaultMainWithIngredients
+    , parseOptions
+#endif
     )
 where
 
-import Control.DeepSeq (NFData(..))
+#ifdef MIN_VERSION_gauge
 import Control.Exception (evaluate)
 import Control.Monad (when)
-import Data.Functor.Identity (Identity, runIdentity)
+import Text.Read (readMaybe)
 import Data.List (scanl')
 import Data.Maybe (mapMaybe)
 import System.Console.GetOpt
        (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt')
 import System.Environment (getArgs, lookupEnv, setEnv)
-import Text.Read (readMaybe)
+#else
+import Data.Proxy
+import Test.Tasty.Ingredients.Basic
+import Test.Tasty.Options
+import Test.Tasty.Runners
+#endif
+import Control.DeepSeq (NFData(..))
+import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
 import qualified Streamly.Prelude as S
@@ -136,6 +153,7 @@ defaultStreamSize = 100000
 
 newtype BenchOpts = StreamSize Int deriving Show
 
+#ifdef MIN_VERSION_gauge
 getStreamSize :: String -> Int
 getStreamSize size =
     case (readMaybe size :: Maybe Int) of
@@ -145,7 +163,7 @@ getStreamSize size =
 options :: [OptDescr BenchOpts]
 options =
     [
-      Option [] ["stream-size"] (ReqArg getSize "COUNT") "Stream element count"
+        System.Console.GetOpt.Option [] ["stream-size"] (ReqArg getSize "COUNT") "Stream element count"
     ]
 
     where
@@ -169,7 +187,6 @@ deleteOptArgs (Just prev, _) opt =
 parseCLIOpts :: Int -> IO (Int, Config, [String])
 parseCLIOpts defStreamSize = do
     args <- getArgs
-
     -- Parse custom options
     let (opts, _, _, errs) = getOpt' Permute options args
     when (not $ null errs) $ error $ concat errs
@@ -207,3 +224,33 @@ parseCLIOpts defStreamSize = do
                 }
     let (cfg, benches) = parseWith config args'
     streamSize `seq` return (streamSize, cfg, benches)
+
+#else
+instance IsOption BenchOpts where
+    defaultValue = StreamSize defaultStreamSize
+    parseValue = fmap StreamSize . safeRead
+    optionName = pure "stream-size"
+    optionHelp = pure "StreamSize used in benchmarks"
+
+parseCLIOpts :: Int -> Benchmark -> IO (Int, [Ingredient])
+parseCLIOpts cDefSize benches = do
+    let customOpts  = [Test.Tasty.Options.Option (Proxy :: Proxy BenchOpts)]
+        ingredients = includingOptions customOpts : benchIngredients
+    opts <- parseOptions ingredients benches
+    let StreamSize size = lookupOption opts
+    print $ "Stream-Size = " ++ show size
+    if size == defaultStreamSize        -- LONG option is not set
+    then return (cDefSize, ingredients) -- use custom defaut size of Benchmark
+    else return (size, ingredients)     -- LONG option is set use large stream size
+#endif
+
+runWithCLIOpts :: Int -> (Int -> [Benchmark]) -> IO ()
+runWithCLIOpts cDefSize f = do
+
+#ifdef MIN_VERSION_gauge
+    (value, cfg, benches) <- parseCLIOpts cDefSize
+    value `seq` runMode (mode cfg) cfg benches (f value)
+#else
+    (value, ingredients) <- parseCLIOpts cDefSize $ bgroup "All" (f 0)
+    value `seq` defaultMainWithIngredients ingredients $ bgroup "All" (f value)
+#endif

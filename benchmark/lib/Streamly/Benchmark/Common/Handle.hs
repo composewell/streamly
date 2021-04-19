@@ -86,6 +86,29 @@ withScaling env str =
        then str
        else str ++ " (1/" ++ show factor ++ ")"
 
+getHandles :: BenchEnv -> (RefHandles -> Handles) -> IO Handles
+getHandles env mkHandles = do
+    r <- readIORef $ href env
+    -- close old handles
+    hClose $ smallInH r
+    hClose $ bigInH r
+    hClose $ outputH r
+
+    -- reopen
+    smallInHandle <- openFile (smallInFile env) ReadMode
+    bigInHandle <- openFile (bigInFile env) ReadMode
+    outHandle <- openFile outfile WriteMode
+
+    let refHandles = RefHandles
+            { smallInH = smallInHandle
+            , bigInH = bigInHandle
+            , outputH = outHandle
+            }
+
+    -- update
+    writeIORef (href env) $ refHandles
+    return $ mkHandles refHandles
+
 mkBenchCommon ::
        NFData b
     => (RefHandles -> Handles)
@@ -94,30 +117,11 @@ mkBenchCommon ::
     -> (Handle -> Handle -> IO b)
     -> Benchmark
 mkBenchCommon mkHandles name env action =
-    bench name $ perRunEnv (do
-            r <- readIORef $ href env
-
-            -- close old handles
-            hClose $ smallInH r
-            hClose $ bigInH r
-            hClose $ outputH r
-
-            -- reopen
-            smallInHandle <- openFile (smallInFile env) ReadMode
-            bigInHandle <- openFile (bigInFile env) ReadMode
-            outHandle <- openFile outfile WriteMode
-
-            let refHandles = RefHandles
-                    { smallInH = smallInHandle
-                    , bigInH = bigInHandle
-                    , outputH = outHandle
-                    }
-
-            -- update
-            writeIORef (href env) $ refHandles
-            return $ mkHandles refHandles
-        )
-        (\(Handles h1 h2) -> action h1 h2)
+     bench name $ nfIO $ do
+        -- XXX adds significant cpu time to the benchmarks
+        -- tasty-bench should provide a better way to do this
+        (Handles h1 h2) <- getHandles env mkHandles
+        action h1 h2
 
 mkBench ::
     NFData b => String -> BenchEnv -> (Handle -> Handle -> IO b) -> Benchmark

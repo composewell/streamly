@@ -5,6 +5,7 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fspec-constr-recursive=4 #-}
@@ -358,16 +359,25 @@ o_n_space_serial value =
 -- Driver
 -------------------------------------------------------------------------------
 
+getArray :: (Int -> [Benchmark]) -> IO [Array.Array Int]
+#ifndef MIN_VERSION_gauge
+getArray f = do
+    (value, _) <- parseCLIOpts defaultStreamSize $ bgroup "All" (f 0)
+    IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
+#else
+getArray _ = do
+    (value, _, _) <- parseCLIOpts defaultStreamSize
+    IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
+#endif
+
 main :: IO ()
 main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    arraysSmall <- IP.toList $ IP.arraysOf 100 $ sourceUnfoldrM value 0
-    value `seq` runMode (mode cfg) cfg benches
-        (allBenchmarks value arraysSmall)
+    arrays <- getArray (allBenchmarks [])
+    runWithCLIOpts defaultStreamSize (allBenchmarks arrays)
 
     where
 
-    allBenchmarks value arraysSmall =
+    allBenchmarks arraysSmall value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_spanning value)
         , bgroup (o_1_space_prefix moduleName) (o_1_space_serial_nested value)
