@@ -1038,7 +1038,7 @@ duplicate (Fold step1 initial1 extract1) =
 -- value returned by this effect as its initial value.
 --
 -- /Pre-release/
-{-# INLINABLE initialize #-}
+{-# INLINE initialize #-}
 initialize :: Monad m => Fold m a b -> m (Fold m a b)
 initialize (Fold step initial extract) = do
     i <- initial
@@ -1048,17 +1048,14 @@ initialize (Fold step initial extract) = do
 -- the returned fold.
 --
 -- /Pre-release/
-{-# INLINABLE runStep #-}
+{-# INLINE runStep #-}
 runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
-runStep (Fold step initial extract) a = return $ Fold step initial1 extract
-
-    where
-
-    initial1 = do
-        res <- initial
-        case res of
-              Partial fs -> step fs a
-              b@(Done _) -> return b
+runStep (Fold step initial extract) a = do
+    res <- initial
+    r <- case res of
+          Partial fs -> step fs a
+          b@(Done _) -> return b
+    return $ Fold step (return r) extract
 
 ------------------------------------------------------------------------------
 -- Parsing
