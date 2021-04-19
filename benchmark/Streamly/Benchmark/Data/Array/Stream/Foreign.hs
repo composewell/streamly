@@ -192,14 +192,12 @@ moduleName = "Data.Array.Stream.Foreign"
 
 main :: IO ()
 main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    value `seq` runMode (mode cfg) cfg benches
-        (allBenchmarks env)
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
     where
 
-    allBenchmarks env =
+    allBenchmarks env _ =
         [ bgroup (o_1_space_prefix moduleName)
           ( o_1_space_read_chunked env
           ++ o_1_space_copy_toChunks_group_ungroup env

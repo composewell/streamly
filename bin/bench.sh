@@ -142,62 +142,71 @@ bench_output_file() {
     echo "charts/$bench_name/results.csv"
 }
 
-# --min-duration 0 means exactly one iteration per sample. We use a million
-# iterations in the benchmarking code explicitly and do not use the iterations
-# done by the benchmarking tool.
-#
-# Benchmarking tool by default discards the first iteration to remove
-# aberrations due to initial evaluations etc. We do not discard it because we
-# are anyway doing iterations in the benchmarking code and many of them so that
-# any constant factor gets amortized and anyway it is a cost that we pay in
-# real life.
-#
-# We can pass --min-samples value from the command line as second argument
-# after the benchmark name in case we want to use more than one sample.
+run_bench_target () {
+  local package_name=$1
+  local component=$2
+  local target_name=$3
+  local output_file=$(bench_output_file $target_name)
 
-# $1: bench name
-# $2: bench executable
-target_exe_extra_args () {
-  local bench_name=$1
-  local bench_prog=$2
+  local target_prog
+  target_prog=$(cabal_target_prog $package_name $component $target_name) || \
+    die "Cannot find executable for target $target_name"
 
-  local output_file=$(bench_output_file $bench_name)
-  mkdir -p `dirname $output_file`
+  echo "Running executable $target_name ..."
 
-  local QUICK_OPTS="--quick --min-duration 0"
-  local SPEED_OPTIONS
-  if test "$LONG" -eq 0
+  # Needed by bench-exec-one.sh
+  export BENCH_EXEC_PATH=$target_prog
+  if test "$LONG" -ne 0
   then
-    if test "$SLOW" -eq 0
-    then
-        if test "$QUICK_MODE" -eq 0
-        then
-          # default mode, not super quick, not slow
-          SPEED_OPTIONS="$QUICK_OPTS --min-samples 10 --time-limit 1"
-        else
-          # super quick but less accurate
-          # When the time-limit is too low and the benchmark is tiny,
-          # then if the number of iterations is very small the GC stats
-          # may remain 0.  So keep the time-limit at a minimum of 10 ms
-          # to collect significant stats. The problem was observed in
-          # the Prelude.Serial/reverse' benchmark.
-          SPEED_OPTIONS="$QUICK_OPTS --time-limit 0.01 --include-first-iter"
-        fi
-    else
-      # Slow but more accurate mode
-      SPEED_OPTIONS="--min-duration 0"
-    fi
-  else
-      # large stream size, always super quick
-      GAUGE_ARGS="$GAUGE_ARGS $bench_name/o-1-space"
-      SPEED_OPTIONS="--stream-size 10000000 $QUICK_OPTS --include-first-iter"
+      BENCH_ARGS="-p /$target_name\/o-1-space/"
+      STREAM_SIZE=10000000
+      export STREAM_SIZE
   fi
 
-  echo "$SPEED_OPTIONS \
-    --csvraw=$output_file \
-    -v 2 \
-    --measure-with "$SCRIPT_DIR/bench-exec-one.sh" \
-    $GAUGE_ARGS"
+  local MATCH=""
+  if test "$USE_GAUGE" -eq 0
+  then
+    if test "$LONG" -ne 0
+    then
+      MATCH="-p /$target_name\/o-1-space/"
+    else
+        if test -n "$GAUGE_ARGS"
+        then
+          local GAUGE_ARGS1=$(echo "$GAUGE_ARGS" | sed -e 's/\//\\\//g')
+          MATCH="-p /$GAUGE_ARGS1/"
+        fi
+    fi
+    echo "Name,cpuTime,2*Stdev (ps),Allocated,bytesCopied" >> $output_file
+    $target_prog -l $MATCH \
+      | grep "^All" \
+      | while read -r name; do bin/bench-exec-one.sh "$name"; done
+  else
+    if test "$LONG" -ne 0
+    then
+      MATCH="$target_name/o-1-space"
+    else
+      MATCH="$GAUGE_ARGS"
+    fi
+    echo "name,iters,time,cycles,cpuTime,utime,stime,maxrss,minflt,majflt,nvcsw,nivcsw,allocated,numGcs,bytesCopied,mutatorWallSeconds,mutatorCpuSeconds,gcWallSeconds,gcCpuSeconds" >> $output_file
+    # XXX We may have to use "sort | awk" to keep only benchmark names with
+    # shortest prefix e.g. "a/b/c" and "a/b", we should only keep "a/b"
+    # otherwise benchmarks will run multiple times.
+    $target_prog -l \
+      | grep "^$target_name" \
+      | grep "^$MATCH" \
+      | sort | paste -sd "," - | awk 'BEGIN {FS=","} {t="XU987"; for(i=1;i<=NF;i++) if (substr($i,1,length(t)) != t) {print $i; t=$i}}' \
+      | while read -r name; do bin/bench-exec-one.sh "$name"; done
+  fi
+}
+
+# $1: package name
+# $2: component
+# $3: targets
+run_bench_targets() {
+    for i in $3
+    do
+      run_bench_target $1 $2 $i
+    done
 }
 
 run_benches_comparing() {
@@ -217,14 +226,14 @@ run_benches_comparing() {
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
     $BUILD_BENCH || die "build failed"
-    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
+    run_bench_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
     $BUILD_BENCH || die "build failed"
-    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
+    run_bench_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
     # XXX reset back to the original commit
 }
 
@@ -248,7 +257,7 @@ run_measurements() {
 
   if test "$COMPARE" = "0"
   then
-    run_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
+    run_bench_targets streamly-benchmarks b "$bench_list" target_exe_extra_args
   else
     run_benches_comparing "$bench_list"
   fi
@@ -274,6 +283,8 @@ run_reports() {
 
 cd $SCRIPT_DIR/..
 
+USE_GAUGE=0
+export USE_GAUGE
 USE_GIT_CABAL=1
 set_common_vars
 
@@ -323,7 +334,7 @@ do
     --long) LONG=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
-    --dev-build) RUNNING_DEVBUILD=1; shift ;;
+    --dev-build) RUNNING_DEVBUILD=1; shift ;;    
     --) shift; break ;;
     -*|--*) echo "Unknown flags: $*"; echo; print_help ;;
     *) break ;;
@@ -409,6 +420,7 @@ then
   run_build "$BUILD_BENCH" streamly-benchmarks bench "$TARGETS"
   export QUICK_MODE
   export RTS_OPTIONS
+  export LONG
   run_measurements "$TARGETS"
 fi
 
