@@ -25,6 +25,9 @@
 * Check if any critical pending bugs or issues are to be included
 * If this is a major release check if any previously deprecated features are to
   be removed in this release.
+* Check pre-release APIs to be exposed, especially from streamly-examples
+* PVP is ahered to, do not change pre-release APIs in a minor release
+
 * _Documentation_:
 
     * README is updated
@@ -33,6 +36,14 @@
     * Documents in the `docs` directory are consistent with new changes
     * All combinators have time and space complexity annotations
     * All combinators have `since` annotation
+    * Unreleased combinators should be marked with `Pre-release` or
+      `Internal` annotations
+
+* _Build and Test_:
+
+    * All CIs are green
+    * Manually build and test for all flags (esp. `dev` flag) not covered by CIs
+    * Test latest GHC version with -O0 and -O1
 
 * _Benchmarks_:
 
@@ -44,15 +55,12 @@
       in regular runs.
     * Check comparative benchmarks using streaming-benchmarks
 
-* _Tests_:
-
-    * Run tests with `dev` flag on. Many tests are disabled in regular runs.
-
 * _Examples_:
 
     * Update
       [streamly-examples](https://github.com/composewell/streamly-examples)
       to make sure it runs with the latest release.
+    * Check the performance of examples where applicable
 
 * _Update Package Metadata:_
 
