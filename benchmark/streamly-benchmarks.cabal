@@ -54,6 +54,11 @@ flag opt
   manual: True
   default: True
 
+flag use-gauge
+  description: Use gauge instead of tasty-bench for benchmarking
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -113,12 +118,21 @@ common bench-depends
     -- other libraries
     , streamly            >= 0.7.0
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
     , transformers        >= 0.4   && < 0.6
     , containers          >= 0.5   && < 0.7
     , typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
     , ghc-prim          >= 0.4   && < 0.8
+
+  if flag(use-gauge)    
+    build-depends:  gauge >= 0.2.4 && < 0.3
+  else    
+    build-depends:    tasty-bench >= 0.2.5 && < 0.3
+                    , tasty     >= 1.4.1
+    mixins: tasty-bench
+      (Test.Tasty.Bench as Gauge     
+      , Test.Tasty.Bench as Gauge.Main
+      )
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:

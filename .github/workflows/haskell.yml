@@ -41,16 +41,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [8.10.4+stack+lts-17.8, 8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8.4+stack+lts-16.31, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
-        cabal_version: ["3.2"]
+        name: [9.0.1, 8.10.4+stack+lts-17.8, 8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8.4+stack+lts-16.31, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
+        cabal_version: ["3.4"]
         include:
-          #- name: 9.0.1+no-bench
-          #  ghc_version: 9.0.1
-          #  build: cabal-v2
-          #  cabal_build_options: "--allow-newer=hsc2hs"
-          #  cabal_build_targets: "streamly streamly-tests"
-          #  disable_sdist_build: "y"
-          #  runner: ubuntu-latest
+          - name: 9.0.1
+            ghc_version: 9.0.1
+            build: cabal-v2
+            cabal_build_options: "--allow-newer=hsc2hs"
+            disable_sdist_build: "y"
+            runner: ubuntu-latest
           - name: 8.10.4+stack+lts-17.8
             build: stack
             resolver: lts-17.8

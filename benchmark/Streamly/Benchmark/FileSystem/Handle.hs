@@ -43,13 +43,12 @@ moduleName = "FileSystem.Handle"
 
 main :: IO ()
 main = do
-    (_, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    runMode (mode cfg) cfg benches (allBenchmarks env)
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
     where
 
-    allBenchmarks env =
+    allBenchmarks env _ =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
             [ RO.allBenchmarks env
             , RW.allBenchmarks env

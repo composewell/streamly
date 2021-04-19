@@ -799,13 +799,12 @@ o_1_space_copy_read_exceptions env =
 
 main :: IO ()
 main = do
-    (size, cfg, benches) <- parseCLIOpts defaultStreamSize
     env <- mkHandleBenchEnv
-    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size env)
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
     where
 
-    allBenchmarks size env =
+    allBenchmarks env size =
         [ bgroup (o_1_space_prefix moduleName)
             $ Prelude.concat
                   [ o_1_space_transformation_input size

@@ -1,10 +1,11 @@
-{-# LANGUAGE RankNTypes #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
+
+{-# LANGUAGE RankNTypes #-}
 
 import Control.Concurrent
 import Control.Monad (when, replicateM)
@@ -77,13 +78,7 @@ concatGroup buflen threads usec n =
 
 main :: IO ()
 main =
-  defaultMainWith (defaultConfig
-    { timeLimit = Just 0
-    , minSamples = Just 1
-    , minDuration = 0
-    , includeFirstIter = True
-    , quickMode = True
-    })
+    defaultMain
 
     [ -- bgroup "append/buf-1-threads-10k-0sec"  (appendGroup 1 10000 0)
     -- , bgroup "append/buf-100-threads-100k-0sec"  (appendGroup 100 100000 0)

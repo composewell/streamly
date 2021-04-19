@@ -117,9 +117,7 @@ o_n_space_outerProduct value =
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 

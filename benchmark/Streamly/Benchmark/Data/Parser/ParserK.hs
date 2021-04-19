@@ -153,9 +153,7 @@ o_n_heap_serial value =
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = do
-    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 
