@@ -136,17 +136,9 @@ fromFold (Fold.Fold fstep finitial fextract) =
 fromParser :: forall m a b. (MonadIO m, Storable a) =>
     ParserD.Parser m a b -> Fold m a b
 fromParser (ParserD.Parser step1 initial1 extract1) =
-    Fold (ParserD.Parser step initial extract1)
+    Fold (ParserD.Parser step initial1 extract1)
 
     where
-
-    initial = do
-        res <- initial1
-        return
-            $ case res of
-                  IPartial s1 -> IPartial s1
-                  IDone b -> IDone b
-                  IError err -> IError err
 
     step s (Array fp@(ForeignPtr start _) end) = do
         if Ptr start >= end
@@ -154,6 +146,13 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
         else goArray SPEC (Ptr start) s
 
         where
+
+        {-# INLINE partial #-}
+        partial arrRem cur next elemSize st n fs1 = do
+            let next1 = next `plusPtr` negate (n * elemSize)
+            if next1 >= Ptr start && cur < end
+            then goArray SPEC next1 fs1
+            else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
             x <- liftIO $ peek cur
@@ -165,16 +164,10 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
             case res of
                 ParserD.Done n b -> do
                     return $ Done (arrRem + n) b
-                ParserD.Partial n fs1 -> do
-                    let next1 = next `plusPtr` negate (n * elemSize)
-                    if next1 >= Ptr start && cur < end
-                    then goArray SPEC next1 fs1
-                    else return $ Partial (arrRem + n) fs1
+                ParserD.Partial n fs1 ->
+                    partial arrRem cur next elemSize Partial n fs1
                 ParserD.Continue n fs1 -> do
-                    let next1 = next `plusPtr` negate (n * elemSize)
-                    if next1 >= Ptr start && cur < end
-                    then goArray SPEC next1 fs1
-                    else return $ Continue (arrRem + n) fs1
+                    partial arrRem cur next elemSize Continue n fs1
                 Error err -> return $ Error err
 
 -- | Adapt an array stream fold.
@@ -309,20 +302,22 @@ take n (Fold (ParserD.Parser step1 initial1 extract1)) =
             IDone b -> return $ IDone b
             IError err -> return $ IError err
 
+    {-# INLINE partial #-}
+    partial i1 st j s =
+        let i2 = i1 + j
+         in if i2 > 0
+            then return $ st j (Tuple' i2 s)
+            else Done 0 <$> extract1 s -- i2 == i1 == j == 0
+
     step (Tuple' i r) arr = do
         let len = Array.length arr
-        if len <= i
+            i1 = i - len
+        if i1 >= 0
         then do
             res <- step1 r arr
             case res of
-                Partial j s ->
-                    if (i + j - len) > 0
-                    then return $ Partial j (Tuple' (i + j - len) s)
-                    else Done j <$> extract1 s
-                Continue j s ->
-                    if (i + j - len) > 0
-                    then return $ Continue j (Tuple' (i + j - len) s)
-                    else Done j <$> extract1 s
+                Partial j s -> partial i1 Partial j s
+                Continue j s -> partial i1 Continue j s
                 Done j b -> return $ Done j b
                 Error err -> return $ Error err
         else do
@@ -330,7 +325,7 @@ take n (Fold (ParserD.Parser step1 initial1 extract1)) =
                 sz = sizeOf (undefined :: a)
                 end = Ptr start `plusPtr` (i * sz)
                 arr1 = Array (ForeignPtr start contents) end
-                remaining = len - i
+                remaining = negate i1
             res <- step1 r arr1
             case res of
                 Partial 0 s -> Done remaining <$> extract1 s
