@@ -756,6 +756,8 @@ module Streamly.Prelude
 
     -- ** Nested Unfolds
     , unfoldMany
+    , intercalate
+    , intercalateSuffix
 
     -- ** Nested Streams
     -- | Stream operations like map and filter represent loop processing in

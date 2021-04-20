@@ -150,7 +150,8 @@ module Streamly.Data.Fold
     , mean
     , variance
     , stdDev
-
+    , rollingHash
+    , rollingHashWithSalt
 
     -- Collectors
     , toList
