@@ -33,6 +33,7 @@ import Test.Inspection
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Prelude
 
 import Gauge
@@ -482,12 +483,24 @@ intersperseM value n = composeN n $ S.intersperseM (return $ value + 1)
 insertBy :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 insertBy value n = composeN n $ S.insertBy compare (value + 1)
 
+{-# INLINE interposeSuffix #-}
+interposeSuffix :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
+interposeSuffix value n =
+    composeN n $ Internal.interposeSuffix (value + 1) Unfold.identity
+
+{-# INLINE intercalateSuffix #-}
+intercalateSuffix :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
+intercalateSuffix value n =
+    composeN n $ Internal.intercalateSuffix (value + 1) Unfold.identity
+
 o_1_space_inserting :: Int -> [Benchmark]
 o_1_space_inserting value =
-    [ bgroup "filtering"
+    [ bgroup "inserting"
         [ benchIOSink value "intersperse" (intersperse value 1)
         , benchIOSink value "intersperseM" (intersperseM value 1)
         , benchIOSink value "insertBy" (insertBy value 1)
+        , benchIOSink value "interposeSuffix" (interposeSuffix value 1)
+        , benchIOSink value "intercalateSuffix" (intercalateSuffix value 1)
         ]
     ]
 

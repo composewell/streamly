@@ -43,6 +43,16 @@
 -- can be used for convenience when specifying unicode strings literals using
 -- these types.
 --
+-- = Idioms
+--
+-- Some simple text processing operations can be represented simply as
+-- operations on Char streams. Follow the links for the following idioms:
+--
+-- * 'Streamly.Internal.Unicode.Stream.lines'
+-- * 'Streamly.Internal.Unicode.Stream.words'
+-- * 'Streamly.Internal.Unicode.Stream.unlines'
+-- * 'Streamly.Internal.Unicode.Stream.unwords'
+--
 -- = Pitfalls
 --
 -- * Case conversion: Some unicode characters translate to more than one code
