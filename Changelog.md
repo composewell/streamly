@@ -39,6 +39,7 @@
 * New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
   are added, these routines fail when they encounter any invalid characters.
 * Several new functions added to `Streamly.Data.Fold`
+* New `Streamly.Data.Fold.Tee` module added for distributive fold operations.
 * Several Unfold routines and combinators added to `Streamly.Data.Unfold`.
 * Added delay, liftInner, runStateT, runReaderT to Streamly.Prelude
 
