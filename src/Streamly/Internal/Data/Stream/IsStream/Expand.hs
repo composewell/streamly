@@ -548,27 +548,22 @@ gintercalate unf1 str1 unf2 str2 =
         unf1 (D.toStreamD str1)
         unf2 (D.toStreamD str2)
 
--- XXX The order of arguments in "intercalate" is consistent with the list
--- intercalate but inconsistent with gintercalate and other stream interleaving
--- combinators. We can change the order of the arguments in other combinators
--- but then 'interleave' combinator may become a bit unintuitive because we
--- will be starting with the second stream.
-
--- > intercalate seed unf str = gintercalate unf str unf (repeatM seed)
--- > intercalate a unf str = unfoldMany unf $ intersperse a str
+-- > intercalate unf seed str = gintercalate unf str unf (repeatM seed)
 --
 -- | 'intersperse' followed by unfold and concat.
 --
--- > unwords = intercalate " " Unfold.fromList
+-- > intercalate unf a str = unfoldMany unf $ intersperse a str
+-- > intersperse = intercalate (Unfold.function id)
+-- > unwords = intercalate Unfold.fromList " "
 --
--- >>> Stream.toList $ Stream.intercalate " " Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
+-- >>> Stream.toList $ Stream.intercalate Unfold.fromList " " $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc def ghi"
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE intercalate #-}
 intercalate :: (IsStream t, Monad m)
-    => b -> Unfold m b c -> t m b -> t m c
-intercalate seed unf str = D.fromStreamD $
+    => Unfold m b c -> b -> t m b -> t m c
+intercalate unf seed str = D.fromStreamD $
     D.unfoldMany unf $ D.intersperse seed (toStreamD str)
 
 -- | 'interleaveSuffix' followed by unfold and concat.
@@ -583,21 +578,22 @@ gintercalateSuffix unf1 str1 unf2 str2 =
         unf1 (D.toStreamD str1)
         unf2 (D.toStreamD str2)
 
--- > intercalateSuffix seed unf str = gintercalateSuffix unf str unf (repeatM seed)
--- > intercalateSuffix a unf str = unfoldMany unf $ intersperseSuffix a str
+-- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
 --
 -- | 'intersperseSuffix' followed by unfold and concat.
 --
--- > unlines = intercalateSuffix "\n" Unfold.fromList
+-- > intercalateSuffix unf a str = unfoldMany unf $ intersperseSuffix a str
+-- > intersperseSuffix = intercalateSuffix (Unfold.function id)
+-- > unlines = intercalateSuffix Unfold.fromList "\n"
 --
--- >>> Stream.toList $ Stream.intercalateSuffix "\n" Unfold.fromList $ Stream.fromList ["abc", "def", "ghi"]
+-- >>> Stream.toList $ Stream.intercalateSuffix Unfold.fromList "\n" $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc\ndef\nghi\n"
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (IsStream t, Monad m)
-    => b -> Unfold m b c -> t m b -> t m c
-intercalateSuffix seed unf str = fromStreamD $ D.unfoldMany unf
+    => Unfold m b c -> b -> t m b -> t m c
+intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
     $ D.intersperseSuffix (return seed) (D.toStreamD str)
 
 {-
