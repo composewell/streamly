@@ -356,6 +356,7 @@ library
                        Streamly.Prelude
                      , Streamly.Data.Unfold
                      , Streamly.Data.Fold
+                     , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
 
                      -- Text Processing
