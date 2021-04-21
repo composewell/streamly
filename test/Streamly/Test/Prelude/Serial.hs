@@ -221,7 +221,7 @@ splitterProperties sep desc = do
             ys <- splitter xs (replicate i sep)
             szs <-
                 IS.toList
-                    $ sIntercalater (replicate i sep) UF.fromList
+                    $ sIntercalater UF.fromList (replicate i sep)
                     $ IS.fromList ys
             let lzs = lIntercalater (replicate i sep) ys
             listEquals (==) szs xs
@@ -243,7 +243,7 @@ splitterProperties sep desc = do
             ys <- splitter xs (replicate i sep)
             szs <-
                 IS.toList
-                    $ sIntercalater (replicate i sep) UF.fromList
+                    $ sIntercalater UF.fromList (replicate i sep)
                     $ IS.fromList ys
             let lzs = lIntercalater (replicate i sep) ys
             listEquals (==) szs xs
@@ -265,7 +265,7 @@ splitterProperties sep desc = do
             lys <- splitter lxs (replicate i sep)
             sxs <-
                 S.toList
-                    $ sIntercalater (replicate i sep) UF.fromList
+                    $ sIntercalater UF.fromList (replicate i sep)
                     $ S.fromList xss
             sys <- splitter sxs (replicate i sep)
             listEquals (==) (concat lys) (concat xss)
@@ -285,7 +285,7 @@ splitterProperties sep desc = do
         testCase xss = do
             let lxs = lIntercalater [sep] xss
             lys <- splitter lxs [sep]
-            sxs <- S.toList $ sIntercalater [sep] UF.fromList $ S.fromList xss
+            sxs <- S.toList $ sIntercalater UF.fromList [sep] $ S.fromList xss
             sys <- splitter sxs [sep]
             listEquals (==) lys xss
             listEquals (==) sys xss

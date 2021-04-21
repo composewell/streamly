@@ -143,7 +143,7 @@ interpose x = S.interpose x A.read
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (MonadIO m, IsStream t, Storable a)
     => Array a -> t m (Array a) -> t m a
-intercalateSuffix arr = S.intercalateSuffix arr A.read
+intercalateSuffix = S.intercalateSuffix A.read
 
 -- | Flatten a stream of arrays appending the given element after each
 -- array.

@@ -491,7 +491,7 @@ interposeSuffix value n =
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
 intercalateSuffix value n =
-    composeN n $ Internal.intercalateSuffix (value + 1) Unfold.identity
+    composeN n $ Internal.intercalateSuffix Unfold.identity (value + 1)
 
 o_1_space_inserting :: Int -> [Benchmark]
 o_1_space_inserting value =
