@@ -13,8 +13,8 @@ module Streamly.Internal.Network.Socket
     (
     SockSpec (..)
     -- * Use a socket
-    , handleWithM
-    , handleWith
+    , forSocketM
+    , withSocket
 
     -- * Accept connections
     , accept
@@ -105,25 +105,27 @@ import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
--- | @'handleWithM' socket act@ runs the monadic computation @act@ passing the
--- socket handle to it.  The handle will be closed on exit from 'handleWithM',
--- whether by normal termination or by raising an exception.  If closing the
--- handle raises an exception, then this exception will be raised by
--- 'handleWithM' rather than any exception raised by 'act'.
+-- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
+-- the socket handle to it.  The handle will be closed on exit from
+-- 'forSocketM', whether by normal termination or by raising an exception.  If
+-- closing the handle raises an exception, then this exception will be raised
+-- by 'forSocketM' rather than any exception raised by 'action'.
 --
--- @since 0.7.0
-{-# INLINE handleWithM #-}
-handleWithM :: (MonadMask m, MonadIO m) => (Socket -> m ()) -> Socket -> m ()
-handleWithM f sk = finally (f sk) (liftIO (Net.close sk))
+-- @since 0.8.0
+{-# INLINE forSocketM #-}
+forSocketM :: (MonadMask m, MonadIO m) => (Socket -> m ()) -> Socket -> m ()
+forSocketM f sk = finally (f sk) (liftIO (Net.close sk))
 
--- | Like 'handleWithM' but runs a streaming computation instead of a monadic
+-- | Like 'forSocketM' but runs a streaming computation instead of a monadic
 -- computation.
 --
--- @since 0.7.0
-{-# INLINE handleWith #-}
-handleWith :: (IsStream t, MonadAsync m, MonadCatch m)
+-- /Inhibits stream fusion/
+--
+-- /Internal/
+{-# INLINE withSocket #-}
+withSocket :: (IsStream t, MonadAsync m, MonadCatch m)
     => Socket -> (Socket -> t m a) -> t m a
-handleWith sk f = S.finally (liftIO $ Net.close sk) (f sk)
+withSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
 -- Accept (Unfolds)

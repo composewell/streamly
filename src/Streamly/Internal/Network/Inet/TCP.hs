@@ -68,7 +68,7 @@ module Streamly.Internal.Network.Inet.TCP
     , fromChunks
 
     -- ** Transformation
-    , transformBytesWith
+    , processBytes
     {-
     -- ** Sink Servers
 
@@ -446,12 +446,11 @@ withInputConnect addr port input f = S.bracket pre post handler
 --
 -- /Pre-release/
 --
-{-# INLINABLE transformBytesWith #-}
-transformBytesWith
+{-# INLINABLE processBytes #-}
+processBytes
     :: (IsStream t, MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
     -> t m Word8
-transformBytesWith addr port input =
-    withInputConnect addr port input ISK.toBytes
+processBytes addr port input = withInputConnect addr port input ISK.toBytes

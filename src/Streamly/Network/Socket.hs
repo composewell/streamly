@@ -2,7 +2,7 @@
 -- Module      : Streamly.Network.Socket
 -- Copyright   : (c) 2018 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -32,7 +32,6 @@
 --
 -- import Data.Function ((&))
 -- import Network.Socket
--- import Streamly.Internal.Network.Socket (handleWithM)
 -- import Streamly.Network.Socket (SockSpec(..))
 --
 -- import qualified Streamly.Prelude as Stream
@@ -52,8 +51,8 @@
 --
 --     server spec addr =
 --           Stream.unfold Socket.accept (maxListenQueue, spec, addr) -- ParallelT IO Socket
---         & Stream.mapM (handleWithM echo)                           -- ParallelT IO ()
---         & fromParallel                                             -- SerialT IO ()
+--         & Stream.mapM (Socket.forSocketM echo)                     -- ParallelT IO ()
+--         & Stream.fromParallel                                      -- SerialT IO ()
 --         & Stream.drain                                             -- IO ()
 --
 --     echo sk =
@@ -64,12 +63,12 @@
 -- = Programmer Notes
 --
 -- Read IO requests to connected stream sockets are performed in chunks of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.  Unless specified
--- otherwise in the API, writes are collected into chunks of
+-- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.  Unless
+-- specified otherwise in the API, writes are collected into chunks of
 -- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before they are
 -- written to the socket. APIs are provided to control the chunking behavior.
 --
--- > import qualified Streamly.Network.Socket as SK
+-- > import qualified Streamly.Network.Socket as Socket
 --
 -- = See Also
 --
@@ -113,6 +112,9 @@ module Streamly.Network.Socket
     , writeChunks
     , writeChunksWithBufferOf
     , writeChunk
+
+    -- * Exceptions
+    , forSocketM
     )
 where
 
