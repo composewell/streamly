@@ -32,11 +32,10 @@ module Streamly.Internal.Network.Socket
 
     -- -- * Array Read
     -- , readArrayUpto
-    -- , readArrayOf
-
     -- , readChunksUpto
-    , readChunksWithBufferOf
+    , readChunk
     , readChunks
+    , readChunksWithBufferOf
 
     , toChunksWithBufferOf
     , toChunks
@@ -263,13 +262,15 @@ readArrayUptoWith f size h = do
         -- A.shrinkToFit v
         return v
 
--- | Read a 'ByteArray' from a file handle. If no data is available on the
--- handle it blocks until some data becomes available. If data is available
--- then it immediately returns that data without blocking. It reads a maximum
--- of up to the size requested.
-{-# INLINABLE readArrayOf #-}
-readArrayOf :: Int -> Socket -> IO (Array Word8)
-readArrayOf = readArrayUptoWith recvBuf
+-- | Read a byte array from a file handle up to a maximum of the requested
+-- size. If no data is available on the handle it blocks until some data
+-- becomes available. If data is available then it immediately returns that
+-- data without blocking.
+--
+-- @since 0.8.0
+{-# INLINABLE readChunk #-}
+readChunk :: Int -> Socket -> IO (Array Word8)
+readChunk = readArrayUptoWith recvBuf
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -310,7 +311,7 @@ writeArrayWith f h Array{..} = withForeignPtr aStart $ \p ->
 
 -- | Write an Array to a file handle.
 --
--- @since 0.7.0
+-- @since 0.8.0
 {-# INLINABLE writeChunk #-}
 writeChunk :: Storable a => Socket -> Array a -> IO ()
 writeChunk = writeArrayWith sendAll
@@ -339,12 +340,12 @@ _readChunksUptoWith f size h = go
 {-# INLINE_NORMAL toChunksWithBufferOf #-}
 toChunksWithBufferOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
--- toChunksWithBufferOf = _readChunksUptoWith readArrayOf
+-- toChunksWithBufferOf = _readChunksUptoWith readChunk
 toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
-        arr <- liftIO $ readArrayOf size h
+        arr <- liftIO $ readChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -372,7 +373,7 @@ readChunksWithBufferOf = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
-        arr <- liftIO $ readArrayOf size h
+        arr <- liftIO $ readChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -456,13 +457,13 @@ fromChunks h = S.mapM_ (liftIO . writeChunk h)
 writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeChunk h)
 
--- | @writeChunksWithBufferOf bufsize socket@ writes a stream of arrays
--- to @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.
--- We never split an array, if a single array is bigger than the specified size
--- it emitted as it is. Multiple arrays are coalesed as long as the total size
--- remains below the specified size.
+-- | @writeChunksWithBufferOf bufsize socket@ writes a stream of arrays to
+-- @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.
+-- Multiple arrays are coalesed as long as the total size remains below the
+-- specified size.  It never splits an array, if a single array is bigger than
+-- the specified size it emitted as it is.
 --
--- @since 0.7.0
+-- @since 0.8.0
 {-# INLINE writeChunksWithBufferOf #-}
 writeChunksWithBufferOf :: (MonadIO m, Storable a)
     => Int -> Socket -> Fold m (Array a) ()

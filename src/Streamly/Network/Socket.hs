@@ -24,8 +24,8 @@
 -- of bytes or a stream of chunks of bytes ('Array').
 --
 -- Following is a short example of a concurrent echo server.  Please note that
--- this example can be written more succinctly by using higher level operations
--- from "Streamly.Network.Inet.TCP" module.
+-- this example can be written even more succinctly by using higher level
+-- operations from "Streamly.Network.Inet.TCP" module.
 --
 -- @
 -- {-\# LANGUAGE FlexibleContexts #-}
@@ -35,9 +35,8 @@
 -- import Streamly.Internal.Network.Socket (handleWithM)
 -- import Streamly.Network.Socket (SockSpec(..))
 --
--- import Streamly
--- import qualified Streamly.Prelude as S
--- import qualified Streamly.Network.Socket as SK
+-- import qualified Streamly.Prelude as Stream
+-- import qualified Streamly.Network.Socket as Socket
 --
 -- main = do
 --     let spec = SockSpec
@@ -52,13 +51,14 @@
 --     where
 --
 --     server spec addr =
---           S.unfold SK.accept (maxListenQueue, spec, addr) -- SerialT IO Socket
---         & fromParallel . S.mapM (handleWithM echo)        -- SerialT IO ()
---         & S.drain                                         -- IO ()
+--           Stream.unfold Socket.accept (maxListenQueue, spec, addr) -- ParallelT IO Socket
+--         & Stream.mapM (handleWithM echo)                           -- ParallelT IO ()
+--         & fromParallel                                             -- SerialT IO ()
+--         & Stream.drain                                             -- IO ()
 --
 --     echo sk =
---           S.unfold SK.readChunks sk  -- SerialT IO (Array Word8)
---         & S.fold (SK.writeChunks sk) -- IO ()
+--           Stream.unfold Socket.readChunks sk  -- SerialT IO (Array Word8)
+--         & Stream.fold (Socket.writeChunks sk) -- IO ()
 -- @
 --
 -- = Programmer Notes
@@ -105,11 +105,14 @@ module Streamly.Network.Socket
     , readWithBufferOf
     , readChunks
     , readChunksWithBufferOf
+    , readChunk
 
     -- * Write
     , write
     , writeWithBufferOf
     , writeChunks
+    , writeChunksWithBufferOf
+    , writeChunk
     )
 where
 
