@@ -83,7 +83,7 @@ server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
     Stream.fromSerial (Stream.unfold TCP.acceptOnPort port)
-        & Stream.fromAsync . Stream.mapM (Socket.handleWithM handler)
+        & Stream.fromAsync . Stream.mapM (Socket.forSocketM handler)
         & Stream.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)
@@ -96,7 +96,7 @@ sender port sem = do
     Stream.replicate 1000 testData                     -- SerialT IO String
         & Stream.concatMap Stream.fromList             -- SerialT IO Char
         & Unicode.encodeLatin1                         -- SerialT IO Word8
-        & TCP.transformBytesWith remoteAddr port       -- SerialT IO Word8
+        & TCP.processBytes remoteAddr port             -- SerialT IO Word8
         & Unicode.decodeLatin1                         -- SerialT IO Char
 
 execute :: PortNumber -> Int -> (Socket -> IO ()) -> IO (SerialT IO Char)
