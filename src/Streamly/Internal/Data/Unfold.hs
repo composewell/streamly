@@ -424,7 +424,6 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
 -- Convert streams into unfolds
 -------------------------------------------------------------------------------
 
--- this is horribly slow
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Monad m => Unfold m (Stream m a) a
 fromStreamD = Unfold step return
@@ -451,6 +450,9 @@ fromStreamK = Unfold step return
             Just (x, xs) -> Yield x xs
             Nothing -> Stop
 
+-- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
+-- case) than using fromStream even if it is implemented using fromStreamD.
+--
 -- | Convert a stream into an 'Unfold'. Note that a stream converted to an
 -- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
 --
