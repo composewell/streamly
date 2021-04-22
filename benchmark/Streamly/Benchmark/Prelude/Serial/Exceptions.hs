@@ -71,7 +71,7 @@ fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
     let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
-    in IFH.fromBytes devNull $ readEx
+    in IFH.putBytes devNull $ readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
@@ -82,7 +82,7 @@ fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.toBytes inh)
-    in IFH.fromBytes devNull $ readEx
+    in IFH.putBytes devNull $ readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =

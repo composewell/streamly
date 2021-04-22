@@ -20,7 +20,6 @@ module Streamly.Internal.FileSystem.Handle
 
     , toBytes
     , toBytesWithBufferOf
-    , getBytes
 
     -- -- * Array Read
     -- , readArrayUpto
@@ -30,7 +29,6 @@ module Streamly.Internal.FileSystem.Handle
 
     , toChunksWithBufferOf
     , toChunks
-    , getChunks
 
     -- ** Write to Handle
     -- Byte stream write (Folds)
@@ -43,8 +41,8 @@ module Streamly.Internal.FileSystem.Handle
     , writeWithBufferOf
 
     -- Byte stream write (Streams)
-    , fromBytes
-    , fromBytesWithBufferOf
+    , putBytes
+    , putBytesWithBufferOf
 
     -- -- * Array Write
     , writeArray
@@ -52,12 +50,8 @@ module Streamly.Internal.FileSystem.Handle
     , writeChunksWithBufferOf
 
     -- -- * Array stream Write
-    , fromChunksWithBufferOf
-    , fromChunks
+    , putChunksWithBufferOf
     , putChunks
-    , putStrings
-    , putBytes
-    , putLines
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -106,10 +100,9 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import System.IO (Handle, hGetBufSome, hPutBuf, stdin, stdout)
+import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
-import Streamly.Prelude (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -124,7 +117,6 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Data.Array.Foreign as A
@@ -231,28 +223,6 @@ readChunksWithBufferOf = Unfold step return
 toChunks :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
 toChunks = toChunksWithBufferOf defaultChunkSize
 
--- | Read a stream of chunks from standard input.  The maximum size of a single
--- chunk is limited to @defaultChunkSize@. The actual size read may be less
--- than @defaultChunkSize@.
---
--- > getChunks = toChunks stdin
---
--- /Pre-release/
---
-{-# INLINE getChunks #-}
-getChunks :: (IsStream t, MonadIO m) => t m (Array Word8)
-getChunks = toChunks stdin
-
--- | Read a stream of bytes from standard input.
---
--- > getBytes = toBytes stdin
---
--- /Pre-release/
---
-{-# INLINE getBytes #-}
-getBytes :: (IsStream t, MonadIO m) => t m Word8
-getBytes = toBytes stdin
-
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
 -- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
@@ -340,73 +310,31 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
-{-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, Storable a)
-    => Handle -> SerialT m (Array a) -> m ()
-fromChunks h = S.mapM_ (liftIO . writeArray h)
-
--- | Write a stream of chunks to standard output.
---
--- /Pre-release/
---
 {-# INLINE putChunks #-}
-putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
-putChunks = fromChunks stdout
+putChunks :: (MonadIO m, Storable a)
+    => Handle -> SerialT m (Array a) -> m ()
+putChunks h = S.mapM_ (liftIO . writeArray h)
 
--- XXX use an unfold so that we can put any type of strings.
--- | Write a stream of strings to standard output using the supplied encoding.
--- Output is flushed to the device for each string.
---
--- /Pre-release/
---
-{-# INLINE putStrings #-}
-putStrings :: MonadAsync m
-    => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
-putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
-
--- XXX use an unfold so that we can put lines from any object
--- | Write a stream of strings as separate lines to standard output using the
--- supplied encoding. Output is line buffered i.e. the output is written to the
--- device as soon as a newline is encountered.
---
--- /Pre-release/
---
-{-# INLINE putLines #-}
-putLines :: MonadAsync m
-    => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
-putLines encode = putChunks . S.mapM
-    (\xs -> IA.fromStream $ encode (S.fromList (xs ++ "\n")))
-
--- | Write a stream of bytes from standard output.
---
--- > putBytes = fromBytes stdout
---
--- /Pre-release/
---
-{-# INLINE putBytes #-}
-putBytes :: MonadIO m => SerialT m Word8 -> m ()
-putBytes = fromBytes stdout
-
--- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
+-- | @putChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- The chunk size is only a maximum and the actual writes could be smaller as
 -- we do not split the arrays to fit exactly to the specified size.
 --
 -- @since 0.7.0
-{-# INLINE fromChunksWithBufferOf #-}
-fromChunksWithBufferOf :: (MonadIO m, Storable a)
+{-# INLINE putChunksWithBufferOf #-}
+putChunksWithBufferOf :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
+putChunksWithBufferOf n h xs = putChunks h $ AS.compact n xs
 
--- | @fromBytesWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
+-- | @putBytesWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
 -- @since 0.7.0
-{-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
--- fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+{-# INLINE putBytesWithBufferOf #-}
+putBytesWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+putBytesWithBufferOf n h m = putChunks h $ S.arraysOf n m
+-- putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
@@ -417,9 +345,9 @@ fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- need some extra perf boost.
 --
 -- @since 0.7.0
-{-# INLINE fromBytes #-}
-fromBytes :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-fromBytes = fromBytesWithBufferOf defaultChunkSize
+{-# INLINE putBytes #-}
+putBytes :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+putBytes = putBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream of arrays to a handle. Each array in the stream is written
 -- to the device as a separate IO request.

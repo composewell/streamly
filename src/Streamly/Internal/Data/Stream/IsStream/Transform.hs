@@ -1148,7 +1148,7 @@ intersperseBySpan _n _f _xs = undefined
 --
 -- /Pre-release/
 {-# INLINE intersperseSuffix #-}
-intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseSuffix :: (IsStream t, Monad m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 
 -- | Insert a side effect after consuming an element of a stream.
@@ -1174,7 +1174,7 @@ intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 -- /Pre-release/
 --
 {-# INLINE intersperseSuffixBySpan #-}
-intersperseSuffixBySpan :: (IsStream t, MonadAsync m)
+intersperseSuffixBySpan :: (IsStream t, Monad m)
     => Int -> m a -> t m a -> t m a
 intersperseSuffixBySpan n eff =
     fromStreamD . D.intersperseSuffixBySpan n eff . toStreamD
