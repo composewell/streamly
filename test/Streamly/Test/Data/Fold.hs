@@ -16,6 +16,7 @@ import Test.QuickCheck
     )
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Prelude as S
@@ -53,7 +54,8 @@ rollingHashFirstN :: Property
 rollingHashFirstN =
     forAll (choose (0, maxStreamLen)) $ \len ->
         forAll (choose (0, len)) $ \n ->
-            forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec ->
+                monadicIO $ do
                 a <- run $ S.fold F.rollingHash $ S.take n $ S.fromList vec
                 b <- run $ S.fold (F.rollingHashFirstN n) $ S.fromList vec
                 assert $ a == b
@@ -110,6 +112,9 @@ minimum genmax ls =
 toList :: [Int] -> Expectation
 toList ls = S.fold FL.toList (S.fromList ls) `shouldReturn` ls
 
+toListRev :: [Int] -> Expectation
+toListRev ls = S.fold FL.toListRev (S.fromList ls) `shouldReturn` reverse ls
+
 safeLast :: [a] -> Maybe a
 safeLast [] = Nothing
 safeLast (x:[]) = Just x
@@ -124,7 +129,7 @@ mapMaybe ls =
             if even x
             then Just x
             else Nothing
-        f = F.mapMaybe maybeEven FL.toList
+        f = FL.mapMaybe maybeEven FL.toList
     in S.fold f (S.fromList ls) `shouldReturn` filter even ls
 
 nth :: Int -> [a] -> Maybe a
@@ -179,7 +184,8 @@ elemIndex elm ls = do
             let fld = S.fold (FL.any (== elm)) (S.fromList ls)
             in fld `shouldReturn` False
         Just idx ->
-            let fld = S.fold (FL.any (== elm)) (S.fromList $ Prelude.take idx ls)
+            let fld =
+                    S.fold (FL.any (== elm)) (S.fromList $ Prelude.take idx ls)
             in fld `shouldReturn` False
 
 null :: [Int] -> Expectation
@@ -218,14 +224,14 @@ or ls = S.fold FL.or (S.fromList ls) `shouldReturn` Prelude.or ls
 take :: [Int] -> Property
 take ls =
     forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
-            S.fold (F.take n FL.toList) (S.fromList ls)
+            S.fold (FL.take n FL.toList) (S.fromList ls)
                 `shouldReturn` Prelude.take n ls
 
 takeEndBy_ :: Property
 takeEndBy_ =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let p = (== 1)
-            f = F.takeEndBy_ p FL.toList
+            f = FL.takeEndBy_ p FL.toList
             ys = Prelude.takeWhile (not . p) ls
          in case S.fold f (S.fromList ls) of
             Right xs -> checkListEqual xs ys
@@ -236,7 +242,7 @@ takeEndByOrMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let p = (== 1)
-                f = F.takeEndBy_ p (F.take n FL.toList)
+                f = FL.takeEndBy_ p (FL.take n FL.toList)
                 ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
              in case S.fold f (S.fromList ls) of
                     Right xs -> checkListEqual xs ys
@@ -335,10 +341,11 @@ lookup =
     where
 
     action key = do
-        let ls = [(1, "first"), (2, "second"), (3, "third"), (4, "fourth")
-                , (5, "fifth"), (6, "fifth+first"), (7, "fifth+second")
-                , (8, "fifth+third"), (9, "fifth+fourth")
-                , (10, "fifth+fifth")]
+        let ls = [ (1, "first"), (2, "second"), (3, "third"), (4, "fourth")
+                 , (5, "fifth"), (6, "fifth+first"), (7, "fifth+second")
+                 , (8, "fifth+third"), (9, "fifth+fourth")
+                 , (10, "fifth+fifth")
+                 ]
         v1 <- run $ S.fold (FL.lookup key) $ S.fromList ls
         let v2 = Prelude.lookup key ls
         assert (v1 == v2)
@@ -423,13 +430,13 @@ many =
     forAll (chooseInt (1, 100)) $ \i ->
         monadicIO $ do
             let strm = S.fromList lst
-            r1 <- S.fold (F.many (split i) F.toList) strm
+            r1 <- S.fold (FL.many (split i) FL.toList) strm
             r2 <- S.toList $ Stream.foldMany (split i) strm
             assert $ r1 == r2
 
     where
 
-    split i = F.take i F.toList
+    split i = FL.take i FL.toList
 
 headAndRest :: [Int] -> Property
 headAndRest ls = monadicIO $ do
@@ -443,6 +450,143 @@ headAndRest ls = monadicIO $ do
     taill :: [a] -> [a]
     taill [] = []
     taill (_:xs) = xs
+
+partitionByM :: Property
+partitionByM =
+    forAll (listOf1 (chooseInt (intMin, intMax)))
+        $ \ls0 -> monadicIO $ action ls0
+
+    where
+
+    action ls = do
+        let f = \x -> if odd x then return (Left x) else return (Right x)
+        v1 <-
+            run
+                $ S.fold (F.partitionByM f FL.length FL.length)
+                $ S.fromList ls
+        let v2 = Prelude.length $ filter odd ls
+            v3 = Prelude.length $ filter even ls
+        assert (v1 == (v2, v3))
+
+demux :: Expectation
+demux =
+    let table = Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
+        input = Stream.fromList (
+                [ ("SUM", 1)
+                , ("PRODUCT", 2)
+                , ("SUM",3)
+                , ("PRODUCT", 4)
+                ] :: [(String, Int)])
+    in Stream.fold
+        (F.demux table)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("PRODUCT", 8),("SUM", 4)]
+
+
+demuxWithSum :: Expectation
+demuxWithSum =
+    let f x = ("SUM", x::Int)
+        table = Data.Map.fromList [("SUM", FL.sum)]
+        input = Stream.fromList [1, 4]
+    in Stream.fold
+        (F.demuxWith f table)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("SUM", 5)]
+
+demuxWithProduct :: Expectation
+demuxWithProduct =
+    let f x = ("PRODUCT", x::Int)
+        table = Data.Map.fromList [("PRODUCT", FL.product)]
+        input = Stream.fromList [2, 4]
+    in Stream.fold
+        (F.demuxWith f table)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("PRODUCT", 8)]
+
+demuxDefaultWithSum :: Expectation
+demuxDefaultWithSum =
+    let f x = ("SUM", x::Int)
+        table = Data.Map.fromList [("SUM", FL.sum)]
+        input = Stream.fromList [2, 4]
+    in Stream.fold
+        (F.demuxDefaultWith f table (FL.lmap snd FL.sum))
+        input
+        `shouldReturn`
+        (Data.Map.fromList [("SUM" , 6)] , 0)
+
+demuxDefaultWithProduct :: Expectation
+demuxDefaultWithProduct =
+    let f x = ("PRODUCT", x::Int)
+        table = Data.Map.fromList [("PRODUCT", FL.product)]
+        input = Stream.fromList [2, 4]
+    in Stream.fold
+        (F.demuxDefaultWith f table (FL.lmap snd FL.product))
+        input
+        `shouldReturn`
+        (Data.Map.fromList [("PRODUCT" , 8)] , 1)
+
+demuxDefault :: Expectation
+demuxDefault =
+    let table =  Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
+        input = Stream.fromList
+            [ ("SUM", 1::Int)
+            , ("PRODUCT", 2::Int)
+            , ("SUM",3)
+            , ("PRODUCT", 4::Int)
+            ]
+    in Stream.fold
+        (F.demuxDefault table (FL.lmap snd FL.product))
+        input
+        `shouldReturn`
+        (Data.Map.fromList [("PRODUCT", 8), ("SUM", 4)], 1)
+
+demuxDefaultEmpty :: Expectation
+demuxDefaultEmpty =
+    let table =  Data.Map.empty
+        input = Stream.fromList []
+    in Stream.fold
+        (F.demuxDefault table (FL.lmap snd FL.product))
+        input
+        `shouldReturn`
+        (Data.Map.fromList ([]::[(String, Int)]), 1)
+
+classifyWith :: Expectation
+classifyWith =
+    let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+    in Stream.fold
+        (F.classifyWith fst (FL.lmap snd FL.toList))
+        input
+        `shouldReturn`
+        Data.Map.fromList
+        [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
+
+classify :: Expectation
+classify =
+    let input =
+            Stream.fromList
+            [
+              ("ONE", (1::Int, 1))
+            , ("ONE", (1, 1.1:: Double))
+            , ("TWO", (2, 2))
+            , ("TWO",(2, 2.2))
+            ]
+    in Stream.fold
+        (F.classify (FL.lmap snd FL.toList))
+        input
+        `shouldReturn`
+        Data.Map.fromList
+        [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
+
+splitAt :: Expectation
+splitAt =
+    Stream.fold
+    (F.splitAt 6 FL.toList FL.toList)
+    (Stream.fromList "Hello World!")
+    `shouldReturn`
+    ("Hello ","World!")
 
 moduleName :: String
 moduleName = "Data.Fold"
@@ -472,6 +616,16 @@ main = hspec $ do
         prop "rollingHashFirstN" rollingHashFirstN
 
         prop "toList" toList
+        prop "toListRev" toListRev
+        prop "demux" demux
+        prop "demuxWithSum" demuxWithSum
+        prop "demuxWithProduct" demuxWithProduct
+        prop "demuxDefaultWithSum" demuxDefaultWithSum
+        prop "demuxDefaultWithProduct" demuxDefaultWithProduct
+        prop "demuxDefault" demuxDefault
+        prop "demuxDefaultEmpty" demuxDefaultEmpty
+        prop "classifyWith" classifyWith
+        prop "classify" classify
 
         -- Terminating folds
         prop "index" index
@@ -518,9 +672,11 @@ main = hspec $ do
 
         -- Partitioning
         prop "partition" Main.partition
+        prop "partitionByM" partitionByM
 
         -- Unzipping
         prop "unzip" Main.unzip
+        prop "splitAt" Main.splitAt
 
         -- Nesting
         prop "many" Main.many
