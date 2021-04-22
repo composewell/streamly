@@ -1,0 +1,31 @@
+-- |
+-- Module      : Streamly.Console.Stdio
+-- Copyright   : (c) 2021 Composewell Technologies
+--
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+--
+-- Combinators to work with standard input, output and error streams.
+--
+-- See also: "Streamly.Internal.Console.Stdio"
+
+module Streamly.Console.Stdio
+    (
+    -- * Read (stdin)
+      read
+    , readChunks
+
+    -- * Write (stdout)
+    , write
+    , writeChunks
+
+    -- * Write (stderr)
+    , writeErr
+    , writeErrChunks
+    )
+where
+
+import Streamly.Internal.Console.Stdio
+import Prelude hiding (read)

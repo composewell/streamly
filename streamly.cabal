@@ -364,6 +364,7 @@ library
 
                      -- Filesystem/IO
                      , Streamly.FileSystem.Handle
+                     , Streamly.Console.Stdio
 
                      -- Network/IO
                      , Streamly.Network.Socket
@@ -503,6 +504,9 @@ library
                      , Streamly.Internal.FileSystem.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
+
+                     -- streamly-console
+                     , Streamly.Internal.Console.Stdio
 
                      -- streamly-network
                      , Streamly.Internal.Network.Socket

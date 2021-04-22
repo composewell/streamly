@@ -103,7 +103,7 @@ o_1_space_copy_read env =
 
 -- | Send the file contents to /dev/null
 readFromBytesNull :: Handle -> Handle -> IO ()
-readFromBytesNull inh devNull = IFH.fromBytes devNull $ S.unfold FH.read inh
+readFromBytesNull inh devNull = IFH.putBytes devNull $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readFromBytesNull
@@ -116,7 +116,7 @@ inspect $ 'readFromBytesNull `hasNoType` ''D.FoldMany
 -- | Send the file contents ('defaultChunkSize') to /dev/null
 readWithBufferOfFromBytesNull :: Handle -> Handle -> IO ()
 readWithBufferOfFromBytesNull inh devNull =
-    IFH.fromBytes devNull
+    IFH.putBytes devNull
         $ S.unfold FH.readWithBufferOf (defaultChunkSize, inh)
 
 #ifdef INSPECTION
@@ -150,7 +150,7 @@ _readChunksWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =
-    [ bgroup "copy/fromBytes"
+    [ bgroup "copy/putBytes"
         [ mkBench "rawToNull" env $ \inh _ ->
             readFromBytesNull inh (nullH env)
         , mkBench "FH.readWithBufferOf" env $ \inh _ ->
