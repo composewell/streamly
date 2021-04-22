@@ -34,6 +34,7 @@ module Streamly.Internal.Unicode.Stream
     , encodeUtf8
     , encodeUtf8'
     , encodeUtf8_
+    , encodeStrings
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -54,7 +55,7 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8ArraysD_
 
     -- * Transformation
-    , stripStart
+    , stripHead
     , lines
     , words
     , unlines
@@ -85,18 +86,22 @@ import Streamly.Data.Array.Foreign (Array)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.IsStream (IsStream)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
-import Prelude hiding (String, lines, words, unlines, unwords)
+import Prelude hiding (lines, words, unlines, unwords)
 
 -- $setup
 -- >>> :m
--- >>> import Prelude hiding (String, lines, words, unlines, unwords)
+-- >>> import Prelude hiding (lines, words, unlines, unwords)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import Streamly.Internal.Unicode.Stream
@@ -842,6 +847,39 @@ encodeUtf8_ = D.fromStreamD . encodeUtf8D_ . D.toStreamD
 encodeUtf8Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeUtf8Lax = encodeUtf8
 
+-- | Encode a container to @Array Word8@ provided an unfold to covert it to a
+-- Char stream and an encoding function.
+--
+-- /Internal/
+{-# INLINE encodeObject #-}
+encodeObject :: MonadIO m =>
+       (SerialT m Char -> SerialT m Word8)
+    -> Unfold m a Char
+    -> a
+    -> m (Array Word8)
+encodeObject encode u = S.fold Array.write . encode . S.unfold u
+
+-- | Encode a stream of container objects using the supplied encoding scheme.
+-- Each object is encoded as an @Array Word8@.
+--
+-- /Internal/
+{-# INLINE encodeObjects #-}
+encodeObjects :: (MonadIO m, IsStream t) =>
+       (SerialT m Char -> SerialT m Word8)
+    -> Unfold m a Char
+    -> t m a
+    -> t m (Array Word8)
+encodeObjects encode u = Serial.mapM (encodeObject encode u)
+
+-- | Encode a stream of 'String' using the supplied encoding scheme. Each
+-- string is encoded as an @Array Word8@.
+--
+-- @since 0.8.0
+{-# INLINE encodeStrings #-}
+encodeStrings :: (MonadIO m, IsStream t) =>
+    (SerialT m Char -> SerialT m Word8) -> t m String -> t m (Array Word8)
+encodeStrings encode = encodeObjects encode Unfold.fromList
+
 {-
 -------------------------------------------------------------------------------
 -- Utility operations on strings
@@ -850,18 +888,18 @@ encodeUtf8Lax = encodeUtf8
 strip :: IsStream t => t m Char -> t m Char
 strip = undefined
 
-stripEnd :: IsStream t => t m Char -> t m Char
-stripEnd = undefined
+stripTail :: IsStream t => t m Char -> t m Char
+stripTail = undefined
 -}
 
 -- | Remove leading whitespace from a string.
 --
--- > stripStart = S.dropWhile isSpace
+-- > stripHead = S.dropWhile isSpace
 --
 -- /Pre-release/
-{-# INLINE stripStart #-}
-stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
-stripStart = S.dropWhile isSpace
+{-# INLINE stripHead #-}
+stripHead :: (Monad m, IsStream t) => t m Char -> t m Char
+stripHead = S.dropWhile isSpace
 
 -- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
@@ -906,6 +944,7 @@ words = S.wordsBy isSpace
 --
 -- @
 -- unlines = Stream.interposeSuffix '\n'
+-- unlines = Stream.intercalateSuffix Unfold.fromList "\n"
 -- @
 --
 -- /Pre-release/
@@ -919,6 +958,7 @@ unlines = S.interposeSuffix '\n'
 --
 -- @
 -- unwords = Stream.interpose ' '
+-- unwords = Stream.intercalate Unfold.fromList " "
 -- @
 --
 -- /Pre-release/

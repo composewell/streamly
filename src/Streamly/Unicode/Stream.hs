@@ -86,6 +86,7 @@ module Streamly.Unicode.Stream
     , encodeLatin1'
     , encodeUtf8
     , encodeUtf8'
+    , encodeStrings
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
