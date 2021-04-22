@@ -56,7 +56,6 @@ module Streamly.Internal.Network.Socket
     , writeChunk
     , writeChunks
     , writeChunksWithBufferOf
-    , writeStrings
 
     -- reading/writing datagrams
     )
@@ -98,7 +97,6 @@ import Streamly.Data.Fold (Fold)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -470,18 +468,6 @@ writeChunks h = FL.drainBy (liftIO . writeChunk h)
 writeChunksWithBufferOf :: (MonadIO m, Storable a)
     => Int -> Socket -> Fold m (Array a) ()
 writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
-
-
--- | Write a stream of strings to a socket in Latin1 encoding.  Output is
--- flushed to the socket for each string.
---
--- /Pre-release/
---
-{-# INLINE writeStrings #-}
-writeStrings :: MonadIO m
-    => (SerialT m Char -> SerialT m Word8) -> Socket -> Fold m String ()
-writeStrings encode h =
-    FL.lmapM (IA.fromStream . encode . S.fromList) (writeChunks h)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
