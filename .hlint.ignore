@@ -64,4 +64,3 @@ benchmark/Streamly/Benchmark/Prelude/Serial/Transformation1.hs
 benchmark/Streamly/Benchmark/Prelude/WAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipSerial.hs
-benchmark/Streamly/Benchmark/Unicode/Stream.hs
