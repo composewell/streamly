@@ -9,28 +9,35 @@
 -- Portability : GHC
 --
 
-#include "inline.hs"
-
 module Streamly.Internal.Unicode.Stream
     (
     -- * Construction (Decoding)
       decodeLatin1
+
+    -- ** UTF-8 Decoding
     , decodeUtf8
     , decodeUtf8'
     , decodeUtf8_
+
+    -- ** Resumable UTF-8 Decoding
     , DecodeError(..)
     , DecodeState
     , CodePoint
     , decodeUtf8Either
     , resumeDecodeUtf8Either
+
+    -- ** UTF-8 Array Stream Decoding
     , decodeUtf8Arrays
     , decodeUtf8Arrays'
     , decodeUtf8Arrays_
 
     -- * Elimination (Encoding)
+    -- ** Latin1 Encoding
     , encodeLatin1
     , encodeLatin1'
     , encodeLatin1_
+
+    -- ** UTF-8 Encoding
     , encodeUtf8
     , encodeUtf8'
     , encodeUtf8_
@@ -40,6 +47,13 @@ module Streamly.Internal.Unicode.Stream
     , strip -- (dropAround isSpace)
     , stripEnd
     -}
+
+    -- * Transformation
+    , stripHead
+    , lines
+    , words
+    , unlines
+    , unwords
 
     -- * StreamD UTF8 Encoding / Decoding transformations.
     , decodeUtf8D
@@ -54,19 +68,14 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8ArraysD'
     , decodeUtf8ArraysD_
 
-    -- * Transformation
-    , stripHead
-    , lines
-    , words
-    , unlines
-    , unwords
-
     -- * Deprecations
     , decodeUtf8Lax
     , encodeLatin1Lax
     , encodeUtf8Lax
     )
 where
+
+#include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
@@ -107,53 +116,82 @@ import Prelude hiding (lines, words, unlines, unwords)
 -- >>> import Streamly.Internal.Unicode.Stream
 
 -------------------------------------------------------------------------------
--- Encoding/Decoding Unicode (UTF-8) Characters
+-- Latin1 decoding
 -------------------------------------------------------------------------------
 
--- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
+-- | Decode a stream of bytes to Unicode characters by mapping each byte to a
+-- corresponding Unicode 'Char' in 0-255 range.
+--
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- @since 0.8.0
+{-# INLINE decodeLatin1 #-}
+decodeLatin1 :: (IsStream t, Monad m) => t m Word8 -> t m Char
+decodeLatin1 = S.map (unsafeChr . fromIntegral)
 
-data WList = WCons !Word8 !WList | WNil
+-------------------------------------------------------------------------------
+-- Latin1 encoding
+-------------------------------------------------------------------------------
 
-{-# INLINE ord2 #-}
-ord2 :: Char -> WList
-ord2 c = assert (n >= 0x80 && n <= 0x07ff) (WCons x1 (WCons x2 WNil))
-  where
-    n = ord c
-    x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
-    x2 = fromIntegral $ (n .&. 0x3F) + 0x80
+-- | Encode a stream of Unicode characters to bytes by mapping each character
+-- to a byte in 0-255 range. Throws an error if the input stream contains
+-- characters beyond 255.
+--
+-- @since 0.8.0
+{-# INLINE encodeLatin1' #-}
+encodeLatin1' :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1' = S.map convert
+    where
+    convert c =
+        let codepoint = ord c
+        in if codepoint > 255
+           then error $ "Streamly.String.encodeLatin1 invalid " ++
+                      "input char codepoint " ++ show codepoint
+           else fromIntegral codepoint
 
-{-# INLINE ord3 #-}
-ord3 :: Char -> WList
-ord3 c = assert (n >= 0x0800 && n <= 0xffff) (WCons x1 (WCons x2 (WCons x3 WNil)))
-  where
-    n = ord c
-    x1 = fromIntegral $ (n `shiftR` 12) + 0xE0
-    x2 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
-    x3 = fromIntegral $ (n .&. 0x3F) + 0x80
+-- | Like 'encodeLatin1'' but silently truncates and maps input characters beyond
+-- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
+-- when such truncation occurs.
+--
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- /Since: 0.8.0 (Lenient Behaviour)/
+{-# INLINE encodeLatin1 #-}
+encodeLatin1 :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1 = S.map (fromIntegral . ord)
 
-{-# INLINE ord4 #-}
-ord4 :: Char -> WList
-ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
-  where
-    n = ord c
-    x1 = fromIntegral $ (n `shiftR` 18) + 0xF0
-    x2 = fromIntegral $ ((n `shiftR` 12) .&. 0x3F) + 0x80
-    x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
-    x4 = fromIntegral $ (n .&. 0x3F) + 0x80
+-- | Like 'encodeLatin1' but drops the input characters beyond 255.
+--
+-- @since 0.8.0
+{-# INLINE encodeLatin1_ #-}
+encodeLatin1_ :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1_ = S.map (fromIntegral . ord) . S.filter (<= chr 255)
 
-data CodingFailureMode
-    = TransliterateCodingFailure
-    | ErrorOnCodingFailure
-    | DropOnCodingFailure
-    deriving (Show)
+-- | Same as 'encodeLatin1'
+--
+{-# DEPRECATED encodeLatin1Lax "Please use 'encodeLatin1' instead" #-}
+{-# INLINE encodeLatin1Lax #-}
+encodeLatin1Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1Lax = encodeLatin1
 
-{-# INLINE replacementChar #-}
-replacementChar :: Char
-replacementChar = '\xFFFD'
+-------------------------------------------------------------------------------
+-- UTF-8 decoding
+-------------------------------------------------------------------------------
 
 -- Int helps in cheaper conversion from Int to Char
 type CodePoint = Int
 type DecodeState = Word8
+
+-- We can divide the errors in three general categories:
+-- * A non-starter was encountered in a begin state
+-- * A starter was encountered without completing a codepoint
+-- * The last codepoint was not complete (input underflow)
+--
+-- Need to separate resumable and non-resumable error. In case of non-resumable
+-- error we can also provide the failing byte. In case of resumable error the
+-- state can be opaque.
+--
+data DecodeError = DecodeError !DecodeState !CodePoint deriving Show
 
 -- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
@@ -250,25 +288,134 @@ decode1 table state codep byte =
         " codepoint: " ++ show cp ++
         " table: " ++ show utf8table
 
--- We can divide the errors in three general categories:
--- * A non-starter was encountered in a begin state
--- * A starter was encountered without completing a codepoint
--- * The last codepoint was not complete (input underflow)
---
--- Need to separate resumable and non-resumable error. In case of non-resumable
--- error we can also provide the failing byte. In case of resumable error the
--- state can be opaque.
---
-data DecodeError = DecodeError !DecodeState !CodePoint deriving Show
+-------------------------------------------------------------------------------
+-- Resumable UTF-8 decoding
+-------------------------------------------------------------------------------
 
-{-# ANN type FreshPoint Fuse #-}
-data FreshPoint s a
-    = FreshPointDecodeInit s
-    | FreshPointDecodeInit1 s Word8
-    | FreshPointDecodeFirst s Word8
-    | FreshPointDecoding s !DecodeState !CodePoint
-    | YieldAndContinue a (FreshPoint s a)
+{-# ANN type UTF8DecodeState Fuse #-}
+data UTF8DecodeState s a
+    = UTF8DecodeInit s
+    | UTF8DecodeInit1 s Word8
+    | UTF8DecodeFirst s Word8
+    | UTF8Decoding s !DecodeState !CodePoint
+    | YieldAndContinue a (UTF8DecodeState s a)
     | Done
+
+{-# INLINE_NORMAL resumeDecodeUtf8EitherD #-}
+resumeDecodeUtf8EitherD
+    :: Monad m
+    => DecodeState
+    -> CodePoint
+    -> Stream m Word8
+    -> Stream m (Either DecodeError Char)
+resumeDecodeUtf8EitherD dst codep (Stream step state) =
+    let A.Array p _ = utf8d
+        !ptr = unsafeForeignPtrToPtr p
+        stt =
+            if dst == 0
+            then UTF8DecodeInit state
+            else UTF8Decoding state dst codep
+    in Stream (step' ptr) stt
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ gst (UTF8DecodeInit st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (UTF8DecodeInit1 s x)
+            Skip s -> Skip (UTF8DecodeInit s)
+            Stop   -> Skip Done
+
+    step' _ _ (UTF8DecodeInit1 st x) = do
+        -- Note: It is important to use a ">" instead of a "<=" test
+        -- here for GHC to generate code layout for default branch
+        -- prediction for the common case. This is fragile and might
+        -- change with the compiler versions, we need a more reliable
+        -- "likely" primitive to control branch predication.
+        case x > 0x7f of
+            False ->
+                return $ Skip $ YieldAndContinue
+                    (Right $ unsafeChr (fromIntegral x))
+                    (UTF8DecodeInit st)
+            -- Using a separate state here generates a jump to a
+            -- separate code block in the core which seems to perform
+            -- slightly better for the non-ascii case.
+            True -> return $ Skip $ UTF8DecodeFirst st x
+
+    -- XXX should we merge it with UTF8DecodeInit1?
+    step' table _ (UTF8DecodeFirst st x) = do
+        let (Tuple' sv cp) = decode0 table x
+        return $
+            case sv of
+                12 ->
+                    Skip $ YieldAndContinue (Left $ DecodeError 0 (fromIntegral x))
+                                            (UTF8DecodeInit st)
+                0 -> error "unreachable state"
+                _ -> Skip (UTF8Decoding st sv cp)
+
+    -- We recover by trying the new byte x a starter of a new codepoint.
+    -- XXX on error need to report the next byte "x" as well.
+    -- XXX need to use the same recovery in array decoding routine as well
+    step' table gst (UTF8Decoding st statePtr codepointPtr) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+                return $
+                    case sv of
+                        0 -> Skip $ YieldAndContinue (Right $ unsafeChr cp)
+                                        (UTF8DecodeInit s)
+                        12 ->
+                            Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr)
+                                        (UTF8DecodeInit1 s x)
+                        _ -> Skip (UTF8Decoding s sv cp)
+            Skip s -> return $ Skip (UTF8Decoding s statePtr codepointPtr)
+            Stop -> return $ Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr) Done
+
+    step' _ _ (YieldAndContinue c s) = return $ Yield c s
+    step' _ _ Done = return Stop
+
+-- XXX We can use just one API, and define InitState = 0 and InitCodePoint = 0
+-- to use as starting state.
+--
+{-# INLINE_NORMAL decodeUtf8EitherD #-}
+decodeUtf8EitherD :: Monad m
+    => Stream m Word8 -> Stream m (Either DecodeError Char)
+decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
+
+-- |
+--
+-- /Pre-release/
+{-# INLINE decodeUtf8Either #-}
+decodeUtf8Either :: (Monad m, IsStream t)
+    => t m Word8 -> t m (Either DecodeError Char)
+decodeUtf8Either = D.fromStreamD . decodeUtf8EitherD . D.toStreamD
+
+-- |
+--
+-- /Pre-release/
+{-# INLINE resumeDecodeUtf8Either #-}
+resumeDecodeUtf8Either
+    :: (Monad m, IsStream t)
+    => DecodeState
+    -> CodePoint
+    -> t m Word8
+    -> t m (Either DecodeError Char)
+resumeDecodeUtf8Either st cp =
+    D.fromStreamD . resumeDecodeUtf8EitherD st cp . D.toStreamD
+
+-------------------------------------------------------------------------------
+-- One shot decoding
+-------------------------------------------------------------------------------
+
+data CodingFailureMode
+    = TransliterateCodingFailure
+    | ErrorOnCodingFailure
+    | DropOnCodingFailure
+    deriving (Show)
+
+{-# INLINE replacementChar #-}
+replacementChar :: Char
+replacementChar = '\xFFFD'
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
 -- if that preserves the same performance. Or we can use a resumable parser
@@ -283,7 +430,7 @@ decodeUtf8WithD :: Monad m
 decodeUtf8WithD cfm (Stream step state) =
     let A.Array p _ = utf8d
         !ptr = unsafeForeignPtrToPtr p
-    in Stream (step' ptr) (FreshPointDecodeInit state)
+    in Stream (step' ptr) (UTF8DecodeInit state)
 
     where
 
@@ -304,14 +451,14 @@ decodeUtf8WithD cfm (Stream step state) =
             DropOnCodingFailure -> Done
 
     {-# INLINE_LATE step' #-}
-    step' _ gst (FreshPointDecodeInit st) = do
+    step' _ gst (UTF8DecodeInit st) = do
         r <- step (adaptState gst) st
         return $ case r of
-            Yield x s -> Skip (FreshPointDecodeInit1 s x)
-            Skip s -> Skip (FreshPointDecodeInit s)
+            Yield x s -> Skip (UTF8DecodeInit1 s x)
+            Skip s -> Skip (UTF8DecodeInit s)
             Stop   -> Skip Done
 
-    step' _ _ (FreshPointDecodeInit1 st x) = do
+    step' _ _ (UTF8DecodeInit1 st x) = do
         -- Note: It is important to use a ">" instead of a "<=" test
         -- here for GHC to generate code layout for default branch
         -- prediction for the common case. This is fragile and might
@@ -321,33 +468,33 @@ decodeUtf8WithD cfm (Stream step state) =
             False ->
                 return $ Skip $ YieldAndContinue
                     (unsafeChr (fromIntegral x))
-                    (FreshPointDecodeInit st)
+                    (UTF8DecodeInit st)
             -- Using a separate state here generates a jump to a
             -- separate code block in the core which seems to perform
             -- slightly better for the non-ascii case.
-            True -> return $ Skip $ FreshPointDecodeFirst st x
+            True -> return $ Skip $ UTF8DecodeFirst st x
 
-    -- XXX should we merge it with FreshPointDecodeInit1?
-    step' table _ (FreshPointDecodeFirst st x) = do
+    -- XXX should we merge it with UTF8DecodeInit1?
+    step' table _ (UTF8DecodeFirst st x) = do
         let (Tuple' sv cp) = decode0 table x
         return $
             case sv of
                 12 ->
                     let msg = prefix ++ "Invalid first UTF8 byte " ++ show x
-                     in Skip $ handleError msg (FreshPointDecodeInit st)
+                     in Skip $ handleError msg (UTF8DecodeInit st)
                 0 -> error "unreachable state"
-                _ -> Skip (FreshPointDecoding st sv cp)
+                _ -> Skip (UTF8Decoding st sv cp)
 
     -- We recover by trying the new byte x as a starter of a new codepoint.
     -- XXX need to use the same recovery in array decoding routine as well
-    step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
+    step' table gst (UTF8Decoding st statePtr codepointPtr) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
                 return $ case sv of
                     0 -> Skip $ YieldAndContinue
-                            (unsafeChr cp) (FreshPointDecodeInit s)
+                            (unsafeChr cp) (UTF8DecodeInit s)
                     12 ->
                         let msg = prefix
                                 ++ "Invalid subsequent UTF8 byte "
@@ -356,10 +503,10 @@ decodeUtf8WithD cfm (Stream step state) =
                                 ++ show statePtr
                                 ++ " accumulated value "
                                 ++ show codepointPtr
-                         in Skip $ handleError msg (FreshPointDecodeInit1 s x)
-                    _ -> Skip (FreshPointDecoding s sv cp)
+                         in Skip $ handleError msg (UTF8DecodeInit1 s x)
+                    _ -> Skip (UTF8Decoding s sv cp)
             Skip s -> return $
-                Skip (FreshPointDecoding s statePtr codepointPtr)
+                Skip (UTF8Decoding s statePtr codepointPtr)
             Stop -> return $ Skip handleUnderflow
 
     step' _ _ (YieldAndContinue c s) = return $ Yield c s
@@ -369,91 +516,51 @@ decodeUtf8WithD cfm (Stream step state) =
 decodeUtf8D :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 
+-- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- Any invalid codepoint encountered is replaced with the unicode replacement
+-- character.
+--
+-- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
+--
+-- /Since: 0.8.0 (Lenient Behaviour)/
+{-# INLINE decodeUtf8 #-}
+decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8 = D.fromStreamD . decodeUtf8D . D.toStreamD
+
 {-# INLINE decodeUtf8D' #-}
 decodeUtf8D' :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
+
+-- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- The function throws an error if an invalid codepoint is encountered.
+--
+-- @since 0.8.0
+{-# INLINE decodeUtf8' #-}
+decodeUtf8' :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8' = D.fromStreamD . decodeUtf8D' . D.toStreamD
 
 {-# INLINE decodeUtf8D_ #-}
 decodeUtf8D_ :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 
-{-# INLINE_NORMAL resumeDecodeUtf8EitherD #-}
-resumeDecodeUtf8EitherD
-    :: Monad m
-    => DecodeState
-    -> CodePoint
-    -> Stream m Word8
-    -> Stream m (Either DecodeError Char)
-resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let A.Array p _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
-        stt =
-            if dst == 0
-            then FreshPointDecodeInit state
-            else FreshPointDecoding state dst codep
-    in Stream (step' ptr) stt
-  where
-    {-# INLINE_LATE step' #-}
-    step' _ gst (FreshPointDecodeInit st) = do
-        r <- step (adaptState gst) st
-        return $ case r of
-            Yield x s -> Skip (FreshPointDecodeInit1 s x)
-            Skip s -> Skip (FreshPointDecodeInit s)
-            Stop   -> Skip Done
+-- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- Any invalid codepoint encountered is dropped.
+--
+-- @since 0.8.0
+{-# INLINE decodeUtf8_ #-}
+decodeUtf8_ :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8_ = D.fromStreamD . decodeUtf8D_ . D.toStreamD
 
-    step' _ _ (FreshPointDecodeInit1 st x) = do
-        -- Note: It is important to use a ">" instead of a "<=" test
-        -- here for GHC to generate code layout for default branch
-        -- prediction for the common case. This is fragile and might
-        -- change with the compiler versions, we need a more reliable
-        -- "likely" primitive to control branch predication.
-        case x > 0x7f of
-            False ->
-                return $ Skip $ YieldAndContinue
-                    (Right $ unsafeChr (fromIntegral x))
-                    (FreshPointDecodeInit st)
-            -- Using a separate state here generates a jump to a
-            -- separate code block in the core which seems to perform
-            -- slightly better for the non-ascii case.
-            True -> return $ Skip $ FreshPointDecodeFirst st x
+-- | Same as 'decodeUtf8'
+--
+{-# DEPRECATED decodeUtf8Lax "Please use 'decodeUtf8' instead" #-}
+{-# INLINE decodeUtf8Lax #-}
+decodeUtf8Lax :: (IsStream t, Monad m) => t m Word8 -> t m Char
+decodeUtf8Lax = decodeUtf8
 
-    -- XXX should we merge it with FreshPointDecodeInit1?
-    step' table _ (FreshPointDecodeFirst st x) = do
-        let (Tuple' sv cp) = decode0 table x
-        return $
-            case sv of
-                12 ->
-                    Skip $ YieldAndContinue (Left $ DecodeError 0 (fromIntegral x))
-                                            (FreshPointDecodeInit st)
-                0 -> error "unreachable state"
-                _ -> Skip (FreshPointDecoding st sv cp)
-
-    -- We recover by trying the new byte x a starter of a new codepoint.
-    -- XXX on error need to report the next byte "x" as well.
-    -- XXX need to use the same recovery in array decoding routine as well
-    step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
-                return $
-                    case sv of
-                        0 -> Skip $ YieldAndContinue (Right $ unsafeChr cp)
-                                        (FreshPointDecodeInit s)
-                        12 ->
-                            Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr)
-                                        (FreshPointDecodeInit1 s x)
-                        _ -> Skip (FreshPointDecoding s sv cp)
-            Skip s -> return $ Skip (FreshPointDecoding s statePtr codepointPtr)
-            Stop -> return $ Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr) Done
-
-    step' _ _ (YieldAndContinue c s) = return $ Yield c s
-    step' _ _ Done = return Stop
-
-{-# INLINE_NORMAL decodeUtf8EitherD #-}
-decodeUtf8EitherD :: Monad m
-    => Stream m Word8 -> Stream m (Either DecodeError Char)
-decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
+-------------------------------------------------------------------------------
+-- Decoding Array Streams
+-------------------------------------------------------------------------------
 
 {-# ANN type FlattenState Fuse #-}
 data FlattenState s a
@@ -463,7 +570,7 @@ data FlattenState s a
     | InnerLoopDecoding s (ForeignPtr a) !(Ptr a) !(Ptr a)
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
-                                     -- encoded in the FreshPoint
+                                     -- encoded in the UTF8DecodeState
                                      -- type, I prefer to keep these
                                      -- flat even though that means
                                      -- coming up with new names
@@ -580,6 +687,15 @@ decodeUtf8ArraysD ::
     -> Stream m Char
 decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
 
+-- |
+--
+-- /Pre-release/
+{-# INLINE decodeUtf8Arrays #-}
+decodeUtf8Arrays ::
+       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays =
+    D.fromStreamD . decodeUtf8ArraysD . D.toStreamD
+
 {-# INLINE decodeUtf8ArraysD' #-}
 decodeUtf8ArraysD' ::
        MonadIO m
@@ -587,12 +703,63 @@ decodeUtf8ArraysD' ::
     -> Stream m Char
 decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
 
+-- |
+--
+-- /Pre-release/
+{-# INLINE decodeUtf8Arrays' #-}
+decodeUtf8Arrays' :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays' = D.fromStreamD . decodeUtf8ArraysD' . D.toStreamD
+
 {-# INLINE decodeUtf8ArraysD_ #-}
 decodeUtf8ArraysD_ ::
        MonadIO m
     => Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
+
+-- |
+--
+-- /Pre-release/
+{-# INLINE decodeUtf8Arrays_ #-}
+decodeUtf8Arrays_ ::
+       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays_ =
+    D.fromStreamD . decodeUtf8ArraysD_ . D.toStreamD
+
+-------------------------------------------------------------------------------
+-- Encoding Unicode (UTF-8) Characters
+-------------------------------------------------------------------------------
+
+data WList = WCons !Word8 !WList | WNil
+
+-- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
+
+{-# INLINE ord2 #-}
+ord2 :: Char -> WList
+ord2 c = assert (n >= 0x80 && n <= 0x07ff) (WCons x1 (WCons x2 WNil))
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
+    x2 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+{-# INLINE ord3 #-}
+ord3 :: Char -> WList
+ord3 c = assert (n >= 0x0800 && n <= 0xffff) (WCons x1 (WCons x2 (WCons x3 WNil)))
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 12) + 0xE0
+    x2 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+    x3 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+{-# INLINE ord4 #-}
+ord4 :: Char -> WList
+ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 18) + 0xF0
+    x2 = fromIntegral $ ((n `shiftR` 12) .&. 0x3F) + 0x80
+    x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+    x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# ANN type EncodeState Fuse #-}
 data EncodeState s = EncodeState s !WList
@@ -626,137 +793,6 @@ encodeUtf8D' (Stream step state) = Stream step' (EncodeState state WNil)
                 Stop -> Stop
     step' _ (EncodeState s (WCons x xs)) = return $ Yield x (EncodeState s xs)
 
-
--- | Decode a stream of bytes to Unicode characters by mapping each byte to a
--- corresponding Unicode 'Char' in 0-255 range.
---
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- @since 0.8.0
-{-# INLINE decodeLatin1 #-}
-decodeLatin1 :: (IsStream t, Monad m) => t m Word8 -> t m Char
-decodeLatin1 = S.map (unsafeChr . fromIntegral)
-
--- | Encode a stream of Unicode characters to bytes by mapping each character
--- to a byte in 0-255 range. Throws an error if the input stream contains
--- characters beyond 255.
---
--- @since 0.8.0
-{-# INLINE encodeLatin1' #-}
-encodeLatin1' :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1' = S.map convert
-    where
-    convert c =
-        let codepoint = ord c
-        in if codepoint > 255
-           then error $ "Streamly.String.encodeLatin1 invalid " ++
-                      "input char codepoint " ++ show codepoint
-           else fromIntegral codepoint
-
--- | Like 'encodeLatin1'' but silently truncates and maps input characters beyond
--- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
--- when such truncation occurs.
---
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- /Since: 0.8.0 (Lenient Behaviour)/
-{-# INLINE encodeLatin1 #-}
-encodeLatin1 :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1 = S.map (fromIntegral . ord)
-
--- | Like 'encodeLatin1' but drops the input characters beyond 255.
---
--- @since 0.8.0
-{-# INLINE encodeLatin1_ #-}
-encodeLatin1_ :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1_ = S.map (fromIntegral . ord) . S.filter (<= chr (255))
-
--- | Same as 'encodeLatin1'
---
-{-# DEPRECATED encodeLatin1Lax "Please use 'encodeLatin1' instead" #-}
-{-# INLINE encodeLatin1Lax #-}
-encodeLatin1Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1Lax = encodeLatin1
-
--- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
--- The function throws an error if an invalid codepoint is encountered.
---
--- @since 0.8.0
-{-# INLINE decodeUtf8' #-}
-decodeUtf8' :: (Monad m, IsStream t) => t m Word8 -> t m Char
-decodeUtf8' = D.fromStreamD . decodeUtf8D' . D.toStreamD
-
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays' #-}
-decodeUtf8Arrays' :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
-decodeUtf8Arrays' = D.fromStreamD . decodeUtf8ArraysD' . D.toStreamD
-
--- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
--- Any invalid codepoint encountered is replaced with the unicode replacement
--- character.
---
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- /Since: 0.8.0 (Lenient Behaviour)/
-{-# INLINE decodeUtf8 #-}
-decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
-decodeUtf8 = D.fromStreamD . decodeUtf8D . D.toStreamD
-
--- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
--- Any invalid codepoint encountered is dropped.
---
--- @since 0.8.0
-{-# INLINE decodeUtf8_ #-}
-decodeUtf8_ :: (Monad m, IsStream t) => t m Word8 -> t m Char
-decodeUtf8_ = D.fromStreamD . decodeUtf8D_ . D.toStreamD
-
--- | Same as 'decodeUtf8'
---
-{-# DEPRECATED decodeUtf8Lax "Please use 'decodeUtf8' instead" #-}
-{-# INLINE decodeUtf8Lax #-}
-decodeUtf8Lax :: (IsStream t, Monad m) => t m Word8 -> t m Char
-decodeUtf8Lax = decodeUtf8
-
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Either #-}
-decodeUtf8Either :: (Monad m, IsStream t)
-    => t m Word8 -> t m (Either DecodeError Char)
-decodeUtf8Either = D.fromStreamD . decodeUtf8EitherD . D.toStreamD
-
--- |
---
--- /Pre-release/
-{-# INLINE resumeDecodeUtf8Either #-}
-resumeDecodeUtf8Either
-    :: (Monad m, IsStream t)
-    => DecodeState
-    -> CodePoint
-    -> t m Word8
-    -> t m (Either DecodeError Char)
-resumeDecodeUtf8Either st cp =
-    D.fromStreamD . resumeDecodeUtf8EitherD st cp . D.toStreamD
-
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays #-}
-decodeUtf8Arrays ::
-       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
-decodeUtf8Arrays =
-    D.fromStreamD . decodeUtf8ArraysD . D.toStreamD
-
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays_ #-}
-decodeUtf8Arrays_ ::
-       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
-decodeUtf8Arrays_ =
-    D.fromStreamD . decodeUtf8ArraysD_ . D.toStreamD
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. When
 -- any invalid character (U+D800-U+D8FF) is encountered in the input stream the
@@ -846,6 +882,10 @@ encodeUtf8_ = D.fromStreamD . encodeUtf8D_ . D.toStreamD
 {-# INLINE encodeUtf8Lax #-}
 encodeUtf8Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeUtf8Lax = encodeUtf8
+
+-------------------------------------------------------------------------------
+-- Encode streams of containers
+-------------------------------------------------------------------------------
 
 -- | Encode a container to @Array Word8@ provided an unfold to covert it to a
 -- Char stream and an encoding function.
