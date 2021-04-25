@@ -48,9 +48,9 @@ module Streamly.Internal.Network.Socket
     -- , writeByFrames
     , writeWithBufferOf
 
-    , fromChunks
-    , fromBytesWithBufferOf
-    , fromBytes
+    , putChunks
+    , putBytesWithBufferOf
+    , putBytes
 
     -- -- * Array Write
     , writeChunk
@@ -444,10 +444,10 @@ read = UF.supplyFirst A.defaultChunkSize readWithBufferOf
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
-{-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, Storable a)
+{-# INLINE putChunks #-}
+putChunks :: (MonadIO m, Storable a)
     => Socket -> SerialT m (Array a) -> m ()
-fromChunks h = S.mapM_ (liftIO . writeChunk h)
+putChunks h = S.mapM_ (liftIO . writeChunk h)
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
@@ -482,9 +482,9 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+{-# INLINE putBytesWithBufferOf #-}
+putBytesWithBufferOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
@@ -501,9 +501,9 @@ writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
 -- depends on the 'IOMode' and the current seek position of the handle.
 --
 -- @since 0.7.0
-{-# INLINE fromBytes #-}
-fromBytes :: MonadIO m => Socket -> SerialT m Word8 -> m ()
-fromBytes = fromBytesWithBufferOf A.defaultChunkSize
+{-# INLINE putBytes #-}
+putBytes :: MonadIO m => Socket -> SerialT m Word8 -> m ()
+putBytes = putBytesWithBufferOf A.defaultChunkSize
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- up to 'A.defaultChunkSize' bytes before writing.

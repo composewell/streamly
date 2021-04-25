@@ -59,13 +59,13 @@ module Streamly.Internal.Network.Inet.TCP
     -- , writeUtf8ByLines
     -- , writeByFrames
     , writeWithBufferOf
-    , fromBytes
-    , fromBytesWithBufferOf
+    , putBytes
+    , putBytesWithBufferOf
 
     -- -- * Array Write
     -- , writeArray
     , writeChunks
-    , fromChunks
+    , putChunks
 
     -- ** Transformation
     , processBytes
@@ -332,15 +332,15 @@ toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 -- number.
 --
 -- @since 0.7.0
-{-# INLINE fromChunks #-}
-fromChunks
+{-# INLINE putChunks #-}
+putChunks
     :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m (Array Word8)
     -> m ()
-fromChunks addr port xs =
-    S.drain $ withConnection addr port (\sk -> S.yieldM $ ISK.fromChunks sk xs)
+putChunks addr port xs =
+    S.drain $ withConnection addr port (\sk -> S.yieldM $ ISK.putChunks sk xs)
 
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
@@ -373,15 +373,15 @@ writeChunks addr port = Fold step initial extract
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf
+{-# INLINE putBytesWithBufferOf #-}
+putBytesWithBufferOf
     :: (MonadCatch m, MonadAsync m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-fromBytesWithBufferOf n addr port m = fromChunks addr port $ AS.arraysOf n m
+putBytesWithBufferOf n addr port m = putChunks addr port $ AS.arraysOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
@@ -401,10 +401,10 @@ writeWithBufferOf n addr port =
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
-{-# INLINE fromBytes #-}
-fromBytes :: (MonadCatch m, MonadAsync m)
+{-# INLINE putBytes #-}
+putBytes :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
-fromBytes = fromBytesWithBufferOf defaultChunkSize
+putBytes = putBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
@@ -432,7 +432,7 @@ withInputConnect addr port input f = S.bracket pre post handler
 
     pre = do
         sk <- liftIO $ connect addr port
-        tid <- fork (ISK.fromBytes sk input)
+        tid <- fork (ISK.putBytes sk input)
         return (sk, tid)
 
     handler (sk, _) = f sk
