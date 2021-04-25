@@ -120,8 +120,8 @@ o_1_space_elimination value =
         , benchIOSink value "foldl'" Ops.pureFoldl'
         , benchIOSink value "read" Ops.unfoldReadDrain
         , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
-        , benchFold "lastN.1" (S.fold (IA.lastN 1)) (P.sourceUnfoldrM value)
-        , benchFold "lastN.10" (S.fold (IA.lastN 10)) (P.sourceUnfoldrM value)
+        , benchFold "writeLastN.1" (S.fold (IA.writeLastN 1)) (P.sourceUnfoldrM value)
+        , benchFold "writeLastN.10" (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
@@ -136,7 +136,7 @@ o_n_heap_serial value =
     [ bgroup "elimination"
         [
         -- Converting the stream to an array
-            benchFold "lastN.Max" (S.fold (IA.lastN (value + 1)))
+            benchFold "writeLastN.Max" (S.fold (IA.writeLastN (value + 1)))
                 (P.sourceUnfoldrM value)
             , benchFold "writeN" (S.fold (A.writeN value))
                 (P.sourceUnfoldrM value)

@@ -621,7 +621,7 @@ ensureTrailingSlash :: Array Word8 -> Array Word8
 ensureTrailingSlash path =
     if A.length path /= 0
     then
-        let mx = A.readIndex path (A.length path - 1)
+        let mx = A.getIndex path (A.length path - 1)
          in case mx of
             Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
             Just x ->

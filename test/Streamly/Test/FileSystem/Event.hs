@@ -93,7 +93,7 @@ removeTrailingSlash path =
     if Array.length path == 0
     then path
     else
-        let mx = Array.readIndex path (Array.length path - 1)
+        let mx = Array.getIndex path (Array.length path - 1)
          in case mx of
             Nothing -> error "removeTrailingSlash: Bug: Invalid index"
             Just x ->
