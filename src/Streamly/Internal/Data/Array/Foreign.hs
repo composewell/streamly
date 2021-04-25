@@ -60,7 +60,7 @@ module Streamly.Internal.Data.Array.Foreign
     , A.writeN      -- drop new
     , A.writeNAligned
     , A.write       -- full buffer
-    -- , writeLastN -- drop old (ring buffer)
+    , writeLastN
 
     -- * Elimination
 
@@ -78,7 +78,7 @@ module Streamly.Internal.Data.Array.Foreign
     , null
     , last
     -- , (!!)
-    , readIndex
+    , getIndex
     , A.unsafeIndex
     -- , readIndices
     -- , readRanges
@@ -130,15 +130,12 @@ module Streamly.Internal.Data.Array.Foreign
     , cast
     , unsafeCast
     , asPtr
-    , asByteArray
+    , asBytes
     , asCString
 
     -- * Folding Arrays
     , streamFold
     , fold
-
-    -- * Folds with Array as the container
-    , lastN
     )
 where
 
@@ -273,34 +270,43 @@ unsafeRead = Unfold step inject
 null :: Storable a => Array a -> Bool
 null arr = length arr == 0
 
--- | > last arr = readIndex arr (length arr - 1)
+-- | > last arr = getIndex arr (length arr - 1)
 --
 -- /Pre-release/
 {-# INLINE last #-}
 last :: Storable a => Array a -> Maybe a
-last arr = readIndex arr (length arr - 1)
+last arr = getIndex arr (length arr - 1)
 
 -------------------------------------------------------------------------------
 -- Folds with Array as the container
 -------------------------------------------------------------------------------
 
--- | Take last 'n' elements from the stream and discard the rest.
-{-# INLINE lastN #-}
-lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
-lastN n
+-- | @writeLastN n@ folds a maximum of @n@ elements from the end of the input
+-- stream to an 'Array'.
+--
+-- @since 0.8.0
+{-# INLINE writeLastN #-}
+writeLastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = A.unsafeFreeze <$> Fold step initial done
-  where
+
+    where
+
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a
         return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
+
     initial =
         let f (a, b) = FL.Partial $ Tuple3' a b (0 :: Int)
          in fmap f $ liftIO $ RB.new n
+
     done (Tuple3' rb rh i) = do
         arr <- liftIO $ MA.newArray n
         foldFunc i rh snoc' arr rb
+
     snoc' b a = liftIO $ MA.unsafeSnoc b a
+
     foldFunc i
         | i < n = RB.unsafeFoldRingM
         | otherwise = RB.unsafeFoldRingFullM
@@ -425,10 +431,10 @@ foldbWith level f = undefined
 
 -- | /O(1)/ Lookup the element at the given index, starting from 0.
 --
--- /Pre-release/
-{-# INLINE readIndex #-}
-readIndex :: Storable a => Array a -> Int -> Maybe a
-readIndex arr i =
+-- @since 0.8.0
+{-# INLINE getIndex #-}
+getIndex :: Storable a => Array a -> Int -> Maybe a
+getIndex arr i =
     if i < 0 || i > length arr - 1
         then Nothing
         else A.unsafeInlineIO $
@@ -543,18 +549,18 @@ unsafeCast ::
     Array a -> Array b
 unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
 
--- | Cast an array into a Word8 array
+-- | Cast an @Array a@ into an @Array Word8@.
 --
--- /Pre-release/
+-- @since 0.8.0
 --
-asByteArray :: Array a -> Array Word8
-asByteArray = unsafeCast
+asBytes :: Array a -> Array Word8
+asBytes = unsafeCast
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
 -- target element otherwise 'Nothing' is returned.
 --
--- /Pre-release/
+-- @since 0.8.0
 --
 cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
 cast arr =
@@ -584,7 +590,7 @@ asPtr Array{..} act = do
 --
 asCString :: Array a -> (CString -> IO b) -> IO b
 asCString arr act = do
-    let Array{..} = asByteArray arr <> A.fromList [0]
+    let Array{..} = asBytes arr <> A.fromList [0]
     withForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------

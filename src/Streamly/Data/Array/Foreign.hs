@@ -54,7 +54,7 @@ module Streamly.Data.Array.Foreign
     -- Monadic APIs
     , A.writeN      -- drop new
     , A.write       -- full buffer
-    -- , writeLastN -- drop old (ring buffer)
+    , writeLastN    -- drop old (ring buffer)
 
     -- ** Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
@@ -62,11 +62,16 @@ module Streamly.Data.Array.Foreign
 
     , A.toList
     , A.read
+    , A.readRev
+
+    -- ** Casting
+    , cast
+    , asBytes
 
     -- ** Random Access
     , A.length
     -- , (!!)
-    -- , A.readIndex
+    , A.getIndex
     )
 where
 
