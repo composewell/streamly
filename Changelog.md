@@ -36,12 +36,16 @@
 
 ### Enhancements
 
-* New encoding/decoding routines, `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`,
-  are added, these routines fail when they encounter any invalid characters.
-* Several new functions added to `Streamly.Data.Fold`
-* New `Streamly.Data.Fold.Tee` module added for distributive fold operations.
-* Several Unfold routines and combinators added to `Streamly.Data.Unfold`.
-* Added delay, liftInner, runStateT, runReaderT to Streamly.Prelude
+* `Streamly.Prelude`: Added delay, liftInner, runStateT, runReaderT,
+  intercalate, intercalateSuffix
+* `Streamly.Unicode.Stream`: New encoding/decoding routines,
+  `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`, are added, these routines
+  fail when they encounter any invalid characters.
+* `Streamly.Data.Fold`: Several new functions added.
+* `Streamly.Data.Fold.Tee`: New module for distributive fold operations.
+* `Streamly.Data.Unfold`: Several Unfold routines and combinators added.
+* Streamly.Network.Socket: Added readChunk, writeChunk,
+  writeChunksWithBufferOf, forSocketM
 
 ### Bug Fixes
 
@@ -92,8 +96,6 @@
 * A bug was fixed in the conversion of MicroSecond64 and MilliSecond64
   (commit e5119626)
 * Bug fix: classifySessionsBy now flushes sessions at the end and terminates.
-* `Streamly.Internal.Data.Fold.Tee` module added for folds with tee-like
-  applicative behaviour.
 
 ### Miscellaneous
 
