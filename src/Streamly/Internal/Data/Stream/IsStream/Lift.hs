@@ -111,16 +111,21 @@ usingReaderT r f xs = runReaderT r $ f $ liftInner xs
 -- This is supported only for 'SerialT' as concurrent state updation may not be
 -- safe.
 --
+-- > evalStateT s = Stream.map snd . Stream.runStateT s
+--
 -- / Internal/
 --
 {-# INLINE evalStateT #-}
 evalStateT ::  Monad m => m s -> SerialT (StateT s m) a -> SerialT m a
+-- evalStateT s = fmap snd . runStateT s
 evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 
 -- | Run a stateful (StateT) stream transformation using a given state.
 --
 -- This is supported only for 'SerialT' as concurrent state updation may not be
 -- safe.
+--
+-- > usingStateT s f = evalStateT s . f . liftInner
 --
 -- See also: 'scanl''
 --
@@ -133,7 +138,7 @@ usingStateT
     -> (SerialT (StateT s m) a -> SerialT (StateT s m) a)
     -> SerialT m a
     -> SerialT m a
-usingStateT s f xs = evalStateT s $ f $ liftInner xs
+usingStateT s f = evalStateT s . f . liftInner
 
 -- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
 -- state and value pair after each step.
