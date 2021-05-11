@@ -203,6 +203,13 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Deprecated
     , scanx
+    , removeDupsRight
+    , differenceByMerge
+    , innerJoinByMerge
+    , leftJoinByMerge
+    , rightJoinByMerge
+    , outerJoinByMerge
+    , intersectByMerge
     )
 where
 
