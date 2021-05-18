@@ -73,7 +73,7 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.enumerateFromToIntegral to)
+    drainTransformation (UF.enumerateFromToIntegral  to)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -96,7 +96,7 @@ drainProductDefault to = drainProduct src src
 
     where
 
-    src = UF.enumerateFromToIntegral to
+    src = UF.enumerateFromToIntegral  to
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -253,7 +253,7 @@ enumerateFromStepIntegral size start =
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
 enumerateFromToIntegral size start =
-    drainGeneration (UF.enumerateFromToIntegral (size + start)) start
+    drainGeneration (UF.enumerateFromToIntegral  (size + start)) start
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Monad m => Int -> Int -> m ()
@@ -434,8 +434,8 @@ concatMapM value start =
     where
 
     val = nthRoot 2 value
-    unfoldInGen i = return (UF.enumerateFromToIntegral (i + val))
-    unfoldOut = UF.enumerateFromToIntegral (start + val)
+    unfoldInGen i = return (UF.enumerateFromToIntegral  (i + val))
+    unfoldOut = UF.enumerateFromToIntegral  (start + val)
 
 {-# INLINE toNull #-}
 toNull :: Monad m => Int -> Int -> m ()
