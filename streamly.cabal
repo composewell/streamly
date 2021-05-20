@@ -112,6 +112,7 @@ extra-source-files:
     design/*.md
     design/*.png
     design/*.rst
+    docs/Overview.md
     docs/Build.md
     docs/streamly-vs-async.md
     docs/streamly-vs-lists.md
