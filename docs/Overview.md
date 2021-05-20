@@ -1,19 +1,8 @@
-# Streamly
+## Overview
 
-[![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
-[![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
-[![Travis](https://travis-ci.com/composewell/streamly.svg?branch=master)](https://travis-ci.com/composewell/streamly)
-[![Appveyor](https://ci.appveyor.com/api/projects/status/ajxg0c79raou9ned?svg=true)](https://ci.appveyor.com/project/harendra-kumar/streamly)
-[![CircleCI](https://circleci.com/gh/composewell/streamly/tree/master.svg?style=svg)](https://circleci.com/gh/composewell/streamly/tree/master)
-[![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
-
-## Learning Materials
-
-* Documentation: [Quick](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference (Hackage)](https://hackage.haskell.org/package/streamly) | [Reference (Latest)](https://composewell.github.io/streamly) | [Guides](docs)
-* Installing: [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
-* Examples: [streamly](examples) | [streamly-examples](https://github.com/composewell/streamly-examples)
-* Benchmarks: [Streaming](https://github.com/composewell/streaming-benchmarks) | [Concurrency](https://github.com/composewell/concurrency-benchmarks)
-* Talks: [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
+These are some notes from an old version of README that may be
+useful. For a quick introduction please read the README.md at the repo
+root first.
 
 ## Streaming Concurrently
 
@@ -70,45 +59,6 @@ standard and easy to use data flow programming paradigm for monadic
 computations, and the IO monad providing an escape hatch to an imperative
 model, we just love to fall into the imperative trap, and start asking the same
 fundamental question again - why do we have to use the streaming data model?
-
-## Comparative Performance
-
-High performance and simplicity are the two primary goals of streamly.
-`Streamly` employs two different stream representations (CPS and direct style)
-and interconverts between the two to get the best of both worlds on different
-operations. It uses both foldr/build (for CPS style) and stream fusion (for
-direct style) techniques to fuse operations. In terms of performance,
-Streamly's goal is to compete with equivalent C programs. Streamly redefines
-"blazing fast" for streaming libraries, it competes with lists and `vector`.
-Other streaming libraries like "streaming", "pipes" and "conduit" are orders of
-magnitude slower on most microbenchmarks.  See [streaming
-benchmarks](https://github.com/composewell/streaming-benchmarks) for detailed
-comparison.
-
-The following chart shows a comparison of those streamly and list operations
-where performance of the two differs by more than 10%. Positive y-axis displays
-how many times worse is a list operation compared to the same streamly
-operation, negative y-axis shows where streamly is worse compared to lists.
-
-![Streamly vs Lists (time) comparison](charts-0/streamly-vs-list-time.svg)
-
-Streamly uses lock-free synchronization for concurrent operations. It employs
-auto-scaling of the degree of concurrency based on demand. For CPU bound tasks
-it tries to keep the threads close to the number of CPUs available whereas for
-IO bound tasks more threads can be utilized. Parallelism can be utilized with
-little overhead even if the task size is very small.  See [concurrency
-benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
-performance results and a comparison with the `async` package.
-
-## Installing and using
-
-Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
-with your Haskell build tool or package manager. You may want to go through it
-before jumping to run the examples below.
-
-The module `Streamly.Prelude` provides the core stream types and combinators
-for type casting, controlling concurrency, stream construction, transformation,
-folding, merging, and zipping.
 
 ## Streaming Pipelines
 
@@ -169,14 +119,6 @@ The following finishes in 10 seconds (100 seconds when serial):
 ``` haskell
 S.drain $ S.fromAsync $ S.replicateM 10 $ p 10
 ```
-
-## Concurrency Auto Scaling
-
-Concurrency is auto-scaled i.e. more actions are executed concurrently if the
-consumer is consuming the stream at a higher speed. How many tasks are executed
-concurrently can be controlled by `maxThreads` and how many results are
-buffered ahead of consumption can be controlled by `maxBuffer`. See the
-documentation in the `Streamly.Prelude` module.
 
 ## Concurrent Streaming Pipelines
 
@@ -305,39 +247,6 @@ main = do
         return $ sqrt (x2 + y2)
     print s
 ```
-
-The concurrency facilities provided by streamly can be compared with
-[OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
-[Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
-expression.
-
-## Example: Listing Directories Recursively/Concurrently
-
-The following code snippet lists a directory tree recursively, reading multiple
-directories concurrently:
-
-```haskell
-import Control.Monad.IO.Class (liftIO)
-import Path.IO (listDir, getCurrentDir) -- from path-io package
-import Streamly.Prelude (AsyncT, adapt)
-import qualified Streamly.Prelude as S
-
-listDirRecursive :: AsyncT IO ()
-listDirRecursive = getCurrentDir >>= readdir >>= liftIO . mapM_ putStrLn
-  where
-    readdir dir = do
-      (dirs, files) <- listDir dir
-      S.yield (map show dirs ++ map show files) <> foldMap readdir dirs
-
-main :: IO ()
-main = S.drain $ adapt $ listDirRecursive
-```
-
-`AsyncT` is a stream monad transformer. If you are familiar with a list
-transformer, it is nothing but `ListT` with concurrency semantics. For example,
-the semigroup operation `<>` is concurrent. This makes `foldMap` concurrent
-too. You can replace `AsyncT` with `SerialT` and the above code will become
-serial, exactly equivalent to a `ListT`.
 
 ## Rate Limiting
 
@@ -489,16 +398,6 @@ llhisto =
 main = withArg llhisto >>= print
 ```
 
-## Socket IO
-
-Its easy to build concurrent client and server programs using streamly.
-`Streamly.Network.*` modules provide easy combinators to build network servers
-and client programs using streamly. See
-[FromFileClient.hs](https://github.com/composewell/streamly/tree/master/examples/FromFileClient.hs),
-[EchoServer.hs](https://github.com/composewell/streamly/tree/master/examples/EchoServer.hs),
-[FileSinkServer.hs](https://github.com/composewell/streamly/tree/master/examples/FileSinkServer.hs)
-in the examples directory.
-
 ## Exceptions
 
 Exceptions can be thrown at any point using the `MonadThrow` instance. Standard
@@ -515,15 +414,6 @@ There is no notion of explicit threads in streamly, therefore, no
 asynchronous exceptions to deal with. You can just ignore the zillions of
 blogs, talks, caveats about async exceptions. Async exceptions just don't
 exist.  Please don't use things like `myThreadId` and `throwTo` just for fun!
-
-## Reactive Programming (FRP)
-
-Streamly is a foundation for first class reactive programming as well by virtue
-of integrating concurrency and streaming. See
-[AcidRain.hs](https://github.com/composewell/streamly/tree/master/examples/AcidRain.hs)
-for a console based FRP game example and
-[CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
-for an SDL based animation example.
 
 ## Conclusion
 
@@ -577,30 +467,3 @@ streaming with concurrency we can write FRP applications similar in concept to
 
 See the `Comparison with existing packages` section at the end of the
 [tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
-
-## Support
-
-Please feel free to ask questions on the
-[streamly gitter channel](https://gitter.im/composewell/streamly).
-If you require professional support, consulting, training or timely
-enhancements to the library please contact
-[support@composewell.com](mailto:support@composewell.com).
-
-## Credits
-
-The following authors/libraries have influenced or inspired this library in a
-significant way:
-
-  * Roman Leshchinskiy ([vector](http://hackage.haskell.org/package/vector))
-  * Gabriel Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
-  * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
-
-See the `credits` directory for full list of contributors, credits and licenses.
-
-## Contributing
-
-The code is available under BSD-3 license
-[on github](https://github.com/composewell/streamly). Join the [gitter
-chat](https://gitter.im/composewell/streamly) channel for discussions.  Please
-ask any questions on the gitter channel or [contact the maintainer
-directly](mailto:streamly@composewell.com). All contributions are welcome!

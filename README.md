@@ -18,8 +18,8 @@
 ## Idiomatic Haskell at the speed of C
 
 Streamly is a Haskell library/framework providing basic building blocks
-or combinators to perform fundamental as well as advanced programming
-tasks with ease. The key features it provides are:
+or combinators to build safe, scalable, modular and high performance
+software systems.  The key features it provides are:
 
 * Speed of C
 * Safety of Haskell
@@ -43,10 +43,10 @@ repository](https://github.com/composewell/streamly-examples).
 
 ## Modular Word Counting
 
-The `Fold` data type in streamly represents a consumer of stream. In
-this example, we will use individual folds to count bytes, words and
-lines in a file. We will see how these individual folds can be composed
-together to do all the three at once with the same performance.
+In this example, we will use folds to count bytes, words and lines in
+a file.  A `Fold` is a composable stream consumer.  We will see how
+individual folds can be composed together to perform all the three
+counts at once with the same performance.
 
 See [WordCountModular.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs)
 for full working code including imports that we may have omitted
@@ -129,13 +129,10 @@ wc file =
   & Stream.fold countAll -- IO (Int, Int, Int)
 ```
 
-### Observations
-
-This example shows:
-
-* Excellent modularity
-* Simple and concise API and types
-* No bytestrings required, just streams of Word8
+This example demonstrates the simple and concise API of streamly with
+excellent modularity.  Experienced Haskellers would notice that we have
+not used bytestrings, we simply use a stream of `Word8`, simplifying the
+program.
 
 ## Performance
 
@@ -165,7 +162,7 @@ sys     0m0.165s
 
 ## Concurrent Word Counting
 
-To do word counting in parallel we divide the stream in chunks (arrays),
+To count words in parallel we divide the stream into chunks (arrays),
 count properties in each chunk and then add all the counts.  We use the
 same code as above except that we use an array input instead of using a
 file input.
@@ -185,10 +182,12 @@ countArray arr =
     & Stream.decodeLatin1                     -- SerialT IO Char
     & Stream.foldl' count (Counts 0 0 0 True) -- IO Counts
 ```
-When combining the counts in two contiguous chunks, we would also need to
-know whether the first element of the next chunk was a space char or
-non-space to know whether the same word is continuing to the next chunk or
-if it is a new word. So add that too, giving (firstCharWasSpace, Counts).
+When combining the counts in two contiguous chunks, we would also need
+to know whether the first element of the next chunk was a space char or
+non-space to know whether the same word is continuing to the next chunk
+or if it is a new word. `partialCounts` adds a `Bool` flag to `Counts`
+returned by `countArray` to indicate whether the first character in the
+chunk is a space.
 
 ``` haskell
 partialCounts :: Array Word8 -> IO (Bool, Counts)
@@ -224,7 +223,7 @@ wc file = do
     & Stream.foldl' addCounts (False, Counts 0 0 0 True) -- IO (Bool, Counts)
 ```
 
-Note that `Stream.aheadly` is the only difference in a concurrent and
+Note that `Stream.fromAhead` is the only difference in a concurrent and
 non-concurrent program. If we remove that we still have a perfectly valid,
 well performing serial program. Notice, how succinctly and idiomatically
 we expressed the concurrent word counting problem.
@@ -383,10 +382,6 @@ main = do
         & Stream.mapM_ print
 ```
 
-Notice, how succinctly and idiomatically we expressed the concurrent
-directory tree traversal problem. Let us know if you can do it
-significantly better with any other language or framework.
-
 ## Rate Limiting
 
 For bounded concurrent streams, stream yield rate can be specified. For
@@ -438,13 +433,21 @@ documentation](https://streamly.composewell.com) to know more.
 
 ## Concurrency
 
-Streamly uses lock-free synchronization for concurrent operations. It employs
-auto-scaling of the degree of concurrency based on demand. For CPU bound tasks
-it tries to keep the threads close to the number of CPUs available whereas for
-IO bound tasks more threads can be utilized. Parallelism can be utilized with
-little overhead even if the task size is very small.  See [concurrency
-benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
-performance results and a comparison with the `async` package.
+Streamly uses lock-free synchronization for low overhead
+concurrency. The number of tasks performed concurrently are
+determined automatically based on the rate at which a consumer is
+consuming the results. In other words, you do not need to manage
+thread pools and decide how many threads to use for a particular
+task.  For CPU bound tasks it tries to keep the number of threads
+close to the number of CPUs available whereas for IO bound tasks
+more threads can be utilized.
+
+Parallelism can be utilized with little overhead even if
+the task size is very small, because it can automatically
+switch to serial mode or batch multiple tasks on the
+same CPU if that is more efficient.  See [concurrency
+benchmarks](https://github.com/composewell/concurrency-benchmarks) for
+detailed performance results and a comparison with the `async` package.
 
 ## Performance
 
@@ -452,41 +455,29 @@ As you have seen above in the word count example, streamly enables
 highly modular abstractions with the best possible performance (close to
 an equivalent C program).
 
-For example, none of the existing Haskell libraries can work with byte
-level streams with acceptable performance. Streamly provides excellent
-performance even for byte level stream operations, it is made possible
-by employing efficient abstractions like `Unfold`s and terminating
-`Fold`s. Byte level stream operations make programming simpler because
-you do not have to deal with chunking and re-combining.
+Streamly provides excellent performance even for byte level stream
+operations, it is made possible by employing efficient abstractions like
+`Unfold`s and terminating `Fold`s. Byte level stream operations make
+programming simpler because you do not have to deal with chunking and
+re-combining.
 
 If you can write a program significantly faster in some other way or
-with some other language, please let us know and we will improve. We
-still have some areas to improve but we will surely get there for most
-cases.
+with some other language, please let us know and we will improve.
 
 ## Benchmarks
 
-When it comes to stream operations, Haskell lists is the fastest
-existing implementation even though it supports only pure (not monadic)
-streams. Other streaming libraries are many times slower compared to
-lists, so lists is our gold standard for performance comparison.
+We measured several Haskell streaming implementations
+on various micro-benchmarks. Please see [streaming
+benchmarks](https://github.com/composewell/streaming-benchmarks) page
+for detailed comparison of streamly with other streaming libraries.
 
-In the following chart, positive y-axis displays how many times worse
-is a list operation compared to the corresponding streamly operation,
-negative y-axis shows the same where streamly is worse compared to
-lists.
+These results show that streamly is the fastest effectful streaming
+implementation on almost all the measured micro benchmarks. In many cases
+it is up to 100x faster and in some cases even 1000x faster. In many
+composite operation benchmarks streamly turns out to be significantly
+faster than the Haskell lists implementation.
 
-![Streamly vs Lists (time) comparison](charts-0/streamly-vs-list-time.svg)
-
-This chart show only those operations where streamly and list
-performance differs by more than 10%. For all other operations the
-performance of both is more or less comparable.
-
-See [streaming
-benchmarks](https://github.com/composewell/streaming-benchmarks) for
-detailed comparison with other Haskell streaming libraries.
-
-## Performance and Modularity
+## Design Goals
 
 The goals of streamly from the very beginning have been, (1) simplicity
 by unifying abstractions, (2) high performance. These are hard to
