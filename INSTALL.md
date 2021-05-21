@@ -179,25 +179,25 @@ Once at the `*Main>` prompt, you can import `streamly` and use it
 directly:
 
 ```
-*Main> import qualified Streamly.Prelude as S
+*Main> import qualified Streamly.Prelude as Stream
 
-*Main S> S.drain $ S.mapM print $ S.fromList [1..3]
+*Main Stream> Stream.drain $ Stream.mapM print $ Stream.fromList [1..3]
 1
 2
 3
-*Main S>
+*Main Stream>
 ```
 
 For the curious, here is a high level overview of what these lines
 do:
 
-1. `import qualified Streamly.Prelude as S` imports the Streamly
-   prelude into GHCi, and makes it available as module `S`.
+1. `import qualified Streamly.Prelude as Stream` imports the Streamly
+   prelude into GHCi, and makes it available as module `Stream`.
 2. `[1..3]` generates the Haskell list `[1, 2, 3]`.
-3. `S.fromList` transforms that list into a stream of integers.
-4. `S.mapM print` transforms the stream of integers into a stream of
+3. `Stream.fromList` transforms that list into a stream of integers.
+4. `Stream.mapM print` transforms the stream of integers into a stream of
    actions that would print those integers when executed.
-5. `S.drain` transforms that stream of actions into an IO action that
+5. `Stream.drain` transforms that stream of actions into an IO action that
    `main` or GHCi's REPL can execute.
 
 These concepts are explained in greater detail in the [Streamly
@@ -253,10 +253,10 @@ Edit `Main.hs` to contain the following:
 ```haskell
 module Main where
 
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude as Stream
 
 main :: IO ()
-main = S.drain $ S.mapM print $ S.fromList [1..3]
+main = Stream.drain $ Stream.mapM print $ Stream.fromList [1..3]
 ```
 
 Build and run this program using `cabal run`:
