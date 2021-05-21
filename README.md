@@ -31,7 +31,31 @@ Let's go through some practical examples to see it working. You
 can find the working code of these examples in the [streamly-examples
 repository](https://github.com/composewell/streamly-examples).
 
+## Installing and using
+
+Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
+with your Haskell build tool or package manager.
+
+## Documentation
+
+Streamly comes with batteries included, see [the streamly documentation
+portal](https://streamly.composewell.com) for available modules. Modules
+are divided in two categories:
+
+* Released Modules: these are modules that have a stable API, any API changes
+  conform to a versioning policy.
+* Pre-release Modules: These modules are not yet released due to some planned
+  changes in near future, they will be released soon.
+
+Pre-release APIs:  Some of the APIs that are recently introduced
+and require some soak time for stability are kept in the
+internal modules corresponding to the released module (e.g.
+Streamly.Internal.Data.Fold).  We usually try to change even the
+unstable APIs in a major release version.
+
 ## Types Overview
+
+Quick overview of basic types for this tutorial:
 
 * `SerialT IO a` is a serial stream of values of type `a` in IO Monad.
 * `AsyncT IO a` is a concurrent (async) stream of values of type `a` in IO
@@ -134,7 +158,7 @@ excellent modularity.  Experienced Haskellers would notice that we have
 not used bytestrings, we simply use a stream of `Word8`, simplifying the
 program.
 
-## Performance
+## Word Counting Performance
 
 We compare two equivalent implementations, one using Haskell Streamly and the
 other using C. The
@@ -504,26 +528,6 @@ via a [compiler plugin](https://github.com/composewell/fusion-plugin).
 We hope to bring these optimizations to GHC in future but until
 then we recommend that you use the plugin for performance sensitive
 applications.
-
-## Installing and using
-
-Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
-with your Haskell build tool or package manager.
-
-Streamly comes with batteries included, see [the
-documentation](https://streamly.composewell.com) for available modules. Modules
-are divided in two categories:
-
-* Released Modules: these are modules that have a stable API, any API changes
-  conform to a versioning policy.
-* Pre-release APIs:  Some of the APIs that are recently introduced and
-  require some soak time for stability are kept in the
-  internal modules corresponding to the released module (e.g.
-  Streamly.Internal.Data.Fold).
-* Pre-release Modules: These modules are not yet released due to some planned
-  changes in near future, they will be released soon.
-
-We usually try to change even the unstable APIs in a major release version.
 
 ## Support
 
