@@ -23,16 +23,8 @@ description:
   .
   Where to find more information:
   .
-  * /Quick Overview/: <#readme README file> in the package
-  * /Building/: <src/docs/Build.md Build guide> for optimal performance
-  * /Detailed Tutorial/: "Streamly.Tutorial" module in the haddock documentation
-  * /Interoperation/: "Streamly.Tutorial" module for interop with other
-    streaming libraries
-  * /Reference Documentation/: Haddock documentation for the respective modules
+  * /Documentation/: <https://streamly.composewell.com Documentation portal>
   * /Examples/: <https://github.com/composewell/streamly-examples Streamly Examples>
-  * /Guides/: <src/docs docs directory> in the package, for documentation on
-    advanced topics, limitations, semantics of the library or on specific use
-    cases.
   * <https://github.com/composewell/streaming-benchmarks Streaming Benchmarks>
   * <https://github.com/composewell/concurrency-benchmarks Concurrency Benchmarks>
   .
@@ -45,8 +37,8 @@ license-file:        LICENSE
 tested-with:         GHC==8.0.2
                    , GHC==8.4.4
                    , GHC==8.6.5
-                   , GHC==8.8.1
-                   , GHC==8.10.1
+                   , GHC==8.8.4
+                   , GHC==8.10.4
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
