@@ -1,19 +1,7 @@
-# Streamly
+# [Streamly](https://streamly.composewell.com)
 
-[![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
-[![Travis](https://travis-ci.com/composewell/streamly.svg?branch=master)](https://travis-ci.com/composewell/streamly)
-[![Appveyor](https://ci.appveyor.com/api/projects/status/ajxg0c79raou9ned?svg=true)](https://ci.appveyor.com/project/harendra-kumar/streamly)
-[![CircleCI](https://circleci.com/gh/composewell/streamly/tree/master.svg?style=svg)](https://circleci.com/gh/composewell/streamly/tree/master)
-[![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
-
-## Learning Materials
-
-* Documentation: [Quick](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference (Hackage)](https://hackage.haskell.org/package/streamly) | [Reference (Latest)](https://composewell.github.io/streamly) | [Guides](docs)
-* Installing: [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
-* [streamly-examples](https://github.com/composewell/streamly-examples)
-* Benchmarks: [Streaming](https://github.com/composewell/streaming-benchmarks) | [Concurrency](https://github.com/composewell/concurrency-benchmarks)
-* Talks: [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
+[![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
 ## Idiomatic Haskell at the speed of C
 
@@ -27,31 +15,27 @@ software systems.  The key features it provides are:
 * Powerful abstractions
 * Declarative concurrency
 
-Let's go through some practical examples to see it working. You
-can find the working code of these examples in the [streamly-examples
-repository](https://github.com/composewell/streamly-examples).
+This guide introduces you to streamly using some practical examples.
+See [Streamly Homepage](https://streamly.composewell.com) and [Streamly
+Examples](https://github.com/composewell/streamly-examples) to learn
+more.
 
 ## Installing and using
 
-Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
-with your Haskell build tool or package manager.
+Please see [getting started with streamly](./INSTALL.md) for
+instructions on how to use streamly with your Haskell build tool or
+package manager.
+
+To build your streamly application for best performance see the
+[build and compile options guide](docs/Build.md).
 
 ## Documentation
 
-Streamly comes with batteries included, see [the streamly documentation
-portal](https://streamly.composewell.com) for available modules. Modules
-are divided in two categories:
-
-* Released Modules: these are modules that have a stable API, any API changes
-  conform to a versioning policy.
-* Pre-release Modules: These modules are not yet released due to some planned
-  changes in near future, they will be released soon.
-
-Pre-release APIs:  Some of the APIs that are recently introduced
-and require some soak time for stability are kept in the
-internal modules corresponding to the released module (e.g.
-Streamly.Internal.Data.Fold).  We usually try to change even the
-unstable APIs in a major release version.
+* [Streamly Homepage](https://streamly.composewell.com)
+* [Streamly Examples](https://github.com/composewell/streamly-examples)
+* [Streaming Benchmarks](https://github.com/composewell/streaming-benchmarks) | [Concurrency Benchmarks](https://github.com/composewell/concurrency-benchmarks)
+* [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
+* [Guides](docs)
 
 ## Types Overview
 
@@ -92,6 +76,9 @@ wcb file =
     File.toBytes file        -- SerialT IO Word8
   & Stream.fold Fold.length  -- IO Int
 ```
+
+If you are wondering about the `Internal` module import, see [A Note on
+Internal Modules](#a-note-on-internal-modules) section.
 
 ### Count lines (wc -l)
 
@@ -453,7 +440,7 @@ Streamly comes equipped with a very powerful set of abstractions to accomplish
 any kind of programming tasks that you may want to throw at it. It provides,
 streams, arrays, file-io, fsnotify, network-io, time domain programming
 (reactive programming). See the [streamly
-documentation](https://streamly.composewell.com) to know more.
+documentation](https://streamly.composewell.com) to learn more.
 
 ## Concurrency
 
@@ -529,13 +516,25 @@ We hope to bring these optimizations to GHC in future but until
 then we recommend that you use the plugin for performance sensitive
 applications.
 
-## Support
+## A Note on Internal Modules
 
-Please feel free to ask questions on the
-[streamly gitter channel](https://gitter.im/composewell/streamly).
-If you require professional support, consulting, training or timely
-enhancements to the library please contact
-[support@composewell.com](mailto:support@composewell.com).
+You may see some `Internal` modules imported in the examples. Those are
+not really internal to the library.  We can classify streamly modules into
+two categories:
+
+* Released Modules: These are the modules that have a stable API, any
+  API changes conform to the package versioning policy.
+* Pre-release Modules: These modules are not yet released due to some planned
+  changes in near future, they will be released soon. These modules reside in
+  the `Internal` namespace for now.
+
+Pre-release APIs:  Some of the APIs that are recently introduced
+and require some soak time for stability are kept in the
+internal modules corresponding to the released module (e.g.
+Streamly.Internal.Data.Fold).
+
+We usually try to change even the unstable APIs in `Internal` module
+namespace in a major release version.
 
 ## Credits
 
@@ -550,8 +549,16 @@ See the `credits` directory for full list of contributors, credits and licenses.
 
 ## Contributing
 
-The code is available under BSD-3-Clause license
-[on github](https://github.com/composewell/streamly). Join the [gitter
-chat](https://gitter.im/composewell/streamly) channel for discussions.  Please
-ask any questions on the gitter channel or [contact the maintainer
-directly](mailto:streamly@composewell.com). All contributions are welcome!
+* [Streamly Contributor's Guide](CONTRIBUTING.md)
+* [Contact the streamly development team](mailto:streamly@composewell.com)
+
+## License
+
+Streamly is an [open source](https://github.com/composewell/streamly)
+project available under [BSD-3-Clause
+license](https://github.com/composewell/streamly/blob/master/LICENSE).
+
+## Support
+
+* Join streamly [online community chat](https://gitter.im/composewell/streamly)
+* For professional support please contact [support@composewell.com](mailto:support@composewell.com)
