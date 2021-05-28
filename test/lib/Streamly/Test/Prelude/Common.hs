@@ -411,7 +411,7 @@ constructWithYield listT op len =
         strm <-
             run
                 $ S.toList . op . S.take (fromIntegral len)
-                $ foldMap S.yield (repeat 0)
+                $ foldMap S.fromPure (repeat 0)
         let list = replicate (fromIntegral len) 0
         listEquals (==) (listT strm) list
 
@@ -446,7 +446,7 @@ simpleProps constr op a = monadicIO $ do
 
 simpleOps :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
 simpleOps op = do
-  prop "yield a = a" $ simpleProps S.yield op
+  prop "fromPure a = a" $ simpleProps S.fromPure op
   prop "yieldM a = a" $ simpleProps (S.yieldM . return) op
 
 -------------------------------------------------------------------------------

@@ -154,7 +154,7 @@ concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
 
 {-# INLINE concatMapFoldableSerial #-}
 concatMapFoldableSerial :: Int -> Int -> Stream m Int
-concatMapFoldableSerial streamLen n = concatMapFoldableWith S.serial S.yield [n..n+streamLen]
+concatMapFoldableSerial streamLen n = concatMapFoldableWith S.serial S.fromPure [n..n+streamLen]
 
 {-# INLINE concatMapFoldableSerialM #-}
 concatMapFoldableSerialM :: Monad m => Int -> Int -> Stream m Int

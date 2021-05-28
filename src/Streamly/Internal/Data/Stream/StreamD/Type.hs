@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , unfold
 
     -- * From Values
-    , yield
+    , fromPure
     , yieldM
 
     -- * From Containers
@@ -188,9 +188,9 @@ unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
 ------------------------------------------------------------------------------
 
 -- | Create a singleton 'Stream' from a pure value.
-{-# INLINE_NORMAL yield #-}
-yield :: Applicative m => a -> Stream m a
-yield x = Stream (\_ s -> pure $ step undefined s) True
+{-# INLINE_NORMAL fromPure #-}
+fromPure :: Applicative m => a -> Stream m a
+fromPure x = Stream (\_ s -> pure $ step undefined s) True
   where
     {-# INLINE_LATE step #-}
     step _ True  = Yield x False
@@ -673,7 +673,7 @@ apDiscardSnd (Stream stepa statea) (Stream stepb stateb) =
 
 instance Applicative f => Applicative (Stream f) where
     {-# INLINE pure #-}
-    pure = yield
+    pure = fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = concatAp
@@ -728,7 +728,7 @@ unfoldMany (Unfold istep inject) (Stream ostep ost) =
             Yield x i' -> Yield x (ConcatMapUInner o i')
             Skip i'    -> Skip (ConcatMapUInner o i')
             Stop       -> Skip (ConcatMapUOuter o)
-      
+
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------

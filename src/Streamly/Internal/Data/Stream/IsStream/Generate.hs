@@ -35,7 +35,7 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , unfoldrM
 
     -- * From Values
-    , yield
+    , fromPure
     , yieldM
     , repeat
     , repeatM
@@ -79,6 +79,7 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
 
     -- * Deprecated
     , K.once
+    , yield
     , each
     , fromHandle
     , currentTime
@@ -94,7 +95,8 @@ import Streamly.Internal.Data.SVar (MonadAsync, Rate (..))
 import Streamly.Internal.Data.Stream.IsStream.Enumeration
     (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    (absTimesWith, concatM, relTimesWith, timesWith, yield, yieldM, repeatM)
+    ( absTimesWith, concatM, relTimesWith, timesWith, fromPure, yield, yieldM
+    , repeatM)
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
