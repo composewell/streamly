@@ -108,7 +108,7 @@ sourceFoldMapWith n = SP.foldMapWith S.serial S.fromPure [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = SP.foldMapWith S.serial (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n = SP.foldMapWith S.serial (S.fromEffect . return) [n..n+value]
 -}
 
 -------------------------------------------------------------------------------

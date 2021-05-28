@@ -30,7 +30,7 @@ monad.
 
 You can write all of your program in a streamly monad and use the full power of
 the library.  Streamly can be used as a direct replacement of the IO monad with
-no loss of performance, and no change in code except using `liftIO` or `yieldM`
+no loss of performance, and no change in code except using `liftIO` or `fromEffect`
 to run any IO actions.  Streamly IO monads (e.g. `SerialT IO`) are just a
 generalization of the IO monad with non-deterministic composition of streams
 added on top.
@@ -98,7 +98,7 @@ function:
 
 ```haskell
   tuples <- S.toList $ fromZipAsync $
-              (,) <$> S.yieldM (getURLString 1) <*> S.yieldM (getURLText 2)
+              (,) <$> S.fromEffect (getURLString 1) <*> S.fromEffect (getURLText 2)
 ```
 
 ### race
@@ -166,7 +166,7 @@ You can map a monadic action to a `Foldable` container to convert it into a
 stream and at the same time fold it:
 
 ```haskell
-  urls <- S.toList $ fromAhead $ foldMap (S.yieldM . getURL) [1..3]
+  urls <- S.toList $ fromAhead $ foldMap (S.fromEffect . getURL) [1..3]
 ```
 
 ### replicateConcurrently

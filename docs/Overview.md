@@ -154,7 +154,7 @@ import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
 
 main = S.toList $ S.fromParallel $ foldMap delay [1..10]
- where delay n = S.yieldM $ threadDelay (n * 1000000) >> print n
+ where delay n = S.fromEffect $ threadDelay (n * 1000000) >> print n
 ```
 
 Streams can be combined together in many ways. We provide some examples
@@ -165,7 +165,7 @@ function in the examples to demonstrate the concurrency aspects:
 import qualified Streamly.Prelude as S
 import Control.Concurrent
 
-delay n = S.yieldM $ do
+delay n = S.fromEffect $ do
     threadDelay (n * 1000000)
     tid <- myThreadId
     putStrLn (show tid ++ ": Delay " ++ show n)
@@ -202,7 +202,7 @@ import qualified Streamly.Prelude as S
 loops = do
     x <- S.fromFoldable [1,2]
     y <- S.fromFoldable [3,4]
-    S.yieldM $ putStrLn $ show (x, y)
+    S.fromEffect $ putStrLn $ show (x, y)
 
 main = S.drain loops
 ```

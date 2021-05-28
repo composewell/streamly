@@ -231,7 +231,7 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
 {-# INLINE consMParallel #-}
 {-# SPECIALIZE consMParallel :: IO a -> ParallelT IO a -> ParallelT IO a #-}
 consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
-consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
+consMParallel m r = fromStream $ K.fromEffect m `parallel` (toStream r)
 
 infixr 6 `parallel`
 
@@ -243,7 +243,7 @@ infixr 6 `parallel`
 -- Evaluation may block if the output buffer becomes full.
 --
 -- >>> import Streamly.Prelude (parallel)
--- >>> stream = Stream.yieldM (delay 2) `parallel` Stream.yieldM (delay 1)
+-- >>> stream = Stream.fromEffect (delay 2) `parallel` Stream.fromEffect (delay 1)
 -- >>> Stream.toList stream -- IO [Int]
 -- 1 sec
 -- 2 sec

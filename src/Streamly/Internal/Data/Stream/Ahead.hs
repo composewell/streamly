@@ -136,7 +136,7 @@ import Prelude hiding (map)
 -- XXX It may be a good idea to increment sequence numbers for each yield,
 -- currently a stream on the left side of the expression may yield many
 -- elements with the same sequene number. We can then use the seq number to
--- enforce yieldMax and yieldLImit as well.
+-- enforce fromEffectax and yieldLImit as well.
 
 -- Invariants:
 --
@@ -620,8 +620,8 @@ infixr 6 `ahead`
 -- are evaluated:
 --
 -- >>> import Streamly.Prelude (ahead)
--- >>> stream1 = Stream.yieldM (delay 4) :: SerialT IO Int
--- >>> stream2 = Stream.yieldM (delay 2) :: SerialT IO Int
+-- >>> stream1 = Stream.fromEffect (delay 4) :: SerialT IO Int
+-- >>> stream2 = Stream.fromEffect (delay 2) :: SerialT IO Int
 -- >>> Stream.toList $ stream1 `ahead` stream2 :: IO [Int]
 -- 2 sec
 -- 4 sec
@@ -630,7 +630,7 @@ infixr 6 `ahead`
 -- Multiple streams can be combined. With enough threads, all of them can be
 -- scheduled simultaneously:
 --
--- >>> stream3 = Stream.yieldM (delay 1)
+-- >>> stream3 = Stream.fromEffect (delay 1)
 -- >>> Stream.toList $ stream1 `ahead` stream2 `ahead` stream3
 -- 1 sec
 -- 2 sec
@@ -674,7 +674,7 @@ ahead m1 m2 = mkStream $ \st yld sng stp ->
 {-# INLINE consMAhead #-}
 {-# SPECIALIZE consMAhead :: IO a -> AheadT IO a -> AheadT IO a #-}
 consMAhead :: MonadAsync m => m a -> AheadT m a -> AheadT m a
-consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
+consMAhead m r = fromStream $ K.fromEffect m `ahead` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AheadT
@@ -694,7 +694,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- >>> :{
 -- Stream.toList $ Stream.fromAhead $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
---      Stream.yieldM $ delay x
+--      Stream.fromEffect $ delay x
 -- :}
 -- 1 sec
 -- 2 sec
@@ -707,7 +707,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- Stream.toList $ Stream.fromAhead $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
---     Stream.yieldM $ delay (x + y)
+--     Stream.fromEffect $ delay (x + y)
 -- :}
 -- 3 sec
 -- 4 sec

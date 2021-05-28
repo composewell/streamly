@@ -340,7 +340,7 @@ putChunks
     -> SerialT m (Array Word8)
     -> m ()
 putChunks addr port xs =
-    S.drain $ withConnection addr port (\sk -> S.yieldM $ ISK.putChunks sk xs)
+    S.drain $ withConnection addr port (\sk -> S.fromEffect $ ISK.putChunks sk xs)
 
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
