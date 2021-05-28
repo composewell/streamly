@@ -192,7 +192,7 @@ sampleBurstStart gap =
 {-# INLINE sortBy #-}
 sortBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
 -- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
-sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.yield
+sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 
 ------------------------------------------------------------------------------
 -- SQL Joins
@@ -339,7 +339,7 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
             r <- lift get
             if r
             then StreamK.nil
-            else StreamK.yield Nothing
+            else StreamK.fromPure Nothing
     b <- fmap Just (Stream.liftInner s2) <> final
     case b of
         Just b1 ->
@@ -416,7 +416,7 @@ outerJoin eq s1 s =
                 r <- lift get
                 if r
                 then StreamK.nil
-                else StreamK.yield Nothing
+                else StreamK.fromPure Nothing
         (_i, b) <-
             Stream.indexed
                 $ fmap Just (Stream.liftInner (Array.toStream arr)) <> final

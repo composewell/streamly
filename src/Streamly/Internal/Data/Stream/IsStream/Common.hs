@@ -14,7 +14,7 @@
 module Streamly.Internal.Data.Stream.IsStream.Common
     (
     -- * Generation
-      yield
+      fromPure
     , yieldM
     , repeatM
     , timesWith
@@ -44,6 +44,9 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , concatMapM
     , concatMap
     , splitOnSeq
+
+    -- * Deprecated
+    , yield
     )
 where
 
@@ -92,7 +95,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 --
 -- |
 -- @
--- yield a = a \`cons` nil
+-- fromPure a = a \`cons` nil
 -- @
 --
 -- Create a singleton stream from a pure value.
@@ -100,19 +103,20 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 -- The following holds in monadic streams, but not in Zip streams:
 --
 -- @
--- yield = pure
--- yield = yieldM . pure
+-- fromPure = pure
+-- fromPure = yieldM . pure
 -- @
 --
--- In Zip applicative streams 'yield' is not the same as 'pure' because in that
--- case 'pure' is equivalent to 'repeat' instead. 'yield' and 'pure' are
--- equally efficient, in other cases 'yield' may be slightly more efficient
+-- In Zip applicative streams 'fromPure' is not the same as 'pure' because in that
+-- case 'pure' is equivalent to 'repeat' instead. 'fromPure' and 'pure' are
+-- equally efficient, in other cases 'fromPure' may be slightly more efficient
 -- than the other equivalent definitions.
 --
--- @since 0.4.0
-{-# INLINE yield #-}
-yield :: IsStream t => a -> t m a
-yield = K.yield
+-- /Since: 0.8.0 (Renamed yield to fromPure)/
+--
+{-# INLINE fromPure #-}
+fromPure :: IsStream t => a -> t m a
+fromPure = K.fromPure
 
 -- |
 -- @
@@ -484,7 +488,7 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 --
 {-# INLINE concatM #-}
 concatM :: (IsStream t, Monad m) => m (t m a) -> t m a
-concatM generator = concatMapM (\() -> generator) (yield ())
+concatM generator = concatMapM (\() -> generator) (fromPure ())
 
 ------------------------------------------------------------------------------
 -- Split stream and fold
@@ -545,3 +549,11 @@ splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOnSeq patt f (D.toStreamD m)
+
+-- | Same as 'yield'
+--
+-- @since 0.4.0
+{-# DEPRECATED yield "Please use fromPure instead." #-}
+{-# INLINE yield #-}
+yield :: IsStream t => a -> t m a
+yield = fromPure

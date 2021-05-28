@@ -162,7 +162,7 @@ instance Monad m => Monad (SerialT m) where
     -- Benchmarks better with StreamD bind and pure:
     -- toList, filterAllout, *>, *<, >> (~2x)
     --
-    -- pure = SerialT . D.fromStreamD . D.yield
+    -- pure = SerialT . D.fromStreamD . D.fromPure
     -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
 
     -- Benchmarks better with CPS bind and pure:
@@ -219,7 +219,7 @@ apDiscardSnd (SerialT m1) (SerialT m2) =
 -- INLINE them.
 instance Monad m => Applicative (SerialT m) where
     {-# INLINE pure #-}
-    pure = SerialT . K.yield
+    pure = SerialT . K.fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = apSerial
@@ -450,7 +450,7 @@ apWSerial (WSerialT m1) (WSerialT m2) =
 
 instance Monad m => Applicative (WSerialT m) where
     {-# INLINE pure #-}
-    pure = WSerialT . K.yield
+    pure = WSerialT . K.fromPure
     {-# INLINE (<*>) #-}
     (<*>) = apWSerial
 

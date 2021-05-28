@@ -347,7 +347,7 @@ module Streamly.Prelude
 
     -- ** From Values
     -- | Generate a monadic stream from a seed value or values.
-    , yield
+    , fromPure
     , yieldM
     , repeat
     , repeatM
@@ -775,12 +775,12 @@ module Streamly.Prelude
     -- One dimension loops are just a special case of nested loops.  For
     -- example, 'concatMap' can degenerate to a simple map operation:
     --
-    -- > map f m = S.concatMap (\x -> S.yield (f x)) m
+    -- > map f m = S.concatMap (\x -> S.fromPure (f x)) m
     --
     -- Similarly, 'concatMap' can perform filtering by mapping an element to a
     -- 'nil' stream:
     --
-    -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
+    -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
     --
 
     , concatMapWith
@@ -920,6 +920,7 @@ module Streamly.Prelude
 
     -- * Deprecated
     , once
+    , yield
     , each
     , scanx
     , foldx

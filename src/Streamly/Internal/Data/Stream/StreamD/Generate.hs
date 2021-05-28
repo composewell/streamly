@@ -38,7 +38,7 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , unfoldrM
 
     -- * From Values
-    , yield
+    , fromPure
     , yieldM
     , repeat
     , repeatM

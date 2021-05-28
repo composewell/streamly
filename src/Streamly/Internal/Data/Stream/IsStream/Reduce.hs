@@ -166,7 +166,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , repeatM
     , scanlMAfter'
     , splitOnSeq
-    , yield)
+    , fromPure)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
@@ -573,11 +573,11 @@ groups = groupsBy (==)
 --
 -- splitOn is an inverse of intercalating single element:
 --
--- @Stream.intercalate (Stream.yield '.') Unfold.fromList . Stream.splitOn (== '.') Fold.toList === id@
+-- @Stream.intercalate (Stream.fromPure '.') Unfold.fromList . Stream.splitOn (== '.') Fold.toList === id@
 --
 -- Assuming the input stream does not contain the separator:
 --
--- @Stream.splitOn (== '.') Fold.toList . Stream.intercalate (Stream.yield '.') Unfold.fromList === id@
+-- @Stream.splitOn (== '.') Fold.toList . Stream.intercalate (Stream.fromPure '.') Unfold.fromList === id@
 --
 -- @since 0.7.0
 
@@ -639,11 +639,11 @@ splitOn predicate f =
 --
 -- 'splitOnSuffix' is an inverse of 'intercalateSuffix' with a single element:
 --
--- @Stream.intercalateSuffix (Stream.yield '.') Unfold.fromList . Stream.splitOnSuffix (== '.') Fold.toList === id@
+-- @Stream.intercalateSuffix (Stream.fromPure '.') Unfold.fromList . Stream.splitOnSuffix (== '.') Fold.toList === id@
 --
 -- Assuming the input stream does not contain the separator:
 --
--- @Stream.splitOnSuffix (== '.') Fold.toList . Stream.intercalateSuffix (Stream.yield '.') Unfold.fromList === id@
+-- @Stream.splitOnSuffix (== '.') Fold.toList . Stream.intercalateSuffix (Stream.fromPure '.') Unfold.fromList === id@
 --
 -- @since 0.7.0
 
@@ -695,11 +695,11 @@ splitOnSuffix predicate f = foldMany (FL.takeEndBy_ predicate f)
 --
 -- 'splitOnPrefix' is an inverse of 'intercalatePrefix' with a single element:
 --
--- @Stream.intercalatePrefix (Stream.yield '.') Unfold.fromList . Stream.splitOnPrefix (== '.') Fold.toList === id@
+-- @Stream.intercalatePrefix (Stream.fromPure '.') Unfold.fromList . Stream.splitOnPrefix (== '.') Fold.toList === id@
 --
 -- Assuming the input stream does not contain the separator:
 --
--- @Stream.splitOnPrefix (== '.') Fold.toList . Stream.intercalatePrefix (Stream.yield '.') Unfold.fromList === id@
+-- @Stream.splitOnPrefix (== '.') Fold.toList . Stream.intercalatePrefix (Stream.fromPure '.') Unfold.fromList === id@
 --
 -- /Unimplemented/
 
@@ -1268,7 +1268,7 @@ classifySessionsBy tick reset ejectPred tmout
                     , sessionEventTime = curTime
                     , sessionCount = cnt
                     , sessionKeyValueMap = mp
-                    , sessionOutputStream = yield (key, fb)
+                    , sessionOutputStream = fromPure (key, fb)
                     }
             partial fs1 = do
                 let acc = Tuple' timestamp fs1

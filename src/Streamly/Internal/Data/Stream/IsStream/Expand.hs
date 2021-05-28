@@ -161,7 +161,7 @@ where
 import Streamly.Internal.Data.Stream.Ahead (ahead)
 import Streamly.Internal.Data.Stream.Async (async, wAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    (concatM, concatMapM, concatMap, smapM, yield, yieldM)
+    (concatM, concatMapM, concatMap, smapM, fromPure, yieldM)
 import Streamly.Internal.Data.Stream.Parallel (parallel)
 import Streamly.Internal.Data.Stream.Prelude
        ( concatFoldableWith, concatMapFoldableWith
@@ -685,7 +685,7 @@ concatMapEitherWith = undefined
 --
 -- For example, you can sort a stream using merge sort like this:
 --
--- >>> Stream.toList $ Stream.concatPairsWith (Stream.mergeBy compare) Stream.yield $ Stream.fromList [5,1,7,9,2]
+-- >>> Stream.toList $ Stream.concatPairsWith (Stream.mergeBy compare) Stream.fromPure $ Stream.fromList [5,1,7,9,2]
 -- [1,2,5,7,9]
 --
 -- /Caution: the stream of streams must be finite/
@@ -723,7 +723,7 @@ concatPairsWith = K.concatPairsWith
 -- @
 -- Stream.iterateMapWith Stream.serial
 --     (either Dir.toEither (const nil))
---     (yield (Left "tmp"))
+--     (fromPure (Left "tmp"))
 -- @
 --
 -- /Pre-release/
@@ -737,7 +737,7 @@ iterateMapWith
     -> t m a
 iterateMapWith combine f = concatMapWith combine go
     where
-    go x = yield x `combine` concatMapWith combine go (f x)
+    go x = fromPure x `combine` concatMapWith combine go (f x)
 
 {-
 {-# INLINE iterateUnfold #-}
@@ -778,7 +778,7 @@ iterateSmapMWith combine f initial stream =
 
     where
 
-    go b a = yield a `combine` feedback b a
+    go b a = fromPure a `combine` feedback b a
 
     feedback b a =
         concatMap
@@ -799,7 +799,7 @@ iterateSmapMWith combine f initial stream =
 -- To traverse a directory tree:
 --
 -- @
--- iterateMapLeftsWith serial Dir.toEither (yield (Left "tmp"))
+-- iterateMapLeftsWith serial Dir.toEither (fromPure (Left "tmp"))
 -- @
 --
 -- /Pre-release/

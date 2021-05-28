@@ -558,7 +558,7 @@ main = hspec
         serialOps $ prop "serially fromList" . constructWithFromList id
         serialOps $ prop "serially fromListM" . constructWithFromListM id
         serialOps $ prop "serially unfoldr" . constructWithUnfoldr id
-        serialOps $ prop "serially yield" . constructWithYield id
+        serialOps $ prop "serially fromPure" . constructWithYield id
         serialOps $ prop "serially yieldM" . constructWithYieldM id
         serialOps $ prop "serially cons" . constructWithCons S.cons
         serialOps $ prop "serially consM" . constructWithConsM S.consM id
