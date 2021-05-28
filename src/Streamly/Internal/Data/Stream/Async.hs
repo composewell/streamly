@@ -657,8 +657,8 @@ infixr 6 `async`
 -- outputs from both are used as they arrive:
 --
 -- >>> import Streamly.Prelude (async)
--- >>> stream1 = Stream.yieldM (delay 4)
--- >>> stream2 = Stream.yieldM (delay 2)
+-- >>> stream1 = Stream.fromEffect (delay 4)
+-- >>> stream2 = Stream.fromEffect (delay 2)
 -- >>> Stream.toList $ stream1 `async` stream2
 -- 2 sec
 -- 4 sec
@@ -667,7 +667,7 @@ infixr 6 `async`
 -- Multiple streams can be combined. With enough threads, all of them can be
 -- scheduled simultaneously:
 --
--- >>> stream3 = Stream.yieldM (delay 1)
+-- >>> stream3 = Stream.fromEffect (delay 1)
 -- >>> Stream.toList $ stream1 `async` stream2 `async` stream3
 -- ...
 -- [1,2,4]
@@ -735,7 +735,7 @@ async = joinStreamVarAsync AsyncVar
 {-# INLINE consMAsync #-}
 {-# SPECIALIZE consMAsync :: IO a -> AsyncT IO a -> AsyncT IO a #-}
 consMAsync :: MonadAsync m => m a -> AsyncT m a -> AsyncT m a
-consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
+consMAsync m r = fromStream $ K.fromEffect m `async` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -755,7 +755,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- >>> :{
 -- Stream.toList $ Stream.fromAsync $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
---      Stream.yieldM $ delay x
+--      Stream.fromEffect $ delay x
 -- :}
 -- 1 sec
 -- 2 sec
@@ -768,7 +768,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- Stream.toList $ Stream.fromAsync $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
---     Stream.yieldM $ delay (x + y)
+--     Stream.fromEffect $ delay (x + y)
 -- :}
 -- 3 sec
 -- 4 sec
@@ -880,7 +880,7 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 {-# INLINE consMWAsync #-}
 {-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
 consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
-consMWAsync m r = fromStream $ K.yieldM m `wAsync` (toStream r)
+consMWAsync m r = fromStream $ K.fromEffect m `wAsync` (toStream r)
 
 infixr 6 `wAsync`
 
@@ -968,7 +968,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- >>> :{
 -- Stream.toList $ Stream.fromWAsync $ do
 --      x <- Stream.fromList [2,1] -- foreach x in stream
---      Stream.yieldM $ delay x
+--      Stream.fromEffect $ delay x
 -- :}
 -- 1 sec
 -- 2 sec
@@ -981,7 +981,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- Stream.toList $ Stream.fromWAsync $ do
 --     x <- Stream.fromList [1,2] -- foreach x in stream
 --     y <- Stream.fromList [2,4] -- foreach y in stream
---     Stream.yieldM $ delay (x + y)
+--     Stream.fromEffect $ delay (x + y)
 -- :}
 -- 3 sec
 -- 4 sec
@@ -1071,7 +1071,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- @
 -- main = S.'drain' . S.'fromWAsync' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
---     S.yieldM $ do
+--     S.fromEffect $ do
 --          threadDelay (n * 1000000)
 --          myThreadId >>= \\tid -> putStrLn (show tid ++ ": Delay " ++ show n)
 -- @

@@ -77,21 +77,21 @@ mixedOps =
 
     composeMixed :: SerialT IO Int
     composeMixed = do
-        S.yieldM $ return ()
-        S.yieldM $ putStr ""
+        S.fromEffect $ return ()
+        S.fromEffect $ putStr ""
         let x = 1
         let y = 2
         z <- do
                 x1 <- S.fromWAsync $ return 1 <> return 2
-                S.yieldM $ return ()
-                S.yieldM $ putStr ""
+                S.fromEffect $ return ()
+                S.fromEffect $ putStr ""
                 y1 <- S.fromAsync $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- S.fromAsync $ return 1 <> return 2
                     z11 <- S.fromWSerial $ return 1 <> return 2
-                    S.yieldM $ return ()
-                    S.yieldM $ putStr ""
+                    S.fromEffect $ return ()
+                    S.fromEffect $ putStr ""
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)
@@ -107,21 +107,21 @@ mixedOpsAheadly =
 
     composeMixed :: SerialT IO Int
     composeMixed = do
-        S.yieldM $ return ()
-        S.yieldM $ putStr ""
+        S.fromEffect $ return ()
+        S.fromEffect $ putStr ""
         let x = 1
         let y = 2
         z <- do
                 x1 <- S.fromWAsync $ return 1 <> return 2
-                S.yieldM $ return ()
-                S.yieldM $ putStr ""
+                S.fromEffect $ return ()
+                S.fromEffect $ putStr ""
                 y1 <- S.fromAhead $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- S.fromAhead $ return 1 <> return 2
                     z11 <- S.fromParallel $ return 1 <> return 2
-                    S.yieldM $ return ()
-                    S.yieldM $ putStr ""
+                    S.fromEffect $ return ()
+                    S.fromEffect $ putStr ""
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)
@@ -129,20 +129,20 @@ mixedOpsAheadly =
 -- XXX Merge both the loops.
 nestedLoops :: IO ()
 nestedLoops = S.drain $ do
-    S.yieldM $ hSetBuffering stdout LineBuffering
+    S.fromEffect $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
     y <- loop "B " 2
-    S.yieldM $ myThreadId >>= putStr . show
+    S.fromEffect $ myThreadId >>= putStr . show
              >> putStr " "
              >> print (x, y)
 
     where
 
     -- we can just use
-    -- fromParallel $ mconcat $ replicate n $ yieldM (...)
+    -- fromParallel $ mconcat $ replicate n $ fromEffect (...)
     loop :: String -> Int -> SerialT IO String
     loop name n = do
-        rnd <- S.yieldM (randomIO :: IO Int)
+        rnd <- S.fromEffect (randomIO :: IO Int)
         let result = name <> show rnd
             repeatIt = if n > 1 then loop name (n - 1) else S.nil
          in return result `S.wAsync` repeatIt
@@ -152,19 +152,19 @@ parallelLoops = do
     hSetBuffering stdout LineBuffering
     S.drain $ do
         x <- S.take 10 $ loop "A" `S.parallel` loop "B"
-        S.yieldM $ myThreadId >>= putStr . show
+        S.fromEffect $ myThreadId >>= putStr . show
                >> putStr " got "
                >> print x
 
     where
 
     -- we can just use
-    -- fromParallel $ cycle1 $ yieldM (...)
+    -- fromParallel $ cycle1 $ fromEffect (...)
     loop :: String -> SerialT IO (String, Int)
     loop name = do
-        S.yieldM $ threadDelay 1000000
-        rnd <- S.yieldM (randomIO :: IO Int)
-        S.yieldM $ myThreadId >>= putStr . show
+        S.fromEffect $ threadDelay 1000000
+        rnd <- S.fromEffect (randomIO :: IO Int)
+        S.fromEffect $ myThreadId >>= putStr . show
                >> putStr " yielding "
                >> print rnd
         return (name, rnd) `S.parallel` loop name

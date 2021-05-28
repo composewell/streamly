@@ -122,7 +122,7 @@ main = hspec
 
 #ifdef DEVBUILD
     let timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
-        timed x = S.yieldM (threadDelay (x * 100000)) >> return x
+        timed x = S.fromEffect (threadDelay (x * 100000)) >> return x
 
     -- These are not run fromParallel because the timing gets affected
     -- unpredictably when other tests are running on the same machine.

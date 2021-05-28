@@ -39,7 +39,7 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
 
     -- * From Values
     , fromPure
-    , yieldM
+    , fromEffect
     , repeat
     , repeatM
     , replicate

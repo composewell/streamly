@@ -159,7 +159,7 @@ concatMapFoldableSerial streamLen n = concatMapFoldableWith S.serial S.fromPure 
 {-# INLINE concatMapFoldableSerialM #-}
 concatMapFoldableSerialM :: Monad m => Int -> Int -> Stream m Int
 concatMapFoldableSerialM streamLen n =
-    concatMapFoldableWith S.serial (S.yieldM . return) [n..n+streamLen]
+    concatMapFoldableWith S.serial (S.fromEffect . return) [n..n+streamLen]
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -446,7 +446,7 @@ inspect $ hasNoTypeClasses 'concatMapRepl
 sourceConcatMapId :: Monad m
     => Int -> Int -> Stream m (Stream m Int)
 sourceConcatMapId val n =
-    S.fromFoldable $ fmap (S.yieldM . return) [n..n+val]
+    S.fromFoldable $ fmap (S.fromEffect . return) [n..n+val]
 
 {-# INLINE concatMapBySerial #-}
 concatMapBySerial :: Int -> Int -> Int -> IO ()

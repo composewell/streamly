@@ -31,7 +31,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 
     -- * From Values
     , fromPure
-    , yieldM
+    , fromEffect
 
     -- * From Containers
     , fromList
@@ -197,9 +197,9 @@ fromPure x = Stream (\_ s -> pure $ step undefined s) True
     step _ False = Stop
 
 -- | Create a singleton 'Stream' from a monadic action.
-{-# INLINE_NORMAL yieldM #-}
-yieldM :: Monad m => m a -> Stream m a
-yieldM m = Stream step True
+{-# INLINE_NORMAL fromEffect #-}
+fromEffect :: Monad m => m a -> Stream m a
+fromEffect m = Stream step True
   where
     {-# INLINE_LATE step #-}
     step _ True  = m >>= \x -> return $ Yield x False
@@ -373,7 +373,7 @@ foldrS f final (Stream step state) = go SPEC state
     {-# INLINE_LATE go #-}
     go !_ st = do
         -- defState??
-        r <- yieldM $ step defState st
+        r <- fromEffect $ step defState st
         case r of
           Yield x s -> f x (go SPEC s)
           Skip s    -> go SPEC s
@@ -965,7 +965,7 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
 
 instance MonadTrans Stream where
     {-# INLINE lift #-}
-    lift = yieldM
+    lift = fromEffect
 
 instance (MonadThrow m) => MonadThrow (Stream m) where
     throwM = lift . throwM

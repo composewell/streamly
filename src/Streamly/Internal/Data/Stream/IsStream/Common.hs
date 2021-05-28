@@ -15,7 +15,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     (
     -- * Generation
       fromPure
-    , yieldM
+    , fromEffect
     , repeatM
     , timesWith
     , absTimesWith
@@ -47,6 +47,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
 
     -- * Deprecated
     , yield
+    , yieldM
     )
 where
 
@@ -91,7 +92,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 -- Generation
 ------------------------------------------------------------------------------
 
--- Faster than yieldM because there is no bind.
+-- Faster than fromEffect because there is no bind.
 --
 -- |
 -- @
@@ -104,7 +105,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 --
 -- @
 -- fromPure = pure
--- fromPure = yieldM . pure
+-- fromPure = fromEffect . pure
 -- @
 --
 -- In Zip applicative streams 'fromPure' is not the same as 'pure' because in that
@@ -120,26 +121,27 @@ fromPure = K.fromPure
 
 -- |
 -- @
--- yieldM m = m \`consM` nil
+-- fromEffect m = m \`consM` nil
 -- @
 --
 -- Create a singleton stream from a monadic action.
 --
 -- @
--- > Stream.toList $ Stream.yieldM getLine
+-- > Stream.toList $ Stream.fromEffect getLine
 -- hello
 -- ["hello"]
 -- @
 --
--- @since 0.4.0
-{-# INLINE yieldM #-}
-yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM = K.yieldM
+-- /Since: 0.8.0 (Renamed yieldM to fromEffect)/
+--
+{-# INLINE fromEffect #-}
+fromEffect :: (Monad m, IsStream t) => m a -> t m a
+fromEffect = K.fromEffect
 
 -- |
 -- @
 -- repeatM = fix . consM
--- repeatM = cycle1 . yieldM
+-- repeatM = cycle1 . fromEffect
 -- @
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
@@ -477,7 +479,7 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 -- monad with the stream monad.
 --
 -- @
--- concatM = concat . yieldM
+-- concatM = concat . fromEffect
 -- concatM = concat . lift    -- requires @(MonadTrans t)@
 -- concatM = join . lift      -- requires @(MonadTrans t@, @Monad (t m))@
 -- @
@@ -550,10 +552,18 @@ splitOnSeq
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOnSeq patt f (D.toStreamD m)
 
--- | Same as 'yield'
+-- | Same as 'fromPure'
 --
 -- @since 0.4.0
 {-# DEPRECATED yield "Please use fromPure instead." #-}
 {-# INLINE yield #-}
 yield :: IsStream t => a -> t m a
 yield = fromPure
+
+-- | Same as 'fromEffect'
+--
+-- @since 0.4.0
+{-# DEPRECATED yieldM "Please use fromEffect instead." #-}
+{-# INLINE yieldM #-}
+yieldM :: (Monad m, IsStream t) => m a -> t m a
+yieldM = fromEffect

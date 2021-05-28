@@ -93,6 +93,7 @@
 * In `Streamly.Prelude` the following functions have been renamed:
     * `concatUnfold` to `unfoldMany`
     * `yield` to `fromPure`
+    * `yieldM` to `fromEffect`
 * The following encoding/decoding routines have been renamed:
     * `encodeUtf8Lax` to `encodeUtf8`
     * `encodeLatin1Lax` to `encodeLatin1`

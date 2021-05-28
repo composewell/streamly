@@ -161,7 +161,7 @@ where
 import Streamly.Internal.Data.Stream.Ahead (ahead)
 import Streamly.Internal.Data.Stream.Async (async, wAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    (concatM, concatMapM, concatMap, smapM, fromPure, yieldM)
+    (concatM, concatMapM, concatMap, smapM, fromPure, fromEffect)
 import Streamly.Internal.Data.Stream.Parallel (parallel)
 import Streamly.Internal.Data.Stream.Prelude
        ( concatFoldableWith, concatMapFoldableWith
@@ -714,7 +714,7 @@ concatPairsWith = K.concatPairsWith
 -- Note that 'iterateM' is a special case of 'iterateMapWith':
 --
 -- @
--- iterateM f = iterateMapWith serial (yieldM . f) . yieldM
+-- iterateM f = iterateMapWith serial (fromEffect . f) . fromEffect
 -- @
 --
 -- It can be used to traverse a tree structure.  For example, to list a
@@ -774,7 +774,7 @@ iterateSmapMWith
     -> t m a
     -> t m a
 iterateSmapMWith combine f initial stream =
-    concatMap (\b -> concatMapWith combine (go b) stream) (yieldM initial)
+    concatMap (\b -> concatMapWith combine (go b) stream) (fromEffect initial)
 
     where
 
@@ -783,7 +783,7 @@ iterateSmapMWith combine f initial stream =
     feedback b a =
         concatMap
             (\(b1, s) -> concatMapWith combine (go b1) s)
-            (yieldM $ f b a)
+            (fromEffect $ f b a)
 
 ------------------------------------------------------------------------------
 -- iterateMap - Either streams

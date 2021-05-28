@@ -62,7 +62,7 @@ module Streamly.Internal.Data.Stream.StreamK
 
     -- ** Conversions
     , fromPure
-    , yieldM
+    , fromEffect
     , fromFoldable
     , fromList
     , fromStreamK
@@ -261,13 +261,13 @@ unfoldrA = undefined
 -- Special generation
 -------------------------------------------------------------------------------
 
--- | Same as yieldM
+-- | Same as fromEffect
 --
 -- @since 0.2.0
-{-# DEPRECATED once "Please use yieldM instead." #-}
+{-# DEPRECATED once "Please use fromEffect instead." #-}
 {-# INLINE once #-}
 once :: (Monad m, IsStream t) => m a -> t m a
-once = yieldM
+once = fromEffect
 
 -- |
 -- @
