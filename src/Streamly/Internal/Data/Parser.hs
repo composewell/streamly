@@ -54,8 +54,8 @@ module Streamly.Internal.Data.Parser
     -- First order parsers
     -- * Accumulators
     , fromFold
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , die
     , dieM
 
@@ -231,28 +231,28 @@ fromFold = K.toParserK . D.fromFold
 -- Terminating but not failing folds
 -------------------------------------------------------------------------------
 --
--- This is the dual of stream "yield".
+-- This is the dual of stream "fromPure".
 --
 -- | A parser that always yields a pure value without consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE [3] yield #-}
-yield :: MonadCatch m => b -> Parser m a b
-yield = K.toParserK . D.yield
-{-# RULES "yield fallback to CPS" [2]
-    forall a. K.toParserK (D.yield a) = K.yield a #-}
+{-# INLINE [3] fromPure #-}
+fromPure :: MonadCatch m => b -> Parser m a b
+fromPure = K.toParserK . D.fromPure
+{-# RULES "fromPure fallback to CPS" [2]
+    forall a. K.toParserK (D.fromPure a) = K.fromPure a #-}
 
--- This is the dual of stream "yieldM".
+-- This is the dual of stream "fromEffect".
 --
 -- | A parser that always yields the result of an effectful action without
 -- consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE yieldM #-}
-yieldM :: MonadCatch m => m b -> Parser m a b
-yieldM = K.yieldM -- K.toParserK . D.yieldM
+{-# INLINE fromEffect #-}
+fromEffect :: MonadCatch m => m b -> Parser m a b
+fromEffect = K.fromEffect -- K.toParserK . D.fromEffect
 
 -- This is the dual of "nil".
 --
