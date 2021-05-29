@@ -119,6 +119,14 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 fromPure :: IsStream t => a -> t m a
 fromPure = K.fromPure
 
+-- | Same as 'fromPure'
+--
+-- @since 0.4.0
+{-# DEPRECATED yield "Please use fromPure instead." #-}
+{-# INLINE yield #-}
+yield :: IsStream t => a -> t m a
+yield = fromPure
+
 -- |
 -- @
 -- fromEffect m = m \`consM` nil
@@ -138,6 +146,13 @@ fromPure = K.fromPure
 fromEffect :: (Monad m, IsStream t) => m a -> t m a
 fromEffect = K.fromEffect
 
+-- | Same as 'fromEffect'
+--
+-- @since 0.4.0
+{-# DEPRECATED yieldM "Please use fromEffect instead." #-}
+{-# INLINE yieldM #-}
+yieldM :: (Monad m, IsStream t) => m a -> t m a
+yieldM = fromEffect
 -- |
 -- @
 -- repeatM = fix . consM
@@ -551,19 +566,3 @@ splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOnSeq patt f (D.toStreamD m)
-
--- | Same as 'fromPure'
---
--- @since 0.4.0
-{-# DEPRECATED yield "Please use fromPure instead." #-}
-{-# INLINE yield #-}
-yield :: IsStream t => a -> t m a
-yield = fromPure
-
--- | Same as 'fromEffect'
---
--- @since 0.4.0
-{-# DEPRECATED yieldM "Please use fromEffect instead." #-}
-{-# INLINE yieldM #-}
-yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM = fromEffect
