@@ -21,8 +21,8 @@ module Streamly.Internal.Data.Parser.ParserD
     -- First order parsers
     -- * Accumulators
     , fromFold
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , die
     , dieM
 
