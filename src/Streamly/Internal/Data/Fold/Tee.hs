@@ -37,7 +37,7 @@ newtype Tee m a b =
 instance Monad m => Applicative (Tee m a) where
 
     {-# INLINE pure #-}
-    pure a = Tee (Fold.yield a)
+    pure a = Tee (Fold.fromPure a)
 
     {-# INLINE (<*>) #-}
     (<*>) a b = Tee (Fold.teeWith ($) (toFold a) (toFold b))

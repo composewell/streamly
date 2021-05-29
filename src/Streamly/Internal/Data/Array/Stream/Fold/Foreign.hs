@@ -39,8 +39,8 @@ module Streamly.Internal.Data.Array.Stream.Fold.Foreign
     , rmapM
 
     -- * Applicative
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , serialWith
 
     -- * Monad
@@ -204,18 +204,18 @@ rmapM f (Fold p) = Fold $ ParserD.rmapM f p
 --
 -- /Pre-release/
 --
-{-# INLINE yield #-}
-yield :: Monad m => b -> Fold m a b
-yield = Fold . ParserD.yield
+{-# INLINE fromPure #-}
+fromPure :: Monad m => b -> Fold m a b
+fromPure = Fold . ParserD.yield
 
 -- | A fold that always yields the result of an effectful action without
 -- consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE yieldM #-}
-yieldM :: Monad m => m b -> Fold m a b
-yieldM = Fold . ParserD.yieldM
+{-# INLINE fromEffect #-}
+fromEffect :: Monad m => m b -> Fold m a b
+fromEffect = Fold . ParserD.yieldM
 
 -- | Applies two folds sequentially on the input stream and combines their
 -- results using the supplied function.
@@ -239,7 +239,7 @@ serialWith f (Fold p1) (Fold p2) =
 -- > (<*>) = serialWith id
 instance MonadThrow m => Applicative (Fold m a) where
     {-# INLINE pure #-}
-    pure = yield
+    pure = fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = serialWith id
