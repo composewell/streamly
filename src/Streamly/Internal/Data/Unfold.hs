@@ -129,8 +129,8 @@ module Streamly.Internal.Data.Unfold
     , consM
 
     -- ** From Values
-    , yieldM
-    , yield
+    , fromEffect
+    , fromPure
 
     -- ** Generators
     -- | Generate a monadic stream from a seed.

@@ -25,8 +25,8 @@ module Streamly.Internal.Data.Unfold.Type
     , identity
 
     -- * From Values
-    , yieldM
-    , yield
+    , fromEffect
+    , fromPure
 
     -- * Transformations
     , lmap
@@ -183,9 +183,9 @@ instance Functor m => Functor (Unfold m a) where
 -- supplied monadic action.
 --
 -- /Pre-release/
-{-# INLINE yieldM #-}
-yieldM :: Applicative m => m b -> Unfold m a b
-yieldM m = Unfold step inject
+{-# INLINE fromEffect #-}
+fromEffect :: Applicative m => m b -> Unfold m a b
+fromEffect m = Unfold step inject
 
     where
 
@@ -194,13 +194,13 @@ yieldM m = Unfold step inject
     step False = (`Yield` True) <$> m
     step True = pure Stop
 
--- | Discards the unfold input and always returns the argument of 'yield'.
+-- | Discards the unfold input and always returns the argument of 'fromPure'.
 --
--- > yield = yieldM . pure
+-- > fromPure = fromEffect . pure
 --
 -- /Pre-release/
-yield :: Applicative m => b -> Unfold m a b
-yield = yieldM Prelude.. pure
+fromPure :: Applicative m => b -> Unfold m a b
+fromPure = fromEffect Prelude.. pure
 
 -- | Outer product discarding the first element.
 --
@@ -300,7 +300,7 @@ apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 --
 instance Monad m => Applicative (Unfold m a) where
     {-# INLINE pure #-}
-    pure = yield
+    pure = fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = apply
