@@ -70,7 +70,7 @@ take value = IP.fold (FL.take value FL.drain)
 {-# INLINE sequence_ #-}
 sequence_ :: Monad m => Int -> Fold m a ()
 sequence_ value =
-    foldr f (FL.yield ()) (Prelude.replicate value (FL.take 1 FL.drain))
+    foldr f (FL.fromPure ()) (Prelude.replicate value (FL.take 1 FL.drain))
 
     where
 

@@ -207,8 +207,8 @@ module Streamly.Internal.Data.Fold.Type
     , mkFoldM_
 
     -- * Folds
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , drain
     , toList
 
@@ -616,26 +616,26 @@ instance Functor m => Functor (Fold m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
--- This is the dual of stream "yield".
+-- This is the dual of stream "fromPure".
 --
 -- | A fold that always yields a pure value without consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE yield #-}
-yield :: Applicative m => b -> Fold m a b
-yield b = Fold undefined (pure $ Done b) pure
+{-# INLINE fromPure #-}
+fromPure :: Applicative m => b -> Fold m a b
+fromPure b = Fold undefined (pure $ Done b) pure
 
--- This is the dual of stream "yieldM".
+-- This is the dual of stream "fromEffect".
 --
 -- | A fold that always yields the result of an effectful action without
 -- consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE yieldM #-}
-yieldM :: Applicative m => m b -> Fold m a b
-yieldM b = Fold undefined (Done <$> b) pure
+{-# INLINE fromEffect #-}
+fromEffect :: Applicative m => m b -> Fold m a b
+fromEffect b = Fold undefined (Done <$> b) pure
 
 {-# ANN type Step Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
@@ -1030,9 +1030,9 @@ duplicate (Fold step1 initial1 extract1) =
 
     where
 
-    initial = second yield <$> initial1
+    initial = second fromPure <$> initial1
 
-    step s a = second yield <$> step1 s a
+    step s a = second fromPure <$> step1 s a
 
 -- | Run the initialization effect of a fold. The returned fold would use the
 -- value returned by this effect as its initial value.
