@@ -141,7 +141,7 @@ functionM =
 
 const :: Bool
 const =
-    let unf = UF.yieldM (modify (+ 1) >> get)
+    let unf = UF.fromEffect (modify (+ 1) >> get)
      in testUnfoldMD unf (0 :: Int) 0 1 [1]
 
 unfoldrM :: Property

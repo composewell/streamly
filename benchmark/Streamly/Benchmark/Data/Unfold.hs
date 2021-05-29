@@ -196,7 +196,7 @@ _identity _ start = drainGeneration UF.identity start
 {-# INLINE _const #-}
 _const :: Monad m => Int -> Int -> m ()
 _const size start =
-    drainGeneration (UF.take size (UF.yieldM (return start))) undefined
+    drainGeneration (UF.take size (UF.fromEffect (return start))) undefined
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => Int -> Int -> m ()
@@ -450,7 +450,7 @@ toNull value start =
         -}
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
-                UF.yield (x + y)
+                UF.fromPure (x + y)
      in UF.fold FL.drain u start
 
 
@@ -468,7 +468,7 @@ toNull3 value start =
         -}
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
-                UF.yield (x + y)
+                UF.fromPure (x + y)
      in UF.fold FL.drain u start
 
 {-# INLINE toList #-}
@@ -484,7 +484,7 @@ toList value start = do
         -}
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
-                UF.yield (x + y)
+                UF.fromPure (x + y)
      in UF.fold FL.toList u start
 
 {-# INLINE toListSome #-}
@@ -500,7 +500,7 @@ toListSome value start = do
         -}
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
-                UF.yield (x + y)
+                UF.fromPure (x + y)
      in UF.fold FL.toList (UF.take 1000 u) start
 
 {-# INLINE filterAllOut #-}
@@ -517,7 +517,7 @@ filterAllOut value start = do
             src `UF.bind` \y ->
             let s = x + y
              in if s < 0
-                then UF.yield s
+                then UF.fromPure s
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
@@ -535,7 +535,7 @@ filterAllIn value start = do
             src `UF.bind` \y ->
             let s = x + y
              in if s > 0
-                then UF.yield s
+                then UF.fromPure s
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
@@ -553,7 +553,7 @@ filterSome value start = do
             src `UF.bind` \y ->
             let s = x + y
              in if s > 1100000
-                then UF.yield s
+                then UF.fromPure s
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
@@ -572,7 +572,7 @@ breakAfterSome value start =
             let s = x + y
              in if s > 1100000
                 then error "break"
-                else UF.yield s
+                else UF.fromPure s
      in do
         (_ :: Either ErrorCall ()) <- try $ UF.fold FL.drain u start
         return ()
