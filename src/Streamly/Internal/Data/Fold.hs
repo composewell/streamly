@@ -31,8 +31,8 @@ module Streamly.Internal.Data.Fold
 
     -- * Folds
     -- ** Identity
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
 
     -- ** Accumulators
     -- *** Semigroups and Monoids
@@ -1092,7 +1092,7 @@ tee = teeWith (,)
 -- >>> Stream.fold (Fold.distribute [Fold.sum, Fold.length]) (Stream.enumerateFromTo 1 5)
 -- [15,5]
 --
--- > distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.yield [])
+-- > distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 --
@@ -1101,7 +1101,7 @@ tee = teeWith (,)
 -- @since 0.7.0
 {-# INLINE distribute #-}
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
-distribute = Prelude.foldr (teeWith (:)) (yield [])
+distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 
 ------------------------------------------------------------------------------
 -- Partitioning
