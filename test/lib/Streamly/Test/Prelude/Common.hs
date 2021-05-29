@@ -29,7 +29,7 @@ module Streamly.Test.Prelude.Common
     , constructWithUnfoldr
     , constructWithCons
     , constructWithConsM
-    , constructWithYield
+    , constructWithFromPure
     , constructWithFromEffect
     , simpleOps
     -- * Applicative operations
@@ -395,7 +395,7 @@ constructWithUnfoldr listT op len =
         then Nothing
         else Just (seed, seed + 1)
 
-constructWithYield ::
+constructWithFromPure ::
        (IsStream t
 #if __GLASGOW_HASKELL__ < 806
        , Monoid (t IO Int)
@@ -405,7 +405,7 @@ constructWithYield ::
     -> (t IO Int -> SerialT IO Int)
     -> Word8
     -> Property
-constructWithYield listT op len =
+constructWithFromPure listT op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
         strm <-

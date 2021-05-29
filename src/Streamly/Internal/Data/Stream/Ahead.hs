@@ -136,7 +136,7 @@ import Prelude hiding (map)
 -- XXX It may be a good idea to increment sequence numbers for each yield,
 -- currently a stream on the left side of the expression may yield many
 -- elements with the same sequene number. We can then use the seq number to
--- enforce fromEffectax and yieldLImit as well.
+-- enforce yieldMax and yieldLImit as well.
 
 -- Invariants:
 --
