@@ -64,17 +64,17 @@ fromFold =
                 Right is_equal -> is_equal
                 Left _ -> False
 
-yield :: Property
-yield =
+fromPure :: Property
+fromPure =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case S.parseD (P.yield x) (S.fromList [1 :: Int]) of
+        case S.parseD (P.fromPure x) (S.fromList [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
-yieldM :: Property
-yieldM =
+fromEffect :: Property
+fromEffect =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case S.parseD (P.yieldM $ return x) (S.fromList [1 :: Int]) of
+        case S.parseD (P.fromEffect $ return x) (S.fromList [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
@@ -396,13 +396,13 @@ serialWith =
 
 splitWithFailLeft :: Property
 splitWithFailLeft =
-    property (case S.parseD (P.serialWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.serialWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailRight :: Property
 splitWithFailRight =
-    property (case S.parseD (P.serialWith (,) (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.serialWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -425,13 +425,13 @@ teeWithPass =
 
 teeWithFailLeft :: Property
 teeWithFailLeft =
-    property (case S.parseD (P.teeWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 teeWithFailRight :: Property
 teeWithFailRight =
-    property (case S.parseD (P.teeWith (,) (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -456,13 +456,13 @@ shortestPass =
 
 shortestPassLeft :: Property
 shortestPassLeft =
-    property (case S.parseD (P.shortest (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right r -> r == 1
         Left _ -> False)
 
 shortestPassRight :: Property
 shortestPassRight =
-    property (case S.parseD (P.shortest (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right r -> r == 1
         Left _ -> False)
 
@@ -490,13 +490,13 @@ longestPass =
 
 longestPassLeft :: Property
 longestPassLeft =
-    property (case S.parseD (P.shortest (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right r -> r == 1
         Left _ -> False)
 
 longestPassRight :: Property
 longestPassRight =
-    property (case S.parseD (P.shortest (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right r -> r == 1
         Left _ -> False)
 
@@ -723,8 +723,8 @@ main =
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
-        prop "yield value provided" yield
-        prop "yield monadic value provided" yieldM
+        prop "fromPure value provided" fromPure
+        prop "fromPure monadic value provided" fromEffect
         prop "always fail" die
         prop "always fail but monadic" dieM
 

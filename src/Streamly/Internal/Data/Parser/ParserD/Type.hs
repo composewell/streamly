@@ -117,8 +117,8 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , ParseError (..)
     , rmapM
 
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , serialWith
     , split_
 
@@ -339,21 +339,21 @@ rmapM f (Parser step initial extract) = Parser step1 initial1 (extract >=> f)
             IError err -> return $ IError err
     step1 s a = step s a >>= mapMStep f
 
--- | See 'Streamly.Internal.Data.Parser.yield'.
+-- | See 'Streamly.Internal.Data.Parser.fromPure'.
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL yield #-}
-yield :: Monad m => b -> Parser m a b
-yield b = Parser undefined (pure $ IDone b) undefined
+{-# INLINE_NORMAL fromPure #-}
+fromPure :: Monad m => b -> Parser m a b
+fromPure b = Parser undefined (pure $ IDone b) undefined
 
--- | See 'Streamly.Internal.Data.Parser.yieldM'.
+-- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
 -- /Pre-release/
 --
-{-# INLINE yieldM #-}
-yieldM :: Monad m => m b -> Parser m a b
-yieldM b = Parser undefined (IDone <$> b) undefined
+{-# INLINE fromEffect #-}
+fromEffect :: Monad m => m b -> Parser m a b
+fromEffect b = Parser undefined (IDone <$> b) undefined
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -608,7 +608,7 @@ noErrorUnsafeSplit_ (Parser stepL initialL extractL) (Parser stepR initialR extr
 -- | 'Applicative' form of 'serialWith'.
 instance MonadThrow m => Applicative (Parser m a) where
     {-# INLINE pure #-}
-    pure = yield
+    pure = fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = serialWith id

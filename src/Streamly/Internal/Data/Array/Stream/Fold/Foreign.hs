@@ -206,7 +206,7 @@ rmapM f (Fold p) = Fold $ ParserD.rmapM f p
 --
 {-# INLINE fromPure #-}
 fromPure :: Monad m => b -> Fold m a b
-fromPure = Fold . ParserD.yield
+fromPure = Fold . ParserD.fromPure
 
 -- | A fold that always yields the result of an effectful action without
 -- consuming any input.
@@ -215,7 +215,7 @@ fromPure = Fold . ParserD.yield
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Fold m a b
-fromEffect = Fold . ParserD.yieldM
+fromEffect = Fold . ParserD.fromEffect
 
 -- | Applies two folds sequentially on the input stream and combines their
 -- results using the supplied function.

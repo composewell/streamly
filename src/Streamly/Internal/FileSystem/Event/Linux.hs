@@ -775,7 +775,7 @@ readOneEvent :: Config -> Watch -> Parser IO Word8 Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = (sizeOf (undefined :: CInt)) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)
-    (ewd, eflags, cookie, pathLen) <- PR.yieldM $ A.asPtr arr readHeader
+    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.asPtr arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.
@@ -793,7 +793,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
             return pth
         else return $ A.fromList []
-    wdm <- PR.yieldM $ readIORef wdMap
+    wdm <- PR.fromEffect $ readIORef wdMap
     let (root, sub) =
             case Map.lookup (fromIntegral ewd) wdm of
                     Just pair -> pair
@@ -806,7 +806,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
         -- Check for "ISDIR" first because it is less likely
         isDirCreate = eflags .&. iN_ISDIR /= 0 && eflags .&. iN_CREATE /= 0
     when (watchRec cfg && isDirCreate)
-        $ PR.yieldM $ addToWatch cfg wt root sub1
+        $ PR.fromEffect $ addToWatch cfg wt root sub1
     -- XXX Handle IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM,
     -- IN_MOVED_TO
     -- What if a large dir tree gets moved in to our hierarchy? Do we get a

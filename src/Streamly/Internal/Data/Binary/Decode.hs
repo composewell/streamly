@@ -47,7 +47,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 --
 {-# INLINE unit #-}
 unit :: MonadCatch m => Parser m Word8 ()
-unit = eqWord8 0 *> PR.yield ()
+unit = eqWord8 0 *> PR.fromPure ()
 
 {-# INLINE word8ToBool #-}
 word8ToBool :: Word8 -> Either String Bool

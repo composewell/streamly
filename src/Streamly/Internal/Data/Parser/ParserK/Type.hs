@@ -21,8 +21,8 @@
 module Streamly.Internal.Data.Parser.ParserK.Type
     (
       Parser (..)
-    , yield
-    , yieldM
+    , fromPure
+    , fromEffect
     , die
 
     -- * Conversion
@@ -279,23 +279,23 @@ instance Functor m => Functor (Parser m a) where
 -- Sequential applicative
 -------------------------------------------------------------------------------
 
--- This is the dual of stream "yield".
+-- This is the dual of stream "fromPure".
 --
 -- | A parser that always yields a pure value without consuming any input.
 --
 -- /Pre-release/
 --
-{-# INLINE yield #-}
-yield :: b -> Parser m a b
-yield b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
+{-# INLINE fromPure #-}
+fromPure :: b -> Parser m a b
+fromPure b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 
--- | See 'Streamly.Internal.Data.Parser.yieldM'.
+-- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
 -- /Pre-release/
 --
-{-# INLINE yieldM #-}
-yieldM :: Monad m => m b -> Parser m a b
-yieldM eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
+{-# INLINE fromEffect #-}
+fromEffect :: Monad m => m b -> Parser m a b
+fromEffect eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
@@ -303,7 +303,7 @@ yieldM eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
 --
 instance Monad m => Applicative (Parser m a) where
     {-# INLINE pure #-}
-    pure = yield
+    pure = fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = ap
