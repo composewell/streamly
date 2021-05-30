@@ -263,6 +263,9 @@ import Prelude hiding
 --
 -- $setup
 -- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Data.Function ((&))
+-- >>> import Streamly.Prelude ((|$))
 -- >>> import Prelude hiding ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence, reverse, foldr1 , scanl, scanl1)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
@@ -287,7 +290,7 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 
 -- | Right fold to a streaming monad.
 --
--- > foldrS S.cons S.nil === id
+-- > foldrS Stream.cons Stream.nil === id
 --
 -- 'foldrS' can be used to perform stateless stream to stream transformations
 -- like map and filter in general. It can be coupled with a scan to perform
@@ -346,14 +349,19 @@ foldrT f z s = S.foldrT f z (toStreamS s)
 -- the output of the resulting action.
 --
 -- @
--- > drain $ S.mapM putStr $ S.fromList ["a", "b", "c"]
+-- >>> drain $ Stream.mapM putStr $ Stream.fromList ["a", "b", "c"]
 -- abc
 --
--- drain $ S.replicateM 10 (return 1)
---           & (fromSerial . S.mapM (\\x -> threadDelay 1000000 >> print x))
+-- >>> :{ 
+--    drain $ Stream.replicateM 10 (return 1) 
+--      & (fromSerial . Stream.mapM (\x -> threadDelay 1000000 >> print x))
+-- :}
+-- 1
+-- ...
+-- 1
 --
--- drain $ S.replicateM 10 (return 1)
---           & (fromAsync . S.mapM (\\x -> threadDelay 1000000 >> print x))
+-- > drain $ Stream.replicateM 10 (return 1)  
+--  & (fromAsync . Stream.mapM (\x -> threadDelay 1000000 >> print x))
 -- @
 --
 -- /Concurrent (do not use with 'fromParallel' on infinite streams)/
@@ -377,14 +385,25 @@ mapMSerial = Serial.mapM
 -- those actions.
 --
 -- @
--- > drain $ S.sequence $ S.fromList [putStr "a", putStr "b", putStrLn "c"]
+-- >>> drain $ Stream.sequence $ Stream.fromList [putStr "a", putStr "b", putStrLn "c"]
 -- abc
 --
--- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (fromSerial . S.sequence)
+-- >>> :{
+-- drain $ Stream.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--  & (fromSerial . Stream.sequence)
+-- :}
+-- 1
+-- ...
+-- 1
 --
--- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (fromAsync . S.sequence)
+-- >>> :{
+-- drain $ Stream.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--  & (fromAsync . Stream.sequence)
+-- :}
+-- 1
+-- ...
+-- 1
+--
 -- @
 --
 -- /Concurrent (do not use with 'fromParallel' on infinite streams)/
@@ -451,9 +470,10 @@ tapOffsetEvery offset n f xs =
 -- @
 --
 -- @
--- > S.drain $ S.tapAsync (S.mapM_ print) (S.enumerateFromTo 1 2)
+-- >>> Stream.drain $ Stream.tapAsync (Fold.drainBy print) (Stream.enumerateFromTo 1 2)
 -- 1
 -- 2
+--
 -- @
 --
 -- Exceptions from the concurrently running fold are propagated to the current
@@ -479,8 +499,8 @@ tapAsync f xs = D.fromStreamD $ Par.tapAsyncF f (D.toStreamD xs)
 -- For example, to print the count of elements processed every second:
 --
 -- @
--- > S.drain $ S.pollCounts (const True) (S.rollingMap (-) . S.delayPost 1) (FL.drainBy print)
---           $ S.enumerateFrom 0
+-- > Stream.drain $ Stream.pollCounts (const True) (Stream.rollingMap (-) . Stream.delayPost 1) (FLold.drainBy print)
+--           $ Stream.enumerateFrom 0
 -- @
 --
 -- Note: This may not work correctly on 32-bit machines.
@@ -509,9 +529,10 @@ pollCounts predicate transf f xs =
 --
 -- @
 -- > delay n = threadDelay (round $ n * 1000000) >> return n
--- > S.drain $ S.tapRate 2 (\\n -> print $ show n ++ " elements processed") (delay 1 S.|: delay 0.5 S.|: delay 0.5 S.|: S.nil)
--- 2 elements processed
--- 1 elements processed
+-- > Stream.toList $ Stream.tapRate 2 (\n -> print $ show n ++ " elements processed") (delay 1 Stream.|: delay 0.5 Stream.|: delay 0.5 Stream.|: Stream.nil)
+-- "2 elements processed"
+-- [1.0,0.5,0.5]
+-- "1 elements processed"
 -- @
 --
 -- Note: This may not work correctly on 32-bit machines.
@@ -530,9 +551,10 @@ tapRate n f xs = D.fromStreamD $ D.tapRate n f $ D.toStreamD xs
 -- discard the results.
 --
 -- @
--- > S.drain $ S.trace print (S.enumerateFromTo 1 2)
+-- >>> Stream.drain $ Stream.trace print (Stream.enumerateFromTo 1 2)
 -- 1
 -- 2
+--
 -- @
 --
 -- Compare with 'tap'.
@@ -546,9 +568,10 @@ trace f = mapM (\x -> void (f x) >> return x)
 -- discard the results.
 --
 -- @
--- > S.drain $ S.trace_ (print "got here") (S.enumerateFromTo 1 2)
+-- >>> Stream.drain $ Stream.trace_ (print "got here") (Stream.enumerateFromTo 1 2)
 -- "got here"
 -- "got here"
+--
 -- @
 --
 -- Same as 'interspersePrefix_' but always serial.
@@ -643,13 +666,15 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- however it adds an extra element.
 --
 -- @
--- > S.toList $ S.scanl' (+) 0 $ fromList [1,2,3,4]
+-- >>> Stream.toList $ Stream.scanl' (+) 0 $ fromList [1,2,3,4]
 -- [0,1,3,6,10]
+--
 -- @
 --
 -- @
--- > S.toList $ S.scanl' (flip (:)) [] $ S.fromList [1,2,3,4]
+-- >>> Stream.toList $ Stream.scanl' (flip (:)) [] $ Stream.fromList [1,2,3,4]
 -- [[],[1],[2,1],[3,2,1],[4,3,2,1]]
+--
 -- @
 --
 -- The output of 'scanl'' is the initial value of the accumulator followed by
@@ -665,18 +690,22 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- of the elements in a stream in one go using a @foldl'@:
 --
 -- @
--- > S.foldl' (\\(s, p) x -> (s + x, p * x)) (0,1) $ S.fromList \[1,2,3,4]
+-- >>> Stream.foldl' (\(s, p) x -> (s + x, p * x)) (0,1) $ Stream.fromList [1,2,3,4]
 -- (10,24)
+--
 -- @
 --
 -- Using @scanl'@ we can make it modular by computing the sum in the first
 -- stage and passing it down to the next stage for computing the product:
 --
 -- @
--- >   S.foldl' (\\(_, p) (s, x) -> (s, p * x)) (0,1)
---   $ S.scanl' (\\(s, _) x -> (s + x, x)) (0,1)
---   $ S.fromList \[1,2,3,4]
+-- >>> :{
+--   Stream.foldl' (\(_, p) (s, x) -> (s, p * x)) (0,1)
+--   $ Stream.scanl' (\(s, _) x -> (s + x, x)) (0,1)
+--   $ Stream.fromList [1,2,3,4]
+-- :}
 -- (10,24)
+--
 -- @
 --
 -- IMPORTANT: 'scanl'' evaluates the accumulator to WHNF.  To avoid building
@@ -692,7 +721,7 @@ scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
 
 -- | Like 'scanl'' but does not stream the initial value of the accumulator.
 --
--- > postscanl' f z xs = S.drop 1 $ S.scanl' f z xs
+-- > postscanl' f z xs = Stream.drop 1 $ Stream.scanl' f z xs
 --
 -- @since 0.7.0
 {-# INLINE postscanl' #-}
@@ -730,8 +759,9 @@ scanl1M' step m = fromStreamD $ D.scanl1M' step $ toStreamD m
 -- is empty.
 --
 -- @
--- > S.toList $ S.scanl1 (+) $ fromList [1,2,3,4]
+-- >>> Stream.toList $ Stream.scanl1' (+) $ fromList [1,2,3,4]
 -- [1,3,6,10]
+--
 -- @
 --
 -- @since 0.6.0
@@ -821,8 +851,9 @@ uniq = fromStreamD . D.uniq . toStreamD
 -- @
 --
 -- @
--- > Stream.pruneBy isSpace (Stream.fromList "  hello      world!   ")
+-- > Stream.prune isSpace (Stream.fromList "  hello      world!   ")
 -- "hello world!"
+--
 -- @
 --
 -- Space: @O(1)@
@@ -880,8 +911,9 @@ nubWindowBy = undefined -- fromStreamD . D.nubWithinBy . toStreamD
 -- the given equality predicate.
 --
 -- @
--- > S.toList $ S.deleteBy (==) 3 $ S.fromList [1,3,3,5]
+-- >>> Stream.toList $ Stream.deleteBy (==) 3 $ Stream.fromList [1,3,3,5]
 -- [1,3,5]
+--
 -- @
 --
 -- @since 0.6.0
@@ -1096,8 +1128,9 @@ dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
 -- @
 --
 -- @
--- > S.toList $ S.insertBy compare 2 $ S.fromList [1,3,5]
+-- >>> Stream.toList $ Stream.insertBy compare 2 $ Stream.fromList [1,3,5]
 -- [1,2,3,5]
+--
 -- @
 --
 -- @since 0.6.0
@@ -1131,8 +1164,9 @@ intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 -- elements.
 --
 -- @
--- > S.toList $ S.intersperseBySpan 2 (return ',') $ S.fromList "hello"
+-- > Stream.toList $ Stream.intersperseBySpan 2 (return ',') $ Stream.fromList "hello"
 -- "he,ll,o"
+--
 -- @
 --
 -- /Unimplemented/
@@ -1154,7 +1188,9 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 -- | Insert a side effect after consuming an element of a stream.
 --
 -- @
--- > S.mapM_ putChar $ S.intersperseSuffix_ (threadDelay 1000000) $ S.fromList "hello"
+-- >>> Stream.mapM_ putChar $ Stream.intersperseSuffix_ (threadDelay 1000000) $ Stream.fromList "hello"
+-- hello
+--
 -- @
 --
 -- /Pre-release/
@@ -1270,8 +1306,8 @@ reassembleBy = undefined
 ------------------------------------------------------------------------------
 
 -- |
--- > indexed = S.postscanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
--- > indexed = S.zipWith (,) (S.enumerateFrom 0)
+-- > indexed = Stream.postscanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- > indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
 --
 -- Pair each element in a stream with its index, starting from index 0.
 --
@@ -1284,8 +1320,8 @@ indexed :: (IsStream t, Monad m) => t m a -> t m (Int, a)
 indexed = fromStreamD . D.indexed . toStreamD
 
 -- |
--- > indexedR n = S.postscanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
--- > indexedR n = S.zipWith (,) (S.enumerateFromThen n (n - 1))
+-- > indexedR n = Stream.postscanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- > indexedR n = Stream.zipWith (,) (Stream.enumerateFromThen n (n - 1))
 --
 -- Pair each element in a stream with its index, starting from the
 -- given index @n@ and counting down.
@@ -1307,7 +1343,7 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- If we do not do that then the following example will generate the same
 -- timestamp for first two elements:
 --
--- S.mapM_ print $ S.timestamped $ S.delay $ S.enumerateFromTo 1 3
+-- Stream.mapM_ print $ Stream.timestamped $ Stream.delay $ Stream.enumerateFromTo 1 3
 --
 -- | Pair each element in a stream with an absolute timestamp, using a clock of
 -- specified granularity.  The timestamp is generated just before the element
@@ -1416,7 +1452,7 @@ rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
 -- Equivalent to:
 --
 -- @
--- mapMaybe f = S.map 'fromJust' . S.filter 'isJust' . S.map f
+-- mapMaybe f = Stream.map 'fromJust' . Stream.filter 'isJust' . Stream.map f
 -- @
 --
 -- @since 0.3.0
@@ -1429,7 +1465,7 @@ mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
 -- Equivalent to:
 --
 -- @
--- mapMaybeM f = S.map 'fromJust' . S.filter 'isJust' . S.mapM f
+-- mapMaybeM f = Stream.map 'fromJust' . Stream.filter 'isJust' . Stream.mapM f
 -- @
 --
 -- /Concurrent (do not use with 'fromParallel' on infinite streams)/
@@ -1489,8 +1525,6 @@ rights = fmap (fromRight undefined) . filter isRight
 -- 1 second delay.
 --
 --
--- >>> import Control.Concurrent (threadDelay)
--- >>> import Streamly.Prelude ((|$))
 -- >>> :{
 -- Stream.drain $
 --    Stream.mapM (\x -> threadDelay 1000000 >> print x)

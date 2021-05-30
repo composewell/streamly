@@ -78,10 +78,13 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 -- check for overflow, underflow or bounds.
 --
 -- @
--- > S.toList $ S.take 4 $ S.enumerateFromStepIntegral 0 2
+-- >>> import Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromStepIntegral 0 2
 -- [0,2,4,6]
--- > S.toList $ S.take 3 $ S.enumerateFromStepIntegral 0 (-2)
+--
+-- >>> Stream.toList $ Stream.take 3 $ Stream.enumerateFromStepIntegral 0 (-2)
 -- [0,-2,-4]
+--
 -- @
 --
 -- @since 0.6.0
@@ -97,8 +100,9 @@ enumerateFromStepIntegral from stride =
 -- increments of @1@. The stream is bounded by the size of the 'Integral' type.
 --
 -- @
--- > S.toList $ S.take 4 $ S.enumerateFromIntegral (0 :: Int)
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromIntegral (0 :: Int)
 -- [0,1,2,3]
+--
 -- @
 --
 -- @since 0.6.0
@@ -114,10 +118,12 @@ enumerateFromIntegral from = fromStreamD $ D.enumerateFromIntegral from
 -- The stream is bounded by the size of the 'Integral' type.
 --
 -- @
--- > S.toList $ S.take 4 $ S.enumerateFromThenIntegral (0 :: Int) 2
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) 2
 -- [0,2,4,6]
--- > S.toList $ S.take 4 $ S.enumerateFromThenIntegral (0 :: Int) (-2)
+--
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) (-2)
 -- [0,-2,-4,-6]
+--
 -- @
 --
 -- @since 0.6.0
@@ -134,8 +140,9 @@ enumerateFromThenIntegral from next =
 -- @to@.
 --
 -- @
--- > S.toList $ S.enumerateFromToIntegral 0 4
+-- >>> Stream.toList $ Stream.enumerateFromToIntegral 0 4
 -- [0,1,2,3,4]
+--
 -- @
 --
 -- @since 0.6.0
@@ -150,10 +157,12 @@ enumerateFromToIntegral from to =
 -- elements are in increments of @then - from@ up to @to@.
 --
 -- @
--- > S.toList $ S.enumerateFromThenToIntegral 0 2 6
+-- >>> Stream.toList $ Stream.enumerateFromThenToIntegral 0 2 6
 -- [0,2,4,6]
--- > S.toList $ S.enumerateFromThenToIntegral 0 (-2) (-6)
+--
+-- >>> Stream.toList $ Stream.enumerateFromThenToIntegral 0 (-2) (-6)
 -- [0,-2,-4,-6]
+--
 -- @
 --
 -- @since 0.6.0
@@ -181,8 +190,9 @@ enumerateFromThenToIntegral from next to =
 -- This is the equivalent to 'enumFrom' for 'Fractional' types. For example:
 --
 -- @
--- > S.toList $ S.take 4 $ S.enumerateFromFractional 1.1
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromFractional 1.1
 -- [1.1,2.1,3.1,4.1]
+--
 -- @
 --
 --
@@ -201,10 +211,12 @@ enumerateFromFractional from = fromStreamD $ D.numFrom from
 -- example:
 --
 -- @
--- > S.toList $ S.take 4 $ S.enumerateFromThenFractional 1.1 2.1
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 2.1
 -- [1.1,2.1,3.1,4.1]
--- > S.toList $ S.take 4 $ S.enumerateFromThenFractional 1.1 (-2.1)
+--
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 (-2.1)
 -- [1.1,-2.1,-5.300000000000001,-8.500000000000002]
+--
 -- @
 --
 -- @since 0.6.0
@@ -223,10 +235,12 @@ enumerateFromThenFractional from next = fromStreamD $ D.numFromThen from next
 -- example:
 --
 -- @
--- > S.toList $ S.enumerateFromToFractional 1.1 4
+-- >>> Stream.toList $ Stream.enumerateFromToFractional 1.1 4
 -- [1.1,2.1,3.1,4.1]
--- > S.toList $ S.enumerateFromToFractional 1.1 4.6
+--
+-- >>> Stream.toList $ Stream.enumerateFromToFractional 1.1 4.6
 -- [1.1,2.1,3.1,4.1,5.1]
+--
 -- @
 --
 -- Notice that the last element is equal to the specified @to@ value after
@@ -249,10 +263,12 @@ enumerateFromToFractional from to =
 -- example:
 --
 -- @
--- > S.toList $ S.enumerateFromThenToFractional 0.1 2 6
+-- >>> Stream.toList $ Stream.enumerateFromThenToFractional 0.1 2 6
 -- [0.1,2.0,3.9,5.799999999999999]
--- > S.toList $ S.enumerateFromThenToFractional 0.1 (-2) (-6)
+--
+-- >>> Stream.toList $ Stream.enumerateFromThenToFractional 0.1 (-2) (-6)
 -- [0.1,-2.0,-4.1000000000000005,-6.200000000000001]
+--
 -- @
 --
 --
@@ -327,16 +343,18 @@ class Enum a => Enumerable a where
     -- generating an infinite stream when the type is not 'Bounded'.
     --
     -- @
-    -- > S.toList $ S.take 4 $ S.enumerateFrom (0 :: Int)
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFrom (0 :: Int)
     -- [0,1,2,3]
+    --
     -- @
     --
     -- For 'Fractional' types, enumeration is numerically stable. However, no
     -- overflow or underflow checks are performed.
     --
     -- @
-    -- > S.toList $ S.take 4 $ S.enumerateFrom 1.1
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFrom 1.1
     -- [1.1,2.1,3.1,4.1]
+    --
     -- @
     --
     -- @since 0.6.0
@@ -347,18 +365,21 @@ class Enum a => Enumerable a where
     -- empty stream is returned.
     --
     -- @
-    -- > S.toList $ S.enumerateFromTo 0 4
+    -- >>> Stream.toList $ Stream.enumerateFromTo 0 4
     -- [0,1,2,3,4]
+    --
     -- @
     --
     -- For 'Fractional' types, the last element is equal to the specified @to@
     -- value after rounding to the nearest integral value.
     --
     -- @
-    -- > S.toList $ S.enumerateFromTo 1.1 4
+    -- >>> Stream.toList $ Stream.enumerateFromTo 1.1 4
     -- [1.1,2.1,3.1,4.1]
-    -- > S.toList $ S.enumerateFromTo 1.1 4.6
+    --
+    -- >>> Stream.toList $ Stream.enumerateFromTo 1.1 4.6
     -- [1.1,2.1,3.1,4.1,5.1]
+    --
     -- @
     --
     -- @since 0.6.0
@@ -372,10 +393,12 @@ class Enum a => Enumerable a where
     -- unbounded types it keeps enumerating infinitely.
     --
     -- @
-    -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 2
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 2
     -- [0,2,4,6]
-    -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 (-2)
+    --
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 (-2)
     -- [0,-2,-4,-6]
+    --
     -- @
     --
     -- @since 0.6.0
@@ -388,10 +411,12 @@ class Enum a => Enumerable a where
     -- after @from@.
     --
     -- @
-    -- > S.toList $ S.enumerateFromThenTo 0 2 6
+    -- >>> Stream.toList $ Stream.enumerateFromThenTo 0 2 6
     -- [0,2,4,6]
-    -- > S.toList $ S.enumerateFromThenTo 0 (-2) (-6)
+    --
+    -- >>> Stream.toList $ Stream.enumerateFromThenTo 0 (-2) (-6)
     -- [0,-2,-4,-6]
+    --
     -- @
     --
     -- @since 0.6.0

@@ -312,10 +312,10 @@ foldSequence _f _m = undefined
 -- the fold is used to generate the next fold and so on.
 --
 -- @
--- > import Data.Monoid (Sum(..))
--- > f x = return (Fold.take 2 (Fold.sconcat x))
--- > s = Stream.map Sum $ Stream.fromList [1..10]
--- > Stream.toList $ Stream.map getSum $ Stream.foldIterateM f 0 s
+-- >>> import Data.Monoid (Sum(..))
+-- >>> f x = return (Fold.take 2 (Fold.sconcat x))
+-- >>> s = Stream.map Sum $ Stream.fromList [1..10]
+-- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterateM f 0 s
 -- [3,10,21,36,55,55]
 --
 -- @

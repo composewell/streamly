@@ -1124,8 +1124,9 @@ import Streamly.Internal.Data.Stream.IsStream
 -- works. For example:
 --
 -- @
--- > S.foldl' (+) 0 $ S.fromList [1,2,3,4]
+-- >>> Stream.foldl' (+) 0 $ Stream.fromList [1,2,3,4]
 -- 10
+--
 -- @
 --
 -- @
@@ -1148,8 +1149,9 @@ import Streamly.Internal.Data.Stream.IsStream
 -- reverse (LIFO) order:
 --
 -- @
--- > S.foldl' (flip (:)) [] $ S.fromList [1,2,3,4]
+-- >>> Stream.foldl' (flip (:)) [] $ Stream.fromList [1,2,3,4]
 -- [4,3,2,1]
+--
 -- @
 --
 -- A left fold is a push fold. The producer pushes its contents to the step
@@ -1198,8 +1200,8 @@ import Streamly.Internal.Data.Stream.IsStream
 --
 -- @
 --  ...
---  $ S.maxBuffer 10
---  $ S.mapM ...
+--  $ Stream.maxBuffer 10
+--  $ Stream.mapM ...
 --  ...
 -- @
 --
@@ -1209,8 +1211,8 @@ import Streamly.Internal.Data.Stream.IsStream
 --
 -- @
 --  ...
---  & S.maxBuffer 10
---  & S.mapM ...
+--  & Stream.maxBuffer 10
+--  & Stream.mapM ...
 --  ...
 -- @
 

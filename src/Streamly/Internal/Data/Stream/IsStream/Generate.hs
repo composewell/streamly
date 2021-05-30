@@ -165,14 +165,15 @@ unfold0 unf = unfold unf (error "unfold0: unexpected void evaluation")
 -- For example,
 --
 -- @
+-- >>> :{
 -- let f b =
 --         if b > 3
 --         then Nothing
 --         else Just (b, b + 1)
--- in toList $ unfoldr f 0
--- @
--- @
+-- in Stream.toList $ Stream.unfoldr f 0
+-- :}
 -- [0,1,2,3]
+--
 -- @
 --
 -- @since 0.1.0
@@ -188,17 +189,15 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 -- example,
 --
 -- @
+-- >>> :{
 -- let f b =
 --         if b > 3
 --         then return Nothing
---         else print b >> return (Just (b, b + 1))
--- in drain $ unfoldrM f 0
--- @
--- @
---  0
---  1
---  2
---  3
+--         else return (Just (b, b + 1))
+-- in Stream.toList $ Stream.unfoldrM f 0
+-- :}
+-- [0,1,2,3]
+--
 -- @
 -- When run concurrently, the next unfold step can run concurrently with the
 -- processing of the output of the previous step.  Note that more than one step
@@ -441,8 +440,9 @@ fromIndicesMSerial = fromStreamS . S.fromIndicesM
 -- element.
 --
 -- @
--- > S.toList $ S.take 5 $ S.iterate (+1) 1
+-- >>> Stream.toList $ Stream.take 5 $ Stream.iterate (+1) 1
 -- [1,2,3,4,5]
+--
 -- @
 --
 -- @since 0.1.2
