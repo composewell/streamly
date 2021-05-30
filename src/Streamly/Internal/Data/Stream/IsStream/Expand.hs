@@ -187,6 +187,7 @@ import Prelude hiding (concat, concatMap)
 
 -- $setup
 -- >>> :m
+-- >>> import Data.IORef
 -- >>> import Prelude hiding (zipWith, concatMap, concat)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
@@ -237,6 +238,7 @@ append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 -- >>> import Data.Functor.Identity (Identity)
 -- >>> Stream.interleave "ab" ",,,," :: Stream.SerialT Identity Char
 -- fromList "a,b,,,"
+--
 -- >>> Stream.interleave "abcd" ",," :: Stream.SerialT Identity Char
 -- fromList "a,b,cd"
 --
@@ -369,27 +371,27 @@ mergeBy f m1 m2 = fromStreamS $ S.mergeBy f (toStreamS m1) (toStreamS m2)
 --
 -- @
 -- > randomly _ _ = randomIO >>= \x -> return $ if x then LT else GT
--- > S.toList $ S.mergeByM randomly (S.fromList [1,1,1,1]) (S.fromList [2,2,2,2])
+-- > Stream.toList $ Stream.mergeByM randomly (Stream.fromList [1,1,1,1]) (Stream.fromList [2,2,2,2])
 -- [2,1,2,2,2,1,1,1]
 -- @
 --
 -- Merge two streams in a proportion of 2:1:
 --
 -- @
--- proportionately m n = do
---  ref <- newIORef $ cycle $ concat [replicate m LT, replicate n GT]
---  return $ \\_ _ -> do
---      r <- readIORef ref
---      writeIORef ref $ tail r
---      return $ head r
---
--- main = do
+-- >>> :{
+-- do    
+--  let proportionately m n = do
+--       ref <- newIORef $ cycle $ Prelude.concat [Prelude.replicate m LT, Prelude.replicate n GT]
+--       return $ \_ _ -> do
+--          r <- readIORef ref
+--          writeIORef ref $ Prelude.tail r
+--          return $ Prelude.head r  
 --  f <- proportionately 2 1
---  xs <- S.toList $ S.mergeByM f (S.fromList [1,1,1,1,1,1]) (S.fromList [2,2,2])
+--  xs <- Stream.toList $ Stream.mergeByM f (Stream.fromList [1,1,1,1,1,1]) (Stream.fromList [2,2,2])
 --  print xs
--- @
--- @
+-- :}
 -- [1,1,2,1,1,2,1,1,2]
+--
 -- @
 --
 -- @since 0.6.0
@@ -420,7 +422,7 @@ mergeEndByFirst f m1 m2 = fromStreamS $
 -- | Same as @'mergeBy' 'compare'@.
 --
 -- @
--- > S.toList $ S.merge (S.fromList [1,3,5]) (S.fromList [2,4,6,8])
+-- >>> Stream.toList $ Stream.merge (Stream.fromList [1,3,5]) (Stream.fromList [2,4,6,8])
 -- [1,2,3,4,5,6,8]
 -- @
 --
