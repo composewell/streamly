@@ -1,3 +1,5 @@
+# Credits and Contributions
+
 This library builds upon many good ideas from the existing body of Haskell
 work.  We would like to thank all the Haskellers whose work might have
 influenced this library. It is not possible to quantify that contribution and
