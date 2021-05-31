@@ -21,7 +21,7 @@
 --
 -- = Programmer Notes
 --
--- > import qualified Streamly.FileSystem.Handle as FH
+-- > import qualified Streamly.FileSystem.Handle as Handle
 --
 -- For additional, experimental APIs take a look at
 -- "Streamly.Internal.FileSystem.Handle" module.
