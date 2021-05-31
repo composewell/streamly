@@ -30,7 +30,7 @@
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Array as A
+-- > import qualified Streamly.Data.Array.Foreign as Array
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array.Foreign".
 

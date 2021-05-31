@@ -19,7 +19,7 @@
 -- fold to produce a fold, or multiple pipes can be merged or zipped into a
 -- single pipe.
 --
--- > import qualified Streamly.Internal.Data.Pipe as P
+-- > import qualified Streamly.Internal.Data.Pipe as Pipe
 
 module Streamly.Internal.Data.Pipe
     (
