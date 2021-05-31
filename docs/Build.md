@@ -1,5 +1,8 @@
-# GHC Haskell
-## Compiler (GHC) Versions
+# Build and Optimization Guide
+
+## Building
+
+### Compiler (GHC) Versions
 
 For best performance use GHC 8.10 or 8.8 along with `fusion-plugin`
 (see below).  Benchmarks show that GHC 8.8 has significantly better
@@ -19,7 +22,7 @@ GHC 8.2.2 may hog memory and hang when building certain applications using
 streamly (particularly the benchmark programs in the streamly package).
 Therefore, we recommend avoiding using the GHC version 8.2.x.
 
-## Memory requirements
+### Memory requirements
 
 Building streamly itself may require upto 4GB memory. Depending on the
 size of the application you may require 1-16GB memory to build. For most
@@ -33,9 +36,9 @@ compilation.
 See the "Build times and space considerations" section below for more
 details.
 
-## Compilation Options
+### Compilation Options
 
-### Recommended Options
+#### Recommended Options
 
 Add `fusion-plugin` to the `build-depends` section of your program in
 the cabal file and use the following GHC options:
@@ -66,7 +69,7 @@ Important Notes:
 
 See [Explanation](#explanation) for details about these flags.
 
-### Explanation
+#### Explanation
 
 * `-fdicts-strict` is needed to avoid [a GHC
 issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
@@ -86,7 +89,7 @@ bindings and therefore enabling case-of-case optimization. In some
 cases, especially in some file IO benchmarks, it can make a difference of
 5-10x better performance.
 
-## Multi-core Parallelism
+### Multi-core Parallelism
 
 Concurrency without a threaded runtime may be a bit more efficient. Do not use
 threaded runtime unless you really need multi-core parallelism. To get
@@ -94,24 +97,24 @@ multi-core parallelism use the following GHC options:
 
   `-threaded -with-rtsopts "-N"`
 
-# Platform Specific
+## Platform Specific Features
 
 Streamly supports Linux, macOS and Windows operating systems. Some
 modules and functionality may depend on specific OS kernel features.
 Features/modules may get disabled if the kernel/OS does not support it.
 
-## Linux
+### Linux
 
 * File system events notification module is supported only for kernel versions
   2.6.36 onwards.
 
-## Mac OSX
+### Mac OSX
 
 * File system events notification module requires macOS 10.7+ with
   Xcode/macOS SDK installed (depends on `Cocoa` framework). However, we only
   test on latest three versions of the OS.
 
-# Performance Optimizations
+## Performance Optimizations
 
 A "closed loop" is any streamly code that generates a stream using
 unfold (or conceptually any stream generation combinator) and ends
@@ -138,7 +141,7 @@ cases where programmer annotation may help in stream fusion.
 Remember, you need to worry about performance only where it matters, try
 to optimize the fast path and not everything blindly.
 
-## INLINE annotations
+### INLINE annotations
 
 It may help to add INLINE annotations on any intermediate functions
 involved in a closed loop. In some cases you may have to add an inline
@@ -147,7 +150,7 @@ phase as well as described below.
 Usually GHC has three inline phases - the first phase is pahse-2, the
 second phase is phase-1 and the last one is phase-0.
 
-### Early INLINE
+#### Early INLINE
 
 Generally, you only have to inline the combinators or functions
 participating in a loop and not the whole loop itself.  But sometimes
@@ -164,7 +167,7 @@ annotation GHC may decide to delay the inlining in some cases. This is
 not very common but may be needed sometimes. Perhaps GHC can be fixed or
 we can resolve this using fusion-plugin in future.
 
-### Delayed INLINE
+#### Delayed INLINE
 
 When a function is passed to a higher order function e.g. a function
 passed to `concatMap` or `unfoldMany` then we want the function to be
@@ -172,7 +175,7 @@ inlined after the higher order is inlined so that proper fusion of the
 higher order function can occur. For such cases we usually add INLINE[1]
 on the function being passed to instruct GHC not to inline it too early.
 
-## Strictness annotations
+### Strictness annotations
 
 * Strictness annotations on data, specially the data used as accumulator in
   folds and scans, can help in improving performance.
@@ -182,14 +185,14 @@ on the function being passed to instruct GHC not to inline it too early.
   may be missing some strictness annotations. `-XStrict` can be used as an aid
   to detect missing annotations, using it blindly may regress performance.
 
-## Use tail recursion
+### Use tail recursion
 
 Do not use a strict `foldr` or lazy `foldl` unless you know what you are
 doing.  Use lazy `foldr` for lazily transforming the stream and strict
 `foldl` for reducing the stream.  If you are manually writing recursive
 code, try to use tail recursion where possible.
 
-# Build times and space considerations
+## Build times and space considerations
 
 Haskell, being a pure functional language, confers special powers on
 GHC. It allows GHC to do whole program optimization. In a closed loop
