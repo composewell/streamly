@@ -1,72 +1,106 @@
-# [Streamly](https://streamly.composewell.com)
+# [Streamly][]: Idiomatic Haskell with the Performance of C
 
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
-## Idiomatic Haskell at the speed of C
+  [Streamly]: https://streamly.composewell.com/
 
-Streamly is a Haskell library/framework providing basic building blocks
-or combinators to build safe, scalable, modular and high performance
-software systems.  The key features it provides are:
+Streamly is a Haskell library that provides the building blocks to build
+safe, scalable, modular and high performance software.  Streamly offers:
 
-* Speed of C
-* Safety of Haskell
-* Idiomatic functional programming
-* Powerful abstractions
-* Declarative concurrency
+* The type safety of Haskell.
+* The performance of C programs.
+* Powerful abstractions for structuring your code.
+* Idiomatic functional programming.
+* Declarative concurrency for the seamless use of multiprocessing hardware.
 
-This guide introduces you to streamly using some practical examples.
-See [Streamly Homepage](https://streamly.composewell.com) and [Streamly
-Examples](https://github.com/composewell/streamly-examples) to learn
-more.
+## About This Document
 
-## Installing and using
+This guide introduces programming with [Streamly][] using a few practical
+examples:
 
-Please see [getting started with streamly](./INSTALL.md) for
-instructions on how to use streamly with your Haskell build tool or
-package manager.
+*  We will start with a simple program that [counts the number of words
+   in a text](#modular-word-counting). We will then transform this program
+   into a [concurrent](#concurrent-word-counting) program that can efficiently
+   use multiprocessing hardware.
+*  Next, we will create a [concurrent network
+   server](#a-concurrent-network-server). We then show
+   how to write a network server that [merges multiple
+   streams](#merging-incoming-streams) concurrently.
+*  Our third example shows how to list a directory tree concurrently,
+   by reading [multiple directories in
+   parallel](#listing-directories-recursivelyconcurrently).
+*  Finally, we will look at how to [rate limit](#rate-limiting) stream
+   processing.
 
-To build your streamly application for best performance see the
-[build and compile options guide](docs/Build.md).
+The guide then looks at how Streamly achieves its
+[performance](#performance).  It [concludes](#notes) with a brief
+discussion about Streamly's design philosophy, and with suggestions for
+further reading.
 
-## Documentation
+## Getting Started
 
-* [Streamly Homepage](https://streamly.composewell.com)
-* [Streamly Examples](https://github.com/composewell/streamly-examples)
-* [Streaming Benchmarks](https://github.com/composewell/streaming-benchmarks) | [Concurrency Benchmarks](https://github.com/composewell/concurrency-benchmarks)
-* [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
-* [Guides](docs)
+### Installing Streamly
 
-## Types Overview
+If you wish to follow along with this guide, you will need to have
+[Streamly][] installed.
 
-Quick overview of basic types for this tutorial:
+Please see the [Getting Started With The Streamly Package](./INSTALL.md)
+guide for instructions on how to install [Streamly][].
 
-* `SerialT IO a` is a serial stream of values of type `a` in IO Monad.
-* `AsyncT IO a` is a concurrent (async) stream of values of type `a` in IO
-  Monad.
-* `Unfold IO a b` is a representation of a function that converts a seed
-  value of type `a` to a stream of values of type `b` in IO Monad.
-* `Fold IO a b` is a representation of a function that converts a stream of
-  type `a` to a final accumulator of type `b` in IO Monad.
+If you wish to run benchmarks, please be sure to build your
+application using the instructions in the [Build And Compile Options
+Guide](docs/Build.md).
 
-## Modular Word Counting
+### An overview of the types used in these examples
 
-In this example, we will use folds to count bytes, words and lines in
-a file.  A `Fold` is a composable stream consumer.  We will see how
-individual folds can be composed together to perform all the three
-counts at once with the same performance.
+As an expository device, we have indicated the types at the intermediate
+stages of stream computations as comments in the examples below.
+The meaning of these types are:
 
-See [WordCountModular.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs)
-for full working code including imports that we may have omitted
-here. Note, the `Internal` modules imported here are `pre-release`
-modules that have been tested and are ready for use except for some
-minor signature changes planned before we release them.
+* A `SerialT IO a` is a serial stream of values of type `a` in the IO Monad.
+* An `AsyncT IO a` is a concurrent (asynchronous) stream of values of type
+  `a` in the IO Monad.
+* An `Unfold IO a b` is a representation of a function that converts a seed
+  value of type `a` into a stream of values of type `b` in the IO Monad.
+* A `Fold IO a b` is a representation of a function that converts a stream of
+  type `a` to a final accumulator of type `b` in the IO Monad.
 
-### Count bytes (wc -c)
+### A Note on Module Naming
 
-Count bytes in a file.
+Some of the examples below use modules from the `Internal` Streamly package
+hierarchy.  These are not really internal to the library.  We classify
+`Streamly` modules into two categories:
 
-``` haskell
+* _Released modules and APIs_: These modules and APIs are
+  stable. Significant changes to these modules and APIs will cause
+  Streamly's version number to change according to the package versioning
+  policy.
+* _Pre-release modules and APIs_: These modules and APIs have not been
+  formally released yet.  They may change in the near future, and such
+  changes will not necessarily be reflected in Streamly's package
+  version number.  As yet unreleased modules and APIs reside in the
+  `Internal` namespace.
+
+## The Examples
+
+### Modular Word Counting
+
+A `Fold` in Streamly is a composable stream consumer.  For our first
+example, we will use `Fold`s to count the number of bytes, words and lines
+present in a file.  We will then compose individual `Fold`s together to
+count words, bytes and lines at the same time.
+
+Please see the file
+[WordCountModular.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs)
+for the complete example program, including the imports that we have
+omitted here.
+
+#### Count Bytes (wc -c)
+
+We start with a code fragment that counts the number of bytes in a file:
+
+```haskell
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.FileSystem.File as File
 import qualified Streamly.Prelude as Stream
@@ -77,15 +111,12 @@ wcb file =
   & Stream.fold Fold.length  -- IO Int
 ```
 
-If you are wondering about the `Internal` module import, see [A Note on
-Internal Modules](#a-note-on-internal-modules) section.
+### Count Lines (wc -l)
 
-### Count lines (wc -l)
+The next code fragment shows how to count the number of lines in a file:
 
-Count lines in a file.
-
-``` haskell
--- ASCII character 10 is newline
+```haskell
+-- ASCII character 10 is a newline.
 countl :: Int -> Word8 -> Int
 countl n ch = if ch == 10 then n + 1 else n
 
@@ -99,18 +130,19 @@ wcl file =
   & Stream.fold nlines -- IO Int
 ```
 
-### Count words (wc -w)
+### Count Words (wc -w)
 
-Count words in a file.
+Our final code fragment counts the number of whitespace-separated words
+in a stream:
 
-``` haskell
+```haskell
 countw :: (Int, Bool) -> Word8 -> (Int, Bool)
 countw (n, wasSpace) ch =
     if isSpace $ chr $ fromIntegral ch
     then (n, True)
     else (if wasSpace then n + 1 else n, False)
 
--- The fold accepts a stream of `Word8` and returns a word count (`Int`)
+-- The fold accepts a stream of `Word8` and returns a word count (`Int`).
 nwords :: Monad m => Fold m Word8 Int
 nwords = fst <$> Fold.foldl' countw (0, True)
 
@@ -120,17 +152,19 @@ wcw file =
   & Stream.fold nwords  -- IO Int
 ```
 
-### Count bytes, words and lines
+### Counting Bytes, Words and Lines Together
 
-We can compose the three folds together into a single fold using `Tee`
-to do all the three things at once. The applicative instance of `Tee`
-distributes the input to all the folds and combines the outputs using the
-supplied function.
+By using the `Tee` combinator we can compose the three folds that count
+bytes, lines and words individually into a single fold that counts all
+three at once.  The applicative instance of `Tee` distributes its input
+to all the supplied folds (`Fold.length`, `nlines`, and `nwords`) and
+then combines the outputs from the folds using the supplied combiner
+function (`(,,)`).
 
-``` haskell
+```haskell
 import qualified Streamly.Internal.Data.Fold.Tee as Tee
 
--- The fold accepts a stream of `Word8` and returns the three counts
+-- The fold accepts a stream of `Word8` and returns the three counts.
 countAll :: Fold IO Word8 (Int, Int, Int)
 countAll = Tee.toFold $ (,,) <$> Tee Fold.length <*> Tee nlines <*> Tee nwords
 
@@ -140,16 +174,18 @@ wc file =
   & Stream.fold countAll -- IO (Int, Int, Int)
 ```
 
-This example demonstrates the simple and concise API of streamly with
-excellent modularity.  Experienced Haskellers would notice that we have
-not used bytestrings, we simply use a stream of `Word8`, simplifying the
-program.
+This example demonstrates the excellent modularity offered by
+[Streamly][]'s simple and concise API.  Experienced Haskellers will
+notice that we have not used bytestrings&mdash;we instead used a stream of
+`Word8` values, simplifying our program.
 
-## Word Counting Performance
+### The Performance of Word Counting
 
-We compare two equivalent implementations, one using Haskell Streamly and the
-other using C. The
-[Haskell Streamly word counting implementation](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs):
+We compare two equivalent implementations: one using [Streamly][],
+and the other using C.
+
+The performance of the [Streamly word counting
+implementation](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs) is:
 
 ```
 $ time WordCount-hs gutenberg-500MB.txt
@@ -160,7 +196,7 @@ user    0m1.697s
 sys     0m0.128s
 ```
 
-[Equivalent BSD wc implementation in C](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c):
+The performance of an equivalent [wc implementation in C](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c) is:
 
 ```
 $ time WordCount-c gutenberg-500MB.txt
@@ -171,20 +207,24 @@ user    0m1.935s
 sys     0m0.165s
 ```
 
-## Concurrent Word Counting
+### Concurrent Word Counting
 
-To count words in parallel we divide the stream into chunks (arrays),
-count properties in each chunk and then add all the counts.  We use the
-same code as above except that we use an array input instead of using a
-file input.
+In our next example we show how the task of counting words, lines,
+and bytes could be done in parallel on multiprocessor hardware.
 
-See
-[WordCountParallel.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs).
-for full working code including the imports that we may have omitted below.
+To count words in parallel we first divide the stream into chunks
+(arrays), do the counting within each chunk, and then add all the
+counts across chunks.  We use the same code as above except that we use
+arrays for our input data.
 
-Get the line, word, char counts in one chunk.
+Please see the file
+[WordCountParallel.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs)
+for the complete working code for this example, including the imports
+that we have omitted below.
 
-``` haskell
+The `countArray` function counts the line, word, char counts in one chunk:
+
+```haskell
 import qualified Streamly.Data.Array.Foreign as Array
 
 countArray :: Array Word8 -> IO Counts
@@ -193,14 +233,18 @@ countArray arr =
     & Stream.decodeLatin1                     -- SerialT IO Char
     & Stream.foldl' count (Counts 0 0 0 True) -- IO Counts
 ```
-When combining the counts in two contiguous chunks, we would also need
-to know whether the first element of the next chunk was a space char or
-non-space to know whether the same word is continuing to the next chunk
-or if it is a new word. `partialCounts` adds a `Bool` flag to `Counts`
-returned by `countArray` to indicate whether the first character in the
-chunk is a space.
 
-``` haskell
+Here the function `count` and the `Counts` data type are defined in the
+`WordCount` helper module defined in [WordCount.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs).
+
+When combining the counts in two contiguous chunks, we need to check
+whether the first element of the next chunk is a whitespace character
+in order to determine if the same word continues in the next chunk or
+whether the chunk starts with a new word. The `partialCounts` function
+adds a `Bool` flag to `Counts` returned by `countArray` to indicate
+whether the first character in the chunk is a space.
+
+```haskell
 partialCounts :: Array Word8 -> IO (Bool, Counts)
 partialCounts arr = do
     let r = Array.getIndex arr 0
@@ -211,20 +255,23 @@ partialCounts arr = do
         Nothing -> return (False, Counts 0 0 0 True)
 ```
 
-Combine the counts from two consecutive chunks.
-``` haskell
+`addCounts` then adds the counts from two consecutive chunks:
+
+```haskell
 addCounts :: (Bool, Counts) -> (Bool, Counts) -> (Bool, Counts)
 addCounts (sp1, Counts l1 w1 c1 ws1) (sp2, Counts l2 w2 c2 ws2) =
     let wcount =
-            if not ws1 && not sp2 -- no space between two chunks
+            if not ws1 && not sp2 -- No space between two chunks.
             then w1 + w2 - 1
             else w1 + w2
      in (sp1, Counts (l1 + l2) wcount (c1 + c2) ws2)
 ```
 
-Now put it all together, we only need to divide the stream into arrays,
-apply our counting function to each array and then combine all the counts.
-``` haskell
+To count in parallel we now only need to divide the stream into arrays,
+apply our counting function to each array, and then combine the counts
+from each chunk.
+
+```haskell
 wc :: String -> IO (Bool, Counts)
 wc file = do
       Stream.unfold File.readChunks file -- AheadT IO (Array Word8)
@@ -234,12 +281,14 @@ wc file = do
     & Stream.foldl' addCounts (False, Counts 0 0 0 True) -- IO (Bool, Counts)
 ```
 
-Note that `Stream.fromAhead` is the only difference in a concurrent and
-non-concurrent program. If we remove that we still have a perfectly valid,
-well performing serial program. Notice, how succinctly and idiomatically
-we expressed the concurrent word counting problem.
+Please note that the only difference between a concurrent and a
+non-concurrent program lies in the use of the `Stream.fromAhead`
+combinator.  If we remove the call to `Stream.fromAhead`, we would
+still have a perfectly valid and performant serial program. Notice
+how succinctly and idiomatically we have expressed the concurrent word
+counting problem.
 
-Benchmarked with 2 CPUs:
+A benchmark with 2 CPUs:
 
 ```
 $ time WordCount-hs-parallel gutenberg-500MB.txt
@@ -250,32 +299,40 @@ user    0m1.952s
 sys     0m0.140s
 ```
 
-If you want to get serious about word counting, here is a
-[concurrent wc implementation with UTF-8 decoding](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs).
-It performs as well as the stock wc in serial benchmarks, and of course
-in concurrent mode it can use multiple cores so can be much faster.
+These example programs have assumed ASCII encoded
+input data.  For UTF-8 streams, we have a [concurrent wc
+implementation](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs)
+with UTF-8 decoding.  This concurrent implementation performs as well
+as the standard `wc` program in serial benchmarks. In concurrent mode
+[Streamly][]'s implementation can utilise multiple processing cores if
+these are present, and can thereby run much faster than the standard
+binary.
 
-Streamly provides concurrency facilities similar to
-[OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
+Streamly provides concurrency facilities similar
+to [OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
-expression. You can write concurrent loops with ease, with different types of
-concurrent scheduling.
+style of expression.  With Streamly you can write concurrent programs
+with ease, with support for different types of concurrent scheduling.
 
-## Concurrent Network Server
+### A Concurrent Network Server
 
-Slightly more complicated example. A dictionary lookup server, the server
-serves word meanings to multiple clients concurrently. It uses the concurrent
+We now move to a slightly more complicated example: we simulate a
+dictionary lookup server which can serve word meanings to multiple
+clients concurrently.  This example demonstrates the use of the concurrent
 `mapM` combinator.
 
-See
+Please see the file
 [WordServer.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs)
-for full working code including the imports that we may have omitted below.
+for the complete code for this example, including the imports that we
+have omitted below.
 
-``` haskell
+```haskell
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Network.Inet.TCP as TCP
+import qualified Streamly.Network.Socket as Socket
 import qualified Streamly.Unicode.Stream as Unicode
 
--- Simulate network/db query by adding a delay
+-- Simulate network/db query by adding a delay.
 fetch :: String -> IO (String, String)
 fetch w = threadDelay 1000000 >> return (w,w)
 
@@ -311,23 +368,26 @@ main =
     & Stream.drain                        -- IO ()
 ```
 
-## Merging Incoming Streams
+### Merging Incoming Streams
 
-Assume you have logs coming from multiple nodes in your network and
-you want to merge all the logs at line boundaries and send the merged
-stream to a file or to a network destination. It uses the amazing
-`concatMapWith` combinator to merge multiple streams concurrently.
+In the next example, we show how to merge logs coming from multiple
+nodes in your network.  These logs are merged at line boundaries and
+the merged logs are written to a file or to a network destination.
+This example uses the `concatMapWith` combinator to merge multiple
+streams concurrently.
 
-See
+Please see the file
 [MergeServer.hs](https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs)
-for full working code including the imports that we may have omitted below.
+for the complete working code, including the imports that we have
+omitted below.
 
-``` haskell
+```haskell
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Network.Socket as Socket
 
--- | Read a line stream from a socket. Note, lines are buffered, we could add
--- a limit to the buffering for safety.
+-- | Read a line stream from a socket.
+-- Note: lines are buffered, and we could add a limit to the
+-- buffering for safety.
 readLines :: Socket -> SerialT IO (Array Char)
 readLines sk =
     Stream.unfold Socket.read sk                 -- SerialT IO Word8
@@ -353,30 +413,30 @@ main :: IO ()
 main = withFile "output.txt" AppendMode server
 ```
 
-## Listing Directories Recursively/Concurrently
+### Listing Directories Recursively/Concurrently
 
-The following example lists a directory tree recursively, reading
+Our next example lists a directory tree recursively, reading
 multiple directories concurrently.
 
-It uses the wonderful tree traversing combinator
-`iterateMapLeftsWith`. It maps a stream generator on the `Left` values
-(directories in this case) of the input stream, feeds the resulting
-'Left' values back to the input, and lets the `Right` values (files in
-this case) pass through to the output. The `Stream.ahead` stream joining
-combinator makes it iterate on the directories concurrently.
+This example uses the tree traversing combinator `iterateMapLeftsWith`.
+This combinator maps a stream generator on the `Left` values in its
+input stream (directory names in this case), feeding the resulting `Left`
+values back to the input, while it lets the `Right` values (file names
+in this case) pass through to the output. The `Stream.ahead` stream
+joining combinator then makes it iterate on the directories concurrently.
 
-See
+Please see the file
 [ListDir.hs](https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs)
-for full working code including the imports that we may have omitted below.
+for the complete working code, including the imports that we have
+omitted below.
 
 ```haskell
-...
 import Streamly.Internal.Data.Stream.IsStream (iterateMapLeftsWith)
 
 import qualified Streamly.Prelude as Stream
 import qualified Streamly.Internal.FileSystem.Dir as Dir (toEither)
 
--- Lists a dir as a stream of (Either Dir File)
+-- Lists a directory as a stream of (Either Dir File).
 listDir :: String -> SerialT IO (Either String String)
 listDir dir =
       Dir.toEither dir               -- SerialT IO (Either String String)
@@ -384,7 +444,7 @@ listDir dir =
 
     where mkAbs x = dir ++ "/" ++ x
 
--- | List the current directory recursively using concurrent processing
+-- | List the current directory recursively using concurrent processing.
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
@@ -393,12 +453,13 @@ main = do
         & Stream.mapM_ print
 ```
 
-## Rate Limiting
+### Rate Limiting
 
-For bounded concurrent streams, stream yield rate can be specified. For
-example, to print "tick" once every second you can simply write this:
+For bounded concurrent streams, a stream yield rate can be specified
+easily.  For example, to print "tick" once every second you can simply
+write:
 
-``` haskell
+```haskell
 main :: IO ()
 main =
       Stream.repeatM (pure "tick")  -- AsyncT IO String
@@ -408,133 +469,139 @@ main =
     & Stream.mapM_ print            -- IO ()
 ```
 
-See
+Please see the file
 [Rate.hs](https://github.com/composewell/streamly-examples/blob/master/examples/Rate.hs)
-for full working code.
+for the complete working code.
 
-Concurrency of the stream is automatically controlled to match the specified
-rate. Rate control works precisely even at throughputs as high as millions of
-yields per second. For more sophisticated rate control see the haddock
-documentation.
+The concurrency of the stream is automatically controlled to match the
+specified rate. [Streamly][]'s rate control works precisely even at
+throughputs as high as millions of yields per second.
 
-## Reactive Programming
+For more sophisticated rate control needs please see the [Haddock
+documentation](https://hackage.haskell.org/package/streamly-0.7.3/docs/Streamly.html)
+for the Streamly.
 
-Streamly supports reactive and time domain programming inherently because of
-declarative concurrency. See the `Streamly.Prelude` module for some time
-specific combinators like `intervalsOf` and folds like `takeInterval` in
-`Streamly.Internal.Data.Fold`.  Also see pre-release sampling combinators in
-the `Streamly.Internal.Data.Stream.IsStream.Top` module including `throttle`
-and `debounce` like operations.
+### Reactive Programming
 
-See
+Streamly supports reactive (time domain) programming because of its
+support for declarative concurrency. Please see the `Streamly.Prelude`
+module for time-specific combinators like `intervalsOf`, and
+folds like `takeInterval` in `Streamly.Internal.Data.Fold`.
+Please also see the pre-release sampling combinators in the
+`Streamly.Internal.Data.Stream.IsStream.Top` module for `throttle` and
+`debounce` like operations.
+
+The examples
 [AcidRain.hs](https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs)
 and
-[CirclingSquare.hs](https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs).
+[CirclingSquare.hs](https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs)
+demonstrate reactive programming using [Streamly][].
 
-## More examples
+### More Examples
 
-Many more examples can be found in the [streamly-examples
-repository](https://github.com/composewell/streamly-examples).
+If you would like to view more examples, please visit the [Streamly
+Examples](https://github.com/composewell/streamly-examples) web page.
 
-Streamly comes equipped with a very powerful set of abstractions to accomplish
-any kind of programming tasks that you may want to throw at it. It provides,
-streams, arrays, file-io, fsnotify, network-io, time domain programming
-(reactive programming). See the [streamly
-documentation](https://streamly.composewell.com) to learn more.
+### Further Reading
 
-## Concurrency
-
-Streamly uses lock-free synchronization for low overhead
-concurrency. The number of tasks performed concurrently are
-determined automatically based on the rate at which a consumer is
-consuming the results. In other words, you do not need to manage
-thread pools and decide how many threads to use for a particular
-task.  For CPU bound tasks it tries to keep the number of threads
-close to the number of CPUs available whereas for IO bound tasks
-more threads can be utilized.
-
-Parallelism can be utilized with little overhead even if
-the task size is very small, because it can automatically
-switch to serial mode or batch multiple tasks on the
-same CPU if that is more efficient.  See [concurrency
-benchmarks](https://github.com/composewell/concurrency-benchmarks) for
-detailed performance results and a comparison with the `async` package.
+* [Streaming Benchmarks](https://github.com/composewell/streaming-benchmarks) | [Concurrency Benchmarks](https://github.com/composewell/concurrency-benchmarks)
+* [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
+* [Other Guides](docs/)
+* [Streamly Homepage](https://streamly.composewell.com)
 
 ## Performance
 
-As you have seen above in the word count example, streamly enables
-highly modular abstractions with the best possible performance (close to
-an equivalent C program).
+As you have seen in the word count example above, [Streamly][] offers
+highly modular abstractions for building programs while also offering
+the performance close to an equivalent (imperative) C program.
 
-Streamly provides excellent performance even for byte level stream
-operations, it is made possible by employing efficient abstractions like
-`Unfold`s and terminating `Fold`s. Byte level stream operations make
-programming simpler because you do not have to deal with chunking and
-re-combining.
+Streamly offers excellent performance even for byte-at-a-time stream
+operations using efficient abstractions like `Unfold`s and terminating
+`Fold`s.  Byte-at-a-time stream operations can simplify programming
+because the developer does not have to deal explicitly with chunking
+and re-combining data.
 
-If you can write a program significantly faster in some other way or
-with some other language, please let us know and we will improve.
+Streamly exploits GHC's stream fusion optimizations (`case-of-case` and
+`spec-constr`) aggressively to achieve C-like speed, while also offering
+highly modular abstractions to developers.
 
-## Benchmarks
+[Streamly][] will usually perform very well without any
+compiler plugins.  However, we have fixed some deficiencies
+that we had noticed in GHC's optimizer using a [compiler
+plugin](https://github.com/composewell/fusion-plugin).  We hope to fold
+these optimizations into GHC in the future; until then we recommend that
+you use this plugin for applications that are performance sensitive.
+
+### Benchmarks
 
 We measured several Haskell streaming implementations
-on various micro-benchmarks. Please see [streaming
+using various micro-benchmarks. Please see the [streaming
 benchmarks](https://github.com/composewell/streaming-benchmarks) page
-for detailed comparison of streamly with other streaming libraries.
+for a detailed comparison of Streamly against other streaming libraries.
 
-These results show that streamly is the fastest effectful streaming
-implementation on almost all the measured micro benchmarks. In many cases
-it is up to 100x faster and in some cases even 1000x faster. In many
-composite operation benchmarks streamly turns out to be significantly
-faster than the Haskell lists implementation.
+Our results show that [Streamly][] is the fastest effectful streaming
+implementation on almost all the measured microbenchmarks. In many cases
+it runs up to 100x faster, and in some cases even 1000x faster than
+some of the tested alternatives. In some composite operation benchmarks
+[Streamly][] turns out to be significantly faster than Haskell's list
+implementation.
 
-## Design Goals
+*Note*: If you can write a program in some other way or with some other
+language that runs significantly faster than what [Streamly][] offers,
+please let us know and we will improve.
 
-The goals of streamly from the very beginning have been, (1) simplicity
-by unifying abstractions, (2) high performance. These are hard to
-achieve at the same time because they are usually inversely related. We
-have spent many years trying to get the abstractions right without
+## Notes
+
+Streamly comes equipped with a very powerful set of abstractions to
+accomplish many kinds of programming tasks: it provides support for
+programming with streams and arrays, for reading and writing from the
+file system and from the network, for time domain programming (reactive
+programming), and for reacting to file system events using `fsnotify`.
+
+Please view [Streamly's documentation](https://streamly.composewell.com)
+for more information about Streamly's features.
+
+### Concurrency
+
+Streamly uses lock-free synchronization for achieving concurrent
+operation with low overheads.  The number of tasks performed concurrently
+are determined automatically based on the rate at which a consumer
+is consuming the results. In other words, you do not need to manage
+thread pools or decide how many threads to use for a particular task.
+For CPU-bound tasks Streamly will try to keep the number of threads
+close to the number of CPUs available; for IO-bound tasks it will utilize
+more threads.
+
+The parallelism available during program execution can be utilized with
+very little overhead even where the task size is very
+small, because Streamly will automatically switch between
+serial or batched execution of tasks on the same CPU depending
+on whichever is more efficient.  Please see our [concurrency
+benchmarks](https://github.com/composewell/concurrency-benchmarks) for
+more detailed performance measurements, and for a comparison with the
+`async` package.
+
+### Design Goals
+
+Our goals for [Streamly][] from the very beginning have been:
+
+1. To achieve simplicity by unifying abstractions.
+2. To offer high performance.
+
+These goals are hard to achieve simultaneously because they are usually
+inversely related.  We have spent many years trying to get the abstractions
+right without compromising performance.
+
+`Unfold` is an example of an abstraction that we have created to achieve
+high performance when mapping streams on streams.  `Unfold` allows stream
+generation to be optimized well by the compiler through stream fusion.
+A `Fold` with termination capability is another example which modularizes
+stream elimination operations through stream fusion.  Terminating folds
+can perform many simple parsing tasks that do not require backtracking.
+In Streamly, `Parser`s are a natural extension to terminating `Fold`s;
+`Parser`s add the ability to backtrack to `Fold`s.  Unification leads
+to simpler abstractions and lower cognitive overheads while also not
 compromising performance.
-
-`Unfold` is an example of an abstraction that we have created to
-achieve high performance when mapping streams on streams. It allows
-stream generation to be optimized well by the compiler, employing
-stream fusion. `Fold` with termination capability is another example
-which modularizes stream elimination operations with stream fusion.
-Terminating folds can perform many simple parsing tasks that do not
-require backtracking.  `Parser`s in streamly are a natural extension
-of terminating `Fold`s just adding backtracking capability to folds.
-Unification leads to simpler abstractions, lesser cognitive overhead
-without compromising performance.
-
-Streamly exploits GHC stream fusion optimizations (`case-of-case`
-and `spec-constr`) aggressively to bring C like speed with highly
-modular abstractions.  It performs very well without any compiler
-plugins.  However, we have fixed some deficiencies in GHC optimizer
-via a [compiler plugin](https://github.com/composewell/fusion-plugin).
-We hope to bring these optimizations to GHC in future but until
-then we recommend that you use the plugin for performance sensitive
-applications.
-
-## A Note on Internal Modules
-
-You may see some `Internal` modules imported in the examples. Those are
-not really internal to the library.  We can classify streamly modules into
-two categories:
-
-* Released Modules: These are the modules that have a stable API, any
-  API changes conform to the package versioning policy.
-* Pre-release Modules: These modules are not yet released due to some planned
-  changes in near future, they will be released soon. These modules reside in
-  the `Internal` namespace for now.
-
-Pre-release APIs:  Some of the APIs that are recently introduced
-and require some soak time for stability are kept in the
-internal modules corresponding to the released module (e.g.
-Streamly.Internal.Data.Fold).
-
-We usually try to change even the unstable APIs in `Internal` module
-namespace in a major release version.
 
 ## Credits
 
@@ -545,20 +612,26 @@ significant way:
   * Gabriel Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
-See the `credits` directory for full list of contributors, credits and licenses.
+Please see the [`credits`](./credits/README.md) directory for a full
+list of contributors, credits and licenses.
 
-## Contributing
+## Licensing
+
+Streamly is an [open source](https://github.com/composewell/streamly)
+project available under a liberal [BSD-3-Clause
+license](https://github.com/composewell/streamly/blob/master/LICENSE).
+
+## Contributing to Streamly
+
+As an open project we welcome contributions:
 
 * [Streamly Contributor's Guide](CONTRIBUTING.md)
 * [Contact the streamly development team](mailto:streamly@composewell.com)
 
-## License
+## Getting Support
 
-Streamly is an [open source](https://github.com/composewell/streamly)
-project available under [BSD-3-Clause
-license](https://github.com/composewell/streamly/blob/master/LICENSE).
+Professional support is available for [Streamly][]: please contact
+[support@composewell.com](mailto:support@composewell.com).
 
-## Support
-
-* Join streamly [online community chat](https://gitter.im/composewell/streamly)
-* For professional support please contact [support@composewell.com](mailto:support@composewell.com)
+You can also join our [community chat
+channel](https://gitter.im/composewell/streamly) on Gitter.
