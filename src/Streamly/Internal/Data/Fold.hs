@@ -589,7 +589,7 @@ stdDev = sqrt <$> variance
 --
 -- See https://en.wikipedia.org/wiki/Rolling_hash
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINABLE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
 rollingHashWithSalt = foldl' step
@@ -609,7 +609,7 @@ defaultSalt = -2578643520546668380
 --
 -- > rollingHash = Fold.rollingHashWithSalt defaultSalt
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINABLE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Fold m a Int64
 rollingHash = rollingHashWithSalt defaultSalt

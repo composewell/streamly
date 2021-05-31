@@ -395,7 +395,7 @@ length arr =  MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 readRev = Unfold.lmap unsafeThaw MA.readRev

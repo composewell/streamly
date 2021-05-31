@@ -59,7 +59,7 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 -- | Unfold standard input into a stream of 'Word8'.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m () Word8
 read = Unfold.lmap (\() -> stdin) Handle.read
@@ -87,7 +87,7 @@ getChars = Unicode.decodeUtf8 getBytes
 
 -- | Unfolds standard input into a stream of 'Word8' arrays.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m () (Array Word8)
 readChunks = Unfold.lmap (\() -> stdin) Handle.readChunks
@@ -129,14 +129,14 @@ getChunksLn = (Stream.splitWithSuffix (== '\n') f) getChars
 
 -- | Fold a stream of 'Word8' to standard output.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE write #-}
 write :: MonadIO m => Fold m Word8 ()
 write = Handle.write stdout
 
 -- | Fold a stream of 'Word8' to standard error.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE writeErr #-}
 writeErr :: MonadIO m => Fold m Word8 ()
 writeErr = Handle.write stderr
@@ -164,14 +164,14 @@ putChars = putBytes . Unicode.encodeUtf8
 
 -- | Fold a stream of @Array Word8@ to standard output.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE writeChunks #-}
 writeChunks :: MonadIO m => Fold m (Array Word8) ()
 writeChunks = Handle.writeChunks stdout
 
 -- | Fold a stream of @Array Word8@ to standard error.
 --
--- /Pre-release/
+-- @since 0.8.0
 {-# INLINE writeErrChunks #-}
 writeErrChunks :: MonadIO m => Fold m (Array Word8) ()
 writeErrChunks = Handle.writeChunks stderr
