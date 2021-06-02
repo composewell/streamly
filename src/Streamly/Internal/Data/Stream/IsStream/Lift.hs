@@ -68,7 +68,7 @@ generally xs = fromStreamS $ S.hoist (return . runIdentity) (toStreamS xs)
 -- | Lift the inner monad @m@ of a stream @t m a@ to @tr m@ using the monad
 -- transformer @tr@.
 --
--- / Internal/
+-- @since 0.8.0
 --
 {-# INLINE liftInner #-}
 liftInner :: (Monad m, IsStream t, MonadTrans tr, Monad (tr m))
@@ -81,7 +81,7 @@ liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 
 -- | Evaluate the inner monad of a stream as 'ReaderT'.
 --
--- / Internal/
+-- @since 0.8.0
 --
 {-# INLINE runReaderT #-}
 runReaderT :: (IsStream t, Monad m) => m s -> t (ReaderT s m) a -> t m a
@@ -146,7 +146,7 @@ usingStateT s f = evalStateT s . f . liftInner
 -- This is supported only for 'SerialT' as concurrent state updation may not be
 -- safe.
 --
--- / Internal/
+-- @since 0.8.0
 --
 {-# INLINE runStateT #-}
 runStateT :: Monad m => m s -> SerialT (StateT s m) a -> SerialT m (s, a)

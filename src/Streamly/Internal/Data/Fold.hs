@@ -389,7 +389,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
 --
--- See also: "Streamly.Prelude.mapM_"
+-- See also: 'Streamly.Prelude.mapM_'
 --
 -- @since 0.7.0
 {-# INLINABLE drainBy #-}
@@ -754,7 +754,7 @@ genericIndex i = mkFold step (Partial 0) (const Nothing)
 
 -- | Lookup the element at the given index.
 --
--- See also: "Streamly.Prelude.!!"
+-- See also: 'Streamly.Prelude.!!'
 --
 -- @since 0.7.0
 {-# INLINABLE index #-}

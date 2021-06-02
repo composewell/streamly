@@ -363,7 +363,7 @@ mapMStep f res =
 -- NOTE: The constructor is not yet exposed via exposed modules, smart
 -- constructors are provided to create folds.  If you think you need the
 -- constructor of this type please consider using the smart constructors in
--- "Streamly.Internal.Data.Fold' instead.
+-- "Streamly.Internal.Data.Fold" instead.
 --
 -- /since 0.8.0 (type changed)/
 --
@@ -406,7 +406,7 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 -- mkfoldlx step initial extract = fmap extract (foldl' step initial)
 -- @
 --
--- See also: "Streamly.Prelude.foldl'"
+-- See also: @Streamly.Prelude.foldl'@
 --
 -- @since 0.8.0
 --
@@ -428,7 +428,7 @@ foldl' step initial =
 -- mkFoldlxM step initial extract = rmapM extract (foldlM' step initial)
 -- @
 --
--- See also: "Streamly.Prelude.foldlM'"
+-- See also: @Streamly.Prelude.foldlM'@
 --
 -- @since 0.8.0
 --
@@ -440,7 +440,7 @@ foldlM' step initial =
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
 --
--- See also: "Streamly.Prelude.foldl1'"
+-- See also: @Streamly.Prelude.foldl1'@
 --
 -- /Pre-release/
 {-# INLINE foldl1' #-}
@@ -465,7 +465,7 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 --
 -- > toList = foldr (:) []
 --
--- See also: "Streamly.Prelude.foldr"
+-- See also: 'Streamly.Prelude.foldr'
 --
 -- @since 0.8.0
 {-# INLINE foldr #-}
@@ -481,7 +481,7 @@ foldr g z = fmap ($ z) $ foldl' (\f x -> f . g x) id
 --
 -- > toList = foldrM (\a xs -> return $ a : xs) (return [])
 --
--- See also: "Streamly.Prelude.foldrM"
+-- See also: 'Streamly.Prelude.foldrM'
 --
 -- /Pre-release/
 {-# INLINE foldrM #-}
@@ -851,7 +851,7 @@ data ConcatMapState m sa a c
 --
 -- /Time: O(n^2) where @n@ is the number of compositions./
 --
--- See also: "Streamly.Internal.Data.Stream.IsStream.foldIterateM"
+-- See also: 'Streamly.Internal.Data.Stream.IsStream.foldIterateM'
 --
 -- @since 0.8.0
 --
@@ -1081,7 +1081,7 @@ data ManyState s1 s2
 --
 -- Stops when @collect@ stops.
 --
--- See also: "Streamly.Prelude.concatMap", "Streamly.Prelude.foldMany"
+-- See also: 'Streamly.Prelude.concatMap', 'Streamly.Prelude.foldMany'
 --
 -- @since 0.8.0
 --
@@ -1143,7 +1143,7 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 --
 -- /Internal/
 --
--- /See also: Streamly.Prelude.concatMap, Streamly.Prelude.foldMany/
+-- /See also: 'Streamly.Prelude.concatMap', 'Streamly.Prelude.foldMany'/
 --
 {-# INLINE manyPost #-}
 manyPost :: Monad m => Fold m a b -> Fold m b c -> Fold m a c

@@ -543,7 +543,9 @@ mkAsyncD m = D.Stream step Nothing
 -- kicked off again to evaluate the remaining stream when there is space in the
 -- buffer.  The consumer consumes the stream lazily from the buffer.
 --
--- /Since: 0.8.0/
+-- /Since: 0.2.0 (Streamly)/
+--
+-- @since 0.8.0
 --
 {-# INLINE_NORMAL mkAsync #-}
 mkAsync :: (K.IsStream t, MonadAsync m) => t m a -> t m a
@@ -997,7 +999,13 @@ wAsync = joinStreamVarAsync WAsyncVar
 --
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
 -- contrast to the depth wise scheduling behavior of 'AsyncT'.
+--
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
 
+-- XXX This documentation is redundant, need to be cleaned up/removed.
+--
 -- @
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
@@ -1081,9 +1089,6 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- ThreadId 38: Delay 3
 -- @
 --
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
     deriving (MonadTrans)
 
