@@ -1,6 +1,6 @@
 ## Unreleased
 
-### Behavioral changes
+### Breaking behavior changes
 
 * `Streamly.Prelude.fold` may now terminate early without consuming the entire
   stream. For example, `fold Fold.head stream` would now terminate immediately
@@ -15,11 +15,11 @@
 * `encodeLatin1` now silently truncates any character beyond 255 to incorrect
   characters in the input stream. Use `encodeLatin1'` to recover previous
   functionality.
-* The zipping function in `Streamly.Prelude.zipWith` and
-  `Streamly.Prelude.zipWithM` is now applied concurrently for concurrent
+* The zipping functions `Streamly.Prelude.zipWith` and
+  `Streamly.Prelude.zipWithM` are now applied concurrently for concurrent
   streams.
 
-### Breaking changes
+### Breaking type changes
 
 * Change the signature of `foldlM'` to make the initial value of the
   accumulator monadic.
@@ -31,39 +31,59 @@
   require an additional `MonadAsync` constraint. Several other
   functions that used these functions also now require the additional
   constraint.
-* Remove `Applicative` instance of folds. Please use `teeWith` or the `Tee`
-  type as an alternative to Fold applicative. To convert existing code:
 
-  ```
-    avg = (/) <$> Fold.sum <*> Fold.length
-  ```
+Removed `Applicative` instance of folds. Please use `teeWith` or the `Tee`
+type as an alternative to Fold applicative.
 
-  Would become:
+To upgrade, the following code:
 
-  ```
-    import Streamly.Internal.Data.Fold.Tee (Tee(..))
-    import qualified Streamly.Internal.Data.Fold.Tee as Tee
-    avg = Tee.toFold $ (/) <$> Tee Fold.sum <*> Tee Fold.length
-  ```
+```
+  avg = (/) <$> Fold.sum <*> Fold.length
+```
 
-  Or
+can be changed to:
 
-  ```
-    avg = Fold.teeWith (/) Fold.sum Fold.length
-  ```
+```
+  import Streamly.Internal.Data.Fold.Tee (Tee(..))
+  import qualified Streamly.Internal.Data.Fold.Tee as Tee
+  avg = Tee.toFold $ (/) <$> Tee Fold.sum <*> Tee Fold.length
+```
+
+or alternatively to:
+
+```
+  avg = Fold.teeWith (/) Fold.sum Fold.length
+```
 
 ### Enhancements
 
-* `Streamly.Prelude`: Added delay, liftInner, runStateT, runReaderT,
-  intercalate, intercalateSuffix
-* `Streamly.Unicode.Stream`: New encoding/decoding routines,
-  `encodeUtf8'`, `encodeLatin1'`, `decodeUtf8'`, are added, these routines
-  fail when they encounter any invalid characters.
-* `Streamly.Data.Fold`: Several new functions added.
-* `Streamly.Data.Fold.Tee`: New module for distributive fold operations.
-* `Streamly.Data.Unfold`: Several Unfold routines and combinators added.
-* Streamly.Network.Socket: Added readChunk, writeChunk,
-  writeChunksWithBufferOf, forSocketM
+New modules:
+
+* Streamly.Console.Stdio
+* Streamly.Data.Fold.Tee
+
+New APIs:
+
+* `Streamly.Data.Fold`: Many APIs added.
+* `Streamly.Data.Unfold`: Many APIs added.
+* `Streamly.Prelude`:
+  * delay
+  * foldMany
+  * intercalate
+  * intercalateSuffix
+  * liftInner
+  * runReaderT
+  * runStateT
+  * unfoldMany
+* `Streamly.Unicode.Stream`:
+  * encodeUtf8'
+  * encodeLatin1'
+  * decodeUtf8'
+* `Streamly.Network.Socket`:
+  * readChunk
+  * writeChunk
+  * writeChunksWithBufferOf
+  * forSocketM
 
 ### Bug Fixes
 
@@ -79,48 +99,64 @@
 
 ### Deprecations
 
-* Deprecate `Streamly.Memory.Array` in favor of
-  `Streamly.Data.Array.Foreign`
-* Deprecate `Streamly.Data.Unicode.Stream` in favor of
-  `Streamly.Unicode.Stream`
-* The `Streamly` module is now deprecated, its functionality is subsumed
-  by `Streamly.Prelude`.
-* Some functions from `Streamly` module have been renamed in `Streamly.Prelude` module:
-    * `foldWith` to `concatFoldableWith`
-    * `foldMapWith` to `concatMapFoldableWith`
-    * `forEachWith` to `concatForFoldableWith`
-    * `serially` to `fromSerial` and so on
-* In `Streamly.Prelude` the following functions have been renamed:
-    * `concatUnfold` to `unfoldMany`
-    * `yield` to `fromPure`
-    * `yieldM` to `fromEffect`
-* The following encoding/decoding routines have been renamed:
-    * `encodeUtf8Lax` to `encodeUtf8`
-    * `encodeLatin1Lax` to `encodeLatin1`
-    * `decodeUtf8Lenient` to `decodeUtf8`
-* Drop support for GHC 7.10.3.
-* The following functions in `Streamly.Data.Fold` have been deprecated:
-    * `mapM` is replaced by `rmapM`
-    * `sequence` is dprecated, please use `rmapM id` instead.
+Modules renamed:
 
-### Internal APIs
+* `Streamly` => Streamly.Prelude`
+* `Streamly.Data.Unicode.Stream` => `Streamly.Unicode.Stream`
+* `Streamly.Memory.Array` => `Streamly.Data.Array.Foreign`
 
-* `Streamly.Internal.Prelude` renamed to `Streamly.Internal.Data.Stream.IsStream`
-* Parser functionality is added via `Streamly.Internal.Data.Parser` module
-* `Streamly.Internal.Data.Binary.Decode` module added for decoding Haskell
-   values from binary data.
-* FileSystem event notification (fsnotify/inotify) functionality added via
-  `Streamly.Internal.FileSystem.Event.*` modules.
+APIs renamed:
+
+* In `Streamly.Prelude` module (formerly in `Streamly` module):
+    * `foldWith` => `concatFoldableWith`
+    * `foldMapWith` => `concatMapFoldableWith`
+    * `forEachWith` => `concatForFoldableWith`
+    * `serially` => `fromSerial` and so on
+* In `Streamly.Prelude`:
+    * `concatUnfold` => `unfoldMany`
+    * `yield` => `fromPure`
+    * `yieldM` => `fromEffect`
+* In `Streamly.Unicode.Stream` (formerly `Streamly.Data.Unicode.Stream`):
+    * `encodeUtf8Lax` => `encodeUtf8`
+    * `encodeLatin1Lax` => `encodeLatin1`
+    * `decodeUtf8Lenient` => `decodeUtf8`
+* In `Streamly.Data.Fold`:
+    * `mapM` => `rmapM`
+
+APIs deprecated:
+
+* `sequence`: Please use `rmapM id` instead.
+
+### Notable Internal/Pre-release API Changes
+
+Breaking changes:
+
 * The `Fold` type has changed to accomodate terminating folds.
-* Added `use-c-malloc` build flag to use the c library `malloc` for array
-  allocations.
-* A bug was fixed in the conversion of MicroSecond64 and MilliSecond64
+* Rename: `Streamly.Internal.Prelude` => `Streamly.Internal.Data.Stream.IsStream`
+* Several other internal modules have been renamed and refactored.
+
+New modules:
+
+* `Streamly.Internal.Data.Parser`: parser combinators
+* `Streamly.Internal.Data.Binary.Decode`: decode Haskell values from binary data.
+* `Streamly.Internal.FileSystem.Event.*`: fsnotify/inotify
+* `Streamly.Internal.Data.Array.Stream.Fold.Foreign`: array stream folds
+
+New features:
+
+* `use-c-malloc` build flag to use the c library `malloc` for array
+  allocations. This could be useful to avoid pinned memory fragmentation.
+
+Bug fixes:
+
+* A bug was fixed in the conversion of `MicroSecond64` and `MilliSecond64`
   (commit e5119626)
-* Bug fix: classifySessionsBy now flushes sessions at the end and terminates.
+* Bug fix: `classifySessionsBy` now flushes sessions at the end and terminates.
 
 ### Miscellaneous
 
-* The examples in this package are removed to a new github repo
+* Drop support for GHC 7.10.3.
+* The examples in this package are moved to a new github repo
   [streamly-examples](https://github.com/composewell/streamly-examples)
 
 ## 0.7.3 (February 2021)
