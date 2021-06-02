@@ -4,23 +4,13 @@
 
 ### Compiler (GHC) Versions
 
-For best performance use GHC 8.10 or 8.8 along with `fusion-plugin`
-(see below).  Benchmarks show that GHC 8.8 has significantly better
-performance than GHC 8.6 in many cases.
+GHC 8.6 and above are recommended.  For best performance use GHC 8.8 or
+8.10 along with `fusion-plugin` (see below).  Benchmarks show that GHC
+8.8 has significantly better performance than GHC 8.6 in many cases.
 
-Please do not use GHC 9.0 for sensitive applications, initial
-evaluations have shown severe perf regressions with GHC 9.0.
-
-GHC versions 8.6 onwards are fully supported along with `fusion-plugin`.
-`fusion-plugin` is not supported for GHC versions below 8.6.
-
-GHC versions 8.0 onwards are supported without `fusion-plugin`. However, note
-that some packages we depend on (e.g. `network`) may support only last three
-major versions of GHC.
-
-GHC 8.2.2 may hog memory and hang when building certain applications using
-streamly (particularly the benchmark programs in the streamly package).
-Therefore, we recommend avoiding using the GHC version 8.2.x.
+GHC 9.0 has some performance issues, please see [this issue]
+(https://github.com/composewell/streamly/issues/1061) for details.
+However, upcoming minor version updates may fix some of these issues.
 
 ### Memory requirements
 
