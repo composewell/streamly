@@ -384,7 +384,7 @@ generate n gen = generateM n (return . gen)
 
 {-# INLINE_NORMAL iterateM #-}
 iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
-iterateM step = Stream (\_ st -> st >>= \x -> return $ Yield x (step x))
+iterateM step = Stream (\_ st -> st >>= \(!x) -> return $ Yield x (step x))
 
 {-# INLINE_NORMAL iterate #-}
 iterate :: Monad m => (a -> a) -> a -> Stream m a

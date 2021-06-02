@@ -96,6 +96,8 @@ New APIs:
 * `bracket`, `handle`, and `finally` now work on streams that aren't
   fully drained. Also, the resource acquisition and release is atomic with
   respect to async exceptions.
+* Fix a performance issue in `Streamly.Prelude.iterate/iterateM` that caused it
+  to consume O(n) space.
 
 ### Deprecations
 

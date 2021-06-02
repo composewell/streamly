@@ -24,7 +24,9 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import System.Random (randomRIO)
 import Prelude hiding
-    (tail, mapM_, foldl, last, map, mapM, concatMap, zipWith, init)
+    ( tail, mapM_, foldl, last, map, mapM, concatMap, zipWith, init, iterate
+    , repeat, replicate
+    )
 
 import qualified Prelude as P
 import qualified Data.List as List
@@ -44,12 +46,6 @@ import Test.Inspection
 
 Benchmarks that need to be added
 
--- repeat
--- repeatM
--- replicate
--- replicateM
--- iterate
--- iterateM
 -- fromList
 
 -- bindWith
@@ -137,6 +133,30 @@ unfoldrM streamLen n = S.unfoldrM step n
         if cnt > n + streamLen
         then return Nothing
         else return (Just (cnt, cnt + 1))
+
+{-# INLINE repeat #-}
+repeat :: Int -> Int -> Stream m Int
+repeat streamLen = S.take streamLen . S.repeat
+
+{-# INLINE repeatM #-}
+repeatM :: S.MonadAsync m => Int -> Int -> Stream m Int
+repeatM streamLen = S.take streamLen . S.repeatM . return
+
+{-# INLINE replicate #-}
+replicate :: Int -> Int -> Stream m Int
+replicate = S.replicate
+
+{-# INLINE replicateM #-}
+replicateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+replicateM streamLen = S.replicateM streamLen . return
+
+{-# INLINE iterate #-}
+iterate :: Int -> Int -> Stream m Int
+iterate streamLen = S.take streamLen . S.iterate (+1)
+
+{-# INLINE iterateM #-}
+iterateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateM streamLen = S.take streamLen . S.iterateM (return . (+1)) . return
 
 {-# INLINE fromFoldable #-}
 fromFoldable :: Int -> Int -> Stream m Int
@@ -570,8 +590,14 @@ moduleName = "Data.Stream.StreamK"
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =
     bgroup "generation"
-        [ benchFold "unfoldr"       drain (unfoldr streamLen)
-        , benchFold "unfoldrM"      drain (unfoldrM streamLen)
+        [ benchFold "unfoldr" drain (unfoldr streamLen)
+        , benchFold "unfoldrM" drain (unfoldrM streamLen)
+        , benchFold "repeat" drain (repeat streamLen)
+        , benchFold "repeatM" drain (repeatM streamLen)
+        , benchFold "replicate" drain (replicate streamLen)
+        , benchFold "replicateM" drain (replicateM streamLen)
+        , benchFold "iterate" drain (iterate streamLen)
+        , benchFold "iterateM" drain (iterateM streamLen)
 
         , benchFold "fromFoldable"  drain (fromFoldable streamLen)
         , benchFold "fromFoldableM" drain (fromFoldableM streamLen)
