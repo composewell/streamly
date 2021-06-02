@@ -316,16 +316,16 @@ fromIndices gen = go 0
 
 {-# INLINE iterate #-}
 iterate :: IsStream t => (a -> a) -> a -> t m a
-iterate step = fromStream . go
+iterate step = go
     where
-        go s = cons s (go (step s))
+        go !s = cons s (go (step s))
 
 {-# INLINE iterateM #-}
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
 iterateM step = go
     where
     go s = mkStream $ \st stp sng yld -> do
-        next <- s
+        !next <- s
         foldStreamShared st stp sng yld (return next |: go (step next))
 
 -------------------------------------------------------------------------------
