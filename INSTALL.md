@@ -6,7 +6,7 @@ SPDX-License-Identifer: BSD-3-Clause
 # Getting started with the `streamly` package
 
 This guide will show you how to write a simple program that uses
-`streamly`, using the [`cabal`](https://www.haskell.org/cabal/) build
+[Streamly][], using the [`cabal`](https://www.haskell.org/cabal/) build
 manager for Haskell.
 
 <!-- TODO: Add instructions for `stack` and `nix`.
@@ -21,13 +21,11 @@ to run a command-line shell under `msys` and some of the commands
 below may also need to be changed in small ways to make them work.
 
 **Note**: If you are new to Haskell you may find the [Haskell Getting
-Started
-Guide](https://github.com/composewell/haskell-dev/blob/master/getting-started.rst)
-to be useful.
+Started Guide][haskell-getting-started] to be useful.
 
 If you know your way around Haskell, and have an up to date toolchain
 already installed, then you can jump straight to the section titled
-"[_Prepare Your Build Directory_](#user-content-prepare-your-build-directory)".
+"[_Prepare Your Build Directory_](#prepare-your-build-directory)".
 
 ## Getting started with `streamly` using `cabal`
 
@@ -284,15 +282,18 @@ streamly][streamly-github] on Github.
 If you got this far successfully, congratulations!
 
 * For an overview of the `streamly` package, please read the
-  [Streamly Tutorial][tutorial].
+  [Streamly Quick Overview](README.md) and [Streamly Tutorial][tutorial].
 * Please browse the code examples in the
-  [`examples`](./examples/README.md) directory.
+  [`Streamly examples repository`][streamly-examples].
 * If you would like to start on a real world project, please take a
-  look at the [recommended compilation options](./docs/Build.md).
-
+  look at the [Streamly Build and Optimization Guide](./docs/Build.md).
+* For more information please visit the [Streamly Homepage][Streamly].
 
 <!-- Markdown Links -->
 
- [tutorial]: https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html
+ [Streamly]: https://streamly.composewell.com/
+ [tutorial]: https://hackage.haskell.org/package/streamly-0.7.3/docs/Streamly-Tutorial.html
  [streamly-hackage]: https://hackage.haskell.org/package/streamly
  [streamly-github]: https://github.com/composewell/streamly
+ [streamly-examples]: https://github.com/composewell/streamly-examples
+ [haskell-getting-started]: https://github.com/composewell/haskell-dev/blob/master/getting-started.rst

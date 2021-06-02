@@ -3,7 +3,37 @@
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
-  [Streamly]: https://streamly.composewell.com/
+<!--
+Link References.
+-->
+
+[Streamly]: https://streamly.composewell.com/
+[streamly-examples]: https://github.com/composewell/streamly-examples
+[streaming-benchmarks]: https://github.com/composewell/streaming-benchmarks
+[concurrency-benchmarks]: https://github.com/composewell/concurrency-benchmarks
+
+<!--
+Keep all the unstable links here so that they can be updated to stable
+links (for online docs) before we release.
+-->
+
+<!-- examples -->
+[WordCountModular.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs
+[WordCount.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs
+[WordCount.c]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c
+[WordCountParallel.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs
+[WordCountUTF8.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs
+[WordServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs
+[MergeServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs
+[ListDir.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs
+[Rate.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/Rate.hs
+[AcidRain.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs
+[CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
+
+<!-- local files -->
+[LICENSE]: https://github.com/composewell/streamly/blob/master/LICENSE
+[CONTRIBUTING.md]: https://github.com/composewell/streamly/blob/master/CONTRIBUTING.md
+[docs]: https://github.com/composewell/streamly/blob/master/docs/
 
 Streamly is a Haskell library that provides the building blocks to build
 safe, scalable, modular and high performance software.  Streamly offers:
@@ -91,10 +121,8 @@ example, we will use `Fold`s to count the number of bytes, words and lines
 present in a file.  We will then compose individual `Fold`s together to
 count words, bytes and lines at the same time.
 
-Please see the file
-[WordCountModular.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs)
-for the complete example program, including the imports that we have
-omitted here.
+Please see the file [WordCountModular.hs][] for the complete example
+program, including the imports that we have omitted here.
 
 #### Count Bytes (wc -c)
 
@@ -185,7 +213,7 @@ We compare two equivalent implementations: one using [Streamly][],
 and the other using C.
 
 The performance of the [Streamly word counting
-implementation](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs) is:
+implementation][WordCount.hs] is:
 
 ```
 $ time WordCount-hs gutenberg-500MB.txt
@@ -196,7 +224,7 @@ user    0m1.697s
 sys     0m0.128s
 ```
 
-The performance of an equivalent [wc implementation in C](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c) is:
+The performance of an equivalent [wc implementation in C][WordCount.c] is:
 
 ```
 $ time WordCount-c gutenberg-500MB.txt
@@ -217,10 +245,8 @@ To count words in parallel we first divide the stream into chunks
 counts across chunks.  We use the same code as above except that we use
 arrays for our input data.
 
-Please see the file
-[WordCountParallel.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs)
-for the complete working code for this example, including the imports
-that we have omitted below.
+Please see the file [WordCountParallel.hs][] for the complete working
+code for this example, including the imports that we have omitted below.
 
 The `countArray` function counts the line, word, char counts in one chunk:
 
@@ -235,7 +261,7 @@ countArray arr =
 ```
 
 Here the function `count` and the `Counts` data type are defined in the
-`WordCount` helper module defined in [WordCount.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs).
+`WordCount` helper module defined in [WordCount.hs][].
 
 When combining the counts in two contiguous chunks, we need to check
 whether the first element of the next chunk is a whitespace character
@@ -299,9 +325,8 @@ user    0m1.952s
 sys     0m0.140s
 ```
 
-These example programs have assumed ASCII encoded
-input data.  For UTF-8 streams, we have a [concurrent wc
-implementation](https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs)
+These example programs have assumed ASCII encoded input data.  For UTF-8
+streams, we have a [concurrent wc implementation][WordCountUTF8.hs]
 with UTF-8 decoding.  This concurrent implementation performs as well
 as the standard `wc` program in serial benchmarks. In concurrent mode
 [Streamly][]'s implementation can utilise multiple processing cores if
@@ -321,10 +346,8 @@ dictionary lookup server which can serve word meanings to multiple
 clients concurrently.  This example demonstrates the use of the concurrent
 `mapM` combinator.
 
-Please see the file
-[WordServer.hs](https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs)
-for the complete code for this example, including the imports that we
-have omitted below.
+Please see the file [WordServer.hs][] for the complete code for this
+example, including the imports that we have omitted below.
 
 ```haskell
 import qualified Streamly.Data.Fold as Fold
@@ -376,10 +399,8 @@ the merged logs are written to a file or to a network destination.
 This example uses the `concatMapWith` combinator to merge multiple
 streams concurrently.
 
-Please see the file
-[MergeServer.hs](https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs)
-for the complete working code, including the imports that we have
-omitted below.
+Please see the file [MergeServer.hs][] for the complete working code,
+including the imports that we have omitted below.
 
 ```haskell
 import qualified Streamly.Data.Unfold as Unfold
@@ -425,10 +446,8 @@ values back to the input, while it lets the `Right` values (file names
 in this case) pass through to the output. The `Stream.ahead` stream
 joining combinator then makes it iterate on the directories concurrently.
 
-Please see the file
-[ListDir.hs](https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs)
-for the complete working code, including the imports that we have
-omitted below.
+Please see the file [ListDir.hs][] for the complete working code,
+including the imports that we have omitted below.
 
 ```haskell
 import Streamly.Internal.Data.Stream.IsStream (iterateMapLeftsWith)
@@ -469,17 +488,14 @@ main =
     & Stream.mapM_ print            -- IO ()
 ```
 
-Please see the file
-[Rate.hs](https://github.com/composewell/streamly-examples/blob/master/examples/Rate.hs)
-for the complete working code.
+Please see the file [Rate.hs][] for the complete working code.
 
 The concurrency of the stream is automatically controlled to match the
 specified rate. [Streamly][]'s rate control works precisely even at
 throughputs as high as millions of yields per second.
 
-For more sophisticated rate control needs please see the [Haddock
-documentation](https://hackage.haskell.org/package/streamly-0.7.3/docs/Streamly.html)
-for the Streamly.
+For more sophisticated rate control needs please see the Streamly [reference
+documentation][Streamly].
 
 ### Reactive Programming
 
@@ -491,23 +507,21 @@ Please also see the pre-release sampling combinators in the
 `Streamly.Internal.Data.Stream.IsStream.Top` module for `throttle` and
 `debounce` like operations.
 
-The examples
-[AcidRain.hs](https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs)
-and
-[CirclingSquare.hs](https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs)
-demonstrate reactive programming using [Streamly][].
+The examples [AcidRain.hs][] and [CirclingSquare.hs][] demonstrate
+reactive programming using [Streamly][].
 
 ### More Examples
 
 If you would like to view more examples, please visit the [Streamly
-Examples](https://github.com/composewell/streamly-examples) web page.
+Examples][streamly-examples] web page.
 
 ### Further Reading
 
-* [Streaming Benchmarks](https://github.com/composewell/streaming-benchmarks) | [Concurrency Benchmarks](https://github.com/composewell/concurrency-benchmarks)
-* [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
+* [Streaming Benchmarks][streaming-benchmarks]
+* [Concurrency Benchmarks][concurrency-benchmarks]
+* Functional Conf 2019 [Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
 * [Other Guides](docs/)
-* [Streamly Homepage](https://streamly.composewell.com)
+* [Streamly Homepage][Streamly]
 
 ## Performance
 
@@ -536,8 +550,8 @@ you use this plugin for applications that are performance sensitive.
 
 We measured several Haskell streaming implementations
 using various micro-benchmarks. Please see the [streaming
-benchmarks](https://github.com/composewell/streaming-benchmarks) page
-for a detailed comparison of Streamly against other streaming libraries.
+benchmarks][streaming-benchmarks] page for a detailed comparison of
+Streamly against other streaming libraries.
 
 Our results show that [Streamly][] is the fastest effectful streaming
 implementation on almost all the measured microbenchmarks. In many cases
@@ -558,8 +572,8 @@ programming with streams and arrays, for reading and writing from the
 file system and from the network, for time domain programming (reactive
 programming), and for reacting to file system events using `fsnotify`.
 
-Please view [Streamly's documentation](https://streamly.composewell.com)
-for more information about Streamly's features.
+Please view [Streamly's documentation][Streamly] for more information
+about Streamly's features.
 
 ### Concurrency
 
@@ -577,9 +591,8 @@ very little overhead even where the task size is very
 small, because Streamly will automatically switch between
 serial or batched execution of tasks on the same CPU depending
 on whichever is more efficient.  Please see our [concurrency
-benchmarks](https://github.com/composewell/concurrency-benchmarks) for
-more detailed performance measurements, and for a comparison with the
-`async` package.
+benchmarks][concurrency-benchmarks] for more detailed performance
+measurements, and for a comparison with the `async` package.
 
 ### Design Goals
 
@@ -618,14 +631,13 @@ list of contributors, credits and licenses.
 ## Licensing
 
 Streamly is an [open source](https://github.com/composewell/streamly)
-project available under a liberal [BSD-3-Clause
-license](https://github.com/composewell/streamly/blob/master/LICENSE).
+project available under a liberal [BSD-3-Clause license][LICENSE]
 
 ## Contributing to Streamly
 
 As an open project we welcome contributions:
 
-* [Streamly Contributor's Guide](CONTRIBUTING.md)
+* [Streamly Contributor's Guide][CONTRIBUTING.md]
 * [Contact the streamly development team](mailto:streamly@composewell.com)
 
 ## Getting Support
