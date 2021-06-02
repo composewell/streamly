@@ -1,11 +1,11 @@
 cabal-version:      2.2
 name:               streamly
 version:            0.7.2
-synopsis:           Data flow programming and declarative concurrency
+synopsis:           Dataflow programming and declarative concurrency
 description:
   <https://streamly.composewell.com Streamly> is a framework to build
   reliable and scalable software systems from modular building blocks
-  using data flow programming (streaming) and declarative concurrency.
+  using dataflow programming (streaming) and declarative concurrency.
   Powerful stream fusion framework in streamly allows high-performance,
   modular combinatorial programming. Key features include:
   .
@@ -28,7 +28,7 @@ description:
   <https://streamly.composewell.com Streamly homepage>.
   .
 
-homepage:            https://github.com/composewell/streamly
+homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD-3-Clause
 license-file:        LICENSE
