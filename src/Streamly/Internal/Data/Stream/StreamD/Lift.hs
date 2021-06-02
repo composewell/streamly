@@ -92,7 +92,7 @@ evalStateT initial (Stream step state) = Stream step' (state, initial)
     {-# INLINE_LATE step' #-}
     step' gst (st, action) = do
         sv <- action
-        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        (r, !sv') <- State.runStateT (step (adaptState gst) st) sv
         return $ case r of
             Yield x s -> Yield x (s, return sv')
             Skip  s   -> Skip (s, return sv')
@@ -105,7 +105,7 @@ runStateT initial (Stream step state) = Stream step' (state, initial)
     {-# INLINE_LATE step' #-}
     step' gst (st, action) = do
         sv <- action
-        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        (r, !sv') <- State.runStateT (step (adaptState gst) st) sv
         return $ case r of
             Yield x s -> Yield (sv', x) (s, return sv')
             Skip  s   -> Skip (s, return sv')
