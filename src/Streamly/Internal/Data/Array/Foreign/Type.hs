@@ -294,14 +294,18 @@ fromCString# addr# = do
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINABLE fromListN #-}
 fromListN :: Storable a => Int -> [a] -> Array a
 fromListN n xs = unsafeFreeze $ MA.fromListN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
 fromList xs = unsafeFreeze $ MA.fromList xs
@@ -388,7 +392,9 @@ byteLength = MA.byteLength . unsafeThaw
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
 length arr =  MA.length (unsafeThaw arr)
@@ -456,7 +462,9 @@ splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
 
 -- | Convert an 'Array' into a list.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINE toList #-}
 toList :: Storable a => Array a -> [a]
 toList = MA.toList . unsafeThaw
@@ -468,7 +476,9 @@ toList = MA.toList . unsafeThaw
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
@@ -531,7 +541,9 @@ toArrayMinChunk alignSize elemCount =
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write

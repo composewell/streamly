@@ -219,7 +219,9 @@ fromStream = P.fold A.write
 
 -- | Unfold an array into a stream.
 --
--- @since 0.7.0
+-- /Since 0.7.0 (Streamly.Memory.Array)/
+--
+-- @since 0.8.0
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 read = Unfold.lmap A.unsafeThaw MA.read
