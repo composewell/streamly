@@ -59,8 +59,8 @@ or alternatively to:
 
 New modules:
 
-* Streamly.Console.Stdio
-* Streamly.Data.Fold.Tee
+* `Streamly.Console.Stdio`
+* `Streamly.Data.Fold.Tee`
 
 New APIs:
 
@@ -103,7 +103,7 @@ New APIs:
 
 Modules renamed:
 
-* `Streamly` => Streamly.Prelude`
+* `Streamly` => `Streamly.Prelude`
 * `Streamly.Data.Unicode.Stream` => `Streamly.Unicode.Stream`
 * `Streamly.Memory.Array` => `Streamly.Data.Array.Foreign`
 
@@ -127,15 +127,15 @@ APIs renamed:
 
 APIs deprecated:
 
-* `sequence`: Please use `rmapM id` instead.
+* In `Streamly.Data.Fold`, `sequence`: Please use `rmapM id` instead.
 
 ### Notable Internal/Pre-release API Changes
 
 Breaking changes:
 
-* The `Fold` type has changed to accomodate terminating folds.
+* The `Fold` type has changed to accommodate terminating folds.
 * Rename: `Streamly.Internal.Prelude` => `Streamly.Internal.Data.Stream.IsStream`
-* Several other internal modules have been renamed and refactored.
+* Several other internal modules have been renamed and re-factored.
 
 New modules:
 
