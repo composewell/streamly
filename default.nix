@@ -69,6 +69,20 @@ let haskellPackages =
                           sha256 = "1g7j50wa7ffyizv6fdnr09dr4w7bc0hskb46h7y0paw6rh9yz4zj";
                         } {};
 
+                    tasty-bench =
+                      super.callHackageDirect
+                        { pkg = "tasty-bench";
+                          ver = "0.2.5";
+                          sha256 = "052vd87dcik77x6nfbivdibyxyd3byqy4akchr1mrz0hd5ll8apg";
+                        } {};
+
+                    tasty =
+                      super.callHackageDirect
+                        { pkg = "tasty";
+                          ver = "1.4.1";
+                          sha256 = "0g1280gcpcvjbmyk83jv3y9gs2z7fvmcagi9rfs8c9x036nvjq6c";
+                        } {};
+
                     # Example to Use a different version of a package
                     #QuickCheck = self.QuickCheck_2_14;
 
