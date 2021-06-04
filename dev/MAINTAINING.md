@@ -26,71 +26,98 @@
 * If this is a major release check if any previously deprecated features are to
   be removed in this release.
 * Check pre-release APIs to be exposed, especially from streamly-examples
-* PVP is ahered to, do not change pre-release APIs in a minor release
+* PVP is adhered to, additionally do not change pre-release APIs in a
+  minor release
 
 * _Documentation_:
 
-    * README is updated
+    * README is updated, links in README are stable. Run `rg '/blob/'`
+      and `rg '/tree/'` to search for github links, replace `master` ref
+      with release tag where possible (e.g. streamly-examples). Ideally,
+      the distribution process should automatically replace these with
+      current stable references.
     * Haddock docs are consistent with the changes in the release
     * Tutorial has been updated for new changes
     * Documents in the `docs` directory are consistent with new changes
     * All combinators have time and space complexity annotations
     * All combinators have `since` annotation
+    * Modules that were renamed or APIs that moved to other modules should be
+      marked as "since" the current release.
+    * Check all released modules to ensure that they do not have any leftover
+      `Internal` or `Pre-release` annotations.
     * Unreleased combinators should be marked with `Pre-release` or
       `Internal` annotations
+    * Streamly homepage is updated with the release docs
+      * FileSystem.Event.Windows/Darwin modules require special handling
 
 * _Build and Test_:
 
     * All CIs are green
+    * Run tests using bin/test.sh to test with memory restrictions
     * Manually build and test for all flags (esp. `dev` flag) not covered by CIs
-    * Test latest GHC version with -O0 and -O1
+    * Test prime GHC version with -O0 and -O1
 
 * _Benchmarks_:
 
     * Check regressions from previous release
-    * Run benchmarks with large stream size (`bench.sh -- long`) to
+    * Run benchmarks with large stream size (`bench.sh --long`) to
       check for space leaks and to ensure constant memory usage for streaming
       operations.
     * Run benchmarks with `dev` flag on. Some `fileio` benchmarks are disabled
       in regular runs.
     * Check comparative benchmarks using streaming-benchmarks
 
-* _Examples_:
+* _Dependencies_:
+
+    * Make sure all dependency bounds can use latest versions
+    * Update `stack.yaml` to latest stable resolver, cleanup extra-deps
+    * Make sure fusion-plugin is up to date and uploaded
+    * Check the dependency footprint of the library. See
+      [Generating Dependency Graph](#generating-dependency-graph) section.
+
+* _Dependent Packages_:
 
     * Update
       [streamly-examples](https://github.com/composewell/streamly-examples)
       to make sure it runs with the latest release.
     * Check the performance of examples where applicable
+    * Update streamly-bytestring
+    * Consider updating other packages e.g. streamly-process, streamly-lz4
 
 * _Update Package Metadata:_
 
-    * Update `stack.yaml` to latest stable resolver, cleanup extra-deps
     * Make sure the description in cabal file is in sync with README and other docs
     * Make sure CI configs include last three major releases of GHC in CI testing.
-    * Update `tested-with` field
-    * Make sure all dependency bounds can use latest versions
+    * Update GHC `tested-with` field
+    * Update `docs/building.md` with the distributions tested with
     * Make sure any additional files are added to `extra-source-files` in cabal
-      file
+      file. Artifacts required for build, test, benchmarks, docs, licenses
+      should be packaged. Build environment customization may or may not be
+      packaged.
 
-* Copyrights and Contibutors
+* _Copyrights and Contibutors_
 
     * Make sure contributors to the release are listed in
       `credits/CONTRIBUTORS.md`.
     * Bump the release version in `credits/CONTRIBUTORS.md`.
     * Make sure any third party code included in the release has been listed in
       `credits/COPYRIGHTS.md` and the license is added to the repo.
-    * Change the `Unreleased` section, if exists, at the top of
-      `credits/COPYRIGHTS.md` to the new release version number.
+    * Bump the release version in `credits/COPYRIGHTS.md`.
 
 * _Update changelog & Version_:
 
+    * Find API changes using `cabal-diff streamly 0.8.0 .` and record
+      them in docs/API-changelog.txt.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
+    * Bump the package version in configure.ac and run autoreconf
     * Change the `Unreleased` section at the top of changelog file to the new
       release version number.
     * Bump the package version in cabal file or package.yaml
-    * Bump the package version in configure.ac and run autoreconf
+    * Bump the package version in any docs/links, use something like
+      `rg '0\.7\.'|grep -v -i since` to find any remaining occurrences of the
+      old release.  Check `rg -i unreleased` for any remaining todos.
 
 * _Upload_:
 
@@ -262,3 +289,20 @@ cannot know whether the release number on top is unreleased or released.
 ## TODO
 
 * GPG signed releases and tags
+
+## Generating Dependency Graph
+
+Ways to get the dependencies. In the streamly package top dir:
+
+```
+# Keep only streamly in the packages section of stack.yaml
+$ stack --system-ghc dot . --external|dot -Tpdf > streamly.pdf
+```
+
+Using nix, remove the test and benchmark components from
+`shellFor/packages` in `default.nix` to get library only
+dependencies. May show additional ghc boot libraries.
+
+```
+$ nix-shell --run "ghc-pkg dot | dot -Tpdf > streamly.pdf"
+```
