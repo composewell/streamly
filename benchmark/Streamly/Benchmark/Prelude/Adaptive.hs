@@ -19,6 +19,9 @@ import System.Random (randomRIO)
 -- Also, the worker dispatch depends on the worker dispatch latency which is
 -- set to fixed 200 us. We need to keep that in mind when designing tests.
 
+moduleName :: String
+moduleName = "Prelude.Adaptive"
+
 value :: Int
 value = 1000
 
@@ -78,7 +81,11 @@ randomVar = run (low,high) (low,high)
 
 main :: IO ()
 main =
-  defaultMain
+  defaultMain [bgroup moduleName allBenchmarks]
+
+  where
+
+  allBenchmarks =
     [
       bgroup "serialConstantSlowConsumer"
       [ bench "serially"    $ nfIO $ alwaysConstSlowSerial fromSerial
