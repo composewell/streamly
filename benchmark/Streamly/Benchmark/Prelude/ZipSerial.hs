@@ -60,8 +60,8 @@ zipWith count n =
     S.drain $
     S.zipWith
         (,)
-        (S.fromSerial $ Main.sourceUnfoldrM count n)
-        (S.fromSerial $ Main.sourceUnfoldrM count (n + 1))
+        (S.fromSerial $ sourceUnfoldrM count n)
+        (S.fromSerial $ sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zipWith
@@ -75,8 +75,8 @@ zipWithM count n =
     S.drain $
     S.zipWithM
         (curry return)
-        (Main.sourceUnfoldrM count n)
-        (Main.sourceUnfoldrM count (n + 1))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zipWithM
@@ -125,7 +125,7 @@ o_1_space_outerProduct value =
 -- passed using the --stream-size option.
 --
 main :: IO ()
-main = runWithCLIOpts defaultStreamSize allBenchmarks    
+main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 

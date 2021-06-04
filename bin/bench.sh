@@ -8,6 +8,7 @@ source $SCRIPT_DIR/build-lib.sh
 print_help () {
   echo "Usage: $0 "
   echo "       [--benchmarks <"bench1 bench2 ..." | help>]"
+  echo "       [--prefix <benchmark name prefix to match>"
   echo "       [--fields <"field1 field2 ..." | help>]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
@@ -142,11 +143,58 @@ bench_output_file() {
     echo "charts/$bench_name/results.csv"
 }
 
+invoke_gauge () {
+    local target_prog="$1"
+    local target_name="$2"
+    local output_file="$3"
+
+    local MATCH=""
+    if test "$LONG" -ne 0
+    then
+      MATCH="$target_name/o-1-space"
+    else
+      MATCH="$BENCH_PREFIX"
+    fi
+    echo "name,iters,time,cycles,cpuTime,utime,stime,maxrss,minflt,majflt,nvcsw,nivcsw,allocated,numGcs,bytesCopied,mutatorWallSeconds,mutatorCpuSeconds,gcWallSeconds,gcCpuSeconds" >> $output_file
+    # keep only benchmark names with shortest prefix e.g. "a/b/c" and "a/b", we
+    # should only keep "a/b" otherwise benchmarks will run multiple times. why?
+    $target_prog -l \
+      | grep "^$target_name" \
+      | grep "^$MATCH" \
+      | sort \
+      | awk 'BEGIN {prev="XXX"} {if (substr($0,1,length(prev)) != prev) {print $0; prev=$0}}' \
+      | while read -r name; \
+  do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
+}
+
+invoke_tasty_bench () {
+    local target_prog="$1"
+    local target_name="$2"
+    local output_file="$3"
+
+    local MATCH=""
+    if test "$LONG" -ne 0
+    then
+      MATCH="-p /$target_name\/o-1-space/"
+    else
+        if test -n "$BENCH_PREFIX"
+        then
+          # escape "/"
+          local escaped_name=$(echo "$BENCH_PREFIX" | sed -e 's/\//\\\//g')
+          MATCH="-p /$escaped_name/"
+        fi
+    fi
+    echo "Name,cpuTime,2*Stdev (ps),Allocated,bytesCopied" >> $output_file
+    $target_prog -l $MATCH \
+      | grep "^All" \
+      | while read -r name; \
+          do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
+}
+
 run_bench_target () {
   local package_name=$1
   local component=$2
   local target_name=$3
-  local output_file=$(bench_output_file $target_name)
 
   local target_prog
   target_prog=$(cabal_target_prog $package_name $component $target_name) || \
@@ -156,46 +204,16 @@ run_bench_target () {
 
   # Needed by bench-exec-one.sh
   export BENCH_EXEC_PATH=$target_prog
-  if test "$LONG" -ne 0
-  then
-      BENCH_ARGS="-p /$target_name\/o-1-space/"
-      STREAM_SIZE=10000000
-      export STREAM_SIZE
-  fi
+  export RTS_OPTIONS
+  export QUICK_MODE
+  export USE_GAUGE
+  export LONG
 
-  local MATCH=""
+  local output_file=$(bench_output_file $target_name)
+  mkdir -p `dirname $output_file`
   if test "$USE_GAUGE" -eq 0
-  then
-    if test "$LONG" -ne 0
-    then
-      MATCH="-p /$target_name\/o-1-space/"
-    else
-        if test -n "$GAUGE_ARGS"
-        then
-          local GAUGE_ARGS1=$(echo "$GAUGE_ARGS" | sed -e 's/\//\\\//g')
-          MATCH="-p /$GAUGE_ARGS1/"
-        fi
-    fi
-    echo "Name,cpuTime,2*Stdev (ps),Allocated,bytesCopied" >> $output_file
-    $target_prog -l $MATCH \
-      | grep "^All" \
-      | while read -r name; do bin/bench-exec-one.sh "$name"; done
-  else
-    if test "$LONG" -ne 0
-    then
-      MATCH="$target_name/o-1-space"
-    else
-      MATCH="$GAUGE_ARGS"
-    fi
-    echo "name,iters,time,cycles,cpuTime,utime,stime,maxrss,minflt,majflt,nvcsw,nivcsw,allocated,numGcs,bytesCopied,mutatorWallSeconds,mutatorCpuSeconds,gcWallSeconds,gcCpuSeconds" >> $output_file
-    # XXX We may have to use "sort | awk" to keep only benchmark names with
-    # shortest prefix e.g. "a/b/c" and "a/b", we should only keep "a/b"
-    # otherwise benchmarks will run multiple times.
-    $target_prog -l \
-      | grep "^$target_name" \
-      | grep "^$MATCH" \
-      | sort | paste -sd "," - | awk 'BEGIN {FS=","} {t="XU987"; for(i=1;i<=NF;i++) if (substr($i,1,length(t)) != t) {print $i; t=$i}}' \
-      | while read -r name; do bin/bench-exec-one.sh "$name"; done
+  then invoke_tasty_bench "$target_prog" "$target_name" "$output_file"
+  else invoke_gauge "$target_prog" "$target_name" "$output_file"
   fi
 }
 
@@ -284,7 +302,6 @@ run_reports() {
 cd $SCRIPT_DIR/..
 
 USE_GAUGE=0
-export USE_GAUGE
 USE_GIT_CABAL=1
 set_common_vars
 
@@ -318,6 +335,7 @@ do
     # options with arguments
     --benchmarks) shift; TARGETS=$1; shift ;;
     --targets) shift; TARGETS=$1; shift ;;
+    --prefix) shift; BENCH_PREFIX="$1" shift ;;
     --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
@@ -334,13 +352,13 @@ do
     --long) LONG=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
-    --dev-build) RUNNING_DEVBUILD=1; shift ;;    
+    --dev-build) RUNNING_DEVBUILD=1; shift ;;
+    --use-gauge) USE_GAUGE=1; shift ;;
     --) shift; break ;;
-    -*|--*) echo "Unknown flags: $*"; echo; print_help ;;
-    *) break ;;
+    *) echo "Unknown flags: $*"; echo; print_help ;;
   esac
 done
-GAUGE_ARGS=$*
+GAUGE_ARGS=("$@")
 
 set_derived_vars
 
@@ -414,13 +432,15 @@ build_report_progs
 # Build and run targets
 #-----------------------------------------------------------------------------
 
-BUILD_BENCH="$CABAL_EXECUTABLE v2-build $CABAL_BUILD_OPTIONS --enable-benchmarks"
+if test "$USE_GAUGE" -eq 1
+then
+  BUILD_FLAGS="--flag use-gauge"
+fi
+
+BUILD_BENCH="$CABAL_EXECUTABLE v2-build $BUILD_FLAGS $CABAL_BUILD_OPTIONS --enable-benchmarks"
 if test "$MEASURE" = "1"
 then
   run_build "$BUILD_BENCH" streamly-benchmarks bench "$TARGETS"
-  export QUICK_MODE
-  export RTS_OPTIONS
-  export LONG
   run_measurements "$TARGETS"
 fi
 

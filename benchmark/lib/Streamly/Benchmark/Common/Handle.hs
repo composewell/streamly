@@ -106,7 +106,7 @@ getHandles env mkHandles = do
             }
 
     -- update
-    writeIORef (href env) $ refHandles
+    writeIORef (href env) refHandles
     return $ mkHandles refHandles
 
 mkBenchCommon ::

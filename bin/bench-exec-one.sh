@@ -4,6 +4,8 @@
 # BENCH_EXEC_PATH: the benchmark executable
 # RTS_OPTIONS: additional RTS options
 # QUICK_MODE: whether we are in quick mode
+# USE_GAUGE: whether to use gauge or tasty-bench
+# LONG: whether to use a large stream size
 
 # $1: message
 die () {
@@ -42,6 +44,9 @@ bench_rts_opts_default () {
 }
 
 # Overrides for specific benchmarks
+# XXX Note: for tasty-bench we replace the "." separator in the benchmark names
+# with "/" for matching with this. It may not work reliably if the benchmark
+# name already contains ".".
 bench_rts_opts_specific () {
   case "$1" in
     Data.Stream.StreamD/o-n-space/elimination/toList) echo -n "-K2M" ;;
@@ -103,43 +108,46 @@ bench_rts_opts_specific () {
 if test "$USE_GAUGE" -eq 0
 then
   SUPER_QUICK_OPTIONS="--stdev 1000000"
-  QUICKER_OPTIONS="--stdev 1000"
+  QUICKER_OPTIONS="--stdev 100"
 else
   # Do not keep time limit as 0 otherwise GC stats may remain 0 in some cases.
   SUPER_QUICK_OPTIONS="--quick --min-duration 0 --time-limit 0.01 --include-first-iter"
   QUICKER_OPTIONS="--min-samples 3 --time-limit 1"
 fi
 
+# tasty-bench does not like an option set twice
+set_super_quick_mode () {
+    echo -n super_quick
+}
+
 # For certain long benchmarks if the user has not requested super quick
 # mode we anyway use a slightly quicker mode.
 use_quicker_mode () {
-  if test -n "$QUICK_MODE"
+  if test "$QUICK_MODE" -eq 0
   then
-    if test "$QUICK_MODE" -eq 0
-    then
-      echo $QUICKER_OPTIONS
-    fi
+    echo quicker
   fi
 }
 
 bench_exe_quick_opts () {
   case "$1" in
-    Prelude.Concurrent) echo -n "$SUPER_QUICK_OPTIONS" ;;
-    Prelude.Rate) echo -n "$SUPER_QUICK_OPTIONS" ;;
-    Prelude.Adaptive) echo -n "$SUPER_QUICK_OPTIONS" ;;
+    Prelude.Concurrent) set_super_quick_mode ;;
+    Prelude.Rate) set_super_quick_mode ;;
+    Prelude.Adaptive) set_super_quick_mode;;
     *) echo -n "" ;;
   esac
 }
 
+# XXX Note: for tasty-bench we replace the "." separator in the benchmark names
+# with "/" for matching with this. It may not work reliably if the benchmark
+# name already contains ".".
+
 # Use quick options for benchmarks that take too long
 bench_quick_opts () {
   case "$1" in
-    Prelude.Parallel/o-n-heap/mapping/mapM)
-        echo -n "$SUPER_QUICK_OPTIONS" ;;
-    Prelude.Parallel/o-n-heap/monad-outer-product/*)
-        echo -n "$SUPER_QUICK_OPTIONS" ;;
-    Prelude.Parallel/o-n-space/monad-outer-product/*)
-        echo -n "$SUPER_QUICK_OPTIONS" ;;
+    Prelude.Parallel/o-n-heap/mapping/mapM) set_super_quick_mode ;;
+    Prelude.Parallel/o-n-heap/monad-outer-product/*) set_super_quick_mode ;;
+    Prelude.Parallel/o-n-space/monad-outer-product/*) set_super_quick_mode ;;
     Prelude.Parallel/o-n-heap/generation/*) use_quicker_mode ;;
     Prelude.Parallel/o-n-heap/mapping/*) use_quicker_mode ;;
     Prelude.Parallel/o-n-heap/concat-foldable/*) use_quicker_mode ;;
@@ -163,11 +171,12 @@ bench_output_file() {
     echo "charts/$bench_name/results.csv"
 }
 
-BENCH_NAME_ORIG=""
-for i in "$@"
-do
-    BENCH_NAME_ORIG="$i"
-done
+#------------------------------------------------------------------------------
+# Determine options from benchmark name
+#------------------------------------------------------------------------------
+
+BENCH_NAME_ORIG="$1"
+shift
 
 if test "$USE_GAUGE" -eq 0
 then
@@ -178,16 +187,8 @@ then
   BENCH_NAME1=$(echo $BENCH_NAME | cut -f1 -d '/')
   BENCH_NAME2=$(echo $BENCH_NAME | cut -f2- -d '/' | sed -e 's/\./\//g')
   BENCH_NAME="$BENCH_NAME1/$BENCH_NAME2"
-  JOB_OPT=" -j 1"
 else
   BENCH_NAME=$BENCH_NAME_ORIG
-  JOB_OPT=""
-fi
-if test "$LONG" -eq 0
-then
-  SIZE_OPT=""
-else
-  SIZE_OPT="--stream-size 1000000"
 fi
 
 RTS_OPTIONS=\
@@ -198,28 +199,65 @@ $(bench_rts_opts_specific $BENCH_NAME) \
 $RTS_OPTIONS \
 -RTS"
 
-QUICK_BENCH_OPTIONS="\
-$(if test "$QUICK_MODE" -ne 0; then echo $SUPER_QUICK_OPTIONS; else :; fi)
+QUICK_MODE_TYPE="\
+$(if test "$QUICK_MODE" -ne 0; then set_super_quick_mode; fi) \
 $(bench_exe_quick_opts $(basename $BENCH_EXEC_PATH)) \
 $(bench_quick_opts $BENCH_NAME)"
 
-output_file=$(bench_output_file $(basename $BENCH_EXEC_PATH))
-mkdir -p `dirname $output_file`
+for i in $QUICK_MODE_TYPE
+do
+  case "$i" in
+    super_quick) QUICK_BENCH_OPTIONS="$SUPER_QUICK_OPTIONS"; break ;;
+    quicker) QUICK_BENCH_OPTIONS="$QUICKER_OPTIONS"; break ;;
+  esac
+done
+
+if test "$LONG" -ne 0
+then
+  STREAM_SIZE=10000000
+  STREAM_LEN=$(env LC_ALL=en_US.UTF-8 printf "--stream-size %'.f\n" $STREAM_SIZE)
+  STREAM_SIZE_OPT="--stream-size $STREAM_SIZE"
+fi
 
 echo "$BENCH_NAME: \
-$QUICK_BENCH_OPTIONS \
-$RTS_OPTIONS"
+$RTS_OPTIONS \
+$STREAM_LEN \
+$QUICK_BENCH_OPTIONS" \
+"$@"
 
+#------------------------------------------------------------------------------
+# Run benchmark with options and collect results
+#------------------------------------------------------------------------------
+
+output_file=$(bench_output_file $(basename $BENCH_EXEC_PATH))
+mkdir -p `dirname $output_file`
 rm -f ${output_file}.tmp
+
 if test $USE_GAUGE -eq 0
 then
+  # Escape "\" and double quotes in benchmark names
   BENCH_NAME_ESC=$(echo "$BENCH_NAME_ORIG" | sed -e 's/\\/\\\\/g' | sed -e 's/"/\\"/g')
-  $BENCH_EXEC_PATH $SIZE_OPT $JOB_OPT $RTS_OPTIONS $QUICK_BENCH_OPTIONS --csv=${output_file}.tmp \
+  $BENCH_EXEC_PATH \
+    -j 1 \
+    $RTS_OPTIONS \
+    $STREAM_SIZE_OPT \
+    $QUICK_BENCH_OPTIONS \
+    "$@" \
+    --csv=${output_file}.tmp \
     -p '$0 == "'"$BENCH_NAME_ESC"'"'
+
+  # Convert cpuTime field from picoseconds to seconds
   tail -n +2 ${output_file}.tmp | \
-    awk 'BEGIN {FPAT = "([^,]+)|(\"[^\"]+\")";OFS=","} {$2=$2/1000000000000;print}' >> $output_file
+    awk 'BEGIN {FPAT = "([^,]+)|(\"[^\"]+\")";OFS=","} {$2=$2/1000000000000;print}' \
+    >> $output_file
 else
-  $BENCH_EXEC_PATH $SIZE_OPT $RTS_OPTIONS $QUICK_BENCH_OPTIONS --csvraw=${output_file}.tmp \
+  $BENCH_EXEC_PATH \
+    $RTS_OPTIONS \
+    $STREAM_SIZE_OPT \
+    $QUICK_BENCH_OPTIONS \
+    "$@" \
+    --csvraw=${output_file}.tmp \
     -m exact "$BENCH_NAME"
-  tail -n +2 ${output_file}.tmp >> $output_file
+  tail -n +2 ${output_file}.tmp \
+    >> $output_file
 fi

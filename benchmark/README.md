@@ -1,3 +1,12 @@
+# Benchmarking
+
+## Benchmark Dirvers
+
+Two benchmark drivers are supported:
+
+* `tasty-bench` (default)
+* `gauge` (enabled by `--use-gauge` build flag)
+
 ## Building a single benchmark suite
 
 ```
@@ -30,15 +39,18 @@ $ cabal build --flag "-opt" ...
 
 ## Build and run single benchmarks:
 
-For quick results you may have to use `--quick` and possibly some other
-`gauge` options, or better use `bench.sh --quick` as described in the
-following sections.
+The benchmark executables are `tasty-bench` executables unless you have
+passed `--use-gauge` cabal flag when building in which case it is a
+`gauge` executable.
+
+For quick results you may have to use a large value for `--stdev` or use
+`bench.sh --quick` as described in the following sections.
 
 ```
-$ cabal run bench:Prelude.Serial -- --quick
+$ cabal run bench:Prelude.Serial -- --stdev 100000
 ```
 
-`cabal bench` can be used but you cannot pass arguments (like --quick):
+`cabal bench` can be used but you cannot pass arguments (like --stdev):
 
 ```
 $ cabal bench Prelude.Serial
@@ -104,7 +116,7 @@ $ bench.sh --benchmarks "Prelude.Serial Data.Parser"
 Run all O(1) space complexity benchmarks in `Prelude.Serial` suite:
 
 ```
-$ bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space
+$ bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space
 ```
 
 Anything after a `--` is passed to the benchmark executable,
@@ -114,13 +126,13 @@ it basically selects all benchmarks starting with
 Run a specific benchmark in `Prelude.Serial` suite:
 
 ```
-$ bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
+$ bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space/generation/unfoldr
 ```
 
 Run a benchmark directly instead of running it through `bench.sh`:
 
 ```
-$ cabal run bench:Prelude.Serial -- --quick Prelude.Serial/o-1-space/generation/unfoldr
+$ cabal run bench:Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
 ```
 
 The options after `--` are the benchmark executable options.
@@ -212,7 +224,7 @@ You can specify the stream size (default is 100000) to be used for
 benchmarking:
 
 ```
-$ cabal run bench:Prelude.Serial -- --quick --stream-size 1000000
+$ cabal run bench:Prelude.Serial -- --stream-size 1000000
 ```
 
 ### Unicode input
@@ -222,7 +234,7 @@ environment variable:
 
 ```
 $ export Benchmark_FileSystem_Handle_InputFile=./gutenberg-500.txt
-$ cabal run FileSystem.Handle -- --quick FileSystem.Handle/o-1-space/reduce/read/S.splitOnSeq
+$ cabal run FileSystem.Handle -- FileSystem.Handle/o-1-space/reduce/read/S.splitOnSeq
 ```
 
 The automatic tests do not test unicode input, this option is useful to specify
@@ -230,10 +242,9 @@ a unicode text file manually.
 
 ## Benchmarking notes
 
-We use gauge instead of criterion for benchmarking. We have fixed
-several issues in gauge inherited from criterion. We have added several
-features as well e.g. rusage stats, running benchmarks in an isolated
-process etc which are crucial to our benchmarking analysis process.
+We run each benchmark in an isolated process to minimize interference
+of benchmarks and to be able to control the RTS memory restrictions per
+benchmark.
 
 ### Gotchas
 
