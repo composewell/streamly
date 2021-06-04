@@ -5,8 +5,6 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-{-# LANGUAGE CPP #-}
-
 import Prelude hiding (mapM)
 
 import Streamly.Prelude (fromWAsync, fromSerial, wAsync, maxBuffer, maxThreads)
@@ -170,7 +168,7 @@ o_n_space_outerProduct value =
 
 main :: IO ()
 main = runWithCLIOpts defaultStreamSize allBenchmarks
-    
+
     where
 
     allBenchmarks value =

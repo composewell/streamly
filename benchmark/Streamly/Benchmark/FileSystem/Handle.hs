@@ -44,11 +44,11 @@ moduleName = "FileSystem.Handle"
 main :: IO ()
 main = do
     env <- mkHandleBenchEnv
-    runWithCLIOpts defaultStreamSize (allBenchmarks env)
+    defaultMain (allBenchmarks env)
 
     where
 
-    allBenchmarks env _ =
+    allBenchmarks env =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
             [ RO.allBenchmarks env
             , RW.allBenchmarks env
