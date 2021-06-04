@@ -106,6 +106,7 @@ extra-source-files:
     docs/*.md
     docs/*.hs
     docs/*.svg
+    docs/API-changelog.txt
     docs/streamly-docs.cabal
     examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs

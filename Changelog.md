@@ -1,130 +1,62 @@
+# Changelog
+
+<!-- See rendered changelog at https://streamly.composewell.com -->
+
 ## Unreleased
 
-### Breaking behavior changes
+See [API Changelog](docs/API-changelog.txt) for a complete list of signature
+changes and new APIs introduced.
 
-* `Streamly.Prelude.fold` may now terminate early without consuming the entire
-  stream. For example, `fold Fold.head stream` would now terminate immediately
-  after consuming the head element from `stream`. This may result in change of
-  behavior in existing programs if the program relies on the evaluation of the
-  full stream.
-* Change the associativity of combinators `serial`, `wSerial`,
-  `ahead`, `async`, `wAsync`, `parallel` to be the same as `<>`.
-* `encodeUtf8`, `decodeUtf8` now replace any invalid character encountered
-  during encoding/decoding with the Unicode replacement character. Use
-  `encodeUtf8'`, `decodeUtf8'` to recover the previous functionality.
-* `encodeLatin1` now silently truncates any character beyond 255 to incorrect
-  characters in the input stream. Use `encodeLatin1'` to recover previous
-  functionality.
+### Breaking changes
 
-### Breaking type changes
-
-* Change the signature of `foldlM'` to make the initial value of the
-  accumulator monadic.
-* Change the signature of `scanlM'`, `postscanlM'` to make the initial value of
-  the accumulator monadic.
-* Change the signature of `concatMapWith` to ensure that it can be
-  used with a wide variety of combining functions.
-* Exception handling functions `bracket`, `handle`, `finally` now
-  require an additional `MonadAsync` constraint. Several other
-  functions that used these functions also now require the additional
-  constraint.
-
-Removed `Applicative` instance of folds. Please use `teeWith` or the `Tee`
-type as an alternative to Fold applicative.
-
-To upgrade, the following code:
-
-```
-  avg = (/) <$> Fold.sum <*> Fold.length
-```
-
-can be changed to:
-
-```
-  import Streamly.Internal.Data.Fold.Tee (Tee(..))
-  import qualified Streamly.Internal.Data.Fold.Tee as Tee
-  avg = Tee.toFold $ (/) <$> Tee Fold.sum <*> Tee Fold.length
-```
-
-or alternatively to:
-
-```
-  avg = Fold.teeWith (/) Fold.sum Fold.length
-```
-
-### Enhancements
-
-New modules:
-
-* `Streamly.Console.Stdio`
-* `Streamly.Data.Fold.Tee`
-
-New APIs:
-
-* `Streamly.Data.Fold`: Many APIs added.
-* `Streamly.Data.Unfold`: Many APIs added.
-* `Streamly.Prelude`:
-  * delay
-  * foldMany
-  * intercalate
-  * intercalateSuffix
-  * liftInner
-  * runReaderT
-  * runStateT
-  * unfoldMany
-* `Streamly.Unicode.Stream`:
-  * encodeUtf8'
-  * encodeLatin1'
-  * decodeUtf8'
-* `Streamly.Network.Socket`:
-  * readChunk
-  * writeChunk
-  * writeChunksWithBufferOf
-  * forSocketM
+* `Streamly.Prelude`
+    * `fold`: this function may now terminate early without consuming
+      the entire stream. For example, `fold Fold.head stream` would
+      now terminate immediately after consuming the head element from
+      `stream`. This may result in change of behavior in existing programs
+      if the program relies on the evaluation of the full stream.
+* `Streamly.Data.Unicode.Stream`
+    * The following APIs no longer throw errors on invalid input, use new
+      APIs suffixed with a prime for strict behavior:
+        * decodeUtf8
+        * encodeLatin1
+        * encodeUtf8
+* `Streamly.Data.Fold`:
+    * Several instances have been moved to the `Streamly.Data.Fold.Tee`
+      module, please use the `Tee` type to adapt to the changes.
 
 ### Bug Fixes
 
-* The monadic state for the stream is now propagated across threads. Please
-  refer to [#369](https://github.com/composewell/streamly/issues/369) for
-  more info.
-* `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`
-  API in `Streamly.Network.Socket` now close the socket if an exception is
+* Concurrent Streams: The monadic state for the stream is now propagated across
+  threads. Please refer to
+  [#369](https://github.com/composewell/streamly/issues/369) for more info.
+* `Streamly.Prelude`:
+    * `bracket`, `handle`, and `finally` now also work correctly on streams
+      that aren't fully drained. Also, the resource acquisition and release is
+      atomic with respect to async exceptions.
+    * `iterate`, `iterateM` now consume O(1) space instead of O(n).
+    * `fromFoldableM` is fixed to be concurrent.
+* `Streamly.Network.Inet.TCP`: `accept` and `connect` APIs now close the socket
+  if an exception is thrown.
+* `Streamly.Network.Socket`: `accept` now closes the socket if an exception is
   thrown.
-* `bracket`, `handle`, and `finally` now work on streams that aren't
-  fully drained. Also, the resource acquisition and release is atomic with
-  respect to async exceptions.
-* Fix a performance issue in `Streamly.Prelude.iterate/iterateM` that caused it
-  to consume O(n) space.
 
-### Deprecations
+### Enhancements
 
-Modules renamed:
+* See [API Changelog](docs/API-changelog.txt) for a complete list of new
+  modules and APIs introduced.
+* The Fold type is now more powerful, the new termination behavior allows
+  to express basic parsing of streams using folds.
+* Many new Fold and Unfold APIs are added.
+* A new module for console IO APIs is added.
+* Experimental modules for the following are added:
+    * Parsing
+    * Deserialization
+    * File system event handling (fsnotify/inotify)
+    * Folds for streams of arrays
+* Experimental `use-c-malloc` build flag to use the c library `malloc` for
+  array allocations. This could be useful to avoid pinned memory fragmentation.
 
-* `Streamly` => `Streamly.Prelude`
-* `Streamly.Data.Unicode.Stream` => `Streamly.Unicode.Stream`
-* `Streamly.Memory.Array` => `Streamly.Data.Array.Foreign`
-
-APIs renamed:
-
-* In `Streamly.Prelude` module (formerly in `Streamly` module):
-    * `foldWith` => `concatFoldableWith`
-    * `foldMapWith` => `concatMapFoldableWith`
-    * `forEachWith` => `concatForFoldableWith`
-    * `serially` => `fromSerial` and so on
-* In `Streamly.Prelude`:
-    * `concatUnfold` => `unfoldMany`
-    * `yield` => `fromPure`
-    * `yieldM` => `fromEffect`
-* In `Streamly.Unicode.Stream` (formerly `Streamly.Data.Unicode.Stream`):
-    * `encodeUtf8Lax` => `encodeUtf8`
-    * `encodeLatin1Lax` => `encodeLatin1`
-    * `decodeUtf8Lenient` => `decodeUtf8`
-* In `Streamly.Data.Fold`:
-    * `mapM` => `rmapM`
-
-APIs deprecated:
-
-* In `Streamly.Data.Fold`, `sequence`: Please use `rmapM id` instead.
 
 ### Notable Internal/Pre-release API Changes
 
@@ -133,18 +65,6 @@ Breaking changes:
 * The `Fold` type has changed to accommodate terminating folds.
 * Rename: `Streamly.Internal.Prelude` => `Streamly.Internal.Data.Stream.IsStream`
 * Several other internal modules have been renamed and re-factored.
-
-New modules:
-
-* `Streamly.Internal.Data.Parser`: parser combinators
-* `Streamly.Internal.Data.Binary.Decode`: decode Haskell values from binary data.
-* `Streamly.Internal.FileSystem.Event.*`: fsnotify/inotify
-* `Streamly.Internal.Data.Array.Stream.Fold.Foreign`: array stream folds
-
-New features:
-
-* `use-c-malloc` build flag to use the c library `malloc` for array
-  allocations. This could be useful to avoid pinned memory fragmentation.
 
 Bug fixes:
 
