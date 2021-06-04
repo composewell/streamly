@@ -16,8 +16,7 @@ module Streamly.Benchmark.Common
     , o_n_heap_prefix
     , o_n_stack_prefix
 
-   -- , parseEnvOpts
-    , parseCLIOpts
+    , runWithCLIOptsEnv
     , runWithCLIOpts
 
     , benchIOSink1
@@ -33,14 +32,6 @@ module Streamly.Benchmark.Common
     , mkListString
 
     , defaultStreamSize
-    , BenchOpts(..)
-#ifndef MIN_VERSION_gauge
-    , OptionDescription(..)
-    , includingOptions
-    , lookupOption
-    , defaultMainWithIngredients
-    , parseOptions
-#endif
     )
 where
 
@@ -54,10 +45,11 @@ import System.Console.GetOpt
        (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt')
 import System.Environment (getArgs, lookupEnv, setEnv)
 #else
-import Data.Proxy
-import Test.Tasty.Ingredients.Basic
+import Data.Proxy (Proxy(..))
+import Test.Tasty.Ingredients.Basic (includingOptions)
 import Test.Tasty.Options
-import Test.Tasty.Runners
+    (IsOption(..), OptionDescription(..), lookupOption, safeRead)
+import Test.Tasty.Runners (Ingredient, defaultMainWithIngredients, parseOptions)
 #endif
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
@@ -230,27 +222,37 @@ instance IsOption BenchOpts where
     defaultValue = StreamSize defaultStreamSize
     parseValue = fmap StreamSize . safeRead
     optionName = pure "stream-size"
-    optionHelp = pure "StreamSize used in benchmarks"
+    optionHelp = pure "Size of the stream to be used in benchmarks"
 
 parseCLIOpts :: Int -> Benchmark -> IO (Int, [Ingredient])
-parseCLIOpts cDefSize benches = do
+parseCLIOpts defStreamSize benches = do
     let customOpts  = [Test.Tasty.Options.Option (Proxy :: Proxy BenchOpts)]
         ingredients = includingOptions customOpts : benchIngredients
-    opts <- parseOptions ingredients benches
+    opts <- parseOptions ingredients benches -- (TestGroup "" [])
     let StreamSize size = lookupOption opts
-    print $ "Stream-Size = " ++ show size
-    if size == defaultStreamSize        -- LONG option is not set
-    then return (cDefSize, ingredients) -- use custom defaut size of Benchmark
-    else return (size, ingredients)     -- LONG option is set use large stream size
+    -- putStrLn $ "Stream size: " ++ show size
+    if size == defaultStreamSize
+    then return (defStreamSize, ingredients)
+    else return (size, ingredients)
+#endif
+
+runWithCLIOptsEnv :: Int -> (Int -> IO a) -> (a -> Int -> [Benchmark]) -> IO ()
+runWithCLIOptsEnv defStreamSize alloc mkBench = do
+
+#ifdef MIN_VERSION_gauge
+    (value, cfg, benches) <- parseCLIOpts defStreamSize
+    r <- alloc value
+    value `seq` runMode (mode cfg) cfg benches (mkBench r value)
+#else
+    (value, ingredients) <-
+        parseCLIOpts defStreamSize $ bgroup "All" (mkBench undefined 0)
+    r <- alloc value
+    value `seq` defaultMainWithIngredients ingredients
+        $ bgroup "All" (mkBench r value)
 #endif
 
 runWithCLIOpts :: Int -> (Int -> [Benchmark]) -> IO ()
-runWithCLIOpts cDefSize f = do
-
-#ifdef MIN_VERSION_gauge
-    (value, cfg, benches) <- parseCLIOpts cDefSize
-    value `seq` runMode (mode cfg) cfg benches (f value)
-#else
-    (value, ingredients) <- parseCLIOpts cDefSize $ bgroup "All" (f 0)
-    value `seq` defaultMainWithIngredients ingredients $ bgroup "All" (f value)
-#endif
+runWithCLIOpts defStreamSize f =
+    runWithCLIOptsEnv defStreamSize
+        (const $ return undefined)
+        (\_ v -> f v)

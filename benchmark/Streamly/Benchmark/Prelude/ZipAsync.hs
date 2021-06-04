@@ -6,7 +6,6 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE CPP #-}
 
 import Streamly.Prelude (fromSerial)
 import qualified Streamly.Prelude  as S
