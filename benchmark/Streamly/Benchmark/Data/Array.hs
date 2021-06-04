@@ -165,7 +165,7 @@ moduleName :: String
 #ifdef DATA_SMALLARRAY
 moduleName = "Data.SmallArray"
 #elif defined(MEMORY_ARRAY)
-moduleName = "Memory.Array"
+moduleName = "Data.Array.Foreign"
 #elif defined(DATA_ARRAY_PRIM)
 moduleName = "Data.Array.Prim"
 #elif defined(DATA_ARRAY_PRIM_PINNED)
