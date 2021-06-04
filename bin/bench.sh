@@ -161,8 +161,6 @@ invoke_gauge () {
     $target_prog -l \
       | grep "^$target_name" \
       | grep "^$MATCH" \
-      | sort \
-      | awk 'BEGIN {prev="XXX"} {if (substr($0,1,length(prev)) != prev) {print $0; prev=$0}}' \
       | while read -r name; \
   do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
 }
