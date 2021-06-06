@@ -7,6 +7,9 @@
 # USE_GAUGE: whether to use gauge or tasty-bench
 # LONG: whether to use a large stream size
 
+set -e
+set -o pipefail
+
 # $1: message
 die () {
   >&2 echo -e "Error: $1"
@@ -183,9 +186,9 @@ then
   # XXX this is a hack to make the "/" separated names used in the functions
   # determining options based on benchmark name. For tasty-bench the benchmark
   # names are separated by "." instead of "/".
-  BENCH_NAME=$(echo $BENCH_NAME_ORIG | sed -e s/^All\.//)
-  BENCH_NAME1=$(echo $BENCH_NAME | cut -f1 -d '/')
-  BENCH_NAME2=$(echo $BENCH_NAME | cut -f2- -d '/' | sed -e 's/\./\//g')
+  BENCH_NAME0=$(echo $BENCH_NAME_ORIG | sed -e s/^All\.//)
+  BENCH_NAME1=$(echo $BENCH_NAME0 | cut -f1 -d '/')
+  BENCH_NAME2=$(echo $BENCH_NAME0 | cut -f2- -d '/' | sed -e 's/\./\//g')
   BENCH_NAME="$BENCH_NAME1/$BENCH_NAME2"
 else
   BENCH_NAME=$BENCH_NAME_ORIG
@@ -219,7 +222,7 @@ then
   STREAM_SIZE_OPT="--stream-size $STREAM_SIZE"
 fi
 
-echo "$BENCH_NAME: \
+echo "$BENCH_NAME_ORIG: \
 $RTS_OPTIONS \
 $STREAM_LEN \
 $QUICK_BENCH_OPTIONS" \

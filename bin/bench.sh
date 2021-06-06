@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -o pipefail
+
 SCRIPT_DIR=$(cd `dirname $0`; pwd)
 
 RUNNING_BENCHMARKS=y
@@ -333,7 +335,7 @@ do
     # options with arguments
     --benchmarks) shift; TARGETS=$1; shift ;;
     --targets) shift; TARGETS=$1; shift ;;
-    --prefix) shift; BENCH_PREFIX="$1" shift ;;
+    --prefix) shift; BENCH_PREFIX="$1"; shift ;;
     --fields) shift; FIELDS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
