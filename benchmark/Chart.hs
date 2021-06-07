@@ -25,17 +25,23 @@ data BenchType
 
 data Options = Options
     { genGraphs :: Bool
+    , sortByName :: Bool
     , benchType :: Maybe BenchType
     , fields :: [String]
     } deriving Show
 
 defaultOptions :: Options
-defaultOptions = Options False Nothing ["time"]
+defaultOptions = Options False False Nothing ["time"]
 
 setGenGraphs :: Monad m => Bool -> StateT (a, Options) m ()
 setGenGraphs val = do
     (args, opts) <- get
     put (args, opts { genGraphs = val })
+
+setSortByName :: Monad m => Bool -> StateT (a, Options) m ()
+setSortByName val = do
+    (args, opts) <- get
+    put (args, opts { sortByName = val })
 
 setBenchType :: Monad m => BenchType -> StateT (a, Options) m ()
 setBenchType val = do
@@ -88,6 +94,7 @@ parseOptions = do
     parseOpt opt =
         case opt of
             "--graphs"    -> setGenGraphs True
+            "--sort-by-name" -> setSortByName True
             "--benchmark" -> parseBench
             "--fields"    -> parseFields
             str -> do
@@ -140,15 +147,20 @@ showComparisons Options{..} cfg inp out =
 ------------------------------------------------------------------------------
 
 selectBench
-    :: (SortColumn -> Maybe GroupStyle -> Either String [(String, Double)])
+    :: Bool
+    -> (SortColumn -> Maybe GroupStyle -> Either String [(String, Double)])
     -> [String]
-selectBench f =
+selectBench sortName f =
     reverse
     $ fmap fst
     $ either
-      (const $ either error (sortOn snd) $ f (ColumnIndex 0) (Just PercentDiff))
-      (sortOn snd)
+      (const $ either error sortFunc $ f (ColumnIndex 0) (Just PercentDiff))
+      sortFunc
       $ f (ColumnIndex 1) (Just PercentDiff)
+
+    where
+
+    sortFunc = if sortName then sortOn fst else sortOn snd
 
 benchShow ::
        Options
@@ -172,7 +184,7 @@ main = do
         Just opts@Options{fields = fs, benchType = btype} ->
             let cfg = defaultConfig
                     { presentation = Groups PercentDiff
-                    , selectBenchmarks = selectBench
+                    , selectBenchmarks = selectBench (sortByName opts)
                     , selectFields = filter
                         ( flip elem fs
                         . fmap toLower
