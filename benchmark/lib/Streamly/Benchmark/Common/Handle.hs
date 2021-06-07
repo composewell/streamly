@@ -38,7 +38,7 @@ import Data.Char (ord, chr)
 import Data.Word (Word8)
 import System.Directory (getFileSize)
 import System.Environment (lookupEnv)
-import System.IO (openFile, IOMode(..), Handle, hClose)
+import System.IO (openFile, IOMode(..), Handle, hClose, stderr, hPutStrLn)
 import System.Process.Typed (shell, runProcess_)
 
 import Data.IORef
@@ -187,13 +187,13 @@ mkHandleBenchEnv = do
                 runProcess_ (shell (cmd inFileBig bigFileSize))
                 return (inFileSmall, inFileBig)
 
-    putStrLn $ "Using small input file: " ++ small
+    hPutStrLn stderr $ "Using small input file: " ++ small
     smallHandle <- openFile small ReadMode
 
-    putStrLn $ "Using big input file: " ++ big
+    hPutStrLn stderr $ "Using big input file: " ++ big
     bigHandle <- openFile big ReadMode
 
-    putStrLn $ "Using output file: " ++ outfile
+    hPutStrLn stderr $ "Using output file: " ++ outfile
     outHandle <- openFile outfile WriteMode
     devNull <- openFile "/dev/null" WriteMode
 
