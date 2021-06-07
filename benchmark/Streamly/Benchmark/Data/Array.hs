@@ -169,7 +169,7 @@ moduleName = "Data.Array.Foreign"
 #elif defined(DATA_ARRAY_PRIM)
 moduleName = "Data.Array.Prim"
 #elif defined(DATA_ARRAY_PRIM_PINNED)
-moduleName = "Data.Array.Prim.Pinnned"
+moduleName = "Data.Array.Prim.Pinned"
 #else
 moduleName = "Data.Array"
 #endif
