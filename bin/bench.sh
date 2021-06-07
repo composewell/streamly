@@ -162,7 +162,6 @@ invoke_gauge () {
     # keep only benchmark names with shortest prefix e.g. "a/b/c" and "a/b", we
     # should only keep "a/b" otherwise benchmarks will run multiple times. why?
     $target_prog -l \
-      | grep "^$target_name" \
       | grep "^$MATCH" \
       | while read -r name; \
   do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
