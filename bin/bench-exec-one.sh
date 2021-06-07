@@ -100,6 +100,8 @@ bench_rts_opts_specific () {
     Data.Parser.ParserK/o-n-heap/sequenceA) echo -n "-M64M";;
 
     Data.SmallArray/o-1-sp*) echo -n "-K128K" ;;
+    # For tasty-bench
+    Data.Array*/o-1-space/generation/show) echo -n "-M32M" ;;
     *) echo -n "" ;;
   esac
 }
