@@ -12,6 +12,7 @@ print_help () {
   echo "       [--benchmarks <"bench1 bench2 ..." | help>]"
   echo "       [--prefix <benchmark name prefix to match>"
   echo "       [--fields <"field1 field2 ..." | help>]"
+  echo "       [--sort-by-name]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
   echo "       [--append]"
@@ -290,8 +291,11 @@ run_reports() {
     for i in $1
     do
         echo "Generating reports for ${i}..."
-        $prog $(test "$GRAPH" = 1 && echo "--graphs") \
-              --benchmark $i --fields "$FIELDS"
+        $prog \
+            --benchmark $i \
+            $(test "$GRAPH" = 1 && echo "--graphs") \
+            $(test "$SORT_BY_NAME" = 1 && echo "--sort-by-name") \
+            --fields "$FIELDS"
     done
 }
 
@@ -316,6 +320,7 @@ CANDIDATE=
 APPEND=0
 LONG=0
 RAW=0
+SORT_BY_NAME=0
 GRAPH=0
 MEASURE=1
 
@@ -350,6 +355,7 @@ do
     --raw) RAW=1; shift ;;
     --append) APPEND=1; shift ;;
     --long) LONG=1; shift ;;
+    --sort-by-name) SORT_BY_NAME=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
