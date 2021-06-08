@@ -252,6 +252,8 @@ then
     -p '$0 == "'"$BENCH_NAME_ESC"'"'
 
   # Convert cpuTime field from picoseconds to seconds
+  awk --version 2>&1 | grep -q "GNU Awk" \
+    || die "Need GNU awk. [$(which awk)] is not GNU awk."
   tail -n +2 ${output_file}.tmp | \
     awk 'BEGIN {FPAT = "([^,]+)|(\"[^\"]+\")";OFS=","} {$2=$2/1000000000000;print}' \
     >> $output_file

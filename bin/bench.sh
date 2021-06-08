@@ -164,7 +164,8 @@ invoke_gauge () {
     $target_prog -l \
       | grep "^$MATCH" \
       | while read -r name; \
-  do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
+  do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}" || exit 1; done \
+      || die "Benchmark execution failed."
 }
 
 invoke_tasty_bench () {
@@ -188,7 +189,8 @@ invoke_tasty_bench () {
     $target_prog -l $MATCH \
       | grep "^All" \
       | while read -r name; \
-          do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}"; done
+          do bin/bench-exec-one.sh "$name" "${GAUGE_ARGS[@]}" || exit 1; done \
+      || die "Benchmark execution failed."
 }
 
 run_bench_target () {
