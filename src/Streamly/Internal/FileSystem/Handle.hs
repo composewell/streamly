@@ -95,7 +95,6 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
@@ -103,6 +102,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
+import Streamly.Internal.BaseCompat
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -148,7 +148,7 @@ readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size h = do
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    unsafeWithForeignPtr ptr $ \p -> do
         n <- hGetBufSome h p size
         -- XXX shrink only if the diff is significant
         return $
@@ -292,7 +292,7 @@ toBytes = AS.concat . toChunks
 {-# INLINABLE writeArray #-}
 writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
+writeArray h Array{..} = unsafeWithForeignPtr aStart $ \p -> hPutBuf h p aLen
     where
     aLen =
         let p = unsafeForeignPtrToPtr aStart
