@@ -49,7 +49,7 @@ import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -63,6 +63,8 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 #if !defined(mingw32_HOST_OS)
 import Streamly.Internal.FileSystem.FDIO (IOVec(..))
 #endif
+
+import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -382,7 +384,7 @@ spliceArraysLenUnsafe len buffered = do
     where
 
     writeArr dst (MA.Array as ae _) =
-        liftIO $ withForeignPtr as $ \src -> do
+        liftIO $ unsafeWithForeignPtr as $ \src -> do
                         let count = ae `minusPtr` src
                         A.memcpy (castPtr dst) (castPtr src) count
                         return $ dst `plusPtr` count
@@ -400,7 +402,7 @@ _spliceArrays s = do
     where
 
     writeArr dst (Array as ae) =
-        liftIO $ withForeignPtr as $ \src -> do
+        liftIO $ unsafeWithForeignPtr as $ \src -> do
                         let count = ae `minusPtr` src
                         A.memcpy (castPtr dst) (castPtr src) count
                         return $ dst `plusPtr` count

@@ -67,7 +67,7 @@ import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
+
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -85,6 +85,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
+import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
@@ -253,7 +254,7 @@ readArrayUptoWith
 readArrayUptoWith f size h = do
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    unsafeWithForeignPtr ptr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
                 $ mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
@@ -302,7 +303,7 @@ writeArrayWith :: Storable a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h Array{..} = withForeignPtr aStart $ \p ->
+writeArrayWith f h Array{..} = unsafeWithForeignPtr aStart $ \p ->
     f h (castPtr p) aLen
     where
     aLen =

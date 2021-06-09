@@ -352,15 +352,15 @@ foldrT f z s = S.foldrT f z (toStreamS s)
 -- >>> drain $ Stream.mapM putStr $ Stream.fromList ["a", "b", "c"]
 -- abc
 --
--- >>> :{ 
---    drain $ Stream.replicateM 10 (return 1) 
+-- >>> :{
+--    drain $ Stream.replicateM 10 (return 1)
 --      & (fromSerial . Stream.mapM (\x -> threadDelay 1000000 >> print x))
 -- :}
 -- 1
 -- ...
 -- 1
 --
--- > drain $ Stream.replicateM 10 (return 1)  
+-- > drain $ Stream.replicateM 10 (return 1)
 --  & (fromAsync . Stream.mapM (\x -> threadDelay 1000000 >> print x))
 -- @
 --

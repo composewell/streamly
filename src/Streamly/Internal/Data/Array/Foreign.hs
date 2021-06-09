@@ -147,7 +147,7 @@ import Data.Semigroup ((<>))
 import Data.Word (Word8)
 -- import Data.Functor.Identity (Identity)
 import Foreign.C.String (CString)
-import Foreign.ForeignPtr (withForeignPtr, castForeignPtr)
+import Foreign.ForeignPtr (castForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -158,6 +158,7 @@ import GHC.Ptr (Ptr(..))
 import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
+import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer)
@@ -440,7 +441,7 @@ getIndex arr i =
     if i < 0 || i > length arr - 1
         then Nothing
         else A.unsafeInlineIO $
-             withForeignPtr (aStart arr) $ \p -> Just <$> peekElemOff p i
+            unsafeWithForeignPtr (aStart arr) $ \p -> Just <$> peekElemOff p i
 
 {-
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
@@ -478,7 +479,7 @@ writeIndex arr i a = do
          then error $ "writeIndex: specified array index " ++ show i
                     ++ " is beyond the maximum index " ++ show maxIndex
          else
-            liftIO $ withForeignPtr (aStart arr) $ \p ->
+            liftIO $ unsafeWithForeignPtr (aStart arr) $ \p ->
                 pokeElemOff p i a
 
 {-
@@ -580,7 +581,7 @@ cast arr =
 --
 asPtr :: Array a -> (Ptr b -> IO c) -> IO c
 asPtr Array{..} act = do
-    withForeignPtr aStart $ \ptr -> act (castPtr ptr)
+    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --
@@ -593,7 +594,7 @@ asPtr Array{..} act = do
 asCString :: Array a -> (CString -> IO b) -> IO b
 asCString arr act = do
     let Array{..} = asBytes arr <> A.fromList [0]
-    withForeignPtr aStart $ \ptr -> act (castPtr ptr)
+    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds

@@ -118,8 +118,6 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
--- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
@@ -130,6 +128,7 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
+import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 
@@ -215,7 +214,7 @@ readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    unsafeWithForeignPtr ptr $ \p -> do
         -- n <- hGetBufSome h p size
 #if MIN_VERSION_base(4,15,0)
         n <- RawIO.read fd p 0 size
@@ -237,7 +236,7 @@ readArrayUpto size (Handle fd) = do
 {-# INLINABLE writeArray #-}
 writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
+writeArray (Handle fd) arr = unsafeWithForeignPtr (aStart arr) $ \p ->
     -- RawIO.writeAll fd (castPtr p) aLen
 #if MIN_VERSION_base(4,15,0)
     RawIO.write fd (castPtr p) 0 aLen
@@ -262,7 +261,7 @@ writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
 writeIOVec :: Handle -> Array RawIO.IOVec -> IO ()
 writeIOVec _ iov | A.length iov == 0 = return ()
 writeIOVec (Handle fd) iov =
-    withForeignPtr (aStart iov) $ \p ->
+    unsafeWithForeignPtr (aStart iov) $ \p ->
         RawIO.writevAll fd p (A.length iov)
 #endif
 
