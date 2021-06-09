@@ -281,6 +281,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- element @1@ in the first stream with all the nested iterations of element
 -- @2@:
 --
+-- >>> import Streamly.Prelude (wSerial)
 -- >>> Stream.toList $ Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
 -- [(1,3),(2,3),(1,4),(2,4)]
 --
