@@ -619,7 +619,7 @@ infixr 6 `ahead`
 -- original streams, side effects will happen in the order in which the streams
 -- are evaluated:
 --
--- >>> import Streamly.Prelude (ahead)
+-- >>> import Streamly.Prelude (ahead, SerialT)
 -- >>> stream1 = Stream.fromEffect (delay 4) :: SerialT IO Int
 -- >>> stream2 = Stream.fromEffect (delay 2) :: SerialT IO Int
 -- >>> Stream.toList $ stream1 `ahead` stream2 :: IO [Int]
