@@ -127,7 +127,7 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
@@ -136,6 +136,8 @@ import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
+
+import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar (adaptState)
@@ -308,7 +310,7 @@ newArray = newArrayAligned (alignment (undefined :: a))
 withNewArray :: forall a. Storable a => Int -> (Ptr a -> IO ()) -> IO (Array a)
 withNewArray count f = do
     arr <- newArray count
-    withForeignPtr (aStart arr) $ \p -> f p >> return arr
+    unsafeWithForeignPtr (aStart arr) $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
 -- snoc
@@ -317,7 +319,7 @@ withNewArray count f = do
 {-# INLINE unsafeWriteIndex #-}
 unsafeWriteIndex :: forall a. Storable a => Array a -> Int -> a -> IO (Array a)
 unsafeWriteIndex arr@Array {..} i x =
-    withForeignPtr aStart
+    unsafeWithForeignPtr aStart
         $ \begin -> do
               poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
               return arr
@@ -347,7 +349,7 @@ snoc arr@Array {..} x =
             Malloc.mallocForeignPtrAlignedBytes
                 newSize
                 (alignment (undefined :: a))
-        withForeignPtr newPtr $ \pNew -> do
+        unsafeWithForeignPtr newPtr $ \pNew -> do
             memcpy (castPtr pNew) (castPtr oldStart) size
             poke (pNew `plusPtr` size) x
             touchForeignPtr aStart
@@ -375,7 +377,7 @@ reallocAligned alignSize newSize Array{..} = do
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
     newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
-    withForeignPtr newPtr $ \pNew -> do
+    unsafeWithForeignPtr newPtr $ \pNew -> do
         memcpy (castPtr pNew) (castPtr oldStart) size
         touchForeignPtr aStart
         return $ Array
@@ -399,7 +401,7 @@ realloc = reallocAligned (alignment (undefined :: a))
 {-# INLINE_NORMAL unsafeIndexIO #-}
 unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
 unsafeIndexIO Array {..} i =
-     withForeignPtr aStart $ \p -> do
+        unsafeWithForeignPtr aStart $ \p -> do
         let elemSize = sizeOf (undefined :: a)
             elemOff = p `plusPtr` (elemSize * i)
         assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
@@ -1041,8 +1043,8 @@ spliceWith dst@(Array _ end bound) src =
         if end `plusPtr` srcLen > bound
         then error
                  "Bug: spliceWith: Not enough space in the target array"
-        else withForeignPtr (aStart dst) $ \_ ->
-                 withForeignPtr (aStart src) $ \psrc -> do
+        else unsafeWithForeignPtr (aStart dst) $ \_ ->
+                unsafeWithForeignPtr (aStart src) $ \psrc -> do
                      let pdst = aEnd dst
                      memcpy (castPtr pdst) (castPtr psrc) srcLen
                      return $ dst {aEnd = pdst `plusPtr` srcLen}
