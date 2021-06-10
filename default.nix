@@ -65,8 +65,8 @@ let haskellPackages =
                     fusion-plugin =
                       super.callHackageDirect
                         { pkg = "fusion-plugin";
-                          ver = "0.2.2";
-                          sha256 = "1g7j50wa7ffyizv6fdnr09dr4w7bc0hskb46h7y0paw6rh9yz4zj";
+                          ver = "0.2.3";
+                          sha256 = "073wbhdxj1sh5160blaihbzkkhabs8s71pqhag16lvmgbb7a3hla";
                         } {};
 
                     tasty-bench =
