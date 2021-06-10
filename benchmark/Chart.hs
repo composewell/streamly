@@ -186,7 +186,7 @@ main = do
                     { presentation = Groups PercentDiff
                     , selectBenchmarks = selectBench (sortByName opts)
                     , selectFields = filter
-                        ( flip elem fs
+                        ( flip elem (fmap (fmap toLower) fs)
                         . fmap toLower
                         )
                     }
