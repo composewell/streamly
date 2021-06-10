@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
--- Module      : Streamly.Tutorial
+-- Module      : Tutorial
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -41,7 +41,7 @@
 -- Once you finish this tutorial, see the last section for further reading
 -- resources.
 
-module Streamly.Tutorial
+module Tutorial
     (
     -- * Stream Types
     -- $streams

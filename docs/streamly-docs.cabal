@@ -1,0 +1,46 @@
+cabal-version:      2.2
+-- Reasons for having a separate package for docs:
+-- * Leaner main package and better modularity
+-- * This package can be forked out as an independent package
+-- * We can have code examples in haddock with more dependencies
+-- * Documentation can be released independent of the library
+-- * We do not want too many doc modules in the main library
+name:               streamly-docs
+version:            0.0.0
+synopsis:           Documentation for Streamly
+description:        Documentation for Streamly
+build-type:          Custom
+custom-setup
+  setup-depends:
+    base >= 4 && <5,
+    cabal-doctest >= 1 && <1.1,
+    Cabal >= 2.2 && < 4
+
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
+library
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:    .
+  exposed-modules:
+    Tutorial
+
+  build-depends:
+      base              >= 4.9   &&  < 5
+    , transformers      >= 0.4   && < 0.6
+    , streamly
+
+test-suite streamly-docs-doctests
+  type:             exitcode-stdio-1.0
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  hs-source-dirs:   .
+  main-is:          doctests.hs
+  autogen-modules: Build_doctests
+  build-depends:
+      base
+    , base-compat       >= 0.10.5 && < 0.12
+    , doctest           >= 0.15   && < 0.19
+    , streamly-docs
