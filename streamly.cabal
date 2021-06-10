@@ -40,8 +40,11 @@ tested-with:         GHC==8.0.2
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
-category:            Control, Concurrency, Streaming, Reactivity
-stability:           Experimental
+category:
+    Streamly, Concurrency, Streaming, Dataflow, Pipes, Reactivity, List,
+    Logic, Non-determinism, Parsing, Array, Time, Unicode, Filesystem,
+    Network
+stability:           Stable
 build-type:          Custom
 
 extra-source-files:
