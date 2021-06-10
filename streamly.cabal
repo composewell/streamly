@@ -102,11 +102,11 @@ extra-source-files:
     design/*.md
     design/*.png
     design/*.rst
-    docs/Overview.md
-    docs/Build.md
-    docs/streamly-vs-async.md
-    docs/streamly-vs-lists.md
-    docs/transformers.md
+    docs/*.md
+    docs/Setup.hs
+    docs/Tutorial.hs
+    docs/doctests.hs
+    docs/streamly-docs.cabal
     examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
@@ -360,9 +360,6 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
-                     -- documentation
-                     , Streamly.Tutorial
-
                      -- Deprecated
                      , Streamly
                      , Streamly.Data.Unicode.Stream
@@ -547,8 +544,8 @@ test-suite doctests
   if flag(doctests)
     build-depends:
         base
-      , base-compat       >=0.10.5 && <0.12
-      , doctest           >=0.15   && <0.18
+      , base-compat       >= 0.10.5 && < 0.12
+      , doctest           >= 0.15   && < 0.19
       , streamly
   else
     buildable: False
