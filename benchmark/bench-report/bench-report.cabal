@@ -1,0 +1,23 @@
+cabal-version:      2.2
+name:               bench-report
+version:            0.0.0
+synopsis:           Benchmark report generation
+description: Benchmark reporting application is not included in the overall
+  cabal project so that the dependencies of both can remain independent.
+  Benchmark reporting has a lot of dependencies that usually lag behind
+  when new GHC releases arrive.
+
+-------------------------------------------------------------------------------
+-- benchmark comparison and presentation
+-------------------------------------------------------------------------------
+
+executable bench-report
+  default-language: Haskell2010
+  ghc-options: -Wall
+  hs-source-dirs: .
+  main-is: BenchReport.hs
+  buildable: True
+  build-Depends:
+    base >= 4.9 && < 5
+    , bench-show >= 0.3 && < 0.4
+    , transformers >= 0.4  && < 0.6
