@@ -71,11 +71,11 @@ list_comparisons ()  {
 # chart is expensive to build and usually not required to be rebuilt,
 # use master branch as fallback
 cabal_which_report() {
-  local path=$(cabal_which streamly-benchmarks x $1)
+  local path=$(cabal_which bench-report x $1)
   if test -z "$path"
   then
     echo "Cannot find $1 executable, trying in dist-newstyle" 1>&2
-    local path1=$(cabal_which_builddir dist-newstyle streamly-benchmarks x $1)
+    local path1=$(cabal_which_builddir dist-newstyle bench-report x $1)
     if test -z "$path1"
     then
       local path2="./bin/$1"
@@ -93,7 +93,7 @@ cabal_which_report() {
 }
 
 find_report_prog() {
-    local prog_name="chart"
+    local prog_name="bench-report"
     hash -r
     local prog_path=$(cabal_which_report $prog_name)
     if test -x "$prog_path"
@@ -105,16 +105,16 @@ find_report_prog() {
 }
 
 build_report_prog() {
-    local prog_name="chart"
+    local prog_name="bench-report"
     local prog_path=$(cabal_which_report $prog_name)
 
     hash -r
     if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
     then
-      echo "Building bench-show executables"
+      echo "Building bench-report executables"
       BUILD_ONCE=1
-      $CABAL_EXECUTABLE v2-build --flags dev chart \
-        || die "bench-show build failed"
+      $CABAL_EXECUTABLE v2-build bench-report --project-file=benchmark/bench-report/cabal.project \
+        || die "bench-report build failed"
 
     elif test ! -x "$prog_path"
     then
@@ -129,8 +129,8 @@ build_report_progs() {
       build_report_prog || exit 1
       local prog
       prog=$(find_report_prog) || \
-          die "Cannot find bench-show executable"
-      echo "Using bench-show executable [$prog]"
+          die "Cannot find bench-report executable"
+      echo "Using bench-report executable [$prog]"
   fi
 }
 

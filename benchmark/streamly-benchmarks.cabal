@@ -44,11 +44,6 @@ flag has-llvm
   manual: True
   default: False
 
-flag no-charts
-  description: Disable benchmark charts in development build
-  manual: True
-  default: False
-
 flag opt
   description: off=-O0 (faster builds), on=-O2
   manual: True
@@ -507,21 +502,3 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
-
--------------------------------------------------------------------------------
--- benchmark comparison and presentation
--------------------------------------------------------------------------------
-
-executable chart
-  default-language: Haskell2010
-  ghc-options: -Wall
-  hs-source-dirs: .
-  main-is: Chart.hs
-  if flag(dev) && !flag(no-charts) && !impl(ghcjs)
-    buildable: True
-    build-Depends:
-        base >= 4.9 && < 5
-      , bench-show >= 0.3 && < 0.4
-      , transformers >= 0.4   && < 0.6
-  else
-    buildable: False
