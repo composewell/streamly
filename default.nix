@@ -123,6 +123,7 @@ let haskellPackages =
             else [];
         # Use a better prompt
         shellHook = ''
+          export CABAL_DIR="$(pwd)/.cabal.nix"
           if test -n "$PS_SHELL"
           then
             export PS1="$PS_SHELL\[$bldred\](nix)\[$txtrst\] "
