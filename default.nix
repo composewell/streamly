@@ -15,7 +15,7 @@
 
 {
   nixpkgs ?
-    import (builtins.fetchTarball https://github.com/composewell/nixpkgs/archive/01dd2b4e738.tar.gz)
+    import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/refs/tags/21.05.tar.gz)
         # fusion-plugin is marked as broken
         { config.allowBroken = true;}
 , compiler ? "default"
