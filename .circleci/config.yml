@@ -308,6 +308,7 @@ jobs:
               apt-get install -y cabal-install-3.2
               apt-get install -y nodejs
               apt-get install -y ghcjs-8.4
+              cabal user-config update -a "jobs: 1"
               bash -c "$PACKCHECK $BUILD"
         - *save
   coveralls-ghc-8_2_2:
