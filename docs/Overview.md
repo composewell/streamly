@@ -1,8 +1,60 @@
-## Overview
+# Streaming
 
 These are some notes from an old version of README that may be
 useful. For a quick introduction please read the README.md at the repo
 root first.
+
+## Streamly
+
+Streamly is a general computing framework based on data flow programming also
+known as streaming. Moreover streamly supports concurrent dataflow programming.
+
+Streaming in general enables writing modular, composable and scalable
+applications with ease, and concurrency allows you to make them scale and
+perform well.  Streamly enables writing scalable concurrent applications
+without being aware of threads or synchronization. No explicit thread
+control is needed. Where applicable, concurrency rate is automatically
+controlled based on the demand by the consumer. However, combinators can be
+used to fine tune the concurrency control.
+
+Streaming and concurrency together enable expressing reactive applications
+conveniently. See the @CirclingSquare@ example in
+<https://github.com/composewell/streamly-examples Streamly Examples> for
+a simple SDL based FRP example. To summarize, streamly provides a unified
+computing framework for streaming, non-determinism and functional reactive
+programming in an elegant and simple API that is a natural extension of pure
+lists to monadic streams.
+
+## What are streams?
+
+In simple terms, streams are the functional equivalent of loops in
+imperative programming.
+
+A stream is a representation of potentially infinite data sequence.  You
+can compose a pipeline of functions or stream processors to process
+an input stream of data to produce an output stream. We call it a
+form of dataflow programming as data flows through the processing
+logic. In imperative programming there is no clear separation of data
+and logic. The logic can arbitrarily examine and mutate data which
+creates a problem due to complex interleaving of state and logic in the
+program.
+
+In streamly there are two fundamental data structures, streams and arrays.
+Streams are for dataflow style processing while arrays are for storing data.
+Both taken together are powerful tools for general purpose programming in a
+functional or dataflow style.
+
+## Loops vs Streams
+
+In imperative programming when we have to process a sequence of items
+or an array of data we run a loop over it, each iteration of the loop
+examines the data to do something with it and produce an output.
+
+Loops are a low level, monolithic and general concept. Whereas streams
+are high level, structured and modular way of expressing what you usualy
+do with loops. Streams allow you to write different parts of the loop
+as separate modular combinators and then compose them to create bigger
+loops.
 
 ## Streaming Concurrently
 
@@ -414,56 +466,3 @@ There is no notion of explicit threads in streamly, therefore, no
 asynchronous exceptions to deal with. You can just ignore the zillions of
 blogs, talks, caveats about async exceptions. Async exceptions just don't
 exist.  Please don't use things like `myThreadId` and `throwTo` just for fun!
-
-## Conclusion
-
-Streamly, short for streaming concurrently, provides monadic streams, with a
-simple API, almost identical to standard lists, and an in-built
-support for concurrency.  By using stream-style combinators on stream
-composition, streams can be generated, merged, chained, mapped, zipped, and
-consumed concurrently – providing a generalized high level programming
-framework unifying streaming and concurrency. Controlled concurrency allows
-even infinite streams to be evaluated concurrently.  Concurrency is auto scaled
-based on feedback from the stream consumer.  The programmer does not have to be
-aware of threads, locking or synchronization to write scalable concurrent
-programs.
-
-Streamly is a programmer first library, designed to be useful and friendly to
-programmers for solving practical problems in a simple and concise manner. Some
-key points in favor of streamly are:
-
-  * _Simplicity_: Simple list like streaming API, if you know how to use lists
-    then you know how to use streamly. This library is built with simplicity
-    and ease of use as a design goal.
-  * _Concurrency_: Simple, powerful, and scalable concurrency.  Concurrency is
-    built-in, and not intrusive, concurrent programs are written exactly the
-    same way as non-concurrent ones.
-  * _Generality_: Unifies functionality provided by several disparate packages
-    (streaming, concurrency, list transformer, logic programming, reactive
-    programming) in a concise API.
-  * _Performance_: Streamly is designed for high performance. It employs stream
-    fusion optimizations for best possible performance. Serial peformance is
-    equivalent to the venerable `vector` library in most cases and even better
-    in some cases.  Concurrent performance is unbeatable.  See
-    [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
-    for a comparison of popular streaming libraries on micro-benchmarks.
-
-The basic streaming functionality of streamly is equivalent to that provided by
-streaming libraries like
-[vector](https://hackage.haskell.org/package/vector),
-[streaming](https://hackage.haskell.org/package/streaming),
-[pipes](https://hackage.haskell.org/package/pipes), and
-[conduit](https://hackage.haskell.org/package/conduit).
-In addition to providing streaming functionality, streamly subsumes
-the functionality of list transformer libraries like `pipes` or
-[list-t](https://hackage.haskell.org/package/list-t), and also the logic
-programming library [logict](https://hackage.haskell.org/package/logict). On
-the concurrency side, it subsumes the functionality of the
-[async](https://hackage.haskell.org/package/async) package, and provides even
-higher level concurrent composition. Because it supports
-streaming with concurrency we can write FRP applications similar in concept to
-[Yampa](https://hackage.haskell.org/package/Yampa) or
-[reflex](https://hackage.haskell.org/package/reflex).
-
-See the `Comparison with existing packages` section at the end of the
-[tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
