@@ -84,8 +84,6 @@ extra-source-files:
     bin/mk-tags.sh
     bin/targets.sh
     bin/test.sh
-    cabal.project
-    cabal.project.ci
     charts-0/streamly-vs-list-time.svg
     configure
     configure.ac
@@ -137,7 +135,6 @@ extra-source-files:
     test/lib/Streamly/Test/Prelude/Common.hs
     test/streamly-tests.cabal
     test/version-bounds.hs
-    stack.yaml
 
 extra-tmp-files:
     config.log

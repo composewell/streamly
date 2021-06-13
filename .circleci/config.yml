@@ -58,8 +58,8 @@ env: &env
       PACKCHECK: "./packcheck.sh"
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
-      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "563702bd02c41343dcd3dfcfef0845ca428a9240"
+      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
+      PACKCHECK_GITHUB_COMMIT: "8c77f80fd3a9df7307d06256c11a9e31d066475e"
 
 executors:
   amd64-executor:
@@ -106,10 +106,6 @@ preinstall: &preinstall
 
 project-preinstall: &project-preinstall
   run: |
-        # If a custom stack-yaml is specified, replace the default with that
-        if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
-        unset STACK_YAML
-
         # Get packcheck if needed
         CURL=$(which curl)
         PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
@@ -140,6 +136,24 @@ save: &save
 #-----------------------------------------------------------------------------
 
 jobs:
+  cabal-ghc-8_10_4:
+      <<: *env
+      executor: amd64-executor
+      steps:
+        - *preinstall
+        - checkout
+        - *project-preinstall
+        - *restore
+        - run:
+            environment:
+              DISABLE_TEST: "yes"
+              DISABLE_BENCH: "yes"
+              DISABLE_DIST_CHECKS: "yes"
+            command: |
+              apt-get install -y ghc-8.10.4
+              apt-get install -y cabal-install-3.4
+              bash -c "$PACKCHECK cabal"
+        - *save
   stack-ghc-8_8:
       <<: *env
       executor: amd64-executor
@@ -211,7 +225,6 @@ jobs:
             command: |
               apt-get install -y ghc-8.2.2
               apt-get install -y cabal-install-3.2
-              apt-get install libtinfo-dev
               bash -c "$PACKCHECK $BUILD"
         - *save
   cabal-ghc-8_0_2:
@@ -350,7 +363,7 @@ jobs:
               apt-get install -y cabal-install-3.2
               # Run tests with coverage
               cabal update
-              cabal user-config update -a "jobs: 2"
+              cabal user-config update -a "jobs: 1"
               bin/test.sh --coverage --raw
               # Upload results to coveralls.io
               PATH=$HOME/.cabal/bin:$PATH
@@ -381,6 +394,8 @@ workflows:
   version: 2
   build:
     jobs:
+      - cabal-ghc-8_10_4:
+          name: GHC 8.10.4 + sdist
       #- cabal-ghc-8.6.5
       #- cabal-ghc-8_4_4:
       #    name: GHC 8.4.4 + x86 + debug

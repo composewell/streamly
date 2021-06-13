@@ -63,8 +63,8 @@ environment:
     PACKCHECK_LOCAL_PATH: "./packcheck.sh"
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
-    PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "563702bd02c41343dcd3dfcfef0845ca428a9240"
+    PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
+    PACKCHECK_GITHUB_COMMIT: "8c77f80fd3a9df7307d06256c11a9e31d066475e"
 
     # Override the temp directory to avoid sed escaping issues
     # See https://github.com/haskell/cabal/issues/5386
