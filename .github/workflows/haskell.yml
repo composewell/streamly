@@ -22,8 +22,8 @@ jobs:
       CABAL_HACKAGE_MIRROR: hackage.haskell.org:http://hackage.fpcomplete.com
 
       PACKCHECK_LOCAL_PATH: "./packcheck.sh"
-      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "563702bd02c41343dcd3dfcfef0845ca428a9240"
+      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
+      PACKCHECK_GITHUB_COMMIT: "8c77f80fd3a9df7307d06256c11a9e31d066475e"
 
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
@@ -31,8 +31,10 @@ jobs:
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
+      STACK_YAML: ${{ matrix.stack_yaml }}
       STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
+      DISABLE_TEST: ${{ matrix.disable_test }}
       SDIST_OPTIONS: ${{ matrix.sdist_options }}
       DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
@@ -41,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [9.0.1, 8.10.4+stack+lts-17.8, 8.10.2+macOS, 8.8.3+inspection+fusion-plugin+Werror, 8.8.4+stack+lts-16.31, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
+        name: [9.0.1, 8.10.4+stack+nightly-2021-06-10, 8.10.4+macOS, 8.8.4+inspection+fusion-plugin+Werror, 8.8.4, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
         cabal_version: ["3.4"]
         include:
           - name: 9.0.1
@@ -50,37 +52,40 @@ jobs:
             cabal_build_options: "--allow-newer=hsc2hs"
             disable_sdist_build: "y"
             runner: ubuntu-latest
-          - name: 8.10.4+stack+lts-17.8
+          - name: 8.10.4+stack+nightly-2021-06-10
             build: stack
-            resolver: lts-17.8
+            resolver: nightly-2021-06-10
+            stack_yaml: stack.yaml
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             runner: ubuntu-latest
-          - name: 8.10.2+macOS
-            ghc_version: 8.10.2
+          - name: 8.10.4+macOS
+            ghc_version: 8.10.4
             build: cabal-v2
             disable_sdist_build: "y"
             runner: macos-latest
-          - name: 8.8.3+inspection+fusion-plugin+Werror
-            ghc_version: 8.8.3
+          - name: 8.8.4+inspection+fusion-plugin+Werror
+            ghc_version: 8.8.4
             build: cabal-v2
             cabal_project: cabal.project.ci
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             runner: ubuntu-latest
-          - name: 8.8.4+stack+lts-16.31
-            build: stack
-            resolver: lts-16.31
-            sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
+          - name: 8.8.4
+            ghc_version: 8.8.4
+            build: cabal
+            cabal_project: cabal.project
+            cabal_build_options: "--flag -opt"
             runner: ubuntu-latest
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
             build: cabal-v2
+            cabal_project: cabal.project
             cabal_build_options: "--flag streamk --flag -opt"
             runner: ubuntu-latest
           - name: 8.6.5+fusion-plugin
             ghc_version: 8.6.5
             build: cabal-v2
+            cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin"
             # haddock generation does not work with 8.6.5+fusion-plugin
             disable_docs: "y"
@@ -88,14 +93,15 @@ jobs:
           - name: 8.4.4+debug
             ghc_version: 8.4.4
             build: cabal-v2
+            cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
             runner: ubuntu-latest
           - name: doctests
             ghc_version: 8.8.3
             build: cabal-v2
             cabal_build_options: "--flag doctests"
-            disable_dist_checks: "y"
             cabal_build_targets: doctests
+            disable_sdist_build: "y"
             runner: ubuntu-latest
 
     steps:
@@ -114,10 +120,6 @@ jobs:
 
     - name: Download packcheck
       run: |
-        # If a custom stack-yaml is specified, replace the default with that
-        if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
-        unset STACK_YAML
-
         # Get packcheck if needed
         CURL=$(which curl)
         PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
