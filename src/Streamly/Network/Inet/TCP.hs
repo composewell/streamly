@@ -4,7 +4,7 @@
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- Combinators to build Inet/TCP clients and servers.

@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- The 'Tee' type is a newtype wrapper over the 'Streamly.Data.Fold.Fold' type providing

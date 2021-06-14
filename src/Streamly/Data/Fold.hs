@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- A 'Fold' is a sink or a consumer of a stream of values.  The 'Fold' type

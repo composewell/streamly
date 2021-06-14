@@ -4,7 +4,7 @@
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- Combinators to work with standard input, output and error streams.

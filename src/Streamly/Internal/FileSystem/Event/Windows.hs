@@ -7,7 +7,7 @@
 --               (c) 2012, Mark Dittmer
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : pre-release
 -- Portability : GHC
 --
 -- =Overview
