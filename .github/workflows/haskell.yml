@@ -10,40 +10,53 @@ jobs:
   build:
     name: GHC ${{ matrix.name }}
     env:
-      CABAL_REINIT_CONFIG: y
+      # packcheck environment variables
       LC_ALL: C.UTF-8
-
-      ENABLE_INSTALL: "n"
-
-      STACK_UPGRADE: "y"
-
-      CABAL_CHECK_RELAX: y
-      CABAL_NO_SANDBOX: y
-      CABAL_HACKAGE_MIRROR: hackage.haskell.org:http://hackage.fpcomplete.com
-
-      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
-      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "8c77f80fd3a9df7307d06256c11a9e31d066475e"
-
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
-      RESOLVER: ${{ matrix.resolver }}
+      DISABLE_DOCS: ${{ matrix.disable_docs }}
+      DISABLE_TEST: ${{ matrix.disable_test }}
+      DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
+      SDIST_OPTIONS: ${{ matrix.sdist_options }}
+      DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
+
+      # Cabal options
+      CABAL_REINIT_CONFIG: y
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
+      CABAL_CHECK_RELAX: y
+
+      # Stack options
+      STACK_UPGRADE: "y"
+      RESOLVER: ${{ matrix.resolver }}
       STACK_YAML: ${{ matrix.stack_yaml }}
       STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
-      DISABLE_DOCS: ${{ matrix.disable_docs }}
-      DISABLE_TEST: ${{ matrix.disable_test }}
-      SDIST_OPTIONS: ${{ matrix.sdist_options }}
-      DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
-      DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
+
+      # packcheck location and revision
+      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
+      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
+      PACKCHECK_GITHUB_COMMIT: "35efa99b2082d13722b8a0183ac6455df98e91b9"
+
+      # Pull token from "secrets" setting of the github repo
+      COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      COVERAGE: ${{ matrix.coverage }}
 
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        name: [9.0.1, 8.10.4+stack+nightly-2021-06-10, 8.10.4+macOS, 8.8.4+inspection+fusion-plugin+Werror, 8.8.4, 8.6.5+fusion-plugin, 8.6.5+streamk, 8.4.4+debug, doctests]
+        name:
+          - 9.0.1
+          - 8.10.4+stack+nightly-2021-06-10
+          - 8.10.4+macOS
+          - 8.10.4+linux+coverage+cabal
+          - 8.8.4
+          - 8.8.4+inspection+fusion-plugin+Werror
+          - 8.6.5+fusion-plugin
+          - 8.6.5+streamk
+          - 8.4.4+debug
+          - doctests
         cabal_version: ["3.4"]
         include:
           - name: 9.0.1
@@ -64,6 +77,10 @@ jobs:
             build: cabal-v2
             disable_sdist_build: "y"
             runner: macos-latest
+          - name: 8.10.4+linux+coverage+cabal
+            ghc_version: 8.10.4
+            coverage: "y"
+            runner: ubuntu-latest
           - name: 8.8.4+inspection+fusion-plugin+Werror
             ghc_version: 8.8.4
             build: cabal-v2
@@ -102,6 +119,7 @@ jobs:
             cabal_build_options: "--flag doctests"
             cabal_build_targets: doctests
             disable_sdist_build: "y"
+            disable_dist_checks: "y"
             runner: ubuntu-latest
 
     steps:
@@ -116,7 +134,8 @@ jobs:
       name: Cache ~/.cabal
       with:
         path: ~/.cabal
-        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal
+        # Bump the key version to clear the cache
+        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v1
 
     - name: Download packcheck
       run: |
@@ -126,6 +145,23 @@ jobs:
         if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
         chmod +x $PACKCHECK_LOCAL_PATH
 
-    - name: Run packcheck
+    - name: Run tests
       run: |
-        bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
+        if test -z "$COVERAGE"
+        then
+          export TOOLS_DIR=/opt
+          # /usr/local/opt/curl/bin for macOS
+          export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
+          bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
+        else
+          # Run tests with coverage
+          cabal update
+          cabal user-config update -a "jobs: 1"
+          # Build hpc-coveralls if needed
+          sudo apt-get install -y libcurl4-gnutls-dev
+          export PATH=$HOME/.cabal/bin:$PATH
+          which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
+          # Run tests and upload results to coveralls.io
+          bin/test.sh --coverage --raw
+          hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
+        fi
