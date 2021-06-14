@@ -54,7 +54,6 @@ extra-source-files:
     .gitignore
     .hlint.ignore
     .hlint.yaml
-    .travis.yml
     CONTRIBUTING.md
     Changelog.md
     INSTALL.md
