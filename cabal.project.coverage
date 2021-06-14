@@ -4,7 +4,7 @@ packages:
 
 package streamly
   ghc-options: -Werror
-  flags: inspection
+  flag: inspection
   coverage: true
 
 package streamly-tests
