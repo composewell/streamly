@@ -5,7 +5,7 @@
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- An 'Unfold' is a source or a producer of a stream of values.  It takes a

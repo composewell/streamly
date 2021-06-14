@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : pre-release
 -- Portability : GHC
 --
 -- Parsers for binary encoded basic Haskell data types.

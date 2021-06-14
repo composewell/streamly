@@ -5,7 +5,7 @@
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : pre-release
 -- Portability : GHC
 --
 -- Fast backtracking parsers with stream fusion and native streaming

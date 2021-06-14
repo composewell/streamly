@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : pre-release
 -- Portability : GHC
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.

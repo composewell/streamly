@@ -6,7 +6,7 @@
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from file handles. File handle IO
