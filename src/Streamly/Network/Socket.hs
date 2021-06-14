@@ -4,7 +4,7 @@
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- This module provides Array and stream based socket operations to connect to
