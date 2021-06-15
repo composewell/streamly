@@ -22,6 +22,9 @@ jobs:
 
       # Cabal options
       CABAL_REINIT_CONFIG: y
+      # Github has machines with 2 CPUS and 6GB memory so the cabal jobs
+      # default (ncpus) is good, this can be checked from the packcheck
+      # output in case it changes.
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
@@ -156,7 +159,6 @@ jobs:
         else
           # Run tests with coverage
           cabal update
-          cabal user-config update -a "jobs: 1"
           # Build hpc-coveralls if needed
           sudo apt-get install -y libcurl4-gnutls-dev
           export PATH=$HOME/.cabal/bin:$PATH
