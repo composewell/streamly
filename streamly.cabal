@@ -323,7 +323,7 @@ library
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
       exposed-modules: Streamly.Internal.FileSystem.Event.Windows
-      build-depends: Win32 >= 2.6 && < 2.10
+      build-depends: Win32 >= 2.6 && < 2.13
 
     if os(darwin)
       frameworks:    Cocoa
