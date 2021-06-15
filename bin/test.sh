@@ -154,6 +154,10 @@ fi
 # Run coverage reports
 #-----------------------------------------------------------------------------
 
+PACKAGE_NAME=streamly-0.7.2
+MIX_DIR=$BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/$PACKAGE_NAME/hpc/vanilla/mix/$PACKAGE_NAME/
+ALLTIX=$BUILD_DIR/hpc/all.tix
+
 if test "$COVERAGE" -eq "1" -a "$RAW" -eq 0
 then
   TIXFILES=
@@ -166,10 +170,7 @@ then
     fi
   done
 
-  ALLTIX=$BUILD_DIR/hpc/all.tix
   hpc sum --output=$ALLTIX $TIXFILES
-  run_verbose hpc markup $ALLTIX --hpcdir \
-    $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/streamly-0.7.2/hpc/vanilla/mix/streamly-0.7.2/
-  run_verbose hpc report $ALLTIX $HPC_REPORT_OPTIONS --hpcdir \
-    $BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/streamly-0.7.2/hpc/vanilla/mix/streamly-0.7.2/
+  run_verbose hpc markup $ALLTIX --hpcdir $MIX_DIR
+  run_verbose hpc report $ALLTIX $HPC_REPORT_OPTIONS --hpcdir $MIX_DIR
 fi
