@@ -26,6 +26,8 @@ library
   hs-source-dirs:    .
   exposed-modules:
     Tutorial
+    ConcurrentStreams
+    ReactiveProgramming
 
   build-depends:
       base              >= 4.9   &&  < 5
