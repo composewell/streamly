@@ -75,7 +75,6 @@ extra-source-files:
     configure
     configure.ac
     docs/*.hs
-    docs/*.svg
     docs/streamly-docs.cabal
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h

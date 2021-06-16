@@ -75,7 +75,7 @@ further reading.
 If you wish to follow along with this guide, you will need to have
 [Streamly][] installed.
 
-Please see the [Getting Started With The Streamly Package](./INSTALL.md)
+Please see the [Getting Started With The Streamly Package](docs/getting-started.md)
 guide for instructions on how to install [Streamly][].
 
 If you wish to run benchmarks, please be sure to build your
