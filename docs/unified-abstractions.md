@@ -116,7 +116,7 @@ import qualified Streamly.Prelude as S
 loops = do
     x <- Stream.fromFoldable [1,2]
     y <- Stream.fromFoldable [3,4]
-    Stream.fromEffect $ putStrLn $ show (x, y)
+    Stream.fromEffect $ print (x, y)
 ```
 
 Moreover, the list transformer in Streamly can be concurrent. The Scott
@@ -240,21 +240,33 @@ concise manner. Some key points that Streamly stresses are:
   [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
   for a comparison of popular streaming libraries on micro-benchmarks.
 
-## References
+## Appendix
 
-The basic streaming functionality of Streamly is equivalent to that
-provided by streaming libraries like
-[vector](https://hackage.haskell.org/package/vector),
-[streaming](https://hackage.haskell.org/package/streaming),
-[pipes](https://hackage.haskell.org/package/pipes), and
-[conduit](https://hackage.haskell.org/package/conduit).
-In addition to providing streaming functionality, Streamly subsumes
-the functionality of list transformer libraries like `pipes` or
-[list-t](https://hackage.haskell.org/package/list-t), and also the logic
-programming library [logict](https://hackage.haskell.org/package/logict). On
-the concurrency side, it subsumes the functionality of the
-[async](https://hackage.haskell.org/package/async) package and provides an even
-higher level concurrent composition. Because it supports
-streaming with concurrency we can write FRP applications similar in concept to
-[Yampa](https://hackage.haskell.org/package/Yampa) or
-[reflex](https://hackage.haskell.org/package/reflex).
+Streamly unifies the functionality overlapping the following Haskell
+libraries:
+
+### Streaming
+
+* [vector](https://hackage.haskell.org/package/vector)
+* [streaming](https://hackage.haskell.org/package/streaming)
+* [pipes](https://hackage.haskell.org/package/pipes)
+* [conduit](https://hackage.haskell.org/package/conduit)
+
+### List Transformers and Logic Programming
+
+* [pipes](https://hackage.haskell.org/package/pipes)
+* [list-t](https://hackage.haskell.org/package/list-t)
+* [logict](https://hackage.haskell.org/package/logict)
+
+### Concurrency
+
+* [async](https://hackage.haskell.org/package/async)
+
+### Reactive Programming
+
+* [Yampa](https://hackage.haskell.org/package/Yampa)
+* [reflex](https://hackage.haskell.org/package/reflex)
+
+### Arrays
+
+* [vector](https://hackage.haskell.org/package/vector)
