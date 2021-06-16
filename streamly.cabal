@@ -56,7 +56,6 @@ extra-source-files:
     .hlint.yaml
     CONTRIBUTING.md
     Changelog.md
-    INSTALL.md
     MAINTAINING.md
     README.md
     appveyor.yml
