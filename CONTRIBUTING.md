@@ -182,15 +182,16 @@ copying does not have an associated license please do not use it.
 
 ## Developer documentation
 
-To build haddock documentation for all modules, including the ones not exposed
-to users of the library, use the following commands:
+To build haddock documentation:
 
 ```
 $ cabal haddock
-$ stack haddock --no-haddock-deps
 ```
 
-For design documentation see the `design` directory.
+Open the link printed at the end of the output of this command, in
+your browser.
+
+For general library developer documentation see the `dev` directory.
 
 ## Coding Guidelines
 
