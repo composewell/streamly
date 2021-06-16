@@ -79,8 +79,7 @@ Please see the [Getting Started With The Streamly Package](./INSTALL.md)
 guide for instructions on how to install [Streamly][].
 
 If you wish to run benchmarks, please be sure to build your
-application using the instructions in the [Build And Compile Options
-Guide](docs/Build.md).
+application using the instructions in the [Build Guide](docs/building.md).
 
 ### An overview of the types used in these examples
 

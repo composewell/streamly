@@ -286,7 +286,7 @@ If you got this far successfully, congratulations!
 * Please browse the code examples in the
   [`Streamly examples repository`][streamly-examples].
 * If you would like to start on a real world project, please take a
-  look at the [Streamly Build and Optimization Guide](./docs/Build.md).
+  look at the [Streamly Build Guide](./docs/building.md).
 * For more information please visit the [Streamly Homepage][Streamly].
 
 <!-- Markdown Links -->
