@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Construction
     , mutableArray
-    , withNewArray
+    , unsafeWithNewArray
     , newArray
     , newArrayAligned
     , newArrayAlignedUnmanaged
@@ -306,9 +306,9 @@ newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
-{-# INLINE withNewArray #-}
-withNewArray :: forall a. Storable a => Int -> (Ptr a -> IO ()) -> IO (Array a)
-withNewArray count f = do
+{-# INLINE unsafeWithNewArray #-}
+unsafeWithNewArray :: forall a. Storable a => Int -> (Ptr a -> IO ()) -> IO (Array a)
+unsafeWithNewArray count f = do
     arr <- newArray count
     unsafeWithForeignPtr (aStart arr) $ \p -> f p >> return arr
 

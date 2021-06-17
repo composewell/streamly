@@ -669,7 +669,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX The file may have even got deleted and then recreated which we will
     -- never get to know, document this.
-    wd <- A.asCString absPath $ \pathPtr ->
+    wd <- A.unsafeAsCString absPath $ \pathPtr ->
             throwErrnoIfMinus1 ("addToWatch: " ++ utf8ToString absPath) $
                 c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
 
@@ -775,7 +775,7 @@ readOneEvent :: Config -> Watch -> Parser IO Word8 Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = (sizeOf (undefined :: CInt)) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)
-    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.asPtr arr readHeader
+    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.unsafeAsPtr arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.
