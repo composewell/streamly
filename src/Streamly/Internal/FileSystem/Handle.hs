@@ -96,6 +96,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
@@ -148,7 +149,7 @@ readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size h = do
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    unsafeWithForeignPtr ptr $ \p -> do
+    withForeignPtr ptr $ \p -> do
         n <- hGetBufSome h p size
         -- XXX shrink only if the diff is significant
         return $

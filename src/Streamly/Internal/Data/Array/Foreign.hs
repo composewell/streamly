@@ -129,9 +129,9 @@ module Streamly.Internal.Data.Array.Foreign
     -- * Casting
     , cast
     , unsafeCast
-    , asPtr
+    , unsafeAsPtr
     , asBytes
-    , asCString
+    , unsafeAsCString
 
     -- * Folding Arrays
     , streamFold
@@ -579,8 +579,8 @@ cast arr =
 --
 -- /Pre-release/
 --
-asPtr :: Array a -> (Ptr b -> IO c) -> IO c
-asPtr Array{..} act = do
+unsafeAsPtr :: Array a -> (Ptr b -> IO c) -> IO c
+unsafeAsPtr Array{..} act = do
     unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
@@ -591,8 +591,8 @@ asPtr Array{..} act = do
 --
 -- /Pre-release/
 --
-asCString :: Array a -> (CString -> IO b) -> IO b
-asCString arr act = do
+unsafeAsCString :: Array a -> (CString -> IO b) -> IO b
+unsafeAsCString arr act = do
     let Array{..} = asBytes arr <> A.fromList [0]
     unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
