@@ -85,6 +85,13 @@ report from the results using the `bench-show` package. Try `bench.sh
 
 ## bench.sh: Quick start
 
+IMPORTANT NOTE: If you are using nix then you can use `--use-nix`
+flag so that the `bench-report` executable is built using nix. That
+can save a lot of time compiling it. However, once it is built it
+will be cached in the `bin` directory of the repo and used from there
+every time. You can also build it manually from the cabal file in
+`benchmark/bench-report` and install it in the `bin` directory.
+
 Run the default benchmark suites:
 
 ```
