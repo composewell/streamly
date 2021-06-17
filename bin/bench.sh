@@ -21,6 +21,7 @@ print_help () {
   echo "       [--quick]"
   echo "       [--raw]"
   echo "       [--dev-build]"
+  echo "       [--use-nix]"
   echo "       [--with-compiler <compiler exe name>]"
   echo "       [--cabal-build-options <options>]"
   echo "       [--rtsopts <opts>]"
@@ -68,28 +69,13 @@ list_comparisons ()  {
   echo
 }
 
-# chart is expensive to build and usually not required to be rebuilt,
-# use master branch as fallback
+# chart is expensive to build and usually not required to be rebuilt
 cabal_which_report() {
-  local path=$(cabal_which bench-report x $1)
-  if test -z "$path"
-  then
-    echo "Cannot find $1 executable, trying in dist-newstyle" 1>&2
-    local path1=$(cabal_which_builddir dist-newstyle bench-report x $1)
-    if test -z "$path1"
+    local path="./bin/$1"
+    if test -e "$path"
     then
-      local path2="./bin/$1"
-      echo "Cannot find $1 executable, trying $path2" 1>&2
-      if test -e "$path2"
-      then
-        echo $path2
-      fi
-    else
-        echo $path1
+      echo $path
     fi
-  else
-    echo $path
-  fi
 }
 
 find_report_prog() {
@@ -113,8 +99,16 @@ build_report_prog() {
     then
       echo "Building bench-report executables"
       BUILD_ONCE=1
-      $CABAL_EXECUTABLE v2-build bench-report --project-file=benchmark/bench-report/cabal.project \
-        || die "bench-report build failed"
+      pushd benchmark/bench-report
+      local cmd
+      cmd="$CABAL_EXECUTABLE install --installdir ../../bin bench-report"
+      if test "$USE_NIX" -eq 0
+      then
+        $cmd || die "bench-report build failed"
+      else
+        nix-shell --run "$cmd" || die "bench-report build failed"
+      fi
+      popd
 
     elif test ! -x "$prog_path"
     then
@@ -308,6 +302,7 @@ cd $SCRIPT_DIR/..
 
 USE_GAUGE=0
 USE_GIT_CABAL=1
+USE_NIX=0
 set_common_vars
 
 DEFAULT_FIELDS="allocated bytescopied cputime"
@@ -360,6 +355,7 @@ do
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
+    --use-nix) USE_NIX=1; shift ;;
     --use-gauge) USE_GAUGE=1; shift ;;
     --) shift; break ;;
     *) echo "Unknown flags: $*"; echo; print_help ;;
