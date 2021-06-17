@@ -970,6 +970,10 @@ catMaybes = filter isJust . map fromJust
 -- Parsing
 ------------------------------------------------------------------------------
 
+-- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
+{-# ANN type Tuple'Fused Fuse #-}
+data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
+
 -- | Take at most @n@ input elements and fold them using the supplied fold. A
 -- negative count is treated as 0.
 --
@@ -988,22 +992,22 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
         case res of
             Partial s ->
                 if n > 0
-                then return $ Partial $ Tuple' 0 s
+                then return $ Partial $ Tuple'Fused 0 s
                 else Done <$> fextract s
             Done b -> return $ Done b
 
-    step (Tuple' i r) a = do
+    step (Tuple'Fused i r) a = do
         res <- fstep r a
         case res of
             Partial sres -> do
                 let i1 = i + 1
-                    s1 = Tuple' i1 sres
+                    s1 = Tuple'Fused i1 sres
                 if i1 < n
                 then return $ Partial s1
                 else Done <$> fextract sres
             Done bres -> return $ Done bres
 
-    extract (Tuple' _ r) = fextract r
+    extract (Tuple'Fused _ r) = fextract r
 
 ------------------------------------------------------------------------------
 -- Nesting
