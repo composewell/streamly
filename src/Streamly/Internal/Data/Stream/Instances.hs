@@ -132,7 +132,7 @@ instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
                                                                               \
     {-# INLINE foldl' #-};                                                    \
     foldl' f z0 xs = foldr f' id xs z0                                        \
-          where { f' x k z = k $! f z x};                                     \
+        where {f' x k = oneShot $ \z -> k $! f z x};                          \
                                                                               \
     {-# INLINE length #-};                                                    \
     length = foldl' (\n _ -> n + 1) 0;                                        \

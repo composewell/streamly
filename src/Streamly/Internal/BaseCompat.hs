@@ -14,12 +14,14 @@ module Streamly.Internal.BaseCompat
     , fromLeft
     , fromRight
     , unsafeWithForeignPtr
+    , oneShot
     )
 where
 
 import Data.Coerce (Coercible, coerce)
 #if MIN_VERSION_base(4,10,0)
 import Data.Either (fromRight, fromLeft)
+import qualified GHC.Exts as GHCExt
 #endif
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
@@ -54,4 +56,11 @@ unsafeWithForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
 unsafeWithForeignPtr = GHCForeignPtr.unsafeWithForeignPtr
 #else
 unsafeWithForeignPtr = withForeignPtr
+#endif
+
+oneShot :: (a -> b) -> a -> b
+#if MIN_VERSION_base(4,10,0)
+oneShot = GHCExt.oneShot
+#else
+oneShot = id
 #endif
