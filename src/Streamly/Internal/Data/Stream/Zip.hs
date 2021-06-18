@@ -53,7 +53,7 @@ import GHC.Exts (IsList(..), IsString(..))
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
-import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace)
+import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar (MonadAsync)
