@@ -15,5 +15,8 @@ remove or miss any tests when making changes to CI configs:
   * --flag streamk
   * --flag debug
   * --flag doctests
+* ghc head version - run inspection-testing + fusion-plugin tests to catch any
+  issues early. Ideally we should also be running perf tests and compare
+  against the prime version.
 
 * Latest version ghcjs build (lib, test, bench), run tests
