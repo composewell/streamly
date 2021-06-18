@@ -1,204 +1,86 @@
 # Benchmarking
 
-## Benchmark Dirvers
+## Benchmark Drivers
 
 Two benchmark drivers are supported:
 
 * `tasty-bench` (default)
 * `gauge` (enabled by `--use-gauge` build flag)
 
-## Building a single benchmark suite
-
-```
-$ cabal build streamly-benchmarks:Prelude.Serial
-```
-
-or:
-
-```
-$ cabal build --enable-benchmarks bench:Prelude.Serial
-```
-
-## Building all benchmarks suites
-
-```
-$ cabal build --enable-benchmarks streamly-benchmarks
-```
-
-or:
-
-```
-$ cabal build --enable-benchmarks all
-```
-
-Disable optimization, quick build:
-
-```
-$ cabal build --flag "-opt" ...
-```
-
-## Build and run single benchmarks:
+## Build and run benchmarks directly
 
 The benchmark executables are `tasty-bench` executables unless you have
 passed `--use-gauge` cabal flag when building in which case it is a
 `gauge` executable.
 
-For quick results you may have to use a large value for `--stdev` or use
-`bench.sh --quick` as described in the following sections.
-
 ```
-$ cabal run bench:Prelude.Serial -- --stdev 100000
-```
+$ cabal run bench:Prelude.Serial  # run selected
+$ cabal run bench:Prelude.Serial -- --help # help on arguments
+$ cabal run bench:Prelude.Serial -- --stdev 100000 # specify arguments
+$ cabal run bench:Prelude.Serial --flag fusion-plugin # with fusion-plugin
 
-`cabal bench` can be used but you cannot pass arguments (like --stdev):
+$ cabal build bench:Prelude.Serial # build selected
+$ cabal build --enable-benchmarks streamly-benchmarks # build all
+$ cabal build --enable-benchmarks all # build all, alternate method
 
-```
-$ cabal bench Prelude.Serial
-```
-
-## Build and run all benchmarks
-
-Don't try this, it will take too long, use the `bench.sh` method instead.
-
-```
-$ cabal bench all
-```
-
-or:
-
-```
-$ cd benchmark; cabal bench
-```
-
-or this, note this command does not work from "benchmark" dir:
-
-```
-$ cabal bench streamly-benchmarks
+$ cabal build --flag "-opt" ... # disable optimization, faster build
 ```
 
 ## Building and Running Benchmarks with bench.sh
 
 `<streamly repo>/bin/bench.sh` script is the top level driver for
 running benchmarks. It runs the requested benchmarks and then creates a
-report from the results using the `bench-show` package. Try `bench.sh
---help` for available options to run it.
+report from the results using the `bench-show` package.
+
+IMPORTANT NOTE:  The first time you run this script it may take a long
+time because it has to build the `bench-report` executable which has a
+lot of dependencies.  If you are using nix then use `--use-nix` flag
+for the first time so that the `bench-report` executable is built using
+nix. That can save a lot of time compiling it. However, once it is built
+it will be cached in the `bin` directory of the repo and used from
+there every time. You can also build it manually from the cabal file in
+`benchmark/bench-report` and install it in the `bin` directory.
 
 ## bench.sh: Quick start
 
-IMPORTANT NOTE: If you are using nix then you can use `--use-nix`
-flag so that the `bench-report` executable is built using nix. That
-can save a lot of time compiling it. However, once it is built it
-will be cached in the `bin` directory of the repo and used from there
-every time. You can also build it manually from the cabal file in
-`benchmark/bench-report` and install it in the `bin` directory.
-
-Run the default benchmark suites:
+Useful commands:
 
 ```
-$ bench.sh --quick
+$ bin/bench.sh --help
+$ bin/bench.sh --quick # run all the benchmark suites
+$ bin/bench.sh --benchmarks help # Show available benchmark suites
+$ bin/bench.sh --benchmarks serial_grp # Run all serial benchmark suites
+$ bin/bench.sh --benchmarks "Prelude.Serial Data.Parser" # run selected suites
+$ bin/bench.sh --no-measure # don't run benchmarks just show previous results
+
+# Run all O(1) space complexity benchmarks in `Prelude.Serial` suite
+$ bin/bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space
+
+# Run a specific benchmark in `Prelude.Serial` suite
+$ bin/bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
 ```
 
-You can remove the `--quick` option to run benchmark with lower speed but
-better accuracy, or use `--slow` to even further lower the speed and increase
-the accuracy a bit.
+Note: `bench.sh` enables fusion-plugin by default.
 
-Show available benchmark suites:
+## Comparing results with baseline
 
 ```
-$ bench.sh --benchmarks help
+# Checkout baseline commit
+$ bin/bench.sh --quick
+
+# Checkout commit with new changes
+$ bin/bench.sh --quick --append
+
+# To add another result to comparisons just repeat the above command on
+# desired commit
 ```
-
-Run all benchmark suites in the `serial_grp` group:
-
-```
-$ bench.sh --benchmarks serial_grp
-```
-
-Run `Prelude.Serial` and `Data.Parser` benchmark suites:
-
-```
-$ bench.sh --benchmarks "Prelude.Serial Data.Parser"
-```
-
-Run all O(1) space complexity benchmarks in `Prelude.Serial` suite:
-
-```
-$ bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space
-```
-
-Anything after a `--` is passed to the benchmark executable,
-it basically selects all benchmarks starting with
-`Prelude.Serial/o-1-space` prefix.
-
-Run a specific benchmark in `Prelude.Serial` suite:
-
-```
-$ bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
-```
-
-Run a benchmark directly instead of running it through `bench.sh`:
-
-```
-$ cabal run bench:Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
-```
-
-The options after `--` are the benchmark executable options.
-
-## Comparing results of arbitrary runs
-
-Note: use `--quick` and benchmark selection if you do not intend to wait for a
-while.
-
-To compare two sets of results, first run the benchmarks at the baseline
-commit:
-
-```
-$ bench.sh
-```
-
-And then run with the `--append` option at the commit that you want to compare
-with the baseline. It will show the comparison with the baseline:
-
-```
-$ bench.sh --append
-```
-
-Append just adds the next set of results in the same results file. You can keep
-appending more results and all of them will be compared with the baseline.
-
-## Comparing results of two commits
-
-Note: use `--quick` and benchmark selection if you do not intend to wait for a
-while.
-
-You can use `--compare` to compare the previous commit with the head commit:
-
-```
-$ bench.sh --compare
-```
-
-To compare the head commit with some other base commit:
-
-```
-$ bench.sh --compare --base d918833
-```
-
-To compare two arbitrary commits:
-
-```
-$ bench.sh --compare --base d918833 --candidate 38aa5f2
-```
-
-Note that the above may not always work because the script and the benchmarks
-themselves might have changed across the commits. The `--append` method is more
-reliable to compare.
 
 ## Comparing benchmark suites
 
 First see the available benchmark suites:
 
 ```
-$ bench.sh --benchmarks help
+$ bin/bench.sh --benchmarks help
 ```
 
 You will see some benchmark suites end with `_cmp`, these are comparison
@@ -207,7 +89,7 @@ benchmark suites in that group will be shown in the end. For example to compare
 all array benchmark suites:
 
 ```
-$ bench.sh --benchmarks array_cmp
+$ bin/bench.sh --benchmarks array_cmp
 ```
 
 ## Reporting without measuring
@@ -234,7 +116,7 @@ benchmarking:
 $ cabal run bench:Prelude.Serial -- --stream-size 1000000
 ```
 
-### Unicode input
+### External input file
 
 In the `FileSystem.Handle` benchmark you can specify the input file as an
 environment variable:
