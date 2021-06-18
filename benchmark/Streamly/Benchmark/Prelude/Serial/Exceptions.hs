@@ -36,6 +36,8 @@ import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Test.Inspection
+
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
 -------------------------------------------------------------------------------
@@ -48,6 +50,10 @@ readWriteOnExceptionStream inh devNull =
     let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) $ readEx
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
+#endif
+
 -- | Send the file contents to /dev/null with exception handling
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
@@ -55,11 +61,19 @@ readWriteHandleExceptionStream inh devNull =
         readEx = S.handle handler (S.unfold FH.read inh)
     in S.fold (FH.write devNull) $ readEx
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
+#endif
+
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
     let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteFinally_Stream
+#endif
 
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
@@ -75,7 +89,6 @@ fromToBytesBracket_Stream inh devNull =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
--- inspect $ 'fromToBytesBracketStream `hasNoType` ''Step
 #endif
 
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
@@ -91,15 +104,28 @@ readWriteBeforeAfterStream inh devNull =
                 $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
+#ifdef INSPECTION
+inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
+#endif
+
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
     let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
+#ifdef INSPECTION
+inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
+#endif
+
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
     let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readWriteAfter_Stream
+inspect $ 'readWriteAfter_Stream `hasNoType` ''D.Step
+#endif
 
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
@@ -139,7 +165,6 @@ readChunksOnException inh devNull =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksOnException
--- inspect $ 'readChunksOnException `hasNoType` ''Step
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
@@ -150,7 +175,6 @@ readChunksBracket_ inh devNull =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksBracket_
--- inspect $ 'readChunksBracket `hasNoType` ''Step
 #endif
 
 readChunksBracket :: Handle -> Handle -> IO ()
@@ -185,7 +209,6 @@ toChunksBracket_ inh devNull =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksBracket_
--- inspect $ 'toChunksBracket `hasNoType` ''Step
 #endif
 
 toChunksBracket :: Handle -> Handle -> IO ()

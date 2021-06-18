@@ -29,6 +29,7 @@ import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import GHC.Exts (inline)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -231,7 +232,7 @@ after action (Stream step state) = Stream step' Nothing
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action str =
-    gbracket_ (return ()) MC.try return
+    gbracket_ (return ()) (inline MC.try) return
         (\_ (e :: MC.SomeException) _ -> nilM (action >> MC.throwM e))
         (\_ -> str)
 
@@ -255,7 +256,7 @@ _onException action (Stream step state) = Stream step' state
 bracket_ :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket_ bef aft bet =
-    gbracket_ bef MC.try aft
+    gbracket_ bef (inline MC.try) aft
         (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e)) bet
 
 -- | See 'Streamly.Internal.Data.Stream.IsStream.bracket'.
@@ -264,7 +265,7 @@ bracket_ bef aft bet =
 bracket :: (MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft bet =
-    gbracket bef MC.try aft
+    gbracket bef (inline MC.try) aft
         (\a (e :: SomeException) _ -> aft a >> return (nilM (MC.throwM e))) bet
 
 data BracketState s v = BracketInit | BracketRun s v
@@ -285,7 +286,7 @@ _bracket bef aft bet = Stream step' BracketInit
     -- here, otherwise we get huge perf degradation, see note in concatMap.
     step' gst (BracketRun (UnStream step state) v) = do
         -- res <- step gst state `MC.onException` aft v
-        res <- MC.try $ step gst state
+        res <- inline MC.try $ step gst state
         case res of
             Left (e :: SomeException) -> aft v >> MC.throwM e >> return Stop
             Right r -> case r of
@@ -313,7 +314,7 @@ finally action xs = bracket (return ()) (\_ -> action) (const xs)
 ghandle :: (MonadCatch m, Exception e)
     => (e -> Stream m a -> Stream m a) -> Stream m a -> Stream m a
 ghandle f str =
-    gbracket_ (return ()) MC.try return (\_ -> f) (\_ -> str)
+    gbracket_ (return ()) (inline MC.try) return (\_ -> f) (\_ -> str)
 
 -- | See 'Streamly.Internal.Data.Stream.IsStream.handle'.
 --
@@ -321,7 +322,7 @@ ghandle f str =
 handle :: (MonadCatch m, Exception e)
     => (e -> Stream m a) -> Stream m a -> Stream m a
 handle f str =
-    gbracket_ (return ()) MC.try return (\_ e _ -> f e) (\_ -> str)
+    gbracket_ (return ()) (inline MC.try) return (\_ e _ -> f e) (\_ -> str)
 
 -- | Alternate (custom) implementation of 'handle'.
 --
@@ -334,7 +335,7 @@ _handle f (Stream step state) = Stream step' (Left state)
 
     {-# INLINE_LATE step' #-}
     step' gst (Left st) = do
-        res <- MC.try $ step gst st
+        res <- inline MC.try $ step gst st
         case res of
             Left e -> return $ Skip $ Right (f e)
             Right r -> case r of
