@@ -120,6 +120,7 @@ import qualified Data.Foldable as F
 --
 -- $setup
 -- >>> :m
+-- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
 -- >>> import Streamly.Internal.Data.Array.Foreign as Array
 

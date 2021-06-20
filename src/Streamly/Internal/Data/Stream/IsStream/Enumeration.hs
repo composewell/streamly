@@ -66,6 +66,10 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream(..))
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 
+-- $setup
+-- >>> import Streamly.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
+
 -------------------------------------------------------------------------------
 -- Enumeration of Integral types
 -------------------------------------------------------------------------------
@@ -78,7 +82,6 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 -- check for overflow, underflow or bounds.
 --
 -- @
--- >>> import Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromStepIntegral 0 2
 -- [0,2,4,6]
 --

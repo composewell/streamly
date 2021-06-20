@@ -256,6 +256,10 @@ import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
 
+-- $setup
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+
 -------------------------------------------------------------------------------
 -- Input operations
 -------------------------------------------------------------------------------

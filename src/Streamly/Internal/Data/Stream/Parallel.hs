@@ -84,6 +84,7 @@ import qualified Streamly.Internal.Data.Stream.SVar as SVar
 
 --
 -- $setup
+-- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do

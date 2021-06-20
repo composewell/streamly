@@ -71,6 +71,7 @@ import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 #include "Instances.hs"
 
 -- $setup
+-- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do

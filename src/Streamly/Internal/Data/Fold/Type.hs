@@ -284,6 +284,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 
 -- $setup
 -- >>> :m
+-- >>> :set -XFlexibleContexts
 -- >>> import Prelude hiding (concatMap, filter, map)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold

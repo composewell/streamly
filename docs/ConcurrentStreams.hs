@@ -95,7 +95,7 @@ import Control.Monad.IO.Class      (MonadIO(..))
 import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- CAUTION: please keep setup and imports sections in sync
---
+
 -- $setup
 -- >>> :m
 -- >>> import Data.Function ((&))
