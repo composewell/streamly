@@ -72,6 +72,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 #include "Instances.hs"
 
 -- $setup
+-- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do
@@ -79,6 +80,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 --      putStrLn (show n ++ " sec") -- print "n sec"
 --      return n                    -- IO Int
 -- :}
+--
 
 -------------------------------------------------------------------------------
 -- Async

@@ -83,6 +83,9 @@ import Prelude hiding (map, mapM, errorWithoutStackTrace)
 #include "Instances.hs"
 #include "inline.hs"
 
+-- $setup
+-- >>> import qualified Streamly.Prelude as Stream
+
 ------------------------------------------------------------------------------
 -- SerialT
 ------------------------------------------------------------------------------

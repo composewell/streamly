@@ -89,6 +89,9 @@ import Prelude hiding (map, mapM, concatMap, foldr)
 
 import Streamly.Internal.Data.SVar
 
+-- $setup
+-- >>> import Streamly.Prelude as Stream
+
 ------------------------------------------------------------------------------
 -- Basic stream type
 ------------------------------------------------------------------------------

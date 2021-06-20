@@ -945,6 +945,10 @@ import Prelude
 
 import Streamly.Internal.Data.Stream.IsStream
 
+-- $setup
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Prelude as Stream
+
 -- $serial
 --
 -- Serial streams are /spatially ordered/, they execute the actions in the

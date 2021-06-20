@@ -262,3 +262,7 @@ import Prelude
                span, splitAt, break, mapM)
 
 import Streamly.Internal.Data.Fold
+
+-- $setup
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Prelude as Stream
