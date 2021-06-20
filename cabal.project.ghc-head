@@ -1,0 +1,55 @@
+packages:   streamly.cabal
+          , test/streamly-tests.cabal
+          , benchmark/streamly-benchmarks.cabal
+          , docs/streamly-docs.cabal
+
+-- Up to date on github
+source-repository-package
+  type: git
+  location: https://github.com/haskell/primitive
+  tag: d57dfacd4486b78785140ac9ae071770748a1c23
+
+source-repository-package
+  type: git
+  location: https://github.com/haskell/random
+  tag: 4c6da86e00f8128f7094e597bb9ff7db23cee2d8
+
+-- Modified
+source-repository-package
+  type: git
+  location: https://github.com/composewell/fusion-plugin
+  tag: 1ccd16a4fbe9470d0a81f50f1dee45ed0d1f6356
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/colour
+  tag: 657cc05600a8e15464387bbe2379d03613636aa2
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/network
+  tag: b83c9146072b69f99128a32a9fcda3a6e9200722
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/tasty
+  tag: a2cdda6868b3da1e02ca2b45c12525c1f74911b0
+  subdir: core
+
+package fusion-plugin
+  tests: false
+
+package primitive
+  tests: false
+
+package random
+  tests: false
+
+package colour
+  tests: false
+
+package network
+  tests: false
+
+package tasty
+  tests: false
