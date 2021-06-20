@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Distribution.Extra.Doctest (defaultMainWithDoctests)
+import Distribution.Simple
 
 main :: IO ()
-main = defaultMainWithDoctests "streamly-docs-doctests"
+main = defaultMain
