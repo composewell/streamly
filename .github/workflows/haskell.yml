@@ -59,7 +59,6 @@ jobs:
           - 8.6.5+fusion-plugin
           - 8.6.5+streamk
           - 8.4.4+debug
-          - doctests
         cabal_version: ["3.4"]
         include:
           - name: 9.0.1
@@ -115,14 +114,6 @@ jobs:
             build: cabal-v2
             cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
-            runner: ubuntu-latest
-          - name: doctests
-            ghc_version: 8.8.3
-            build: cabal-v2
-            cabal_build_options: "--flag doctests"
-            cabal_build_targets: doctests
-            disable_sdist_build: "y"
-            disable_dist_checks: "y"
             runner: ubuntu-latest
 
     steps:
