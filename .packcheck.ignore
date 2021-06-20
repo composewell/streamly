@@ -3,6 +3,7 @@ cabal.project
 cabal.project.ci
 cabal.project.coverage
 cabal.project.doctest
+cabal.project.ghc-head
 cabal.project.hpc-coveralls
 hie.yaml
 stack.yaml
