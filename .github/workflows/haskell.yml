@@ -86,7 +86,7 @@ jobs:
           - name: 8.8.4+inspection+fusion-plugin+Werror
             ghc_version: 8.8.4
             build: cabal-v2
-            cabal_project: cabal.project.ci
+            cabal_project: cabal.project.Werror
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             runner: ubuntu-latest
           - name: 8.8.4
