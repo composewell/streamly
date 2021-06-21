@@ -169,4 +169,5 @@ main =
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
             prop "writeWithBufferOf" $ testWrite $ Handle.writeWithBufferOf 1024
+            -- XXX This test needs a lot of stack when built with -O0
             prop "writeChunks" testWriteWithChunk

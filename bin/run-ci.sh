@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# See dev/ci-tests.md
+
 # TODO: (1) Detect if nix is available otherwise run with plain cabal,
 # (2) Detect the platform and run tests applicable to the platform, (3)
 # add a test for windows/msys
@@ -8,85 +10,121 @@ SCRIPT_DIR=$(cd `dirname $0`; pwd)
 source $SCRIPT_DIR/build-lib.sh
 
 #------------------------------------------------------------------------------
-# GHC 8.10
+# Prime version (GHC 8.10)
 #------------------------------------------------------------------------------
+
+GHC_PRIME=ghc8104
+GHC_PRIME_VER="8.10"
+
+ghc_prime_dist () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "\
+      packcheck.sh cabal-v2 \
+      GHCVER=$GHC_PRIME_VER \
+      CABAL_DISABLE_DEPS=y \
+      CABAL_CHECK_RELAX=y"
+}
 
 # build-all, Werror, test, inspection, fusion-plugin. Note, inspection
 # requires fusion-plugin.
 
-basic () {
+PERF_FLAGS="--flag inspection --flag fusion-plugin"
+
+ghc_prime_perf () {
   nix-shell \
-    --argstr compiler "ghc8101" \
+    --argstr compiler "$GHC_PRIME" \
     --argstr c2nix "--flag inspection" \
     --run "\
-      packcheck cabal-v2 \
-      GHCVER=8.10.1 \
-      CABAL_DISABLE_DEPS=y \
-      CABAL_CHECK_RELAX=y \
-      DISABLE_SDIST_BUILD=y \
-      CABAL_PROJECT=cabal.project.ci \
-      CABAL_BUILD_OPTIONS=\"--flag inspection --flag fusion-plugin\""
-# chart deps do not build with ghc-8.10 on nix
-#  nix-shell \
-#    --argstr compiler "ghc8101" \
-#    --argstr c2nix "--flag dev" \
-#    --run "cabal build chart --flag dev"
-#  nix-shell \
-#    --argstr compiler "ghc8101" \
-#    --argstr c2nix "--flag inspection" \
-#    --run "\
-#      bin/bench.sh \
-#        --quick \
-#        --cabal-build-options \"--cabal-project cabal.project.ci --flag inspection --flag fusion-plugin\""
-  }
+      bin/bench.sh --cabal-build-options \
+        \"--project-file cabal.project.Werror $PERF_FLAGS\" --quick --raw;\
+      bin/test.sh --cabal-build-options \
+        \"--project-file cabal.project.Werror $PERF_FLAGS\";"
+}
+
+ghc_prime_O0 () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "\
+      bin/test.sh --cabal-build-options \
+        \"--project-file cabal.project.O0\""
+}
 
 #------------------------------------------------------------------------------
-# hlint
+# Check warnings, docs
 #------------------------------------------------------------------------------
 
 # XXX avoid rebuilding if nothing has changed in the source
 # XXX run hlint only on changed files
-hlint () {
+lint () {
   packcheck cabal \
     HLINT_OPTIONS="lint --cpp-include=src --cpp-include=test"  \
     HLINT_TARGETS="src test benchmark"
+}
+
+Werror () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "cabal build --project-file cabal.project.Werror-nocode all"
+}
+
+ghc_prime_werror () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "cabal build --project-file cabal.project.Werror all"
+}
+
+ghc_prime_doctests () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "cabal build --project-file cabal.project.doctest all"
+  cabal-docspec --timeout 60
 }
 
 #------------------------------------------------------------------------------
 # coverage
 #------------------------------------------------------------------------------
 
-coverage () {
-  nix-shell \
-    --argstr compiler "ghc8101" \
-    --run "bin/test.sh --coverage"
-}
-
 # To upload the results to coveralls.io using hpc-coveralls
 # hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
 
+ghc_prime_coverage () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "bin/test.sh --coverage"
+}
+
 #------------------------------------------------------------------------------
-# GHC 8.8
+# Flags
 #------------------------------------------------------------------------------
 
-# chart builds from the nix cache for 8.8, 8.10 requires building
-# XXX Use a separate build-dir for this
-# build-all only, throw in most flags except fusion-plugin, inspection, opt
-flags () {
+ghc_prime_dev () {
   nix-shell \
-    --argstr compiler "ghc883" \
-    --argstr c2nix "--flag dev" \
-    --run "\
-      packcheck cabal-v2 \
-      GHCVER=8.8.3 \
-      CABAL_DISABLE_DEPS=y \
-      CABAL_CHECK_RELAX=y \
-      DISABLE_SDIST_BUILD=y \
-      DISABLE_TEST=y \
-      DISABLE_DOCS=y \
-      DISABLE_BENCH=y \
-      CABAL_BUILD_OPTIONS=\"--flag streamk --flag debug --flag use-c-malloc --flag dev\""
+    --argstr compiler "$GHC_PRIME" \
+    --run "bin/test.sh --cabal-build-options \"--flag dev\""
 }
+
+ghc_prime_c_malloc () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "bin/test.sh --cabal-build-options \"--flag use-c-malloc\""
+}
+
+ghc_prime_debug () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "bin/test.sh --cabal-build-options \"--flag debug\""
+}
+
+ghc_prime_streamk () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME" \
+    --run "bin/test.sh --cabal-build-options \"--flag streamk\""
+}
+
+#------------------------------------------------------------------------------
+# Other GHC versions
+#------------------------------------------------------------------------------
 
 # build-all only
 # $1 883
@@ -95,43 +133,72 @@ ghc () {
   nix-shell \
     --argstr compiler "ghc$1" \
     --run "\
-      packcheck cabal-v2 \
+      packcheck.sh cabal-v2 \
       GHCVER=$2 \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y \
       DISABLE_SDIST_BUILD=y \
       DISABLE_TEST=y \
-      DISABLE_DOCS=y "
+      DISABLE_DOCS=y"
 }
 
-ghc883 () { ghc 883 8.8.3; }
-ghc865 () { ghc 865 8.6.5; }
-ghc844 () { ghc 865 8.4.4; }
+ghc901 () { ghc 901 9.0.1; }
+ghc884 () { ghc 884 8.8.4; }
+
+#------------------------------------------------------------------------------
+# GHC Head
+#------------------------------------------------------------------------------
+
+ghcHEAD () {
+  nix-shell \
+    --argstr compiler "ghcHEAD" \
+    --run "\
+      packcheck.sh cabal-v2 \
+      GHCVER=9.3 \
+      CABAL_CHECK_RELAX=y \
+      DISABLE_SDIST_BUILD=y \
+      CABAL_BUILD_OPTIONS=\"--allow-newer --project-file cabal.project.ghc-head"
+}
 
 #------------------------------------------------------------------------------
 # ghcjs
 #------------------------------------------------------------------------------
 
-#nix-shell \
-#  --argstr compiler "ghcjs" \
-#  --run "\
-#    packcheck cabal-v2 \
-#    GHCVER=8.6.0 \
-#    CABAL_DISABLE_DEPS=y \
-#    CABAL_CHECK_RELAX=y \
-#    DISABLE_SDIST_BUILD=y \
-#    DISABLE_TEST=y \
-#    DISABLE_DOCS=y \
-#    ENABLE_GHCJS=y " || exit 1
+ghcjs () {
+      export PATH=~/.local/bin:/opt/ghc/bin:/opt/ghcjs/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
+      packcheck.sh cabal-v2 \
+        GHCVER=8.4.0 \
+        CABAL_CHECK_RELAX=y \
+        DISABLE_SDIST_BUILD=y \
+        DISABLE_TEST=y \
+        DISABLE_DOCS=y \
+        ENABLE_GHCJS=y
+}
 
 #-----------------------------------------------------------------------------
 # Read command line
 #-----------------------------------------------------------------------------
 
-ALL_TARGETS="all basic hlint coverage flags ghc883 ghc864 ghc844"
+ALL_TARGETS="\
+ghc_prime_dist \
+ghc_prime_perf \
+ghc_prime_O0 \
+ghc_prime_Werror \
+ghc_prime_doctests \
+ghc_prime_coverage \
+ghc_prime_dev \
+ghc_prime_c_malloc \
+ghc_prime_debug \
+ghc_prime_streamk \
+ghc901 \
+ghc884 \
+ghcHEAD \
+ghcjs \
+lint \
+Werror"
 
 print_targets () {
-  echo "Available targets: $ALL_TARGETS"
+  echo "Available targets: all $ALL_TARGETS"
 }
 
 print_help () {
@@ -152,20 +219,29 @@ do
   esac
 done
 
+if test -z "$TARGETS"
+then
+  print_help
+fi
+
+for i in "$TARGETS"
+do
+  if test "$(has_item "$ALL_TARGETS" $i)" != "$i"
+  then
+    echo "Unrecognized target: $i"
+    print_help
+  fi
+done
+
 if test "$(has_item "$TARGETS" help)" = "help"
 then
   print_targets
   exit
 fi
 
-if test "$(has_item "$TARGETS" help)" = "all"
+if test "$(has_item "$TARGETS" all)" = "all"
 then
   TARGETS="$ALL_TARGETS"
-fi
-
-if test -z "$TARGETS"
-then
-  print_help
 fi
 
 for i in $TARGETS

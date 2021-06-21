@@ -98,6 +98,13 @@ echo "Using targets [$TARGETS]"
 
 test_exe_rts_opts () {
   case "$1" in
+    # XXX Data.Array.* heap requirement increased for GHC-8.10
+    Data.Array.Foreign) echo -n "-M128M" ;;
+    Data.Array.Prim) echo -n "-M128M" ;;
+    Data.Array.Prim.Pinned) echo -n "-M128M" ;;
+    # For -O0 case writeChunks test fails, maybe we should have a separate flag
+    # for O0 case?
+    FileSystem.Handle) echo -n "-K16M" ;;
     *) if test "$COVERAGE" -eq "1"
        then
           echo -n "-K8M -M1024M"

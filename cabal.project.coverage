@@ -3,11 +3,8 @@ packages:
   test
 
 package streamly
-  ghc-options: -Werror
-  flag: inspection
   coverage: true
 
-package streamly-tests
-  ghc-options: -Werror
+-- package streamly-tests
     -- A few percent lesss coverage for some build speedup
     -- -DCOVERAGE_BUILD

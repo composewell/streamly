@@ -1,0 +1,19 @@
+packages:
+  ./
+  test
+  benchmark
+
+-- Keep the flags same as cabal.project.doctest because we utilize the
+-- same build for doctests in CI.
+
+package streamly
+  flags: -opt
+  ghc-options: -O0 -Werror
+
+package streamly-tests
+  flags: -opt
+  ghc-options: -O0 -Werror
+
+package streamly-benchmarks
+  flags: -opt
+  ghc-options: -O0 -Werror
