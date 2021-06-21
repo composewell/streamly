@@ -1,0 +1,13 @@
+packages:
+  ./
+  benchmark
+  test
+
+package streamly
+  ghc-options: -Werror -fno-code
+
+package streamly-benchmarks
+  ghc-options: -Werror -fno-code
+
+package streamly-tests
+  ghc-options: -Werror -fno-code

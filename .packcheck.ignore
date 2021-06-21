@@ -1,9 +1,11 @@
 .packcheck.ignore
 cabal.project
-cabal.project.ci
 cabal.project.coverage
 cabal.project.doctest
 cabal.project.ghc-head
 cabal.project.hpc-coveralls
+cabal.project.O0
+cabal.project.Werror
+cabal.project.Werror-nocode
 hie.yaml
 stack.yaml
