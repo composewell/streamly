@@ -102,6 +102,8 @@ bench_rts_opts_specific () {
     Data.SmallArray/o-1-sp*) echo -n "-K128K" ;;
     # For tasty-bench
     Data.Array*/o-1-space/generation/show) echo -n "-M32M" ;;
+    # XXX For GHC-8.10
+    Data.Array/o-1-space/transformationX4/map) echo -n "-M32M" ;;
     *) echo -n "" ;;
   esac
 }

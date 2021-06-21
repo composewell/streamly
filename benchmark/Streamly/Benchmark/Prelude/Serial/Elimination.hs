@@ -471,7 +471,6 @@ o_1_space_elimination_folds value =
         , benchIOSink value "and" (and value)
         , benchIOSink value "or" (or value)
 
-        , benchPureSink value "showsPrec pure streams" showInstance
         -- length is used to check for foldr/build fusion
         , benchPureSink value "length . IsList.toList" (Prelude.length . GHC.toList)
         ]
@@ -513,6 +512,8 @@ o_n_heap_elimination_buffered value =
         -- XXX can the outputs be streaming? Can we have special read/show
         -- style type classes, readM/showM supporting streaming effects?
         [ bench "showPrec Haskell lists" $ nf showInstanceList (mkList value)
+        -- XXX This is not o-1-space for GHC-8.10
+        , benchPureSink value "showsPrec pure streams" showInstance
         ]
     ]
 
