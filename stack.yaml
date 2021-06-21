@@ -1,20 +1,9 @@
-resolver: lts-17.9
+resolver: lts-18.0
 packages:
 - '.'
 - './benchmark'
 - './test'
-extra-deps:
-- SDL-0.6.7.0@sha256:9d6ba75c0cab575ec38468c8277803983e985f9622437aeca6a53e6a7337a7d5,2045
-- QuickCheck-2.14.1@sha256:01e46d7b0a8d3148288ec977625f62d5516ebb5031a50c63f0453863301b4a79,7736
-- random-1.2.0@sha256:4969b16ef23e9a57a415abcd39d982c81844031557b66349651b0fe3255b8986,6094
-- splitmix-0.1.0.1@sha256:22f9662e7e8b173421872241edd39350078a9ed4bb9e9f503948c5b483c79276,5253
-- tasty-bench-0.2.5@sha256:4f00fdafc3aba6e48366a3684c427618d98c0b1b130cd9cab35c9498796c9a65,1497
-- tasty-1.4.1@sha256:69e90e965543faf0fc2c8e486d6c1d8cf81fd108e2c4541234c41490f392f94f,2638
 
+#extra-deps:
 #allow-newer: true
-flags: {}
-extra-package-dbs: []
 rebuild-ghc-options: true
-# For mac ports installed SDL library on Mac OS X
-extra-include-dirs:
-- /opt/local/include
