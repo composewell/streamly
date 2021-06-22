@@ -4,21 +4,22 @@ please see https://github.com/composewell/streamly/issues.
 Use `git shortlog -sn tag1...tag2` on the git repository to get a list of
 contributors between two repository tags.
 
-## HEAD
+## 0.8.0
 
 * Harendra Kumar
 * Adithya Kumar
 * Pranay Sashank
+* Ranjeet Kumar Ranjan
 * Anurag Hooda
 * Ahmed Zaheer Dadarkar
-* Ranjeet Ranjan
 * Shruti Umat
+* Joseph Koshy (Google LLC.)
 * Sanchayan Maity
 * Kirill Elagin
 * Shlok Datye
 * Julian Ospald
+* George Thomas
 * endgame
-* Google LLC.
 
 ## 0.7.3
 

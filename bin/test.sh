@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+STREAMLY_VERSION=0.8.0
+
 #------------------------------------------------------------------------------
 # Script
 #------------------------------------------------------------------------------
@@ -129,7 +131,7 @@ target_exe_extra_args () {
 if test "$COVERAGE" -eq "1"
 then
   # Used to determine the hpc tix dir
-  PACKAGE_FULL_NAME=streamly-0.7.2
+  PACKAGE_FULL_NAME=streamly-$STREAMLY_VERSION
   case `uname` in
     Linux) SYSTEM=x86_64-linux ;;
     *) echo "Unsupported system"; exit 1 ;;
@@ -161,7 +163,7 @@ fi
 # Run coverage reports
 #-----------------------------------------------------------------------------
 
-PACKAGE_NAME=streamly-0.7.2
+PACKAGE_NAME=streamly-$STREAMLY_VERSION
 MIX_DIR=$BUILD_DIR/build/$SYSTEM/ghc-${GHC_VERSION}/$PACKAGE_NAME/hpc/vanilla/mix/$PACKAGE_NAME/
 ALLTIX=$BUILD_DIR/hpc/all.tix
 

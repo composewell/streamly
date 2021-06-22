@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.7.2
+version:            0.8.0
 synopsis:           Dataflow programming and declarative concurrency
 description:
   Browse the documentation at https://streamly.composewell.com.
@@ -36,6 +36,7 @@ tested-with:         GHC==8.0.2
                    , GHC==8.6.5
                    , GHC==8.8.4
                    , GHC==8.10.4
+                   , GHC==9.0.1
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
