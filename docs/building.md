@@ -12,6 +12,10 @@ GHC 9.0 has some performance issues, please see [this
 issue](https://github.com/composewell/streamly/issues/1061) for details.
 However, upcoming minor version updates may fix some of these issues.
 
+### Distributions
+
+Tested with stackage `lts-18.0` and `nix 21.05`.
+
 ### Memory requirements
 
 Building streamly itself may require upto 4GB memory. Depending on the
