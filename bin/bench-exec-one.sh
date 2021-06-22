@@ -104,6 +104,9 @@ bench_rts_opts_specific () {
     Data.Array*/o-1-space/generation/show) echo -n "-M32M" ;;
     # XXX For GHC-8.10
     Data.Array/o-1-space/transformationX4/map) echo -n "-M32M" ;;
+    # DEVBUILD only benchmarks - array foldable instance
+    Data.Array.Foreign/o-1-space/elimination/foldable/foldl*) echo -n "-K8M" ;;
+    Data.Array.Foreign/o-1-space/elimination/foldable/sum) echo -n "-K8M" ;;
     *) echo -n "" ;;
   esac
 }
