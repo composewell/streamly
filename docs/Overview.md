@@ -312,9 +312,9 @@ main = S.drain $ S.fromAsync $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
 ```
 
 For some practical uses of rate control, see
-[AcidRain.hs](https://github.com/composewell/streamly/tree/master/examples/AcidRain.hs)
+[AcidRain.hs](https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs)
 and
-[CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
+[CirclingSquare.hs](https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs)
 .
 Concurrency of the stream is automatically controlled to match the specified
 rate. Rate control works precisely even at throughputs as high as millions of
@@ -369,7 +369,7 @@ using streamly.  You can compile these with `ghc -O2 -fspec-constr-recursive=16
 -fmax-worker-args=16` and compare the performance with regular GNU coreutils
 available on your system.  Though many of these are not most optimal solutions
 to keep them short and elegant. Source file
-[HandleIO.hs](https://github.com/composewell/streamly/tree/master/examples/HandleIO.hs)
+[HandleIO.hs](https://github.com/composewell/streamly-examples/tree/master/examples/HandleIO.hs)
 in the examples directory includes these examples.
 
 ``` haskell
