@@ -15,9 +15,6 @@
 * `encodeLatin1` now silently truncates any character beyond 255 to incorrect
   characters in the input stream. Use `encodeLatin1'` to recover previous
   functionality.
-* The zipping functions `Streamly.Prelude.zipWith` and
-  `Streamly.Prelude.zipWithM` are now applied concurrently for concurrent
-  streams.
 
 ### Breaking type changes
 
