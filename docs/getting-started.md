@@ -198,16 +198,13 @@ do:
 5. `Stream.drain` transforms that stream of actions into an IO action that
    `main` or GHCi's REPL can execute.
 
-These concepts are explained in greater detail in the [Streamly
-Tutorial][tutorial].
-
 #### Using a specific version of `streamly` in the REPL
 
 You can also ask `cabal` to use a specific version of `streamly` by
 adding a version number constraint to the `--build-depends` flag:
 
 ```
-$ cabal repl --build-depends streamly==0.7.2
+$ cabal repl --build-depends streamly==0.8.0
 [1 of 1] Compiling Main             ( Main.hs, interpreted )
 Ok, modules loaded: Main.
 *Main>
@@ -282,17 +279,17 @@ streamly][streamly-github] on Github.
 If you got this far successfully, congratulations!
 
 * For an overview of the `streamly` package, please read the
-  [Streamly Quick Overview](README.md) and [Streamly Tutorial][tutorial].
+  [Streamly Quick Overview](README.md).
 * Please browse the code examples in the
   [`Streamly examples repository`][streamly-examples].
 * If you would like to start on a real world project, please take a
   look at the [Streamly Build Guide](./docs/building.md).
-* For more information please visit the [Streamly Homepage][Streamly].
+* For comprehensive documentation please visit the
+  [Streamly Homepage][Streamly].
 
 <!-- Markdown Links -->
 
  [Streamly]: https://streamly.composewell.com/
- [tutorial]: https://hackage.haskell.org/package/streamly-0.7.3/docs/Streamly-Tutorial.html
  [streamly-hackage]: https://hackage.haskell.org/package/streamly
  [streamly-github]: https://github.com/composewell/streamly
  [streamly-examples]: https://github.com/composewell/streamly-examples
