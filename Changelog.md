@@ -2,7 +2,7 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
-## Unreleased
+## 0.8.0
 
 See [API Changelog](docs/API-changelog.txt) for a complete list of signature
 changes and new APIs introduced.

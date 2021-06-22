@@ -3,7 +3,7 @@ currently shipped with the package.  To find parts of the code where the
 original or modified code has been included please search for the copyright
 notices in the individual files.
 
-## Unreleased
+## 0.8.0
 
 * macOS FS Event handling C code adapted from hfsevents package:
   * Copyright (c) 2012, Luite Stegeman
