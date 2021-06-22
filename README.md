@@ -31,9 +31,9 @@ links (for online docs) before we release.
 [CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
 
 <!-- local files -->
-[LICENSE]: https://github.com/composewell/streamly/blob/master/LICENSE
-[CONTRIBUTING.md]: https://github.com/composewell/streamly/blob/master/CONTRIBUTING.md
-[docs]: https://github.com/composewell/streamly/blob/master/docs/
+[LICENSE]: LICENSE
+[CONTRIBUTING.md]: CONTRIBUTING.md
+[docs]: docs/
 
 Streamly is a Haskell library that provides the building blocks to build
 safe, scalable, modular and high performance software.  Streamly offers:
