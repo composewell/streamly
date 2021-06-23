@@ -3,30 +3,29 @@ name:               streamly
 version:            0.7.2
 synopsis:           Dataflow programming and declarative concurrency
 description:
-  <https://streamly.composewell.com Streamly> is a framework to build
-  reliable and scalable software systems from modular building blocks
-  using dataflow programming (streaming) and declarative concurrency.
-  Powerful stream fusion framework in streamly allows high-performance,
-  modular combinatorial programming. Key features include:
+  Browse the documentation at https://streamly.composewell.com.
+  .
+  Streamly is a streaming framework to build reliable and scalable
+  software systems from modular building blocks using dataflow
+  programming and declarative concurrency.  Stream fusion optimizations
+  in streamly result in high-performance, modular combinatorial
+  programming.
+  .
+  Performance with simplicity:
   .
   * Performance on par with C (<https://github.com/composewell/streaming-benchmarks Benchmarks>)
-  * Simple API, similar to standard Haskell lists (<https://github.com/composewell/streamly-examples Examples>)
+  * API close to standard Haskell lists (<https://github.com/composewell/streamly-examples Examples>)
   * Declarative concurrency with automatic scaling
   * Filesystem, fsnotify, network, and Unicode support included
   * More functionality provided via many ecosystem packages
   .
-  Simple, unified, and powerful abstractions:
+  Unified and powerful abstractions:
   .
-      * Unifies streams, arrays, folds, and parsers
-      * Unified streams and arrays obviate the need for text and bytestring
-      * Unifies Data.List, list-t, and logict with streams
-      * Supports numerous time-domain combinators
-      * Interworks with other streaming libraries
-      * Arrays interwork with bytestring
-  .
-  We recommend the better-organized module documentation on the
-  <https://streamly.composewell.com Streamly homepage>.
-  .
+  * Unifies unfolds, arrays, folds, and parsers with streaming
+  * Unifies @Data.List@, @list-t@, and @logict@ with streaming
+  * Unifies concurrency with standard streaming abstractions
+  * Provides time-domain combinators for reactive programming
+  * Interworks with bytestring and streaming libraries
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
