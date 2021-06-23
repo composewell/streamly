@@ -145,13 +145,17 @@ encodeLatin1' = S.map convert
     convert c =
         let codepoint = ord c
         in if codepoint > 255
-           then error $ "Streamly.String.encodeLatin1 invalid " ++
+           then error $ "Streamly.Unicode.encodeLatin1 invalid " ++
                       "input char codepoint " ++ show codepoint
            else fromIntegral codepoint
 
--- | Like 'encodeLatin1'' but silently truncates and maps input characters beyond
--- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
--- when such truncation occurs.
+-- XXX Should we instead replace the invalid chars by NUL or whitespace or some
+-- other control char? That may affect the perf a bit but may be a better
+-- behavior.
+--
+-- | Like 'encodeLatin1'' but silently maps input codepoints beyond 255 to
+-- arbitrary Latin1 chars in 0-255 range. No error or exception is thrown when
+-- such mapping occurs.
 --
 -- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
 --
