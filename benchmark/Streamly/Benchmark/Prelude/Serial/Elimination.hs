@@ -539,7 +539,8 @@ o_n_heap_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toListRev" Internal.toListRev
-        , benchIOSink value "toStreamRev" Internal.toStreamRev
+        , benchIOSink value "toStreamRev"
+            (Internal.toStreamRev :: (SerialT IO Int -> IO (SerialT Identity Int)))
         ]
     ]
 
@@ -548,7 +549,8 @@ o_n_space_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
-        , benchIOSink value "toStream" Internal.toStream
+        , benchIOSink value "toStream"
+            (Internal.toStream :: (SerialT IO Int -> IO (SerialT Identity Int)))
         ]
     ]
 
