@@ -104,6 +104,7 @@ extra-source-files:
     dev/*.png
     dev/*.rst
     docs/*.md
+    docs/*.rst
     docs/*.hs
     docs/*.svg
     docs/API-changelog.txt
