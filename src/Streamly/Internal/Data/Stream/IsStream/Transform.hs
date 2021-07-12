@@ -1485,6 +1485,7 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 --
 -- /Pre-release/
 --
+{-# INLINE catMaybes #-}
 catMaybes :: (IsStream t, Monad m, Functor (t m)) => t m (Maybe a) -> t m a
 catMaybes = fmap fromJust . filter isJust
 
@@ -1496,6 +1497,7 @@ catMaybes = fmap fromJust . filter isJust
 --
 -- /Pre-release/
 --
+{-# INLINE lefts #-}
 lefts :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m a
 lefts = fmap (fromLeft undefined) . filter isLeft
 
@@ -1503,6 +1505,7 @@ lefts = fmap (fromLeft undefined) . filter isLeft
 --
 -- /Pre-release/
 --
+{-# INLINE rights #-}
 rights :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m b
 rights = fmap (fromRight undefined) . filter isRight
 
