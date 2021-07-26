@@ -69,16 +69,6 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
-
-    -- * Utilities
-    , MA.defaultChunkSize
-    , MA.mkChunkSize
-    , MA.mkChunkSizeKB
-    , MA.unsafeInlineIO
-
-    , MA.memcpy
-    , MA.memcmp
-    , MA.bytesToElemCount
     )
 where
 
@@ -108,6 +98,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified GHC.Exts as Exts
+
+import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -211,7 +203,7 @@ fromPtr ::
     Storable a =>
 #endif
     Int -> Ptr a -> Array a
-fromPtr n ptr = MA.unsafeInlineIO $ do
+fromPtr n ptr = unsafeInlineIO $ do
     fptr <- newForeignPtr_ ptr
     let end = ptr `plusPtr` n
     return $ Array
@@ -288,7 +280,7 @@ fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 fromCString# :: Addr# -> Array Word8
 fromCString# addr# = do
     let cstr = Ptr addr#
-        len = MA.unsafeInlineIO $ c_strlen cstr
+        len = unsafeInlineIO $ c_strlen cstr
     fromPtr (fromIntegral len) (castPtr cstr)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
@@ -328,7 +320,7 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 {-# INLINE bufferChunks #-}
 bufferChunks :: (MonadIO m, Storable a) =>
     D.Stream m a -> m (K.Stream m (Array a))
-bufferChunks m = D.foldr K.cons K.nil $ arraysOf MA.defaultChunkSize m
+bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -- | @arraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
@@ -381,7 +373,7 @@ unsafeIndexIO arr = MA.unsafeIndexIO (unsafeThaw arr)
 -- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
 unsafeIndex :: forall a. Storable a => Array a -> Int -> a
-unsafeIndex arr i = let !r = MA.unsafeInlineIO $ unsafeIndexIO arr i in r
+unsafeIndex arr i = let !r = unsafeInlineIO $ unsafeIndexIO arr i in r
 
 -- | /O(1)/ Get the byte length of the array.
 --

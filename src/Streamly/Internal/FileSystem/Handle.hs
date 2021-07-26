@@ -108,12 +108,13 @@ import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
-       (Array(..), writeNUnsafe, defaultChunkSize , unsafeFreezeWithShrink)
+       (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
+import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL

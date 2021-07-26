@@ -1,5 +1,3 @@
-{-# LANGUAGE UnboxedTuples #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Array.Foreign.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -92,13 +90,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , writeChunks
 
     -- * Utilities
-    , defaultChunkSize
-    , mkChunkSize
-    , mkChunkSizeKB
     , bytesToElemCount
-    , unsafeInlineIO
     , memcpy
     , memcmp
+    , c_memchr
     )
 where
 
@@ -118,10 +113,10 @@ import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (nullAddr#, realWorld#, build)
+import GHC.Base (nullAddr#, build)
 import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..))
-import GHC.IO (IO(IO), unsafePerformIO)
+import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.BaseCompat
@@ -130,6 +125,9 @@ import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
+
+import Streamly.Internal.System.IO
+    (defaultChunkSize, mkChunkSize, unsafeInlineIO)
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -151,6 +149,37 @@ import GHC.ForeignPtr (ForeignPtr(..))
 plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
 plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
 #endif
+
+-------------------------------------------------------------------------------
+-- Array Data Type
+-------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+foreign import ccall unsafe "string.h memchr" c_memchr
+    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
+
+foreign import ccall unsafe "string.h memcmp" c_memcmp
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
+
+{-# INLINE bytesToElemCount #-}
+bytesToElemCount :: Storable a => a -> Int -> Int
+bytesToElemCount x n =
+    let elemSize = sizeOf x
+    in n + elemSize - 1 `div` elemSize
+
+-- XXX we are converting Int to CSize
+memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
+
+-- XXX we are converting Int to CSize
+-- return True if the memory locations have identical contents
+{-# INLINE memcmp #-}
+memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
+memcmp p1 p2 len = do
+    r <- c_memcmp p1 p2 (fromIntegral len)
+    return $ r == 0
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -182,59 +211,6 @@ mutableArray ::
 #endif
     ForeignPtr a -> Ptr a -> Ptr a -> Array a
 mutableArray = Array
-
--------------------------------------------------------------------------------
--- Utility functions
--------------------------------------------------------------------------------
-
-foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h memchr" c_memchr
-    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
-
--- XXX we are converting Int to CSize
-memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
-
-foreign import ccall unsafe "string.h memcmp" c_memcmp
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
-
--- XXX we are converting Int to CSize
--- return True if the memory locations have identical contents
-{-# INLINE memcmp #-}
-memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
-memcmp p1 p2 len = do
-    r <- c_memcmp p1 p2 (fromIntegral len)
-    return $ r == 0
-
-{-# INLINE unsafeInlineIO #-}
-unsafeInlineIO :: IO a -> a
-unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
-
-{-# INLINE bytesToElemCount #-}
-bytesToElemCount :: Storable a => a -> Int -> Int
-bytesToElemCount x n =
-    let elemSize = sizeOf x
-    in n + elemSize - 1 `div` elemSize
-
-
--- | GHC memory management allocation header overhead
-allocOverhead :: Int
-allocOverhead = 2 * sizeOf (undefined :: Int)
-
-mkChunkSize :: Int -> Int
-mkChunkSize n = let size = n - allocOverhead in max size 0
-
-mkChunkSizeKB :: Int -> Int
-mkChunkSizeKB n = mkChunkSize (n * k)
-   where k = 1024
-
--- | Default maximum buffer size in bytes, for reading from and writing to IO
--- devices, the value is 32KB minus GHC allocation overhead, which is a few
--- bytes, so that the actual allocation is 32KB.
-defaultChunkSize :: Int
-defaultChunkSize = mkChunkSizeKB 32
 
 -------------------------------------------------------------------------------
 -- Construction
