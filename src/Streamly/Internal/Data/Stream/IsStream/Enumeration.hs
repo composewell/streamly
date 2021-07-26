@@ -441,7 +441,7 @@ class Enum a => Enumerable a where
 -------------------------------------------------------------------------------
 --
 -- |
--- > enumerate = enumerateFrom minBound
+-- prop> enumerate = enumerateFrom minBound
 --
 -- Enumerate a 'Bounded' type from its 'minBound' to 'maxBound'
 --
@@ -451,7 +451,7 @@ enumerate :: (IsStream t, Monad m, Bounded a, Enumerable a) => t m a
 enumerate = enumerateFrom minBound
 
 -- |
--- > enumerateTo = enumerateFromTo minBound
+-- prop> enumerateTo = enumerateFromTo minBound
 --
 -- Enumerate a 'Bounded' type from its 'minBound' to specified value.
 --
@@ -461,7 +461,7 @@ enumerateTo :: (IsStream t, Monad m, Bounded a, Enumerable a) => a -> t m a
 enumerateTo = enumerateFromTo minBound
 
 -- |
--- > enumerateFromBounded = enumerateFromTo from maxBound
+-- prop> enumerateFromBounded = enumerateFromTo from maxBound
 --
 -- 'enumerateFrom' for 'Bounded' 'Enum' types.
 --

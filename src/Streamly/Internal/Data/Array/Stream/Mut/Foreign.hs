@@ -57,7 +57,7 @@ import Prelude hiding (length)
 --
 -- Same as the following but may be more efficient:
 --
--- > arraysOf n = Stream.foldMany (MArray.writeN n)
+-- prop> arraysOf n = Stream.foldMany (MArray.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}

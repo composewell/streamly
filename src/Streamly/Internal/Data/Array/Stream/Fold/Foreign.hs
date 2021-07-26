@@ -236,7 +236,7 @@ serialWith f (Fold p1) (Fold p2) =
     Fold $ ParserD.noErrorUnsafeSplitWith f p1 p2
 
 -- | 'Applicative' form of 'serialWith'.
--- > (<*>) = serialWith id
+-- prop> (<*>) = serialWith id
 instance MonadThrow m => Applicative (Fold m a) where
     {-# INLINE pure #-}
     pure = fromPure
@@ -270,7 +270,7 @@ concatMap func (Fold p) =
 -- | Monad instance applies folds sequentially. Next fold can depend on the
 -- output of the previous fold. See 'concatMap'.
 --
--- > (>>=) = flip concatMap
+-- prop> (>>=) = flip concatMap
 instance MonadThrow m => Monad (Fold m a) where
     {-# INLINE return #-}
     return = pure

@@ -600,8 +600,8 @@ module Streamly.Prelude
     --
     -- The following equations hold for lists:
     --
-    -- > scanl f z xs == map (foldl f z) $ inits xs
-    -- > scanr f z xs == map (foldr f z) $ tails xs
+    -- prop> scanl f z xs == map (foldl f z) $ inits xs
+    -- prop> scanr f z xs == map (foldr f z) $ tails xs
     --
     -- @
     -- > scanl (+) 0 [1,2,3,4]
@@ -621,16 +621,16 @@ module Streamly.Prelude
     --
     -- Left and right scans are duals:
     --
-    -- > scanr f z xs ==  reverse $ scanl (flip f) z (reverse xs)
-    -- > scanl f z xs ==  reverse $ scanr (flip f) z (reverse xs)
+    -- prop> scanr f z xs ==  reverse $ scanl (flip f) z (reverse xs)
+    -- prop> scanl f z xs ==  reverse $ scanr (flip f) z (reverse xs)
     --
     -- A scan is a stateful map i.e. a combination of map and fold:
     --
-    -- > map f xs =           tail $ scanl (\_ x -> f x) z xs
-    -- > map f xs = reverse $ head $ scanr (\_ x -> f x) z xs
+    -- prop> map f xs =           tail $ scanl (\_ x -> f x) z xs
+    -- prop> map f xs = reverse $ head $ scanr (\_ x -> f x) z xs
     --
-    -- > foldl f z xs = last $ scanl f z xs
-    -- > foldr f z xs = head $ scanr f z xs
+    -- prop> foldl f z xs = last $ scanl f z xs
+    -- prop> foldr f z xs = head $ scanr f z xs
 
     -- ** Left scans
     , scanl'
@@ -775,12 +775,12 @@ module Streamly.Prelude
     -- One dimension loops are just a special case of nested loops.  For
     -- example, 'concatMap' can degenerate to a simple map operation:
     --
-    -- > map f m = S.concatMap (\x -> S.fromPure (f x)) m
+    -- prop> map f m = S.concatMap (\x -> S.fromPure (f x)) m
     --
     -- Similarly, 'concatMap' can perform filtering by mapping an element to a
     -- 'nil' stream:
     --
-    -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
+    -- prop> filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
     --
 
     , concatMapWith
@@ -994,7 +994,7 @@ import Streamly.Internal.Data.Stream.IsStream
 -- earlier:
 --
 -- @
--- foldr f z (x:xs) = x \`f` foldr f z xs
+-- prop> foldr f z (x:xs) = x \`f` foldr f z xs
 -- @
 --
 -- @foldr@ invokes the fold step function @f@ as @f x (foldr f z xs)@. At each
@@ -1005,14 +1005,14 @@ import Streamly.Internal.Data.Stream.IsStream
 -- When @f x xs@ is lazy in @xs@ it can consume the input one element at a time
 -- in FIFO order to build a lazy output expression. For example,
 --
--- > f x remaining = show x : remaining
+-- prop> f x remaining = show x : remaining
 --
 -- @take 2 $ foldr f [] (1:2:undefined)@ would consume the input lazily on
 -- demand, consuming only first two elements and resulting in ["1", "2"]. @f@
 -- can terminate recursion by not evaluating the @remaining@ part:
 --
--- > f 2 remaining = show 2 : []
--- > f x remaining = show x : remaining
+-- prop> f 2 remaining = show 2 : []
+-- prop> f x remaining = show x : remaining
 --
 -- @f@ would terminate recursion whenever it sees element @2@ in the input.
 -- Therefore, @take 2 $ foldr f [] (1:2:undefined)@ would work without any

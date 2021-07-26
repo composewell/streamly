@@ -166,7 +166,7 @@ last arr = readIndex arr (length arr - 1)
 --
 -- Same as the following but more efficient:
 --
--- > concat = S.concatMap A.read
+-- prop> concat = S.concatMap A.read
 --
 -- /Pre-release/
 {-# INLINE concat #-}

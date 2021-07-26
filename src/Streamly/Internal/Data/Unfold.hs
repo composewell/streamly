@@ -811,7 +811,7 @@ enumerateFromIntegral = enumerateFromToIntegral maxBound
 
 -- | /Internal/
 --
--- > enumerateFromToFractional to = takeWhile (<= to + 1 / 2) $ enumerateFromStepNum 1
+-- prop> enumerateFromToFractional to = takeWhile (<= to + 1 / 2) $ enumerateFromStepNum 1
 --
 {-# INLINE_NORMAL enumerateFromToFractional #-}
 enumerateFromToFractional :: (Monad m, Fractional a, Ord a) => a -> Unfold m a a
@@ -1068,7 +1068,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 -- | Run a side effect @a -> m c@ on the input @a@ before unfolding it using
 -- @Unfold m a b@.
 --
--- > before f = lmapM (\a -> f a >> return a)
+-- prop> before f = lmapM (\a -> f a >> return a)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL before #-}

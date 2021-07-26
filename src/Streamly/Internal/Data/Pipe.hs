@@ -559,7 +559,7 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
       extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 
 -- |
--- > break p = span (not . p)
+-- prop> break p = span (not . p)
 --
 -- Break as soon as the predicate becomes 'True'. @break p f1 f2@ composes
 -- folds @f1@ and @f2@ such that @f1@ stops receiving input as soon as the
@@ -658,8 +658,8 @@ groupsRollingBy
 groupsRollingBy cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
 
 -- |
--- > groups = groupsBy (==)
--- > groups = groupsRollingBy (==)
+-- prop> groups = groupsBy (==)
+-- prop> groups = groupsRollingBy (==)
 --
 -- Groups a contiguous span of equal elements together in one group.
 --
@@ -711,7 +711,7 @@ breakOn pat f m = undefined
 --
 -- Let's use the following definition for illustration:
 --
--- > splitBy_ p xs = S.toList $ FL.splitBy p (FL.toList) (S.fromList xs)
+-- prop> splitBy_ p xs = S.toList $ FL.splitBy p (FL.toList) (S.fromList xs)
 --
 -- >>> splitBy_ (== '.') ""
 -- [""]
@@ -805,7 +805,7 @@ splitSuffixBy predicate f m =
 -- >>> wordsBy' (== ',') ",a,,b,"
 -- > ["a","b"]
 --
--- > words = wordsBy isSpace
+-- prop> words = wordsBy isSpace
 --
 -- @since 0.7.0
 {-# INLINE wordsBy #-}
@@ -1260,7 +1260,7 @@ partitionBy f = partitionByM (return . f)
 -- and routes the 'Left' values to the first fold and 'Right' values to the
 -- second fold.
 --
--- > partition = partitionBy id
+-- prop> partition = partitionBy id
 --
 -- @since 0.7.0
 {-# INLINE partition #-}
@@ -1443,7 +1443,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 --
 -- Same as:
 --
--- > classify fld = classifyWith fst (lmap snd fld)
+-- prop> classify fld = classifyWith fst (lmap snd fld)
 --
 -- @since 0.7.0
 {-# INLINE classify #-}

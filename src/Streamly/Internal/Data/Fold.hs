@@ -289,7 +289,7 @@ hoist f (Fold step initial extract) =
 
 -- | Adapt a pure fold to any monad
 --
--- > generally = Fold.hoist (return . runIdentity)
+-- prop> generally = Fold.hoist (return . runIdentity)
 --
 -- /Pre-release/
 generally :: Monad m => Fold Identity a b -> Fold m a b
@@ -383,8 +383,8 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 ------------------------------------------------------------------------------
 
 -- |
--- > drainBy f = lmapM f drain
--- > drainBy = Fold.foldMapM (void . f)
+-- prop> drainBy f = lmapM f drain
+-- prop> drainBy = Fold.foldMapM (void . f)
 --
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
@@ -405,7 +405,7 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --
--- > last = fmap getLast $ Fold.foldMap (Last . Just)
+-- prop> last = fmap getLast $ Fold.foldMap (Last . Just)
 --
 -- @since 0.7.0
 {-# INLINABLE last #-}
@@ -418,7 +418,7 @@ last = foldl1' (\_ x -> x)
 
 -- | Like 'length', except with a more general 'Num' return value
 --
--- > genericLength = fmap getSum $ foldMap (Sum . const  1)
+-- prop> genericLength = fmap getSum $ foldMap (Sum . const  1)
 --
 -- /Pre-release/
 {-# INLINE genericLength #-}
@@ -427,7 +427,7 @@ genericLength = foldl' (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
--- > length = fmap getSum $ Fold.foldMap (Sum . const  1)
+-- prop> length = fmap getSum $ Fold.foldMap (Sum . const  1)
 --
 -- @since 0.7.0
 {-# INLINE length #-}
@@ -438,7 +438,7 @@ length = genericLength
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- > sum = fmap getSum $ Fold.foldMap Sum
+-- prop> sum = fmap getSum $ Fold.foldMap Sum
 --
 -- @since 0.7.0
 {-# INLINE sum #-}
@@ -580,7 +580,7 @@ stdDev = sqrt <$> variance
 
 -- | Compute an 'Int' sized polynomial rolling hash
 --
--- > H = salt * k ^ n + c1 * k ^ (n - 1) + c2 * k ^ (n - 2) + ... + cn * k ^ 0
+-- prop> H = salt * k ^ n + c1 * k ^ (n - 1) + c2 * k ^ (n - 2) + ... + cn * k ^ 0
 --
 -- Where @c1@, @c2@, @cn@ are the elements in the input stream and @k@ is a
 -- constant.
@@ -607,7 +607,7 @@ defaultSalt = -2578643520546668380
 
 -- | Compute an 'Int' sized polynomial rolling hash of a stream.
 --
--- > rollingHash = Fold.rollingHashWithSalt defaultSalt
+-- prop> rollingHash = Fold.rollingHashWithSalt defaultSalt
 --
 -- @since 0.8.0
 {-# INLINABLE rollingHash #-}
@@ -617,7 +617,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- > rollingHashFirstN = Fold.take n Fold.rollingHash
+-- prop> rollingHashFirstN = Fold.take n Fold.rollingHash
 --
 -- /Pre-release/
 {-# INLINABLE rollingHashFirstN #-}
@@ -648,7 +648,7 @@ sconcat = foldl' (<>)
 -- >>> Stream.fold Fold.mconcat (Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
 -- Sum {getSum = 55}
 --
--- > mconcat = Fold.sconcat mempty
+-- prop> mconcat = Fold.sconcat mempty
 --
 -- @since 0.7.0
 {-# INLINE mconcat #-}
@@ -661,7 +661,7 @@ mconcat ::
 mconcat = sconcat mempty
 
 -- |
--- > foldMap f = Fold.lmap f Fold.mconcat
+-- prop> foldMap f = Fold.lmap f Fold.mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
@@ -679,7 +679,7 @@ foldMap :: (Monad m, Monoid b
 foldMap f = lmap f mconcat
 
 -- |
--- > foldMapM f = Fold.lmapM f Fold.mconcat
+-- prop> foldMapM f = Fold.lmapM f Fold.mconcat
 --
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
@@ -708,7 +708,7 @@ foldMapM act = foldlM' step (pure mempty)
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
--- > toListRev = Fold.foldl' (flip (:)) []
+-- prop> toListRev = Fold.foldl' (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -727,7 +727,7 @@ toListRev = foldl' (flip (:)) []
 -- | A fold that drains the first n elements of its input, running the effects
 -- and discarding the results.
 --
--- > drainN n = Fold.take n Fold.drain
+-- prop> drainN n = Fold.take n Fold.drain
 --
 -- /Pre-release/
 {-# INLINABLE drainN #-}
@@ -785,7 +785,7 @@ find predicate = mkFold step (Partial ()) (const Nothing)
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
 --
--- > lookup = snd <$> Fold.find ((==) . fst)
+-- prop> lookup = snd <$> Fold.find ((==) . fst)
 --
 -- @since 0.7.0
 {-# INLINABLE lookup #-}
@@ -815,7 +815,7 @@ findIndex predicate = mkFold step (Partial 0) (const Nothing)
 
 -- | Returns the first index where a given value is found in the stream.
 --
--- > elemIndex a = Fold.findIndex (== a)
+-- prop> elemIndex a = Fold.findIndex (== a)
 --
 -- @since 0.7.0
 {-# INLINABLE elemIndex #-}
@@ -828,7 +828,7 @@ elemIndex a = findIndex (a ==)
 
 -- | Return 'True' if the input stream is empty.
 --
--- > null = fmap isJust Fold.head
+-- prop> null = fmap isJust Fold.head
 --
 -- @since 0.7.0
 {-# INLINABLE null #-}
@@ -840,7 +840,7 @@ null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 -- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
 -- True
 --
--- > any p = Fold.lmap p Fold.or
+-- prop> any p = Fold.lmap p Fold.or
 --
 -- @since 0.7.0
 {-# INLINE any #-}
@@ -858,7 +858,7 @@ any predicate = mkFold_ step initial
 
 -- | Return 'True' if the given element is present in the stream.
 --
--- > elem a = Fold.any (== a)
+-- prop> elem a = Fold.any (== a)
 --
 -- @since 0.7.0
 {-# INLINABLE elem #-}
@@ -870,7 +870,7 @@ elem a = any (a ==)
 -- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
 -- False
 --
--- > all p = Fold.lmap p Fold.and
+-- prop> all p = Fold.lmap p Fold.and
 --
 -- @since 0.7.0
 {-# INLINABLE all #-}
@@ -888,7 +888,7 @@ all predicate = mkFold_ step initial
 
 -- | Returns 'True' if the given element is not present in the stream.
 --
--- > notElem a = Fold.all (/= a)
+-- prop> notElem a = Fold.all (/= a)
 --
 -- @since 0.7.0
 {-# INLINABLE notElem #-}
@@ -897,7 +897,7 @@ notElem a = all (a /=)
 
 -- | Returns 'True' if all elements are 'True', 'False' otherwise
 --
--- > and = Fold.all (== True)
+-- prop> and = Fold.all (== True)
 --
 -- @since 0.7.0
 {-# INLINE and #-}
@@ -906,7 +906,7 @@ and = all (== True)
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
 --
--- > or = Fold.any (== True)
+-- prop> or = Fold.any (== True)
 --
 -- @since 0.7.0
 {-# INLINE or #-}
@@ -949,7 +949,7 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- ([1,2,3],[])
 --
--- > splitAt n f1 f2 = Fold.serialWith (,) (Fold.take n f1) f2
+-- prop> splitAt n f1 f2 = Fold.serialWith (,) (Fold.take n f1) f2
 --
 -- /Internal/
 
@@ -983,7 +983,7 @@ splitAt n fld = serialWith (,) (take n fld)
 -- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- ["hello","there"]
 --
--- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
+-- prop> Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
 --
 -- See 'Streamly.Prelude.splitOnSuffix' for more details on splitting a
 -- stream using 'takeEndBy_'.
@@ -1010,7 +1010,7 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
 -- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- ["hello\n","there\n"]
 --
--- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
+-- prop> Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
 --
 -- See 'Streamly.Prelude.splitWithSuffix' for more details on splitting a
 -- stream using 'takeEndBy'.
@@ -1066,7 +1066,7 @@ breakOn pat f m = undefined
 -- >>> Stream.fold (Fold.tee Fold.sum Fold.length) (Stream.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
 --
--- > tee = teeWith (,)
+-- prop> tee = teeWith (,)
 --
 -- @since 0.7.0
 {-# INLINE tee #-}
@@ -1092,7 +1092,7 @@ tee = teeWith (,)
 -- >>> Stream.fold (Fold.distribute [Fold.sum, Fold.length]) (Stream.enumerateFromTo 1 5)
 -- [15,5]
 --
--- > distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
+-- prop> distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 --
@@ -1264,7 +1264,7 @@ partitionBy f = partitionByM (return . f)
 -- and routes the 'Left' values to the first fold and 'Right' values to the
 -- second fold.
 --
--- > partition = partitionBy id
+-- prop> partition = partitionBy id
 --
 -- @since 0.7.0
 {-# INLINE partition #-}
@@ -1309,7 +1309,7 @@ partition = partitionBy id
 --
 -- Any input that does not map to a fold in the input Map is silently ignored.
 --
--- > demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
+-- prop> demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 --
 -- /Pre-release/
 --
@@ -1330,7 +1330,7 @@ demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 -- :}
 -- fromList [("PRODUCT",8),("SUM",4)]
 --
--- > demux = demuxWith id
+-- prop> demux = demuxWith id
 --
 -- /Pre-release/
 {-# INLINE demux #-}
@@ -1463,7 +1463,7 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
         return (doneMap, b)
 
 -- |
--- > demuxDefault = demuxDefaultWith id
+-- prop> demuxDefault = demuxDefaultWith id
 --
 -- /Pre-release/
 {-# INLINE demuxDefault #-}
@@ -1547,7 +1547,7 @@ classifyWith f (Fold step1 initial1 extract1) =
 --
 -- Same as:
 --
--- > classify fld = Fold.classifyWith fst (map snd fld)
+-- prop> classify fld = Fold.classifyWith fst (map snd fld)
 --
 -- /Pre-release/
 {-# INLINE classify #-}
@@ -1663,7 +1663,7 @@ unzipWith f = unzipWithM (return . f)
 --
 -- @
 --
--- > unzip = Fold.unzipWith id
+-- prop> unzip = Fold.unzipWith id
 --
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
@@ -1777,7 +1777,7 @@ toStream = foldr K.cons K.nil
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- > toStreamRev = foldl' (flip K.cons) K.nil
+-- prop> toStreamRev = foldl' (flip K.cons) K.nil
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.

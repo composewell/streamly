@@ -26,7 +26,7 @@
 -- All the serial stream generation operations in "Streamly.Prelude"
 -- can be expressed using unfolds:
 --
--- > Stream.fromList = Stream.unfold Unfold.fromList [1..100]
+-- prop> Stream.fromList = Stream.unfold Unfold.fromList [1..100]
 --
 -- Conceptually, an 'Unfold' is just like "Data.List.unfoldr". Let us write a
 -- step function to unfold a list using "Data.List.unfoldr":

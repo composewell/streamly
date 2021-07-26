@@ -37,7 +37,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- | Run the action @m b@ before the stream yields its first element.
 --
--- > before action xs = 'nilM' action <> xs
+-- prop> before action xs = 'nilM' action <> xs
 --
 -- @since 0.7.0
 {-# INLINE before #-}

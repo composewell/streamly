@@ -516,8 +516,8 @@ groupsByRolling
 groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
 
 -- |
--- > groups = groupsBy (==)
--- > groups = groupsByRolling (==)
+-- prop> groups = groupsBy (==)
+-- prop> groups = groupsByRolling (==)
 --
 -- Groups contiguous spans of equal elements together in individual groups.
 --
@@ -635,7 +635,7 @@ splitOn predicate f =
 -- >>> splitOnSuffix' (== '.') "a.b"
 -- ["a","b"]
 --
--- > lines = splitOnSuffix (== '\n')
+-- prop> lines = splitOnSuffix (== '\n')
 --
 -- 'splitOnSuffix' is an inverse of 'intercalateSuffix' with a single element:
 --
@@ -725,7 +725,7 @@ splitOnPrefix _predicate _f = undefined
 -- >>> wordsBy' (== ',') ",a,,b,"
 -- ["a","b"]
 --
--- > words = wordsBy isSpace
+-- prop> words = wordsBy isSpace
 --
 -- @since 0.7.0
 
@@ -889,17 +889,17 @@ splitBySeq patt f m =
 -- >>> splitOnSuffixSeq_ "." "a..b.."
 -- ["a","","b",""]
 --
--- > lines = splitOnSuffixSeq "\n"
+-- prop> lines = splitOnSuffixSeq "\n"
 --
 -- 'splitOnSuffixSeq' is an inverse of 'intercalateSuffix'. The following law
 -- always holds:
 --
--- > intercalateSuffix . splitOnSuffixSeq == id
+-- prop> intercalateSuffix . splitOnSuffixSeq == id
 --
 -- The following law holds when the separator is non-empty and contains none of
 -- the elements present in the input lists:
 --
--- > splitSuffixOn . intercalateSuffix == id
+-- prop> splitSuffixOn . intercalateSuffix == id
 --
 -- /Pre-release/
 {-# INLINE splitOnSuffixSeq #-}
@@ -1002,7 +1002,7 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- Same as the following but may be more efficient:
 --
--- > arraysOf n = Stream.foldMany (A.writeN n)
+-- prop> arraysOf n = Stream.foldMany (A.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}

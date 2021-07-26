@@ -91,7 +91,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
--- > arraysOf n = Stream.chunksOf n (Array.writeN n)
+-- prop> arraysOf n = Stream.chunksOf n (Array.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
@@ -111,7 +111,7 @@ arraysOf n str = D.fromStreamD $ A.arraysOf n (D.toStreamD str)
 --
 -- Same as the following but more efficient:
 --
--- > concat = Stream.unfoldMany Array.read
+-- prop> concat = Stream.unfoldMany Array.read
 --
 -- @since 0.7.0
 {-# INLINE concat #-}
@@ -123,7 +123,7 @@ concat m = D.fromStreamD $ D.unfoldMany A.read (D.toStreamD m)
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
 --
--- > concatRev = Stream.unfoldMany Array.readRev
+-- prop> concatRev = Stream.unfoldMany Array.readRev
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}

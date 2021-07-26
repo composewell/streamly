@@ -442,7 +442,7 @@ interjectSuffix n f xs = xs `Par.parallelFst` repeatM timed
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
 --
--- > reverse = S.foldlT (flip S.cons) S.nil
+-- prop> reverse = S.foldlT (flip S.cons) S.nil
 --
 -- | Returns the elements of the stream in reverse order.  The stream must be
 -- finite. Note that this necessarily buffers the entire stream in memory.

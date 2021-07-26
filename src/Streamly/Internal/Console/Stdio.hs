@@ -66,8 +66,8 @@ read = Unfold.lmap (\() -> stdin) Handle.read
 
 -- | Read a byte stream from standard input.
 --
--- > getBytes = Handle.toBytes stdin
--- > getBytes = Stream.unfold Stdio.read ()
+-- prop> getBytes = Handle.toBytes stdin
+-- prop> getBytes = Stream.unfold Stdio.read ()
 --
 -- /Pre-release/
 --
@@ -77,7 +77,7 @@ getBytes = Handle.toBytes stdin
 
 -- | Read a character stream from Utf8 encoded standard input.
 --
--- > getChars = Unicode.decodeUtf8 Stdio.getBytes
+-- prop> getChars = Unicode.decodeUtf8 Stdio.getBytes
 --
 -- /Pre-release/
 --
@@ -96,8 +96,8 @@ readChunks = Unfold.lmap (\() -> stdin) Handle.readChunks
 -- chunk is limited to @defaultChunkSize@. The actual size read may be less
 -- than @defaultChunkSize@.
 --
--- > getChunks = Handle.toChunks stdin
--- > getChunks = Stream.unfold Stdio.readChunks ()
+-- prop> getChunks = Handle.toChunks stdin
+-- prop> getChunks = Stream.unfold Stdio.readChunks ()
 --
 -- /Pre-release/
 --
@@ -143,8 +143,8 @@ writeErr = Handle.write stderr
 
 -- | Write a stream of bytes to standard output.
 --
--- > putBytes = Handle.putBytes stdout
--- > putBytes = Stream.fold Stdio.write
+-- prop> putBytes = Handle.putBytes stdout
+-- prop> putBytes = Stream.fold Stdio.write
 --
 -- /Pre-release/
 --
@@ -154,7 +154,8 @@ putBytes = Handle.putBytes stdout
 
 -- | Encode a character stream to Utf8 and write it to standard output.
 --
--- > putChars = Stdio.putBytes . Unicode.encodeUtf8
+-- prop> putChars = Stdio.putBytes . Unicode.encodeUtf8
+-- parse error on input ‘=’
 --
 -- /Pre-release/
 --
@@ -178,8 +179,8 @@ writeErrChunks = Handle.writeChunks stderr
 
 -- | Write a stream of chunks to standard output.
 --
--- > putChunks = Handle.putChunks stdout
--- > putChunks = Stream.fold Stdio.writeChunks
+-- prop> putChunks = Handle.putChunks stdout
+-- prop> putChunks = Stream.fold Stdio.writeChunks
 --
 -- /Pre-release/
 --

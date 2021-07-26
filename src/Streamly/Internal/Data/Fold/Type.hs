@@ -464,7 +464,7 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 --
 -- For example,
 --
--- > toList = foldr (:) []
+-- prop> toList = foldr (:) []
 --
 -- See also: 'Streamly.Prelude.foldr'
 --
@@ -480,7 +480,7 @@ foldr g z = fmap ($ z) $ foldl' (\f x -> f . g x) id
 --
 -- For example,
 --
--- > toList = foldrM (\a xs -> return $ a : xs) (return [])
+-- prop> toList = foldrM (\a xs -> return $ a : xs) (return [])
 --
 -- See also: 'Streamly.Prelude.foldrM'
 --
@@ -531,7 +531,7 @@ mkFold_ step initial = mkFold step initial id
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
 --
--- > mkFoldM = Fold
+-- prop> mkFoldM = Fold
 --
 --  We can just use 'Fold' but it is provided for completeness.
 --
@@ -582,7 +582,7 @@ simplify (Fold2 step inject extract) c =
 -- | A fold that drains all its input, running the effects and discarding the
 -- results.
 --
--- > drain = drainBy (const (return ()))
+-- prop> drain = drainBy (const (return ()))
 --
 -- @since 0.7.0
 {-# INLINABLE drain #-}
@@ -595,7 +595,7 @@ drain = foldl' (\_ _ -> ()) ()
 -- very inefficient, consider using "Streamly.Data.Array.Foreign"
 -- instead.
 --
--- > toList = foldr (:) []
+-- prop> toList = foldr (:) []
 --
 -- @since 0.7.0
 {-# INLINABLE toList #-}
@@ -725,7 +725,7 @@ data GenericRunner sL sR bL bR
 -- >>> Stream.fold avg $ Stream.fromList [1.0..100.0]
 -- 50.5
 --
--- > teeWith k f1 f2 = fmap (uncurry k) ((Fold.tee f1 f2)
+-- prop> teeWith k f1 f2 = fmap (uncurry k) ((Fold.tee f1 f2)
 --
 -- For applicative composition using this combinator see
 -- "Streamly.Internal.Data.Fold.Tee".
@@ -904,7 +904,7 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 -- >>> Stream.fold (Fold.lmap (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
 -- 338350
 --
--- > lmap = Fold.lmapM return
+-- prop> lmap = Fold.lmapM return
 --
 -- @since 0.8.0
 {-# INLINABLE lmap #-}
@@ -938,7 +938,7 @@ lmapM f (Fold step begin done) = Fold step' begin done
 -- >>> Stream.fold (Fold.filter (> 5) Fold.sum) $ Stream.fromList [1..10]
 -- 40
 --
--- > filter f = Fold.filterM (return . f)
+-- prop> filter f = Fold.filterM (return . f)
 --
 -- @since 0.8.0
 {-# INLINABLE filter #-}
@@ -1206,7 +1206,7 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 -- >>> Stream.fold twos $ Stream.fromList [1..10]
 -- [[1,2],[3,4],[5,6],[7,8],[9,10]]
 --
--- > chunksOf n split = many (take n split)
+-- prop> chunksOf n split = many (take n split)
 --
 -- Stops when @collect@ stops.
 --
@@ -1322,7 +1322,7 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
 -- >>> Stream.fold intervals $ Stream.delay 0.2 $ Stream.fromList [1..10]
 -- [[1,2,3,4],[5,6,7],[8,9,10]]
 --
--- > intervalsOf n split = many (takeInterval n split)
+-- prop> intervalsOf n split = many (takeInterval n split)
 --
 -- /Pre-release/
 --

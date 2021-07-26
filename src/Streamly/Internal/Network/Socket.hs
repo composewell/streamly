@@ -412,7 +412,7 @@ readWithBufferOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
--- > read = 'readByChunks' A.defaultChunkSize
+-- prop> read = 'readByChunks' A.defaultChunkSize
 -- | Generate a stream of elements of the given type from a socket. The
 -- stream ends when EOF is encountered.
 --
@@ -495,7 +495,7 @@ putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- prop> write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
@@ -530,7 +530,7 @@ write = toHandleWith A.defaultChunkSize
 
 {-
 -- |
--- > readUtf8 = decodeUtf8 . read
+-- prop> readUtf8 = decodeUtf8 . read
 --
 -- Read a UTF8 encoded stream of unicode characters from a file handle.
 --
@@ -540,7 +540,7 @@ readUtf8 :: (IsStream t, MonadIO m) => Handle -> t m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
--- > writeUtf8 h s = write h $ encodeUtf8 s
+-- prop> writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- Encode a stream of unicode characters to UTF8 and write it to the given file
 -- handle. Default block buffering applies to the writes.

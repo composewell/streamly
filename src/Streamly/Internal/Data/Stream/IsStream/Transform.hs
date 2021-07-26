@@ -313,7 +313,7 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- 'foldrM' can also be represented in terms of 'foldrS', however, the former
 -- is much more efficient:
 --
--- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+-- prop> foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
 --
 -- /Pre-release/
 {-# INLINE foldrS #-}
@@ -324,8 +324,8 @@ foldrS = K.foldrS
 -- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
 -- implementation can be more efficient:
 --
--- > foldrS = foldrT
--- > foldrM f z s = runIdentityT $ foldrT (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+-- prop> foldrS = foldrT
+-- prop> foldrM f z s = runIdentityT $ foldrT (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
 --
 -- 'foldrT' can be used to translate streamly streams to other transformer
 -- monads e.g.  to a different streaming type.
@@ -342,7 +342,7 @@ foldrT f z s = S.foldrT f z (toStreamS s)
 
 -- |
 -- @
--- mapM f = sequence . map f
+-- prop> mapM f = sequence . map f
 -- @
 --
 -- Apply a monadic function to each element of the stream and replace it with
@@ -378,7 +378,7 @@ mapMSerial = Serial.mapM
 
 -- |
 -- @
--- sequence = mapM id
+-- prop> sequence = mapM id
 -- @
 --
 -- Replace the elements of a stream of monadic actions with the outputs of
@@ -1306,8 +1306,8 @@ reassembleBy = undefined
 ------------------------------------------------------------------------------
 
 -- |
--- > indexed = Stream.postscanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
--- > indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
+-- prop> indexed = Stream.postscanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- prop> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
 --
 -- Pair each element in a stream with its index, starting from index 0.
 --
@@ -1320,8 +1320,8 @@ indexed :: (IsStream t, Monad m) => t m a -> t m (Int, a)
 indexed = fromStreamD . D.indexed . toStreamD
 
 -- |
--- > indexedR n = Stream.postscanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
--- > indexedR n = Stream.zipWith (,) (Stream.enumerateFromThen n (n - 1))
+-- prop> indexedR n = Stream.postscanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- prop> indexedR n = Stream.zipWith (,) (Stream.enumerateFromThen n (n - 1))
 --
 -- Pair each element in a stream with its index, starting from the
 -- given index @n@ and counting down.

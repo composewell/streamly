@@ -461,8 +461,8 @@ foldlT step begin m = go begin m
 -- drain = foldrM (\_ xs -> return () >> xs) (return ())
 
 -- |
--- > drain = foldl' (\_ _ -> ()) ()
--- > drain = mapM_ (\_ -> return ())
+-- prop> drain = foldl' (\_ _ -> ()) ()
+-- prop> drain = mapM_ (\_ -> return ())
 {-# INLINE drain #-}
 drain :: (Monad m, IsStream t) => t m a -> m ()
 drain = foldrM (\_ xs -> xs) (return ())

@@ -400,7 +400,7 @@ parse_ = parseD_ . PRK.fromParserK
 
 -- XXX this can utilize parallel mapping if we implement it as drain . mapM
 -- |
--- > mapM_ = Stream.drain . Stream.mapM
+-- prop> mapM_ = Stream.drain . Stream.mapM
 --
 -- Apply a monadic action to each element of the stream and discard the output
 -- of the action. This is not really a pure transformation operation but a
@@ -412,8 +412,8 @@ mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
 mapM_ f m = S.mapM_ f $ toStreamS m
 
 -- |
--- > drain = mapM_ (\_ -> return ())
--- > drain = Stream.fold Fold.drain
+-- prop> drain = mapM_ (\_ -> return ())
+-- prop> drain = Stream.fold Fold.drain
 --
 -- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
@@ -425,8 +425,8 @@ drain :: Monad m => SerialT m a -> m ()
 drain = P.drain
 
 -- |
--- > drainN n = Stream.drain . Stream.take n
--- > drainN n = Stream.fold (Fold.take n Fold.drain)
+-- prop> drainN n = Stream.drain . Stream.take n
+-- prop> drainN n = Stream.fold (Fold.take n Fold.drain)
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
@@ -436,7 +436,7 @@ drainN :: Monad m => Int -> SerialT m a -> m ()
 drainN n = drain . take n
 
 -- |
--- > runN n = runStream . take n
+-- prop> runN n = runStream . take n
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
@@ -447,7 +447,7 @@ runN :: Monad m => Int -> SerialT m a -> m ()
 runN = drainN
 
 -- |
--- > drainWhile p = Stream.drain . Stream.takeWhile p
+-- prop> drainWhile p = Stream.drain . Stream.takeWhile p
 --
 -- Run a stream as long as the predicate holds true.
 --
@@ -457,7 +457,7 @@ drainWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
 drainWhile p = drain . takeWhile p
 
 -- |
--- > runWhile p = runStream . takeWhile p
+-- prop> runWhile p = runStream . takeWhile p
 --
 -- Run a stream as long as the predicate holds true.
 --
@@ -479,7 +479,7 @@ runStream = drain
 
 -- | Determine whether the stream is empty.
 --
--- > null = Stream.fold Fold.null
+-- prop> null = Stream.fold Fold.null
 --
 -- @since 0.1.1
 {-# INLINE null #-}
@@ -488,8 +488,8 @@ null = S.null . toStreamS
 
 -- | Extract the first element of the stream, if any.
 --
--- > head = (!! 0)
--- > head = Stream.fold Fold.head
+-- prop> head = (!! 0)
+-- prop> head = Stream.fold Fold.head
 --
 -- @since 0.1.0
 {-# INLINE head #-}
@@ -506,7 +506,7 @@ headElse :: Monad m => a -> SerialT m a -> m a
 headElse x = D.headElse x . toStreamD
 
 -- |
--- > tail = fmap (fmap snd) . Stream.uncons
+-- prop> tail = fmap (fmap snd) . Stream.uncons
 --
 -- Extract all but the first element of the stream, if any.
 --
@@ -524,8 +524,8 @@ init m = K.init (K.adapt m)
 
 -- | Extract the last element of the stream, if any.
 --
--- > last xs = xs !! (Stream.length xs - 1)
--- > last = Stream.fold Fold.last
+-- prop> last xs = xs !! (Stream.length xs - 1)
+-- prop> last = Stream.fold Fold.last
 --
 -- @since 0.1.1
 {-# INLINE last #-}
@@ -534,7 +534,7 @@ last m = S.last $ toStreamS m
 
 -- | Determine whether an element is present in the stream.
 --
--- > elem = Stream.fold Fold.elem
+-- prop> elem = Stream.fold Fold.elem
 --
 -- @since 0.1.0
 {-# INLINE elem #-}
@@ -543,7 +543,7 @@ elem e m = S.elem e (toStreamS m)
 
 -- | Determine whether an element is not present in the stream.
 --
--- > notElem = Stream.fold Fold.length
+-- prop> notElem = Stream.fold Fold.length
 --
 -- @since 0.1.0
 {-# INLINE notElem #-}
@@ -559,7 +559,7 @@ length = foldl' (\n _ -> n + 1) 0
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
--- > all = Stream.fold Fold.all
+-- prop> all = Stream.fold Fold.all
 --
 -- @since 0.1.0
 {-# INLINE all #-}
@@ -568,7 +568,7 @@ all p m = S.all p (toStreamS m)
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
--- > any = Stream.fold Fold.any
+-- prop> any = Stream.fold Fold.any
 --
 -- @since 0.1.0
 {-# INLINE any #-}
@@ -577,7 +577,7 @@ any p m = S.any p (toStreamS m)
 
 -- | Determines if all elements of a boolean stream are True.
 --
--- > and = Stream.fold Fold.and
+-- prop> and = Stream.fold Fold.and
 --
 -- @since 0.5.0
 {-# INLINE and #-}
@@ -586,7 +586,7 @@ and = all (==True)
 
 -- | Determines whether at least one element of a boolean stream is True.
 --
--- > or = Stream.fold Fold.or
+-- prop> or = Stream.fold Fold.or
 --
 -- @since 0.5.0
 {-# INLINE or #-}
@@ -597,7 +597,7 @@ or = any (==True)
 -- the stream is empty. Note that this is not numerically stable for floating
 -- point numbers.
 --
--- > sum = Stream.fold Fold.sum
+-- prop> sum = Stream.fold Fold.sum
 --
 -- @since 0.1.0
 {-# INLINE sum #-}
@@ -607,7 +607,7 @@ sum = foldl' (+) 0
 -- | Determine the product of all elements of a stream of numbers. Returns @1@
 -- when the stream is empty.
 --
--- > product = Stream.fold Fold.product
+-- prop> product = Stream.fold Fold.product
 --
 -- @since 0.1.1
 {-# INLINE product #-}
@@ -616,7 +616,7 @@ product = foldl' (*) 1
 
 -- | Fold a stream of monoid elements by appending them.
 --
--- > mconcat = Stream.fold Fold.mconcat
+-- prop> mconcat = Stream.fold Fold.mconcat
 --
 -- /Pre-release/
 {-# INLINE mconcat #-}
@@ -639,7 +639,7 @@ minimum m = S.minimum (toStreamS m)
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
 --
--- > minimumBy = Stream.fold Fold.minimumBy
+-- prop> minimumBy = Stream.fold Fold.minimumBy
 --
 -- @since 0.6.0
 {-# INLINE minimumBy #-}
@@ -648,8 +648,8 @@ minimumBy cmp m = S.minimumBy cmp (toStreamS m)
 
 -- |
 -- @
--- maximum = 'maximumBy' compare
--- maximum = Stream.fold Fold.maximum
+-- prop> maximum = 'maximumBy' compare
+-- prop> maximum = Stream.fold Fold.maximum
 -- @
 --
 -- Determine the maximum element in a stream.
@@ -662,7 +662,7 @@ maximum = P.maximum
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
 --
--- > maximumBy = Stream.fold Fold.maximumBy
+-- prop> maximumBy = Stream.fold Fold.maximumBy
 --
 -- @since 0.6.0
 {-# INLINE maximumBy #-}
@@ -691,8 +691,8 @@ m !! i = toStreamS m S.!! i
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
 --
--- > lookup = snd <$> Stream.find ((==) . fst)
--- > lookup = Stream.fold Fold.lookup
+-- prop> lookup = snd <$> Stream.find ((==) . fst)
+-- prop> lookup = Stream.fold Fold.lookup
 --
 -- @since 0.5.0
 {-# INLINE lookup #-}
@@ -701,8 +701,8 @@ lookup a m = S.lookup a (toStreamS m)
 
 -- | Like 'findM' but with a non-monadic predicate.
 --
--- > find p = findM (return . p)
--- > find = Stream.fold Fold.find
+-- prop> find p = findM (return . p)
+-- prop> find = Stream.fold Fold.find
 --
 -- @since 0.5.0
 {-# INLINE find #-}
@@ -711,7 +711,7 @@ find p m = S.find p (toStreamS m)
 
 -- | Returns the first element that satisfies the given predicate.
 --
--- > findM = Stream.fold Fold.findM
+-- prop> findM = Stream.fold Fold.findM
 --
 -- @since 0.6.0
 {-# INLINE findM #-}
@@ -720,7 +720,7 @@ findM p m = S.findM p (toStreamS m)
 
 -- | Returns the first index that satisfies the given predicate.
 --
--- > findIndex = Stream.fold Fold.findIndex
+-- prop> findIndex = Stream.fold Fold.findIndex
 --
 -- @since 0.5.0
 {-# INLINE findIndex #-}
@@ -729,7 +729,7 @@ findIndex p = head . findIndices p
 
 -- | Returns the first index where a given value is found in the stream.
 --
--- > elemIndex a = Stream.findIndex (== a)
+-- prop> elemIndex a = Stream.findIndex (== a)
 --
 -- @since 0.5.0
 {-# INLINE elemIndex #-}
@@ -867,7 +867,7 @@ foldAsync = (|$.)
 
 -- | Same as '|$.' but with arguments reversed.
 --
--- > (|&.) = flip (|$.)
+-- prop> (|&.) = flip (|$.)
 --
 -- /Concurrent/
 --

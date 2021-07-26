@@ -201,7 +201,7 @@ fromEffect m = Unfold step inject
 
 -- | Discards the unfold input and always returns the argument of 'fromPure'.
 --
--- > fromPure = fromEffect . pure
+-- prop> fromPure = fromEffect . pure
 --
 -- /Pre-release/
 fromPure :: Applicative m => b -> Unfold m a b
@@ -261,7 +261,7 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
 -- | Like 'crossWithM' but uses a pure combining function.
 --
--- > crossWith f = crossWithM (\b c -> return $ f b c)
+-- prop> crossWith f = crossWithM (\b c -> return $ f b c)
 --
 -- >>> u1 = Unfold.lmap fst Unfold.fromList
 -- >>> u2 = Unfold.lmap snd Unfold.fromList
@@ -278,7 +278,7 @@ crossWith f = crossWithM (\b c -> return $ f b c)
 
 -- | See 'crossWith'.
 --
--- > cross = crossWith (,)
+-- prop> cross = crossWith (,)
 --
 -- To cross the streams from a tuple we can write:
 --
@@ -421,7 +421,7 @@ functionM f = Unfold step inject
 -- | Lift a pure function into an unfold. The unfold generates a singleton
 -- stream.
 --
--- > function f = functionM $ return . f
+-- prop> function f = functionM $ return . f
 --
 -- /Since: 0.8.0/
 
@@ -432,7 +432,7 @@ function f = functionM $ pure Prelude.. f
 -- | Identity unfold. The unfold generates a singleton stream having the input
 -- as the only element.
 --
--- > identity = function Prelude.id
+-- prop> identity = function Prelude.id
 --
 -- /Pre-release/
 {-# INLINE identity #-}
@@ -536,7 +536,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- >>> Unfold.fold Fold.toList u [1..5]
 -- [(1,1),(4,8),(9,27),(16,64),(25,125)]
 --
--- > zipWith f = zipWithM (\a b -> return $ f a b)
+-- prop> zipWith f = zipWithM (\a b -> return $ f a b)
 --
 -- /Since: 0.8.0/
 --

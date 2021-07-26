@@ -217,7 +217,7 @@ readChunksWithBufferOf = Unfold step return
 -- @defaultChunkSize@. The actual size read may be less than or equal to
 -- @defaultChunkSize@.
 --
--- > toChunks = toChunksWithBufferOf defaultChunkSize
+-- prop> toChunks = toChunksWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
@@ -337,7 +337,7 @@ putBytesWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
 putBytesWithBufferOf n h m = putChunks h $ S.arraysOf n m
 -- putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- prop> write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing.
@@ -395,7 +395,7 @@ writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
 writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- prop> write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing
@@ -426,7 +426,7 @@ write = toHandleWith A.defaultChunkSize
 
 {-
 -- |
--- > readUtf8 = decodeUtf8 . read
+-- prop> readUtf8 = decodeUtf8 . read
 --
 -- Read a UTF8 encoded stream of unicode characters from a file handle.
 --
@@ -436,7 +436,7 @@ readUtf8 :: (IsStream t, MonadIO m) => Handle -> t m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
--- > writeUtf8 h s = write h $ encodeUtf8 s
+-- prop> writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- Encode a stream of unicode characters to UTF8 and write it to the given file
 -- handle. Default block buffering applies to the writes.

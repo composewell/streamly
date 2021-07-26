@@ -947,7 +947,7 @@ stripTail = undefined
 
 -- | Remove leading whitespace from a string.
 --
--- > stripHead = S.dropWhile isSpace
+-- prop> stripHead = S.dropWhile isSpace
 --
 -- /Pre-release/
 {-# INLINE stripHead #-}
@@ -985,7 +985,7 @@ isSpace c
 -- >>>  Stream.toList $ words Fold.toList (Stream.fromList "fold these     words")
 -- ["fold","these","words"]
 --
--- > words = S.wordsBy isSpace
+-- prop> words = S.wordsBy isSpace
 --
 -- /Pre-release/
 {-# INLINE words #-}

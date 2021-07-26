@@ -167,7 +167,7 @@ acceptOnPortWith opts = UF.supplyFirst (0,0,0,0) (acceptOnAddrWith opts)
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
+-- prop> acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
 --
 -- @since 0.7.0
 {-# INLINE acceptOnPort #-}
@@ -178,7 +178,7 @@ acceptOnPort = UF.supplyFirst (0,0,0,0) acceptOnAddr
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
+-- prop> acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
 --
 -- @since 0.7.0
 {-# INLINE acceptOnPortLocal #-}
@@ -221,7 +221,7 @@ connectionsOnAddr = connectionsOnAddrWith []
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > connectionsOnPort = connectionsOnAddr (0,0,0,0)
+-- prop> connectionsOnPort = connectionsOnAddr (0,0,0,0)
 --
 -- /Pre-release/
 {-# INLINE connectionsOnPort #-}
@@ -232,7 +232,7 @@ connectionsOnPort = connectionsOnAddr (0,0,0,0)
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
+-- prop> connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 --
 -- /Pre-release/
 {-# INLINE connectionsOnLocalHost #-}

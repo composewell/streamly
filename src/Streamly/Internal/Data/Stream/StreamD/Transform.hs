@@ -1079,7 +1079,7 @@ intersperseSuffixBySpan n action (Stream step state) =
 
 -- We can implement reverse as:
 --
--- > reverse = foldlS (flip cons) nil
+-- prop> reverse = foldlS (flip cons) nil
 --
 -- However, this implementation is unusable because of the horrible performance
 -- of cons. So we just convert it to a list first and then stream from the

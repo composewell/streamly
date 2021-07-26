@@ -157,7 +157,7 @@ readChunksWithBufferOf = Unfold step return
 -- @defaultChunkSize@. The actual size read may be less than or equal to
 -- @defaultChunkSize@.
 --
--- > toChunks = toChunksWithBufferOf defaultChunkSize
+-- prop> toChunks = toChunksWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
@@ -340,7 +340,7 @@ fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
 fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- fromStreamWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- prop> write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing.
@@ -390,7 +390,7 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- prop> write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing

@@ -370,7 +370,7 @@ mergeBy f m1 m2 = fromStreamS $ S.mergeBy f (toStreamS m1) (toStreamS m2)
 -- Merge two streams randomly:
 --
 -- @
--- > randomly _ _ = randomIO >>= \x -> return $ if x then LT else GT
+-- prop> randomly _ _ = randomIO >>= \x -> return $ if x then LT else GT
 -- > Stream.toList $ Stream.mergeByM randomly (Stream.fromList [1,1,1,1]) (Stream.fromList [2,2,2,2])
 -- [2,1,2,2,2,1,1,1]
 -- @
@@ -498,12 +498,12 @@ unfoldManyRoundRobin u m =
 -- Combine N Streams - interpose
 ------------------------------------------------------------------------------
 
--- > interpose x unf str = gintercalate unf str UF.identity (repeat x)
+-- prop> interpose x unf str = gintercalate unf str UF.identity (repeat x)
 --
 -- | Unfold the elements of a stream, intersperse the given element between the
 -- unfolded streams and then concat them into a single stream.
 --
--- > unwords = S.interpose ' '
+-- prop> unwords = S.interpose ' '
 --
 -- /Pre-release/
 {-# INLINE interpose #-}
@@ -517,7 +517,7 @@ interpose x unf str =
 -- | Unfold the elements of a stream, append the given element after each
 -- unfolded stream and then concat them into a single stream.
 --
--- > unlines = S.interposeSuffix '\n'
+-- prop> unlines = S.interposeSuffix '\n'
 --
 -- /Pre-release/
 {-# INLINE interposeSuffix #-}
@@ -535,8 +535,8 @@ interposeSuffix x unf str =
 -- infixed inside the second one. However, if we change the order in
 -- "interleave" as well similarly, then that will make it a bit unintuitive.
 --
--- > unfoldMany unf str =
--- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
+-- prop> unfoldMany unf str =
+--      gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
 --
 -- | 'interleaveInfix' followed by unfold and concat.
 --
@@ -550,13 +550,13 @@ gintercalate unf1 str1 unf2 str2 =
         unf1 (D.toStreamD str1)
         unf2 (D.toStreamD str2)
 
--- > intercalate unf seed str = gintercalate unf str unf (repeatM seed)
+-- prop> intercalate unf seed str = gintercalate unf str unf (repeatM seed)
 --
 -- | 'intersperse' followed by unfold and concat.
 --
--- > intercalate unf a str = unfoldMany unf $ intersperse a str
--- > intersperse = intercalate (Unfold.function id)
--- > unwords = intercalate Unfold.fromList " "
+-- prop> intercalate unf a str = unfoldMany unf $ intersperse a str
+-- prop> intersperse = intercalate (Unfold.function id)
+-- prop> unwords = intercalate Unfold.fromList " "
 --
 -- >>> Stream.toList $ Stream.intercalate Unfold.fromList " " $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc def ghi"
@@ -580,13 +580,13 @@ gintercalateSuffix unf1 str1 unf2 str2 =
         unf1 (D.toStreamD str1)
         unf2 (D.toStreamD str2)
 
--- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
+-- prop> intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
 --
 -- | 'intersperseSuffix' followed by unfold and concat.
 --
--- > intercalateSuffix unf a str = unfoldMany unf $ intersperseSuffix a str
--- > intersperseSuffix = intercalateSuffix (Unfold.function id)
--- > unlines = intercalateSuffix Unfold.fromList "\n"
+-- prop> intercalateSuffix unf a str = unfoldMany unf $ intersperseSuffix a str
+-- prop> intersperseSuffix = intercalateSuffix (Unfold.function id)
+-- prop> unlines = intercalateSuffix Unfold.fromList "\n"
 --
 -- >>> Stream.toList $ Stream.intercalateSuffix Unfold.fromList "\n" $ Stream.fromList ["abc", "def", "ghi"]
 -- "abc\ndef\nghi\n"

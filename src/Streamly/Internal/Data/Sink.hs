@@ -237,7 +237,7 @@ drain :: Monad m => Sink m a
 drain = Sink (\_ -> return ())
 
 -- |
--- > drainM f = lmapM f drain
+-- prop> drainM f = lmapM f drain
 --
 -- Drain all input after passing it through a monadic function.
 {-# INLINABLE drainM #-}
