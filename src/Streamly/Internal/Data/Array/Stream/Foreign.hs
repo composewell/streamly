@@ -71,6 +71,8 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.SVar (adaptState, defState)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (memcpy, bytesToElemCount)
+import Streamly.Internal.System.IO (mkChunkSizeKB)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign as Array
@@ -386,7 +388,7 @@ spliceArraysLenUnsafe len buffered = do
     writeArr dst (MA.Array as ae _) =
         liftIO $ unsafeWithForeignPtr as $ \src -> do
                         let count = ae `minusPtr` src
-                        A.memcpy (castPtr dst) (castPtr src) count
+                        memcpy (castPtr dst) (castPtr src) count
                         return $ dst `plusPtr` count
 
 {-# INLINE _spliceArrays #-}
@@ -404,7 +406,7 @@ _spliceArrays s = do
     writeArr dst (Array as ae) =
         liftIO $ unsafeWithForeignPtr as $ \src -> do
                         let count = ae `minusPtr` src
-                        A.memcpy (castPtr dst) (castPtr src) count
+                        memcpy (castPtr dst) (castPtr src) count
                         return $ dst `plusPtr` count
 
 {-# INLINE _spliceArraysBuffered #-}
@@ -419,8 +421,8 @@ _spliceArraysBuffered s = do
 spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    let idst = liftIO $ MA.newArray (A.bytesToElemCount (undefined :: a)
-                                  (A.mkChunkSizeKB 4))
+    let idst = liftIO $ MA.newArray (bytesToElemCount (undefined :: a)
+                                  (mkChunkSizeKB 4))
 
     arr <- S.foldlM' MA.spliceWithDoubling idst (S.map A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.shrinkToFit arr

@@ -138,6 +138,7 @@ import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
+import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -1133,7 +1134,7 @@ reverse' =
         . fromStreamK
         . K.reverse
         . toStreamK
-        . A.arraysOf A.defaultChunkSize
+        . A.arraysOf defaultChunkSize
 
 ------------------------------------------------------------------------------
 -- Position Indexing
