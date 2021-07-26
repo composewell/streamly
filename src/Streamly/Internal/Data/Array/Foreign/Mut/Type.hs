@@ -236,19 +236,6 @@ mkChunkSizeKB n = mkChunkSize (n * k)
 defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
 
--- | Remove the free space from an Array.
-shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
-shrinkToFit arr@Array{..} = do
-    assert (aEnd <= aBound) (return ())
-    let start = unsafeForeignPtrToPtr aStart
-    let used = aEnd `minusPtr` start
-        waste = aBound `minusPtr` aEnd
-    -- if used == waste == 0 then do not realloc
-    -- if the wastage is more than 25% of the array then realloc
-    if used < 3 * waste
-    then realloc used arr
-    else return arr
-
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -300,7 +287,7 @@ unsafeWithNewArray count f = do
     unsafeWithForeignPtr (aStart arr) $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
--- snoc
+-- Mutation
 -------------------------------------------------------------------------------
 
 {-# INLINE unsafeWriteIndex #-}
@@ -349,7 +336,7 @@ snoc arr@Array {..} x =
         return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
 
 -------------------------------------------------------------------------------
--- re-allocate
+-- Resizing
 -------------------------------------------------------------------------------
 
 -- | Reallocate the array to the specified size in bytes. If the size is less
@@ -375,8 +362,21 @@ reallocAligned alignSize newSize Array{..} = do
 realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
 realloc = reallocAligned (alignment (undefined :: a))
 
+-- | Remove the free space from an Array.
+shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
+shrinkToFit arr@Array{..} = do
+    assert (aEnd <= aBound) (return ())
+    let start = unsafeForeignPtrToPtr aStart
+    let used = aEnd `minusPtr` start
+        waste = aBound `minusPtr` aEnd
+    -- if used == waste == 0 then do not realloc
+    -- if the wastage is more than 25% of the array then realloc
+    if used < 3 * waste
+    then realloc used arr
+    else return arr
+
 -------------------------------------------------------------------------------
--- Elimination
+--
 -------------------------------------------------------------------------------
 
 -- | Return element at the specified index without checking the bounds.
@@ -391,6 +391,10 @@ unsafeIndexIO Array {..} i =
         assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
                (return ())
         peek elemOff
+
+-------------------------------------------------------------------------------
+-- Size
+-------------------------------------------------------------------------------
 
 -- | /O(1)/ Get the byte length of the array.
 --
@@ -484,74 +488,8 @@ bufferChunks :: (MonadIO m, Storable a) =>
 bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -------------------------------------------------------------------------------
--- Streams of arrays - flatten
+-- Streams of arrays - Flattening
 -------------------------------------------------------------------------------
-
-data ReadUState a = ReadUState
-    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
-    {-# UNPACK #-} !(Ptr a)         -- current pointer
-
--- | Resumable unfold of an array.
---
-{-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
-producer = Producer step inject extract
-    where
-
-    inject (Array (ForeignPtr start contents) (Ptr end) _) =
-        return $ ReadUState (ForeignPtr end contents) (Ptr start)
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
-        let x = unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return D.Stop
-    step (ReadUState fp p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
-
-    extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
-        return $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
-
--- | Unfold an array into a stream.
---
--- @since 0.7.0
-{-# INLINE_NORMAL read #-}
-read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = Producer.simplify producer
-
--- | Unfold an array into a stream in reverse order.
---
--- /Pre-release/
-{-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-readRev = Unfold step inject
-    where
-
-    inject (Array fp end _) =
-        let p = end `plusPtr` negate (sizeOf (undefined :: a))
-         in return $ ReadUState fp p
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr start _) p) | p < Ptr start =
-        let x = unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return D.Stop
-    step (ReadUState fp p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` negate (sizeOf (undefined :: a))))
 
 data FlattenState s a =
       OuterLoop s
@@ -625,6 +563,76 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
                     return r
         return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` negate (sizeOf (undefined :: a))) end)
+
+-------------------------------------------------------------------------------
+-- Unfolds
+-------------------------------------------------------------------------------
+
+data ReadUState a = ReadUState
+    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
+    {-# UNPACK #-} !(Ptr a)         -- current pointer
+
+-- | Resumable unfold of an array.
+--
+{-# INLINE_NORMAL producer #-}
+producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer = Producer step inject extract
+    where
+
+    inject (Array (ForeignPtr start contents) (Ptr end) _) =
+        return $ ReadUState (ForeignPtr end contents) (Ptr start)
+
+    {-# INLINE_LATE step #-}
+    step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
+        let x = unsafeInlineIO $ touchForeignPtr fp
+        in x `seq` return D.Stop
+    step (ReadUState fp p) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = unsafeInlineIO $ peek p
+            return $ D.Yield x
+                (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
+
+    extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
+        return $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
+
+-- | Unfold an array into a stream.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL read #-}
+read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+read = Producer.simplify producer
+
+-- | Unfold an array into a stream in reverse order.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL readRev #-}
+readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readRev = Unfold step inject
+    where
+
+    inject (Array fp end _) =
+        let p = end `plusPtr` negate (sizeOf (undefined :: a))
+         in return $ ReadUState fp p
+
+    {-# INLINE_LATE step #-}
+    step (ReadUState fp@(ForeignPtr start _) p) | p < Ptr start =
+        let x = unsafeInlineIO $ touchForeignPtr fp
+        in x `seq` return D.Stop
+    step (ReadUState fp p) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = unsafeInlineIO $ peek p
+            return $ D.Yield x
+                (ReadUState fp (p `plusPtr` negate (sizeOf (undefined :: a))))
 
 -------------------------------------------------------------------------------
 -- to Lists and streams
@@ -757,7 +765,7 @@ foldr :: Storable a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
 -------------------------------------------------------------------------------
--- Write Folds to fold streams into arrays
+-- Folds
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL writeNAllocWith #-}
