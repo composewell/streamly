@@ -144,6 +144,7 @@ import Streamly.Internal.Data.Producer.Type (Producer)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -236,7 +237,7 @@ unsafeRead = Unfold step inject
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = A.unsafeInlineIO $ do
+            let !x = unsafeInlineIO $ do
                         r <- peek (Ptr p)
                         touch contents
                         return r
@@ -378,7 +379,7 @@ getIndex :: Storable a => Array a -> Int -> Maybe a
 getIndex arr i =
     if i < 0 || i > length arr - 1
         then Nothing
-        else A.unsafeInlineIO $
+        else unsafeInlineIO $
             unsafeWithForeignPtr (aStart arr) $ \p -> Just <$> peekElemOff p i
 
 {-

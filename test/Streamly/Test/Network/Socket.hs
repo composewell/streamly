@@ -15,11 +15,11 @@ import Data.Function ((&))
 import Data.Word (Word8)
 import Network.Socket (Socket, PortNumber)
 import Streamly.Internal.Control.Monad (discard)
+import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Prelude (SerialT)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
 import qualified Streamly.Internal.Network.Socket as Socket
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -118,8 +118,8 @@ validateWithBufferOf = monadicIO $ do
 validateRW :: Property
 validateRW = monadicIO $ do
     res <- run $ do
-        ls2 <- execute (basePort + 1) Array.defaultChunkSize handlerRW
-        let dataChunk = take Array.defaultChunkSize testDataSource
+        ls2 <- execute (basePort + 1) defaultChunkSize handlerRW
+        let dataChunk = take defaultChunkSize testDataSource
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
 

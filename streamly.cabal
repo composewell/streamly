@@ -369,6 +369,7 @@ library
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock.Type
                      , Streamly.Internal.Data.Time.Clock
+                     , Streamly.Internal.System.IO
 
                      -- streamly-core-stream
                      , Streamly.Internal.Data.SVar

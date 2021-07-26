@@ -98,6 +98,7 @@ import Streamly.Internal.Data.Stream.IsStream (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
@@ -236,7 +237,7 @@ utf8d =
 -- and without touching the foreign ptr.
 {-# INLINE_NORMAL unsafePeekElemOff #-}
 unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
-unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
+unsafePeekElemOff p i = let !x = unsafeInlineIO $ peekElemOff p i in x
 
 -- decode is split into two separate cases to avoid branching instructions.
 -- From the higher level flow we already know which case we are in so we can
