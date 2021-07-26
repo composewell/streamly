@@ -190,9 +190,9 @@ testArraysOf =
 
 unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
 unsafeWriteIndex xs i x = do
-    let arr = MA.fromList xs
-    arr1 <- MA.unsafeWriteIndex arr i x
-    x1 <- MA.unsafeIndexIO arr1 i
+    arr <- MA.fromListIO xs
+    MA.unsafeWriteIndex arr i x
+    x1 <- MA.unsafeIndexIO arr i
     return $ x1 == x
 
 lastN :: Int -> [a] -> [a]

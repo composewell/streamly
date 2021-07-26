@@ -26,6 +26,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * From containers
     , fromList
     , fromListN
+    , fromListIO
     , fromStreamDN
     , fromStreamD
 
@@ -303,15 +304,12 @@ unsafeWithNewArray count f = do
 -------------------------------------------------------------------------------
 
 {-# INLINE unsafeWriteIndex #-}
-unsafeWriteIndex :: forall a. Storable a => Array a -> Int -> a -> IO (Array a)
-unsafeWriteIndex arr@Array {..} i x =
+unsafeWriteIndex :: forall a. Storable a => Array a -> Int -> a -> IO ()
+unsafeWriteIndex Array {..} i x =
     unsafeWithForeignPtr aStart
         $ \begin -> do
               poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
-              return arr
 
--- XXX grow the array when we are beyond bound.
---
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
 -- array.
@@ -980,6 +978,11 @@ fromStreamD m = do
     buffered <- bufferChunks m
     len <- K.foldl' (+) 0 (K.map length buffered)
     fromStreamDN len $ D.unfoldMany read $ D.fromStreamK buffered
+
+-- XXX Replace fromList with this
+{-# INLINABLE fromListIO #-}
+fromListIO :: Storable a => [a] -> IO (Array a)
+fromListIO xs = fromStreamD $ D.fromList xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
