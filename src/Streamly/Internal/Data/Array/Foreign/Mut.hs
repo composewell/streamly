@@ -8,8 +8,22 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Unboxed pinned mutable array type for 'Storable' types with an option to use
+-- foreign (non-GHC) memory allocators. Fulfils the following goals:
+--
+-- * Random access (array)
+-- * Efficient storage (unboxed)
+-- * Performance (unboxed access)
+-- * Performance - in-place operations (mutable)
+-- * Performance - GC (pinned, mutable)
+-- * interfacing with OS (pinned)
+-- * Fragmentation control (foreign allocators)
+--
+-- Stream and Fold APIs allow easy, efficient and convenient operations on
+-- arrays.
+
 module Streamly.Internal.Data.Array.Foreign.Mut
-    (
+    ( Array
     -- , writeIndex
     -- , writeFrom -- start writing at the given position
     -- , writeFromRev
@@ -21,7 +35,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     -- , writeChunksOfFrom
     -- , ...
 
-    writeIndex
+    , writeIndex
     --, writeIndices
     --, writeRanges
 
