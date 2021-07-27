@@ -48,16 +48,9 @@ stability:           Stable
 build-type:          Configure
 
 extra-source-files:
-    .circleci/config.yml
-    .ghci
-    .github/workflows/haskell.yml
-    .gitignore
-    .hlint.ignore
-    .hlint.yaml
     CONTRIBUTING.md
     Changelog.md
     README.md
-    appveyor.yml
     benchmark/*.hs
     benchmark/README.md
     benchmark/bench-report/BenchReport.hs
@@ -65,7 +58,6 @@ extra-source-files:
     benchmark/bench-report/bin/bench-runner.sh
     benchmark/bench-report/bin/build-lib.sh
     benchmark/bench-report/cabal.project
-    benchmark/bench-report/default.nix
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
@@ -80,8 +72,6 @@ extra-source-files:
     benchmark/streamly-benchmarks.cabal
     bin/bench.sh
     bin/bench-config.sh
-    bin/ghc.sh
-    bin/run-ci.sh
     bin/mk-hscope.sh
     bin/mk-tags.sh
     bin/targets.sh
@@ -100,7 +90,6 @@ extra-source-files:
     credits/primitive-0.7.0.0.txt
     credits/transient-0.5.5.txt
     credits/vector-0.12.0.2.txt
-    default.nix
     dev/*.md
     dev/*.png
     dev/*.rst
@@ -110,7 +99,6 @@ extra-source-files:
     docs/*.svg
     docs/API-changelog.txt
     docs/streamly-docs.cabal
-    examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/Streamly/Internal/Data/Array/PrimInclude.hs

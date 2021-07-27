@@ -1,4 +1,14 @@
+.circleci/config.yml
+.ghci
+.github/workflows/haskell.yml
+.gitignore
+.hlint.ignore
+.hlint.yaml
 .packcheck.ignore
+appveyor.yml
+benchmark/bench-report/default.nix
+bin/ghc.sh
+bin/run-ci.sh
 cabal.project
 cabal.project.coverage
 cabal.project.doctest
@@ -7,5 +17,7 @@ cabal.project.hpc-coveralls
 cabal.project.O0
 cabal.project.Werror
 cabal.project.Werror-nocode
+default.nix
+examples/README.md
 hie.yaml
 stack.yaml
