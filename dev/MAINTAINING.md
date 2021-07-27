@@ -82,7 +82,10 @@
       to make sure it runs with the latest release.
     * Check the performance of examples where applicable
     * Update streamly-bytestring
-    * Consider updating other packages e.g. streamly-process, streamly-lz4
+    * Update:
+      * streamly-bytestring
+      * streamly-process
+      * streamly-lz4
 
 * _Update Package Metadata:_
 
@@ -90,6 +93,9 @@
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update GHC `tested-with` field
     * Update `docs/building.md` with the distributions tested with
+    * Any docs linked inside haddock/cabal/changelog or any other such file
+      should go in the extra-doc-files section instead of
+      extra-source-files. Otherwise hackage shows the links as broken.
     * Make sure any additional files are added to `extra-source-files` in cabal
       file. Artifacts required for build, test, benchmarks, docs, licenses
       should be packaged. Build environment customization may or may not be
@@ -113,7 +119,7 @@
       they want.
     * Bump the package version in configure.ac and run autoreconf
     * Change the `Unreleased` section at the top of changelog file to the new
-      release version number.
+      release version number and the month/year of publishing.
     * Bump the package version in cabal file or package.yaml
     * Bump the package version in any docs/links, use something like
       `rg '0\.7\.'|grep -v -i since` to find any remaining occurrences of the
