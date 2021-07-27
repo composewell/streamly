@@ -48,11 +48,7 @@ stability:           Stable
 build-type:          Configure
 
 extra-source-files:
-    CONTRIBUTING.md
-    Changelog.md
-    README.md
     benchmark/*.hs
-    benchmark/README.md
     benchmark/bench-report/BenchReport.hs
     benchmark/bench-report/bench-report.cabal
     benchmark/bench-report/bin/bench-runner.sh
@@ -78,26 +74,7 @@ extra-source-files:
     bin/test.sh
     configure
     configure.ac
-    credits/*.md
-    credits/Yampa-0.10.6.2.txt
-    credits/base-4.12.0.0.txt
-    credits/bjoern-2008-2009.txt
-    credits/clock-0.7.2.txt
-    credits/foldl-1.4.5.txt
-    credits/fsnotify-0.3.0.1.txt
-    credits/hfsevents-0.1.6.txt
-    credits/pipes-concurrency-2.0.8.txt
-    credits/primitive-0.7.0.0.txt
-    credits/transient-0.5.5.txt
-    credits/vector-0.12.0.2.txt
-    dev/*.md
-    dev/*.png
-    dev/*.rst
-    docs/*.md
-    docs/*.rst
     docs/*.hs
-    docs/*.svg
-    docs/API-changelog.txt
     docs/streamly-docs.cabal
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
@@ -107,7 +84,6 @@ extra-source-files:
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
-    test/README.md
     test/Streamly/Test/Common/Array.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/Prim.hs
@@ -126,6 +102,32 @@ extra-source-files:
     test/lib/Streamly/Test/Prelude/Common.hs
     test/streamly-tests.cabal
     test/version-bounds.hs
+
+extra-doc-files:
+    CONTRIBUTING.md
+    Changelog.md
+    README.md
+    benchmark/README.md
+    credits/*.md
+    credits/Yampa-0.10.6.2.txt
+    credits/base-4.12.0.0.txt
+    credits/bjoern-2008-2009.txt
+    credits/clock-0.7.2.txt
+    credits/foldl-1.4.5.txt
+    credits/fsnotify-0.3.0.1.txt
+    credits/hfsevents-0.1.6.txt
+    credits/pipes-concurrency-2.0.8.txt
+    credits/primitive-0.7.0.0.txt
+    credits/transient-0.5.5.txt
+    credits/vector-0.12.0.2.txt
+    dev/*.md
+    dev/*.png
+    dev/*.rst
+    docs/*.md
+    docs/*.rst
+    docs/*.svg
+    docs/API-changelog.txt
+    test/README.md
 
 extra-tmp-files:
     config.log
