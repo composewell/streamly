@@ -3,38 +3,6 @@
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
-<!--
-Link References.
--->
-
-[Streamly]: https://streamly.composewell.com/
-[streamly-examples]: https://github.com/composewell/streamly-examples
-[streaming-benchmarks]: https://github.com/composewell/streaming-benchmarks
-[concurrency-benchmarks]: https://github.com/composewell/concurrency-benchmarks
-
-<!--
-Keep all the unstable links here so that they can be updated to stable
-links (for online docs) before we release.
--->
-
-<!-- examples -->
-[WordCountModular.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs
-[WordCount.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs
-[WordCount.c]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c
-[WordCountParallel.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs
-[WordCountUTF8.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs
-[WordServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs
-[MergeServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs
-[ListDir.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs
-[Rate.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/Rate.hs
-[AcidRain.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs
-[CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
-
-<!-- local files -->
-[LICENSE]: LICENSE
-[CONTRIBUTING.md]: CONTRIBUTING.md
-[docs]: docs/
-
 Streamly is a Haskell library that provides the building blocks to build
 safe, scalable, modular and high performance software.  Streamly offers:
 
@@ -646,3 +614,35 @@ Professional support is available for [Streamly][]: please contact
 
 You can also join our [community chat
 channel](https://gitter.im/composewell/streamly) on Gitter.
+
+<!--
+Link References.
+-->
+
+[Streamly]: https://streamly.composewell.com/
+[streamly-examples]: https://github.com/composewell/streamly-examples
+[streaming-benchmarks]: https://github.com/composewell/streaming-benchmarks
+[concurrency-benchmarks]: https://github.com/composewell/concurrency-benchmarks
+
+<!--
+Keep all the unstable links here so that they can be updated to stable
+links (for online docs) before we release.
+-->
+
+<!-- examples -->
+[WordCountModular.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountModular.hs
+[WordCount.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs
+[WordCount.c]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c
+[WordCountParallel.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs
+[WordCountUTF8.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs
+[WordServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs
+[MergeServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs
+[ListDir.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs
+[Rate.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/Rate.hs
+[AcidRain.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs
+[CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
+
+<!-- local files -->
+[LICENSE]: LICENSE
+[CONTRIBUTING.md]: CONTRIBUTING.md
+[docs]: docs/
