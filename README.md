@@ -79,6 +79,9 @@ hierarchy.  These are not really internal to the library.  We classify
   version number.  As yet unreleased modules and APIs reside in the
   `Internal` namespace.
 
+Please use a minor release upper bound to adhere to the Haskell PVP when
+using the pre-release (internal) modules.
+
 ## The Examples
 
 ### Modular Word Counting
