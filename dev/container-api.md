@@ -7,6 +7,13 @@ module means converting the array to bytes, it sounds intuitive if read
 qualified with the module name e.g. Array.toBytes. This doc lists some
 conventions and guidelines to be followed.
 
+## Bytes and Chunks
+
+APIs that deal with streams of Word8 may have "bytes" in their names
+while the ones dealing with "Array Word8" have "chunks" in their
+names. Usually the default is bytes when there is no explicit mention in
+the name.
+
 ## Unfolds and Folds
 
 * Unfolds are named as "read" or with a "read" prefix (e.g. readChunks).
