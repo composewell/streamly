@@ -23,7 +23,9 @@
 -- arrays.
 
 module Streamly.Internal.Data.Array.Foreign.Mut
-    ( Array
+    (
+    -- * Type
+      Array
     -- , writeIndex
     -- , writeFrom -- start writing at the given position
     -- , writeFromRev
@@ -35,7 +37,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     -- , writeChunksOfFrom
     -- , ...
 
+    -- * Mutation
     , writeIndex
+    , snoc
+
     --, writeIndices
     --, writeRanges
 
@@ -44,6 +49,29 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     -- , shuffleBy
     -- , foldtWith
     -- , foldbWith
+
+    -- * Folding
+    , foldl'
+    , foldr
+
+    -- * Composable Folds
+    , writeN
+    , write
+
+    -- * Unfolds
+    , read
+
+    -- * To containers
+    , toList
+
+    -- * Combining
+    , spliceWith
+    , spliceWithDoubling
+    , spliceTwo
+
+    -- * Splitting
+    , breakOn
+    , splitAt
     )
 where
 
@@ -51,7 +79,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable(..))
 import Streamly.Internal.BaseCompat (unsafeWithForeignPtr)
 
-import Prelude hiding (length)
+import Prelude hiding (foldr, length, read, splitAt)
+
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
 
 -- | /O(1)/ Write the given element at the given index in the array.
