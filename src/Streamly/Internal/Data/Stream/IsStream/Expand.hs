@@ -1163,10 +1163,10 @@ iterateSmapMWith combine f initial stream =
 --
 {-# INLINE iterateMapLeftsWith #-}
 iterateMapLeftsWith
-    :: IsStream t
-    => (t m (Either a b) -> t m (Either a b) -> t m (Either a b))
-    -> (a -> t m (Either a b))
-    -> t m (Either a b)
-    -> t m (Either a b)
+    :: (IsStream t, b ~ Either a c)
+    => (t m b -> t m b -> t m b)
+    -> (a -> t m b)
+    -> t m b
+    -> t m b
 iterateMapLeftsWith combine f =
     iterateMapWith combine (either f (const IsStream.nil))
