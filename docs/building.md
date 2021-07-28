@@ -99,11 +99,38 @@ Features/modules may get disabled if the kernel/OS does not support it.
 
 ### Linux
 
-* File system events notification module is supported only for kernel versions
-  2.6.36 onwards.
+File system events notification module is supported only for kernel versions
+2.6.36 onwards.
 
-### Mac OSX
+### macOS
 
-* File system events notification module requires macOS 10.7+ with
-  Xcode/macOS SDK installed (depends on `Cocoa` framework). However, we only
-  test on latest three versions of the OS.
+File system events notification module supports macOS 10.7+ . You must
+have the ``Cocoa`` framework installed which is supplied by the macOS
+SDK.  If ``Cocoa`` is not installed, you may see an error like this:
+
+```
+error: ld: framework not found Cocoa
+```
+
+### Native build
+
+Usually, if you have a working GHC you would already have the SDK
+installed. See the documentation of `Xcode` or `xcode-select` tool for
+more details.
+
+### Nix build
+
+Please note that cabal2nix may not always be able to generate a complete nix
+expression on `macOS`. See [this
+issue](https://github.com/NixOS/cabal2nix/issues/470).
+
+You may need to add ``nixpkgs.darwin.apple_sdk.frameworks.Cocoa`` to
+your ``buildInputs`` or ``executableFrameworkDepends``. Something like
+this:
+
+```
+executableFrameworkDepends =
+    if builtins.currentSystem == "x86_64-darwin"
+    then [nixpkgs.darwin.apple_sdk.frameworks.Cocoa]
+    else [];
+```
