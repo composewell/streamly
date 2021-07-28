@@ -164,6 +164,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- Move these to Streamly.Data.Either.Stream?
     , lefts
     , rights
+    , both
 
     -- * Concurrent Evaluation
     -- ** Concurrent Pipelines
@@ -1508,6 +1509,15 @@ lefts = fmap (fromLeft undefined) . filter isLeft
 {-# INLINE rights #-}
 rights :: (IsStream t, Monad m, Functor (t m)) => t m (Either a b) -> t m b
 rights = fmap (fromRight undefined) . filter isRight
+
+-- | Remove the either wrapper and flatten both lefts and as well as rights in
+-- the output stream.
+--
+-- /Pre-release/
+--
+{-# INLINE both #-}
+both :: Functor (t m) => t m (Either a a) -> t m a
+both = fmap (either id id)
 
 ------------------------------------------------------------------------------
 -- Concurrent Application
