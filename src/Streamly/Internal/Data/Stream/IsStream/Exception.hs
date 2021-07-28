@@ -13,6 +13,7 @@ module Streamly.Internal.Data.Stream.IsStream.Exception
     , after
     , bracket_
     , bracket
+    , bracket'
     , onException
     , finally_
     , finally
@@ -166,8 +167,24 @@ bracket_ bef aft bet = D.fromStreamD $
 {-# INLINE bracket #-}
 bracket :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
-bracket bef aft bet = D.fromStreamD $
-    D.bracket bef aft (toStreamD . bet)
+bracket bef aft = bracket' bef aft aft aft
+
+-- For a use case of this see the "streamly-process" package. It needs to kill
+-- the process in case of exception or garbage collection, but waits for the
+-- process to terminate in normal cases.
+--
+-- | Like 'bracket' but can use separate cleanup actions depending on the mode
+-- of termination.  @bracket' before onStop onGC onException action@ runs
+-- @action@ using the result of @before@. If the stream stops, @onStop@ action
+-- is executed, if the stream is abandoned @onGC@ is executed, if the stream
+-- encounters an exception @onException@ is executed.
+--
+-- /Pre-release/
+{-# INLINE bracket' #-}
+bracket' :: (IsStream t, MonadAsync m, MonadCatch m)
+    => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> t m a) -> t m a
+bracket' bef aft gc exc bet = D.fromStreamD $
+    D.bracket' bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
 -- that generated the exception as input. The exception handler can thus

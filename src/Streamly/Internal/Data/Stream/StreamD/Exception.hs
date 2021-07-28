@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Stream.StreamD.Exception
     , after_
     , after
     , bracket_
-    , bracket
+    , bracket'
     , onException
     , finally_
     , finally
@@ -101,7 +101,9 @@ data GbracketIOState s1 s2 v wref
 -- output @c@ as input to @c -> Stream m b@ to generate an output stream. When
 -- generating the stream use the supplied @try@ operation @forall s. m s -> m
 -- (Either e s)@ to catch synchronous exceptions. If an exception occurs run
--- the exception handler @c -> e -> Stream m b -> m (Stream m b)@.
+-- the exception handler @c -> e -> Stream m b -> m (Stream m b)@. Note that
+-- 'gbracket' does not rethrow the exception, it has to be done by the
+-- exception handler if desired.
 --
 -- The cleanup action @c -> m d@, runs whenever the stream ends normally, due
 -- to a sync or async exception or if it gets garbage collected after a partial
@@ -115,13 +117,14 @@ data GbracketIOState s1 s2 v wref
 {-# INLINE_NORMAL gbracket #-}
 gbracket
     :: (MonadIO m, MonadBaseControl IO m)
-    => m c                                  -- ^ before
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
-    -> (c -> m d)                           -- ^ after, on normal stop or GC
+    => m c -- ^ before
+    -> (forall s. m s -> m (Either e s)) -- ^ try (exception handling)
+    -> (c -> m d1) -- ^ on normal stop
+    -> (c -> m d2) -- ^ on GC without normal stop or exception
     -> (c -> e -> Stream m b -> m (Stream m b)) -- ^ on exception
-    -> (c -> Stream m b)                    -- ^ stream generator
+    -> (c -> Stream m b) -- ^ stream generator
     -> Stream m b
-gbracket bef exc aft fexc fnormal =
+gbracket bef exc aft gc fexc fnormal =
     Stream step GBracketIOInit
 
     where
@@ -137,7 +140,7 @@ gbracket bef exc aft fexc fnormal =
         -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef
-            ref <- newIOFinalizer (aft r)
+            ref <- newIOFinalizer (gc r)
             return (r, ref)
         return $ Skip $ GBracketIONormal (fnormal r) r ref
 
@@ -149,9 +152,8 @@ gbracket bef exc aft fexc fnormal =
                     return $ Yield x (GBracketIONormal (Stream step1 s) v ref)
                 Skip s ->
                     return $ Skip (GBracketIONormal (Stream step1 s) v ref)
-                Stop -> do
-                    runIOFinalizer ref
-                    return Stop
+                Stop ->
+                    clearingIOFinalizer ref (aft v) >> return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
                 -- Clearing of finalizer and running of exception handler must
@@ -261,12 +263,17 @@ bracket_ bef aft bet =
 
 -- | See 'Streamly.Internal.Data.Stream.IsStream.bracket'.
 --
-{-# INLINE_NORMAL bracket #-}
-bracket :: (MonadAsync m, MonadCatch m)
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket bef aft bet =
-    gbracket bef (inline MC.try) aft
-        (\a (e :: SomeException) _ -> aft a >> return (nilM (MC.throwM e))) bet
+{-# INLINE_NORMAL bracket' #-}
+bracket' :: (MonadAsync m, MonadCatch m) =>
+       m b
+    -> (b -> m c)
+    -> (b -> m d)
+    -> (b -> m e)
+    -> (b -> Stream m a)
+    -> Stream m a
+bracket' bef aft exc gc =
+    gbracket bef (inline MC.try) aft gc
+        (\a (e :: SomeException) _ -> exc a >> return (nilM (MC.throwM e)))
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -306,7 +313,8 @@ finally_ action xs = bracket_ (return ()) (\_ -> action) (const xs)
 --
 {-# INLINE finally #-}
 finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
-finally action xs = bracket (return ()) (\_ -> action) (const xs)
+finally action xs = bracket' (return ()) act act act (const xs)
+    where act _ = action
 
 -- | See 'Streamly.Internal.Data.Stream.IsStream.ghandle'.
 --
