@@ -24,7 +24,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * From containers
     , fromList
     , fromListN
-    , fromListIO
     , fromStreamDN
     , fromStreamD
 
@@ -38,7 +37,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , byteCapacity
 
     -- * Random access
-    , unsafeIndexIO
+    , unsafeIndex
 
     -- * Mutation
     , unsafeWriteIndex
@@ -113,10 +112,8 @@ import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (nullAddr#, build)
-import GHC.Exts (IsList, IsString(..))
+import GHC.Base (build)
 import GHC.ForeignPtr (ForeignPtr(..))
-import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.BaseCompat
@@ -124,7 +121,6 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Streamly.Internal.System.IO
     (defaultChunkSize, mkChunkSize, unsafeInlineIO)
@@ -132,7 +128,6 @@ import Streamly.Internal.System.IO
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
 #endif
-import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -358,9 +353,9 @@ shrinkToFit arr@Array{..} = do
 -- | Return element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
-{-# INLINE_NORMAL unsafeIndexIO #-}
-unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
-unsafeIndexIO Array {..} i =
+{-# INLINE_NORMAL unsafeIndex #-}
+unsafeIndex :: forall a. Storable a => Array a -> Int -> IO a
+unsafeIndex Array {..} i =
         unsafeWithForeignPtr aStart $ \p -> do
         let elemSize = sizeOf (undefined :: a)
             elemOff = p `plusPtr` (elemSize * i)
@@ -934,8 +929,8 @@ fromStreamDN limit str = do
 --
 -- @since 0.7.0
 {-# INLINABLE fromListN #-}
-fromListN :: Storable a => Int -> [a] -> Array a
-fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
+fromListN :: Storable a => Int -> [a] -> IO (Array a)
+fromListN n xs = fromStreamDN n $ D.fromList xs
 
 -------------------------------------------------------------------------------
 -- convert stream to a single array
@@ -963,17 +958,12 @@ fromStreamD m = do
     len <- K.foldl' (+) 0 (K.map length buffered)
     fromStreamDN len $ D.unfoldMany read $ D.fromStreamK buffered
 
--- XXX Replace fromList with this
-{-# INLINABLE fromListIO #-}
-fromListIO :: Storable a => [a] -> IO (Array a)
-fromListIO xs = fromStreamD $ D.fromList xs
-
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
-fromList :: Storable a => [a] -> Array a
-fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
+fromList :: Storable a => [a] -> IO (Array a)
+fromList xs = fromStreamD $ D.fromList xs
 
 -------------------------------------------------------------------------------
 -- Combining
@@ -1097,27 +1087,6 @@ instance (Show a, Storable a) => Show (Array a) where
     {-# INLINE showsPrec #-}
     showsPrec _ = shows . toList
 
-instance (Storable a, Read a, Show a) => Read (Array a) where
-    {-# INLINE readPrec #-}
-    readPrec = do
-          xs <- readPrec
-          return (fromList xs)
-    readListPrec = readListPrecDefault
-
-instance (a ~ Char) => IsString (Array a) where
-    {-# INLINE fromString #-}
-    fromString = fromList
-
--- GHC versions 8.0 and below cannot derive IsList
-instance Storable a => IsList (Array a) where
-    type (Item (Array a)) = a
-    {-# INLINE fromList #-}
-    fromList = fromList
-    {-# INLINE fromListN #-}
-    fromListN = fromListN
-    {-# INLINE toList #-}
-    toList = toList
-
 {-# INLINE arrcmp #-}
 arrcmp :: Array a -> Array a -> Bool
 arrcmp arr1 arr2 =
@@ -1147,33 +1116,6 @@ instance (Storable a, NFData a) => NFData (Array a) where
     {-# INLINE rnf #-}
     rnf = foldl' (\_ x -> rnf x) ()
 
-instance (Storable a, Ord a) => Ord (Array a) where
-    {-# INLINE compare #-}
-    compare arr1 arr2 = unsafePerformIO $
-        D.cmpBy compare (toStreamD arr1) (toStreamD arr2)
-
-    -- Default definitions defined in base do not have an INLINE on them, so we
-    -- replicate them here with an INLINE.
-    {-# INLINE (<) #-}
-    x <  y = case compare x y of { LT -> True;  _ -> False }
-
-    {-# INLINE (<=) #-}
-    x <= y = case compare x y of { GT -> False; _ -> True }
-
-    {-# INLINE (>) #-}
-    x >  y = case compare x y of { GT -> True;  _ -> False }
-
-    {-# INLINE (>=) #-}
-    x >= y = case compare x y of { LT -> False; _ -> True }
-
-    -- These two default methods use '<=' rather than 'compare'
-    -- because the latter is often more expensive
-    {-# INLINE max #-}
-    max x y = if x <= y then y else x
-
-    {-# INLINE min #-}
-    min x y = if x <= y then x else y
-
 #ifdef DEVBUILD
 -- Definitions using the Storable constraint from the Array type. These are to
 -- make the Foldable instance possible though it is much slower (7x slower).
@@ -1194,42 +1136,4 @@ toStreamD_ size Array{..} =
                     touchForeignPtr aStart
                     return r
         return $ D.Yield x (p `plusPtr` size)
-
-{-# INLINE_NORMAL _foldr #-}
-_foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
-_foldr f z arr@Array {..} =
-    let !n = sizeOf (undefined :: a)
-    in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
-
--- | Note that the 'Foldable' instance is 7x slower than the direct
--- operations.
-instance Foldable Array where
-  foldr = _foldr
 #endif
-
--------------------------------------------------------------------------------
--- Semigroup and Monoid
--------------------------------------------------------------------------------
-
--- Note: we cannot splice the second array into the free space of the first
--- array because that would require a monadic API due to mutation.
--- | Copies the two arrays into a newly allocated array.
-instance Storable a => Semigroup (Array a) where
-    {-# INLINE (<>) #-}
-    arr1 <> arr2 = unsafePerformIO $ spliceTwo arr1 arr2
-
-nullForeignPtr :: ForeignPtr a
-nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
-
-nil ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    Array a
-nil = Array nullForeignPtr (Ptr nullAddr#) (Ptr nullAddr#)
-
-instance Storable a => Monoid (Array a) where
-    {-# INLINE mempty #-}
-    mempty = nil
-    {-# INLINE mappend #-}
-    mappend = (<>)
