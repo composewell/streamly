@@ -180,7 +180,9 @@ bench_exec_one() {
   local BENCH_NAME
   # XXX this is a hack to make the "/" separated names used in the functions
   # determining options based on benchmark name. For tasty-bench the benchmark
-  # names are separated by "." instead of "/".
+  # names are separated by "." instead of "/" and are prefixed by "All".
+  #
+  # For example, All.Prelude.Serial/x.y.z => Prelude.Serial/x/y/z
   if test "$USE_GAUGE" -eq 0
   then
     # Remove the prefix "All."

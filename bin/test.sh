@@ -177,8 +177,6 @@ run_target () {
 
   echo "Running executable $target_name ..."
 
-  # Needed by bench-exec-one.sh
-  export BENCH_EXEC_PATH=$target_prog
   mkdir -p $(dirname $(get_tix_file $target_name))
   export HPCTIXFILE=$(get_tix_file $target_name)
 
