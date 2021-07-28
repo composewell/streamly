@@ -91,26 +91,37 @@
 -- = Folds vs. Streams
 --
 -- We can often use streams or folds to achieve the same goal. However, streams
--- allow efficient composition of producers (e.g. 'Streamly.Prelude.serial' or
--- 'Streamly.Prelude.mergeBy') whereas folds allow efficient composition of
--- consumers (e.g.  'serialWith', 'partition' or 'teeWith').
+-- are more efficient in composition of producers (e.g.
+-- 'Streamly.Prelude.serial' or 'Streamly.Prelude.mergeBy') whereas folds are
+-- more efficient in composition of consumers (e.g.  'serialWith', 'partition'
+-- or 'teeWith').
 --
 -- Streams are producers, transformations on streams happen on the output side:
 --
--- >>> f = Stream.sum . Stream.map (+1) . Stream.filter odd
+-- >>> :{
+--  f =
+--        Stream.filter odd
+--      & Stream.map (+1)
+--      & Stream.sum
+-- :}
 -- >>> f $ Stream.fromList [1..100]
 -- 2550
 --
 -- Folds are stream consumers with an input stream and an output value, stream
 -- transformations on folds happen on the input side:
 --
--- >>> f = Fold.filter odd $ Fold.lmap (+1) $ Fold.sum
+-- >>> :{
+-- f =
+--        Fold.filter odd
+--      $ Fold.lmap (+1)
+--      $ Fold.sum
+-- :}
 -- >>> Stream.fold f $ Stream.fromList [1..100]
 -- 2550
 --
--- Notice the composition by @.@ vs @$@ and the order of operations in the
--- above examples, the difference is due to output vs input side
--- transformations.
+-- Notice the similiarity in the definition of @f@ in both cases, the only
+-- difference is the composition by @&@ vs @$@ and the use @lmap@ vs @map@, the
+-- difference is due to output vs input side transformations.
 
 module Streamly.Data.Fold
     (
