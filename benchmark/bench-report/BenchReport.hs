@@ -223,7 +223,7 @@ selectBench Options{..} f =
     filterPred x =
         case benchType of
             Just (Compare _) ->
-                x <= (negate cutOffPercent) || x >= cutOffPercent
+                x <= negate cutOffPercent || x >= cutOffPercent
             _ -> True
 
 benchShow ::
