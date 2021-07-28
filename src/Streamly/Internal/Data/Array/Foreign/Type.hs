@@ -74,6 +74,7 @@ where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..))
@@ -292,7 +293,7 @@ fromCString# addr# = do
 -- @since 0.8.0
 {-# INLINABLE fromListN #-}
 fromListN :: Storable a => Int -> [a] -> Array a
-fromListN n xs = unsafeFreeze $ MA.fromListN n xs
+fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
@@ -301,7 +302,7 @@ fromListN n xs = unsafeFreeze $ MA.fromListN n xs
 -- @since 0.8.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
-fromList xs = unsafeFreeze $ MA.fromList xs
+fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
@@ -368,7 +369,7 @@ breakOn sep arr = do
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndexIO #-}
 unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
-unsafeIndexIO arr = MA.unsafeIndexIO (unsafeThaw arr)
+unsafeIndexIO arr = MA.unsafeIndex (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
@@ -584,8 +585,7 @@ instance Storable a => IsList (Array a) where
 -- or may not be correct? arrcmp is 40% faster compared to stream equality.
 instance (Storable a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
-    a == b = unsafeThaw a == unsafeThaw b
-    -- arr1 == arr2 = runIdentity $ D.eqBy (==) (toStreamD arr1) (toStreamD arr2)
+    arr1 == arr2 = runIdentity $ D.eqBy (==) (toStreamD arr1) (toStreamD arr2)
 
 instance (Storable a, NFData a) => NFData (Array a) where
     {-# INLINE rnf #-}
@@ -593,7 +593,8 @@ instance (Storable a, NFData a) => NFData (Array a) where
 
 instance (Storable a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}
-    compare a b = compare (unsafeThaw a) (unsafeThaw b)
+    compare arr1 arr2 = runIdentity $
+        D.cmpBy compare (toStreamD arr1) (toStreamD arr2)
 
     -- Default definitions defined in base do not have an INLINE on them, so we
     -- replicate them here with an INLINE.
