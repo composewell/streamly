@@ -379,13 +379,13 @@ mergeBy f m1 m2 = fromStreamS $ S.mergeBy f (toStreamS m1) (toStreamS m2)
 --
 -- @
 -- >>> :{
--- do    
+-- do
 --  let proportionately m n = do
 --       ref <- newIORef $ cycle $ Prelude.concat [Prelude.replicate m LT, Prelude.replicate n GT]
 --       return $ \_ _ -> do
 --          r <- readIORef ref
 --          writeIORef ref $ Prelude.tail r
---          return $ Prelude.head r  
+--          return $ Prelude.head r
 --  f <- proportionately 2 1
 --  xs <- Stream.toList $ Stream.mergeByM f (Stream.fromList [1,1,1,1,1,1]) (Stream.fromList [2,2,2])
 --  print xs
