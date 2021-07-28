@@ -176,6 +176,13 @@ memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
 
+{-# INLINE unsafeWithForeignPtrM #-}
+unsafeWithForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
+unsafeWithForeignPtrM fo f = do
+  r <- f (unsafeForeignPtrToPtr fo)
+  liftIO $ touchForeignPtr fo
+  return r
+
 -------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
@@ -213,8 +220,8 @@ mutableArray = Array
 
 -- | allocate a new array using the provided allocator function.
 {-# INLINE newArrayAlignedAllocWith #-}
-newArrayAlignedAllocWith :: forall a. Storable a
-    => (Int -> Int -> IO (ForeignPtr a)) -> Int -> Int -> IO (Array a)
+newArrayAlignedAllocWith :: forall m a. (MonadIO m, Storable a)
+    => (Int -> Int -> m (ForeignPtr a)) -> Int -> Int -> m (Array a)
 newArrayAlignedAllocWith alloc alignSize count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- alloc size alignSize
@@ -230,13 +237,23 @@ newArrayAlignedAllocWith alloc alignSize count = do
 -- This could be useful in allocate once global data structures. Use carefully
 -- as incorrect use can lead to memory leak.
 {-# INLINE newArrayAlignedUnmanaged #-}
-newArrayAlignedUnmanaged :: forall a. Storable a => Int -> Int -> IO (Array a)
+newArrayAlignedUnmanaged :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
 newArrayAlignedUnmanaged =
-    newArrayAlignedAllocWith Malloc.mallocForeignPtrAlignedUnmanagedBytes
+    newArrayAlignedAllocWith mallocForeignPtrAlignedUnmanagedBytes
+
+    where
+
+    mallocForeignPtrAlignedUnmanagedBytes size alignSize =
+        liftIO $ Malloc.mallocForeignPtrAlignedUnmanagedBytes size alignSize
 
 {-# INLINE newArrayAligned #-}
-newArrayAligned :: forall a. Storable a => Int -> Int -> IO (Array a)
-newArrayAligned = newArrayAlignedAllocWith Malloc.mallocForeignPtrAlignedBytes
+newArrayAligned :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
+newArrayAligned = newArrayAlignedAllocWith mallocForeignPtrAlignedBytes
+
+    where
+
+    mallocForeignPtrAlignedBytes size alignSize =
+        liftIO $ Malloc.mallocForeignPtrAlignedBytes size alignSize
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
@@ -246,52 +263,54 @@ newArrayAligned = newArrayAlignedAllocWith Malloc.mallocForeignPtrAlignedBytes
 -- Note that this is internal routine, the reference to this array cannot be
 -- given out until the array has been written to and frozen.
 {-# INLINE newArray #-}
-newArray :: forall a. Storable a => Int -> IO (Array a)
+newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
 {-# INLINE unsafeWithNewArray #-}
-unsafeWithNewArray :: forall a. Storable a => Int -> (Ptr a -> IO ()) -> IO (Array a)
+unsafeWithNewArray ::
+       (MonadIO m, Storable a) => Int -> (Ptr a -> m ()) -> m (Array a)
 unsafeWithNewArray count f = do
     arr <- newArray count
-    unsafeWithForeignPtr (aStart arr) $ \p -> f p >> return arr
+    unsafeWithForeignPtrM (aStart arr) $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
 -- Mutation
 -------------------------------------------------------------------------------
 
 {-# INLINE unsafeWriteIndex #-}
-unsafeWriteIndex :: forall a. Storable a => Array a -> Int -> a -> IO ()
+unsafeWriteIndex :: forall m a. (MonadIO m, Storable a)
+    => Array a -> Int -> a -> m ()
 unsafeWriteIndex Array {..} i x =
-    unsafeWithForeignPtr aStart
+    unsafeWithForeignPtrM aStart
         $ \begin -> do
-              poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
+              liftIO $ poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
 
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
 -- array.
 {-# INLINE unsafeSnoc #-}
-unsafeSnoc :: forall a. Storable a => Array a -> a -> IO (Array a)
-unsafeSnoc arr@Array {..} x = do
+unsafeSnoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
+unsafeSnoc arr@Array {..} x = liftIO $ do
     when (aEnd == aBound) $ error "BUG: unsafeSnoc: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
     return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
 
 {-# INLINE snoc #-}
-snoc :: forall a. Storable a => Array a -> a -> IO (Array a)
+snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
 snoc arr@Array {..} x =
     if aEnd == aBound
     then do
         let oldStart = unsafeForeignPtrToPtr aStart
             size = aEnd `minusPtr` oldStart
             newSize = size + sizeOf (undefined :: a)
-        newPtr <-
+        newPtr <- liftIO $
             Malloc.mallocForeignPtrAlignedBytes
                 newSize
                 (alignment (undefined :: a))
-        unsafeWithForeignPtr newPtr $ \pNew -> do
+        unsafeWithForeignPtrM newPtr $ \pNew -> liftIO $ do
             memcpy (castPtr pNew) (castPtr oldStart) size
             poke (pNew `plusPtr` size) x
             touchForeignPtr aStart
@@ -301,7 +320,7 @@ snoc arr@Array {..} x =
                     , aEnd = pNew `plusPtr` (size + sizeOf (undefined :: a))
                     , aBound = pNew `plusPtr` newSize
                     }
-    else do
+    else liftIO $ do
         poke aEnd x
         touchForeignPtr aStart
         return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
@@ -313,13 +332,13 @@ snoc arr@Array {..} x =
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
 {-# NOINLINE reallocAligned #-}
-reallocAligned :: Int -> Int -> Array a -> IO (Array a)
+reallocAligned :: MonadIO m => Int -> Int -> Array a -> m (Array a)
 reallocAligned alignSize newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
-    newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
-    unsafeWithForeignPtr newPtr $ \pNew -> do
+    newPtr <- liftIO $ Malloc.mallocForeignPtrAlignedBytes newSize alignSize
+    unsafeWithForeignPtrM newPtr $ \pNew -> liftIO $ do
         memcpy (castPtr pNew) (castPtr oldStart) size
         touchForeignPtr aStart
         return $ Array
@@ -330,11 +349,11 @@ reallocAligned alignSize newSize Array{..} = do
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 {-# INLINABLE realloc #-}
-realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
-realloc = reallocAligned (alignment (undefined :: a))
+realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
+realloc i arr = liftIO $ reallocAligned (alignment (undefined :: a)) i arr
 
 -- | Remove the free space from an Array.
-shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
+shrinkToFit :: (MonadIO m, Storable a) => Array a -> m (Array a)
 shrinkToFit arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
     let start = unsafeForeignPtrToPtr aStart
@@ -354,14 +373,14 @@ shrinkToFit arr@Array{..} = do
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndex #-}
-unsafeIndex :: forall a. Storable a => Array a -> Int -> IO a
+unsafeIndex :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
 unsafeIndex Array {..} i =
-        unsafeWithForeignPtr aStart $ \p -> do
+        unsafeWithForeignPtrM aStart $ \p -> do
         let elemSize = sizeOf (undefined :: a)
             elemOff = p `plusPtr` (elemSize * i)
         assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
                (return ())
-        peek elemOff
+        liftIO $ peek elemOff
 
 -------------------------------------------------------------------------------
 -- Size
@@ -741,12 +760,12 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
 {-# INLINE_NORMAL writeNAllocWith #-}
 writeNAllocWith :: forall m a. (MonadIO m, Storable a)
-    => (Int -> IO (Array a)) -> Int -> Fold m a (Array a)
+    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
 writeNAllocWith alloc n = Fold step initial extract
 
     where
 
-    initial = FL.Partial <$> liftIO (alloc (max n 0))
+    initial = FL.Partial <$> alloc (max n 0)
     step arr@(Array _ end bound) _ | end == bound = return $ FL.Done arr
     step (Array start end bound) x = do
         liftIO $ poke end x
@@ -929,7 +948,7 @@ fromStreamDN limit str = do
 --
 -- @since 0.7.0
 {-# INLINABLE fromListN #-}
-fromListN :: Storable a => Int -> [a] -> IO (Array a)
+fromListN :: (MonadIO m, Storable a) => Int -> [a] -> m (Array a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
 
 -------------------------------------------------------------------------------
@@ -962,7 +981,7 @@ fromStreamD m = do
 --
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
-fromList :: Storable a => [a] -> IO (Array a)
+fromList :: (MonadIO m, Storable a) => [a] -> m (Array a)
 fromList xs = fromStreamD $ D.fromList xs
 
 -------------------------------------------------------------------------------
