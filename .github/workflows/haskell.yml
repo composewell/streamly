@@ -13,7 +13,7 @@ jobs:
       # packcheck environment variables
       LC_ALL: C.UTF-8
       BUILD: ${{ matrix.build }}
-      GHCVER: ${{ matrix.ghc_version }}
+      #GHCVER: ${{ matrix.ghc_version }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
       DISABLE_TEST: ${{ matrix.disable_test }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
@@ -51,6 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         name:
+          - ghc_HEAD
           - 9.0.1
           - 8.10.4+stack
           - 8.10.4+macOS
@@ -63,6 +64,12 @@ jobs:
           - 8.4.4+debug
         cabal_version: ["3.4"]
         include:
+          - name: ghc_HEAD
+            ghc_version: 9.2
+            build: cabal-v2
+            cabal_build_options: "--allow-newer"
+            disable_sdist_build: "y"
+            runner: ubuntu-latest
           - name: 9.0.1
             ghc_version: 9.0.1
             build: cabal-v2
