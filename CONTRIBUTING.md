@@ -199,6 +199,19 @@ For general library developer documentation see the `dev` directory.
 
 Please see [the Haskell coding style guide](https://github.com/composewell/haskell-dev/blob/master/coding-style.rst).
 
+### Type variable ordering
+
+Ordering of variables in `forall` may be important in type applications. In
+streams, we usually declare them in this order `t m a`.
+
+Use the same order in constraints as well
+
+Example,
+
+```
+func :: forall m a. (MonadIO m, Storable a) => ...
+```
+
 ### StreamD coding style
 
 Some conventions that we follow in the StreamD code are illustrated by the
