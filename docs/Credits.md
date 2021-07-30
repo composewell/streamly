@@ -11,7 +11,7 @@ the maintainers](mailto:streamly@composewell.com).
 
 ## Attributions
 
-See COPYRIGHTS.md for parts of other works included in this package.
+See LICENSE for parts of other works included in this package.
 
 ## Contributions
 
