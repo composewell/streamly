@@ -10,6 +10,7 @@
 -- consists of an accumulator and an effectful action that absorbs a value into
 -- the accumulator.
 --
+-- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Prelude as Stream
 --
@@ -99,24 +100,26 @@
 -- Streams are producers, transformations on streams happen on the output side:
 --
 -- >>> :{
---  f =
---        Stream.filter odd
+--  f stream =
+--        Stream.filter odd stream
 --      & Stream.map (+1)
 --      & Stream.sum
 -- :}
--- >>> f $ Stream.fromList [1..100]
+--
+-- >>> f $ Stream.fromList [1..100 :: Int]
 -- 2550
 --
 -- Folds are stream consumers with an input stream and an output value, stream
 -- transformations on folds happen on the input side:
 --
 -- >>> :{
--- f =
---        Fold.filter odd
+-- f stream =
+--        Fold.filter odd stream
 --      $ Fold.lmap (+1)
 --      $ Fold.sum
 -- :}
--- >>> Stream.fold f $ Stream.fromList [1..100]
+--
+-- >>> Stream.fold f $ Stream.fromList [1..100 :: Int]
 -- 2550
 --
 -- Notice the similiarity in the definition of @f@ in both cases, the only
@@ -275,5 +278,6 @@ import Prelude
 import Streamly.Internal.Data.Fold
 
 -- $setup
+-- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Prelude as Stream
