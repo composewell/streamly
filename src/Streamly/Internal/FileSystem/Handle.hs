@@ -35,7 +35,13 @@ module Streamly.Internal.FileSystem.Handle
     , toBytes
     , toBytesWithBufferOf
 
+<<<<<<< HEAD
     -- * Chunked Stream Read
+=======
+    -- -- * Array Read
+    , getChunk
+    -- , readArrayOf
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
     , readChunks
     , readChunksWithBufferOf
 
@@ -55,7 +61,12 @@ module Streamly.Internal.FileSystem.Handle
     , putBytes
     , putBytesWithBufferOf
 
+<<<<<<< HEAD
     -- * Chunked Stream Write
+=======
+    -- -- * Array Write
+    , putChunk
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
     , writeChunks
     , writeChunksWithBufferOf
 
@@ -80,7 +91,11 @@ module Streamly.Internal.FileSystem.Handle
 
     -- , readChunksFrom
     -- , readChunksFromTo
+<<<<<<< HEAD
     , readChunksFromToWith
+=======
+    -- , readChunksFromToWith
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
     -- , readChunksFromThenToWith
 
     -- , writeIndex
@@ -158,6 +173,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 
+<<<<<<< HEAD
 -- | Read a 'ByteArray' consisting of one or more bytes from a file handle. If
 -- no data is available on the handle it blocks until at least one byte becomes
 -- available. If any data is available then it immediately returns that data
@@ -168,6 +184,15 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 {-# INLINABLE getChunk #-}
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
+=======
+-- | Read a 'ByteArray' from a file handle. If no data is available on the
+-- handle it blocks until some data becomes available. If data is available
+-- then it immediately returns that data without blocking. It reads a maximum
+-- of up to the size requested.
+{-# INLINABLE getChunk #-}
+getChunk :: Int -> Handle -> IO (Array Word8)
+getChunk size h = do
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
@@ -203,7 +228,11 @@ _toChunksWithBufferOf size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
+<<<<<<< HEAD
         arr <- getChunk size h
+=======
+        arr <- liftIO $ getChunk size h
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
         if A.length arr == 0
         then stp
         else yld arr go
@@ -222,7 +251,11 @@ toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
+<<<<<<< HEAD
         arr <- getChunk size h
+=======
+        arr <- liftIO $ getChunk size h
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -240,7 +273,11 @@ readChunksWithBufferOf = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
+<<<<<<< HEAD
         arr <- getChunk size h
+=======
+        arr <- liftIO $ getChunk size h
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -350,7 +387,11 @@ toBytes = AS.concat . toChunks
 
 -- | Write an 'Array' to a file handle.
 --
+<<<<<<< HEAD
 -- @since 0.8.1
+=======
+-- @since 0.7.0
+>>>>>>> 1c457913 (Add idiomatic definitions in docs)
 {-# INLINABLE putChunk #-}
 putChunk :: (MonadIO m, Storable a) => Handle -> Array a -> m ()
 putChunk _ arr | A.length arr == 0 = return ()
