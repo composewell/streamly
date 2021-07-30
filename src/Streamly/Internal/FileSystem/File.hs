@@ -71,7 +71,7 @@ module Streamly.Internal.FileSystem.File
     , fromBytesWithBufferOf
 
     -- -- * Array Write
-    , writeArray
+    , putChunk
     , writeChunks
     , fromChunks
 
@@ -183,16 +183,16 @@ usingFile2 = UF.bracket before after
 -- | Write an array to a file. Overwrites the file if it exists.
 --
 -- @since 0.7.0
-{-# INLINABLE writeArray #-}
-writeArray :: Storable a => FilePath -> Array a -> IO ()
-writeArray file arr = SIO.withFile file WriteMode (`FH.writeArray` arr)
+{-# INLINABLE putChunk #-}
+putChunk :: Storable a => FilePath -> Array a -> IO ()
+putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
 {-# INLINABLE appendArray #-}
 appendArray :: Storable a => FilePath -> Array a -> IO ()
-appendArray file arr = SIO.withFile file AppendMode (`FH.writeArray` arr)
+appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -298,7 +298,7 @@ readShared = undefined
 fromChunksMode :: (MonadAsync m, MonadCatch m, Storable a)
     => IOMode -> FilePath -> SerialT m (Array a) -> m ()
 fromChunksMode mode file xs = S.drain $
-    withFile file mode (\h -> S.mapM (liftIO . FH.writeArray h) xs)
+    withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
 
 -- | Write a stream of arrays to a file. Overwrites the file if it exists.
 --
