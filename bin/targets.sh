@@ -109,6 +109,7 @@ targets () {
   INDIVIDUAL_TARGETS="\
       Data.Unfold \
       Unicode.Stream \
+      Unicode.Utf8 \
       FileSystem.Handle \
       `test_only FileSystem.Event` \
       `test_only Network.Socket` \
