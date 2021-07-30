@@ -275,6 +275,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 
 ------------------------------------------------------------------------------
 -- hoist
@@ -1128,23 +1129,25 @@ distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 --
 -- Send input to the two folds in a proportion of 2:1:
 --
--- @
--- import Data.IORef (newIORef, readIORef, writeIORef)
+-- >>> :{
 -- proportionately m n = do
 --  ref <- newIORef $ cycle $ concat [replicate m Left, replicate n Right]
---  return $ \\a -> do
+--  return $ \a -> do
 --      r <- readIORef ref
 --      writeIORef ref $ tail r
---      return $ head r a
+--      return $ Prelude.head r a
+-- :}
 --
+-- >>> :{
 -- main = do
 --  f <- proportionately 2 1
---  r <- S.fold (FL.partitionByM f FL.length FL.length) (S.enumerateFromTo (1 :: Int) 100)
+--  r <- Stream.fold (Fold.partitionByM f Fold.length Fold.length) (Stream.enumerateFromTo (1 :: Int) 100)
 --  print r
--- @
--- @
+-- :}
+--
+-- >>> main
 -- (67,33)
--- @
+--
 --
 -- This is the consumer side dual of the producer side 'mergeBy' operation.
 --
