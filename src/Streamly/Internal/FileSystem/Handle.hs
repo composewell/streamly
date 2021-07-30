@@ -35,13 +35,7 @@ module Streamly.Internal.FileSystem.Handle
     , toBytes
     , toBytesWithBufferOf
 
-<<<<<<< HEAD
     -- * Chunked Stream Read
-=======
-    -- -- * Array Read
-    , getChunk
-    -- , readArrayOf
->>>>>>> 1c457913 (Add idiomatic definitions in docs)
     , readChunks
     , readChunksWithBufferOf
 
@@ -78,7 +72,11 @@ module Streamly.Internal.FileSystem.Handle
     -- files that have random access or seek capability.  This type of devices
     -- include disks, files, memory devices and exclude terminals, pipes,
     -- sockets and fifos.
+<<<<<<< HEAD
 
+=======
+    --
+>>>>>>> ac7d16c4 (Add fromThenTo vs fromStepN pros/cons)
     -- We can also generate the request pattern using a funciton.
     --
     -- , readIndex
