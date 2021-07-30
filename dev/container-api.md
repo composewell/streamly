@@ -19,7 +19,9 @@ the name.
 * Unfolds are named as "read" or with a "read" prefix (e.g. readChunks).
 * Folds are named as "write" or with a "write" prefix (e.g. writeChunks).
 
-## From and Put
+## To and from Stream
+
+### From and Put
 
 * Immutable construction from some external source is named with a "from"
   prefix (e.g.  fromList).
@@ -31,7 +33,7 @@ the name.
   lock as it assumes immutability. "put" may create a new object or overwrite
   an existing one, it may take a lock for writing as it assumes mutability.
 
-## To and Get
+### To and Get
 
 * Converting the complete object to an external representation is prefixed with
   "to" (e.g. toBytes).
@@ -39,18 +41,47 @@ the name.
 * "to" vs "get": "to" assumes immutable object so does not have to take a lock.
   "get" assumes mutable object so may take a lock.
 
-## Append
+### Append
 
 * Use "append" prefix for appending data at the end of a mutable container
 
+## With additional config
+
+Sometimes we need to modify the behavior of a combinator using some additional
+config. For example, combinators to read/write using a specified size of
+buffer. For such cases we apply the "With" suffix to standard combinator names:
+
+* readWith
+* readChunksWith
+* toBytesWith
+* getBytesWith
+
 ## Random Access (Arrays)
 
+### Single elements
+
 * getIndex (for arrays)
-* getSlice/getRange/getIndices
 * putIndex (for mutable arrays)
+
+### Ranges
+
+* ...FromTo (e.g. readFromTo, readChunksFromTo, toBytesFromTo, getBytesFromTo)
+* ...FromThenTo
+* ...Indices
+
+We could use FromThenTo or FromStepN style for stepwise enumeration. We chose
+FromThenTo style for the following reasons:
+
+* It is the style used in base lists, and we are already using it in Enumerable
+  type class.
+* Both have their pros and cons. It may be non-intuitive whether To is
+  inclusive in one, we have to compute the correct count in the other one.
+
+### Appending
+
 * append (for mutable arrays)
 
-## Key Access (Maps)
+## Key-Value Store Access (Maps)
 
 * getKey
 * findKey (test existence)
