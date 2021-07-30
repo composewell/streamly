@@ -497,8 +497,15 @@ benchmark FileSystem.Handle
 -------------------------------------------------------------------------------
 -- Unicode Benchmarks
 -------------------------------------------------------------------------------
+
 benchmark Unicode.Stream
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
+
+benchmark Unicode.Utf8
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Utf8.hs
