@@ -69,13 +69,21 @@ buffer. For such cases we apply the "With" suffix to standard combinator names:
 * ...FromThenTo
 * ...Indices
 
-We could use FromThenTo or FromStepN style for stepwise enumeration. We chose
-FromThenTo style for the following reasons:
+FromThenTo vs FromStepN:
+
+We could use `fromThenTo` or `fromStepN` style APIs for stepwise
+enumeration. The first one uses absolute numbers whereas the second one
+uses relative positioning. We prefer FromThenTo style where possible for
+the following reasons:
 
 * It is the style used in base lists, and we are already using it in Enumerable
   type class.
-* Both have their pros and cons. It may be non-intuitive whether To is
-  inclusive in one, we have to compute the correct count in the other one.
+* Both have their pros and cons. In `fromThenTo`, (1) it may be
+  non-intuitive whether `To` is inclusive, (2) specifying an empty range
+  is a bit awkward (e.g. fromThenTo 1 1 0). In `fromStepN`, if we know
+  the first and the last element then we will have to compute the offset
+  correctly. Ideally, when we know the elements then former is more
+  suitable while if we know the count then the latter is more suitable.
 
 ### Appending
 
