@@ -332,13 +332,13 @@ snoc arr@Array {..} x =
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
 {-# NOINLINE reallocAligned #-}
-reallocAligned :: MonadIO m => Int -> Int -> Array a -> m (Array a)
+reallocAligned :: Int -> Int -> Array a -> IO (Array a)
 reallocAligned alignSize newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
-    newPtr <- liftIO $ Malloc.mallocForeignPtrAlignedBytes newSize alignSize
-    unsafeWithForeignPtrM newPtr $ \pNew -> liftIO $ do
+    newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
+    unsafeWithForeignPtr newPtr $ \pNew -> do
         memcpy (castPtr pNew) (castPtr oldStart) size
         touchForeignPtr aStart
         return $ Array
@@ -353,6 +353,7 @@ realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
 realloc i arr = liftIO $ reallocAligned (alignment (undefined :: a)) i arr
 
 -- | Remove the free space from an Array.
+{-# INLINE shrinkToFit #-}
 shrinkToFit :: (MonadIO m, Storable a) => Array a -> m (Array a)
 shrinkToFit arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
