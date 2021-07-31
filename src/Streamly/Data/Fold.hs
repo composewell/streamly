@@ -113,8 +113,8 @@
 -- transformations on folds happen on the input side:
 --
 -- >>> :{
--- f stream =
---        Fold.filter odd stream
+-- f =
+--        Fold.filter odd
 --      $ Fold.lmap (+1)
 --      $ Fold.sum
 -- :}
