@@ -385,6 +385,22 @@ takeWhile1 =
         where
             predicate = (== 0)
 
+choice :: Property
+choice =
+    forAll
+        ((,,) <$> chooseInt (min_value, max_value)
+             <*> chooseInt (min_value, max_value)
+             <*> listOf (chooseInt (0, 1)))
+        $ \(i, j, ls) ->
+              case S.parse (P.choice [parser i, parser j]) (S.fromList ls) of
+                  Right parsed_list ->
+                      checkListEqual parsed_list $ take (min i j) ls
+                  Left _ -> property False
+
+    where
+
+    parser i = P.fromFold (FL.take i FL.toList)
+
 groupBy :: Property
 groupBy =
     forAll (listOf (chooseInt (0, 1)))
@@ -400,7 +416,6 @@ groupBy =
     groupByLF lst
         | null lst = []
         | otherwise = head $ List.groupBy cmp lst
-
 
 wordBy :: Property
 wordBy =
@@ -755,6 +770,7 @@ main =
         prop ("P.takeP = Prelude.take") takeP
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "many (P.wordBy ' ') = words'" wordBy
+        prop "choice" choice
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
         -- prop "" splitWithFailRight
