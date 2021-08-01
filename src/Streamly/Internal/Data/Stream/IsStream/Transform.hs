@@ -205,12 +205,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- * Deprecated
     , scanx
     , removeDupsRight
-    , differenceByMerge
-    , innerJoinByMerge
-    , leftJoinByMerge
-    , rightJoinByMerge
-    , outerJoinByMerge
-    , intersectByMerge
+
     )
 where
 
@@ -249,6 +244,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
+
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
@@ -910,46 +906,31 @@ nubBy :: -- (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a
 nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
 
-{-# INLINE nubByMerge #-}
-nubByMerge :: (IsStream t, Monad m) =>
-    (a -> a -> Bool) -> t m a -> t m a
-nubByMerge eq = fromStreamD . D.nubByMerge eq . toStreamD
+{-# INLINE_NORMAL nubByMerge #-}
+nubByMerge :: (Monad m) => (a -> a -> Bool) -> D.Stream m a -> D.Stream m a
+nubByMerge eq (D.Stream stepa sa) = D.Stream step (sa, Nothing)
+    where
+    step gst (s, Nothing) = do
+        ret <-  stepa (adaptState gst)  s
+        return $ case ret of
+            D.Stop    -> D.Stop
+            D.Skip s' -> D.Skip (s', Nothing)
+            D.Yield a s' -> D.Yield a (s', Just a)
+
+    step gst (s, Just a1) = do
+        ret <-  stepa (adaptState gst)  s
+        return $ case ret of
+            D.Stop    -> D.Stop
+            D.Skip s' -> D.Skip (s', Nothing)
+            D.Yield a s' ->
+                if a `eq` a1
+                then D.Skip (s', Just a)
+                else D.Yield a (s', Just a)
 
 {-# INLINE removeDupsRight #-}
 removeDupsRight :: (IsStream t, MonadIO m) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
 removeDupsRight eq s1 = fromStreamD . D.removeDupsAll eq (toStreamD s1) . toStreamD
-
-{-# INLINE differenceByMerge #-}
-differenceByMerge :: (IsStream t, MonadIO m) =>
-    (a -> a -> Ordering) -> t m a -> t m a -> t m a 
-differenceByMerge eq s1 = fromStreamD . D.mergeDifferenceJoinBy eq (toStreamD s1) . toStreamD
-
-{-# INLINE innerJoinByMerge #-}
-innerJoinByMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
-    (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
-innerJoinByMerge eq s1 = fromStreamD . D.mergeByInner eq (toStreamD s1) . toStreamD
-
-{-# INLINE leftJoinByMerge #-}
-leftJoinByMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
-    (a -> b -> Ordering) -> t m a -> t m b -> t m (a, Maybe b)
-leftJoinByMerge eq s1 = fromStreamD . D.mergeByLeftInner eq (toStreamD s1) . toStreamD
-
-{-# INLINE rightJoinByMerge #-}
-rightJoinByMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
-    (a -> b -> Ordering) -> t m b -> t m a -> t m (Maybe b, a)
-rightJoinByMerge eq s1 = fromStreamD . D.mergeByRightInner eq (toStreamD s1) . toStreamD
-
-outerJoinByMerge :: (IsStream t, MonadIO m,  Eq a, Eq b)  =>
-    (a -> b -> Ordering) -> t m a -> t m b -> t m (Maybe a, Maybe b)
-outerJoinByMerge eq s1 = fromStreamD . D.mergeOuterJoin eq (toStreamD s1) . toStreamD    
-
---mergeByIntersect
-intersectByMerge :: (IsStream t, MonadIO m, Eq a) =>
-    (a -> a -> Ordering) -> t m a -> t m a -> t m a
-intersectByMerge eq s1 = fromStreamD . D.mergeByIntersect eq (toStreamD s1) . toStreamD 
-
-
 
 -- | Drop repeated elements within the specified tumbling window in the stream.
 --

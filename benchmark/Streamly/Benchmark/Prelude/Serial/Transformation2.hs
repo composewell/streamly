@@ -15,7 +15,7 @@
 module Serial.Transformation2 (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad (when)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
@@ -167,43 +167,37 @@ o_1_space_grouping value =
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
-{-# INLINE innerJoin #-}
-innerJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-innerJoin n = composeNPair n  (Internal.innerJoin (==) (Internal.fromList [1..20]))
+{-# INLINE joinInner #-}
+joinInner :: MonadIO m => Int -> SerialT m Int -> m ()
+joinInner _ = S.drain . Internal.joinInner (==) (Internal.fromList [1..200])
 
-{--
-{-# INLINE hashInnerJoin #-}
-hashInnerJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-hashInnerJoin n = composeN n  (Internal.hashInnerJoin (Internal.fromList [1..20]))
---}
+{-# INLINE joinInnerMerge #-}
+joinInnerMerge :: MonadIO m => Int -> SerialT m Int -> m ()
+joinInnerMerge _ = S.drain . Internal.joinInnerMerge compare (Internal.fromList [1..200])
 
-{-# INLINE mergeInnerJoin #-}
-mergeInnerJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-mergeInnerJoin n = composeNPair n  (Internal.mergeInnerJoin compare (Internal.fromList [1..20]))
+{-# INLINE joinLeft #-}
+joinLeft :: MonadIO m => Int -> SerialT m Int -> m ()
+joinLeft _ = S.drain . Internal.joinLeft (==) (Internal.fromList [1..200])
 
-{-# INLINE leftJoin #-}
-leftJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-leftJoin n = composeNLeft n  (Internal.leftJoin (==) (Internal.fromList [1..20]))
+{-# INLINE joinLeftMerge #-}
+joinLeftMerge :: MonadIO m => Int -> SerialT m Int -> m ()
+joinLeftMerge _ = S.drain . Internal.joinLeftMerge compare (Internal.fromList [1..200])
 
-{-# INLINE mergeLeftJoin #-}
-mergeLeftJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-mergeLeftJoin n = composeNLeft n  (Internal.mergeLeftJoin compare (Internal.fromList [1..20]))
+{-# INLINE joinOuter #-}
+joinOuter :: MonadIO m => Int -> SerialT m Int -> m ()
+joinOuter _ = S.drain . Internal.joinOuter (==) (Internal.fromList [1..200])
 
-{-# INLINE outerJoin #-}
-outerJoin :: MonadIO m => Int -> SerialT m Int -> m ()
-outerJoin n = composeNOuter n  (Internal.outerJoin (==) (Internal.fromList [1..200]))
+{-# INLINE joinOuterMerge #-}
+joinOuterMerge :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
+joinOuterMerge _ = S.drain . Internal.joinOuterMerge compare (Internal.fromList [1..200])
 
-{-# INLINE mergeOuterJoin #-}
-mergeOuterJoin :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-mergeOuterJoin n = composeNOuter n  (Internal.mergeOuterJoin compare (Internal.fromList [1..200]))
+{-# INLINE unionBySorted #-}
+unionBySorted :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
+unionBySorted n = composeN n  (Internal.unionBySorted compare (Internal.fromList [1..200]))
 
-{-# INLINE mergeUnionBy #-}
-mergeUnionBy :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-mergeUnionBy n = composeN n  (Internal.mergeUnionBy compare (Internal.fromList [1..200]))
-
-{-# INLINE mergeDifferenceBy #-}
-mergeDifferenceBy :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-mergeDifferenceBy n = composeN n  (Internal.mergeDifferenceBy compare (Internal.fromList [1..20]))
+{-# INLINE differenceBySorted #-}
+differenceBySorted :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
+differenceBySorted n = composeN n  (Internal.differenceBySorted compare (Internal.fromList [1..20]))
 
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -225,15 +219,15 @@ o_n_heap_buffering value =
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
         , benchIOSink value "sortBy" (sortBy 1)
-        , benchIOSink value "innerJoin" (innerJoin 1) 
-        --, benchIOSink value "innerJoinHash" (hashInnerJoin 1)          
-        , benchIOSink value "leftJoin" (leftJoin 1)        
-        , benchIOSink value "outerJoin" (outerJoin 1)
-        , benchIOSink value "mergeLeftJoin" (mergeLeftJoin 1)
-        , benchIOSink value "mergeUnionBy" (mergeUnionBy 1)
-        , benchIOSink value "mergeInnerJoin" (mergeInnerJoin 1)
-        , benchIOSink value "mergeOuterJoin" (mergeOuterJoin 1)
-        , benchIOSink value "mergeDifferenceBy" (mergeDifferenceBy 1)
+        , benchIOSink value "joinInner" (joinInner 1)
+        --, benchIOSink value "joinInnerHash" (hashInnerJoin 1)          
+        , benchIOSink value "joinLeft" (joinLeft 1)
+        , benchIOSink value "joinOuter" (joinOuter 1)
+        , benchIOSink value "joinLeftMerge" (joinLeftMerge 1)
+        , benchIOSink value "unionBySorted" (unionBySorted 1)
+        , benchIOSink value "joinInnerMerge" (joinInnerMerge 1)
+        , benchIOSink value "joinOuterMerge" (joinOuterMerge 1)
+        , benchIOSink value "differenceBySorted" (differenceBySorted 1)
         , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
 
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
@@ -408,7 +402,7 @@ tail s = S.tail s >>= mapM_ tail
 nullHeadTail :: Monad m => SerialT m Int -> m ()
 nullHeadTail s = do
     r <- S.null s
-    when (not r) $ do
+    unless r $ do
         _ <- S.head s
         S.tail s >>= mapM_ nullHeadTail
 
@@ -449,10 +443,10 @@ o_1_space_pipes value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 1)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 1)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 1)
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 1)
-#endif
+
+
+
+
         ]
     ]
 
@@ -462,10 +456,10 @@ o_1_space_pipesX4 value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 4)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 4)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 4)
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 4)
-#endif
+
+
+
+
         ]
     ]
 

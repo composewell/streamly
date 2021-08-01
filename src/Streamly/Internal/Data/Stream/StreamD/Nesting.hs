@@ -1,26 +1,26 @@
--- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Nesting
--- Copyright   : (c) 2018 Composewell Technologies
---               (c) Roman Leshchinskiy 2008-2010
--- License     : BSD-3-Clause
--- Maintainer  : streamly@composewell.com
--- Stability   : experimental
--- Portability : GHC
---
--- This module contains transformations involving multiple streams, unfolds or
--- folds. There are two types of transformations generational or eliminational.
--- Generational transformations are like the "Generate" module but they
--- generate a stream by combining streams instead of elements. Eliminational
--- transformations are like the "Eliminate" module but they transform a stream
--- by eliminating parts of the stream instead of eliminating the whole stream.
---
--- These combinators involve transformation, generation, elimination so can be
--- classified under any of those.
---
--- Ultimately these operations should be supported by Unfolds, Pipes and Folds,
--- and this module may become redundant.
-
--- The zipWithM combinator in this module has been adapted from the vector
+-- |-- We use fromStreamK/toStreamK to convert the direct style stream to CPS
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Nesting-- style. In the first phase we try fusing the fromStreamK/toStreamK using:
+---- Copyright   : (c) 2018 Composewell Technologies
+-- {-# RULES "fromStreamK/toStreamK fusion"--               (c) Roman Leshchinskiy 2008-2010
+-- License     : BSD-3-Clause--     forall s. toStreamK (fromStreamK s) = s #-}
+---- Maintainer  : streamly@composewell.com
+-- Stability   : experimental-- If for some reason some of the operations could not be fused then we have
+-- Portability : GHC-- fallback rules in the second phase. For example:
+----
+-- {-# INLINE_EARLY unfoldr #-}-- This module contains transformations involving multiple streams, unfolds or
+-- unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a-- folds. There are two types of transformations generational or eliminational.
+-- unfoldr step seed = fromStreamS (S.unfoldr step seed)-- Generational transformations are like the "Generate" module but they
+-- {-# RULES "unfoldr fallback to StreamK" [1]-- generate a stream by combining streams instead of elements. Eliminational
+--     forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}```-- transformations are like the "Eliminate" module but they transform a stream
+---- by eliminating parts of the stream instead of eliminating the whole stream.
+---- Then, fromStreamK/toStreamK are inlined in the last phase:
+---- These combinators involve transformation, generation, elimination so can be
+-- {-# INLINE_LATE toStreamK #-}-- classified under any of those.
+---- toStreamK :: Monad m => Stream m a -> K.Stream m a```
+---- Ultimately these operations should be supported by Unfolds, Pipes and Folds,
+-- and this module may become redundant.-- The fallback rules make sure that if we could not fuse the direct style
+-- operations then better use the CPS style operation, because unfused direct
+-- style would have worse performance than the CPS style ops.-- The zipWithM combinator in this module has been adapted from the vector
 -- package (c) Roman Leshchinskiy.
 --
 module Streamly.Internal.Data.Stream.StreamD.Nesting
@@ -140,26 +140,25 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Opposite to compact in ArrayStream
     , splitInnerBy
     , splitInnerBySuffix
-    , mergeInnerByM
-    , mergeByInner
-    , mergeByLeftInner
-    , mergeByRightInner
-    , mergeDifferenceJoinBy
+    , joinInnerMerge
+    , joinLeftMerge
+    , joinRightMerge
+    , differenceBySorted
     , removeDupsAll
-    , mergeOuterJoin
-    , mergeByIntersect
+    , joinOuterMerge
+    , intersectBySorted
     )
 where
 
-#include "inline.hs"
+
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
-#if __GLASGOW_HASKELL__ >= 801
+
 import Data.Functor.Identity ( Identity )
-#endif
+
 import Data.Word (Word32)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -194,14 +193,14 @@ data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 -- the number of streams being composed increases this may become expensive.
 -- Need to see where the breaking point is between the two.
 --
-{-# INLINE_NORMAL append #-}
+{-# INLINE [1] append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append (Stream step1 state1) (Stream step2 state2) =
     Stream step (AppendFirst state1)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (AppendFirst st) = do
         r <- step1 gst st
         return $ case r of
@@ -223,14 +222,14 @@ append (Stream step1 state1) (Stream step2 state2) =
 data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
     | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
 
-{-# INLINE_NORMAL interleave #-}
+{-# INLINE [1] interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -259,14 +258,14 @@ interleave (Stream step1 state1) (Stream step2 state2) =
             Skip s -> Skip (InterleaveSecondOnly s)
             Stop -> Stop
 
-{-# INLINE_NORMAL interleaveMin #-}
+{-# INLINE [1] interleaveMin #-}
 interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveMin (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -284,14 +283,14 @@ interleaveMin (Stream step1 state1) (Stream step2 state2) =
     step _ (InterleaveFirstOnly _) =  undefined
     step _ (InterleaveSecondOnly _) =  undefined
 
-{-# INLINE_NORMAL interleaveSuffix #-}
+{-# INLINE [1] interleaveSuffix #-}
 interleaveSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveSuffix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -322,14 +321,14 @@ data InterleaveInfixState s1 s2 a
     | InterleaveInfixFirstYield s1 s2 a
     | InterleaveInfixFirstOnly s1
 
-{-# INLINE_NORMAL interleaveInfix #-}
+{-# INLINE [1] interleaveInfix #-}
 interleaveInfix :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveInfix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveInfixFirst state1 state2)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterleaveInfixFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -351,7 +350,7 @@ interleaveInfix (Stream step1 state1) (Stream step2 state2) =
             Skip s -> Skip (InterleaveInfixSecondYield s st2 x)
             Stop -> Stop
 
-    step _ (InterleaveInfixFirstYield st1 st2 x) = do
+    step _ (InterleaveInfixFirstYield st1 st2 x) =
         return $ Yield x (InterleaveInfixSecondBuf st1 st2)
 
     step gst (InterleaveInfixFirstOnly st1) = do
@@ -365,14 +364,14 @@ interleaveInfix (Stream step1 state1) (Stream step2 state2) =
 -- Scheduling
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL roundRobin #-}
+{-# INLINE [1] roundRobin #-}
 roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
 roundRobin (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -405,12 +404,12 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 -- Zipping
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL zipWithM #-}
+{-# INLINE [1] zipWithM #-}
 zipWithM :: Monad m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
   where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (sa, sb, Nothing) = do
         r <- stepa (adaptState gst) sa
         return $
@@ -428,10 +427,10 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
             Skip sb' -> return $ Skip (sa, sb', Just x)
             Stop     -> return Stop
 
-#if __GLASGOW_HASKELL__ >= 801
+
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
-#endif
+
 
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
@@ -441,14 +440,14 @@ zipWith f = zipWithM (\a b -> return (f a b))
 -- Merging
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL mergeByM #-}
+{-# INLINE [1] mergeByM #-}
 mergeByM
     :: (Monad m)
     => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing)
   where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- one of the values is missing, and the corresponding stream is running
     step gst (Just sa, sb, Nothing, b) = do
@@ -487,22 +486,16 @@ mergeBy
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
-{-# INLINE mergeByInner #-}
-mergeByInner
+{-# INLINE [1] joinInnerMerge #-}
+joinInnerMerge
     :: (MonadIO m,  Eq a, Eq b)
     => (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
-mergeByInner cmp = mergeInnerByM (\a b -> return $ cmp a b)
-
-{-# INLINE_NORMAL mergeInnerByM #-}
-mergeInnerByM
-    :: (MonadIO m,  Eq a, Eq b)
-    => (a -> b -> m Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
-mergeInnerByM cmp (Stream stepa ta) (Stream stepb tb) = do
+joinInnerMerge cmp (Stream stepa ta) (Stream stepb tb) =
 
     Stream step
-        (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, 0)
+    (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, 0)
   where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, NM, idx) = do
@@ -544,17 +537,17 @@ mergeInnerByM cmp (Stream stepa ta) (Stream stepb tb) = do
             Stop -> Stop
 
     -- step 4 compare b with previous b to remove mismatched duplicates from right stream
-    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) = do
+    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) =
         return $
-            if b == pb
-            then
-                Skip
-                (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx) -- step 3
-            else Skip (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx) -- step 5
+        if b == pb
+        then
+            Skip
+            (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx) -- step 3
+        else Skip (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx) -- step 5
 
     -- step 5 compare left stream data with right stream
     step _ (sa, sb, Just a, Just b, pa, pb, Just buff, MC, idx) = do
-        res <- cmp a b
+        let res = cmp a b
         return $ case res of
             LT ->
                 Skip (sa, sb, Just a, Just b, pa, pb, Just buff, ML, idx) -- skip a step 9
@@ -752,20 +745,16 @@ mergeInnerByM cmp (Stream stepa ta) (Stream stepb tb) = do
 
     step _ (_, _, _, _, _, _, _, _, _) = return Stop
 
-{-# INLINE mergeByIntersect #-}
-mergeByIntersect
+
+{-# INLINE [1] intersectBySorted #-}
+intersectBySorted
     :: (MonadIO m, Eq a)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeByIntersect cmp = mergeIntersectByM (\a b -> return $ cmp a b)
-
-{-# INLINE_NORMAL mergeIntersectByM #-}
-mergeIntersectByM
-    :: (MonadIO m, Eq a)
-    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeIntersectByM cmp (Stream stepa ta) (Stream stepb tb) =
+intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
+
     where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- step 1
     step gst (Just sa, sb, Nothing, b, Nothing) = do
@@ -789,7 +778,7 @@ mergeIntersectByM cmp (Stream stepa ta) (Stream stepb tb) =
     -- both the values are available compare it
     step _ (sa, sb, Just a, Just b, Nothing) = do
         liftIO $ print "p3"
-        res <- cmp a b
+        let res = cmp a b
         return $ case res of
             GT -> Skip (sa, sb, Just a, Nothing, Nothing)
             LT -> Skip (sa, sb, Nothing, Just b, Nothing)
@@ -812,25 +801,18 @@ mergeIntersectByM cmp (Stream stepa ta) (Stream stepb tb) =
     step _ (_, _, _, _, _) = return Stop
 
 
-{-# INLINE mergeByLeftInner #-}
-mergeByLeftInner
+{-# INLINE [1] joinLeftMerge #-}
+joinLeftMerge
     :: (MonadIO m,  Eq a, Eq b)
-    =>
-    (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-mergeByLeftInner cmp = mergeLeftInnerByM (\a b -> return $ cmp a b)
-
-{-# INLINE_NORMAL mergeLeftInnerByM #-}
-mergeLeftInnerByM
-    :: (MonadIO m,  Eq a, Eq b)
-    => (a -> b -> m Ordering)
+    => (a -> b -> Ordering)
     -> Stream m a -> Stream m b
     -> Stream m (a, Maybe b)
-mergeLeftInnerByM cmp (Stream stepa ta) (Stream stepb tb) =
+joinLeftMerge cmp (Stream stepa ta) (Stream stepb tb) =
     Stream
         step
         (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, 0)
     where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, NM, idx) = do
@@ -896,19 +878,19 @@ mergeLeftInnerByM cmp (Stream stepa ta) (Stream stepb tb) =
                 )
 
     -- step 4 compare b with previous b to remove mismatched duplicates from right stream
-    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) = do
+    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) =
         return $
-            if b == pb
-            then
-                Skip
-                (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx) -- step 3
-            else
-                Skip
-                (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx)     -- step 5
+        if b == pb
+        then
+            Skip
+            (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx) -- step 3
+        else
+            Skip
+            (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx)     -- step 5
 
     -- step 5 compare left stream data with right stream
     step _ (sa, sb, Just a, Just b, pa, pb, Just buff, MC, idx) = do
-        res <- cmp a b
+        let res = cmp a b
         return $ case res of
             LT ->
                 Yield
@@ -1137,32 +1119,21 @@ mergeLeftInnerByM cmp (Stream stepa ta) (Stream stepb tb) =
 
     step _ (_, _, _, _, _, _, _, _, _) = return Stop
 
-{-# INLINE mergeByRightInner #-}
-mergeByRightInner
-    ::(MonadIO m,  Eq a, Eq b)
-    => (a -> b -> Ordering) -> Stream m b -> Stream m a -> Stream m (Maybe b, a)
-mergeByRightInner cmp = mergeRightInnerByM (\a b -> return $ cmp a b)
-
-{-# INLINE_NORMAL mergeRightInnerByM #-}
-mergeRightInnerByM
+{-# INLINE [1] joinRightMerge #-}
+joinRightMerge
     :: (MonadIO m,  Eq a, Eq b)
-    => (a -> b -> m Ordering) -> Stream m b -> Stream m a -> Stream m (Maybe b, a)
-mergeRightInnerByM cmp s1 s2 = fmap (\(a,b) -> (b,a)) (mergeLeftInnerByM cmp s2 s1)
+    => (a -> b -> Ordering) -> Stream m b -> Stream m a -> Stream m (Maybe b, a)
+joinRightMerge cmp s1 s2 = fmap (\(a,b) -> (b,a)) (joinLeftMerge cmp s2 s1)
 
-{-# INLINE mergeDifferenceJoinBy #-}
-mergeDifferenceJoinBy
+
+{-# INLINE [1] differenceBySorted #-}
+differenceBySorted
     :: (Monad m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeDifferenceJoinBy cmp = mergeDifferenceByM (\a b -> return $ cmp a b)
-
-{-# INLINE_NORMAL mergeDifferenceByM #-}
-mergeDifferenceByM
-    :: (Monad m)
-    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeDifferenceByM cmp (Stream stepa ta) (Stream stepb tb) =
+differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
     where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- one of the values is missing, and the corresponding stream is running
     step gst (Just sa, sb, Nothing, b, Nothing) = do
@@ -1196,7 +1167,7 @@ mergeDifferenceByM cmp (Stream stepa ta) (Stream stepb tb) =
 
     -- both the values are available
     step _ (sa, sb, Just a, Just b, Nothing) = do
-        res <- cmp a b
+        let res = cmp a b
         return $ case res of
             GT -> Skip (sa, sb, Just a, Nothing, Nothing)
             LT -> Yield a (sa, sb, Nothing, Just b, Nothing)
@@ -1215,14 +1186,14 @@ removeDupsAll
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 removeDupsAll cmp = removeDupsAllM (\a b -> return $ cmp a b)
 
-{-# INLINE_NORMAL removeDupsAllM #-}
+{-# INLINE [1] removeDupsAllM #-}
 removeDupsAllM
     ::(MonadIO m)
     => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 removeDupsAllM cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, NM)
     where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, NM) = do
         liftIO $ print "p1"
@@ -1334,12 +1305,12 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 --
-{-# INLINE_NORMAL unfoldManyInterleave #-}
+{-# INLINE [1] unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
@@ -1387,12 +1358,12 @@ unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
 --
 -- Compared to unfoldManyInterleave this one switches streams on Skips.
 --
-{-# INLINE_NORMAL unfoldManyRoundRobin #-}
+{-# INLINE [1] unfoldManyRoundRobin #-}
 unfoldManyRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyRoundRobin (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
@@ -1450,7 +1421,7 @@ data InterposeSuffixState s1 i1 =
 -- effect only if at least one element has been yielded by the unfolding.
 -- However, that becomes a bit complicated, so we have chosen the former
 -- behvaior for now.
-{-# INLINE_NORMAL interposeSuffix #-}
+{-# INLINE [1] interposeSuffix #-}
 interposeSuffix
     :: Monad m
     => m c -> Unfold m b c -> Stream m b -> Stream m c
@@ -1461,7 +1432,7 @@ interposeSuffix
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterposeSuffixFirst s1) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1505,7 +1476,7 @@ data InterposeState s1 i1 a =
 
 -- Note that this only interposes the pure values, we may run many effects to
 -- generate those values as some effects may not generate anything (Skip).
-{-# INLINE_NORMAL interpose #-}
+{-# INLINE [1] interpose #-}
 interpose :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
 interpose
     action
@@ -1514,7 +1485,7 @@ interpose
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (InterposeFirst s1) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1598,7 +1569,7 @@ data ICUState s1 s2 i1 i2 =
 -- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
 -- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
 --
-{-# INLINE_NORMAL gintercalateSuffix #-}
+{-# INLINE [1] gintercalateSuffix #-}
 gintercalateSuffix
     :: Monad m
     => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
@@ -1609,7 +1580,7 @@ gintercalateSuffix
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (ICUFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1684,7 +1655,7 @@ data ICALState s1 s2 i1 i2 a =
 -- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
 -- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
 --
-{-# INLINE_NORMAL gintercalate #-}
+{-# INLINE [1] gintercalate #-}
 gintercalate
     :: Monad m
     => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
@@ -1695,7 +1666,7 @@ gintercalate
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (ICALFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1801,7 +1772,7 @@ data FIterState s f m a b
     | FIterYield b (FIterState s f m a b)
     | FIterStop
 
-{-# INLINE_NORMAL foldIterateM #-}
+{-# INLINE [1] foldIterateM #-}
 foldIterateM ::
        Monad m => (b -> m (FL.Fold m a b)) -> b -> Stream m a -> Stream m b
 foldIterateM func seed0 (Stream step state) =
@@ -1818,14 +1789,14 @@ foldIterateM func seed0 (Stream step state) =
                   FL.Partial fs -> FIterStream st fstep fs extract
                   FL.Done fb -> FIterYield fb $ FIterInit st fb
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ (FIterInit st seed) = do
         (FL.Fold fstep initial extract) <- func seed
         iterStep initial st fstep extract
     stepOuter gst (FIterStream st fstep fs extract) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> do
+            Yield x s ->
                 iterStep (fstep fs x) s fstep extract
             Skip s -> return $ Skip $ FIterStream s fstep fs extract
             Stop -> do
@@ -1846,7 +1817,7 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
-{-# INLINE_NORMAL parseMany #-}
+{-# INLINE [1] parseMany #-}
 parseMany
     :: MonadThrow m
     => PRD.Parser m a b
@@ -1857,7 +1828,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     -- Buffer is empty, get the first element from the stream, initialize the
     -- fold and then go to stream processing loop.
     stepOuter gst (ParseChunksInit [] st) = do
@@ -1886,7 +1857,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                  in return $ Skip $ ParseChunksYield pb next
             PRD.IError err -> throwM $ ParseError err
 
-    -- XXX we Just discard any leftover input at the end
+    -- XXX we just discard any leftover input at the end
     stepOuter _ (ParseChunksInitLeftOver _) = return Stop
 
     -- Buffer is empty, process elements from the stream
@@ -1910,9 +1881,9 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         return $ Skip $ ParseChunksBuf src s buf1 pst1
-                    PR.Done 0 b -> do
+                    PR.Done 0 b ->
                         return $ Skip $
-                            ParseChunksYield b (ParseChunksInit [] s)
+                        ParseChunksYield b (ParseChunksInit [] s)
                     PR.Done n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf))
@@ -1939,20 +1910,20 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
             PR.Partial n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
+                    src  = Prelude.reverse src0 <> xs
                 return $ Skip $ ParseChunksBuf src s [] pst1
             PR.Continue 0 pst1 ->
                 return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
+                    src  = Prelude.reverse src0 <> xs
                 return $ Skip $ ParseChunksBuf src s buf1 pst1
             PR.Done 0 b ->
                 return $ Skip $ ParseChunksYield b (ParseChunksInit xs s)
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
+                let src = Prelude.reverse (Prelude.take n (x:buf)) <> xs
                 return $ Skip $ ParseChunksYield b (ParseChunksInit src s)
             PR.Error err -> throwM $ ParseError err
 
@@ -1966,7 +1937,7 @@ data ConcatParseState b inpBuf st p m a =
     | forall s. ConcatParseBuf inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m b)
     | ConcatParseYield b (ConcatParseState b inpBuf st p m a)
 
-{-# INLINE_NORMAL parseIterate #-}
+{-# INLINE [1] parseIterate #-}
 parseIterate
     :: MonadThrow m
     => (b -> PRD.Parser m a b)
@@ -1978,7 +1949,7 @@ parseIterate func seed (Stream step state) =
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     -- Buffer is empty, go to stream processing loop
     stepOuter _ (ConcatParseInit [] st (PRD.Parser pstep initial extract)) = do
         res <- initial
@@ -2002,7 +1973,7 @@ parseIterate func seed (Stream step state) =
                  in return $ Skip $ ConcatParseYield pb next
             PRD.IError err -> throwM $ ParseError err
 
-    -- XXX we Just discard any leftover input at the end
+    -- XXX we just discard any leftover input at the end
     stepOuter _ (ConcatParseInitLeftOver _) = return Stop
 
     -- Buffer is empty process elements from the stream
@@ -2052,18 +2023,18 @@ parseIterate func seed (Stream step state) =
             PR.Partial n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
+                    src  = Prelude.reverse src0 <> xs
                 return $ Skip $ ConcatParseBuf src s [] pstep pst1 extract
          -- PR.Continue 0 pst1 -> return $ Skip $ ConcatParseBuf xs s (x:buf) pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
+                    src  = Prelude.reverse src0 <> xs
                 return $ Skip $ ConcatParseBuf src s buf1 pstep pst1 extract
             -- XXX Specialize for Stop 0 common case?
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
+                let src = Prelude.reverse (Prelude.take n (x:buf)) <> xs
                 return $ Skip $ ConcatParseYield b
                                     (ConcatParseInit src s (func b))
             PR.Error err -> throwM $ ParseError err
@@ -2082,7 +2053,7 @@ data GroupByState st fs a b
     | GroupingYield !b (GroupByState st fs a b)
     | GroupingDone
 
-{-# INLINE_NORMAL groupsBy #-}
+{-# INLINE [1] groupsBy #-}
 groupsBy :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
@@ -2096,7 +2067,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ (GroupingInit st) = do
         -- XXX Note that if the stream stops without yielding a single element
         -- in the group we discard the "initial" effect.
@@ -2166,7 +2137,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
     stepOuter _ (GroupingYield _ _) = error "groupsBy: Unreachable"
     stepOuter _ GroupingDone = return Stop
 
-{-# INLINE_NORMAL groupsRollingBy #-}
+{-# INLINE [1] groupsRollingBy #-}
 groupsRollingBy :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
@@ -2180,7 +2151,7 @@ groupsRollingBy cmp (Fold fstep initial done) (Stream step state) =
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ (GroupingInit st) = do
         -- XXX Note that if the stream stops without yielding a single element
         -- in the group we discard the "initial" effect.
@@ -2277,14 +2248,14 @@ data WordsByState st fs b
     | WordsByDone
     | WordsByYield !b (WordsByState st fs b)
 
-{-# INLINE_NORMAL wordsBy #-}
+{-# INLINE [1] wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsBy predicate (Fold fstep initial done) (Stream step state) =
     Stream stepOuter (WordsByInit state)
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ (WordsByInit st) = do
         res <- initial
         return
@@ -2392,7 +2363,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState rb rh ck w fs s b x)
 
-{-# INLINE_NORMAL splitOnSeq #-}
+{-# INLINE [1] splitOnSeq #-}
 splitOnSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Array a
@@ -2410,15 +2381,15 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
 
     -- For word pattern case
     wordMask :: Word
-    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+    wordMask = 1 `shiftL` (elemBits * patLen) - 1
 
     elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    elemMask = 1 `shiftL` elemBits - 1
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord wd a = wd `shiftL` elemBits .|. fromIntegral (fromEnum a)
 
     -- For Rabin-Karp search
     k = 2891336453 :: Word32
@@ -2443,7 +2414,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     yieldProceed nextGen fs =
         initial >>= skip . SplitOnSeqYield fs . nextAfterInit nextGen
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ SplitOnSeqInit = do
         res <- initial
         case res of
@@ -2524,7 +2495,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
         r <- done fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = elemMask .&. wrd `shiftR` (elemBits * (n - 1))
         r <- fstep fs (toEnum $ fromIntegral old)
         case r of
             FL.Partial fs1 -> skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
@@ -2601,7 +2572,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                     else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
                 else skip $ SplitOnSeqKRInit (idx + 1) fs s rb rh1
             Skip s -> skip $ SplitOnSeqKRInit idx fs s rb rh
-            Stop -> do
+            Stop ->
                 skip $ SplitOnSeqKRDone idx fs rb (RB.startOf rb)
 
     -- XXX The recursive "go" is more efficient than the state based recursion
@@ -2659,7 +2630,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
     -}
 
-    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
+    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) =
         if RB.unsafeEqArray rb rh patArr
         then do
             r <- done fs
@@ -2705,7 +2676,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
     | SplitOnSuffixSeqReinit
           (fs -> SplitOnSuffixSeqState rb rh ck w fs s b x)
 
-{-# INLINE_NORMAL splitOnSuffixSeq #-}
+{-# INLINE [1] splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Bool
@@ -2724,15 +2695,15 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     -- For word pattern case
     wordMask :: Word
-    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+    wordMask = 1 `shiftL` (elemBits * patLen) - 1
 
     elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    elemMask = 1 `shiftL` elemBits - 1
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord wd a = wd `shiftL` elemBits .|. fromIntegral (fromEnum a)
 
     nextAfterInit nextGen stepRes =
         case stepRes of
@@ -2776,7 +2747,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     skip = return . Skip
 
-    {-# INLINE_LATE stepOuter #-}
+    {-# INLINE [0] stepOuter #-}
     stepOuter _ SplitOnSuffixSeqInit = do
         res <- initial
         case res of
@@ -2856,7 +2827,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
         r <- done fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqWordDone n fs wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = elemMask .&. wrd `shiftR` (elemBits * (n - 1))
         r <- fstep fs (toEnum $ fromIntegral old)
         case r of
             FL.Partial fs1 -> skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
@@ -2894,7 +2865,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                             then go SPEC (idx + 1) wrd1 s fs1
                             else if wrd1 .&. wordMask /= wordPat
                             then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                            else do done fs >>= yieldProceed jump
+                            else done fs >>= yieldProceed jump
                         FL.Done b -> yieldProceed jump b
                 Skip s -> go SPEC idx wrd s fs
                 Stop -> skip $ SplitOnSuffixSeqWordDone idx fs wrd
@@ -2953,7 +2924,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             Skip s -> skip $ SplitOnSuffixSeqKRInit idx0 fs s rb rh0
             Stop -> return Stop
 
-    stepOuter gst (SplitOnSuffixSeqKRInit1 fs0 st0 rb rh0) = do
+    stepOuter gst (SplitOnSuffixSeqKRInit1 fs0 st0 rb rh0) =
         go SPEC 1 rh0 st0 fs0
 
         where
@@ -2982,7 +2953,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                 Skip s -> go SPEC idx rh s fs
                 Stop -> do
                     -- do not issue a blank segment when we end at pattern
-                    if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
+                    if idx == maxIndex && RB.unsafeEqArray rb rh patArr
                     then return Stop
                     else if withSep
                     then do
@@ -3005,7 +2976,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     r <- if withSep then fstep fs x else fstep fs old
                     case r of
                         FL.Partial fs1 ->
-                            if (cksum1 /= patHash)
+                            if cksum1 /= patHash
                             then go SPEC fs1 s rh1 cksum1
                             else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
                         FL.Done b -> do
@@ -3022,7 +2993,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
                     else skip $ SplitOnSuffixSeqKRDone patLen fs rb rh
 
-    stepOuter _ (SplitOnSuffixSeqKRCheck fs st rb rh) = do
+    stepOuter _ (SplitOnSuffixSeqKRCheck fs st rb rh) =
         if RB.unsafeEqArray rb rh patArr
         then do
             r <- done fs
@@ -3063,7 +3034,7 @@ data SplitState s arr
 -- We can revisit this once we have partial folds/parsers.
 --
 -- | Performs infix separator style splitting.
-{-# INLINE_NORMAL splitInnerBy #-}
+{-# INLINE [1] splitInnerBy #-}
 splitInnerBy
     :: Monad m
     => (f a -> m (f a, Maybe (f a)))  -- splitter
@@ -3071,11 +3042,11 @@ splitInnerBy
     -> Stream m (f a)
     -> Stream m (f a)
 splitInnerBy splitter joiner (Stream step1 state1) =
-    (Stream step (SplitInitial state1))
+    Stream step (SplitInitial state1)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (SplitInitial st) = do
         r <- step1 gst st
         case r of
@@ -3085,7 +3056,7 @@ splitInnerBy splitter joiner (Stream step1 state1) =
                     Nothing -> Skip (SplitBuffering s x1)
                     Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitInitial s)
-            Stop -> return $ Stop
+            Stop -> return Stop
 
     step gst (SplitBuffering st buf) = do
         r <- step1 gst st
@@ -3106,10 +3077,10 @@ splitInnerBy splitter joiner (Stream step1 state1) =
                 Just x2 -> Skip $ SplitYielding x1 (SplitSplitting st x2)
 
     step _ (SplitYielding x next) = return $ Yield x next
-    step _ SplitFinishing = return $ Stop
+    step _ SplitFinishing = return Stop
 
 -- | Performs infix separator style splitting.
-{-# INLINE_NORMAL splitInnerBySuffix #-}
+{-# INLINE [1] splitInnerBySuffix #-}
 splitInnerBySuffix
     :: (Monad m, Eq (f a), Monoid (f a))
     => (f a -> m (f a, Maybe (f a)))  -- splitter
@@ -3117,11 +3088,11 @@ splitInnerBySuffix
     -> Stream m (f a)
     -> Stream m (f a)
 splitInnerBySuffix splitter joiner (Stream step1 state1) =
-    (Stream step (SplitInitial state1))
+    Stream step (SplitInitial state1)
 
     where
 
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
     step gst (SplitInitial st) = do
         r <- step1 gst st
         case r of
@@ -3131,7 +3102,7 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
                     Nothing -> Skip (SplitBuffering s x1)
                     Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitInitial s)
-            Stop -> return $ Stop
+            Stop -> return Stop
 
     step gst (SplitBuffering st buf) = do
         r <- step1 gst st
@@ -3156,30 +3127,31 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
 
     step _ (SplitYielding x next) = return $ Yield x next
     step _ SplitFinishing = return Stop
-
-{-# INLINE mergeOuterJoin #-}
-mergeOuterJoin
+{-
+{-# INLINE joinOuterMerge #-}
+joinOuterMerge
     :: (MonadIO m,  Eq a, Eq b)
     => (a -> b -> Ordering)
     -> Stream m a
     -> Stream m b
     -> Stream m (Maybe a, Maybe b)
-mergeOuterJoin cmp = mergeOuterJoinM (\a b -> return $ cmp a b)
+joinOuterMerge cmp = mergeOuterJoinM (\a b -> return $ cmp a b)
+-}
 
-{-# INLINE_NORMAL mergeOuterJoinM #-}
-mergeOuterJoinM
+{-# INLINE [1] joinOuterMerge #-}
+joinOuterMerge
     :: (MonadIO m,  Eq a, Eq b)
-    => (a -> b -> m Ordering)
+    => (a -> b -> Ordering)
     -> Stream m a
     -> Stream m b
     -> Stream m (Maybe a, Maybe b)
-mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
+joinOuterMerge cmp (Stream stepa ta) (Stream stepb tb) =
     Stream
         step
         (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, 0)
 
     where
-    {-# INLINE_LATE step #-}
+    {-# INLINE [0] step #-}
 
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, NM, idx) = do
@@ -3210,13 +3182,13 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
     step gst (Just sa, Just sb, Just a, b, pa, pb, buff, MR, idx) = do
         r <- stepb (adaptState gst) sb
         return $ case r of
-            Yield b' sb' -> 
-                Skip 
+            Yield b' sb' ->
+                Skip
                 (Just sa, Just sb', Just a, Just b', pa, pb, buff, MC, idx) -- go to step 5
-            Skip sb' -> 
-                Skip 
+            Skip sb' ->
+                Skip
                 (Nothing, Just sb', Nothing, b, pa, Nothing, buff, NM, idx)
-            Stop -> 
+            Stop ->
                 Yield                                       -- step 12
                 (Just a, Nothing)
                 ( Just sa
@@ -3228,20 +3200,20 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
+                )
 
     -- step 3 both stream has data pull from right stream and in next step
     -- compare b with previous b to remove mismatched duplicates from right stream
     step gst (Just sa, Just sb, Just a, b, pa, pb, buff, MRD, idx) = do
         r <- stepb (adaptState gst) sb
         return $ case r of
-            Yield b' sb' -> 
+            Yield b' sb' ->
                 Skip
                 (Just sa, Just sb', Just a, Just b', pa, pb, buff, MCD, idx) -- step 4
-            Skip sb' -> 
-                Skip 
+            Skip sb' ->
+                Skip
                 (Nothing, Just sb', Nothing, b, pa, Nothing, buff, NM, idx)
-            Stop -> 
+            Stop ->
                 Yield                               -- step 12
                 (Just a, Nothing)
                 ( Just sa
@@ -3253,42 +3225,42 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
+                )
 
     -- step 4 compare b with previous b to remove mismatched duplicates from right stream
-    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) = do
-        return $ 
-            if b == pb
-            then 
-                Yield                                   -- step 3
-                (Nothing, Just b) 
-                (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx) 
-            else 
-                Skip (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx)   -- step 5
+    step _ (Just sa, sb, Just a, Just b, pa, Just pb, buff, MCD, idx) =
+        return $
+        if b == pb
+        then
+            Yield                                   -- step 3
+            (Nothing, Just b)
+            (Just sa,  sb, Just a, Just b, pa, Just pb, buff, MRD, idx)
+        else
+            Skip (Just sa, sb, Just a,Just b, pa, Just b, buff, MC, idx)   -- step 5
 
 
     -- step 5 compare left stream data with right stream
     step _ (sa, sb, Just a, Just b, pa, pb, Just buff, MC, idx) = do
         liftIO $ print "p5"
-        res <- cmp a b
+        let res = cmp a b
         return $ case res of
-            LT -> 
-                Yield 
-                (Just a, Nothing) 
+            LT ->
+                Yield
+                (Just a, Nothing)
                 (sa, sb, Just a, Just b, pa, pb, Just buff, ML, idx) -- skip a step 9
-            EQ -> 
-                Skip 
+            EQ ->
+                Skip
                 (sa, sb, Just a, Just b, Just a, pb, Just buff, BUFF, idx) -- step 6
-            GT -> 
-                Yield 
-                (Nothing, Just b) 
+            GT ->
+                Yield
+                (Nothing, Just b)
                 (sa, sb, Just a, Just b, pa, Just b, Just buff, MRD, idx) -- skip b  step 3
 
     -- step 6 b in list initial step
     step _ (Just sa, Just sb, Just a, Just b, pa, _, Just buff, BUFF, idx) = do
         liftIO $ print "p6"
         liftIO $ modifyIORef'  buff (b : )
-        return $ 
+        return $
             Skip                            -- step 7 pull next b
             ( Just sa
             , Just sb
@@ -3299,7 +3271,7 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
             , Just buff
             , BUFFB
             , idx
-            ) 
+            )
 
     -- step 7 buffer repeated data
     step gst (Just sa, Just sb, a, b, pa, Just pb, Just buff, BUFFB, idx) = do
@@ -3310,7 +3282,7 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 if b' == pb
                 then do
                     liftIO $ modifyIORef'  buff (b' : )
-                    return $ 
+                    return $
                         Skip                        -- go to 7
                         ( Just sa
                         , Just sb'
@@ -3321,9 +3293,9 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                         , Just buff
                         , BUFFB
                         , idx
-                        ) 
-                else 
-                    return $ 
+                        )
+                else
+                    return $
                     Skip                        -- go to step 8
                     ( Just sa
                     , Just sb'
@@ -3334,10 +3306,10 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                     , Just buff
                     , YLD
                     , 0
-                    ) 
-            Skip sb' -> 
-                return $ 
-                Skip 
+                    )
+            Skip sb' ->
+                return $
+                Skip
                 ( Nothing
                 , Just sb'
                 , Nothing
@@ -3347,8 +3319,8 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Just buff
                 , NM
                 , idx
-                ) 
-            Stop -> 
+                )
+            Stop ->
                 return $
                 Skip                        -- go to step 8
                 ( Just sa
@@ -3360,17 +3332,17 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Just buff
                 , YLD
                 , 0
-                )    
+                )
 
     -- step 8 do pairing with buff (only when repeatation is over)
     step _ (Just sa, Just sb, Just a, b, pa, Just pb, Just buff, YLD, idx) = do
         liftIO $ print "p8"
         bl <- liftIO $ readIORef buff
         if idx < length bl
-        then 
+        then
             return $
-            Yield 
-            (Just a, Just (bl !! idx)) 
+            Yield
+            (Just a, Just (bl !! idx))
             ( Just sa
             , Just sb
             , Just a
@@ -3381,8 +3353,8 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
             , YLD
             , idx+1
             )
-        else 
-            return $ 
+        else
+            return $
             Skip                            -- step 11
             ( Just sa
             , Just sb
@@ -3393,22 +3365,22 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
             , Just buff
             , ALD
             , 0
-            ) 
+            )
 
     -- step 9 pull the data from left stream to compare next data from right stream
     step gst (Just sa, Just sb, Just a, Just b, pa, pb, buff, ML, idx) = do
         liftIO $ print "p9"
         r <- stepa (adaptState gst) sa
         return $ case r of
-            Yield a' sa' -> 
+            Yield a' sa' ->
                 Skip                        -- step 5
-                (Just sa', Just sb, Just a', Just b, Just a, pb, buff, MC, idx) 
-            Skip sa' -> 
-                Skip 
+                (Just sa', Just sb, Just a', Just b, Just a, pb, buff, MC, idx)
+            Skip sa' ->
+                Skip
                 (Just sa', Just sb, Nothing, Nothing, pa, pb, buff, MR, idx)
-            Stop -> 
+            Stop ->
                 Yield                       --step 13
-                (Nothing, Just b) 
+                (Nothing, Just b)
                 ( Nothing
                 , Just sb
                 , Nothing
@@ -3418,22 +3390,22 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
+                )
 
     -- step 10 pull the data from left stream to compare next data from right stream
     step gst (Just sa, sb, Just _, Just b, pa, pb, buff, MLD, idx) = do
         liftIO $ print "p10"
         r <- stepa (adaptState gst) sa
         return $ case r of
-            Yield a' sa' ->  
+            Yield a' sa' ->
                 Skip                        -- step 5
-                ( Just sa', sb, Just a', Just b, pa, pb, buff, MC, idx) 
-            Skip sa' -> 
-                Skip 
+                ( Just sa', sb, Just a', Just b, pa, pb, buff, MC, idx)
+            Skip sa' ->
+                Skip
                 (Just sa', sb, Nothing, Nothing, pa, pb, buff, MR, idx)
-            Stop -> 
+            Stop ->
                 Yield                       --step 13
-                (Nothing, Just b) 
+                (Nothing, Just b)
                 ( Nothing
                 , sb
                 , Nothing
@@ -3443,7 +3415,7 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
+                )
 
     -- step 11 pull the data from left stream to compare next data from right stream
     step gst (Just sa, sb, Just _, b, Just pa, pb, Just buff, ALD, idx) = do
@@ -3452,8 +3424,8 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
         case r of
             Yield a' sa' -> do
                 if a' == pa
-                then 
-                    return $ 
+                then
+                    return $
                     Skip                    -- step 8
                     ( Just sa'
                     , sb
@@ -3464,13 +3436,13 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                     , Just buff
                     , YLD
                     , idx
-                    ) 
+                    )
                 else do
                     -- clear buff
                     liftIO $ writeIORef buff []
-                    return $ do
+                    return $
                         if isJust b
-                        then 
+                        then
                             Skip                    -- step 5
                             ( Just sa'
                             , sb
@@ -3481,10 +3453,10 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                             , Just buff
                             , MC
                             , idx
-                            ) 
-                        else 
+                            )
+                        else
                             Yield                           -- step 12
-                            (Just a', Nothing) 
+                            (Just a', Nothing)
                             ( Just sa'
                             , Nothing
                             , Just a'
@@ -3493,10 +3465,10 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                             , Nothing
                             , NM
                             , idx
-                            ) 
-            Skip sa' -> 
-                return $ 
-                Skip 
+                            )
+            Skip sa' ->
+                return $
+                Skip
                 ( Just sa'
                 , sb
                 , Nothing
@@ -3507,8 +3479,8 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , MR
                 , idx
                 )
-            Stop -> 
-                return $ 
+            Stop ->
+                return $
                 Skip                --step 13
                 ( Nothing
                 , sb
@@ -3519,19 +3491,19 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
+                )
 
     --  step 12 b stream has finished yield remaining a
-    step 
-        gst 
+    step
+        gst
         (Just sa, Nothing, Just a, Nothing, Nothing, Nothing, Nothing, NM, idx)
          = do
         liftIO $ print "p12"
         r <- stepa (adaptState gst) sa
         return $ case r of
-            Yield a' sa' -> 
+            Yield a' sa' ->
                 Yield                           -- go to step 5
-                (Just a', Nothing) 
+                (Just a', Nothing)
                 ( Just sa'
                 , Nothing
                 , Just a'
@@ -3541,9 +3513,9 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
-            Skip sa' -> 
-                Skip 
+                )
+            Skip sa' ->
+                Skip
                 ( Just sa'
                 , Nothing
                 , Just a
@@ -3557,8 +3529,8 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
             Stop -> Stop
 
     --  step 13 a stream has finished yield remaining b
-    step 
-        gst 
+    step
+        gst
         ( Nothing
         , Just sb
         , Nothing
@@ -3572,9 +3544,9 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p13"
         r <- stepb (adaptState gst) sb
         return $ case r of
-            Yield b' sb' -> 
+            Yield b' sb' ->
                 Yield                   -- go to step 5
-                (Nothing, Just b') 
+                (Nothing, Just b')
                 ( Nothing
                 , Just sb'
                 , Nothing
@@ -3584,9 +3556,9 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
                 , Nothing
                 , NM
                 , idx
-                ) 
-            Skip sb' -> 
-                Skip 
+                )
+            Skip sb' ->
+                Skip
                 ( Nothing
                 , Just sb'
                 , Nothing
@@ -3600,13 +3572,14 @@ mergeOuterJoinM cmp (Stream stepa ta) (Stream stepb tb) =
             Stop -> Stop
 
     --  step 13.1 a stream has finished yield remaining b
-    step 
-        _ 
+    step
+        _
         (Nothing, Just sb, Nothing, b, Nothing, Nothing, Nothing, NM, idx) = do
         liftIO $ print "p13.1"
-        return $ 
+        return $
             Yield                       -- go to step 5
-            (Nothing, b) 
-            (Nothing, Just sb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, idx) 
+            (Nothing, b)
+            (Nothing, Just sb, Nothing, Nothing, Nothing, Nothing, Nothing, NM, idx)
 
     step _ (_, _, _, _, _, _, _, _, _) = return Stop
+ 
