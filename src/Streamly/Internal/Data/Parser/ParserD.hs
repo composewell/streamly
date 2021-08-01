@@ -52,6 +52,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeGE -- takeBetween n maxBound
 
     -- Grab a sequence of input elements by inspecting them
+    , takeP
     , lookAhead
     , takeWhile
     , takeWhile1
@@ -813,6 +814,56 @@ spanByRolling eq f1 f2 =
 -------------------------------------------------------------------------------
 -- nested parsers
 -------------------------------------------------------------------------------
+
+-- | See 'Streamly.Internal.Data.Parser.takeP'.
+--
+-- /Internal/
+{-# INLINE takeP #-}
+takeP :: Monad m => Int -> Parser m a b -> Parser m a b
+takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
+
+    where
+
+    initial = do
+        res <- pinitial
+        case res of
+            IPartial s ->
+                if lim > 0
+                then return $ IPartial $ Tuple' 0 s
+                else IDone <$> pextract s
+            IDone b -> return $ IDone b
+            IError e -> return $ IError e
+
+    step (Tuple' cnt r) a = do
+        assert (cnt < lim) (return ())
+        res <- pstep r a
+        let cnt1 = cnt + 1
+        case res of
+            Partial 0 s -> do
+                assert (cnt1 >= 0) (return ())
+                if cnt1 < lim
+                then return $ Partial 0 $ Tuple' cnt1 s
+                else Done 0 <$> pextract s
+            Continue 0 s -> do
+                assert (cnt1 >= 0) (return ())
+                if cnt1 < lim
+                then return $ Continue 0 $ Tuple' cnt1 s
+                -- XXX This should error out?
+                -- If designed properly, this will probably error out.
+                -- "pextract" should error out
+                else Done 0 <$> pextract s
+            Partial n s -> do
+                let taken = cnt1 - n
+                assert (taken >= 0) (return ())
+                return $ Partial n $ Tuple' taken s
+            Continue n s -> do
+                let taken = cnt1 - n
+                assert (taken >= 0) (return ())
+                return $ Continue n $ Tuple' taken s
+            Done n b -> return $ Done n b
+            Error str -> return $ Error str
+
+    extract (Tuple' _ r) = pextract r
 
 -- | See 'Streamly.Internal.Data.Parser.lookahead'.
 --

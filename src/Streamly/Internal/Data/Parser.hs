@@ -78,6 +78,7 @@ module Streamly.Internal.Data.Parser
     , takeGE -- takeBetween n maxBound
 
     -- Grab a sequence of input elements by inspecting them
+    , takeP
     , lookAhead
     , takeWhileP
     , takeWhile
@@ -851,6 +852,22 @@ longest p1 p2 = K.toParserK $ D.longest (K.fromParserK p1) (K.fromParserK p2)
 {-# INLINE lookAhead #-}
 lookAhead :: MonadCatch m => Parser m a b -> Parser m a b
 lookAhead p = K.toParserK $ D.lookAhead $ K.fromParserK p
+
+-- | Takes at-most @n@ input elements.
+--
+-- * Stops - when the collecting parser stops.
+-- * Fails - when the collecting parser fails.
+--
+-- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 2 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
+-- [1, 2]
+--
+-- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
+-- *** Exception: ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4"
+--
+-- /Internal/
+{-# INLINE takeP #-}
+takeP :: MonadCatch m => Int -> Parser m a b -> Parser m a b
+takeP i p = K.toParserK $ D.takeP i $ K.fromParserK p
 
 -------------------------------------------------------------------------------
 -- Interleaving
