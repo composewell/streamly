@@ -273,11 +273,17 @@ sequence_ value xs =
 -- choice using the "Alternative" instance with direct style parser type has
 -- quadratic performance complexity.
 --
+{-# INLINE choiceAsum #-}
+choiceAsum :: MonadCatch m => Int -> SerialT m Int -> m Int
+choiceAsum value =
+    IP.parseD (asum (replicate value (PR.satisfy (< 0)))
+        AP.<|> PR.satisfy (> 0))
+
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
 choice value =
-    IP.parseD (asum (replicate value (PR.satisfy (< 0)))
-        AP.<|> PR.satisfy (> 0))
+    IP.parseD
+        (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -351,6 +357,7 @@ o_n_space_serial value =
     , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
     , benchIOSink value "sequence/100" $ sequence (value `div` 100)
     , benchIOSink value "sequence_/100" $ sequence_ (value `div` 100)
+    , benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100)
     , benchIOSink value "choice/100" $ choice (value `div` 100)
     ]
 
