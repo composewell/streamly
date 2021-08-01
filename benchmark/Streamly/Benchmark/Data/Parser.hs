@@ -97,6 +97,10 @@ sliceBeginWith value stream = do
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
+{-# INLINE takeP #-}
+takeP :: MonadCatch m => Int -> SerialT m a -> m ()
+takeP value = IP.parse (PR.takeP value (PR.fromFold FL.drain))
+
 {-# INLINE groupBy #-}
 groupBy :: MonadCatch m => SerialT m Int -> m ()
 groupBy = IP.parse (PR.groupBy (<=) FL.drain)
@@ -327,6 +331,7 @@ o_1_space_serial value =
     [ benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "drainWhile" $ drainWhile value
     , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
     , benchIOSink value "groupBy" $ groupBy
