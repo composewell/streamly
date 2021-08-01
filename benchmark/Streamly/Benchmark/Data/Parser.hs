@@ -293,11 +293,17 @@ sequence_ :: MonadCatch m => Int -> SerialT m Int -> m ()
 sequence_ value =
     IP.parse (F.sequence_ $ replicate value (PR.satisfy (> 0)))
 
+{-# INLINE choiceAsum #-}
+choiceAsum :: MonadCatch m => Int -> SerialT m Int -> m Int
+choiceAsum value =
+    IP.parse (asum (replicate value (PR.satisfy (< 0)))
+        AP.<|> PR.satisfy (> 0))
+
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
 choice value =
-    IP.parse (asum (replicate value (PR.satisfy (< 0)))
-        AP.<|> PR.satisfy (> 0))
+    IP.parse
+        (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -388,6 +394,7 @@ o_n_heap_serial value =
     -- non-linear time complexity (parserD)
     , benchIOSink value "split_" $ split_ value
     -- XXX why O(n) heap?
+    , benchIOSink value "choice (asum)" $ choiceAsum value
     , benchIOSink value "choice" $ choice value
 
     -- These show non-linear time complexity.
