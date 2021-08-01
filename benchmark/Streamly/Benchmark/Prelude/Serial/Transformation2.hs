@@ -186,7 +186,20 @@ o_n_heap_buffering value =
         -- Reversing/sorting a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
+<<<<<<< HEAD
         , benchIOSink value "sortBy" (sortBy 1)        
+=======
+        , benchIOSink value "sortBy" (sortBy 1)
+        , benchIOSink value "joinInner" (joinInner 1)
+        --, benchIOSink value "joinInnerHash" (hashInnerJoin 1)          
+        , benchIOSink value "joinLeft" (joinLeft 1)
+        , benchIOSink value "joinOuter" (joinOuter 1)
+        , benchIOSink value "joinLeftMerge" (joinLeftMerge 1)
+        , benchIOSink value "unionBySorted" (unionBySorted 1)
+        , benchIOSink value "joinInnerMerge" (joinInnerMerge 1)
+        , benchIOSink value "joinOuterMerge" (joinOuterMerge 1)
+        , benchIOSink value "differenceBySorted" (differenceBySorted 1)
+>>>>>>> 05966473 (Fix review comments)
         , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
         ]
@@ -401,10 +414,10 @@ o_1_space_pipes value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 1)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 1)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 1)
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 1)
-#endif
+
+
+
+
         ]
     ]
 
@@ -414,10 +427,10 @@ o_1_space_pipesX4 value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 4)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 4)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 4)
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 4)
-#endif
+
+
+
+
         ]
     ]
 
