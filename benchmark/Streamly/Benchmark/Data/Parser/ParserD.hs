@@ -79,6 +79,10 @@ sliceBeginWith value stream = do
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
 
+{-# INLINE takeP #-}
+takeP :: MonadThrow m => Int -> SerialT m a -> m ()
+takeP value = IP.parseD (PR.takeP value (PR.fromFold FL.drain))
+
 {-# INLINE groupBy #-}
 groupBy :: MonadThrow m => SerialT m Int -> m ()
 groupBy = IP.parseD (PR.groupBy (<=) FL.drain)
@@ -289,6 +293,7 @@ moduleName = "Data.Parser.ParserD"
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
