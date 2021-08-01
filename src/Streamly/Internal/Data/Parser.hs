@@ -946,13 +946,12 @@ concatMap f p = K.toParserK $ D.concatMap (K.fromParserK . f) (K.fromParserK p)
 --
 -- This is same as 'asum' but more efficient.
 --
--- /Unimplemented/
+-- /Broken/
 --
 {-# INLINE choice #-}
 choice ::
-    -- Foldable t =>
-    t (Parser m a b) -> Parser m a b
-choice _ps = undefined
+       (Functor t, Foldable t, MonadCatch m) => t (Parser m a b) -> Parser m a b
+choice ps = K.toParserK $ D.choice $ K.fromParserK <$> ps
 
 -------------------------------------------------------------------------------
 -- Sequential Repetition
