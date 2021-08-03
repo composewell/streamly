@@ -20,8 +20,11 @@
 
 module Serial.Exceptions (benchmarks) where
 
-import Control.Exception (SomeException)
+import Control.Exception (SomeException, Exception, throwIO)
 import System.IO (Handle, hClose, hPutChar)
+
+import qualified Data.IORef as Ref
+import qualified Data.Map.Strict as Map
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -42,6 +45,79 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -------------------------------------------------------------------------------
 -- stream exceptions
+-------------------------------------------------------------------------------
+
+data BenchException
+    = BenchException1
+    | BenchException2
+    deriving (Show, Eq, Ord)
+
+instance Exception BenchException
+
+retryNoneSimple :: Int -> Int -> IO ()
+retryNoneSimple length from =
+    IP.drain
+        $ IP.retry (Map.singleton BenchException1 length) (const S.nil) source
+
+    where
+
+    source = S.enumerateFromTo from (from + length)
+
+retryNone :: Int -> Int -> IO ()
+retryNone length from = do
+    ref <- Ref.newIORef (0 :: Int)
+    IP.drain
+        $ IP.retry (Map.singleton BenchException1 length) (const S.nil)
+        $ source ref
+
+    where
+
+    source ref =
+        IP.replicateM (from + length)
+            $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
+
+retryAll :: Int -> Int -> IO ()
+retryAll length from = do
+    ref <- Ref.newIORef 0
+    IP.drain
+        $ IP.retry (Map.singleton BenchException1 (length + from)) (const S.nil)
+        $ source ref
+
+    where
+
+    source ref =
+        IP.fromEffect
+            $ do
+                Ref.modifyIORef' ref (+ 1)
+                val <- Ref.readIORef ref
+                if val >= length
+                then return length
+                else throwIO BenchException1
+
+retryUnknown :: Int -> Int -> IO ()
+retryUnknown length from = do
+    IP.drain
+        $ IP.retry (Map.singleton BenchException1 length) (const source)
+        $ throwIO BenchException2 `S.before` S.nil
+
+    where
+
+    source = S.enumerateFromTo from (from + length)
+
+
+o_1_space_serial_exceptions :: Int -> [Benchmark]
+o_1_space_serial_exceptions length =
+    [ bgroup
+          "exceptions/serial"
+          [ benchIOSrc1 "retryNoneSimple" (retryNoneSimple length)
+          , benchIOSrc1 "retryNone" (retryNone length)
+          , benchIOSrc1 "retryAll" (retryAll length)
+          , benchIOSrc1 "retryUnknown" (retryUnknown length)
+          ]
+    ]
+
+-------------------------------------------------------------------------------
+-- copy stream exceptions
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
@@ -230,11 +306,12 @@ o_1_space_copy_exceptions_toChunks env =
     ]
 
 
-benchmarks :: String -> BenchEnv -> [Benchmark]
-benchmarks moduleName env =
+benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
+benchmarks moduleName env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_copy_exceptions_readChunks env
             , o_1_space_copy_exceptions_toChunks env
             , o_1_space_copy_stream_exceptions env
+            , o_1_space_serial_exceptions size
             ]
         ]
