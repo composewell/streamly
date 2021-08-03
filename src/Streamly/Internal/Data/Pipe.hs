@@ -928,16 +928,16 @@ splitSuffixBy' predicate f m =
 --
 -- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
 --
--- > intercalate . splitOn == id
+-- prop> intercalate . splitOn == id
 --
 -- The following law holds when the separator is non-empty and contains none of
 -- the elements present in the input lists:
 --
--- > splitOn . intercalate == id
+-- prop> splitOn . intercalate == id
 --
 -- The following law always holds:
 --
--- > concat . splitOn . intercalate == concat
+-- prop> concat . splitOn . intercalate == concat
 --
 -- @since 0.7.0
 {-# INLINE splitOn #-}
