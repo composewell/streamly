@@ -44,7 +44,7 @@ main = do
     allBenchmarks env size = Prelude.concat
         [ Generation.benchmarks moduleName size
         , Elimination.benchmarks moduleName size
-        , Exceptions.benchmarks moduleName env
+        , Exceptions.benchmarks moduleName env size
         , Split.benchmarks moduleName env
         , Transformation1.benchmarks moduleName size
         , Transformation2.benchmarks moduleName size
