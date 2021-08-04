@@ -55,6 +55,28 @@ parse = do
                 ls2 <- run $ Stream.toList $ ArrayStream.concat str
                 listEquals (==) (ls1 ++ ls2) ls
 
+parseDLL :: Property
+parseDLL = do
+    let len = 200
+    -- ls = input list (stream)
+    -- clen = chunk size
+    -- tlen = parser take size
+    forAll
+        ((,,)
+            <$> vectorOf len (chooseAny :: Gen Int)
+            <*> chooseInt (1, len)
+            <*> chooseInt (0, len))
+        $ \(ls, clen, tlen) ->
+            monadicIO $ do
+                (ls1, str) <-
+                    let input =
+                            Stream.chunksOf
+                                clen (Array.writeN clen) (Stream.fromList ls)
+                        parser = ParserD.fromFold (Fold.take tlen Fold.toList)
+                     in run $ ArrayStream.parseDLL parser input
+                ls2 <- run $ Stream.toList $ ArrayStream.concat str
+                listEquals (==) (ls1 ++ ls2) ls
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -70,3 +92,4 @@ main =
         describe moduleName $ do
             describe "Stream parsing" $ do
                 prop "parse" parse
+                prop "parseDLL" parseDLL
