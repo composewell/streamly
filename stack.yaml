@@ -4,6 +4,8 @@ packages:
 - './benchmark'
 - './test'
 
-#extra-deps:
+extra-deps:
+  - unicode-data-0.1.0.1
+
 #allow-newer: true
 rebuild-ghc-options: true

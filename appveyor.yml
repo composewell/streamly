@@ -39,6 +39,7 @@ environment:
     RESOLVER: "lts-18.0"
     STACK_ROOT: "c:\\sr"
     STACK_BUILD_OPTIONS: "--flag streamly-benchmarks:-opt"
+    STACK_YAML: "stack.yaml"
 
     # ------------------------------------------------------------------------
     # cabal options
