@@ -851,6 +851,14 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 -- XXX This should error out?
                 -- If designed properly, this will probably error out.
                 -- "pextract" should error out
+                --
+                -- By Harendra,
+                --
+                -- This is a tricky case, we have the following options:
+                --   1. Done 0 with extract as you have written
+                --   2. Done n, will require buffering elements
+                --   3. Use a backtracking fold and not a parser, once we have
+                --      backtracking in folds
                 else Done 0 <$> pextract s
             Partial n s -> do
                 let taken = cnt1 - n
