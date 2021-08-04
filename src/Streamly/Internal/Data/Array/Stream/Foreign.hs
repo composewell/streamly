@@ -61,7 +61,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
-import Foreign.ForeignPtr (plusForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -99,6 +99,17 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Generate
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
+
+#if MIN_VERSION_base(4,10,0)
+import Foreign.ForeignPtr (plusForeignPtr)
+#else
+import Foreign.ForeignPtr (ForeignPtr(..))
+import GHC.Exts (plusAddr#)
+import GHC.Int (Int(..))
+
+plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr a
+plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
+#endif
 
 -------------------------------------------------------------------------------
 -- Doubly linked list
