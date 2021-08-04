@@ -1,7 +1,6 @@
 -- |
--- Module      : Streamly.Benchmark.Data.ParserD
+-- Module      : Streamly.Benchmark.Data.Array.Stream
 -- Copyright   : (c) 2020 Composewell Technologies
---
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
@@ -233,6 +232,10 @@ fold s = void $ ArrayStream.fold Fold.drain s
 parseArray :: Int -> SerialT IO (Array.Array Int) -> IO ()
 parseArray value s = void $ ArrayStream.parse (drainWhile (< value)) s
 
+{-# INLINE parseArrayDLL #-}
+parseArrayDLL :: Int -> SerialT IO (Array.Array Int) -> IO ()
+parseArrayDLL value s = void $ ArrayStream.parseDLL (drainWhile (< value)) s
+
 o_1_space_serial_array ::
     Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
 o_1_space_serial_array bound arraysSmall arraysBig =
@@ -242,6 +245,10 @@ o_1_space_serial_array bound arraysSmall arraysBig =
         $ parseArray bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
         $ parseArray bound
+    , benchIO "parseDLL (of 100)" (\_ -> Stream.fromList arraysSmall)
+        $ parseArrayDLL bound
+    , benchIO "parseDLL (single)" (\_ -> Stream.fromList arraysBig)
+        $ parseArrayDLL bound
     ]
 
 -------------------------------------------------------------------------------
