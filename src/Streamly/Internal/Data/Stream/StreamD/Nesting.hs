@@ -159,6 +159,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 
 import Data.Functor.Identity ( Identity )
+#if !(MIN_VERSION_base(4,11,0))
+import Data.Semigroup (Semigroup(..))
+#endif
 
 import Data.Word (Word32)
 import Foreign.Storable (Storable(..))
