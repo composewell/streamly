@@ -481,7 +481,7 @@ joinOuter eq s1 s =
 -- /Pre-release/
 {-# INLINE joinOuterHash #-}
 joinOuterHash ::
-    (IsStream t, Ord k, MonadIO m, Monad (t m), MonadAsync  m) =>
+    (IsStream t, Ord k, MonadIO m, Monad (t m)) =>
     t m (k, a) -> t m (k, b) -> t m (k, Maybe a, Maybe b)
 joinOuterHash s1 s2 =
     Stream.concatM $ do
@@ -502,7 +502,7 @@ joinOuterHash s1 s2 =
                 if isNothing a
                 then return (k, Nothing, Just b)
                 else StreamK.nil
-        return $ mappend res1 res2
+        return $ StreamK.serial res1 res2
 
 -- | Like 'joinOuter' but works only on sorted streams.
 --
