@@ -59,7 +59,7 @@ import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Kind (Type)
 import Data.Maybe
 #if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup(<>))
+import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
