@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications  #-}
 -- |-- We use fromStreamK/toStreamK to convert the direct style stream to CPS
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Nesting-- style. In the first phase we try fusing the fromStreamK/toStreamK using:
 ---- Copyright   : (c) 2018 Composewell Technologies

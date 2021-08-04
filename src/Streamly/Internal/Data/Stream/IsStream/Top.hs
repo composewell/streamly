@@ -59,7 +59,7 @@ import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Kind (Type)
 import Data.Maybe
 #if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup(..))
+import Data.Semigroup (Semigroup(<>))
 #endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
@@ -502,7 +502,7 @@ joinOuterHash s1 s2 =
                 if isNothing a
                 then return (k, Nothing, Just b)
                 else StreamK.nil
-        return $ res1 <> res2
+        return $ mappend res1 res2
 
 -- | Like 'joinOuter' but works only on sorted streams.
 --
