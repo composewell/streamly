@@ -13,7 +13,7 @@ jobs:
       # packcheck environment variables
       LC_ALL: C.UTF-8
       BUILD: ${{ matrix.build }}
-      #GHCVER: ${{ matrix.ghc_version }}
+      GHCVER: ${{ matrix.ghc_version }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
       DISABLE_TEST: ${{ matrix.disable_test }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
