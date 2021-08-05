@@ -104,6 +104,13 @@ extra-source-files:
     test/version-bounds.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
     test/Streamly/Test/Unicode/extra/NormalizationTest.txt
+    benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Vietnamese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Deutsch.txt
+    benchmark/Streamly/Benchmark/Unicode/data/English.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Korean.txt
 
 extra-doc-files:
     CONTRIBUTING.md
