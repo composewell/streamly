@@ -859,7 +859,7 @@ lookAhead p = K.toParserK $ D.lookAhead $ K.fromParserK p
 -- * Fails - when the collecting parser fails.
 --
 -- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 2 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
--- [1, 2]
+-- [1,2]
 --
 -- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
 -- *** Exception: ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4"
