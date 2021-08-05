@@ -117,6 +117,7 @@ common bench-depends
     , containers          >= 0.5   && < 0.7
     , typed-process     >= 0.2.3 && < 0.3
     , directory         >= 1.2.2 && < 1.4
+    , filepath          >= 1.4.1 && < 1.5
     , ghc-prim          >= 0.4   && < 0.8
 
   if flag(use-gauge)
@@ -503,6 +504,12 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
+
+benchmark Unicode.Char
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Char.hs
 
 benchmark Unicode.Utf8
   import: bench-options
