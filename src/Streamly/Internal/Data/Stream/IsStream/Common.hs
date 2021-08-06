@@ -83,10 +83,12 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 -- $setup
 -- >>> :m
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
+-- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
 -- Generation
@@ -511,6 +513,10 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 -- Split stream and fold
 ------------------------------------------------------------------------------
 
+-- $
+-- > intercalate . splitOnSeq == id
+-- prop> (\f -> unsafePerformIO . Stream.toList . f . Stream.fromList) (Stream.intercalate Unfold.fromList " " .  Stream.splitOnSeq (Array.fromList " ") Fold.toList) xs == xs
+
 -- | Like 'splitOn' but the separator is a sequence of elements instead of a
 -- single element.
 --
@@ -547,12 +553,12 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 --
 -- 'splitOnSeq' is an inverse of 'intercalate'. The following law always holds:
 --
--- > intercalate . splitOn == id
+-- > intercalate . splitOnSeq == id
 --
 -- The following law holds when the separator is non-empty and contains none of
 -- the elements present in the input lists:
 --
--- > splitOn . intercalate == id
+-- > splitOnSeq . intercalate == id
 --
 -- /Pre-release/
 
