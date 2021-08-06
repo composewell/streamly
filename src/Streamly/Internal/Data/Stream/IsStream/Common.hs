@@ -82,6 +82,11 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 --
 -- $setup
 -- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Control.Monad (join)
+-- >>> import Control.Monad.Trans.Class (lift)
+-- >>> import Data.Function (fix, (&))
+-- >>> import Data.Semigroup (cycle1)
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Prelude as Stream
@@ -156,17 +161,18 @@ fromEffect = K.fromEffect
 yieldM :: (Monad m, IsStream t) => m a -> t m a
 yieldM = fromEffect
 -- |
--- @
--- repeatM = fix . consM
--- repeatM = cycle1 . fromEffect
--- @
+-- >>> repeatM = fix . consM
+-- >>> repeatM = cycle1 . fromEffect
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
 --
--- @
--- drain $ fromSerial $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
--- drain $ fromAsync  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
--- @
+-- >>> :{
+-- repeatAsync =
+--        Stream.repeatM (threadDelay 1000000 >> print 1)
+--      & Stream.take 10
+--      & Stream.fromAsync
+--      & Stream.drain
+-- :}
 --
 -- /Concurrent, infinite (do not use with 'fromParallel')/
 --
@@ -444,10 +450,10 @@ interjectSuffix n f xs = xs `Par.parallelFst` repeatM timed
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
 --
--- > reverse = S.foldlT (flip S.cons) S.nil
---
 -- | Returns the elements of the stream in reverse order.  The stream must be
 -- finite. Note that this necessarily buffers the entire stream in memory.
+--
+-- >>> reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 --
 -- /Since 0.7.0 (Monad m constraint)/
 --
@@ -480,12 +486,10 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- | Map a stream producing function on each element of the stream and then
 -- flatten the results into a single stream.
 --
--- @
--- concatMap f = 'concatMapM' (return . f)
--- concatMap = 'concatMapWith' 'Serial.serial'
--- concatMap f = 'concat . map f'
--- concatMap f = 'unfoldMany' (UF.lmap f UF.fromStream)
--- @
+-- >>> concatMap f = Stream.concatMapM (return . f)
+-- >>> concatMap f = Stream.concatMapWith Stream.serial f
+-- >>> concatMap f = Stream.concat . Stream.map f
+-- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
 --
 -- @since 0.6.0
 {-# INLINE concatMap #-}
@@ -495,11 +499,9 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 -- | Given a stream value in the underlying monad, lift and join the underlying
 -- monad with the stream monad.
 --
--- @
--- concatM = concat . fromEffect
--- concatM = concat . lift    -- requires @(MonadTrans t)@
--- concatM = join . lift      -- requires @(MonadTrans t@, @Monad (t m))@
--- @
+-- >>> concatM = Stream.concat . Stream.fromEffect
+-- >>> concatM = Stream.concat . lift    -- requires (MonadTrans t)
+-- >>> concatM = join . lift             -- requires (MonadTrans t, Monad (t m))
 --
 -- See also: 'concat', 'sequence'
 --
