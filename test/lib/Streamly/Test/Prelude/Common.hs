@@ -136,6 +136,8 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Unfold as UF
 
+import qualified Data.Map.Strict as Map
+
 import Streamly.Test.Common
 
 maxStreamLen :: Int
@@ -1498,6 +1500,37 @@ finallyProp t vec =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
+retry :: Spec
+retry = do
+    ref <- runIO $ newIORef (0 :: Int)
+    res <- runIO $ S.toList (S.retry emap handler (stream1 ref))
+    refVal <- runIO $ readIORef ref
+    spec res refVal
+
+    where
+
+    emap = Map.singleton (ExampleException "E") 10
+
+    stream1 ref =
+        S.fromListM
+            [ return 1
+            , return 2
+            , atomicModifyIORef' ref (\a -> (a + 1, ()))
+                  >> throwM (ExampleException "E")
+                  >> return 3
+            , return 4
+            ]
+
+    stream2 = S.fromList [5, 6, 7 :: Int]
+    handler = const stream2
+    expectedRes = [1, 2, 5, 6, 7]
+    expectedRefVal = 11
+
+    spec res refVal = do
+        it "Runs the exception handler properly" $ res `shouldBe` expectedRes
+        it "Runs retires the exception correctly"
+            $ refVal `shouldBe` expectedRefVal
+
 #ifdef DEVBUILD
 finallyPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
@@ -1606,12 +1639,13 @@ exceptionOps desc t = do
 #endif
     prop (desc <> " finally exception in stream") $ finallyExceptionProp t
     prop (desc <> " handle") $ handleProp t
+    retry
 
 -------------------------------------------------------------------------------
 -- Compose with MonadThrow
 -------------------------------------------------------------------------------
 
-newtype ExampleException = ExampleException String deriving (Eq, Show)
+newtype ExampleException = ExampleException String deriving (Eq, Show, Ord)
 
 instance Exception ExampleException
 
