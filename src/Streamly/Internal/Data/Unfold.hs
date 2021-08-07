@@ -112,6 +112,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Folding
     , fold
+    , foldMany
     -- pipe
 
     -- * Unfolds
@@ -175,6 +176,7 @@ module Streamly.Internal.Data.Unfold
     , discardFirst
     , discardSecond
     , swap
+    , lscanlM'
     -- coapply
     -- comonad
 
@@ -182,6 +184,7 @@ module Streamly.Internal.Data.Unfold
     , map
     , mapM
     , mapMWithInput
+    , scanlM'
 
     -- ** Either Wrapped Input
     , either
@@ -262,6 +265,7 @@ import Prelude
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Prelude as Stream
 
 -------------------------------------------------------------------------------
 -- Input operations
@@ -359,9 +363,21 @@ discardSecond = lmap fst
 swap :: Unfold m (a, c) b -> Unfold m (c, a) b
 swap = lmap Tuple.swap
 
+-- See StreamD.scanlM' for implementing this.
+--
+-- | Scan the input of an 'Unfold' to change it in a stateful manner.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL lscanlM' #-}
+lscanlM' :: -- Monad m =>
+    (b -> a -> m b) -> m b -> Unfold m b c -> Unfold m a c
+lscanlM' = undefined
+
 -------------------------------------------------------------------------------
 -- Output operations
 -------------------------------------------------------------------------------
+
+-- XXX Do we need this combinator or the stream based idiom is enough?
 
 -- | Compose an 'Unfold' and a 'Fold'. Given an @Unfold m a b@ and a
 -- @Fold m b c@, returns a monadic action @a -> m c@ representing the
@@ -369,6 +385,8 @@ swap = lmap Tuple.swap
 --
 -- >>> Unfold.fold Fold.sum Unfold.fromList [1..100]
 -- 5050
+--
+-- >>> fold f u = Stream.fold f . Stream.unfold u
 --
 -- /Pre-release/
 --
@@ -393,6 +411,13 @@ fold (Fold fstep initial extract) (Unfold ustep inject) a = do
                     FL.Done c -> return c
             Skip s -> go SPEC fs s
             Stop -> extract fs
+
+-- | Apply a fold multiple times on the output of an unfold.
+--
+-- /Unimplemented/
+foldMany :: -- Monad m =>
+    Fold m b c -> Unfold m a b -> Unfold m a c
+foldMany = undefined
 
 -- | Apply a monadic function to each element of the stream and replace it
 -- with the output of the resulting action.
@@ -427,7 +452,6 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
             Skip s    -> return $ Skip (inp, s)
             Stop      -> return Stop
 
-
 -------------------------------------------------------------------------------
 -- Either
 -------------------------------------------------------------------------------
@@ -456,6 +480,16 @@ either (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield (f x) (s, f)
             Skip s -> Skip (s, f)
             Stop -> Stop
+
+-- See StreamD.scanlM' for implementing this.
+--
+-- | Scan the output of an 'Unfold' to change it in a stateful manner.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL scanlM' #-}
+scanlM' :: -- Monad m =>
+    (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
+scanlM' = undefined
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
