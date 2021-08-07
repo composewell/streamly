@@ -34,13 +34,21 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (nilM)
+
 ------------------------------------------------------------------------------
 -- Exceptions
 ------------------------------------------------------------------------------
 
 -- | Run the action @m b@ before the stream yields its first element.
 --
--- > before action xs = 'nilM' action <> xs
+-- Same as the following but more efficient due to fusion:
+--
+-- >>> before action xs = Stream.nilM action <> xs
+-- >>> before action xs = Stream.concatMap (const xs) (Stream.fromEffect action)
 --
 -- @since 0.7.0
 {-# INLINE before #-}
