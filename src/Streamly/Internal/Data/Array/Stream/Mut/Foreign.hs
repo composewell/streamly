@@ -75,6 +75,8 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
+-- XXX This can be removed once compactLEFold/compactLE are implemented.
+--
 -- | This mutates the first array (if it has space) to append values from the
 -- second one. This would work for immutable arrays as well because an
 -- immutable array never has space so a new array is allocated instead of
@@ -132,6 +134,9 @@ packArraysChunksOf n (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
+-- XXX Remove this once compactLEFold is implemented
+-- lpackArraysChunksOf = Fold.many compactLEFold
+--
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
@@ -188,18 +193,19 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                         return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf'') r1
 
--- XXX replace by compactLE
+-- XXX Same as compactLE, to be removed once that is implemented.
 --
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
 compact n xs = D.fromStreamD $ packArraysChunksOf n (D.toStreamD xs)
 
--- XXX Replace the above functions by a compactLEFold
+-- See lpackArraysChunksOf/packArraysChunksOf to implement this.
+--
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
 -- specified size we do not split it to fit. When we coalesce multiple arrays
@@ -212,12 +218,16 @@ compactLEFold :: -- (MonadIO m, Storable a) =>
     Int -> Fold m (Array a) (Array a)
 compactLEFold = undefined
 
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size in bytes.
+--
+-- /Internal/
 compactLE :: (MonadIO m {-, Storable a-}) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
 compactLE n xs = D.fromStreamD $ D.foldMany (compactLEFold n) (D.toStreamD xs)
 
--- | Like 'compact' but generates arrays of exactly equal to the size specified
--- except for the last array in the stream which could be shorter.
+-- | Like 'compactLE' but generates arrays of exactly equal to the size
+-- specified except for the last array in the stream which could be shorter.
 --
 -- /Unimplemented/
 {-# INLINE compactEQ #-}
@@ -226,7 +236,7 @@ compactEQ :: -- (MonadIO m, Storable a) =>
 compactEQ _n _xs = undefined
     -- D.fromStreamD $ D.foldMany (compactEQFold n) (D.toStreamD xs)
 
--- | Like 'compact' but generates arrays of size greater than or equal to the
+-- | Like 'compactLE' but generates arrays of size greater than or equal to the
 -- specified except for the last array in the stream which could be shorter.
 --
 -- /Unimplemented/

@@ -203,6 +203,9 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- Compact
 -------------------------------------------------------------------------------
 
+-- XXX These would not be needed once we implement compactLEFold, see
+-- module Streamly.Internal.Data.Array.Stream.Mut.Foreign
+--
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
