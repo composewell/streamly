@@ -166,38 +166,60 @@ o_1_space_grouping value =
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
+toKvMap :: Int -> (Int, Int)
+toKvMap p = (p, p)
 
 {-# INLINE joinInner #-}
-joinInner :: MonadIO m => Int -> SerialT m Int -> m ()
-joinInner _ = S.drain . Internal.joinInner (==) (Internal.fromList [1..200])
+joinInner :: MonadIO m => SerialT m Int -> m ()
+joinInner strm = S.drain $ Internal.joinInner (==) strm strm
+
+{-# INLINE joinInnerHash #-}
+joinInnerHash :: MonadIO m => SerialT m Int -> m ()
+joinInnerHash strm = 
+    S.drain $ 
+    Internal.joinInnerHash (fmap toKvMap strm) (fmap toKvMap strm)
 
 {-# INLINE joinInnerMerge #-}
-joinInnerMerge :: MonadIO m => Int -> SerialT m Int -> m ()
-joinInnerMerge _ = S.drain . Internal.joinInnerMerge compare (Internal.fromList [1..200])
+joinInnerMerge :: MonadIO m => SerialT m Int -> m ()
+joinInnerMerge strm = S.drain $ Internal.joinInnerMerge compare strm strm
 
 {-# INLINE joinLeft #-}
-joinLeft :: MonadIO m => Int -> SerialT m Int -> m ()
-joinLeft _ = S.drain . Internal.joinLeft (==) (Internal.fromList [1..200])
+joinLeft :: MonadIO m => SerialT m Int -> m ()
+joinLeft strm = S.drain $ Internal.joinLeft (==) strm strm
+
+{-# INLINE joinLeftHash #-}
+joinLeftHash :: MonadIO m => SerialT m Int -> m ()
+joinLeftHash strm = 
+    S.drain $ 
+    Internal.joinLeftHash (fmap toKvMap strm) (fmap toKvMap strm)
 
 {-# INLINE joinLeftMerge #-}
-joinLeftMerge :: MonadIO m => Int -> SerialT m Int -> m ()
-joinLeftMerge _ = S.drain . Internal.joinLeftMerge compare (Internal.fromList [1..200])
+joinLeftMerge :: MonadIO m => SerialT m Int -> m ()
+joinLeftMerge strm = S.drain $ Internal.joinLeftMerge compare strm strm
 
 {-# INLINE joinOuter #-}
-joinOuter :: MonadIO m => Int -> SerialT m Int -> m ()
-joinOuter _ = S.drain . Internal.joinOuter (==) (Internal.fromList [1..200])
+joinOuter :: MonadIO m => SerialT m Int -> m ()
+joinOuter strm = S.drain $ Internal.joinOuter (==) strm strm
+
+{-# INLINE joinOuterHash #-}
+joinOuterHash :: MonadIO m => SerialT m Int -> m ()
+joinOuterHash strm = 
+    S.drain $ 
+    Internal.joinOuterHash (fmap toKvMap strm) (fmap toKvMap strm)
 
 {-# INLINE joinOuterMerge #-}
-joinOuterMerge :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-joinOuterMerge _ = S.drain . Internal.joinOuterMerge compare (Internal.fromList [1..200])
+joinOuterMerge :: (MonadIO m, S.MonadAsync m)=> SerialT m Int -> m ()
+joinOuterMerge strm = S.drain $ Internal.joinOuterMerge compare strm strm
 
 {-# INLINE unionBySorted #-}
 unionBySorted :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-unionBySorted n = composeN n  (Internal.unionBySorted compare (Internal.fromList [1..200]))
+unionBySorted n strm = composeN n (Internal.unionBySorted compare strm) strm
 
 {-# INLINE differenceBySorted #-}
-differenceBySorted :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-differenceBySorted n = composeN n  (Internal.differenceBySorted compare (Internal.fromList [1..20]))
+differenceBySorted :: (MonadIO m, S.MonadAsync m) => 
+    Int -> SerialT m Int -> m ()
+differenceBySorted n strm = 
+    composeN n (Internal.differenceBySorted compare strm) strm
 
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -219,15 +241,17 @@ o_n_heap_buffering value =
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
         , benchIOSink value "sortBy" (sortBy 1)
-        , benchIOSink value "joinInner" (joinInner 1)
-        --, benchIOSink value "joinInnerHash" (hashInnerJoin 1)          
-        , benchIOSink value "joinLeft" (joinLeft 1)
-        , benchIOSink value "joinOuter" (joinOuter 1)
-        , benchIOSink value "joinLeftMerge" (joinLeftMerge 1)
-        , benchIOSink value "unionBySorted" (unionBySorted 1)
-        , benchIOSink value "joinInnerMerge" (joinInnerMerge 1)
-        , benchIOSink value "joinOuterMerge" (joinOuterMerge 1)
+        , benchIOSink value "joinInner" joinInner
+        , benchIOSink value "joinInnerHash" joinInnerHash
+        , benchIOSink value "joinInnerMerge" joinInnerMerge
+        , benchIOSink value "joinLeft" joinLeft
+        , benchIOSink value "joinLeftHash" joinLeftHash
+        , benchIOSink value "joinLeftMerge" joinLeftMerge
+        , benchIOSink value "joinOuter" joinOuter
+        , benchIOSink value "joinOuterHash" joinOuterHash
+        , benchIOSink value "joinOuterMerge" joinOuterMerge
         , benchIOSink value "differenceBySorted" (differenceBySorted 1)
+        , benchIOSink value "unionBySorted" (unionBySorted 1)
         , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
 
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
@@ -443,10 +467,10 @@ o_1_space_pipes value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 1)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 1)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 1)
-
-
-
-
+#ifdef DEVBUILD
+        -- XXX this take 1 GB memory to compile
+        , benchIOSink value "zip" (transformZipMapM fromSerial 1)
+#endif
         ]
     ]
 
@@ -456,10 +480,10 @@ o_1_space_pipesX4 value =
         [ benchIOSink value "mapM" (transformMapM fromSerial 4)
         , benchIOSink value "compose" (transformComposeMapM fromSerial 4)
         , benchIOSink value "tee" (transformTeeMapM fromSerial 4)
-
-
-
-
+#ifdef DEVBUILD
+        -- XXX this take 1 GB memory to compile
+        , benchIOSink value "zip" (transformZipMapM fromSerial 4)
+#endif
         ]
     ]
 

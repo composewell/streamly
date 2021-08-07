@@ -45,7 +45,6 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , joinOuter
     , joinOuterHash
     , joinOuterMerge
-    , joinRightMerge
     )
 where
 
@@ -270,7 +269,7 @@ crossJoin s1 s2 = do
 joinInner ::
     forall (t :: (Type -> Type) -> Type -> Type) m a b.
     (IsStream t, Monad (t m)) =>
-        (a -> b -> Bool) -> t m a -> t m b -> t m (a, b)
+    (a -> b -> Bool) -> t m a -> t m b -> t m (a, b)
 joinInner eq s1 s2 = do
     -- XXX use concatMap instead?
     a <- s1
@@ -297,14 +296,14 @@ joinInnerHash :: (IsStream t, Monad m, Monad (t m), Ord k) =>
 joinInnerHash s1 s2 =
     Stream.concatM $ do
         l2 <- Stream.fold (Fold.classify Fold.toList) $ StreamK.adapt s2
-        return $ do
-            (k, a) <- s1
-            let b = k `Map.lookup` l2
-            if isJust b
-            then do
-                val <- Stream.fromList (fromJust b)
-                return (k, a, val)
-            else StreamK.nil
+        let res = do
+                (k, a) <- s1
+                case k `Map.lookup` l2 of
+                    Just b -> do
+                        val <- Stream.fromList b
+                        return (k, a, val)
+                    Nothing -> StreamK.nil
+        return res
 
 -- | Like 'joinInner' but works only on sorted streams.
 --
@@ -367,7 +366,7 @@ joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
             else StreamK.nil
         Nothing -> return (a, Nothing)
 
--- | Like 'joinOuter' but uses a hashmap for efficiency.
+-- | Like 'joinLeft' but uses a hashmap for efficiency.
 --
 -- Space: O(n)
 --
@@ -382,12 +381,11 @@ joinLeftHash s1 s2 =
         l2 <- Stream.fold (Fold.classify Fold.toList) $ StreamK.adapt s2
         let res = do
                 (k, a) <- s1
-                let b = k `Map.lookup` l2
-                if isJust b
-                then do
-                    val <- Stream.fromList (fromJust b)
-                    return (k, a, Just val)
-                else return (k, a, Nothing)
+                case k `Map.lookup` l2 of
+                    Just b -> do
+                        val <- Stream.fromList b
+                        return (k, a, Just val)
+                    Nothing -> return (k, a, Nothing)
         return res
 
 -- | Like 'joinLeft' but works only on sorted streams.
@@ -402,12 +400,6 @@ joinLeftMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
     (a -> b -> Ordering) -> t m a -> t m b -> t m (a, Maybe b)
 joinLeftMerge eq s1 =
     fromStreamD . StreamD.joinLeftMerge eq (toStreamD s1) . toStreamD
-
-{-# INLINE joinRightMerge #-}
-joinRightMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
-    (a -> b -> Ordering) -> t m b -> t m a -> t m (Maybe b, a)
-joinRightMerge eq s1 =
-    fromStreamD . StreamD.joinRightMerge eq (toStreamD s1) . toStreamD
 
 -- XXX We can do this concurrently.
 --
@@ -490,18 +482,17 @@ joinOuterHash s1 s2 =
 
         let res1 = do
                 (k, a) <- s1
-                let b = k `Map.lookup` m2
-                if isJust b
-                then do
-                    val <- Stream.fromList (fromJust b)
-                    return (k, Just a, Just val)
-                else return (k, Just a, Nothing)
-        let res2 = do
+                case k `Map.lookup` m2 of
+                    Just b -> do
+                        val <- Stream.fromList b
+                        return (k, Just a, Just val)
+                    Nothing -> return (k, Just a, Nothing)
+            res2 = do
                 (k, b) <- s2
-                let a = k `Map.lookup` m1
-                if isNothing a
-                then return (k, Nothing, Just b)
-                else StreamK.nil
+                case k `Map.lookup` m1 of
+                    Just _ -> StreamK.nil
+                    Nothing -> return (k, Nothing, Just b)
+
         return $ StreamK.serial res1 res2
 
 -- | Like 'joinOuter' but works only on sorted streams.
@@ -662,6 +653,6 @@ unionBy eq s1 s2 =
 --
 -- /Pre-release/
 {-# INLINE unionBySorted #-}
-unionBySorted :: (IsStream t, MonadAsync m, Semigroup (t m a)) =>
+unionBySorted :: (IsStream t, MonadAsync m, Ord a) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
-unionBySorted eq s1 s2 = s1 <> Stream.removeDupsRight eq s1 s2
+unionBySorted cmp s1 =  fromStreamD . StreamD.unionBySorted cmp (toStreamD s1) . toStreamD
