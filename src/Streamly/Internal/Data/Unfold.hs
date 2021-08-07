@@ -410,7 +410,6 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
             Skip s    -> return $ Skip (inp, s)
             Stop      -> return Stop
 
-
 -------------------------------------------------------------------------------
 -- Either
 -------------------------------------------------------------------------------
@@ -439,6 +438,16 @@ either (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield (f x) (s, f)
             Skip s -> Skip (s, f)
             Stop -> Stop
+
+-- See StreamD.scanlM' for implementing this.
+--
+-- | Scan the output of an 'Unfold' to change it in a stateful manner.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL scanlM' #-}
+scanlM' :: -- Monad m =>
+    (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
+scanlM' = undefined
 
 -------------------------------------------------------------------------------
 -- Either
