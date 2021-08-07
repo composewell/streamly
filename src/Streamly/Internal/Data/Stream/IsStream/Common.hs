@@ -313,6 +313,8 @@ scanlMAfter' step initial done stream =
 -- XXX this needs to be concurrent
 -- | Like 'postscanl'' but with a monadic step function and a monadic seed.
 --
+-- >>> postscanlM' f z xs = Stream.drop 1 $ Stream.scanlM' f z xs
+--
 -- /Since: 0.7.0/
 --
 -- /Since: 0.8.0 (signature change)/

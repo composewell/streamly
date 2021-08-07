@@ -158,7 +158,7 @@ jobs:
           cabal update
           cabal build all
           $HOME/.cabal/bin/cabal-docspec --version
-          $HOME/.cabal/bin/cabal-docspec --timeout 60
+          $HOME/.cabal/bin/cabal-docspec --timeout 60 --check-properties --property-variables xs
         elif test -z "$COVERAGE"
         then
           export TOOLS_DIR=/opt
