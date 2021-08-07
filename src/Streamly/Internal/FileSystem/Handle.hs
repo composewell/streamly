@@ -9,15 +9,24 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- The fundamental singleton APIs are 'getChunk' and 'putChunk' and the
--- fundamental stream APIs built on top of those are 'readChunksWithBufferOf'
--- and 'writeChunks'. Rest of this module is just combinatorial programming
--- using these.
+-- The fundamental singleton IO APIs are 'getChunk' and 'putChunk' and the
+-- fundamental stream IO APIs built on top of those are
+-- 'readChunksWithBufferOf' and 'writeChunks'. Rest of this module is just
+-- combinatorial programming using these.
 
+-- TODO: Need a separate module for pread/pwrite based reading writing for
+-- seekable devices.  Stateless read/write can be helpful in multithreaded
+-- applications.
+--
 module Streamly.Internal.FileSystem.Handle
     (
-    -- ** Read from Handle
-      read
+    -- * Singleton APIs
+      getChunk
+    , getChunkOf
+    , putChunk
+
+    -- * Byte Stream Read
+    , read
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -26,16 +35,14 @@ module Streamly.Internal.FileSystem.Handle
     , toBytes
     , toBytesWithBufferOf
 
-    -- -- * Array Read
-    , getChunk
-    -- , readArrayOf
+    -- * Chunked Stream Read
     , readChunks
     , readChunksWithBufferOf
 
     , toChunksWithBufferOf
     , toChunks
 
-    -- ** Write to Handle
+    -- * Byte Stream Write
     -- Byte stream write (Folds)
     , write
     , write2
@@ -45,25 +52,22 @@ module Streamly.Internal.FileSystem.Handle
     -- , writeLines
     , writeWithBufferOf
 
-    -- Byte stream write (Streams)
     , putBytes
     , putBytesWithBufferOf
 
-    -- -- * Array Write
-    , putChunk
+    -- * Chunked Stream Write
     , writeChunks
     , writeChunksWithBufferOf
 
-    -- -- * Array stream Write
     , putChunksWithBufferOf
     , putChunks
 
-    -- -- * Random Access (Seek)
-    -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
+    -- * Random Access (Seek)
+    -- | Unlike the streaming APIs listed above, these APIs apply to devices or
     -- files that have random access or seek capability.  This type of devices
     -- include disks, files, memory devices and exclude terminals, pipes,
     -- sockets and fifos.
-    --
+
     -- We can also generate the request pattern using a funciton.
     --
     -- , readIndex
@@ -76,7 +80,7 @@ module Streamly.Internal.FileSystem.Handle
 
     -- , readChunksFrom
     -- , readChunksFromTo
-    -- , readChunksFromToWith
+    , readChunksFromToWith
     -- , readChunksFromThenToWith
 
     -- , writeIndex
@@ -154,13 +158,16 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 
--- | Read a 'ByteArray' from a file handle. If no data is available on the
--- handle it blocks until some data becomes available. If data is available
--- then it immediately returns that data without blocking. It reads a maximum
--- of up to the size requested.
+-- | Read a 'ByteArray' consisting of one or more bytes from a file handle. If
+-- no data is available on the handle it blocks until at least one byte becomes
+-- available. If any data is available then it immediately returns that data
+-- without blocking. As a result of this behavior, it may read less than or
+-- equal to the size requested.
+--
+-- @since 0.8.1
 {-# INLINABLE getChunk #-}
-getChunk :: Int -> Handle -> IO (Array Word8)
-getChunk size h = do
+getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
+getChunk size h = liftIO $ do
     ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
@@ -169,6 +176,18 @@ getChunk size h = do
         return $
             unsafeFreezeWithShrink $
             mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
+
+-- This could be useful in implementing the "reverse" read APIs or if you want
+-- to read arrays of exact size instead of compacting them later. Compacting
+-- later requires more copying.
+--
+-- | Read a 'ByteArray' consisting of exactly the specified number of bytes
+-- from a file handle.
+--
+-- /Unimplemented/
+{-# INLINABLE getChunkOf #-}
+getChunkOf :: Int -> Handle -> IO (Array Word8)
+getChunkOf = undefined
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -184,7 +203,7 @@ _toChunksWithBufferOf size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
-        arr <- liftIO $ getChunk size h
+        arr <- getChunk size h
         if A.length arr == 0
         then stp
         else yld arr go
@@ -203,7 +222,7 @@ toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
-        arr <- liftIO $ getChunk size h
+        arr <- getChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -221,11 +240,26 @@ readChunksWithBufferOf = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
-        arr <- liftIO $ getChunk size h
+        arr <- getChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
                 _ -> D.Yield arr (size, h)
+
+-- There are two ways to implement this.
+--
+-- 1. Idiomatic: use a scan on the output of readChunksWithBufferOf to total
+-- the array lengths and trim the last array to correct size.
+-- 2. Simply implement it from scratch like readChunksWithBufferOf.
+--
+-- | The input to the unfold is @(from, to, bufferSize, handle)@. It starts
+-- reading from the offset `from` in the file and reads up to the offset `to`.
+--
+--
+{-# INLINE_NORMAL readChunksFromToWith #-}
+readChunksFromToWith :: -- MonadIO m =>
+    Unfold m (Int, Int, Int, Handle) (Array Word8)
+readChunksFromToWith = undefined
 
 -- XXX read 'Array a' instead of Word8
 --
@@ -316,7 +350,7 @@ toBytes = AS.concat . toChunks
 
 -- | Write an 'Array' to a file handle.
 --
--- @since 0.7.0
+-- @since 0.8.1
 {-# INLINABLE putChunk #-}
 putChunk :: (MonadIO m, Storable a) => Handle -> Array a -> m ()
 putChunk _ arr | A.length arr == 0 = return ()
