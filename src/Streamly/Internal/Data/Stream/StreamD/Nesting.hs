@@ -151,7 +151,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     )
 where
 
-
+#include "inline.hs"
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -580,7 +580,7 @@ joinRightMerge cmp s1 s2 = fmap (\(a,b) -> (b,a)) (joinLeftMerge cmp s2 s1)
 -- Difference of sorted streams -----------------------------------------------
 -------------------------------------------------------------------------------
 {-# INLINE_NORMAL differenceBySorted #-}
-differenceBySorted :: (Monad m) => 
+differenceBySorted :: (Monad m) =>
     (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
@@ -608,23 +608,23 @@ differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
         r1 <- stepa gst sa
         r2 <- stepb gst sb
         return $ case r1 of
-            Yield a sa' -> 
+            Yield a sa' ->
                 case r2 of
-                    Yield c sb' -> 
+                    Yield c sb' ->
                         Skip (Just sa', Just sb', Just a, Just c, Nothing)
-                    Skip sb' -> 
+                    Skip sb' ->
                         Skip (Just sa', Just sb', Just a, Just a, Nothing)
-                    Stop -> 
+                    Stop ->
                         Yield a (Just sa', Just sb, Nothing, Nothing, Just a)
-            Skip sa' -> 
+            Skip sa' ->
                 case r2 of
-                    Yield c sb' -> 
+                    Yield c sb' ->
                         Skip (Just sa', Just sb', Just c, Just c, Nothing)
-                    Skip sb' -> 
+                    Skip sb' ->
                         Skip (Just sa', Just sb', Nothing, Nothing, Nothing)
-                    Stop -> 
+                    Stop ->
                         Stop
-            Stop -> 
+            Stop ->
                 Stop
 
     -- both the values are available
@@ -641,8 +641,8 @@ differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     step _ (_, _, _, _, _) = return Stop
 
 -------------------------------------------------------------------------------
--- Remove the matching element from left and duplicates inside right stream 
--- > removeDupsAll compare (fromList [5]) (fromList [2,3,4,4,5]) 
+-- Remove the matching element from left and duplicates inside right stream
+-- > removeDupsAll compare (fromList [5]) (fromList [2,3,4,4,5])
 -- > [2,3,4]
 
 {-# INLINE_NORMAL removeDupsAll #-}
@@ -650,8 +650,8 @@ removeDupsAll
     ::(MonadIO m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
-    Stream 
-    step 
+    Stream
+    step
     ( Just ta       -- state of left stream
     , Just tb       -- state of right stream
     , Nothing       -- current element of left stream
@@ -667,11 +667,11 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p1"
         r <- stepa gst sa
         return $ case r of
-            Yield a' sa' -> 
+            Yield a' sa' ->
                 Skip (Just sa', sb, Just a', Nothing, Just a', pb, RightRun)
-            Skip sa' -> 
+            Skip sa' ->
                 Skip (Just sa', sb, Nothing, Nothing, pa, pb, RightRun)
-            Stop -> 
+            Stop ->
                 Skip (Nothing, sb, Nothing, Nothing, pa, pb, RightRun)
 
     --  step 2 both stream has data pull from right stream and
@@ -680,11 +680,11 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p2"
         r <- stepb gst sb
         return $ case r of
-            Yield b' sb' -> 
-                Skip (Just sa, Just sb', a, Just b', pa, Just b', CompareRun) 
-            Skip sb' -> 
+            Yield b' sb' ->
+                Skip (Just sa, Just sb', a, Just b', pa, Just b', CompareRun)
+            Skip sb' ->
                 Skip (Nothing, Just sb', Nothing, b, pa, Nothing, RightRun)
-            Stop -> 
+            Stop ->
                 Stop
 
     -- step 3 left stream is finished
@@ -692,14 +692,14 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p3"
         r <- stepb gst sb
         return $ case r of
-            Yield b' sb' -> 
-                Yield 
-                    b' 
+            Yield b' sb' ->
+                Yield
+                    b'
                     (Nothing, Just sb', Nothing, Just b', pa, Just b', RightRun)
-            Skip sb' -> 
-                Skip 
+            Skip sb' ->
+                Skip
                     (Nothing, Just sb', Nothing, b, pa, Nothing, RightRun)
-            Stop -> 
+            Stop ->
                 Stop
 
     -- step 4 left stream is finished
@@ -707,11 +707,11 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p4"
         r <- stepb gst sb
         return $ case r of
-            Yield b' sb' -> 
-                Skip (Nothing, Just sb', a, Just b', pa, pb, CompareRun) 
-            Skip sb' -> 
+            Yield b' sb' ->
+                Skip (Nothing, Just sb', a, Just b', pa, pb, CompareRun)
+            Skip sb' ->
                 Skip (Nothing, Just sb', Nothing, b, pa, Nothing, RightRun)
-            Stop -> 
+            Stop ->
                 Stop
 
     -- step 5 both stream has data pull from right stream and in next step
@@ -720,11 +720,11 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p5"
         r <- stepb gst sb
         return $ case r of
-            Yield b' sb' -> 
+            Yield b' sb' ->
                 Skip(Just sa, Just sb', a, Just b', pa, pb, CompareDupRun)
-            Skip sb' -> 
+            Skip sb' ->
                 Skip (Nothing, Just sb', Nothing, b, pa, Nothing, RightRun)
-            Stop -> 
+            Stop ->
                 Stop
 
     -- step 6 compare b with previous b to remove duplicates from right stream
@@ -748,22 +748,22 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
         liftIO $ print "p8"
         let res = cmp a b
         return $ case res of
-            LT -> Skip (sa, sb, Just a, Just b, pa, pb, LeftRun) 
-            EQ -> Skip (sa, sb, Just a, Just b, pa, pb, RightRun) 
-            GT -> Yield b (sa, sb, Just a, Just b, pa, Just b, RightDupRun) 
+            LT -> Skip (sa, sb, Just a, Just b, pa, pb, LeftRun)
+            EQ -> Skip (sa, sb, Just a, Just b, pa, pb, RightRun)
+            GT -> Yield b (sa, sb, Just a, Just b, pa, Just b, RightDupRun)
 
-    -- step 9 pull the data from left stream to compare next data 
+    -- step 9 pull the data from left stream to compare next data
     -- from right stream
     step gst (Just sa, Just sb, Just a, Just b, pa, pb, LeftRun) = do
         liftIO $ print "p9"
         r <- stepa gst sa
         return $ case r of
-            Yield a' sa' -> 
-                Skip(Just sa', Just sb, Just a', Just b, Just a, pb, CompareRun) 
-            Skip sa' -> 
+            Yield a' sa' ->
+                Skip(Just sa', Just sb, Just a', Just b, Just a, pb, CompareRun)
+            Skip sa' ->
                 Skip (Just sa', Just sb, Nothing, Nothing, pa, pb, RightRun)
-            Stop -> 
-                Yield b (Nothing, Just sb, Nothing, Nothing, pa, pb, RightRun) 
+            Stop ->
+                Yield b (Nothing, Just sb, Nothing, Nothing, pa, pb, RightRun)
 
     step _ (_, _, _, _, _, _, _) = do
         liftIO $ print "p10"
@@ -4281,7 +4281,7 @@ joinLeftMerge cmp (Stream stepa ta) (Stream stepb tb) =
                     , 0
                     )
 
-    -- step 9 pull the data from left stream to compare next data 
+    -- step 9 pull the data from left stream to compare next data
     -- from right stream
     step
         gst
@@ -4316,7 +4316,7 @@ joinLeftMerge cmp (Stream stepa ta) (Stream stepb tb) =
             Stop ->
                 Stop
 
-    -- step 11 pull the data from left stream to compare next data 
+    -- step 11 pull the data from left stream to compare next data
     -- from right stream
     step
         gst
