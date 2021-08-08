@@ -197,14 +197,14 @@ data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 -- the number of streams being composed increases this may become expensive.
 -- Need to see where the breaking point is between the two.
 --
-{-# INLINE [1] append #-}
+{-# INLINE_NORMAL append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append (Stream step1 state1) (Stream step2 state2) =
     Stream step (AppendFirst state1)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (AppendFirst st) = do
         r <- step1 gst st
         return $ case r of
@@ -226,14 +226,14 @@ append (Stream step1 state1) (Stream step2 state2) =
 data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
     | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
 
-{-# INLINE [1] interleave #-}
+{-# INLINE_NORMAL interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -262,14 +262,14 @@ interleave (Stream step1 state1) (Stream step2 state2) =
             Skip s -> Skip (InterleaveSecondOnly s)
             Stop -> Stop
 
-{-# INLINE [1] interleaveMin #-}
+{-# INLINE_NORMAL interleaveMin #-}
 interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveMin (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -287,14 +287,14 @@ interleaveMin (Stream step1 state1) (Stream step2 state2) =
     step _ (InterleaveFirstOnly _) =  undefined
     step _ (InterleaveSecondOnly _) =  undefined
 
-{-# INLINE [1] interleaveSuffix #-}
+{-# INLINE_NORMAL interleaveSuffix #-}
 interleaveSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveSuffix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -325,14 +325,14 @@ data InterleaveInfixState s1 s2 a
     | InterleaveInfixFirstYield s1 s2 a
     | InterleaveInfixFirstOnly s1
 
-{-# INLINE [1] interleaveInfix #-}
+{-# INLINE_NORMAL interleaveInfix #-}
 interleaveInfix :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveInfix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveInfixFirst state1 state2)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterleaveInfixFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -368,14 +368,14 @@ interleaveInfix (Stream step1 state1) (Stream step2 state2) =
 -- Scheduling
 ------------------------------------------------------------------------------
 
-{-# INLINE [1] roundRobin #-}
+{-# INLINE_NORMAL roundRobin #-}
 roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
 roundRobin (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterleaveFirst st1 st2) = do
         r <- step1 gst st1
         return $ case r of
@@ -408,12 +408,12 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 -- Zipping
 ------------------------------------------------------------------------------
 
-{-# INLINE [1] zipWithM #-}
+{-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
   where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (sa, sb, Nothing) = do
         r <- stepa (adaptState gst) sa
         return $
@@ -444,14 +444,14 @@ zipWith f = zipWithM (\a b -> return (f a b))
 -- Merging
 ------------------------------------------------------------------------------
 
-{-# INLINE [1] mergeByM #-}
+{-# INLINE_NORMAL mergeByM #-}
 mergeByM
     :: (Monad m)
     => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing)
   where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- one of the values is missing, and the corresponding stream is running
     step gst (Just sa, sb, Nothing, b) = do
@@ -513,7 +513,7 @@ data RunOrder
 -------------------------------------------------------------------------------
 -- Intersection of sorted streams ---------------------------------------------
 -------------------------------------------------------------------------------
-{-# INLINE [1] intersectBySorted #-}
+{-# INLINE_NORMAL intersectBySorted #-}
 intersectBySorted
     :: (MonadIO m, Eq a)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
@@ -521,7 +521,7 @@ intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
 
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- step 1
     step gst (Just sa, sb, Nothing, b, Nothing) = do
@@ -570,7 +570,7 @@ intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
 -------------------------------------------------------------------------------
 -- Right Join of sorted streams -----------------------------------------------
 -------------------------------------------------------------------------------
-{-# INLINE [1] joinRightMerge #-}
+{-# INLINE_NORMAL joinRightMerge #-}
 joinRightMerge
     :: (MonadIO m,  Eq a, Eq b)
     => (a -> b -> Ordering) -> Stream m b -> Stream m a -> Stream m (Maybe b, a)
@@ -579,14 +579,14 @@ joinRightMerge cmp s1 s2 = fmap (\(a,b) -> (b,a)) (joinLeftMerge cmp s2 s1)
 -------------------------------------------------------------------------------
 -- Difference of sorted streams -----------------------------------------------
 -------------------------------------------------------------------------------
-{-# INLINE [1] differenceBySorted #-}
+{-# INLINE_NORMAL differenceBySorted #-}
 differenceBySorted :: (Monad m) => 
     (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
 
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- one of the values is missing, and the corresponding stream is running
     step gst (Just sa, sb, Nothing, b, Nothing) = do
@@ -645,7 +645,7 @@ differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
 -- > removeDupsAll compare (fromList [5]) (fromList [2,3,4,4,5]) 
 -- > [2,3,4]
 
-{-# INLINE [1] removeDupsAll #-}
+{-# INLINE_NORMAL removeDupsAll #-}
 removeDupsAll
     ::(MonadIO m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
@@ -661,7 +661,7 @@ removeDupsAll cmp (Stream stepa ta) (Stream stepb tb) =
     , LeftRun       -- Stream run indicator
     )
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, LeftRun) = do
         liftIO $ print "p1"
@@ -795,12 +795,12 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 --
-{-# INLINE [1] unfoldManyInterleave #-}
+{-# INLINE_NORMAL unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
@@ -848,12 +848,12 @@ unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
 --
 -- Compared to unfoldManyInterleave this one switches streams on Skips.
 --
-{-# INLINE [1] unfoldManyRoundRobin #-}
+{-# INLINE_NORMAL unfoldManyRoundRobin #-}
 unfoldManyRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyRoundRobin (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
@@ -911,7 +911,7 @@ data InterposeSuffixState s1 i1 =
 -- effect only if at least one element has been yielded by the unfolding.
 -- However, that becomes a bit complicated, so we have chosen the former
 -- behvaior for now.
-{-# INLINE [1] interposeSuffix #-}
+{-# INLINE_NORMAL interposeSuffix #-}
 interposeSuffix
     :: Monad m
     => m c -> Unfold m b c -> Stream m b -> Stream m c
@@ -922,7 +922,7 @@ interposeSuffix
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterposeSuffixFirst s1) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -966,7 +966,7 @@ data InterposeState s1 i1 a =
 
 -- Note that this only interposes the pure values, we may run many effects to
 -- generate those values as some effects may not generate anything (Skip).
-{-# INLINE [1] interpose #-}
+{-# INLINE_NORMAL interpose #-}
 interpose :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
 interpose
     action
@@ -975,7 +975,7 @@ interpose
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (InterposeFirst s1) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1059,7 +1059,7 @@ data ICUState s1 s2 i1 i2 =
 -- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
 -- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
 --
-{-# INLINE [1] gintercalateSuffix #-}
+{-# INLINE_NORMAL gintercalateSuffix #-}
 gintercalateSuffix
     :: Monad m
     => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
@@ -1070,7 +1070,7 @@ gintercalateSuffix
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (ICUFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1145,7 +1145,7 @@ data ICALState s1 s2 i1 i2 a =
 -- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
 -- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
 --
-{-# INLINE [1] gintercalate #-}
+{-# INLINE_NORMAL gintercalate #-}
 gintercalate
     :: Monad m
     => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
@@ -1156,7 +1156,7 @@ gintercalate
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (ICALFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
         case r of
@@ -1262,7 +1262,7 @@ data FIterState s f m a b
     | FIterYield b (FIterState s f m a b)
     | FIterStop
 
-{-# INLINE [1] foldIterateM #-}
+{-# INLINE_NORMAL foldIterateM #-}
 foldIterateM ::
        Monad m => (b -> m (FL.Fold m a b)) -> b -> Stream m a -> Stream m b
 foldIterateM func seed0 (Stream step state) =
@@ -1279,7 +1279,7 @@ foldIterateM func seed0 (Stream step state) =
                   FL.Partial fs -> FIterStream st fstep fs extract
                   FL.Done fb -> FIterYield fb $ FIterInit st fb
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ (FIterInit st seed) = do
         (FL.Fold fstep initial extract) <- func seed
         iterStep initial st fstep extract
@@ -1307,7 +1307,7 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
-{-# INLINE [1] parseMany #-}
+{-# INLINE_NORMAL parseMany #-}
 parseMany
     :: MonadThrow m
     => PRD.Parser m a b
@@ -1318,7 +1318,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
 
     where
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     -- Buffer is empty, get the first element from the stream, initialize the
     -- fold and then go to stream processing loop.
     stepOuter gst (ParseChunksInit [] st) = do
@@ -1427,7 +1427,7 @@ data ConcatParseState b inpBuf st p m a =
     | forall s. ConcatParseBuf inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m b)
     | ConcatParseYield b (ConcatParseState b inpBuf st p m a)
 
-{-# INLINE [1] parseIterate #-}
+{-# INLINE_NORMAL parseIterate #-}
 parseIterate
     :: MonadThrow m
     => (b -> PRD.Parser m a b)
@@ -1439,7 +1439,7 @@ parseIterate func seed (Stream step state) =
 
     where
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     -- Buffer is empty, go to stream processing loop
     stepOuter _ (ConcatParseInit [] st (PRD.Parser pstep initial extract)) = do
         res <- initial
@@ -1543,7 +1543,7 @@ data GroupByState st fs a b
     | GroupingYield !b (GroupByState st fs a b)
     | GroupingDone
 
-{-# INLINE [1] groupsBy #-}
+{-# INLINE_NORMAL groupsBy #-}
 groupsBy :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
@@ -1557,7 +1557,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
 
     where
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ (GroupingInit st) = do
         -- XXX Note that if the stream stops without yielding a single element
         -- in the group we discard the "initial" effect.
@@ -1627,7 +1627,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
     stepOuter _ (GroupingYield _ _) = error "groupsBy: Unreachable"
     stepOuter _ GroupingDone = return Stop
 
-{-# INLINE [1] groupsRollingBy #-}
+{-# INLINE_NORMAL groupsRollingBy #-}
 groupsRollingBy :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
@@ -1641,7 +1641,7 @@ groupsRollingBy cmp (Fold fstep initial done) (Stream step state) =
 
     where
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ (GroupingInit st) = do
         -- XXX Note that if the stream stops without yielding a single element
         -- in the group we discard the "initial" effect.
@@ -1738,14 +1738,14 @@ data WordsByState st fs b
     | WordsByDone
     | WordsByYield !b (WordsByState st fs b)
 
-{-# INLINE [1] wordsBy #-}
+{-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsBy predicate (Fold fstep initial done) (Stream step state) =
     Stream stepOuter (WordsByInit state)
 
     where
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ (WordsByInit st) = do
         res <- initial
         return
@@ -1853,7 +1853,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState rb rh ck w fs s b x)
 
-{-# INLINE [1] splitOnSeq #-}
+{-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Array a
@@ -1904,7 +1904,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     yieldProceed nextGen fs =
         initial >>= skip . SplitOnSeqYield fs . nextAfterInit nextGen
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ SplitOnSeqInit = do
         res <- initial
         case res of
@@ -2166,7 +2166,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
     | SplitOnSuffixSeqReinit
           (fs -> SplitOnSuffixSeqState rb rh ck w fs s b x)
 
-{-# INLINE [1] splitOnSuffixSeq #-}
+{-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Bool
@@ -2237,7 +2237,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     skip = return . Skip
 
-    {-# INLINE [0] stepOuter #-}
+    {-# INLINE_LATE stepOuter #-}
     stepOuter _ SplitOnSuffixSeqInit = do
         res <- initial
         case res of
@@ -2524,7 +2524,7 @@ data SplitState s arr
 -- We can revisit this once we have partial folds/parsers.
 --
 -- | Performs infix separator style splitting.
-{-# INLINE [1] splitInnerBy #-}
+{-# INLINE_NORMAL splitInnerBy #-}
 splitInnerBy
     :: Monad m
     => (f a -> m (f a, Maybe (f a)))  -- splitter
@@ -2536,7 +2536,7 @@ splitInnerBy splitter joiner (Stream step1 state1) =
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (SplitInitial st) = do
         r <- step1 gst st
         case r of
@@ -2570,7 +2570,7 @@ splitInnerBy splitter joiner (Stream step1 state1) =
     step _ SplitFinishing = return Stop
 
 -- | Performs infix separator style splitting.
-{-# INLINE [1] splitInnerBySuffix #-}
+{-# INLINE_NORMAL splitInnerBySuffix #-}
 splitInnerBySuffix
     :: (Monad m, Eq (f a), Monoid (f a))
     => (f a -> m (f a, Maybe (f a)))  -- splitter
@@ -2582,7 +2582,7 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
     step gst (SplitInitial st) = do
         r <- step1 gst st
         case r of
@@ -2622,7 +2622,7 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
 -- Union of two sorted streams
 -------------------------------------------------------------------------------
 
-{-# INLINE [1] unionBySorted #-}
+{-# INLINE_NORMAL unionBySorted #-}
 unionBySorted :: (MonadIO m, Ord a) =>
     (a -> a -> Ordering)
     -> Stream m a
@@ -2641,7 +2641,7 @@ unionBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     )
 
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- Initial step when left stream could be empty
     step
@@ -3095,7 +3095,7 @@ unionBySorted cmp (Stream stepa ta) (Stream stepb tb) =
 -- reset to 0 once an element from left stream is done so that next matching
 -- element from left stream again start with index 0.
 
-{-# INLINE [1] joinInnerMerge #-}
+{-# INLINE_NORMAL joinInnerMerge #-}
 joinInnerMerge
     :: (MonadIO m,  Eq a, Eq b)
     => (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
@@ -3115,7 +3115,7 @@ joinInnerMerge cmp (Stream stepa ta) (Stream stepb tb) =
 
     where
 
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- step 1 : Initial Step when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, LeftRun, idx) =
@@ -3496,7 +3496,7 @@ joinInnerMerge cmp (Stream stepa ta) (Stream stepb tb) =
 -- Outer Join sorted streams --------------------------------------------------
 -------------------------------------------------------------------------------
 
-{-# INLINE [1] joinOuterMerge #-}
+{-# INLINE_NORMAL joinOuterMerge #-}
 joinOuterMerge :: (MonadIO m, Eq a, Eq b) =>
     (a -> b -> Ordering)
     -> Stream m a
@@ -3508,7 +3508,7 @@ joinOuterMerge cmp (Stream stepa ta) (Stream stepb tb) =
     (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, LeftRun, 0)
 
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- step 1 when left stream could be  empty
     step gst (Just sa, Just sb, Nothing, Nothing, pa, pb, _, LeftRun, idx) =
@@ -3940,7 +3940,7 @@ joinOuterMerge cmp (Stream stepa ta) (Stream stepb tb) =
 -------------------------------------------------------------------------------
 -- Left Join of sored streams -------------------------------------------------
 -------------------------------------------------------------------------------
-{-# INLINE [1] joinLeftMerge #-}
+{-# INLINE_NORMAL joinLeftMerge #-}
 joinLeftMerge :: (MonadIO m, Eq a, Eq b) =>
     (a -> b -> Ordering)
     -> Stream m a -> Stream m b
@@ -3951,7 +3951,7 @@ joinLeftMerge cmp (Stream stepa ta) (Stream stepb tb) =
     (Just ta, Just tb, Nothing, Nothing, Nothing, Nothing, Nothing, LeftRun, 0)
 
     where
-    {-# INLINE [0] step #-}
+    {-# INLINE_LATE step #-}
 
     -- step 1 when left stream could be  empty
     step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, LeftRun, idx) = do
