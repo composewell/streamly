@@ -104,6 +104,8 @@ module Streamly.Internal.FileSystem.Event.Linux
     , watch
     , watchTreesWith
     , watchTrees
+    , watchPaths
+    , watchPathsWith
     , addToWatch
     , removeFromWatch
 
@@ -170,8 +172,6 @@ import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Array.Storable.Foreign.Types (Array(..))
-import System.FilePath ((</>))
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import System.IO (Handle, hClose, IOMode(ReadMode))
 #if !MIN_VERSION_base(4,10,0)
@@ -854,9 +854,9 @@ watchToStream cfg wt@(Watch handle _) = do
 -- 'Word8'.
 --
 -- @
--- watch 
+-- watch
 --      True
---      ('setFollowSymLinks' On . 'setUnwatchMoved' Off) 
+--      ('setFollowSymLinks' On . 'setUnwatchMoved' Off)
 --      defaultConfig
 --      [Array.fromCString\# "dir"#]
 -- @
