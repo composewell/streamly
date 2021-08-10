@@ -90,7 +90,12 @@ import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = P.fromStreamS $ S.zipWithM f (P.toStreamS m1) (P.toStreamS m2)
 
--- | Zip two streams serially using a pure zipping function.
+-- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
+-- elements @a@ and @b@ are then zipped using the supplied zip function and the
+-- result @c@ is yielded to the consumer.
+--
+-- If stream @a@ or stream @b@ ends, the zipped stream ends. If stream @b@ ends
+-- first, the element @a@ from previous evaluation of stream @a@ is discarded.
 --
 -- @
 -- > S.toList $ S.zipWith (+) (S.fromList [1,2,3]) (S.fromList [4,5,6])
@@ -106,8 +111,7 @@ zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
 -- Parallel Zipping
 ------------------------------------------------------------------------------
 
--- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
+-- | Like 'zipAsyncWith' but with a monadic zipping function.
 --
 -- @since 0.4.0
 {-# INLINE zipAsyncWithM #-}
@@ -117,8 +121,19 @@ zipAsyncWithM f m1 m2 = D.fromStreamD $
     D.zipWithM f (Par.mkParallelD $ D.toStreamD m1)
                  (Par.mkParallelD $ D.toStreamD m2)
 
+-- XXX Should we rename this to zipParWith or zipParallelWith? This can happen
+-- along with the change of behvaior to end the stream concurrently.
+--
 -- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
+-- are evaluated concurrently using the 'ParallelT' concurrent evaluation
+-- style. The maximum number of elements of each stream evaluated in advance
+-- can be controlled by 'maxBuffer'.
+--
+-- The stream ends if stream @a@ or stream @b@ ends. However, if stream @b@
+-- ends while we are still evaluating stream @a@ and waiting for a result then
+-- stream will not end until after the evaluation of stream @a@ finishes. This
+-- behavior can potentially be changed in future to end the stream immediately
+-- as soon as any of the stream end is detected.
 --
 -- @since 0.1.0
 {-# INLINE zipAsyncWith #-}
