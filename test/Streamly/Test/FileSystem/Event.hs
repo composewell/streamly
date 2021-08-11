@@ -13,6 +13,7 @@ import Control.Monad.IO.Class (MonadIO)
 #if !defined(CABAL_OS_WINDOWS)
 import Data.Char (ord)
 #endif
+import Data.Functor.Identity (runIdentity)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
 import System.Directory
@@ -38,6 +39,7 @@ import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Unicode.Stream as U
 #if defined(CABAL_OS_DARWIN)
 import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
 #elif defined(CABAL_OS_LINUX)
@@ -45,12 +47,7 @@ import qualified Streamly.Internal.FileSystem.Event.Linux as Event
 #elif defined(CABAL_OS_WINDOWS)
 import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 #else
-#error "FS Events not supported on this platform
-#endif
-
-#if !defined(CABAL_OS_WINDOWS)
-import Data.Functor.Identity (runIdentity)
-import qualified Streamly.Internal.Unicode.Stream as U
+#error "FS Events not supported on this platform"
 #endif
 
 import Test.Hspec
@@ -62,10 +59,8 @@ import Test.Hspec
 toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = Array.fromStream . Unicode.encodeUtf8' . S.fromList
 
-#if !defined(CABAL_OS_WINDOWS)
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.toList . U.decodeUtf8' . Array.toStream
-#endif
 
 timeout :: IO String
 timeout = threadDelay 5000000 >> return "Timeout"
@@ -73,13 +68,16 @@ timeout = threadDelay 5000000 >> return "Timeout"
 fseventDir :: String
 fseventDir = "fsevent_dir"
 
+eoTask :: String
+eoTask = "EOTask"
+
 -- XXX Make the getRelPath type same on windows and other platforms
 eventPredicate :: Event.Event -> Bool
 eventPredicate ev =
 #if defined(CABAL_OS_WINDOWS)
-    if (Event.getRelPath ev) == "EOTask"
+    if (utf8ToString $ Event.getRelPath ev) == eoTask
 #else
-    if (utf8ToString $ Event.getRelPath ev) == "EOTask"
+    if (utf8ToString $ Event.getRelPath ev) == eoTask
 #endif
     then False
     else True
@@ -112,16 +110,16 @@ showEventShort :: Event.Event -> String
 #if defined(CABAL_OS_WINDOWS)
 -- | Convert an 'Event' record to a short representation for unit test.
 showEventShort ev@Event.Event{..} =
-    Event.getRelPath ev ++ "_" ++ show eventFlags
+    (utf8ToString $ Event.getRelPath ev) ++ "_" ++ show eventFlags
 #elif defined(CABAL_OS_LINUX)
 showEventShort ev@Event.Event{..} =
-    (utf8ToString $ removeTrailingSlash $ Event.getRelPath ev)
+    utf8ToString (removeTrailingSlash $ Event.getRelPath ev)
         ++ "_" ++ show eventFlags
         ++ showev Event.isDir "Dir"
 
     where showev f str = if f ev then "_" ++ str else ""
 #else
-#error "Unsupported OS
+#error "Unsupported OS"
 #endif
 
 -------------------------------------------------------------------------------
@@ -139,7 +137,7 @@ checkEvents rootPath m matchList = do
     let eventStr =  map showEventShort events
     let baseSet = Set.fromList matchList
         resultSet = Set.fromList eventStr
-    if (baseSet `Set.isSubsetOf` resultSet)
+    if baseSet `Set.isSubsetOf` resultSet
     then
         return "PASS"
     else do
@@ -399,4 +397,4 @@ moduleName = "FileSystem.Event"
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    hspec $ describe moduleName $ sequence_ $ map driver testDesc
+    hspec $ describe moduleName $ mapM_ driver testDesc

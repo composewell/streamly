@@ -47,7 +47,7 @@ module Streamly.Internal.FileSystem.Event.Windows
     -- * Subscribing to events
 
     -- ** Default configuration
-      Config
+      Config (..)
     , Event (..)
     , Toggle (..)
     , setFlag
@@ -61,22 +61,21 @@ module Streamly.Internal.FileSystem.Event.Windows
     -- ** Events of Interest
     -- *** Root Level Events
     , setModifiedFileName
-    , setModifiedDirName
+    , setRootMoved
     , setModifiedAttribute
     , setModifiedSize
     , setModifiedLastWrite
     , setModifiedSecurity
 
     -- ** Watch APIs
-    , watchPaths
-    , watchPathsWith
+    , watch
     , watchTrees
     , watchTreesWith
 
     -- * Handling Events
-    , getAbsPath
     , getRelPath
     , getRoot
+    , getAbsPath
 
     -- ** Item CRUD events
     , isCreated
@@ -124,6 +123,7 @@ import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
+import qualified Streamly.Internal.Unicode.Utf8 as UTF8
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import Streamly.Internal.Data.Array.Foreign (Array)
 
@@ -179,8 +179,8 @@ setModifiedFileName = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 --
 -- /Pre-release/
 --
-setModifiedDirName :: Toggle -> Config -> Config
-setModifiedDirName = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
+setRootMoved :: Toggle -> Config -> Config
+setRootMoved = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 
 -- | Report when a file attribute is modified.
 --
@@ -227,7 +227,7 @@ setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
 setAllEvents :: Toggle -> Config -> Config
 setAllEvents s =
      setModifiedFileName s
-    . setModifiedDirName s
+    . setRootMoved s
     . setModifiedAttribute s
     . setModifiedSize s
     . setModifiedLastWrite s
@@ -399,32 +399,6 @@ utf8ToStringList = NonEmpty.map utf8ToString
 closePathHandleStream :: SerialT IO (HANDLE, FilePath, Config) -> IO ()
 closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 
--- | Start monitoring a list of file system paths for file system events with
--- the supplied configuration operation over the 'defaultConfig'. The
--- paths could be files or directories. When the path is a directory, only the
--- files and directories directly under the watched directory are monitored,
--- contents of subdirectories are not monitored.  Monitoring starts from the
--- current time onwards.
---
--- /Pre-release/
---
-watchPathsWith ::
-       (Config -> Config)
-    -> NonEmpty (Array Word8)
-    -> SerialT IO Event
-watchPathsWith f = watchTreesWith (f . setRecursiveMode False)
-
--- | Like 'watchPathsWith' but uses the 'defaultConfig' options.
---
--- @
--- watchPaths = watchPathsWith id
--- @
---
--- /Pre-release/
---
-watchPaths :: NonEmpty (Array Word8) -> SerialT IO Event
-watchPaths = watchPathsWith id
-
 -- XXX
 -- Document the path treatment for Linux/Windows/macOS modules.
 -- Remove the utf-8 encoding requirement of paths? It can be encoding agnostic
@@ -450,9 +424,7 @@ watchTreesWith f paths =
 
     where
 
-    before =
-        let cfg = f $ setRecursiveMode True defaultConfig
-         in return $ pathsToHandles (utf8ToStringList paths) cfg
+    before = return $ pathsToHandles (utf8ToStringList paths) $ f defaultConfig
     after = liftIO . closePathHandleStream
 
 -- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
@@ -464,18 +436,29 @@ watchTreesWith f paths =
 watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
 watchTrees = watchTreesWith id
 
--- | Add a trailing "\" at the end of the path if there is none. Do not add a
--- "\" if the path is empty.
+-- | Start monitoring a list of file system paths for file system events with
+-- the supplied recursive mode and configuration. The paths could be files or
+-- directories. When recursive mode is True and the path is a directory, the
+-- whole directory tree under it is watched recursively.
+-- When recursive mode is False and the path is a directory, only the
+-- files and directories directly under the watched directory are monitored,
+-- contents of subdirectories are not monitored.  Monitoring starts from the
+-- current time onwards. The paths are specified as UTF-8 encoded 'Array' of
+-- 'Word8'.
 --
-ensureTrailingSlash :: String -> String
-ensureTrailingSlash path =
-    if null path
-    then path
-    else
-        let x = last path
-        in if x /= '\\' && x /= '/'
-            then path ++ "\\"
-            else path
+-- @
+-- watch True
+--  ('setModifiedAttribute' On . 'setModifiedLastWrite' Off) defaultConfig
+--  [Array.fromCString\# "dir"#]
+-- @
+--
+-- /Pre-release/
+--
+watch :: Bool -> Config -> NonEmpty (Array Word8) -> SerialT IO Event
+watch rec cfg paths =
+    case rec of
+        True -> watchTreesWith (\_ -> cfg) paths
+        False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
@@ -487,8 +470,8 @@ getFlag mask Event{..} = eventFlags == mask
 --
 -- /Pre-release/
 --
-getRelPath :: Event -> String
-getRelPath Event{..} = eventRelPath
+getRelPath :: Event -> Array Word8
+getRelPath Event{..} = (UTF8.toArray . UTF8.pack) eventRelPath
 
 -- XXX Change the type to Array Word8 to make it compatible with other APIs.
 --
@@ -496,17 +479,10 @@ getRelPath Event{..} = eventRelPath
 --
 -- /Pre-release/
 --
-getRoot :: Event -> String
-getRoot Event{..} = ensureTrailingSlash eventRootPath
+getRoot :: Event -> Array Word8
+getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 
--- XXX Change the type to Array Word8 to make it compatible with other APIs.
---
--- | Get the absolute file system object path for which the event is generated.
--- The path is a UTF-8 encoded array of bytes.
---
--- /Pre-release/
---
-getAbsPath :: Event -> String
+getAbsPath :: Event -> Array Word8
 getAbsPath ev = getRoot ev <> getRelPath ev
 
 -- XXX need to document the exact semantics of these.
@@ -568,9 +544,8 @@ isOverflow Event{..} = totalBytes == 0
 showEvent :: Event -> String
 showEvent ev@Event{..} =
         "--------------------------"
-    ++ "\nRoot = " ++ show (getRoot ev)
-    ++ "\nRelative Path = " ++ show (getRelPath ev)
-    ++ "\nAbsolute Path = " ++ show (getAbsPath ev)
+    ++ "\nRoot = " ++ utf8ToString (getRoot ev)
+    ++ "\nPath = " ++ utf8ToString (getRelPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isOverflow "Overflow"
     ++ showev isCreated "Created"

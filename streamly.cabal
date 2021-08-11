@@ -499,6 +499,7 @@ library
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
+                     , Streamly.Internal.FileSystem.Event
 
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
@@ -528,6 +529,7 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3     && < 0.5
+                     , filepath          >= 1.2.0.0 && < 1.4.3.0
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
