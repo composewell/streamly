@@ -81,7 +81,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     -- * Creating a Watch
 
     -- ** Default configuration
-      Config
+      Config (..)
     , Toggle (..)
     , defaultConfig
 
@@ -90,7 +90,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , setEventBatching
 
     -- ** Events of Interest
-    , setRootChanged
+    , setRootMoved
     , setFileEvents
     , setIgnoreSelf
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
@@ -214,7 +214,7 @@ data BatchInfo =
 -- /Pre-release/
 --
 setEventBatching :: BatchInfo -> Config -> Config
-setEventBatching batchInfo cfg@Config{..} =
+setEventBatching batchInfo cfg =
     let (t, status) =
             case batchInfo of
                 Throttle sec | sec < 0 -> (0, On)
@@ -255,8 +255,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setRootChanged :: Toggle -> Config -> Config
-setRootChanged = setFlag kFSEventStreamCreateFlagWatchRoot
+setRootMoved :: Toggle -> Config -> Config
+setRootMoved = setFlag kFSEventStreamCreateFlagWatchRoot
 
 foreign import ccall safe
     "FSEventStreamCreateFlagFileEvents"
@@ -321,7 +321,7 @@ setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 --
 -- * 'setEventBatching' ('Batch' 0.0)
 -- * 'setFileEvents' 'On'
--- * 'setRootChanged' 'Off'
+-- * 'setRootMoved' 'Off'
 -- * 'setIgnoreSelf' 'Off'
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
 -- * 'setFullHistory' 'Off'
@@ -498,14 +498,16 @@ watchToStream (Watch handle _ _) =
 --
 -- BUGS: If a watch is started on a non-existing path then the path is not
 -- watched even if it is created later.  The macOS API does not fail for a
--- non-existing path.  If a non-existing path is watched with 'setRootChanged'
+-- non-existing path.  If a non-existing path is watched with 'setRootMoved'
 -- then an 'isRootChanged' event is reported if the path is created later and
 -- the "path" field in the event is set to the dirname of the path rather than
 -- the full absolute path. This is the observed behavior on macOS 10.15.1.
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- watchTreesWith ('setIgnoreSelf' 'On' . 'setRootChanged' 'On') [Array.fromCString\# "path"#]
+-- watchTreesWith
+--      ('setIgnoreSelf' 'On' . 'setRootMoved' 'On')
+--      [Array.fromCString\# "path"#]
 -- @
 --
 -- /Pre-release/
@@ -656,7 +658,7 @@ foreign import ccall safe
 -- object itself. Note that the object may become unreachable or deleted after
 -- a change of path.
 --
--- /Applicable only when 'setRootChanged' is 'On'/
+-- /Applicable only when 'setRootMoved' is 'On'/
 --
 -- /Occurs only for the watched path/
 --
