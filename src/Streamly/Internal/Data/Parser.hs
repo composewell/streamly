@@ -51,6 +51,9 @@ module Streamly.Internal.Data.Parser
     , D.ParseError (..)
     , D.Step (..)
 
+    -- * Downgrade to Fold
+    , toFold
+
     -- First order parsers
     -- * Accumulators
     , fromFold
@@ -196,7 +199,7 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Prelude
        hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 
@@ -215,6 +218,23 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
+-------------------------------------------------------------------------------
+-- Downgrade a parser to a Fold
+-------------------------------------------------------------------------------
+--
+-- | Make a 'Fold' from a 'Parser'. The fold just throws an exception if the
+-- parser fails or tries to backtrack.
+--
+-- This can be useful in combinators that accept a Fold and we know that a
+-- Parser cannot fail or failure exception is acceptable as there is no way to
+-- recover.
+--
+-- /Pre-release/
+--
+{-# INLINE toFold #-}
+toFold :: MonadThrow m => Parser m a b -> Fold m a b
+toFold p = D.toFold $ K.fromParserK p
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
