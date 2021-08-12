@@ -18,6 +18,9 @@ module Streamly.Internal.Data.Parser.ParserD
     , Initial (..)
     , rmapM
 
+    -- * Downgrade to Fold
+    , toFold
+
     -- First order parsers
     -- * Accumulators
     , fromFold
@@ -162,7 +165,7 @@ module Streamly.Internal.Data.Parser.ParserD
     )
 where
 
-import Control.Exception (assert)
+import Control.Exception (assert, Exception)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -183,6 +186,48 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+
+-------------------------------------------------------------------------------
+-- Downgrade a parser to a Fold
+-------------------------------------------------------------------------------
+
+data ParserToFoldError =
+      InitialError String
+    | PartialError Int
+    | ContinueError Int
+    | DoneError Int
+    | ErrorError String
+    deriving Show
+
+instance Exception ParserToFoldError
+
+-- | See 'Streamly.Internal.Data.Parser.toFold'.
+--
+-- /Internal/
+--
+{-# INLINE toFold #-}
+toFold :: MonadThrow m => Parser m a b -> Fold m a b
+toFold (Parser pstep pinitial pextract) = Fold step initial pextract
+
+    where
+
+    initial = do
+        r <- pinitial
+        case r of
+            IPartial s -> return $ FL.Partial s
+            IDone b -> return $ FL.Done b
+            IError err -> throwM $ InitialError err
+
+    step st a = do
+        r <- pstep st a
+        case r of
+            Partial 0 s -> return $ FL.Partial s
+            Continue 0 s -> return $ FL.Partial s
+            Done 0 b -> return $ FL.Done b
+            Partial n _ -> throwM $ PartialError n
+            Continue n _ -> throwM $ ContinueError n
+            Done n _ -> throwM $ DoneError n
+            Error err -> throwM $ ErrorError err
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
