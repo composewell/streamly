@@ -203,8 +203,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Deprecated
     , scanx
-    , removeDupsRight
-
     )
 where
 
