@@ -166,60 +166,6 @@ o_1_space_grouping value =
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
-toKvMap :: Int -> (Int, Int)
-toKvMap p = (p, p)
-
-{-# INLINE joinInner #-}
-joinInner :: MonadIO m => SerialT m Int -> m ()
-joinInner strm = S.drain $ Internal.joinInner (==) strm strm
-
-{-# INLINE joinInnerHash #-}
-joinInnerHash :: MonadIO m => SerialT m Int -> m ()
-joinInnerHash strm = 
-    S.drain $ 
-    Internal.joinInnerHash (fmap toKvMap strm) (fmap toKvMap strm)
-
-{-# INLINE joinInnerMerge #-}
-joinInnerMerge :: MonadIO m => SerialT m Int -> m ()
-joinInnerMerge strm = S.drain $ Internal.joinInnerMerge compare strm strm
-
-{-# INLINE joinLeft #-}
-joinLeft :: MonadIO m => SerialT m Int -> m ()
-joinLeft strm = S.drain $ Internal.joinLeft (==) strm strm
-
-{-# INLINE joinLeftHash #-}
-joinLeftHash :: MonadIO m => SerialT m Int -> m ()
-joinLeftHash strm = 
-    S.drain $ 
-    Internal.joinLeftHash (fmap toKvMap strm) (fmap toKvMap strm)
-
-{-# INLINE joinLeftMerge #-}
-joinLeftMerge :: MonadIO m => SerialT m Int -> m ()
-joinLeftMerge strm = S.drain $ Internal.joinLeftMerge compare strm strm
-
-{-# INLINE joinOuter #-}
-joinOuter :: MonadIO m => SerialT m Int -> m ()
-joinOuter strm = S.drain $ Internal.joinOuter (==) strm strm
-
-{-# INLINE joinOuterHash #-}
-joinOuterHash :: MonadIO m => SerialT m Int -> m ()
-joinOuterHash strm = 
-    S.drain $ 
-    Internal.joinOuterHash (fmap toKvMap strm) (fmap toKvMap strm)
-
-{-# INLINE joinOuterMerge #-}
-joinOuterMerge :: (MonadIO m, S.MonadAsync m)=> SerialT m Int -> m ()
-joinOuterMerge strm = S.drain $ Internal.joinOuterMerge compare strm strm
-
-{-# INLINE unionBySorted #-}
-unionBySorted :: (MonadIO m, S.MonadAsync m)=> Int -> SerialT m Int -> m ()
-unionBySorted n strm = composeN n (Internal.unionBySorted compare strm) strm
-
-{-# INLINE differenceBySorted #-}
-differenceBySorted :: (MonadIO m, S.MonadAsync m) => 
-    Int -> SerialT m Int -> m ()
-differenceBySorted n strm = 
-    composeN n (Internal.differenceBySorted compare strm) strm
 
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> SerialT m Int -> m ()
@@ -240,20 +186,8 @@ o_n_heap_buffering value =
         -- Reversing/sorting a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
-        , benchIOSink value "sortBy" (sortBy 1)
-        , benchIOSink value "joinInner" joinInner
-        , benchIOSink value "joinInnerHash" joinInnerHash
-        , benchIOSink value "joinInnerMerge" joinInnerMerge
-        , benchIOSink value "joinLeft" joinLeft
-        , benchIOSink value "joinLeftHash" joinLeftHash
-        , benchIOSink value "joinLeftMerge" joinLeftMerge
-        , benchIOSink value "joinOuter" joinOuter
-        , benchIOSink value "joinOuterHash" joinOuterHash
-        , benchIOSink value "joinOuterMerge" joinOuterMerge
-        , benchIOSink value "differenceBySorted" (differenceBySorted 1)
-        , benchIOSink value "unionBySorted" (unionBySorted 1)
+        , benchIOSink value "sortBy" (sortBy 1)        
         , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
-
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
         ]
     ]

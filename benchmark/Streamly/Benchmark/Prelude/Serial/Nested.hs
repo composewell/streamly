@@ -20,6 +20,7 @@
 
 module Serial.Nested (benchmarks) where
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 
 import qualified Control.Applicative as AP
@@ -381,6 +382,156 @@ o_1_space_concat value = sqrtVal `seq`
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
+-- Joining streams
+-------------------------------------------------------------------------------
+toKvMap :: Int -> (Int, Int)
+toKvMap p = (p, p)
+
+mkStreamLen :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
+mkStreamLen count = sourceUnfoldrM count 0
+
+{-# INLINE joinInner #-}
+joinInner :: (MonadIO m, S.MonadAsync m) => Int -> SerialT m Int -> m ()
+joinInner val strm =
+    if val > 0
+    then S.drain $ Internal.joinInner (==) strm $ mkStreamLen val
+    else S.drain $ Internal.joinInner (==) strm strm
+
+{-# INLINE joinInnerHash #-}
+joinInnerHash :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinInnerHash val strm = 
+    if val > 0
+    then 
+        S.drain $
+        Internal.joinInnerHash 
+        (fmap toKvMap strm) 
+        (fmap toKvMap $ mkStreamLen val)
+    else 
+        S.drain $ 
+        Internal.joinInnerHash (fmap toKvMap strm) (fmap toKvMap strm)
+
+
+{-# INLINE joinInnerMerge #-}
+joinInnerMerge :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinInnerMerge val strm = 
+    if val > 0
+    then S.drain $ Internal.joinInnerMerge compare strm $ mkStreamLen val
+    else S.drain $ Internal.joinInnerMerge compare strm strm
+
+{-# INLINE joinLeft #-}
+joinLeft :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinLeft val strm = 
+    if val > 0
+    then S.drain $ Internal.joinLeft (==) strm $ mkStreamLen val
+    else S.drain $ Internal.joinLeft (==) strm strm
+
+{-# INLINE joinLeftHash #-}
+joinLeftHash :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinLeftHash val strm = 
+    if val > 0
+    then
+        S.drain $ 
+        Internal.joinLeftHash 
+        (fmap toKvMap strm) 
+        (fmap toKvMap $ mkStreamLen val)
+    else
+        S.drain $ 
+        Internal.joinLeftHash (fmap toKvMap strm) (fmap toKvMap strm)
+
+{-# INLINE joinLeftMerge #-}
+joinLeftMerge :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinLeftMerge val strm =
+    if val > 0
+    then S.drain $ Internal.joinLeftMerge compare strm $ mkStreamLen val
+    else S.drain $ Internal.joinLeftMerge compare strm strm
+
+{-# INLINE joinOuter #-}
+joinOuter :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinOuter val strm = 
+    if val > 0
+    then S.drain $ Internal.joinOuter (==) strm $ mkStreamLen val
+    else S.drain $ Internal.joinOuter (==) strm strm
+
+{-# INLINE joinOuterHash #-}
+joinOuterHash :: (MonadIO m, S.MonadAsync m ) => Int -> SerialT m Int -> m ()
+joinOuterHash val strm = 
+    if val > 0
+    then
+        S.drain $ 
+        Internal.joinOuterHash 
+        (fmap toKvMap strm) 
+        (fmap toKvMap $ mkStreamLen val)
+    else
+        S.drain $ 
+        Internal.joinOuterHash (fmap toKvMap strm) (fmap toKvMap strm)    
+
+{-# INLINE joinOuterMerge #-}
+joinOuterMerge :: (MonadIO m, S.MonadAsync m) => Int -> SerialT m Int -> m ()
+joinOuterMerge val strm =
+    if val > 0
+    then S.drain $ Internal.joinOuterMerge compare strm $ mkStreamLen val
+    else S.drain $ Internal.joinOuterMerge compare strm strm
+
+{-# INLINE unionBySorted #-}
+unionBySorted :: (MonadIO m, S.MonadAsync m) => Int -> SerialT m Int -> m ()
+unionBySorted val strm = 
+    if val > 0
+    then S.drain $ Internal.unionBySorted compare strm $ mkStreamLen val
+    else S.drain $ Internal.unionBySorted compare strm strm
+
+{-# INLINE differenceBySorted #-}
+differenceBySorted :: (MonadIO m, S.MonadAsync m) =>
+    Int -> SerialT m Int -> m ()
+differenceBySorted val strm = 
+    if val > 0
+    then S.drain $ Internal.differenceBySorted compare strm $ mkStreamLen val    
+    else S.drain $ Internal.differenceBySorted compare strm strm
+
+{-# INLINE intersectBySorted #-}
+intersectBySorted :: (MonadIO m, S.MonadAsync m) => 
+    Int -> SerialT m Int -> m ()
+intersectBySorted val strm = 
+    if val > 0
+    then S.drain $ Internal.intersectBySorted compare strm $ mkStreamLen val    
+    else S.drain $ Internal.intersectBySorted compare strm strm   
+
+o_n_heap_buffering :: Int -> [Benchmark]
+o_n_heap_buffering value =
+    [ bgroup "join"
+        [ -- XXX regular join for large no of data hangs for ever (30 min 
+          -- still not done)      
+         -- benchIOSink value "joinInner" (joinInner 0)
+         benchIOSink value "joinInner[Sqrt]" (joinInner sqrtVal)
+        , benchIOSink value "joinInnerHash" (joinInnerHash 0)
+        , benchIOSink value "joinInnerHash[Sqrt]" (joinInnerHash sqrtVal)
+        , benchIOSink value "joinInnerMerge" (joinInnerMerge 0)
+        , benchIOSink value "joinInnerMerge[Sqrt]" (joinInnerMerge sqrtVal)
+        --, benchIOSink value "joinLeft" (joinLeft 0)
+        , benchIOSink value "joinLeft[Sqrt]" (joinLeft sqrtVal)
+        , benchIOSink value "joinLeftHash" (joinLeftHash 0)
+        , benchIOSink value "joinLeftHash[Sqrt]" (joinLeftHash sqrtVal)
+        , benchIOSink value "joinLeftMerge" (joinLeftMerge 0)
+        , benchIOSink value "joinLeftMerge[Sqrt]" (joinLeftMerge sqrtVal)
+        --, benchIOSink value "joinOuter" (joinOuter 0)
+        , benchIOSink value "joinOuter[Sqrt]" (joinOuter sqrtVal)
+        , benchIOSink value "joinOuterHash" (joinOuterHash 0)
+        , benchIOSink value "joinOuterHash[Sqrt]" (joinOuterHash sqrtVal)
+        , benchIOSink value "joinOuterMerge" (joinOuterMerge 0)
+        , benchIOSink value "joinOuterMerge[Sqrt]" (joinOuterMerge sqrtVal)
+        , benchIOSink value "differenceBySorted" (differenceBySorted 0)
+        , benchIOSink value "differenceBySorted[Sqrt]" (differenceBySorted sqrtVal)
+        , benchIOSink value "unionBySorted" (unionBySorted 0) 
+        , benchIOSink value "unionBySorted[Sqrt]" (unionBySorted sqrtVal) 
+        , benchIOSink value "intersectBySorted" (intersectBySorted 0)
+        , benchIOSink value "intersectBySorted[Sqrt]" (intersectBySorted sqrtVal)        
+        ]
+    ]    
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+-------------------------------------------------------------------------------
 -- Applicative
 -------------------------------------------------------------------------------
 
@@ -483,4 +634,7 @@ benchmarks moduleName size =
               o_n_space_applicative size
             , o_n_space_monad size
             ]
+        , bgroup (o_n_heap_prefix moduleName) $
+            -- multi-stream           
+            o_n_heap_buffering size           
         ]

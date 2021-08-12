@@ -299,9 +299,7 @@ joinInnerHash s1 s2 =
         let res = do
                 (k, a) <- s1
                 case k `Map.lookup` l2 of
-                    Just b -> do
-                        val <- Stream.fromList b
-                        return (k, a, val)
+                    Just b -> fmap (k,a,) $ Stream.fromList b
                     Nothing -> StreamK.nil
         return res
 
@@ -366,7 +364,7 @@ joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
             else StreamK.nil
         Nothing -> return (a, Nothing)
 
--- | Like 'joinLeft' but uses a hashmap for efficiency.
+-- | Unlike 'joinLeft', both streams are evaluated only once
 --
 -- Space: O(n)
 --
@@ -382,9 +380,7 @@ joinLeftHash s1 s2 =
         let res = do
                 (k, a) <- s1
                 case k `Map.lookup` l2 of
-                    Just b -> do
-                        val <- Stream.fromList b
-                        return (k, a, Just val)
+                    Just b -> fmap ((k,a,) . Just) $ Stream.fromList b
                     Nothing -> return (k, a, Nothing)
         return res
 

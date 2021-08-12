@@ -74,7 +74,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , uniq
     , uniqBy
     , nubBy
-    , nubByMerge
     , nubWindowBy
     , prune
     , repeated
@@ -204,8 +203,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Deprecated
     , scanx
-    , removeDupsRight
-
     )
 where
 
@@ -244,7 +241,6 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
@@ -905,32 +901,6 @@ repeated = undefined
 nubBy :: -- (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a
 nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
-
-{-# INLINE_NORMAL nubByMerge #-}
-nubByMerge :: (Monad m) => (a -> a -> Bool) -> D.Stream m a -> D.Stream m a
-nubByMerge eq (D.Stream stepa sa) = D.Stream step (sa, Nothing)
-    where
-    step gst (s, Nothing) = do
-        ret <-  stepa (adaptState gst)  s
-        return $ case ret of
-            D.Stop    -> D.Stop
-            D.Skip s' -> D.Skip (s', Nothing)
-            D.Yield a s' -> D.Yield a (s', Just a)
-
-    step gst (s, Just a1) = do
-        ret <-  stepa (adaptState gst)  s
-        return $ case ret of
-            D.Stop    -> D.Stop
-            D.Skip s' -> D.Skip (s', Nothing)
-            D.Yield a s' ->
-                if a `eq` a1
-                then D.Skip (s', Just a)
-                else D.Yield a (s', Just a)
-
-{-# INLINE removeDupsRight #-}
-removeDupsRight :: (IsStream t, MonadIO m) =>
-    (a -> a -> Ordering) -> t m a -> t m a -> t m a
-removeDupsRight eq s1 = fromStreamD . D.removeDupsAll eq (toStreamD s1) . toStreamD
 
 -- | Drop repeated elements within the specified tumbling window in the stream.
 --
