@@ -256,6 +256,11 @@ test-suite Data.Unfold
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Unfold.hs
 
+test-suite Data.Stream.Top
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Top.hs
+
 test-suite FileSystem.Event
   import: test-options
   type: exitcode-stdio-1.0
