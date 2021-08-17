@@ -1,8 +1,6 @@
-#include "inline.hs"
 -- |
 -- Module      : Streamly.Internal.Data.Unfold.Enumeration
--- Copyright   : (c) 2018 Composewell Technologies
---
+-- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -14,7 +12,7 @@
 --
 -- This module provides an 'Enumerable' type class to enumerate 'Enum' types
 -- into a stream. The operations in this type class correspond to similar
--- perations in the 'Enum' type class, the only difference is that they produce
+-- operations in the 'Enum' type class, the only difference is that they produce
 -- a stream instead of a list. These operations cannot be defined generically
 -- based on the 'Enum' type class. We provide instances for commonly used
 -- types. If instances for other types are needed convenience functions defined
@@ -22,32 +20,34 @@
 -- can be used directly.
 --
 module Streamly.Internal.Data.Unfold.Enumeration
-(
-   -- * Enumerations
-     Enumerable (..)
-   -- ** Enumerate Num
-   , enumerateFromStepNum
-   , numFrom
+    (
+      Enumerable (..)
 
-  -- ** Enumerating 'Bounded' 'Integral' Types
-  , enumerateFromIntegral
-  , enumerateFromThenIntegral
+    -- ** Enumerate Num
+    , enumerateFromStepNum
+    , numFrom
+    , numFromThen
 
-  -- ** Enumerating 'Integral' Types
-  , enumerateFromToIntegral
-  , enumerateFromThenToIntegral
+    -- ** Enumerating 'Bounded' 'Integral' Types
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
 
-  -- ** Enumerating unbounded 'Integral' Types
-  , enumerateFromStepIntegral
+    -- ** Enumerating 'Integral' Types
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
 
-  -- ** Enumerating 'Fractional' Types
-  , enumerateFromFractional
-  , enumerateFromToFractional
-  , enumerateFromThenFractional
-  , enumerateFromThenToFractional
-  )
+    -- ** Enumerating unbounded 'Integral' Types
+    , enumerateFromStepIntegral
+
+    -- ** Enumerating 'Fractional' Types
+    , enumerateFromFractional
+    , enumerateFromToFractional
+    , enumerateFromThenFractional
+    , enumerateFromThenToFractional
+    )
 where
 
+#include "inline.hs"
 import Data.Fixed
 import Data.Int
 import Data.Ratio
@@ -63,6 +63,7 @@ import Prelude
 ------------------------------------------------------------------------------
 -- Enumeration of Num
 ------------------------------------------------------------------------------
+
 -- | Generate an infinite stream starting from a starting value with increments
 -- of the given stride.  The implementation is numerically stable for floating
 -- point values.
@@ -186,7 +187,7 @@ class Enum a => Enumerable a where
 --
 -- /Pre-release/
 --
-    enumerateFrom :: (Integral a, Monad m) => Unfold m a a
+    enumerateFrom :: Monad m => Unfold m a a
 
 -- Generate a finite stream starting with the element @from@, enumerating
 -- the type up to the value @to@. If @to@ is smaller than @from@ then an
@@ -211,7 +212,7 @@ class Enum a => Enumerable a where
 -- @
 --
 -- /Pre-release/
-    enumerateFromTo :: (Integral a, Monad m) => a -> Unfold m a a
+    enumerateFromTo :: Monad m => a -> Unfold m a a
 
 -- @enumerateFromThen from then@ generates a stream whose first element
 -- is @from@ and the successive elements are
@@ -230,7 +231,7 @@ class Enum a => Enumerable a where
 -- @
 --
 -- /Pre-release/
-    enumerateFromThen :: (Integral a, Monad m) => a -> Unfold m a a
+    enumerateFromThen :: Monad m => a -> Unfold m a a
 
 -- @enumerateFromThenTo from then to@ generates a finite stream whose
 -- first element is @from@ and the successive elements are in
@@ -248,7 +249,7 @@ class Enum a => Enumerable a where
 -- @
 --
 -- /Pre-release/
-    enumerateFromThenTo :: (Integral a, Monad m) => a-> a -> Unfold m a a
+    enumerateFromThenTo :: Monad m => a-> a -> Unfold m a a
 
 -------------------------------------------------------------------------------
 -- Enumerable Instances
@@ -258,13 +259,13 @@ class Enum a => Enumerable a where
 #define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
 instance Enumerable SMALL_TYPE where {                 \
     {-# INLINE enumerateFrom #-};                      \
-    enumerateFrom = enumerateFromIntegral;             \
-    {-# INLINE enumerateFromTo #-};                    \
-    enumerateFromTo = enumerateFromToIntegral;         \
+    enumerateFrom = undefined;             \
     {-# INLINE enumerateFromThen #-};                  \
-    enumerateFromThen = enumerateFromThenIntegral;     \
+    enumerateFromThen = undefined;     \
+    {-# INLINE enumerateFromTo #-};                    \
+    enumerateFromTo = undefined;         \
     {-# INLINE enumerateFromThenTo #-};                \
-    enumerateFromThenTo = enumerateFromThenToIntegral }
+    enumerateFromThenTo = undefined }
 
 ENUMERABLE_BOUNDED_SMALL(())
 ENUMERABLE_BOUNDED_SMALL(Bool)
@@ -276,10 +277,10 @@ ENUMERABLE_BOUNDED_SMALL(Char)
 instance Enumerable INTEGRAL_TYPE where {           \
     {-# INLINE enumerateFrom #-};                   \
     enumerateFrom = enumerateFromIntegral;          \
-    {-# INLINE enumerateFromTo #-};                 \
-    enumerateFromTo = enumerateFromToIntegral;      \
     {-# INLINE enumerateFromThen #-};               \
     enumerateFromThen = enumerateFromThenIntegral;  \
+    {-# INLINE enumerateFromTo #-};                 \
+    enumerateFromTo = enumerateFromToIntegral;      \
     {-# INLINE enumerateFromThenTo #-};             \
     enumerateFromThenTo = enumerateFromThenToIntegral }
 
@@ -298,11 +299,12 @@ ENUMERABLE_BOUNDED_INTEGRAL(Word64)
 #define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
 instance Enumerable INTEGRAL_TYPE where {                         \
     {-# INLINE enumerateFrom #-};                                 \
-    enumerateFrom  = numFrom;                                     \
+    enumerateFrom = supplySecond 1 enumerateFromStepIntegral;     \
+    {-# INLINE enumerateFromThen #-};                             \
+    enumerateFromThen next =                                      \
+        lmap (\from -> (from, next - from)) enumerateFromStepIntegral; \
     {-# INLINE enumerateFromTo #-};                               \
     enumerateFromTo = enumerateFromToIntegral;                    \
-    {-# INLINE enumerateFromThen #-};                             \
-    enumerateFromThen  = numFromThen;                             \
     {-# INLINE enumerateFromThenTo #-};                           \
     enumerateFromThenTo = enumerateFromThenToIntegral }
 
@@ -327,10 +329,10 @@ ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
 
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}
-    enumerateFrom = enumerateFrom
+    enumerateFrom = map Identity $ lmap runIdentity enumerateFrom
     {-# INLINE enumerateFromThen #-}
-    enumerateFromThen  = enumerateFromThen
+    enumerateFromThen = undefined
     {-# INLINE enumerateFromTo #-}
-    enumerateFromTo  = enumerateFromTo
+    enumerateFromTo = undefined
     {-# INLINE enumerateFromThenTo #-}
-    enumerateFromThenTo = enumerateFromThenTo
+    enumerateFromThenTo = undefined

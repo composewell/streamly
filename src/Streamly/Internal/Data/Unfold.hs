@@ -236,7 +236,6 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
-import Data.Int
 import Data.Maybe (isNothing)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
@@ -254,7 +253,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Unfold.Type
+import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Unfold.Enumeration
+import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile, either)
