@@ -142,6 +142,7 @@ import Streamly.Internal.Data.Array.Stream.Foreign (groupIOVecsOf)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.Internal.FileSystem.FDIO as RawIO hiding (write)
+import qualified Streamly.Internal.System.IOVec.Type as RawIO
 #endif
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)

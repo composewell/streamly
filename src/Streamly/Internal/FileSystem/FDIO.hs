@@ -16,7 +16,6 @@
 module Streamly.Internal.FileSystem.FDIO
     ( write
     , writeAll
-    , IOVec (..)
     , writev
     , writevAll
     )
@@ -31,7 +30,7 @@ import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
 import Foreign.C.Types (CBool(..))
 #endif
 import System.Posix.Internals (c_write, c_safe_write)
-import Streamly.Internal.FileSystem.IOVec (c_writev, c_safe_writev)
+import Streamly.Internal.System.IOVec.Type (IOVec, c_writev, c_safe_writev)
 #endif
 
 import Foreign.C.Types (CSize(..), CInt(..))
@@ -39,8 +38,6 @@ import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr)
 
 import GHC.IO.FD (FD(..))
-
-import Streamly.Internal.FileSystem.IOVec (IOVec(..))
 
 -------------------------------------------------------------------------------
 -- IO Routines

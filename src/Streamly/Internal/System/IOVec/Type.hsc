@@ -1,7 +1,7 @@
 #include "MachDeps.h"
 
 -- |
--- Module      : Streamly.Internal.FileSystem.IOVec
+-- Module      : Streamly.Internal.System.IOVec.Type
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -12,7 +12,7 @@
 -- Low level IO routines interfacing the operating system.
 --
 
-module Streamly.Internal.FileSystem.IOVec
+module Streamly.Internal.System.IOVec.Type
     ( IOVec(..)
     , c_writev
     , c_safe_writev

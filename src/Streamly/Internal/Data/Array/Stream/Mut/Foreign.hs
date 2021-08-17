@@ -36,7 +36,7 @@ import Foreign.Storable (Storable(..))
 #if !defined(mingw32_HOST_OS)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.FileSystem.FDIO (IOVec(..))
+import Streamly.Internal.System.IOVec.Type (IOVec(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (length)
 import Streamly.Internal.Data.SVar (adaptState)
 #endif

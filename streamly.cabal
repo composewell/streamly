@@ -367,6 +367,7 @@ library
                      , Streamly.Internal.Data.Time.Clock.Type
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.System.IO
+                     , Streamly.Internal.System.IOVec.Type
 
                      -- streamly-core-stream
                      , Streamly.Internal.Data.SVar
@@ -471,7 +472,6 @@ library
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
 

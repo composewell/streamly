@@ -71,7 +71,7 @@ import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Internal.FileSystem.FDIO (IOVec(..))
+import Streamly.Internal.System.IOVec.Type (IOVec(..))
 #endif
 
 import Streamly.Internal.BaseCompat
