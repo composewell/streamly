@@ -458,6 +458,9 @@ library
                     -- Memory storage
                      , Streamly.Internal.Ring.Foreign
 
+                     -- IOVec (depends on arrays/streams)
+                     , Streamly.Internal.System.IOVec
+
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.Utf8

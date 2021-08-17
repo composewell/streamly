@@ -22,6 +22,7 @@ module Streamly.Internal.FileSystem.FDIO
 where
 
 import Control.Monad (when)
+import Streamly.Internal.System.IOVec.Type (IOVec)
 #if !defined(mingw32_HOST_OS)
 import Control.Concurrent (threadWaitWrite)
 import Data.Int (Int64)
@@ -30,7 +31,7 @@ import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
 import Foreign.C.Types (CBool(..))
 #endif
 import System.Posix.Internals (c_write, c_safe_write)
-import Streamly.Internal.System.IOVec.Type (IOVec, c_writev, c_safe_writev)
+import Streamly.Internal.System.IOVec.Type (c_writev, c_safe_writev)
 #endif
 
 import Foreign.C.Types (CSize(..), CInt(..))

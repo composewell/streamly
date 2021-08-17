@@ -38,9 +38,6 @@ module Streamly.Internal.Data.Array.Stream.Foreign
 
     -- * Compaction
     , lpackArraysChunksOf
-#if !defined(mingw32_HOST_OS)
-    , groupIOVecsOf
-#endif
     , compact
 
     -- * Splitting
@@ -69,10 +66,6 @@ import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
-
-#if !defined(mingw32_HOST_OS)
-import Streamly.Internal.System.IOVec.Type (IOVec(..))
-#endif
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
@@ -219,22 +212,6 @@ lpackArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lpackArraysChunksOf n fld =
     FL.map A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.map A.unsafeFreeze fld)
-
-#if !defined(mingw32_HOST_OS)
-
--- | @groupIOVecsOf maxBytes maxEntries@ groups arrays in the incoming stream
--- to create a stream of 'IOVec' arrays with a maximum of @maxBytes@ bytes in
--- each array and a maximum of @maxEntries@ entries in each array.
---
--- @since 0.7.0
-{-# INLINE_NORMAL groupIOVecsOf #-}
-groupIOVecsOf :: MonadIO m
-    => Int -> Int -> D.Stream m (Array a) -> D.Stream m (Array IOVec)
-groupIOVecsOf n maxIOVLen str =
-    D.map A.unsafeFreeze
-        $ AS.groupIOVecsOf n maxIOVLen
-        $ D.map A.unsafeThaw str
-#endif
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

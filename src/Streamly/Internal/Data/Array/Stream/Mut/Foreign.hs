@@ -17,9 +17,6 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
     , packArraysChunksOf
     , SpliceState (..)
     , lpackArraysChunksOf
-#if !defined(mingw32_HOST_OS)
-    , groupIOVecsOf
-#endif
     , compact
     , compactLE
     , compactEQ
@@ -33,13 +30,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
-#if !defined(mingw32_HOST_OS)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (castPtr)
-import Streamly.Internal.System.IOVec.Type (IOVec(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (length)
-import Streamly.Internal.Data.SVar (adaptState)
-#endif
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -49,8 +39,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
-import Prelude hiding (length)
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -245,77 +233,3 @@ compactGE :: -- (MonadIO m, Storable a) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
 compactGE _n _xs = undefined
     -- D.fromStreamD $ D.foldMany (compactGEFold n) (D.toStreamD xs)
-
--------------------------------------------------------------------------------
--- IOVec
--------------------------------------------------------------------------------
-
-#if !defined(mingw32_HOST_OS)
-data GatherState s arr
-    = GatherInitial s
-    | GatherBuffering s arr Int
-    | GatherYielding arr (GatherState s arr)
-    | GatherFinish
-
--- | @groupIOVecsOf maxBytes maxEntries@ groups arrays in the incoming stream
--- to create a stream of 'IOVec' arrays with a maximum of @maxBytes@ bytes in
--- each array and a maximum of @maxEntries@ entries in each array.
---
--- @since 0.7.0
-{-# INLINE_NORMAL groupIOVecsOf #-}
-groupIOVecsOf :: MonadIO m
-    => Int -> Int -> D.Stream m (Array a) -> D.Stream m (Array IOVec)
-groupIOVecsOf n maxIOVLen (D.Stream step state) =
-    D.Stream step' (GatherInitial state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst (GatherInitial st) = do
-        when (n <= 0) $
-            -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.groupIOVecsOf: the size of "
-                 ++ "groups [" ++ show n ++ "] must be a natural number"
-        when (maxIOVLen <= 0) $
-            -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.groupIOVecsOf: the number of "
-                 ++ "IOVec entries [" ++ show n ++ "] must be a natural number"
-        r <- step (adaptState gst) st
-        case r of
-            D.Yield arr s -> do
-                let p = unsafeForeignPtrToPtr (aStart arr)
-                    len = MArray.byteLength arr
-                iov <- liftIO $ MArray.newArray maxIOVLen
-                iov' <- liftIO $ MArray.unsafeSnoc iov (IOVec (castPtr p)
-                                                (fromIntegral len))
-                if len >= n
-                then return $ D.Skip (GatherYielding iov' (GatherInitial s))
-                else return $ D.Skip (GatherBuffering s iov' len)
-            D.Skip s -> return $ D.Skip (GatherInitial s)
-            D.Stop -> return D.Stop
-
-    step' gst (GatherBuffering st iov len) = do
-        r <- step (adaptState gst) st
-        case r of
-            D.Yield arr s -> do
-                let p = unsafeForeignPtrToPtr (aStart arr)
-                    alen = MArray.byteLength arr
-                    len' = len + alen
-                if len' > n || length iov >= maxIOVLen
-                then do
-                    iov' <- liftIO $ MArray.newArray maxIOVLen
-                    iov'' <- liftIO $ MArray.unsafeSnoc iov' (IOVec (castPtr p)
-                                                      (fromIntegral alen))
-                    return $ D.Skip (GatherYielding iov
-                                        (GatherBuffering s iov'' alen))
-                else do
-                    iov' <- liftIO $ MArray.unsafeSnoc iov (IOVec (castPtr p)
-                                                    (fromIntegral alen))
-                    return $ D.Skip (GatherBuffering s iov' len')
-            D.Skip s -> return $ D.Skip (GatherBuffering s iov len)
-            D.Stop -> return $ D.Skip (GatherYielding iov GatherFinish)
-
-    step' _ GatherFinish = return D.Stop
-
-    step' _ (GatherYielding iov next) = return $ D.Yield iov next
-#endif
