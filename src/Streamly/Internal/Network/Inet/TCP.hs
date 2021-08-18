@@ -103,10 +103,9 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
+import Streamly.Internal.Control.Concurrent (MonadAsync, fork)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.IsStream (MonadAsync)
-import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))

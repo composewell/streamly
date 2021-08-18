@@ -99,7 +99,7 @@ import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Fold2(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
-import Streamly.Internal.Data.SVar (State, adaptState, defState)
+import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL

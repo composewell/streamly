@@ -56,6 +56,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
@@ -63,7 +64,6 @@ import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream())
-import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

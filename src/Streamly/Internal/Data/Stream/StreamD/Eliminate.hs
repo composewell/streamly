@@ -81,6 +81,7 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
@@ -90,7 +91,6 @@ import Prelude hiding
        ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
        , maximum, minimum, notElem, null, splitAt, tail, (!!))
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
 -- Elimination by Folds

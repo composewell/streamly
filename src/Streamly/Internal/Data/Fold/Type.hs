@@ -278,7 +278,7 @@ import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.SVar (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 
 import Prelude hiding (concatMap, filter, foldr, map, take)
 

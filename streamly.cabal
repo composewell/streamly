@@ -370,6 +370,10 @@ library
                      , Streamly.Internal.System.IOVec.Type
 
                      -- streamly-core-stream
+                     , Streamly.Internal.Data.SVar.Type
+                     , Streamly.Internal.Data.SVar.Worker
+                     , Streamly.Internal.Data.SVar.Dispatch
+                     , Streamly.Internal.Data.SVar.Pull
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Stream.StreamK.Type
                      , Streamly.Internal.Data.Fold.Type
@@ -417,13 +421,16 @@ library
 
                      -- streamly-core
                      , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Unfold.SVar
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.SVar
                      , Streamly.Internal.Data.Sink
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
 
-                     , Streamly.Internal.Data.Stream.SVar
+                     , Streamly.Internal.Data.Stream.SVar.Generate
+                     , Streamly.Internal.Data.Stream.SVar.Eliminate
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel

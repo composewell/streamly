@@ -28,9 +28,9 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
-import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

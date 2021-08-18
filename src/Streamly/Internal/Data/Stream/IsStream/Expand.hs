@@ -158,6 +158,7 @@ where
 
 #include "inline.hs"
 
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Ahead (ahead)
 import Streamly.Internal.Data.Stream.Async (async, wAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common
@@ -169,7 +170,6 @@ import Streamly.Internal.Data.Stream.Prelude
 import Streamly.Internal.Data.Stream.Serial (serial, wSerial)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
-import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

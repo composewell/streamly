@@ -210,7 +210,8 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
 where
 
 import Data.Semigroup (Semigroup(..))
-import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Stream.Ahead
 import Streamly.Internal.Data.Stream.Async hiding (mkAsync)
 import Streamly.Internal.Data.Stream.IsStream.Combinators

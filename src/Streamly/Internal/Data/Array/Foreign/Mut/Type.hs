@@ -119,7 +119,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
-import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import Streamly.Internal.System.IO

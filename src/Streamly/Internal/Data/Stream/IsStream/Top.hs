@@ -59,7 +59,7 @@ import Data.Kind (Type)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Data.SVar (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
 import Streamly.Internal.Data.Stream.Prelude (foldl', fromList)
 import Streamly.Internal.Data.Stream.Serial (SerialT)

@@ -133,8 +133,10 @@ import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
 
+import Streamly.Internal.Control.Concurrent (MonadAsync, fork, forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
+import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
@@ -151,7 +153,6 @@ import Prelude hiding
        , scanl, scanl1, sequence, take, takeWhile)
 
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
 -- Piping

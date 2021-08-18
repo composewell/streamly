@@ -71,4 +71,4 @@ import Streamly.Internal.Data.Stream.Serial
 import Streamly.Internal.Data.Stream.StreamK (IsStream(), adapt)
 import Streamly.Internal.Data.Stream.Zip
        (ZipSerialM, ZipSerial, ZipAsyncM, ZipAsync, fromZipSerial, fromZipAsync)
-import Streamly.Internal.Data.SVar (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadAsync)

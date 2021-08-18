@@ -23,7 +23,7 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, control)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
-import Streamly.Internal.Data.SVar (captureMonadState, runInIO)
+import Streamly.Internal.Control.Concurrent (captureMonadState, runInIO)
 
 -- | An 'IOFinalizer' has an associated IO action that is automatically called
 -- whenever the finalizer is garbage collected. The action can be run and

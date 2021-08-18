@@ -154,10 +154,10 @@ import Data.Heap (Entry(..))
 import Data.Kind (Type)
 import Data.Maybe (isNothing)
 import Foreign.Storable (Storable)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
-import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( concatMap
     , fold

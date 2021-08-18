@@ -152,8 +152,9 @@ where
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Parser (Parser (..))
-import Streamly.Internal.Data.SVar (MonadAsync, defState)
+import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold, fold_, drop, findIndices, reverse, splitOnSeq, take
     , takeWhile)

@@ -81,13 +81,12 @@ where
 import Control.Monad (ap, (>=>))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Kind (Type)
-
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Prelude hiding (map, mapM, concatMap, foldr)
-
-import Streamly.Internal.Data.SVar
 
 -- $setup
 -- >>> import Streamly.Prelude as Stream

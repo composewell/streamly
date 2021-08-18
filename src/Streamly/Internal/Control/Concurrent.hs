@@ -12,6 +12,7 @@ module Streamly.Internal.Control.Concurrent
     (
       MonadAsync
     , RunInIO(..)
+    , captureMonadState
     , doFork
     , fork
     , forkManaged
@@ -42,6 +43,16 @@ import System.Mem.Weak (addFinalizer)
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO (StM m b) }
+
+-- | When we run computations concurrently, we completely isolate the state of
+-- the concurrent computations from the parent computation.  The invariant is
+-- that we should never be running two concurrent computations in the same
+-- thread without using the runInIO function.  Also, we should never be running
+-- a concurrent computation in the parent thread, otherwise it may affect the
+-- state of the parent which is against the defined semantics of concurrent
+-- execution.
+captureMonadState :: MonadBaseControl IO m => m (RunInIO m)
+captureMonadState = control $ \run -> run (return $ RunInIO run)
 
 -- Stolen from the async package. The perf improvement is modest, 2% on a
 -- thread heavy benchmark (parallel composition using noop computations).

@@ -32,6 +32,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -39,7 +40,6 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
 
 data GbracketState s1 s2 v
     = GBracketInit

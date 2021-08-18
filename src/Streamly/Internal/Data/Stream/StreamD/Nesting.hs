@@ -160,6 +160,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -169,7 +170,6 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Ring.Foreign as RB
 
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
 
 import Prelude hiding (concatMap, mapM, zipWith)
 

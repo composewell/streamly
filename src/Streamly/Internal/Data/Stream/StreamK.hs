@@ -190,17 +190,19 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Data.Function (fix)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
+
+import qualified Prelude
+import qualified Streamly.Internal.Data.Fold.Type as FL
+
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
                foldr1, (!!), replicate, reverse, concatMap, iterate)
-import qualified Prelude
 
-import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK.Type
-
-import qualified Streamly.Internal.Data.Fold.Type as FL
 
 -- $setup
 -- >>> :m

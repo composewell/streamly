@@ -28,7 +28,7 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Data.Functor.Identity (Identity(..))
-import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Control.Monad.Trans.State.Strict as State

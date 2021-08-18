@@ -68,17 +68,19 @@ import Prelude hiding (map)
 
 import qualified Data.Set as Set
 
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared, adapt)
 
-import Streamly.Internal.Data.SVar
-
 import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.SVar as SVar
+import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
+import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
+
+import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"
 

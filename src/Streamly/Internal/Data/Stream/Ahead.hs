@@ -50,15 +50,17 @@ import GHC.Exts (inline)
 
 import qualified Data.Heap as H
 
-import Streamly.Internal.Data.Stream.SVar (fromSVar)
-import Streamly.Internal.Data.SVar
+import Streamly.Internal.Control.Concurrent
+    (MonadAsync, RunInIO(..), captureMonadState)
 import Streamly.Internal.Data.Stream.StreamK.Type
-       (IsStream(..), Stream, mkStream, foldStream, foldStreamShared)
+    (IsStream(..), Stream, mkStream, foldStream, foldStreamShared)
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
+import Streamly.Internal.Data.Stream.SVar.Generate
+import Streamly.Internal.Data.SVar
 import Prelude hiding (map)
 
 #include "Instances.hs"

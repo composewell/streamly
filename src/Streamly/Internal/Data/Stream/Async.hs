@@ -49,7 +49,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR)
+import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
 #if __GLASGOW_HASKELL__ < 808
@@ -59,15 +59,20 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 import qualified Data.Set as S
 
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
-import Streamly.Internal.Data.Stream.SVar (fromSVar, fromSVarD)
-import Streamly.Internal.Data.SVar
+import Streamly.Internal.Control.Concurrent
+    (MonadAsync, RunInIO(..), captureMonadState)
+import Streamly.Internal.Data.Atomics
+    (atomicModifyIORefCAS, atomicModifyIORefCAS_)
+import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 import Streamly.Internal.Data.Stream.StreamK.Type
        (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared)
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+
+import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"
 
@@ -85,6 +90,17 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 -------------------------------------------------------------------------------
 -- Async
 -------------------------------------------------------------------------------
+
+-- Note: For purely right associated expressions this queue should have at most
+-- one element. It grows to more than one when we have left associcated
+-- expressions. Large left associated compositions can grow this to a
+-- large size
+{-# INLINE enqueueLIFO #-}
+enqueueLIFO ::
+       SVar t m a -> IORef [(RunInIO m, t m a)] -> (RunInIO m, t m a) -> IO ()
+enqueueLIFO sv q m = do
+    atomicModifyIORefCAS_ q $ \ms -> m : ms
+    ringDoorBell sv
 
 data WorkerStatus = Continue | Suspend
 
@@ -207,6 +223,20 @@ workLoopLIFOLimited q st sv winfo = run
 -------------------------------------------------------------------------------
 -- WAsync
 -------------------------------------------------------------------------------
+
+-- XXX we can use the Ahead style sequence/heap mechanism to make the best
+-- effort to always try to finish the streams on the left side of an expression
+-- first as long as possible.
+
+{-# INLINE enqueueFIFO #-}
+enqueueFIFO ::
+       SVar t m a
+    -> LinkedQueue (RunInIO m, t m a)
+    -> (RunInIO m, t m a)
+    -> IO ()
+enqueueFIFO sv q m = do
+    pushL q m
+    ringDoorBell sv
 
 -- XXX we can remove sv as it is derivable from st
 

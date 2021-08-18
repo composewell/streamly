@@ -90,6 +90,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Time.Clock
     (Clock(Monotonic), asyncClock, readClock)
 import Streamly.Internal.Data.Time.Units
@@ -97,7 +98,6 @@ import Streamly.Internal.Data.Time.Units
 
 import Prelude hiding (iterate, repeat, replicate, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
 -- Primitives
