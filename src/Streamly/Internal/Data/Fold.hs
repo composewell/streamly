@@ -256,7 +256,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
+-- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Prelude
 
@@ -1617,8 +1617,9 @@ zip = zipWithM (curry return)
 --
 -- /Unimplemented/
 {-# INLINE indexed #-}
-indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Fold m a b
-indexed = zip (Stream.enumerateFrom 0 :: SerialT m Int)
+indexed :: -- forall m a b. Monad m =>
+    Fold m (Int, a) b -> Fold m a b
+indexed = undefined -- zip (Stream.enumerateFrom 0 :: SerialT m Int)
 
 -- | Change the predicate function of a Fold from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an
