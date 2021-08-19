@@ -110,7 +110,7 @@ targets () {
       Data.Unfold \
       Unicode.Stream \
       Unicode.Char \
-      Unicode.Utf8 \
+      `bench_only Unicode.Utf8` \
       FileSystem.Handle \
       `test_only FileSystem.Event` \
       `test_only Network.Socket` \
