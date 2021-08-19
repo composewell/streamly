@@ -10,7 +10,7 @@
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" || exit; pwd)
 SCRIPT_NAME=$(basename "$0")
-source "$SCRIPT_DIR/build-lib.sh"
+source "$SCRIPT_DIR/../benchmark/bench-report/bin/build-lib.sh"
 
 #------------------------------------------------------------------------------
 # Prime version (GHC 8.10)
