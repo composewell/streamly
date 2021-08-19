@@ -96,6 +96,7 @@ bench_rts_options () {
     Data.Parser/o-1-space/manyTill) echo -n "-K4M" ;;
     Data.Parser/o-n-heap/manyAlt) echo -n "-K4M -M128M" ;;
     Data.Parser/o-n-heap/someAlt) echo -n "-K4M -M128M" ;;
+    Data.Parser/o-n-heap/choice) echo -n "-K16M -M32M" ;;
     Data.Parser.ParserK/o-n-heap/manyAlt) echo -n "-K4M -M128M" ;;
     Data.Parser.ParserK/o-n-heap/someAlt) echo -n "-K4M -M128M" ;;
     Data.Parser.ParserK/o-n-heap/sequence) echo -n "-M64M";;
