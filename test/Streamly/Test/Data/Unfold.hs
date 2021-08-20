@@ -195,37 +195,255 @@ fromIndicesM =
                   unf = UF.take 100 $ UF.fromIndicesM indFM
                in testUnfoldMD unf 1 0 (length list) list
 
-enumerateFromStepNum :: Property
-enumerateFromStepNum =
+-------------------------------------------------------------------------------
+-- Test for Num type -----------------------------------------------------
+-------------------------------------------------------------------------------
+enumerateFromNum :: Property
+enumerateFromNum =
     property
-        $ \f s ->
-              let unf = UF.take 10 $ UF.enumerateFromStepNum s
-                  lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
-               in testUnfoldD unf f lst
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFromNum
+                in testUnfold unf (f :: Int) $
+                    Prelude.take 50 $ Prelude.enumFrom f
 
-#if MIN_VERSION_base(4,12,0)
-enumerateFromToFractional :: Property
-enumerateFromToFractional =
+enumerateFromThenNum :: Property
+enumerateFromThenNum =
     property
-        $ \f t ->
-              let unf = UF.enumerateFromToFractional (t :: Double)
-               in testUnfold unf (f :: Double) [f..(t :: Double)]
-#endif
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThenNum
+                in testUnfold unf (f :: Int, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
 
-enumerateFromStepIntegral :: Property
-enumerateFromStepIntegral =
+-------------------------------------------------------------------------------
+-- Test for Integral type -----------------------------------------------------
+-------------------------------------------------------------------------------
+enumerateFromIntegral :: Property
+enumerateFromIntegral =
     property
-        $ \f s ->
-              let unf = UF.take 10 UF.enumerateFromStepIntegral
-                  lst = Prelude.take 10 $ List.unfoldr (\x -> Just (x, x + s)) f
-               in testUnfoldD unf (f, s) lst
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFromIntegral
+                in testUnfold unf (f :: Integer) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerateFromThenIntegral :: Property
+enumerateFromThenIntegral =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThenIntegral
+                in testUnfold unf (f :: Integer, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerateFromThenToIntegral :: Property
+enumerateFromThenToIntegral =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenToIntegral
+                in testUnfold unf (f :: Integer, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
 
 enumerateFromToIntegral :: Property
 enumerateFromToIntegral =
     property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromToIntegral
+                in testUnfold unf (f :: Integer, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerateFromIntegralBounded :: Property
+enumerateFromIntegralBounded =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFromIntegralBounded
+                in testUnfold unf (f :: Int) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerateFromThenIntegralBounded :: Property
+enumerateFromThenIntegralBounded =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThenIntegralBounded
+                in testUnfold unf (f :: Int, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerateFromToIntegralBounded :: Property
+enumerateFromToIntegralBounded =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromToIntegralBounded
+                in testUnfold unf (f :: Int, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerateFromThenToIntegralBounded :: Property
+enumerateFromThenToIntegralBounded =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenToIntegralBounded
+                in testUnfold unf (f :: Int, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+enumerateFromSmall :: Property
+enumerateFromSmall =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFromSmall
+                in testUnfold unf (f :: Char) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerateFromThenSmall :: Property
+enumerateFromThenSmall =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThenSmall
+                in testUnfold unf (f :: Char, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerateFromToSmall :: Property
+enumerateFromToSmall =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromToSmall
+                in testUnfold unf (f :: Char, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerateFromThenToSmall :: Property
+enumerateFromThenToSmall =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenToSmall
+                in testUnfold unf (f :: Char, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+enumerateFromSmallOrd :: Property
+enumerateFromSmallOrd =
+    property
+        $ \f ->
+                let unf = UF.take 3 UF.enumerateFromSmall
+                in testUnfold unf (f :: Ordering) $
+                    Prelude.take 3 $ Prelude.enumFrom f
+
+enumerateFromThenSmallOrd :: Property
+enumerateFromThenSmallOrd =
+    property
+        $ \f th  ->
+                let unf = UF.take 3 UF.enumerateFromThenSmall
+                in testUnfold unf (f :: Ordering, th) $
+                    Prelude.take 3 $ Prelude.enumFromThen f th
+
+enumerateFromToSmallOrd :: Property
+enumerateFromToSmallOrd =
+    property
+        $ \f to ->
+                let unf = UF.take 3 UF.enumerateFromToSmall
+                in testUnfold unf (f :: Ordering, to) $
+                    Prelude.take 3 $ Prelude.enumFromTo f to
+
+enumerateFromThenToSmallOrd :: Property
+enumerateFromThenToSmallOrd =
+    property
+        $ \f th to ->
+                let unf = UF.take 3 UF.enumerateFromThenToSmall
+                in testUnfold unf (f :: Ordering, th, to) $
+                    Prelude.take 3 $ Prelude.enumFromThenTo f th to
+
+-------------------------------------------------------------------------------
+enumerateFromSmallBool :: Property
+enumerateFromSmallBool =
+    property
+        $ \f ->
+                let unf = UF.take 2 UF.enumerateFromSmall
+                in testUnfold unf (f :: Bool) $
+                    Prelude.take 2 $ Prelude.enumFrom f
+
+enumerateFromThenSmallBool :: Property
+enumerateFromThenSmallBool =
+    property
+        $ \f th  ->
+                let unf = UF.take 2 UF.enumerateFromThenSmall
+                in testUnfold unf (f :: Bool, th) $
+                    Prelude.take 2 $ Prelude.enumFromThen f th
+
+enumerateFromToSmallBool :: Property
+enumerateFromToSmallBool =
+    property
+        $ \f to ->
+                let unf = UF.take 2 UF.enumerateFromToSmall
+                in testUnfold unf (f :: Bool, to) $
+                    Prelude.take 2 $ Prelude.enumFromTo f to
+
+enumerateFromThenToSmallBool :: Property
+enumerateFromThenToSmallBool =
+    property
+        $ \f th to ->
+                let unf = UF.take 2 UF.enumerateFromThenToSmall
+                in testUnfold unf (f :: Bool, th, to) $
+                    Prelude.take 2 $ Prelude.enumFromThenTo f th to
+-------------------------------------------------------------------------------
+enumerateFromSmallUnit :: Property
+enumerateFromSmallUnit =
+    property
+        $ \f ->
+                let unf = UF.take 1 UF.enumerateFromSmall
+                in testUnfold unf (f :: ()) $
+                    Prelude.take 1 $ Prelude.enumFrom f
+
+enumerateFromThenSmallUnit :: Property
+enumerateFromThenSmallUnit =
+    property
+        $ \f th  ->
+                let unf = UF.take 1 UF.enumerateFromThenSmall
+                in testUnfold unf (f :: (), th) $
+                    Prelude.take 1 $ Prelude.enumFromThen f th
+
+enumerateFromToSmallUnit :: Property
+enumerateFromToSmallUnit =
+    property
+        $ \f to ->
+                let unf = UF.take 1 UF.enumerateFromToSmall
+                in testUnfold unf (f :: (), to) $
+                    Prelude.take 1 $ Prelude.enumFromTo f to
+
+enumerateFromThenToSmallUnit :: Property
+enumerateFromThenToSmallUnit =
+    property
+        $ \f th to ->
+                let unf = UF.take 1 UF.enumerateFromThenToSmall
+                in testUnfold unf (f :: (), th, to) $
+                    Prelude.take 1 $ Prelude.enumFromThenTo f th to
+
+
+#if MIN_VERSION_base(4,12,0)
+enumerateFromFractional :: Property
+enumerateFromFractional =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFromFractional
+                in testUnfold unf (f :: Double) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerateFromThenFractional :: Property
+enumerateFromThenFractional =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThenFractional
+                in testUnfold unf (f :: Double, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerateFromThenToFractional :: Property
+enumerateFromThenToFractional =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenToFractional
+                in testUnfold  unf (f :: Double, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+enumerateFromToFractional :: Property
+enumerateFromToFractional =
+    property
         $ \f t ->
-              let unf = UF.enumerateFromToIntegral t
-               in testUnfoldD unf f [f .. t]
+                let unf = UF.enumerateFromToFractional
+                in testUnfold unf (f :: Double, t) [f..(t :: Double)]
+
+#endif
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -315,29 +533,29 @@ zipWithM :: Property
 zipWithM =
     property
         $ \f ->
-              let unf1 = UF.enumerateFromToIntegral 10
-                  unf2 = UF.enumerateFromToIntegral 20
-                  fA = applyFun2 f :: Int -> Int -> Int
-                  fM a b = modify (+ 1) >> return (fA a b)
-                  unf = UF.zipWithM fM (UF.lmap fst unf1) (UF.lmap snd unf2)
-                  lst = Prelude.zipWith fA [1 .. 10] [1 .. 20]
-               in testUnfoldMD unf (1, 1) 0 10 lst
+            let unf1 = UF.enumerateFromToIntegral
+                unf2 = UF.enumerateFromToIntegral
+                fA = applyFun2 f :: Int -> Int -> Int
+                fM a b = modify (+ 1) >> return (fA a b)
+                unf = UF.zipWithM fM (UF.lmap fst unf1) (UF.lmap snd unf2)
+                lst = Prelude.zipWith fA [1 .. 10] [1 .. 20]
+            in testUnfoldMD unf ((1,10), (1,20)) 0 10 lst
 
 concat :: Bool
 concat =
     let unfIn = UF.replicateM 10
-        unfOut = UF.map return $ UF.enumerateFromToIntegral 10
+        unfOut = UF.map return UF.enumerateFromToIntegral
         unf = UF.many unfOut unfIn
         lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
-     in testUnfoldD unf 1 lst
+     in testUnfoldD unf (1, 10) lst
 
 outerProduct :: Bool
 outerProduct =
-    let unf1 = UF.enumerateFromToIntegral 10
-        unf2 = UF.enumerateFromToIntegral 20
+    let unf1 = UF.enumerateFromToIntegral
+        unf2 = UF.enumerateFromToIntegral
         unf = crossProduct unf1 unf2
         lst = [(a, b) :: (Int, Int) | a <- [0 .. 10], b <- [0 .. 20]]
-     in testUnfold unf ((0, 0) :: (Int, Int)) lst
+     in testUnfold unf (((0,10) ,(0,20)) :: ((Int, Int), (Int, Int))) lst
 
     where
 
@@ -348,9 +566,9 @@ concatMapM =
     let inner b =
           let u = UF.lmap (\_ -> modify (+ 1) >> return b) (UF.replicateM 10)
            in modify (+ 1) >> return u
-        unf = UF.concatMapM inner (UF.enumerateFromToIntegral 10)
+        unf = UF.concatMapM inner UF.enumerateFromToIntegral
         list = List.concatMap (replicate 10) [1 .. 10]
-     in testUnfoldMD unf 1 0 110 list
+     in testUnfoldMD unf (1, 10) 0 110 list
 
 -------------------------------------------------------------------------------
 -- Test groups
@@ -391,13 +609,45 @@ testGeneration =
             prop "repeatM" repeatM
             prop "iterateM" iterateM
             prop "fromIndicesM" fromIndicesM
-            prop "enumerateFromStepIntegral" enumerateFromStepIntegral
+            ----------- Enumerate from Num ------------------------------------
+            prop "enumerateFromNum" enumerateFromNum
+            prop "enumerateFromThenNum" enumerateFromThenNum
+            ----------- Enumerate from Integral -------------------------------
+            prop "enumerateFromIntegral" enumerateFromIntegral
+            prop "enumerateFromThenIntegral" enumerateFromThenIntegral
             prop "enumerateFromToIntegral" enumerateFromToIntegral
-            -- prop "enumerateFromIntegral" enumerateFromIntegral
-            prop "enumerateFromStepNum" enumerateFromStepNum
-            -- prop "numFrom" numFrom
+            prop "enumerateFromThenToIntegral" enumerateFromThenToIntegral
+
+            prop "enumerateFromIntegralBounded" enumerateFromIntegralBounded
+            prop "enumerateFromThenIntegralBounded" enumerateFromThenIntegralBounded
+            prop "enumerateFromToIntegralBounded" enumerateFromToIntegralBounded
+            prop "enumerateFromThenToIntegralBounded" enumerateFromThenToIntegralBounded
+            ----------- Enumerate from Small Integral -------------------------
+            prop "enumerateFromSmall" enumerateFromSmall
+            prop "enumerateFromThenSmall" enumerateFromThenSmall
+            prop "enumerateFromToSmall" enumerateFromToSmall
+            prop "enumerateFromThenToSmall" enumerateFromThenToSmall
+            --
+            prop "enumerateFromSmallOrd" enumerateFromSmallOrd
+            prop "enumerateFromThenSmallOrd" enumerateFromThenSmallOrd
+            prop "enumerateFromToSmallOrd" enumerateFromToSmallOrd
+            prop "enumerateFromThenToSmallOrd" enumerateFromThenToSmallOrd
+
+            prop "enumerateFromSmallUnit" enumerateFromSmallUnit
+            prop "enumerateFromThenSmallUnit" enumerateFromThenSmallUnit
+            prop "enumerateFromToSmallUnit" enumerateFromToSmallUnit
+            prop "enumerateFromThenToSmallUnit" enumerateFromThenToSmallUnit
+
+            prop "enumerateFromSmallUnit" enumerateFromSmallBool
+            prop "enumerateFromThenSmallBool" enumerateFromThenSmallBool
+            prop "enumerateFromToSmallBool" enumerateFromToSmallBool
+            prop "enumerateFromThenToSmallBool" enumerateFromThenToSmallBool
+
 #if MIN_VERSION_base(4,12,0)
+            prop "enumerateFromFractional" enumerateFromFractional
+            prop "enumerateFromThenFractional" enumerateFromThenFractional
             prop "enumerateFromToFractional" enumerateFromToFractional
+            prop "enumerateFromThenToFractional" enumerateFromThenToFractional
 #endif
 
 testTransformation :: Spec

@@ -54,7 +54,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 -- generate numbers up to the argument value
 {-# INLINE source #-}
 source :: Monad m => Int -> Unfold m Int Int
-source n = UF.enumerateFromToIntegral n
+source n = UF.supplySecond n UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -73,7 +73,7 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.enumerateFromToIntegral  to)
+    drainTransformation (UF.supplySecond to UF.enumerateFromToIntegral)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -96,7 +96,7 @@ drainProductDefault to = drainProduct src src
 
     where
 
-    src = UF.enumerateFromToIntegral  to
+    src = UF.supplySecond to UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -122,7 +122,7 @@ supply size start =
 supplyFirst :: Monad m => Int -> Int -> m ()
 supplyFirst size start =
     drainTransformation
-        (UF.take size UF.enumerateFromStepIntegral)
+        (UF.take size UF.enumerateFromThenIntegral)
         (UF.supplyFirst start)
         1
 
@@ -130,7 +130,7 @@ supplyFirst size start =
 supplySecond :: Monad m => Int -> Int -> m ()
 supplySecond size start =
     drainTransformation
-        (UF.take size UF.enumerateFromStepIntegral)
+        (UF.take size UF.enumerateFromThenIntegral)
         (UF.supplySecond 1)
         start
 
@@ -148,7 +148,7 @@ discardSecond size start =
 swap :: Monad m => Int -> Int -> m ()
 swap size start =
     drainTransformation
-        (UF.take size UF.enumerateFromStepIntegral)
+        (UF.take size UF.enumerateFromThenIntegral)
         UF.swap
         (1, start)
 
@@ -245,15 +245,19 @@ fromIndicesM :: Monad m => Int -> Int -> m ()
 fromIndicesM size start =
     drainGeneration (UF.take size (UF.fromIndicesM return)) start
 
-{-# INLINE enumerateFromStepIntegral #-}
-enumerateFromStepIntegral :: Monad m => Int -> Int -> m ()
-enumerateFromStepIntegral size start =
-    drainGeneration (UF.take size UF.enumerateFromStepIntegral) (start, 1)
+{-# INLINE enumerateFromThenIntegral #-}
+enumerateFromThenIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromThenIntegral size start =
+    drainGeneration (UF.take size UF.enumerateFromThenIntegral) (start, 1)
 
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
 enumerateFromToIntegral size start =
-    drainGeneration (UF.enumerateFromToIntegral  (size + start)) start
+    drainGeneration
+    ( UF.supplySecond
+      (size + start)
+      UF.enumerateFromToIntegral
+    ) start
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Monad m => Int -> Int -> m ()
@@ -263,18 +267,21 @@ enumerateFromIntegral size start =
 {-# INLINE enumerateFromStepNum #-}
 enumerateFromStepNum :: Monad m => Int -> Int -> m ()
 enumerateFromStepNum size start =
-    drainGeneration (UF.take size (UF.enumerateFromStepNum 1)) start
+    drainGeneration (UF.take size (UF.enumerateFromThenNum)) (start, 1)
 
 {-# INLINE numFrom #-}
 numFrom :: Monad m => Int -> Int -> m ()
-numFrom size start = drainGeneration (UF.take size UF.numFrom) start
+numFrom size start = drainGeneration (UF.take size UF.enumerateFromNum) start
 
 {-# INLINE enumerateFromToFractional #-}
 enumerateFromToFractional :: Monad m => Int -> Int -> m ()
 enumerateFromToFractional size start =
     let intToDouble x = (fromInteger (fromIntegral x)) :: Double
      in drainGeneration
-            (UF.enumerateFromToFractional (intToDouble $ start + size))
+            ( UF.supplySecond
+              (intToDouble $ start + size)
+              UF.enumerateFromToFractional
+            )
             (intToDouble start)
 
 -------------------------------------------------------------------------------
@@ -434,8 +441,8 @@ concatMapM value start =
     where
 
     val = nthRoot 2 value
-    unfoldInGen i = return (UF.enumerateFromToIntegral  (i + val))
-    unfoldOut = UF.enumerateFromToIntegral  (start + val)
+    unfoldInGen i = return (UF.supplySecond (i + val) UF.enumerateFromToIntegral)
+    unfoldOut = UF.supplySecond (start + val) UF.enumerateFromToIntegral
 
 {-# INLINE toNull #-}
 toNull :: Monad m => Int -> Int -> m ()
@@ -638,7 +645,7 @@ o_1_space_generation size =
           , benchIO "repeatM" $ repeatM size
           , benchIO "iterateM" $ iterateM size
           , benchIO "fromIndicesM" $ fromIndicesM size
-          , benchIO "enumerateFromStepIntegral" $ enumerateFromStepIntegral size
+          , benchIO "enumerateFromThenIntegral" $ enumerateFromThenIntegral size
           , benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral size
           , benchIO "enumerateFromIntegral" $ enumerateFromIntegral size
           , benchIO "enumerateFromStepNum" $ enumerateFromStepNum size
