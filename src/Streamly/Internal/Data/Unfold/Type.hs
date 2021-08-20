@@ -34,7 +34,7 @@ module Streamly.Internal.Data.Unfold.Type
     , map
     , supply
     , supplyFirst
-    , supplySecond        
+    , supplySecond
     , supplyMiddle
     , supplySecondThird
     , supplyNextFromStride
@@ -221,8 +221,8 @@ supplyFirst a = lmap (a, )
 supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
 supplySecond b = lmap (, b)
 
--- | Supply the second and third components of the tuple to an unfold that 
--- accepts a tuple as a seed resulting in a fold that accepts the first 
+-- | Supply the second and third components of the tuple to an unfold that
+-- accepts a tuple as a seed resulting in a fold that accepts the first
 -- component of the tuple as a seed.
 --
 -- /Pre-release/
@@ -232,7 +232,7 @@ supplySecondThird :: (a -> b) -> c -> Unfold m (a, b, c) x -> Unfold m a x
 supplySecondThird f c = lmap (\a -> (a, f a, c))
 
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
--- as a seed and resulting in a fold that accepts the first and second  
+-- as a seed and resulting in a fold that accepts the first and second
 -- components of the tuple as a seed.
 --
 -- /Pre-release/

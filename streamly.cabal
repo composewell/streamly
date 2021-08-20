@@ -422,7 +422,7 @@ library
                      -- streamly-core
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Unfold.SVar
-                     , Streamly.Internal.Data.Unfold.Enumeration                     
+                     , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.SVar

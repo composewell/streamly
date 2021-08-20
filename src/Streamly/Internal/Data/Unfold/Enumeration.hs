@@ -1,7 +1,7 @@
 -- |
 -- Module      : Streamly.Internal.Data.Unfold.Enumeration
--- Copyright   : (c) 2019 Composewell Technologies
--- License     : BSD3
+-- Copyright   : (c) 2019, 2021 Composewell Technologies
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -61,8 +61,8 @@ import Data.Ratio
 import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
-import Streamly.Internal.Data.Unfold.Type
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
@@ -71,34 +71,18 @@ import Prelude
 -- Enumeration of Num
 ------------------------------------------------------------------------------
 
--- | Generate an infinite stream starting from a starting value with default
--- stride of value 1. The implementation is numerically stable for floating
--- point values.
+-- | Unfolds @(from, next)@ generating an infinite stream starting from @from@
+-- and @next@ values with a stride of @(next - from)@.  After the value
+-- overflows it keeps enumerating in a cycle:
+--
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromThenNum (255::Word8,0)
+-- [255,0,1,2,3,4,5,6,7,8]
+--
+-- The implementation is numerically stable for floating point values.
 --
 -- Note 'enumerateFromStepIntegral' is faster for integrals.
 --
--- /Pre-release/
---
-{-# INLINE enumerateFromNum #-}
-enumerateFromNum :: (Monad m, Num a) => Unfold m a a
-enumerateFromNum = Unfold step inject
-
-    where
-
-    inject !from = return (from, 1, 0)
-
-    {-# INLINE_LATE step #-}
-    step (from, stride, i) =
-        return $
-            (Yield $! (from + i * stride)) $! (from, stride, i + 1)
-
--- | Generate an infinite stream starting from a from and next values with
--- stride of (next-from). The implementation is numerically stable for 
--- floating point values.
---
--- Note 'enumerateFromStepIntegral' is faster for integrals.
---
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE enumerateFromThenNum #-}
 enumerateFromThenNum :: (Monad m, Num a) => Unfold m (a, a) a
@@ -108,10 +92,24 @@ enumerateFromThenNum = Unfold step inject
 
     inject (!from, !next) = return (from, next - from, 0)
 
+    -- Note that the counter "i" is the same type as the type being enumerated.
+    -- It may overflow, for example, if we are enumerating Word8, after 255 the
+    -- counter will become 0, but the overflow does not affect the enumeration
+    -- behavior.
     {-# INLINE_LATE step #-}
     step (from, stride, i) =
         return $
             (Yield $! (from + i * stride)) $! (from, stride, i + 1)
+
+-- | Same as 'enumerateFromThenNum' using a stride of 1.
+--
+-- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromNum #-}
+enumerateFromNum :: (Monad m, Num a) => Unfold m a a
+enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
 
 -- | Generate a finite stream starting from a from and next values with
 -- stride of (next-from) till to value. The implementation is numerically
@@ -119,7 +117,7 @@ enumerateFromThenNum = Unfold step inject
 --
 -- Note 'enumerateFromStepIntegral' is faster for integrals.
 --
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE enumerateFromThenToNumBounded #-}
 enumerateFromThenToNumBounded :: (Monad m, Ord a, Fractional a) =>
@@ -151,7 +149,7 @@ enumerateFromThenToNumBounded = Unfold step inject
 --
 -- Note 'enumerateFromStepIntegralBounded' is faster for integrals.
 --
--- /Pre-release/
+-- /Internal/
 --
 {-# INLINE enumerateFromToNumBounded #-}
 enumerateFromToNumBounded :: (Monad m, Ord a, Fractional a) =>
@@ -174,6 +172,8 @@ enumerateFromToNumBounded = Unfold step inject
 
 -- | Can be used to enumerate unbounded integrals. This does not check for
 -- overflow or underflow for bounded integrals.
+--
+-- /Internal/
 {-# INLINE_NORMAL enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: (Integral a, Monad m) => Unfold m (a, a) a
 enumerateFromStepIntegral = Unfold step inject
@@ -185,7 +185,8 @@ enumerateFromStepIntegral = Unfold step inject
 -- | Can be used to enumerate bounded integrals from starting from with
 -- stride of (next-from) . This check for overflow or underflow for
 -- bounded integrals.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE_NORMAL enumerateFromStepIntegralBounded #-}
 enumerateFromStepIntegralBounded ::
@@ -215,7 +216,8 @@ enumerateFromStepIntegralBounded = Unfold step inject
 -- | Can be used to enumerate bounded integrals from starting from with
 -- stride of (next-from) till to value. This check for overflow or underflow
 --  for bounded integrals.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE_NORMAL enumerateFromToStepIntegralBounded #-}
 enumerateFromToStepIntegralBounded ::
@@ -244,7 +246,8 @@ enumerateFromToStepIntegralBounded = Unfold step inject
 
 -- | Can be used to enumerate unbounded integrals. Startting with value from
 -- with stride of next-from till value of to.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE_NORMAL enumerateFromToStepIntegral #-}
 enumerateFromToStepIntegral :: (Integral a, Monad m) =>
@@ -335,6 +338,7 @@ enumerateFromThenToFractional  = enumerateFromThenToNumBounded
 -------------------------------------------------------------------------------
 -- Enumerable type class
 -------------------------------------------------------------------------------
+
 -- | Types that can be enumerated as a stream. The operations in this type
 -- class are equivalent to those in the 'Enum' type class, except that these
 -- generate a stream instead of a list. Use the functions in
@@ -343,98 +347,97 @@ enumerateFromThenToFractional  = enumerateFromThenToNumBounded
 -- /Pre-release/
 class Enum a => Enumerable a where
 
--- @enumerateFrom from@ generates a stream starting with the element
--- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
--- generating an infinite stream when the type is not 'Bounded'.
---
--- @
--- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
--- [0,1,2,3]
---
--- @
---
--- For 'Fractional' types, enumeration is numerically stable. However, no
--- overflow or underflow checks are performed.
---
--- @
--- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
--- [1.1,2.1,3.1,4.1]
---
--- @
---
--- /Pre-release/
---
+    -- | Unfolds @from@ generating a stream starting with the element
+    -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
+    -- generating an infinite stream when the type is not 'Bounded'.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
+    -- [0,1,2,3]
+    --
+    -- @
+    --
+    -- For 'Fractional' types, enumeration is numerically stable. However, no
+    -- overflow or underflow checks are performed.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
+    -- [1.1,2.1,3.1,4.1]
+    --
+    -- @
+    --
+    -- /Pre-release/
+    --
     enumerateFrom :: Monad m => Unfold m a a
 
--- Generate a finite stream starting with the element @from@, enumerating
--- the type up to the value @to@. If @to@ is smaller than @from@ then an
--- empty stream is returned.
---
--- @
--- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4) 0
--- [0,1,2,3,4]
---
--- @
---
--- For 'Fractional' types, the last element is equal to the specified @to@
--- value after rounding to the nearest integral value.
---
--- @
--- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4) 1.1
--- [1.1,2.1,3.1,4.1]
---
--- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4.6) 1.1
--- [1.1,2.1,3.1,4.1,5.1]
---
--- @
---
--- /Pre-release/
+    -- | Unfolds @(from, to)@ generating a finite stream starting with the element
+    -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
+    -- @from@ then an empty stream is returned.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4) 0
+    -- [0,1,2,3,4]
+    --
+    -- @
+    --
+    -- For 'Fractional' types, the last element is equal to the specified @to@
+    -- value after rounding to the nearest integral value.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4) 1.1
+    -- [1.1,2.1,3.1,4.1]
+    --
+    -- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromTo 4.6) 1.1
+    -- [1.1,2.1,3.1,4.1,5.1]
+    --
+    -- @
+    --
+    -- /Pre-release/
     enumerateFromTo :: Monad m => Unfold m (a, a) a
 
--- @enumerateFromThen from then@ generates a stream whose first element
--- is @from@ and the successive elements are
--- in increments of @then@.  Enumeration can occur downwards or
--- upwards depending on whether @then@ comes before or after @from@. For
--- 'Bounded' types the stream ends when 'maxBound' is reached, for
--- unbounded types it keeps enumerating infinitely.
---
--- @
--- >>> Stream.toList $ Stream.take 4 $ Stream.unfold (Unfold.enumerateFromThen 2) 0
--- [0,2,4,6]
---
--- >>> Stream.toList $ Stream.take 4 $ Stream.unfold (Unfold.enumerateFromThen (-2)) 0
--- [0,-2,-4,-6]
---
--- @
---
--- /Pre-release/
+    -- | Unfolds @(from, then)@ generating a stream whose first element is
+    -- @from@ and the successive elements are in increments of @then@.  Enumeration
+    -- can occur downwards or upwards depending on whether @then@ comes before or
+    -- after @from@. For 'Bounded' types the stream ends when 'maxBound' is
+    -- reached, for unbounded types it keeps enumerating infinitely.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold (Unfold.enumerateFromThen 2) 0
+    -- [0,2,4,6]
+    --
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold (Unfold.enumerateFromThen (-2)) 0
+    -- [0,-2,-4,-6]
+    --
+    -- @
+    --
+    -- /Pre-release/
     enumerateFromThen :: Monad m => Unfold m (a, a) a
 
--- @enumerateFromThenTo from then to@ generates a finite stream whose
--- first element is @from@ and the successive elements are in
--- increments of @then@ up to @to@. Enumeration can
--- occur downwards or upwards depending on whether @then@ comes before or
--- after @from@.
---
--- @
--- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromThenTo 2 6) 0
--- [0,2,4,6]
---
--- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromThenTo (-2) (-6)) 0
--- [0,-2,-4,-6]
---
--- @
---
--- /Pre-release/
+    -- | Unfolds @(from, then, to)@ generating a finite stream whose first element
+    -- is @from@ and the successive elements are in increments of @then@ up to
+    -- @to@. Enumeration can occur downwards or upwards depending on whether @then@
+    -- comes before or after @from@.
+    --
+    -- @
+    -- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromThenTo 2 6) 0
+    -- [0,2,4,6]
+    --
+    -- >>> Stream.toList $ Stream.unfold (Unfold.enumerateFromThenTo (-2) (-6)) 0
+    -- [0,-2,-4,-6]
+    --
+    -- @
+    --
+    -- /Pre-release/
     enumerateFromThenTo :: Monad m => Unfold m (a, a, a) a
 
 -------------------------------------------------------------------------------
 -- Enumeration of Enum types not larger than Int
 -------------------------------------------------------------------------------
 
--- Enumerate from given starting Enum value 'from' with stride of 1 till
+-- | Enumerate from given starting Enum value 'from' with stride of 1 till
 -- maxBound
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE enumerateFromSmall #-}
 enumerateFromSmall :: forall a m. (Monad m, Bounded a, Enum a) => Unfold m a a
@@ -448,9 +451,10 @@ enumerateFromSmall = map toEnum $
         step (x, stride, to) = return $
             if x <= to then Yield x $! (x + stride, stride, to) else Stop
 
--- Enumerate from given starting Enum value 'from' and next Enum value 'next'
+-- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
 -- with stride of (fromEnum next - fromEnum from) till maxBound.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE enumerateFromThenSmall #-}
 enumerateFromThenSmall :: forall a m. (Monad m, Bounded a, Enum a) =>
@@ -483,9 +487,10 @@ enumerateFromThenSmall = map toEnum $
                         then Yield x $! (x + stride, stride, to)
                         else Stop
 
--- Enumerate from given starting Enum value 'from' and to Enum value 'to'
+-- | Enumerate from given starting Enum value 'from' and to Enum value 'to'
 -- with stride of 1 till to value.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE enumerateFromToSmall #-}
 enumerateFromToSmall :: (Monad m, Enum a) => Unfold m (a, a) a
@@ -500,10 +505,11 @@ enumerateFromToSmall = map toEnum $
         step (x, stride, to) = return $
                 if x <= to then Yield x $! (x + stride, stride, to) else Stop
 
--- Enumerate from given starting Enum value 'from' and then Enum value 'next'
+-- | Enumerate from given starting Enum value 'from' and then Enum value 'next'
 -- and to Enum value 'to' with stride of (fromEnum next - fromEnum from)
 -- till to value.
--- /Pre-release/
+--
+-- /Internal/
 --
 {-# INLINE enumerateFromThenToSmall #-}
 enumerateFromThenToSmall :: (Monad m, Enum a) => Unfold m (a, a, a) a

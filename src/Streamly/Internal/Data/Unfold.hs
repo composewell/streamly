@@ -255,6 +255,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
@@ -263,7 +264,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
 import Prelude

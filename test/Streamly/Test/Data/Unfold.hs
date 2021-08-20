@@ -196,7 +196,7 @@ fromIndicesM =
                in testUnfoldMD unf 1 0 (length list) list
 
 -------------------------------------------------------------------------------
--- Test for Num type -----------------------------------------------------
+-- Test for Num type
 -------------------------------------------------------------------------------
 enumerateFromNum :: Property
 enumerateFromNum =
@@ -215,7 +215,7 @@ enumerateFromThenNum =
                     Prelude.take 50 $ Prelude.enumFromThen f th
 
 -------------------------------------------------------------------------------
--- Test for Integral type -----------------------------------------------------
+-- Test for Integral type
 -------------------------------------------------------------------------------
 enumerateFromIntegral :: Property
 enumerateFromIntegral =
