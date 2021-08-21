@@ -160,8 +160,8 @@ module Streamly.Internal.Data.Unfold
     , enumerateFromThenToIntegral
 
     -- ** Enumerating 'Small Integral' Types
-    , enumerateFromSmall
-    , enumerateFromThenSmall
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
     , enumerateFromToSmall
     , enumerateFromThenToSmall
 

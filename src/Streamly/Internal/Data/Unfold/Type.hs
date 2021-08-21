@@ -35,6 +35,8 @@ module Streamly.Internal.Data.Unfold.Type
     , supply
     , supplyFirst
     , supplySecond
+
+    -- * Trimming
     , takeWhileM
     , takeWhile
 

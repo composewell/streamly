@@ -85,6 +85,19 @@ the following reasons:
   correctly. Ideally, when we know the elements then former is more
   suitable while if we know the count then the latter is more suitable.
 
+Note that in case of flaoting point numbers `FromStep` style may have an
+advantage over `FromThen` style. Here is a quote from the documentation of
+`enumerateFromThenNum`:
+
+```
+Note that in the strange world of floating point numbers, using
+@enumerateFromThenNum (from, from + 1)@ is almost exactly the same as
+@enumerateFromStepNum (from, 1) but not precisely the same. Because @(from
++ 1) - from@ is not exactly 1, it may lose some precision, the loss may
+also be aggregated in each step, if you want that precision then use
+'enumerateFromStepNum' instead.
+```
+
 ### Appending
 
 * append (for mutable arrays)

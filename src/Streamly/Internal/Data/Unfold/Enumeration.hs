@@ -23,29 +23,38 @@ module Streamly.Internal.Data.Unfold.Enumeration
     (
       Enumerable (..)
 
-    -- ** Enumerate 'Num' Types
+    -- ** Enumerating 'Num' Types
+    , enumerateFromStepNum
     , enumerateFromNum
     , enumerateFromThenNum
+    , enumerateFromToNum
+    , enumerateFromThenToNum
 
-    -- ** Enumerating 'Bounded Integral' Types
+    -- ** Enumerating unbounded 'Integral' Types
+    , enumerateFromStepIntegral
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
+
+    , enumerateFromToStepIntegral
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
+
+    -- ** Enumerating 'Bounded' 'Integral' Types
+    , enumerateFromStepIntegralBounded
     , enumerateFromIntegralBounded
     , enumerateFromThenIntegralBounded
     , enumerateFromToIntegralBounded
     , enumerateFromThenToIntegralBounded
 
-    -- ** Enumerating 'Unbounded Integral' Types
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
-
-    -- ** Enumerating 'Small Integral' Types
-    , enumerateFromSmall
-    , enumerateFromThenSmall
+    -- ** Enumerating small 'Integral' Types
+    -- | Small types are always bounded.
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
     , enumerateFromToSmall
     , enumerateFromThenToSmall
 
     -- ** Enumerating 'Fractional' Types
+    -- | Enumeration of 'Num' specialized to 'Fractional' types.
     , enumerateFromFractional
     , enumerateFromThenFractional
     , enumerateFromToFractional
@@ -67,22 +76,22 @@ import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
 
-------------------------------------------------------------------------------
--- Enumeration of Num
-------------------------------------------------------------------------------
-
--- | Unfolds @(from, next)@ generating an infinite stream starting from @from@
--- and @next@ values with a stride of @(next - from)@.  After the value
--- overflows it keeps enumerating in a cycle:
---
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import Streamly.Internal.Data.Unfold.Type
 -- >>> import Data.Word
+
+------------------------------------------------------------------------------
+-- Enumeration of Num
+------------------------------------------------------------------------------
+
+-- | Unfolds @(from, stride)@ generating an infinite stream starting from
+-- @from@ and incrementing every time by @stride@.  For 'Bounded' types, after
+-- the value overflows it keeps enumerating in a cycle:
 --
--- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromThenNum (255::Word8,0)
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromStepNum (255::Word8,1)
 -- [255,0,1,2,3,4,5,6,7,8]
 --
 -- The implementation is numerically stable for floating point values.
@@ -91,13 +100,13 @@ import Prelude
 --
 -- /Internal/
 --
-{-# INLINE enumerateFromThenNum #-}
-enumerateFromThenNum :: (Monad m, Num a) => Unfold m (a, a) a
-enumerateFromThenNum = Unfold step inject
+{-# INLINE enumerateFromStepNum #-}
+enumerateFromStepNum :: (Monad m, Num a) => Unfold m (a, a) a
+enumerateFromStepNum = Unfold step inject
 
     where
 
-    inject (!from, !next) = return (from, next - from, 0)
+    inject (!from, !stride) = return (from, stride, 0)
 
     -- Note that the counter "i" is the same type as the type being enumerated.
     -- It may overflow, for example, if we are enumerating Word8, after 255 the
@@ -108,42 +117,61 @@ enumerateFromThenNum = Unfold step inject
         return $
             (Yield $! (from + i * stride)) $! (from, stride, i + 1)
 
--- | Same as 'enumerateFromThenNum' using a stride of 1.
+-- | Same as 'enumerateFromStepNum (from, next)' using a stride of @next - from@:
 --
--- >> enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
+-- >>> enumerateFromThenNum =
+--         lmap (\(from, next) -> (from, next - from)) enumerateFromStepNum
+--
+-- Example:
+--
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromThenNum (255::Word8,0)
+-- [255,0,1,2,3,4,5,6,7,8]
+--
+-- The implementation is numerically stable for floating point values.
+--
+-- Note that 'enumerateFromThenIntegral' is faster for integrals.
+--
+-- Note that in the strange world of floating point numbers, using
+-- @enumerateFromThenNum (from, from + 1)@ is almost exactly the same as
+-- @enumerateFromStepNum (from, 1) but not precisely the same. Because @(from +
+-- 1) - from@ is not exactly 1, it may lose some precision, the loss may also
+-- be aggregated in each step, if you want that precision then use
+-- 'enumerateFromStepNum' instead.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromThenNum #-}
+enumerateFromThenNum :: (Monad m, Num a) => Unfold m (a, a) a
+enumerateFromThenNum =
+    lmap (\(from, next) -> (from, next - from)) enumerateFromStepNum
+
+-- | Same as 'enumerateFromStepNum' using a stride of 1:
+--
+-- >>> enumerateFromNum = lmap (\from -> (from, 1)) enumerateFromStepNum
+--
+-- Also, same as 'enumerateFromThenNum' using a stride of 1 but see the note in
+-- 'enumerateFromThenNum' about the loss of precision:
+--
+-- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
 --
 -- /Internal/
 --
 {-# INLINE enumerateFromNum #-}
 enumerateFromNum :: (Monad m, Num a) => Unfold m a a
-enumerateFromNum = Unfold step inject
-
--- XXX It loses the precisions if we use
--- enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
--- Example ‘S.unfold (UF.take 5 $ UF.enumerateFromFractional) 3.9’
--- [3.9,4.9,5.9,6.900000000000001,7.900000000000002]
-
-    where
-
-    inject !from = return (from, 1, 0)
-
-    {-# INLINE_LATE step #-}
-    step (from, stride, i) =
-        return $
-            (Yield $! (from + i * stride)) $! (from, stride, i + 1)
+enumerateFromNum = lmap (\from -> (from, 1)) enumerateFromStepNum
 
 -- | Generate a finite stream starting from a from and next values with
--- stride of (next-from) till to value. The implementation is numerically
+-- stride of (next-from) up to value. The implementation is numerically
 -- stable for floating point values.
 --
--- Note 'enumerateFromStepIntegral' is faster for integrals.
+-- Note that 'enumerateFromThenToIntegral' is faster for integrals.
 --
 -- /Internal/
 --
-{-# INLINE enumerateFromThenToNumBounded #-}
-enumerateFromThenToNumBounded :: (Monad m, Ord a, Fractional a) =>
+{-# INLINE enumerateFromThenToNum #-}
+enumerateFromThenToNum :: (Monad m, Ord a, Fractional a) =>
     Unfold m (a, a, a) a
-enumerateFromThenToNumBounded = Unfold step inject
+enumerateFromThenToNum = Unfold step inject
 
     where
 
@@ -168,14 +196,14 @@ enumerateFromThenToNumBounded = Unfold step inject
 -- stride of value 1 will be used. The implementation is numerically
 -- stable for floating point values.
 --
--- Note 'enumerateFromStepIntegralBounded' is faster for integrals.
+-- Note that 'enumerateFromToIntegral' is faster for integrals.
 --
 -- /Internal/
 --
-{-# INLINE enumerateFromToNumBounded #-}
-enumerateFromToNumBounded :: (Monad m, Ord a, Fractional a) =>
+{-# INLINE enumerateFromToNum #-}
+enumerateFromToNum :: (Monad m, Ord a, Fractional a) =>
     Unfold m (a, a) a
-enumerateFromToNumBounded = Unfold step inject
+enumerateFromToNum = Unfold step inject
 
     where
 
@@ -202,6 +230,39 @@ enumerateFromStepIntegral = Unfold step inject
     inject (from, next) = from `seq` next `seq` return (from, next - from)
     {-# INLINE_LATE step #-}
     step (x, stride) = return $ Yield x $! (x + stride, stride)
+
+-- | Can be used to enumerate unbounded integrals. Starting with value from
+-- with stride of next-from till value of to.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL enumerateFromToStepIntegral #-}
+enumerateFromToStepIntegral :: (Integral a, Monad m) =>
+    Unfold m (a, a, a) a
+enumerateFromToStepIntegral = Unfold step inject
+    where
+    inject (from, next, to) =
+        from `seq` next `seq` to `seq` return (from, next - from, to)
+    {-# INLINE_LATE step #-}
+    step (x, stride, to) = return $
+        if stride == 0
+        then
+            if x <= to then Yield x $! (x, stride, to) else Stop
+
+        else
+            if stride > 0
+            then
+                if x <= to
+                then Yield x $! (x + stride, stride, to)
+                else Stop
+            else
+                if x >= to
+                then Yield x $! (x + stride, stride, to)
+                else Stop
+
+------------------------------------------------------------------------------
+-- Enumeration of Bounded Integrals
+------------------------------------------------------------------------------
 
 -- | Can be used to enumerate bounded integrals from starting from with
 -- stride of (next-from) . This check for overflow or underflow for
@@ -265,35 +326,6 @@ enumerateFromToStepIntegralBounded = Unfold step inject
                 then Yield x $! (x + stride, stride, to)
                 else Stop
 
--- | Can be used to enumerate unbounded integrals. Startting with value from
--- with stride of next-from till value of to.
---
--- /Internal/
---
-{-# INLINE_NORMAL enumerateFromToStepIntegral #-}
-enumerateFromToStepIntegral :: (Integral a, Monad m) =>
-    Unfold m (a, a, a) a
-enumerateFromToStepIntegral = Unfold step inject
-    where
-    inject (from, next, to) =
-        from `seq` next `seq` to `seq` return (from, next - from, to)
-    {-# INLINE_LATE step #-}
-    step (x, stride, to) = return $
-        if stride == 0
-        then
-            if x <= to then Yield x $! (x, stride, to) else Stop
-
-        else
-            if stride > 0
-            then
-                if x <= to
-                then Yield x $! (x + stride, stride, to)
-                else Stop
-            else
-                if x >= to
-                then Yield x $! (x + stride, stride, to)
-                else Stop
-
 -- Enumerate Unbounded Integrals ----------------------------------------------
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a) => Unfold m a a
@@ -340,7 +372,7 @@ enumerateFromThenToIntegralBounded = enumerateFromToStepIntegralBounded
 
 {-# INLINE_NORMAL enumerateFromFractional #-}
 enumerateFromFractional :: (Monad m, Fractional a) => Unfold m a a
-enumerateFromFractional =  enumerateFromNum
+enumerateFromFractional = enumerateFromNum
 
 {-# INLINE_NORMAL enumerateFromThenFractional #-}
 enumerateFromThenFractional :: (Monad m, Fractional a) => Unfold m (a, a) a
@@ -349,12 +381,128 @@ enumerateFromThenFractional = enumerateFromThenNum
 {-# INLINE_NORMAL enumerateFromToFractional #-}
 enumerateFromToFractional :: (Monad m, Fractional a, Ord a) =>
     Unfold m (a, a) a
-enumerateFromToFractional  = enumerateFromToNumBounded
+enumerateFromToFractional = enumerateFromToNum
 
 {-# INLINE_NORMAL enumerateFromThenToFractional #-}
-enumerateFromThenToFractional :: (Monad m, Fractional a,  Ord a) =>
+enumerateFromThenToFractional :: (Monad m, Fractional a, Ord a) =>
     Unfold m (a, a, a) a
-enumerateFromThenToFractional  = enumerateFromThenToNumBounded
+enumerateFromThenToFractional = enumerateFromThenToNum
+
+-------------------------------------------------------------------------------
+-- Enumeration of Enum types not larger than Int
+-------------------------------------------------------------------------------
+
+-- XXX should we check for bounds here? Otherwise it will cycle back to "to" if
+-- to is smaller?
+--
+-- | Enumerate from given starting Enum value 'from' and to Enum value 'to'
+-- with stride of 1 till to value.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromToSmall #-}
+enumerateFromToSmall :: (Monad m, Enum a) => Unfold m (a, a) a
+enumerateFromToSmall = map toEnum $
+    Unfold step inject
+    where
+        inject (from, to) =
+            fromEnum from
+            `seq` fromEnum to
+            `seq` return (fromEnum from, 1, fromEnum to)
+        {-# INLINE_LATE step #-}
+        step (x, stride, to) = return $
+                if x <= to then Yield x $! (x + stride, stride, to) else Stop
+
+-- | Enumerate from given starting Enum value 'from' and then Enum value 'next'
+-- and to Enum value 'to' with stride of (fromEnum next - fromEnum from)
+-- till to value.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromThenToSmall #-}
+enumerateFromThenToSmall :: (Monad m, Enum a) => Unfold m (a, a, a) a
+enumerateFromThenToSmall = map toEnum $
+    Unfold step inject
+    where
+        inject (from, next, to) =
+            fromEnum from
+            `seq` fromEnum next
+            `seq` fromEnum to
+            `seq` return
+            (fromEnum from, fromEnum next - fromEnum from, fromEnum to)
+        {-# INLINE_LATE step #-}
+        step (x, stride, to) = return $
+            if stride == 0
+            then
+                if x <= to then Yield x $! (x, stride, to) else Stop
+
+            else
+                if stride > 0
+                then
+                    if x <= to
+                    then Yield x $! (x + stride, stride, to)
+                    else Stop
+                else
+                    if x >= 0 && x >= to
+                    then Yield x $! (x + stride, stride, to)
+                    else Stop
+
+-------------------------------------------------------------------------------
+-- Bounded Enumeration of Enum types not larger than Int
+-------------------------------------------------------------------------------
+
+-- | Enumerate from given starting Enum value 'from' with stride of 1 till
+-- maxBound
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromSmallBounded #-}
+enumerateFromSmallBounded :: forall a m. (Monad m, Bounded a, Enum a) => Unfold m a a
+enumerateFromSmallBounded = map toEnum $
+    Unfold step inject
+    where
+        inject from =
+            fromEnum from
+            `seq` return (fromEnum from, 1, fromEnum (maxBound :: a))
+        {-# INLINE_LATE step #-}
+        step (x, stride, to) = return $
+            if x <= to then Yield x $! (x + stride, stride, to) else Stop
+
+-- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
+-- with stride of (fromEnum next - fromEnum from) till maxBound.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromThenSmallBounded #-}
+enumerateFromThenSmallBounded :: forall a m. (Monad m, Bounded a, Enum a) =>
+    Unfold m (a, a) a
+enumerateFromThenSmallBounded = map toEnum $
+    Unfold step inject
+    where
+        inject (from, next) =
+            fromEnum from
+            `seq` fromEnum next
+            `seq` return
+            ( fromEnum from
+            , fromEnum next - fromEnum from
+            , fromEnum (maxBound :: a)
+            )
+        {-# INLINE_LATE step #-}
+        step (x, stride, to) = return $
+            if stride == 0
+                then
+                    if x <= to then Yield x $! (x, stride, to) else Stop
+
+                else
+                    if stride > 0
+                    then
+                        if x <= to
+                        then Yield x $! (x + stride, stride, to)
+                        else Stop
+                    else
+                        if x >= 0
+                        then Yield x $! (x + stride, stride, to)
+                        else Stop
 
 -------------------------------------------------------------------------------
 -- Enumerable type class
@@ -464,115 +612,6 @@ class Enum a => Enumerable a where
     enumerateFromThenTo :: Monad m => Unfold m (a, a, a) a
 
 -------------------------------------------------------------------------------
--- Enumeration of Enum types not larger than Int
--------------------------------------------------------------------------------
-
--- | Enumerate from given starting Enum value 'from' with stride of 1 till
--- maxBound
---
--- /Internal/
---
-{-# INLINE enumerateFromSmall #-}
-enumerateFromSmall :: forall a m. (Monad m, Bounded a, Enum a) => Unfold m a a
-enumerateFromSmall = map toEnum $
-    Unfold step inject
-    where
-        inject from =
-            fromEnum from
-            `seq` return (fromEnum from, 1, fromEnum (maxBound :: a))
-        {-# INLINE_LATE step #-}
-        step (x, stride, to) = return $
-            if x <= to then Yield x $! (x + stride, stride, to) else Stop
-
--- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
--- with stride of (fromEnum next - fromEnum from) till maxBound.
---
--- /Internal/
---
-{-# INLINE enumerateFromThenSmall #-}
-enumerateFromThenSmall :: forall a m. (Monad m, Bounded a, Enum a) =>
-    Unfold m (a, a) a
-enumerateFromThenSmall = map toEnum $
-    Unfold step inject
-    where
-        inject (from, next) =
-            fromEnum from
-            `seq` fromEnum next
-            `seq` return
-            ( fromEnum from
-            , fromEnum next - fromEnum from
-            , fromEnum (maxBound :: a)
-            )
-        {-# INLINE_LATE step #-}
-        step (x, stride, to) = return $
-            if stride == 0
-                then
-                    if x <= to then Yield x $! (x, stride, to) else Stop
-
-                else
-                    if stride > 0
-                    then
-                        if x <= to
-                        then Yield x $! (x + stride, stride, to)
-                        else Stop
-                    else
-                        if x >= 0
-                        then Yield x $! (x + stride, stride, to)
-                        else Stop
-
--- | Enumerate from given starting Enum value 'from' and to Enum value 'to'
--- with stride of 1 till to value.
---
--- /Internal/
---
-{-# INLINE enumerateFromToSmall #-}
-enumerateFromToSmall :: (Monad m, Enum a) => Unfold m (a, a) a
-enumerateFromToSmall = map toEnum $
-    Unfold step inject
-    where
-        inject (from, to) =
-            fromEnum from
-            `seq` fromEnum to
-            `seq` return (fromEnum from, 1, fromEnum to)
-        {-# INLINE_LATE step #-}
-        step (x, stride, to) = return $
-                if x <= to then Yield x $! (x + stride, stride, to) else Stop
-
--- | Enumerate from given starting Enum value 'from' and then Enum value 'next'
--- and to Enum value 'to' with stride of (fromEnum next - fromEnum from)
--- till to value.
---
--- /Internal/
---
-{-# INLINE enumerateFromThenToSmall #-}
-enumerateFromThenToSmall :: (Monad m, Enum a) => Unfold m (a, a, a) a
-enumerateFromThenToSmall = map toEnum $
-    Unfold step inject
-    where
-        inject (from, next, to) =
-            fromEnum from
-            `seq` fromEnum next
-            `seq` fromEnum to
-            `seq` return
-            (fromEnum from, fromEnum next - fromEnum from, fromEnum to)
-        {-# INLINE_LATE step #-}
-        step (x, stride, to) = return $
-            if stride == 0
-            then
-                if x <= to then Yield x $! (x, stride, to) else Stop
-
-            else
-                if stride > 0
-                then
-                    if x <= to
-                    then Yield x $! (x + stride, stride, to)
-                    else Stop
-                else
-                    if x >= 0 && x >= to
-                    then Yield x $! (x + stride, stride, to)
-                    else Stop
-
--------------------------------------------------------------------------------
 -- Enumerable Instances
 -------------------------------------------------------------------------------
 --
@@ -580,9 +619,9 @@ enumerateFromThenToSmall = map toEnum $
 #define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
 instance Enumerable SMALL_TYPE where {                 \
     {-# INLINE enumerateFrom #-};                      \
-    enumerateFrom = enumerateFromSmall;                \
+    enumerateFrom = enumerateFromSmallBounded;         \
     {-# INLINE enumerateFromThen #-};                  \
-    enumerateFromThen = enumerateFromThenSmall;        \
+    enumerateFromThen = enumerateFromThenSmallBounded; \
     {-# INLINE enumerateFromTo #-};                    \
     enumerateFromTo = enumerateFromToSmall;            \
     {-# INLINE enumerateFromThenTo #-};                \
