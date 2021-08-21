@@ -350,6 +350,10 @@ mapMStep f res =
 -- The Fold type
 ------------------------------------------------------------------------------
 
+-- An fold is akin to a writer. It is the streaming equivalent of a writer.
+-- The type @b@ is the accumulator of the writer. That's the reason the
+-- default folds in various modules are called "write".
+
 -- | The type @Fold m a b@ having constructor @Fold step initial extract@
 -- represents a fold over an input stream of values of type @a@ to a final
 -- value of type @b@ in 'Monad' @m@.

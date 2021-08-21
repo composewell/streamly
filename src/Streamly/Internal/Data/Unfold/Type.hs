@@ -85,6 +85,10 @@ import Prelude hiding (map, concatMap, zipWith, takeWhile)
 -- The order of arguments allows 'Category' and 'Arrow' instances but precludes
 -- contravariant and contra-applicative.
 --
+-- An unfold is akin to a reader. It is the streaming equivalent of a reader.
+-- The argument @a@ is the environment of the reader. That's the reason the
+-- default unfolds in various modules are called "read".
+--
 -- | An @Unfold m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
