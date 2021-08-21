@@ -37,6 +37,7 @@ module Streamly.Internal.Data.Unfold.Type
     , supplySecond
 
     -- * Trimming
+    , takeWhileMWithInput
     , takeWhileM
     , takeWhile
 
@@ -69,6 +70,7 @@ where
 import Control.Monad ((>=>))
 import Data.Void (Void)
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import Prelude hiding (map, concatMap, zipWith, takeWhile)
@@ -228,12 +230,37 @@ supplySecond b = lmap (, b)
 -- Filter input
 ------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL takeWhileMWithInput #-}
+takeWhileMWithInput :: Monad m =>
+    (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b
+takeWhileMWithInput f (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject a = do
+        s <- inject1 a
+        return $ Tuple' a s
+
+    {-# INLINE_LATE step #-}
+    step (Tuple' a st) = do
+        r <- step1 st
+        case r of
+            Yield x s -> do
+                b <- f a x
+                return $ if b then Yield x (Tuple' a s) else Stop
+            Skip s -> return $ Skip (Tuple' a s)
+            Stop   -> return Stop
+
 -- | Same as 'takeWhile' but with a monadic predicate.
 --
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL takeWhileM #-}
 takeWhileM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
+-- XXX Check if the compiler simplifies the following to the same as the custom
+-- implementation below (the Tuple' should help eliminate the unused param):
+--
+-- takeWhileM f = takeWhileMWithInput (\_ b -> f b)
 takeWhileM f (Unfold step1 inject1) = Unfold step inject1
   where
     {-# INLINE_LATE step #-}
