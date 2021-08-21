@@ -202,7 +202,7 @@ enumerateFromThenToIntegral from next to =
 -- @since 0.6.0
 {-# INLINE enumerateFromFractional #-}
 enumerateFromFractional :: (IsStream t, Monad m, Fractional a) => a -> t m a
-enumerateFromFractional from = fromStreamD $ D.numFrom from
+enumerateFromFractional from = fromStreamD $ D.enumerateFromNum from
 
 -- | Numerically stable enumeration from a 'Fractional' number in steps.
 -- @enumerateFromThenFractional from then@ generates a stream whose first
@@ -227,7 +227,7 @@ enumerateFromFractional from = fromStreamD $ D.numFrom from
 enumerateFromThenFractional
     :: (IsStream t, Monad m, Fractional a)
     => a -> a -> t m a
-enumerateFromThenFractional from next = fromStreamD $ D.numFromThen from next
+enumerateFromThenFractional from next = fromStreamD $ D.enumerateFromThenNum from next
 
 -- | Numerically stable enumeration from a 'Fractional' number to a given
 -- limit.  @enumerateFromToFractional from to@ generates a finite stream whose

@@ -53,8 +53,8 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , enumerateFromThenToIntegral
 
     , enumerateFromStepNum
-    , numFrom
-    , numFromThen
+    , enumerateFromNum
+    , enumerateFromThenNum
     , enumerateFromToFractional
     , enumerateFromThenToFractional
 
@@ -196,13 +196,13 @@ enumerateFromStepNum from stride = Stream step 0
     {-# INLINE_LATE step #-}
     step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
 
-{-# INLINE_NORMAL numFrom #-}
-numFrom :: (Monad m, Num a) => a -> Stream m a
-numFrom from = enumerateFromStepNum from 1
+{-# INLINE_NORMAL enumerateFromNum #-}
+enumerateFromNum :: (Monad m, Num a) => a -> Stream m a
+enumerateFromNum from = enumerateFromStepNum from 1
 
-{-# INLINE_NORMAL numFromThen #-}
-numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
-numFromThen from next = enumerateFromStepNum from (next - from)
+{-# INLINE_NORMAL enumerateFromThenNum #-}
+enumerateFromThenNum :: (Monad m, Num a) => a -> a -> Stream m a
+enumerateFromThenNum from next = enumerateFromStepNum from (next - from)
 
 ------------------------------------------------------------------------------
 -- Enumeration of Integrals
@@ -317,7 +317,7 @@ enumerateFromThenToFractional
     :: (Monad m, Fractional a, Ord a)
     => a -> a -> a -> Stream m a
 enumerateFromThenToFractional from next to =
-    takeWhile predicate $ numFromThen from next
+    takeWhile predicate $ enumerateFromThenNum from next
     where
     mid = (next - from) / 2
     predicate | next >= from  = (<= to + mid)

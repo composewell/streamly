@@ -35,9 +35,6 @@ module Streamly.Internal.Data.Unfold.Type
     , supply
     , supplyFirst
     , supplySecond
-    , supplyMiddle
-    , supplySecondThird
-    , supplyNextFromStride
     , takeWhileM
     , takeWhile
 
@@ -220,37 +217,6 @@ supplyFirst a = lmap (a, )
 {-# INLINE_NORMAL supplySecond #-}
 supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
 supplySecond b = lmap (, b)
-
--- | Supply the second and third components of the tuple to an unfold that
--- accepts a tuple as a seed resulting in a fold that accepts the first
--- component of the tuple as a seed.
---
--- /Pre-release/
---
-{-# INLINE_NORMAL supplySecondThird #-}
-supplySecondThird :: (a -> b) -> c -> Unfold m (a, b, c) x -> Unfold m a x
-supplySecondThird f c = lmap (\a -> (a, f a, c))
-
--- | Supply the second component of the tuple to an unfold that accepts a tuple
--- as a seed and resulting in a fold that accepts the first and second
--- components of the tuple as a seed.
---
--- /Pre-release/
---
-{-# INLINE_NORMAL supplyMiddle #-}
-supplyMiddle ::  (a -> b) -> Unfold m (a, b, c) x -> Unfold m (a, c) x
-supplyMiddle f = lmap (\(a, c) -> (a, f a, c))
-
--- | Supply the next component of the tuple to an unfold that accepts a tuple
--- as a seed resulting in a fold that accepts the first component of the tuple
--- as a seed.
--- next component of tuple is (first + stride)
---
--- /Pre-release/
---
-{-# INLINE_NORMAL supplyNextFromStride #-}
-supplyNextFromStride :: (a -> b) -> Unfold m (a, b) c -> Unfold m a c
-supplyNextFromStride f = lmap (\a -> (a, f a))
 
 ------------------------------------------------------------------------------
 -- Filter input

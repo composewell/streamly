@@ -269,9 +269,9 @@ enumerateFromStepNum :: Monad m => Int -> Int -> m ()
 enumerateFromStepNum size start =
     drainGeneration (UF.take size (UF.enumerateFromThenNum)) (start, 1)
 
-{-# INLINE numFrom #-}
-numFrom :: Monad m => Int -> Int -> m ()
-numFrom size start = drainGeneration (UF.take size UF.enumerateFromNum) start
+{-# INLINE enumerateFromNum #-}
+enumerateFromNum :: Monad m => Int -> Int -> m ()
+enumerateFromNum size start = drainGeneration (UF.take size UF.enumerateFromNum) start
 
 {-# INLINE enumerateFromToFractional #-}
 enumerateFromToFractional :: Monad m => Int -> Int -> m ()
@@ -649,7 +649,7 @@ o_1_space_generation size =
           , benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral size
           , benchIO "enumerateFromIntegral" $ enumerateFromIntegral size
           , benchIO "enumerateFromStepNum" $ enumerateFromStepNum size
-          , benchIO "numFrom" $ numFrom size
+          , benchIO "enumerateFromNum" $ enumerateFromNum size
           , benchIO "enumerateFromToFractional" $ enumerateFromToFractional size
           ]
     ]
