@@ -86,8 +86,11 @@ import Prelude
 -- @from@ and incrementing every time by @stride@.  For 'Bounded' types, after
 -- the value overflows it keeps enumerating in a cycle:
 --
+-- @
 -- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromStepNum (255::Word8,1)
 -- [255,0,1,2,3,4,5,6,7,8]
+--
+-- @
 --
 -- The implementation is numerically stable for floating point values.
 --
@@ -114,13 +117,17 @@ enumerateFromStepNum = Unfold step inject
 
 -- | Same as 'enumerateFromStepNum (from, next)' using a stride of @next - from@:
 --
--- >>> enumerateFromThenNum =
---         lmap (\(from, next) -> (from, next - from)) enumerateFromStepNum
+-- @
+-- >>> enumerateFromThenNum = lmap (\(from, next) -> (from, next - from)) Unfold.enumerateFromStepNum
+--
+-- @
 --
 -- Example:
---
--- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromThenNum (255::Word8,0)
+-- @
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold enumerateFromThenNum (255::Word8,0)
 -- [255,0,1,2,3,4,5,6,7,8]
+--
+-- @
 --
 -- The implementation is numerically stable for floating point values.
 --
@@ -142,12 +149,22 @@ enumerateFromThenNum =
 
 -- | Same as 'enumerateFromStepNum' using a stride of 1:
 --
--- >>> enumerateFromNum = lmap (\from -> (from, 1)) enumerateFromStepNum
+-- @
+-- >>> enumerateFromNum = lmap (\from -> (from, 1)) Unfold.enumerateFromStepNum
+-- >>> Stream.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
+-- [0.9,1.9,2.9,3.9,4.9,5.9]
+--
+-- @
 --
 -- Also, same as 'enumerateFromThenNum' using a stride of 1 but see the note in
 -- 'enumerateFromThenNum' about the loss of precision:
 --
--- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) enumerateFromThenNum
+-- @
+-- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) Unfold.enumerateFromThenNum
+-- >>> Stream.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
+-- [0.9,1.9,2.9,3.8999999999999995,4.8999999999999995,5.8999999999999995]
+--
+-- @
 --
 -- /Internal/
 --
@@ -265,7 +282,11 @@ enumerateFromThenFractional = enumerateFromThenNum
 -- | Same as 'enumerateFromStepNum' with a step of 1 and enumerating up to the
 -- specified upper limit rounded to the nearest integral value:
 --
--- >>> enumerateFromToFractional =
+-- @
+-- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromToFractional (0.1, 6.3)
+-- [0.1,1.1,2.1,3.1,4.1,5.1,6.1]
+--
+-- @
 --
 -- /Internal/
 --

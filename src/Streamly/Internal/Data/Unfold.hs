@@ -146,6 +146,7 @@ module Streamly.Internal.Data.Unfold
     -- ** Enumerate Num
     , enumerateFromNum
     , enumerateFromThenNum
+    , enumerateFromStepNum
 
     -- ** Enumerating 'Bounded 'Integral' Types
     , enumerateFromIntegralBounded
