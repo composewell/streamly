@@ -259,6 +259,9 @@ enumerateFromThenToIntegralDn from next to = Stream step EnumInit
 
     step _ EnumStop = return Stop
 
+-- XXX This can perhaps be simplified and written in terms of
+-- enumeratFromStepIntegral as we have done in unfolds. But anyway we should be
+-- replacing the stream generation module with unfolds.
 {-# INLINE_NORMAL enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral
     :: (Monad m, Integral a)

@@ -85,7 +85,7 @@ the following reasons:
   correctly. Ideally, when we know the elements then former is more
   suitable while if we know the count then the latter is more suitable.
 
-Note that in case of flaoting point numbers `FromStep` style may have an
+Note that in case of floating point numbers `FromStep` style may have an
 advantage over `FromThen` style. Here is a quote from the documentation of
 `enumerateFromThenNum`:
 
