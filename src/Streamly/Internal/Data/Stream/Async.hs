@@ -735,8 +735,8 @@ infixr 6 `async`
 -- If total threads are 2, the third stream is scheduled only after one of the
 -- first two has finished:
 --
--- >>> stream3 = Stream.fromListM $ Prelude.map delay [2,2] -- SerialT IO Int
--- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3 -- IO [Int]
+-- > stream3 = Stream.fromListM $ Prelude.map delay [2,2] -- SerialT IO Int
+-- > Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3 -- IO [Int]
 -- ...
 -- [1,1,3,2,3,2]
 --
