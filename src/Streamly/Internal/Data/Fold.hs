@@ -109,7 +109,6 @@ module Streamly.Internal.Data.Fold
 
     -- ** Mapping on Input
     , transform
-    , map
     , lmap
     --, lsequence
     , lmapM
@@ -328,7 +327,7 @@ mapM = rmapM
 -- @since 0.8.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
-mapMaybe f = map f . filter isJust . map fromJust
+mapMaybe f = lmap f . filter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
@@ -1550,12 +1549,12 @@ classifyWith f (Fold step1 initial1 extract1) =
 --
 -- Same as:
 --
--- > classify fld = Fold.classifyWith fst (map snd fld)
+-- > classify fld = Fold.classifyWith fst (lmap snd fld)
 --
 -- /Pre-release/
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify fld = classifyWith fst (map snd fld)
+classify fld = classifyWith fst (lmap snd fld)
 
 ------------------------------------------------------------------------------
 -- Unzipping
@@ -1719,7 +1718,7 @@ with ::
        (Fold m (s, a) b -> Fold m a b)
     -> (((s, a) -> c) -> Fold m (s, a) b -> Fold m (s, a) b)
     -> (((s, a) -> c) -> Fold m a b -> Fold m a b)
-with f comb g = f . comb g . map snd
+with f comb g = f . comb g . lmap snd
 
 -- | @sampleFromthen offset stride@ samples the element at @offset@ index and
 -- then every element at strides of @stride@.

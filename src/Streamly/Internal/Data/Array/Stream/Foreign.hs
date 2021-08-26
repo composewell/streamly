@@ -211,7 +211,7 @@ packArraysChunksOf n str =
 lpackArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lpackArraysChunksOf n fld =
-    FL.map A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.map A.unsafeFreeze fld)
+    FL.lmap A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.lmap A.unsafeFreeze fld)
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

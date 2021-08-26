@@ -218,7 +218,6 @@ module Streamly.Internal.Data.Fold.Type
     , rmapM
 
     -- ** Mapping Input
-    , map
     , lmap
     , lmapM
 
@@ -917,13 +916,6 @@ lmap f (Fold step begin done) = Fold step' begin done
     where
     step' x a = step x (f a)
 
--- XXX should be removed
--- |
--- /Internal/
-{-# INLINE map #-}
-map :: (a -> b) -> Fold m b r -> Fold m a r
-map = lmap
-
 -- | @lmapM f fold@ maps the monadic function @f@ on the input of the fold.
 --
 -- @since 0.8.0
@@ -968,7 +960,7 @@ filterM f (Fold step begin done) = Fold step' begin done
 -- @since 0.8.0
 {-# INLINE catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-catMaybes = filter isJust . map fromJust
+catMaybes = filter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Parsing
