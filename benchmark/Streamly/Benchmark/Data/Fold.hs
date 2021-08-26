@@ -142,7 +142,7 @@ partition =
             if odd a
             then Left a
             else Right a
-     in IP.fold $ FL.map f (FL.partition FL.sum FL.length)
+     in IP.fold $ FL.lmap f (FL.partition FL.sum FL.length)
 
 {-# INLINE demuxWith  #-}
 demuxWith ::
@@ -160,7 +160,7 @@ demuxDefaultWith ::
     -> Map k (Fold m b b)
     -> SerialT m a
     -> m (Map k b, b)
-demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.map snd FL.sum))
+demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.lmap snd FL.sum))
 
 {-# INLINE classifyWith #-}
 classifyWith ::
@@ -173,7 +173,7 @@ classifyWith f = S.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE unzip #-}
 unzip :: Monad m => SerialT m Int -> m (Int, Int)
-unzip = IP.fold $ FL.map (\a -> (a, a)) (FL.unzip FL.sum FL.length)
+unzip = IP.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -228,7 +228,7 @@ o_1_space_serial_elimination value =
         , benchIOSink
               value
               "lookup"
-              (S.fold (FL.map (\a -> (a, a)) (FL.lookup (value + 1))))
+              (S.fold (FL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
         , benchIOSink
               value
               "findIndex"
@@ -252,7 +252,7 @@ o_1_space_serial_elimination value =
 o_1_space_serial_transformation :: Int -> [Benchmark]
 o_1_space_serial_transformation value =
     [ bgroup "transformation"
-        [ benchIOSink value "map" (S.fold (FL.map (+ 1) FL.drain))
+        [ benchIOSink value "map" (S.fold (FL.lmap (+ 1) FL.drain))
         , let f x = if even x then Just x else Nothing
               fld = FL.mapMaybe f FL.drain
            in benchIOSink value "mapMaybe" (S.fold fld)
