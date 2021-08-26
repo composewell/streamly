@@ -388,7 +388,9 @@ jobs:
               HLINT_OPTIONS: lint --cpp-include=src --cpp-include=test
               HLINT_TARGETS: src test benchmark
             command: |
-              bash -c "$PACKCHECK $BUILD"
+              bash -c "$PACKCHECK $BUILD" || exit 1
+              count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
+              exit $count
         - *save
 
 workflows:
@@ -414,4 +416,4 @@ workflows:
       #- coveralls-ghc-8_10_2:
       #    name: GHC 8.10.2 + inspection + coverage + Werror
       - hlint-src:
-          name: Hlint src
+          name: Hlint src + Trailing Spaces
