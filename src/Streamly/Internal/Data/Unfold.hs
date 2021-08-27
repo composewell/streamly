@@ -203,9 +203,6 @@ module Streamly.Internal.Data.Unfold
     -- ** Either Wrapped Input
     , either
 
-    -- ** Either Wrapped Input
-    , either
-
     -- ** Filtering
     , takeWhileM
     , takeWhile
@@ -409,45 +406,6 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
             Yield x s -> f inp x >>= \a -> return $ Yield a (inp, s)
             Skip s    -> return $ Skip (inp, s)
             Stop      -> return Stop
-
--------------------------------------------------------------------------------
--- Either
--------------------------------------------------------------------------------
-
--- | Make an unfold operate on values wrapped in an @Either a a@ type. 'Right
--- a' translates to 'Right b' and 'Left a' translates to 'Left b'.
---
--- /Internal/
-{-# INLINE_NORMAL either #-}
-either :: Monad m => Unfold m a b -> Unfold m (Either a a) (Either b b)
-either (Unfold step1 inject1) = Unfold step inject
-
-    where
-
-    inject (Left a) = do
-        r <- inject1 a
-        return (r, Left)
-    inject (Right a) = do
-        r <- inject1 a
-        return (r, Right)
-
-    {-# INLINE_LATE step #-}
-    step (st, f) = do
-        r <- step1 st
-        return $ case r of
-            Yield x s -> Yield (f x) (s, f)
-            Skip s -> Skip (s, f)
-            Stop -> Stop
-
--- See StreamD.scanlM' for implementing this.
---
--- | Scan the output of an 'Unfold' to change it in a stateful manner.
---
--- /Unimplemented/
-{-# INLINE_NORMAL scanlM' #-}
-scanlM' :: -- Monad m =>
-    (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-scanlM' = undefined
 
 -------------------------------------------------------------------------------
 -- Either
