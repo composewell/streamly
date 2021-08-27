@@ -467,7 +467,6 @@ joinOuter eq s1 s =
 -- Time: O(m + n)
 --
 -- /Pre-release/
-<<<<<<< HEAD
 {-# INLINE joinOuterHash #-}
 joinOuterHash ::
     (IsStream t, Ord k, MonadIO m, Monad (t m)) =>
@@ -493,32 +492,6 @@ joinOuterHash s1 s2 =
         return $ StreamK.serial res1 res2
 
 -- | Like 'joinOuter' but works only on sorted streams.
-=======
-{-# INLINE hashOuterJoin #-}
-hashOuterJoin :: (IsStream t, Ord a, Monad (t m), MonadAsync m , Semigroup (t m (Maybe a, Maybe a))) =>
-    t m a -> t m a -> t m (Maybe a, Maybe a)
-hashOuterJoin s1 s2 =
-    Stream.concatM $ do
-        m1 <- Stream.fold (Fold.classify Fold.toList) 
-            $ StreamK.adapt 
-            $ fmap (, ()) s1
-        m2 <- Stream.fold (Fold.classify Fold.toList) 
-            $ StreamK.adapt 
-            $ fmap (, ()) s2
-        let res1 = do
-                e <- s1
-                if e `Map.member` m2
-                then  return (Just e, Just e)
-                else  return (Just e, Nothing)
-        let res2 = do
-                e <- s2
-                if e `Map.member` m1
-                then  StreamK.nil
-                else  return (Nothing, Just e)
-        return $ res1 <> res2
-
--- | Like 'outerJoin' but works only on sorted streams.
->>>>>>> e64453c5 (Fix Hashjoin issue Semigroup issue)
 --
 -- Space: O(1)
 --
