@@ -40,6 +40,9 @@ module Streamly.Internal.Data.Array
     , foldr
     , streamFold
     , fold
+
+    -- * Random Access
+    , getIndexUnsafe
     )
 where
 
@@ -225,3 +228,15 @@ fold f arr = D.fold f (toStreamD arr)
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
+
+-------------------------------------------------------------------------------
+-- Random reads and writes
+-------------------------------------------------------------------------------
+
+-- | /O(1)/ Lookup the element at the given index. Index starts from 0. Does
+-- not check the bounds.
+--
+-- @since 0.8.0
+{-# INLINE getIndexUnsafe #-}
+getIndexUnsafe :: Array a -> Int -> a
+getIndexUnsafe = indexArray
