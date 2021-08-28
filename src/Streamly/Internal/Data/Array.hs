@@ -15,45 +15,42 @@
 module Streamly.Internal.Data.Array
     ( Array(..)
 
-    , foldl'
-    , foldr
-
-    , length
-
+    -- * Construction
     , writeN
     , write
 
-    , toStreamD
-    , toStreamDRev
-
-    , toStream
-    , toStreamRev
-    , read
-
-    , fromListN
-    , fromList
     , fromStreamDN
     , fromStreamD
-
     , fromStreamN
     , fromStream
 
+    , fromListN
+    , fromList
+
+    -- * Elimination
+    , length
+    , read
+
+    , toStreamD
+    , toStreamDRev
+    , toStream
+    , toStreamRev
+
+    , foldl'
+    , foldr
     , streamFold
     , fold
     )
 where
 
-import Prelude hiding (foldr, length, read)
 #if !MIN_VERSION_primitive(0,7,1)
 import Control.DeepSeq (NFData(..))
 #endif
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.Functor.Identity (runIdentity)
-import Data.Primitive.Array hiding (fromList, fromListN)
 import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
-import qualified GHC.Exts as Exts
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
@@ -61,48 +58,20 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
+import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import Data.Primitive.Array hiding (fromList, fromListN)
+import Prelude hiding (foldr, length, read)
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
 bottomElement = undefined
 
-{-# INLINE_NORMAL toStreamD #-}
-toStreamD :: Monad m => Array a -> D.Stream m a
-toStreamD arr = D.Stream step 0
-  where
-    {-# INLINE_LATE step #-}
-    step _ i
-        | i == length arr = return D.Stop
-    step _ (I# i) =
-        return $
-        case Exts.indexArray# (array# arr) i of
-            (# x #) -> D.Yield x (I# i + 1)
-
-{-# INLINE length #-}
-length :: Array a -> Int
-length = sizeofArray
-
-{-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: Monad m => Array a -> D.Stream m a
-toStreamDRev arr = D.Stream step (length arr - 1)
-  where
-    {-# INLINE_LATE step #-}
-    step _ i
-        | i < 0 = return D.Stop
-    step _ (I# i) =
-        return $
-        case Exts.indexArray# (array# arr) i of
-            (# x #) -> D.Yield x (I# i - 1)
-
-{-# INLINE_NORMAL foldl' #-}
-foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
-
-{-# INLINE_NORMAL foldr #-}
-foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
+-------------------------------------------------------------------------------
+-- Construction - Folds
+-------------------------------------------------------------------------------
 
 -- writeN n = S.evertM (fromStreamDN n)
 {-# INLINE_NORMAL writeN #-}
@@ -138,6 +107,10 @@ write = Fold step initial extract
             return $ FL.Partial $ Tuple3' marr (i + 1) capacity
     extract (Tuple3' marr len _) = liftIO $ freezeArray marr 0 len
 
+-------------------------------------------------------------------------------
+-- Construction - from streams
+-------------------------------------------------------------------------------
+
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
@@ -153,20 +126,6 @@ fromStreamDN limit str = do
 fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
 fromStreamD = D.fold write
 
-{-# INLINABLE fromListN #-}
-fromListN :: Int -> [a] -> Array a
-fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
-
-{-# INLINABLE fromList #-}
-fromList :: [a] -> Array a
-fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
-
-#if !MIN_VERSION_primitive(0,7,1)
-instance NFData a => NFData (Array a) where
-    {-# INLINE rnf #-}
-    rnf = foldl' (\_ x -> rnf x) ()
-#endif
-
 {-# INLINE fromStreamN #-}
 fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = do
@@ -177,21 +136,21 @@ fromStreamN n m = do
 fromStream :: MonadIO m => SerialT m a -> m (Array a)
 fromStream m = fromStreamD $ D.toStreamD m
 
-{-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, IsStream t) => Array a -> t m a
-toStream = D.fromStreamD . toStreamD
+{-# INLINABLE fromListN #-}
+fromListN :: Int -> [a] -> Array a
+fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
 
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, IsStream t) => Array a -> t m a
-toStreamRev = D.fromStreamD . toStreamDRev
+{-# INLINABLE fromList #-}
+fromList :: [a] -> Array a
+fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 
-{-# INLINE fold #-}
-fold :: Monad m => Fold m a b -> Array a -> m b
-fold f arr = D.fold f (toStreamD arr)
+-------------------------------------------------------------------------------
+-- Elimination - Unfolds
+-------------------------------------------------------------------------------
 
-{-# INLINE streamFold #-}
-streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
-streamFold f arr = f (toStream arr)
+{-# INLINE length #-}
+length :: Array a -> Int
+length = sizeofArray
 
 {-# INLINE_NORMAL read #-}
 read :: Monad m => Unfold m (Array a) a
@@ -204,3 +163,65 @@ read = Unfold step inject
         return $
         case Exts.indexArray# (array# arr) i of
             (# x #) -> D.Yield x (arr, I# i + 1)
+
+-------------------------------------------------------------------------------
+-- Elimination - to streams
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL toStreamD #-}
+toStreamD :: Monad m => Array a -> D.Stream m a
+toStreamD arr = D.Stream step 0
+  where
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i == length arr = return D.Stop
+    step _ (I# i) =
+        return $
+        case Exts.indexArray# (array# arr) i of
+            (# x #) -> D.Yield x (I# i + 1)
+
+{-# INLINE_NORMAL toStreamDRev #-}
+toStreamDRev :: Monad m => Array a -> D.Stream m a
+toStreamDRev arr = D.Stream step (length arr - 1)
+  where
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i < 0 = return D.Stop
+    step _ (I# i) =
+        return $
+        case Exts.indexArray# (array# arr) i of
+            (# x #) -> D.Yield x (I# i - 1)
+
+{-# INLINE_EARLY toStream #-}
+toStream :: (Monad m, IsStream t) => Array a -> t m a
+toStream = D.fromStreamD . toStreamD
+
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, IsStream t) => Array a -> t m a
+toStreamRev = D.fromStreamD . toStreamDRev
+
+-------------------------------------------------------------------------------
+-- Elimination - using Folds
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL foldl' #-}
+foldl' :: (b -> a -> b) -> b -> Array a -> b
+foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
+
+{-# INLINE_NORMAL foldr #-}
+foldr :: (a -> b -> b) -> b -> Array a -> b
+foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
+
+#if !MIN_VERSION_primitive(0,7,1)
+instance NFData a => NFData (Array a) where
+    {-# INLINE rnf #-}
+    rnf = foldl' (\_ x -> rnf x) ()
+#endif
+
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> Array a -> m b
+fold f arr = D.fold f (toStreamD arr)
+
+{-# INLINE streamFold #-}
+streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
+streamFold f arr = f (toStream arr)
