@@ -76,9 +76,10 @@ module Streamly.Internal.FileSystem.Event.Linux
     , setWhenExists
 
     -- ** Events of Interest
-    -- *** Root Level Events
+    -- *** Root Path Events
     , setRootDeleted
     , setRootMoved
+    -- XXX make a setRootPathEvents to include all root events
 
     -- *** Item Level Metadata change
     , setMetadataChanged
@@ -99,11 +100,11 @@ module Streamly.Internal.FileSystem.Event.Linux
     , setAllEvents
 
     -- ** Watch APIs
-    -- XXX watchPaths is redundant now because we can use watchTrees with
-    -- setRecursiveMode False. Perhaps we can use a common "watch" API.
     , watch
-    , watchTreesWith
-    , watchTrees
+    , watchRecursive
+    , watchWith
+
+    -- Low level watch APIs
     , addToWatch
     , removeFromWatch
 
@@ -114,10 +115,8 @@ module Streamly.Internal.FileSystem.Event.Linux
     , getAbsPath
     , getCookie
 
-    -- ** Exception Conditions
-    , isOverflow
-
     -- ** Root Level Events
+    -- XXX create a isRootPathEvent similar to macOS.
     , isRootUnwatched
     , isRootDeleted
     , isRootMoved
@@ -132,15 +131,19 @@ module Streamly.Internal.FileSystem.Event.Linux
     , isWriteClosed
     , isNonWriteClosed
 
-    -- ** Item CRUD events
+    -- ** Item Level CRUD events
     , isCreated
     , isDeleted
     , isMovedFrom
     , isMovedTo
+    , isMoved
     , isModified
 
     -- ** Item Path info
     , isDir
+
+    -- ** Exception Conditions
+    , isEventsLost
 
     -- * Debugging
     , showEvent
@@ -171,7 +174,6 @@ import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
---import System.FilePath ((</>))
 import System.IO (Handle, hClose, IOMode(ReadMode))
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
@@ -842,40 +844,15 @@ watchToStream cfg wt@(Watch handle _) = do
     -- will be sufficient to read at least one event.
     S.parseMany (readOneEvent cfg wt) $ S.unfold FH.read handle
 
--- | Start monitoring a list of file system paths for file system events with
--- the supplied recursive mode and configuration. The paths could be files or
--- directories. When recursive mode is True and the path is a directory, the
--- whole directory tree under it is watched recursively.
--- When recursive mode is False and the path is a directory, only the
--- files and directories directly under the watched directory are monitored,
--- contents of subdirectories are not monitored.  Monitoring starts from the
--- current time onwards. The paths are specified as UTF-8 encoded 'Array' of
--- 'Word8'.
---
--- @
--- watch 
---      True
---      ('setFollowSymLinks' On . 'setUnwatchMoved' Off) 
---      defaultConfig
---      [Array.fromCString\# "dir"#]
--- @
---
--- /Pre-release/
---
-watch :: Bool -> Config -> NonEmpty (Array Word8) -> SerialT IO Event
-watch rec cfg paths =
-    case rec of
-        True -> watchTreesWith (\_ -> cfg) paths
-        False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
-
 -- XXX We should not go across the mount points of network file systems or file
 -- systems that are known to not generate any events.
 --
 -- | Start monitoring a list of file system paths for file system events with
 -- the supplied configuration operation over the 'defaultConfig'. The
--- paths could be files or directories.  When the path is a directory, the
--- whole directory tree under it is watched recursively. Monitoring starts from
--- the current time onwards.
+-- paths could be files or directories.  When recursive mode is set and the
+-- path is a directory, the whole directory tree under it is watched
+-- recursively. Monitoring starts from the current time onwards.  The paths are
+-- specified as UTF-8 encoded 'Array' of 'Word8'.
 --
 -- Note that recrusive watch on a large directory tree could be expensive. When
 -- starting a watch, the whole tree must be read and watches are started on
@@ -892,11 +869,16 @@ watch rec cfg paths =
 --
 -- See the Linux __inotify__ man page for more details.
 --
+-- @
+-- watchwith
+--      ('setFollowSymLinks' On . 'setUnwatchMoved' Off)
+--      [Array.fromCString\# "dir"#]
+-- @
+--
 -- /Pre-release/
 --
-watchTreesWith ::
-    (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
-watchTreesWith f paths = S.bracket before after (watchToStream cfg)
+watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+watchWith f paths = S.bracket before after (watchToStream cfg)
 
     where
 
@@ -904,14 +886,23 @@ watchTreesWith f paths = S.bracket before after (watchToStream cfg)
     before = liftIO $ openWatch cfg paths
     after = liftIO . closeWatch
 
--- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
+-- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- @
--- watchTrees = watchTreesWith id
--- @
+-- >>> watchRecursive = watchWith id
 --
-watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
-watchTrees = watchTreesWith id
+-- /Pre-release/
+--
+watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive = watchWith id
+
+-- | Same as 'watchWith' using defaultConfig and non-recursive mode.
+--
+-- >>> watch = watchWith (setRecursiveMode False)
+--
+-- /Pre-release/
+--
+watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch = watchWith (setRecursiveMode False)
 
 -------------------------------------------------------------------------------
 -- Examine event stream
@@ -946,6 +937,10 @@ getRoot Event{..} =
 getRelPath :: Event -> Array Word8
 getRelPath Event{..} = eventRelPath
 
+-- | Get the absolute file system object path for which the event is generated.
+--
+-- /Pre-release/
+--
 getAbsPath :: Event -> Array Word8
 getAbsPath ev = getRoot ev <> A.fromCString# "/"# <> getRelPath ev
 
@@ -984,8 +979,8 @@ foreign import capi
 --
 -- /Pre-release/
 --
-isOverflow :: Event -> Bool
-isOverflow = getFlag iN_Q_OVERFLOW
+isEventsLost :: Event -> Bool
+isEventsLost = getFlag iN_Q_OVERFLOW
 
 -------------------------------------------------------------------------------
 -- Events affecting the watched path only
@@ -1154,6 +1149,18 @@ isMovedFrom = getFlag iN_MOVED_FROM
 isMovedTo :: Event -> Bool
 isMovedTo = getFlag iN_MOVED_TO
 
+-- | Generated for a path that is moved from or moved to the monitored
+-- directory.
+--
+-- >>> isMoved ev = isMovedFrom ev || isMovedTo ev
+--
+-- /Occurs only for an object inside the watched directory/
+--
+-- /Pre-release/
+--
+isMoved :: Event -> Bool
+isMoved ev = isMovedFrom ev || isMovedTo ev
+
 -- | Determine whether the event indicates modification of an object within the
 -- monitored path. This event is generated only for files and not directories.
 --
@@ -1192,7 +1199,7 @@ showEvent ev@Event{..} =
     ++ "\nCookie = " ++ show (getCookie ev)
     ++ "\nFlags " ++ show eventFlags
 
-    ++ showev isOverflow "Overflow"
+    ++ showev isEventsLost "Overflow"
 
     ++ showev isRootUnwatched "RootUnwatched"
     ++ showev isRootDeleted "RootDeleted"

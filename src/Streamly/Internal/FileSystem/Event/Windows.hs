@@ -47,21 +47,16 @@ module Streamly.Internal.FileSystem.Event.Windows
     -- * Subscribing to events
 
     -- ** Default configuration
-      Config (..)
-    , Event (..)
+      Config
     , Toggle (..)
-    , setFlag
     , defaultConfig
-    , getConfigFlag
-    , setAllEvents
 
     -- ** Watch Behavior
     , setRecursiveMode
 
     -- ** Events of Interest
-    -- *** Root Level Events
-    , setModifiedFileName
     , setRootMoved
+    , setModifiedFileName
     , setModifiedAttribute
     , setModifiedSize
     , setModifiedLastWrite
@@ -73,8 +68,9 @@ module Streamly.Internal.FileSystem.Event.Windows
     , watchTreesWith
 
     -- * Handling Events
-    , getRelPath
+    , Event
     , getRoot
+    , getRelPath
     , getAbsPath
 
     -- ** Item CRUD events
@@ -85,7 +81,7 @@ module Streamly.Internal.FileSystem.Event.Windows
     , isModified
 
     -- ** Exception Conditions
-    , isOverflow
+    , isEventsLost
 
     -- * Debugging
     , showEvent
@@ -394,8 +390,6 @@ utf8ToStringList = NonEmpty.map utf8ToString
 
 -- | Close a Directory handle.
 --
--- /Pre-release/
---
 closePathHandleStream :: SerialT IO (HANDLE, FilePath, Config) -> IO ()
 closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 
@@ -408,18 +402,26 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- https://docs.microsoft.com/en-us/windows/uwp/design/globalizing/use-utf8-code-page
 --
 -- | Start monitoring a list of file system paths for file system events with
--- the supplied configuration operation over the 'defaultConfig'. The
--- paths could be files or directories.  When the path is a directory, the
--- whole directory tree under it is watched recursively. Monitoring starts from
--- the current time onwards.
+-- the supplied configuration modifier operation over the' defaultConfig'. The
+-- paths could be files or directories.
+--
+-- When recursive mode is True and the path is a directory, the whole directory
+-- tree under it is watched recursively.  When recursive mode is False and the
+-- path is a directory, only the files and directories directly under the
+-- watched directory are monitored, contents of subdirectories are not
+-- monitored.  Monitoring starts from the current time onwards. The paths are
+-- specified as UTF-8 encoded 'Array' of 'Word8'.
+--
+-- @
+-- watchWith
+--  ('setModifiedAttribute' On . 'setModifiedLastWrite' Off)
+--  [Array.fromCString\# "dir"#]
+-- @
 --
 -- /Pre-release/
 --
-watchTreesWith ::
-       (Config -> Config)
-    -> NonEmpty (Array Word8)
-    -> SerialT IO Event
-watchTreesWith f paths =
+watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+watchWith f paths =
      S.bracket before after (S.concatMapWith parallel eventStreamAggr)
 
     where
@@ -427,38 +429,21 @@ watchTreesWith f paths =
     before = return $ pathsToHandles (utf8ToStringList paths) $ f defaultConfig
     after = liftIO . closePathHandleStream
 
--- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
+-- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- @
--- watchTrees = watchTreesWith id
--- @
---
-watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
-watchTrees = watchTreesWith id
-
--- | Start monitoring a list of file system paths for file system events with
--- the supplied recursive mode and configuration. The paths could be files or
--- directories. When recursive mode is True and the path is a directory, the
--- whole directory tree under it is watched recursively.
--- When recursive mode is False and the path is a directory, only the
--- files and directories directly under the watched directory are monitored,
--- contents of subdirectories are not monitored.  Monitoring starts from the
--- current time onwards. The paths are specified as UTF-8 encoded 'Array' of
--- 'Word8'.
---
--- @
--- watch True
---  ('setModifiedAttribute' On . 'setModifiedLastWrite' Off) defaultConfig
---  [Array.fromCString\# "dir"#]
--- @
+-- >>> watchRecursive = watchWith id
 --
 -- /Pre-release/
 --
-watch :: Bool -> Config -> NonEmpty (Array Word8) -> SerialT IO Event
-watch rec cfg paths =
-    case rec of
-        True -> watchTreesWith (\_ -> cfg) paths
-        False -> watchTreesWith (\_ -> setRecursiveMode False cfg) paths
+watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive = watchWith id
+
+-- | Same as 'watchWith' using defaultConfig and non-recursive mode.
+--
+-- /Pre-release/
+--
+watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch = watchWith (setRecursiveMode False)
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
@@ -533,8 +518,8 @@ isModified = getFlag fILE_ACTION_MODIFIED
 --
 -- /Pre-release/
 --
-isOverflow :: Event -> Bool
-isOverflow Event{..} = totalBytes == 0
+isEventsLost :: Event -> Bool
+isEventsLost Event{..} = totalBytes == 0
 
 -------------------------------------------------------------------------------
 -- Debugging
@@ -547,7 +532,7 @@ showEvent ev@Event{..} =
     ++ "\nRoot = " ++ utf8ToString (getRoot ev)
     ++ "\nPath = " ++ utf8ToString (getRelPath ev)
     ++ "\nFlags " ++ show eventFlags
-    ++ showev isOverflow "Overflow"
+    ++ showev isEventsLost "Overflow"
     ++ showev isCreated "Created"
     ++ showev isDeleted "Deleted"
     ++ showev isModified "Modified"
