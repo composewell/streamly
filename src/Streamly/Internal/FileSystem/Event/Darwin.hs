@@ -8,13 +8,13 @@
 --
 -- =Overview
 --
--- Use 'watchTrees' with a list of file system paths you want to watch as
+-- Use 'watchRecursive' with a list of file system paths you want to watch as
 -- argument. It returns a stream of 'Event' representing the file system events
 -- occurring under the watched paths.
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchTrees' [Array.fromCString\# "path"#]
+-- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromCString\# "path"#]
 -- @
 --
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)
@@ -32,6 +32,9 @@
 --
 -- =BUGS
 --
+-- XXX Check the behavior for Windows/Linux where applicable. Mention these in
+-- the common module so that users are aware of the portability issues.
+--
 -- There may be some idiosyncrasies in event reporting.
 --
 -- 1. Multiple events may be coalesced into a single event having multiple
@@ -46,13 +49,20 @@
 -- 3. Some events can go missing and only the latest one is reported. See
 -- 'isCreated' for one such case.
 --
+-- XXX write a test case for this, and check on all platforms.
+--
 -- 4. When @rm -rf@ is used on the watched root directory, only one 'isDeleted'
 -- event occurs and that is for the root. However, @rm -rf@ on a directory
 -- inside the watch root produces 'isDeleted' events for all files.
 --
+-- XXX write a test case for this, and check on all platforms.
+--
 -- 5. When a file is moved, a move event occurs for both the source and the
 -- destination files. There seems to be no way to distinguish the source and
 -- the destination. Perhaps the lower eventId can be considered as source.
+--
+-- XXX cloned event is specific to macOS.  Translate it to the same events as
+-- on copying.
 --
 -- 6. When a file is cloned both source and destination generate a cloned
 -- event, however the source has lower eventId and destination may have
@@ -90,7 +100,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , setEventBatching
 
     -- ** Events of Interest
-    , setRootMoved
+    , setRootPathEvents
     , setFileEvents
     , setIgnoreSelf
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
@@ -98,27 +108,22 @@ module Streamly.Internal.FileSystem.Event.Darwin
 #endif
 
     -- ** Watch APIs
-    , watchTrees
-    , watchTreesWith
+    , watch
+    , watchRecursive
+    , watchWith
 
     -- * Handling Events
     , Event
     , getEventId
     , getAbsPath
 
-    -- ** Exception Conditions
-    , isEventIdWrapped
-    , isMustScanSubdirs
-    , isKernelDropped
-    , isUserDropped
-
     -- ** Root Level Events
     -- | Events that belong to the root path as a whole and not to specific
     -- itmes contained in it.
-    , isMount
-    , isUnmount
+    , isMount -- XXX change to isRootMounted
+    , isUnmount  -- XXX change to isRootUnmounted
     , isHistoryDone
-    , isRootChanged
+    , isRootPathEvent
 
     -- ** Item Level Metadata change
     , isOwnerGroupModeChanged
@@ -143,6 +148,12 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , isHardLink
     , isLastHardLink
 #endif
+
+    -- ** Exception Conditions
+    , isEventIdWrapped
+    , isEventsLost
+    , isKernelDropped
+    , isUserDropped
 
     -- * Debugging
     , showEvent
@@ -179,6 +190,9 @@ import qualified Streamly.Internal.Data.Array.Foreign as A
 -- Subscription to events
 -------------------------------------------------------------------------------
 
+-- XXX Add a recursive option to Config
+-- Keep setRecursiveMode Off as undefined for now until we implement it.
+--
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
 --
@@ -245,9 +259,14 @@ foreign import ccall safe
     "FSEventStreamCreateFlagWatchRoot"
     kFSEventStreamCreateFlagWatchRoot :: Word32
 
--- | Watch the changes to the path of the top level file system objects being
--- watched. If the root directory is deleted, moved or renamed you will receive
--- an 'isRootChanged' event with an eventId 0.
+-- XXX write a test case for this, and check on all platforms. The behavior on
+-- macOS is slightly different as a create event is also generated.
+--
+-- | Any changes to the path (delete, rename, or create) of an object are
+-- reported as events for its parent directory. Such events are not reported
+-- for the watch root itself because its parent is not being watched. When
+-- 'setRootPathEvents' is 'On', an 'isRootPathEvent' event is generated with an
+-- eventId 0 if the watch root is deleted, renamed or created.
 --
 -- /default: Off/
 --
@@ -255,8 +274,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setRootMoved :: Toggle -> Config -> Config
-setRootMoved = setFlag kFSEventStreamCreateFlagWatchRoot
+setRootPathEvents :: Toggle -> Config -> Config
+setRootPathEvents = setFlag kFSEventStreamCreateFlagWatchRoot
 
 foreign import ccall safe
     "FSEventStreamCreateFlagFileEvents"
@@ -264,8 +283,11 @@ foreign import ccall safe
 
 -- | When this is 'Off' only events for the watched directories are reported.
 -- For example, when a file is created inside a directory it is reported as an
--- event, the path name in the event is the path of the directory being
--- watched.  Events cannot be distinguished based on the type of event.
+-- event, the path name in the event is the path of the directory being watched
+-- and not of the specific item for which the event occurred.  Events cannot be
+-- distinguished based on the type of event.  For example, we cannot determine
+-- if an event is a "create" or "delete", we only know that some event ocurred
+-- under the watched directory hierarchy.
 --
 -- When it is 'On' the path reported in the event is the path of the item and
 -- not the of the directory in which it is contained. We can use the event
@@ -321,7 +343,7 @@ setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 --
 -- * 'setEventBatching' ('Batch' 0.0)
 -- * 'setFileEvents' 'On'
--- * 'setRootMoved' 'Off'
+-- * 'setRootPathEvents' 'Off'
 -- * 'setIgnoreSelf' 'Off'
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
 -- * 'setFullHistory' 'Off'
@@ -394,6 +416,8 @@ data Watch = Watch Handle (Ptr CWatch) (MVar Bool)
 --
 openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
 openWatch Config{..} paths = do
+    -- XXX write a test case when path does not exist
+    -- XXX write a test case when there are no permissions
     -- XXX check whether the path exists. If the path does not exist and
     -- is created later it cannot be properly monitored. Also a user may
     -- inadvertently provide a path for which the user may not have permission
@@ -473,62 +497,79 @@ watchToStream :: Watch -> SerialT IO Event
 watchToStream (Watch handle _ _) =
     S.parseMany readOneEvent $ S.unfold FH.read handle
 
+-- XXX Write tests for all the points in macOS specific behavior.
+--
 -- | Start monitoring a list of file system paths for file system events with
--- the supplied configuration operation over the 'defaultConfig'. The
--- paths could be files or directories.  When the path is a directory, the
--- whole directory tree under it is watched recursively. Monitoring starts from
--- the current time onwards. The paths are specified as UTF-8 encoded 'Array'
--- of 'Word8'.
+-- the supplied configuration operation over the 'defaultConfig'. The paths
+-- could be files or directories.  When the path is a directory and recursive
+-- mode is set, the whole directory tree under it is watched recursively.
+-- Monitoring starts from the current time onwards. The paths are specified as
+-- UTF-8 encoded 'Array' of 'Word8'.
 --
--- If the path name to be watched is a symbolic link then the target of the
--- link is watched instead of the symbolic link itself. If the symbolic link is
--- removed later the target is still watched as usual.
+-- Important notes for macOS specific behavior:
 --
--- When 'setFileEvents' is 'Off' then events occurring inside the watch root
--- cannot be distinguished from each other.  For example, we cannot determine
--- if an event is a "create" or "delete", we only know that some event ocurred
--- under the watched directory hierarchy.  Also, no path information for the
--- target item of the event is generated.
+-- From the observed behavior it seems macOS watches the paths, whatever they
+-- are pointing to at any given point of time:
 --
--- If the watched path is deleted and created again the events start coming
--- again for that path. A file type path being watched could be deleted and
--- recreated as a directory. If the watched path is moved to another path (or
--- is deleted and recreated as a symbolic link to another path) then no events
--- are reported for any changes under the new path.
+-- * If the object pointing to the watched path is deleted and then recreated,
+-- the newly created file or directory is automatically watched.
 --
--- BUGS: If a watch is started on a non-existing path then the path is not
--- watched even if it is created later.  The macOS API does not fail for a
--- non-existing path.  If a non-existing path is watched with 'setRootMoved'
--- then an 'isRootChanged' event is reported if the path is created later and
--- the "path" field in the event is set to the dirname of the path rather than
--- the full absolute path. This is the observed behavior on macOS 10.15.1.
+-- * If the watched path is moved to a new path, the object will no longer be
+-- watched unless the new path is also being watched and was pointing to an
+-- existing file at the time of starting the watch (see notes about
+-- non-existing paths below).
+--
+-- /Symbolic Links:/ If the path name to be watched is a symbolic link then the
+-- target of the link is watched instead of the symbolic link itself. It is
+-- equivalent to as if the target of the symbolic link itself was directly
+-- added to the watch API. That is, the symbolic link is resolved at the time
+-- of adding the watch.
+--
+-- Note that if a watched path is deleted and recreated as a symbolic link to
+-- another path then the symbolic link file itself is watched, it won't be
+-- resolved. The symbolic link resolution happens only at the time of adding
+-- the watch.
+--
+-- /Non-existing Paths:/ If a watch is started on a non-existing path then the
+-- path is not watched even if it is created later.  The macOS API does not
+-- fail for a non-existing path.
+--
+-- If a non-existing path is watched with 'setRootPathEvents' then an
+-- 'isRootPathEvent' event is reported if the path is created later and the
+-- "path" field in the event is set to the dirname of the path rather than the
+-- full absolute path. This is the observed behavior on macOS 10.15.1.
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- watchTreesWith
---      ('setIgnoreSelf' 'On' . 'setRootMoved' 'On')
+-- watchWith
+--      ('setIgnoreSelf' 'On' . 'setRootPathEvents' 'On')
 --      [Array.fromCString\# "path"#]
 -- @
 --
 -- /Pre-release/
 --
-watchTreesWith ::
+watchWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
-watchTreesWith f paths = S.bracket before after watchToStream
+watchWith f paths = S.bracket before after watchToStream
 
     where
 
     before = liftIO $ openWatch (f defaultConfig) paths
     after = (liftIO . closeWatch)
 
--- | Like 'watchTreesWith' but uses the 'defaultConfig' options.
+-- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- @
--- watchTrees = watchTreesWith id
--- @
+-- >>> watchRecursive = watchWith id
 --
-watchTrees :: NonEmpty (Array Word8) -> SerialT IO Event
-watchTrees = watchTreesWith id
+watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive = watchWith id
+
+-- | Same as 'watchWith' using defaultConfig and non-recursive mode.
+--
+-- /Unimplemented/
+--
+watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch _paths = undefined
 
 -------------------------------------------------------------------------------
 -- Examine the event stream
@@ -584,7 +625,7 @@ foreign import ccall safe
 -- | Apple documentation says that "If an event in a directory occurs at about
 -- the same time as one or more events in a subdirectory of that directory, the
 -- events may be coalesced into a single event." In that case you will recieve
--- 'isMustScanSubdirs' event. In that case the path listed in the event is
+-- 'isEventsLost' event. In that case the path listed in the event is
 -- invalidated and you must rescan it to know the current state.
 --
 -- This event can also occur if a communication error (overflow) occurs in
@@ -595,15 +636,15 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isMustScanSubdirs :: Event -> Bool
-isMustScanSubdirs = getFlag kFSEventStreamEventFlagMustScanSubDirs
+isEventsLost :: Event -> Bool
+isEventsLost = getFlag kFSEventStreamEventFlagMustScanSubDirs
 
 foreign import ccall safe
     "FSEventStreamEventFlagKernelDropped"
     kFSEventStreamEventFlagKernelDropped :: Word32
 
 -- | Did an event get dropped due to a kernel processing issue? Set only when
--- 'isMustScanSubdirs' is also true.
+-- 'isEventsLost' is also true.
 --
 -- /macOS 10.5+/
 --
@@ -617,7 +658,7 @@ foreign import ccall safe
     kFSEventStreamEventFlagUserDropped :: Word32
 
 -- | Did an event get dropped due to a user process issue? Set only when
--- 'isMustScanSubdirs' is also true.
+-- 'isEventsLost' is also true.
 --
 -- /macOS 10.5+/
 --
@@ -658,7 +699,7 @@ foreign import ccall safe
 -- object itself. Note that the object may become unreachable or deleted after
 -- a change of path.
 --
--- /Applicable only when 'setRootMoved' is 'On'/
+-- /Applicable only when 'setRootPathEvents' is 'On'/
 --
 -- /Occurs only for the watched path/
 --
@@ -666,8 +707,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isRootChanged :: Event -> Bool
-isRootChanged = getFlag kFSEventStreamEventFlagRootChanged
+isRootPathEvent :: Event -> Bool
+isRootPathEvent = getFlag kFSEventStreamEventFlagRootChanged
 
 -------------------------------------------------------------------------------
 -- Global events under the watched path
@@ -988,11 +1029,11 @@ showEvent ev@Event{..} =
         ++ "\nPath = " ++ show path
         ++ "\nFlags " ++ show eventFlags
 
-        ++ showev isMustScanSubdirs "MustScanSubdirs"
+        ++ showev isEventsLost "MustScanSubdirs"
         ++ showev isKernelDropped "KernelDropped"
         ++ showev isUserDropped "UserDropped"
 
-        ++ showev isRootChanged "RootChanged"
+        ++ showev isRootPathEvent "RootPathEvent"
         ++ showev isMount "Mount"
         ++ showev isUnmount "Unmount"
         ++ showev isHistoryDone "HistoryDone"
