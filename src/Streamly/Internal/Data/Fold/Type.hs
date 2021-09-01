@@ -997,6 +997,7 @@ data LongestRunner sL sR bL bR
 --
 -- /Pre-release/
 --
+{-# INLINE longest #-}
 longest :: Monad m => Fold m x a -> Fold m x b -> Fold m x (Either a b)
 longest (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     Fold step begin done
