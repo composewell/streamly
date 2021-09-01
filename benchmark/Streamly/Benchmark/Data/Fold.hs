@@ -148,26 +148,23 @@ distribute = IP.fold (FL.distribute [FL.sum, FL.length])
 -- Partitioning
 -------------------------------------------------------------------------------
 
+{-# INLINE oddEven #-}
+oddEven :: Int -> Either Int Int
+oddEven x = if odd x then Left x else Right x
+
 {-# INLINE partition #-}
 partition :: Monad m => SerialT m Int -> m (Int, Int)
-partition =
-    let f a =
-            if odd a
-            then Left a
-            else Right a
-     in IP.fold $ FL.lmap f (FL.partition FL.sum FL.length)
+partition = IP.fold $ FL.lmap oddEven (FL.partition FL.sum FL.length)
 
 {-# INLINE partitionByFstM #-}
 partitionByFstM :: Monad m => SerialT m Int -> m (Int, Int)
-partitionByFstM = do
-    let f x = if odd x then return (Left x) else return (Right x)
-    IP.fold (FL.partitionByFstM f FL.length FL.length)
+partitionByFstM =
+    IP.fold (FL.partitionByFstM (return . oddEven) FL.sum FL.length)
 
 {-# INLINE partitionByMinM #-}
 partitionByMinM :: Monad m => SerialT m Int -> m (Int, Int)
-partitionByMinM = do
-    let f x = if odd x then return (Left x) else return (Right x)
-    IP.fold (FL.partitionByMinM f FL.length FL.length)
+partitionByMinM =
+    IP.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
 
 {-# INLINE demuxWith  #-}
 demuxWith ::
@@ -203,13 +200,13 @@ unzip = IP.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 {-# INLINE unzipWithFstM #-}
 unzipWithFstM :: Monad m => SerialT m Int -> m (Int, Int)
 unzipWithFstM = do
-    let f = \a -> return (a+1, a)
+    let f = \a -> return (a + 1, a)
     IP.fold (FL.unzipWithFstM f FL.sum FL.length)
 
 {-# INLINE unzipWithMinM #-}
 unzipWithMinM :: Monad m => SerialT m Int -> m (Int, Int)
 unzipWithMinM = do
-    let f = \a -> return (a+1, a)
+    let f = \a -> return (a + 1, a)
     IP.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------
@@ -323,8 +320,8 @@ o_1_space_serial_composition value =
             , benchIOSink value "teeWithMin (sum, length)" teeWithMin
             , benchIOSink value "distribute [sum, length]" distribute
             , benchIOSink value "partition (sum, length)" partition
-            , benchIOSink value "partitionByFstM (length, length)" partitionByFstM
-            , benchIOSink value "partitionByMinM (length, length)" partitionByMinM
+            , benchIOSink value "partitionByFstM (sum, length)" partitionByFstM
+            , benchIOSink value "partitionByMinM (sum, length)" partitionByMinM
             , benchIOSink value "unzip (sum, length)" unzip
             , benchIOSink value "unzipWithFstM (sum, length)" unzipWithFstM
             , benchIOSink value "unzipWithMinM (sum, length)" unzipWithMinM

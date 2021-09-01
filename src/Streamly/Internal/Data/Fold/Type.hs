@@ -1009,15 +1009,15 @@ longest (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         resR <- beginR
         return $
             case resL of
-                    Partial sL ->
-                        Partial $
-                            case resR of
-                                Partial sR -> LongestRunBoth sL sR
-                                Done bR -> LongestRunLeft sL bR
-                    Done bL ->
+                Partial sL ->
+                    Partial $
                         case resR of
-                            Partial sR -> Partial $ LongestRunRight bL sR
-                            Done bR -> Done $ Right bR
+                            Partial sR -> LongestRunBoth sL sR
+                            Done bR -> LongestRunLeft sL bR
+                Done bL ->
+                    case resR of
+                        Partial sR -> Partial $ LongestRunRight bL sR
+                        Done bR -> Done $ Right bR
 
     step (LongestRunBoth sL sR) a = do
         resL <- stepL sL a

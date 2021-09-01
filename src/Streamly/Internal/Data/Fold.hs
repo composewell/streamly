@@ -1325,10 +1325,10 @@ partitionByMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
             Right c -> do
                 res <- stepR sR c
                 case res of
-                        Partial sres -> return $ Partial $ Tuple' sL sres
-                        Done bR -> do
-                            bL <- doneL sL
-                            return $ Done (bL, bR)
+                    Partial sres -> return $ Partial $ Tuple' sL sres
+                    Done bR -> do
+                        bL <- doneL sL
+                        return $ Done (bL, bR)
 
     done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
 
@@ -1729,16 +1729,16 @@ unzipWithFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         resL <- beginL
         resR <- beginR
         case resL of
-                  Partial sL -> return $ Partial $
-                      case resR of
-                                Partial sR -> RunFstBoth sL sR
-                                Done bR -> RunFstLeft sL bR
-                  Done bL -> do
-                      case resR of
-                          Partial sR -> do
-                            bR <- doneR sR
-                            return $ Done (bL, bR)
-                          Done bR -> return $ Done (bL, bR)
+              Partial sL -> return $ Partial $
+                  case resR of
+                      Partial sR -> RunFstBoth sL sR
+                      Done bR -> RunFstLeft sL bR
+              Done bL -> do
+                  case resR of
+                      Partial sR -> do
+                          bR <- doneR sR
+                          return $ Done (bL, bR)
+                      Done bR -> return $ Done (bL, bR)
 
     step (RunFstBoth sL sR) a = do
         (b, c) <- f a
@@ -1747,8 +1747,8 @@ unzipWithFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         case resL of
             Partial sresL -> return $ Partial $
                 case resR of
-                          Partial sresR -> RunFstBoth sresL sresR
-                          Done bresR -> RunFstLeft sresL bresR
+                    Partial sresR -> RunFstBoth sresL sresR
+                    Done bresR -> RunFstLeft sresL bresR
             Done bL -> do
                 case resR of
                     Partial sresR -> do
@@ -1782,18 +1782,18 @@ unzipWithMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         resL <- beginL
         resR <- beginR
         case resL of
-                  Partial sL ->
-                      case resR of
-                                Partial sR -> return $ Partial $ Tuple' sL sR
-                                Done bR -> do
-                                    bL <- doneL sL
-                                    return $ Done (bL, bR)
-                  Done bL -> do
-                      case resR of
-                          Partial sR -> do
-                            bR <- doneR sR
-                            return $ Done (bL, bR)
-                          Done bR -> return $ Done (bL, bR)
+            Partial sL ->
+                case resR of
+                    Partial sR -> return $ Partial $ Tuple' sL sR
+                    Done bR -> do
+                        bL <- doneL sL
+                        return $ Done (bL, bR)
+            Done bL -> do
+                case resR of
+                    Partial sR -> do
+                        bR <- doneR sR
+                        return $ Done (bL, bR)
+                    Done bR -> return $ Done (bL, bR)
 
     step (Tuple' sL sR) a = do
         (b, c) <- f a
@@ -1802,10 +1802,10 @@ unzipWithMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         case resL of
             Partial sresL ->
                 case resR of
-                          Partial sresR -> return $ Partial $ Tuple' sresL sresR
-                          Done bR -> do
-                                bL <- doneL sL
-                                return $ Done (bL, bR)
+                    Partial sresR -> return $ Partial $ Tuple' sresL sresR
+                    Done bR -> do
+                        bL <- doneL sL
+                        return $ Done (bL, bR)
             Done bL -> do
                 case resR of
                     Partial sresR -> do
@@ -1814,7 +1814,6 @@ unzipWithMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
                     Done bR -> return $ Done (bL, bR)
 
     done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
-
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
