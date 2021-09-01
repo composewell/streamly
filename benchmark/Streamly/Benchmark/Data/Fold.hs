@@ -98,6 +98,15 @@ splitAllAny value =
             (FL.any (> value))
         )
 
+{-# INLINE serial_ #-}
+serial_ :: Monad m => Int -> SerialT m Int -> m Bool
+serial_ value =
+    IP.fold
+        (FL.serial_
+            (FL.all (<= (value `div` 2)))
+            (FL.any (> value))
+        )
+
 {-# INLINE shortest #-}
 shortest :: Monad m => SerialT m Int -> m (Either Int Int)
 shortest = IP.fold (FL.shortest FL.sum FL.length)
@@ -105,18 +114,6 @@ shortest = IP.fold (FL.shortest FL.sum FL.length)
 {-# INLINE longest #-}
 longest :: Monad m => SerialT m Int -> m (Either Int Int)
 longest = IP.fold (FL.longest FL.sum FL.length)
-
-{-
-{-# INLINE split_ #-}
-split_ :: Monad m
-    => Int -> SerialT m Int -> m ()
-split_ value =
-    IP.fold
-        (FL.split_
-            (FL.all (<= (value `div` 2)))
-            (FL.any (> value))
-        )
--}
 
 -------------------------------------------------------------------------------
 -- Distributing by parallel application
@@ -316,6 +313,7 @@ o_1_space_serial_composition value =
       [ bgroup
             "composition"
             [ benchIOSink value "serialWith (all, any)" $ splitAllAny value
+            , benchIOSink value "serial_ (all, any)" $ serial_ value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many
             , benchIOSink value "shortest (sum, length)" shortest
