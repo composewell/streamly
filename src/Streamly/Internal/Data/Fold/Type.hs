@@ -706,43 +706,44 @@ serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
                 return $ func rL rR
             Done rR -> return $ func rL rR
 
+{-# ANN type Step Fuse #-}
+data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
+
 -- | Same as applicative '*>'. Run two folds serially one after the other
 -- discarding the result of the first.
 --
+-- This was written in the hope that it might be faster than implementing it
+-- using serialWith, but the current benchmarks show that it has the same
+-- performance. So do not expose it unless some benchmark shows benefit.
+--
 {-# INLINE serial_ #-}
-serial_ :: Monad m =>
-    Fold m x a -> Fold m x b -> Fold m x b
+serial_ :: Monad m => Fold m x a -> Fold m x b -> Fold m x b
 serial_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
 
-    func _ b = b
-
     initial = do
         resL <- initialL
         case resL of
-            Partial sl -> return $ Partial $ SeqFoldL sl
-            Done bl -> do
+            Partial sl -> return $ Partial $ SeqFoldL_ sl
+            Done _ -> do
                 resR <- initialR
-                return $ first (SeqFoldR (func bl)) resR
+                return $ first SeqFoldR_ resR
 
-    step (SeqFoldL st) a = do
+    step (SeqFoldL_ st) a = do
         r <- stepL st a
         case r of
-            Partial s -> return $ Partial (SeqFoldL s)
-            Done b -> do
-                res <- initialR
-                return $ first (SeqFoldR (func b)) res
-    step (SeqFoldR f st) a = do
-        r <- stepR st a
-        return $
-            case r of
-                Partial s -> Partial (SeqFoldR f s)
-                Done b -> Done b
+            Partial s -> return $ Partial (SeqFoldL_ s)
+            Done _ -> do
+                resR <- initialR
+                return $ first SeqFoldR_ resR
+    step (SeqFoldR_ st) a = do
+        resR <- stepR st a
+        return $ first SeqFoldR_ resR
 
-    extract (SeqFoldR _ sR) = extractR sR
-    extract (SeqFoldL _) = do
+    extract (SeqFoldR_ sR) = extractR sR
+    extract (SeqFoldL_ _) = do
         res <- initialR
         case res of
             Partial sR -> extractR sR
