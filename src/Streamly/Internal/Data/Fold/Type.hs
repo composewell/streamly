@@ -346,6 +346,13 @@ mapMStep f res =
         Partial s -> pure $ Partial s
         Done b -> Done <$> f b
 
+-- | If 'Partial' then map the state, if 'Done' then call the next step.
+{-# INLINE chainStepM #-}
+chainStepM :: Applicative m =>
+    (s1 -> m s2) -> (a -> m (Step s2 b)) -> Step s1 a -> m (Step s2 b)
+chainStepM f _ (Partial s) = Partial <$> f s
+chainStepM _ g (Done b) = g b
+
 ------------------------------------------------------------------------------
 -- The Fold type
 ------------------------------------------------------------------------------
@@ -668,43 +675,34 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 -- @since 0.8.0
 --
 {-# INLINE serialWith #-}
-serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+serialWith :: Monad m =>
+    (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
 
-    initial = do
-        resL <- initialL
-        case resL of
-            Partial sl -> return $ Partial $ SeqFoldL sl
-            Done bl -> do
-                resR <- initialR
-                return $ bimap (SeqFoldR (func bl)) (func bl) resR
+    {-# INLINE runR #-}
+    runR action f = bimap (SeqFoldR f) f <$> action
 
-    step (SeqFoldL st) a = do
-        r <- stepL st a
-        case r of
-            Partial s -> return $ Partial (SeqFoldL s)
-            Done b -> do
-                res <- initialR
-                return $ bimap (SeqFoldR (func b)) (func b) res
-    step (SeqFoldR f st) a = do
-        r <- stepR st a
-        return
-            $ case r of
-                  Partial s -> Partial (SeqFoldR f s)
-                  Done b -> Done (f b)
+    {-# INLINE runL #-}
+    runL action = do
+        resL <- action
+        chainStepM (return . SeqFoldL) (runR initialR . func) resL
+
+    initial = runL initialL
+
+    step (SeqFoldL st) a = runL (stepL st a)
+    step (SeqFoldR f st) a = runR (stepR st a) f
 
     extract (SeqFoldR f sR) = fmap f (extractR sR)
     extract (SeqFoldL sL) = do
         rL <- extractL sL
         res <- initialR
-        case res of
-            Partial sR -> do
-                rR <- extractR sR
-                return $ func rL rR
-            Done rR -> return $ func rL rR
+        fmap (func rL)
+            $ case res of
+                Partial sR -> extractR sR
+                Done rR -> return rR
 
 {-# ANN type Step Fuse #-}
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
