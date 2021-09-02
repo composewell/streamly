@@ -879,8 +879,8 @@ teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- from the one which consumed least input i.e. take the shortest succeeding
 -- fold.
 --
--- If the result is extracted before any of the folds could finish then the
--- left one is taken.
+-- If both the folds finish at the same time or if the result is extracted
+-- before any of the folds could finish then the left one is taken.
 --
 -- /Pre-release/
 --
@@ -906,75 +906,51 @@ shortest (Fold stepL initialL extractL) (Fold stepR initialR _) =
 
     extract (Tuple' sL _) = Left <$> extractL sL
 
-{-# ANN type LongestRunner Fuse #-}
-data LongestRunner sL sR bL bR
-    = LongestRunBoth !sL !sR
-    | LongestRunLeft !sL !bR
-    | LongestRunRight !bL !sR
+{-# ANN type LongestState Fuse #-}
+data LongestState sL sR
+    = LongestBoth !sL !sR
+    | LongestLeft !sL
+    | LongestRight !sR
 
 -- | Longest alternative. Apply both folds in parallel but choose the result
 -- from the one which consumed more input i.e. take the longest succeeding
 -- fold.
 --
+-- If both the folds finish at the same time or if the result is extracted
+-- before any of the folds could finish then the left one is taken.
+--
 -- /Pre-release/
 --
 {-# INLINE longest #-}
 longest :: Monad m => Fold m x a -> Fold m x b -> Fold m x (Either a b)
-longest (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
+longest (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
 
     where
 
-    begin = do
-        resL <- beginL
-        resR <- beginR
+    {-# INLINE runBoth #-}
+    runBoth actionL actionR = do
+        resL <- actionL
+        resR <- actionR
         return $
             case resL of
                 Partial sL ->
                     Partial $
                         case resR of
-                            Partial sR -> LongestRunBoth sL sR
-                            Done bR -> LongestRunLeft sL bR
-                Done bL ->
-                    case resR of
-                        Partial sR -> Partial $ LongestRunRight bL sR
-                        Done bR -> Done $ Right bR
+                            Partial sR -> LongestBoth sL sR
+                            Done _ -> LongestLeft sL
+                Done bL -> bimap LongestRight (const (Left bL)) resR
 
-    step (LongestRunBoth sL sR) a = do
-        resL <- stepL sL a
-        resR <- stepR sR a
-        case resL of
-            Partial sL1 ->
-                return
-                    $ Partial
-                    $ case resR of
-                        Partial sR1 -> LongestRunBoth sL1 sR1
-                        Done bR -> LongestRunLeft sL1 bR
-            Done bL ->
-                return
-                    $ case resR of
-                        Partial sR1 -> Partial $ LongestRunRight bL sR1
-                        Done bR -> Done $ Right bR
+    initial = runBoth initialL initialR
 
-    step (LongestRunLeft sL bR) a = do
-        resL <- stepL sL a
-        return $
-            case resL of
-                Partial sL1 -> Partial $ LongestRunLeft sL1 bR
-                Done bL -> Done $ Left bL
+    step (LongestBoth sL sR) a = runBoth (stepL sL a) (stepR sR a)
+    step (LongestLeft sL) a = bimap LongestLeft Left <$> stepL sL a
+    step (LongestRight sR) a = bimap LongestRight Right <$> stepR sR a
 
-    step (LongestRunRight bL sR) a = do
-        resR <- stepR sR a
-        return
-            $ case resR of
-                Partial sR1 -> Partial $ LongestRunRight bL sR1
-                Done bR -> Done $ Right bR
-
-    done (LongestRunLeft sL _) = Left <$> doneL sL
-
-    done (LongestRunRight _ sR) = Right <$> doneR sR
-
-    done (LongestRunBoth sL _) = Left <$> doneL sL
+    left sL = Left <$> extractL sL
+    extract (LongestLeft sL) = left sL
+    extract (LongestRight sR) = Right <$> extractR sR
+    extract (LongestBoth sL _) = left sL
 
 data ConcatMapState m sa a c
     = B !sa
