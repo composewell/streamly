@@ -466,7 +466,7 @@ MEASURE=1
 GAUGE_ARGS=
 BUILD_ONCE=0
 
-CABAL_BUILD_OPTIONS="--flag fusion-plugin "
+CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag limit-build-mem"
 
 #-----------------------------------------------------------------------------
 # Read command line
