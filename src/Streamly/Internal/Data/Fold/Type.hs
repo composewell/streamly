@@ -235,7 +235,6 @@ module Streamly.Internal.Data.Fold.Type
     , serial_
 
     -- ** Parallel Distribution
-    , GenericRunner(..)
     , FstRunner(..)
     , teeWith
     , teeWithFst
@@ -747,11 +746,11 @@ serial_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
             Partial sR -> extractR sR
             Done rR -> return rR
 
-{-# ANN type GenericRunner Fuse #-}
-data GenericRunner sL sR bL bR
-    = RunBoth !sL !sR
-    | RunLeft !sL !bR
-    | RunRight !bL !sR
+{-# ANN type TeeState Fuse #-}
+data TeeState sL sR bL bR
+    = TeeBoth !sL !sR
+    | TeeLeft !bR !sL
+    | TeeRight !bL !sR
 
 {-# ANN type FstRunner Fuse #-}
 data FstRunner sL sR b
@@ -776,61 +775,32 @@ data FstRunner sL sR b
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-teeWith f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
+teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
 
     where
 
-    begin = do
-        resL <- beginL
-        resR <- beginR
+    runBoth actionL actionR = do
+        resL <- actionL
+        resR <- actionR
         return
             $ case resL of
                   Partial sl ->
                       Partial
                           $ case resR of
-                                Partial sr -> RunBoth sl sr
-                                Done br -> RunLeft sl br
-                  Done bl -> bimap (RunRight bl) (f bl) resR
+                                Partial sr -> TeeBoth sl sr
+                                Done br -> TeeLeft br sl
+                  Done bl -> bimap (TeeRight bl) (f bl) resR
 
-    step (RunBoth sL sR) a = do
-        resL <- stepL sL a
-        resR <- stepR sR a
-        case resL of
-            Partial sL1 ->
-                return
-                    $ Partial
-                    $ case resR of
-                          Partial sR1 -> RunBoth sL1 sR1
-                          Done bR -> RunLeft sL1 bR
-            Done bL ->
-                return
-                    $ case resR of
-                          Partial sR1 -> Partial $ RunRight bL sR1
-                          Done bR -> Done $ f bL bR
-    step (RunLeft sL bR) a = do
-        resL <- stepL sL a
-        return
-            $ case resL of
-                  Partial sL1 -> Partial $ RunLeft sL1 bR
-                  Done bL -> Done $ f bL bR
-    step (RunRight bL sR) a = do
-        resR <- stepR sR a
-        return
-            $ case resR of
-                  Partial sR1 -> Partial $ RunRight bL sR1
-                  Done bR -> Done $ f bL bR
+    initial = runBoth initialL initialR
 
-    done (RunBoth sL sR) = do
-        bL <- doneL sL
-        bR <- doneR sR
-        return $ f bL bR
-    done (RunLeft sL bR) = do
-        bL <- doneL sL
-        return $ f bL bR
-    done (RunRight bL sR) = do
-        bR <- doneR sR
-        return $ f bL bR
+    step (TeeBoth sL sR) a = runBoth (stepL sL a) (stepR sR a)
+    step (TeeLeft bR sL) a = bimap (TeeLeft bR) (`f` bR) <$> stepL sL a
+    step (TeeRight bL sR) a = bimap (TeeRight bL) (f bL) <$> stepR sR a
+
+    extract (TeeBoth sL sR) = f <$> extractL sL <*> extractR sR
+    extract (TeeLeft bR sL) = (`f` bR) <$> extractL sL
+    extract (TeeRight bL sR) = f bL <$> extractR sR
 
 -- | Like 'teeWith' but terminates as soon as the first fold terminates.
 --
