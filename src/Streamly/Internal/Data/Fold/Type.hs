@@ -879,40 +879,32 @@ teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- from the one which consumed least input i.e. take the shortest succeeding
 -- fold.
 --
+-- If the result is extracted before any of the folds could finish then the
+-- left one is taken.
+--
 -- /Pre-release/
 --
 {-# INLINE shortest #-}
 shortest :: Monad m => Fold m x a -> Fold m x b -> Fold m x (Either a b)
-shortest (Fold stepL beginL doneL) (Fold stepR beginR _) =
-    Fold step begin done
+shortest (Fold stepL initialL extractL) (Fold stepR initialR _) =
+    Fold step initial extract
 
     where
 
-    begin = do
-        resL <- beginL
-        resR <- beginR
+    {-# INLINE runBoth #-}
+    runBoth actionL actionR = do
+        resL <- actionL
+        resR <- actionR
         return $
             case resL of
-                Partial sL ->
-                    case resR of
-                        Partial sR -> Partial $ Tuple' sL sR
-                        Done bR -> Done $ Right bR
+                Partial sL -> bimap (Tuple' sL) Right resR
                 Done bL -> Done $ Left bL
 
-    step (Tuple' sL sR) a = do
-        resL <- stepL sL a
-        resR <- stepR sR a
-        return $
-            case resL of
-                Partial sL1 ->
-                    case resR of
-                        Partial sR1 -> Partial $ Tuple' sL1 sR1
-                        Done bR -> Done $ Right bR
-                Done bL -> Done $ Left bL
+    initial = runBoth initialL initialR
 
-    done (Tuple' sL _) = do
-        x <- doneL sL
-        return $ Left x
+    step (Tuple' sL sR) a = runBoth (stepL sL a) (stepR sR a)
+
+    extract (Tuple' sL _) = Left <$> extractL sL
 
 {-# ANN type LongestRunner Fuse #-}
 data LongestRunner sL sR bL bR
