@@ -774,6 +774,7 @@ teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     where
 
+    {-# INLINE runBoth #-}
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
@@ -813,6 +814,7 @@ teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     where
 
+    {-# INLINE runBoth #-}
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
@@ -844,51 +846,34 @@ teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- /Pre-release/
 --
 {-# INLINE teeWithMin #-}
-teeWithMin :: Monad m => (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
-teeWithMin f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
+teeWithMin :: Monad m =>
+    (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
+teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
 
     where
 
-    begin = do
-        resL <- beginL
-        resR <- beginR
+    {-# INLINE runBoth #-}
+    runBoth actionL actionR = do
+        resL <- actionL
+        resR <- actionR
         case resL of
-            Partial sL1 -> do
+            Partial sl -> do
                 case resR of
-                    Partial sR1 -> return $ Partial $ Tuple' sL1 sR1
-                    Done br -> do
-                        bl <- doneL sL1
-                        return $ Done $ f bl br
+                    Partial sr -> return $ Partial $ Tuple' sl sr
+                    Done br -> Done . (`f` br) <$> extractL sl
 
             Done bl -> do
-                case resR of
-                    Partial sr -> do
-                        br <- doneR sr
-                        return $ Done $ f bl br
-                    Done br -> return $ Done $ f bl br
+                Done . f bl <$>
+                    case resR of
+                        Partial sr -> extractR sr
+                        Done br -> return br
 
-    step (Tuple' sL sR) a = do
-        resL <- stepL sL a
-        resR <- stepR sR a
-        case resL of
-            Partial sL1 ->
-                case resR of
-                    Partial sR1 -> return $ Partial $ Tuple' sL1 sR1
-                    Done bR -> do
-                        bL <- doneL sL1
-                        return $ Done $ f bL bR
-            Done bL ->
-                case resR of
-                    Partial sR1 -> do
-                        br <- doneR sR1
-                        return $ Done $ f bL br
-                    Done bR -> return $ Done $ f bL bR
+    initial = runBoth initialL initialR
 
-    done (Tuple' sL sR) = do
-        bL <- doneL sL
-        bR <- doneR sR
-        return $ f bL bR
+    step (Tuple' sL sR) a = runBoth (stepL sL a) (stepR sR a)
+
+    extract (Tuple' sL sR) = f <$> extractL sL <*> extractR sR
 
 -- | Shortest alternative. Apply both folds in parallel but choose the result
 -- from the one which consumed least input i.e. take the shortest succeeding
