@@ -239,7 +239,7 @@ where
 
 import Control.Monad (void)
 import Data.Bifunctor (first)
-import Data.Either (isLeft, isRight, fromLeft, fromRight)
+import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
@@ -247,6 +247,7 @@ import Data.Maybe (isJust, fromJust)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
+import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
@@ -1109,6 +1110,22 @@ distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 -- Partitioning
 ------------------------------------------------------------------------------
 
+{-# INLINE partitionByMUsing #-}
+partitionByMUsing :: Monad m =>
+       (  (x -> y -> (x, y))
+       -> Fold m (Either b c) x
+       -> Fold m (Either b c) y
+       -> Fold m (Either b c) (x, y)
+       )
+    -> (a -> m (Either b c))
+    -> Fold m b x
+    -> Fold m c y
+    -> Fold m a (x, y)
+partitionByMUsing t f fld1 fld2 =
+    let l = lmap (fromLeft undefined) fld1  -- :: Fold m (Either b c) x
+        r = lmap (fromRight undefined) fld2 -- :: Fold m (Either b c) y
+     in lmapM f (t (,) (filter isLeft l) (filter isRight r))
+
 -- | Partition the input over two folds using an 'Either' partitioning
 -- predicate.
 --
@@ -1163,10 +1180,7 @@ distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByM f fld1 fld2 =
-    let l = lmap (fromLeft undefined) fld1  -- :: Fold m (Either b c) x
-        r = lmap (fromRight undefined) fld2 -- :: Fold m (Either b c) y
-     in lmapM f (teeWith (,) (filter isLeft l) (filter isRight r))
+partitionByM = partitionByMUsing teeWith
 
 -- | Similar to 'partitionByM' but terminates when the first fold terminates.
 --
@@ -1174,58 +1188,7 @@ partitionByM f fld1 fld2 =
 {-# INLINE partitionByFstM #-}
 partitionByFstM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
-    begin = do
-        resL <- beginL
-        resR <- beginR
-        case resL of
-            Partial sL -> return $
-                case resR of
-                    Partial sR -> Partial $ RunFstBoth sL sR
-                    Done bR -> Partial $ RunFstLeft sL bR
-            Done bL -> do
-                case resR of
-                    Partial sR -> do
-                        bR <- doneR sR
-                        return $ Done (bL, bR)
-                    Done bR -> return $ Done (bL, bR)
-
-    step (RunFstBoth sL sR) a = do
-        r <- f a
-        case r of
-            Left b -> do
-                res <- stepL sL b
-                case res of
-                    Partial sres -> return $ Partial $ RunFstBoth sres sR
-                    Done bL -> do
-                        bR <- doneR sR
-                        return $ Done (bL, bR)
-
-            Right c -> do
-                res <- stepR sR c
-                return
-                    $ Partial
-                    $ case res of
-                        Partial sres -> RunFstBoth sL sres
-                        Done bres -> RunFstLeft sL bres
-    step (RunFstLeft sL bR) a = do
-        r <- f a
-        case r of
-            Left b -> do
-                res <- stepL sL b
-                return
-                    $ case res of
-                        Partial sres -> Partial $ RunFstLeft sres bR
-                        Done bres -> Done (bres, bR)
-            Right _ -> return $ Partial $ RunFstLeft sL bR
-
-    done (RunFstBoth sL sR) = (,) <$> doneL sL <*> doneR sR
-
-    done (RunFstLeft sL bR) = (,bR) <$> doneL sL
+partitionByFstM = partitionByMUsing teeWithFst
 
 -- | Similar to 'partitionByM' but terminates when any fold terminates.
 --
@@ -1233,48 +1196,7 @@ partitionByFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 {-# INLINE partitionByMinM #-}
 partitionByMinM :: Monad m =>
     (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionByMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
-    begin = do
-        resL <- beginL
-        resR <- beginR
-        case resL of
-            Partial sL ->
-                case resR of
-                    Partial sR -> return $ Partial $ Tuple' sL sR
-                    Done bR -> do
-                        bL <- doneL sL
-                        return $ Done (bL, bR)
-            Done bL -> do
-                case resR of
-                    Partial sR -> do
-                        bR <- doneR sR
-                        return $ Done (bL, bR)
-                    Done bR -> return $ Done (bL, bR)
-
-    step (Tuple' sL sR) a = do
-        r <- f a
-        case r of
-            Left b -> do
-                res <- stepL sL b
-                case res of
-                    Partial sres -> return $ Partial $ Tuple' sres sR
-                    Done bL -> do
-                        bR <- doneR sR
-                        return $ Done (bL, bR)
-
-            Right c -> do
-                res <- stepR sR c
-                case res of
-                    Partial sres -> return $ Partial $ Tuple' sL sres
-                    Done bR -> do
-                        bL <- doneL sL
-                        return $ Done (bL, bR)
-
-    done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
+partitionByMinM = partitionByMUsing teeWithMin
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
@@ -1595,6 +1517,22 @@ classify fld = classifyWith fst (lmap snd fld)
 -- Unzipping
 ------------------------------------------------------------------------------
 
+{-# INLINE unzipWithMUsing #-}
+unzipWithMUsing :: Monad m =>
+       (  (x -> y -> (x, y))
+       -> Fold m (b, c) x
+       -> Fold m (b, c) y
+       -> Fold m (b, c) (x, y)
+       )
+    -> (a -> m (b, c))
+    -> Fold m b x
+    -> Fold m c y
+    -> Fold m a (x, y)
+unzipWithMUsing t f fld1 fld2 =
+    let f1 = lmap fst fld1  -- :: Fold m (b, c) b
+        f2 = lmap snd fld2  -- :: Fold m (b, c) c
+     in lmapM f (t (,) f1 f2)
+
 -- | Like 'unzipWith' but with a monadic splitter function.
 --
 -- @unzipWithM k f1 f2 = lmapM k (unzip f1 f2)@
@@ -1603,10 +1541,7 @@ classify fld = classifyWith fst (lmap snd fld)
 {-# INLINE unzipWithM #-}
 unzipWithM :: Monad m
     => (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-unzipWithM f fld1 fld2 =
-    let f1 = lmap fst fld1  -- :: Fold m (b, c) b
-        f2 = lmap snd fld2  -- :: Fold m (b, c) c
-     in lmapM f (teeWith (,) f1 f2)
+unzipWithM = unzipWithMUsing teeWith
 
 -- | Similar to 'unzipWithM' but terminates when the first fold terminates.
 --
@@ -1614,52 +1549,7 @@ unzipWithM f fld1 fld2 =
 {-# INLINE unzipWithFstM #-}
 unzipWithFstM :: Monad m =>
     (a -> m (b, c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-unzipWithFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
-    begin = do
-        resL <- beginL
-        resR <- beginR
-        case resL of
-              Partial sL -> return $ Partial $
-                  case resR of
-                      Partial sR -> RunFstBoth sL sR
-                      Done bR -> RunFstLeft sL bR
-              Done bL -> do
-                  case resR of
-                      Partial sR -> do
-                          bR <- doneR sR
-                          return $ Done (bL, bR)
-                      Done bR -> return $ Done (bL, bR)
-
-    step (RunFstBoth sL sR) a = do
-        (b, c) <- f a
-        resL <- stepL sL b
-        resR <- stepR sR c
-        case resL of
-            Partial sresL -> return $ Partial $
-                case resR of
-                    Partial sresR -> RunFstBoth sresL sresR
-                    Done bresR -> RunFstLeft sresL bresR
-            Done bL -> do
-                case resR of
-                    Partial sresR -> do
-                        bR <- doneR sresR
-                        return $ Done (bL, bR)
-                    Done bR -> return $ Done (bL, bR)
-
-    step (RunFstLeft sL bR) a = do
-        (b, _) <- f a
-        resL <- stepL sL b
-        return
-            $ case resL of
-                  Partial sresL -> Partial $ RunFstLeft sresL bR
-                  Done bresL -> Done (bresL, bR)
-
-    done (RunFstBoth sL sR) = (,) <$> doneL sL <*> doneR sR
-    done (RunFstLeft sL bR) = (,bR) <$> doneL sL
+unzipWithFstM = unzipWithMUsing teeWithFst
 
 -- | Similar to 'unzipWithM' but terminates when any fold terminates.
 --
@@ -1667,47 +1557,7 @@ unzipWithFstM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 {-# INLINE unzipWithMinM #-}
 unzipWithMinM :: Monad m =>
     (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-unzipWithMinM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
-    begin = do
-        resL <- beginL
-        resR <- beginR
-        case resL of
-            Partial sL ->
-                case resR of
-                    Partial sR -> return $ Partial $ Tuple' sL sR
-                    Done bR -> do
-                        bL <- doneL sL
-                        return $ Done (bL, bR)
-            Done bL -> do
-                case resR of
-                    Partial sR -> do
-                        bR <- doneR sR
-                        return $ Done (bL, bR)
-                    Done bR -> return $ Done (bL, bR)
-
-    step (Tuple' sL sR) a = do
-        (b, c) <- f a
-        resL <- stepL sL b
-        resR <- stepR sR c
-        case resL of
-            Partial sresL ->
-                case resR of
-                    Partial sresR -> return $ Partial $ Tuple' sresL sresR
-                    Done bR -> do
-                        bL <- doneL sL
-                        return $ Done (bL, bR)
-            Done bL -> do
-                case resR of
-                    Partial sresR -> do
-                        bR <- doneR sresR
-                        return $ Done (bL, bR)
-                    Done bR -> return $ Done (bL, bR)
-
-    done (Tuple' sL sR) = (,) <$> doneL sL <*> doneR sR
+unzipWithMinM = unzipWithMUsing teeWithMin
 
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
