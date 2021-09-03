@@ -185,16 +185,19 @@ showComparisons Options{..} cfg inp out =
     where
 
     separator = if useGauge then '/' else '.'
-    dropComponent = dropWhile (== separator) . dropWhile (/= separator)
+    dropComponent sep = dropWhile (== sep) . dropWhile (/= sep)
 
+    -- In case of tasty-bench the names could be like
+    -- All.Data.Array.Prim.Pinned/o-1-space.generation.show
+    -- All.Data.Array.Foreign/o-1-space.generation.show
     classifyComparison b =
         let b1 =
                 if useGauge
                 then b
-                else dropComponent b --- drop "All." at the beginning
+                else dropComponent separator b --- drop "All." at the beginning
          in Just
-            ( takeWhile (/= separator) b1
-            , dropComponent b1
+            ( takeWhile (/= '/') b1
+            , dropComponent '/' b1 -- for tasty-bench drop up to "/"
             )
 
 ------------------------------------------------------------------------------

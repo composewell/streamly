@@ -76,8 +76,8 @@ targets () {
   serial_wserial_cmp="Prelude.Serial Prelude.WSerial"
   serial_async_cmp="Prelude.Serial Prelude.Async"
   concurrent_cmp="Prelude.Async Prelude.WAsync Prelude.Ahead Prelude.Parallel"
-  array_cmp="Memory.Array Data.Array.Prim Data.Array Data.Array.Prim.Pinned"
-  pinned_array_cmp="Memory.Array Data.Array.Prim.Pinned"
+  array_cmp="Data.Array.Foreign Data.Array.Prim Data.Array Data.Array.Prim.Pinned"
+  pinned_array_cmp="Data.Array.Foreign Data.Array.Prim.Pinned"
   base_parser_cmp=$base_parser_grp
 
   COMPARISONS="\
