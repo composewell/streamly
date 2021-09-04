@@ -19,8 +19,7 @@
 module Streamly.Internal.Data.Stream.SVar.Generate
     (
     -- * Write to SVar
-      toStreamVar
-    , toSVar
+      toSVar
 
     -- * Read from SVar
     -- $concurrentEval
@@ -39,6 +38,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Control.Concurrent (MonadAsync, captureMonadState)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
@@ -88,8 +88,8 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toStreamVar :: MonadAsync m => SVar t m a -> t m a -> m ()
-toStreamVar sv m = do
+toSVar :: MonadAsync m => SVar SerialT m a -> SerialT m a -> m ()
+toSVar sv m = do
     runIn <- captureMonadState
     liftIO $ enqueue sv (runIn, m)
     done <- allThreadsDone sv
@@ -102,12 +102,6 @@ toStreamVar sv m = do
         case yieldRateInfo sv of
             Nothing -> pushWorker 0 sv
             Just _  -> pushWorker 1 sv
-
--- | Write a stream to an 'SVar' in a non-blocking manner. The stream is
--- evaluated concurrently as it is read back from the SVar using 'fromSVar'.
---
-toSVar :: (K.IsStream t, MonadAsync m) => SVar K.Stream m a -> t m a -> m ()
-toSVar sv m = toStreamVar sv $ K.toStream m
 
 -------------------------------------------------------------------------------
 -- Read a stream from an SVar
@@ -191,16 +185,16 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
 -- combinators.
 --
 {-# INLINE fromSVar #-}
-fromSVar :: (MonadAsync m, K.IsStream t) => SVar K.Stream m a -> t m a
+fromSVar :: MonadAsync m => SVar K.Stream m a -> SerialT m a
 fromSVar sv =
-    K.mkStream $ \st yld sng stp -> do
+    SerialT $ K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref hook
         -- We pass a copy of sv to fromStreamVar, so that we know that it has
         -- no other references, when that copy gets garbage collected "ref"
         -- will get garbage collected and our hook will be called.
         K.foldStreamShared st yld sng stp $
-            K.fromStream $ fromStreamVar sv{svarRef = Just ref}
+            fromStreamVar sv{svarRef = Just ref}
     where
 
     hook = do

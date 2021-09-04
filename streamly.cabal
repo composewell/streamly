@@ -77,6 +77,7 @@ extra-source-files:
     docs/*.hs
     docs/streamly-docs.cabal
     src/Streamly/Internal/Data/Stream/Instances.hs
+    src/Streamly/Internal/Data/Stream/PreludeCommon.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/Streamly/Internal/Data/Array/PrimInclude.hs
     src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
@@ -263,6 +264,7 @@ common default-extensions
         RecordWildCards
         ScopedTypeVariables
         TupleSections
+        TypeApplications
         TypeFamilies
         ViewPatterns
 
@@ -301,13 +303,11 @@ common lib-options
 library
     import: lib-options
 
-    if impl(ghc >= 8.1)
-      default-extensions: TypeApplications
     if impl(ghc >= 8.6)
       default-extensions: QuantifiedConstraints
 
     js-sources: jsbits/clock.js
-    include-dirs:    src
+    include-dirs:    src, src/Streamly/Internal/Data/Stream
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
       exposed-modules: Streamly.Internal.FileSystem.Event.Windows
@@ -412,7 +412,6 @@ library
                      , Streamly.Internal.Data.SmallArray.Type
 
                      -- streamly-base-streams
-                     , Streamly.Internal.Data.Stream.StreamK
                      -- StreamD depends on streamly-core-array
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
@@ -434,6 +433,7 @@ library
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.SVar
+                     , Streamly.Internal.Data.Fold.Async
                      , Streamly.Internal.Data.Sink
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
@@ -445,9 +445,11 @@ library
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.List
+
+                     , Streamly.Internal.Data.Stream.IsStream.Type
                      , Streamly.Internal.Data.Stream.IsStream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
-                     , Streamly.Internal.Data.Stream.IsStream.Types
                      , Streamly.Internal.Data.Stream.IsStream.Enumeration
                      , Streamly.Internal.Data.Stream.IsStream.Generate
                      , Streamly.Internal.Data.Stream.IsStream.Eliminate
@@ -458,7 +460,6 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream
-                     , Streamly.Internal.Data.List
 
                      -- streamly-arrays
                      -- May depend on streamly-core
@@ -500,6 +501,9 @@ library
                      -- streamly-network
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Inet.TCP
+
+                     -- Only used for benchmarks
+                     , Streamly.Internal.Data.Stream.StreamK
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

@@ -686,7 +686,7 @@ toStreamD Array{..} =
         return $ D.Yield x (p `plusPtr` sizeOf (undefined :: a))
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamK Array{..} =
     let p = unsafeForeignPtrToPtr aStart
     in go p
@@ -726,7 +726,7 @@ toStreamDRev Array{..} =
         return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamKRev :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamKRev Array {..} =
     let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
     in go p

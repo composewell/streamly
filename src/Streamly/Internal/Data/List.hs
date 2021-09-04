@@ -72,11 +72,11 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..), IsString(..))
 
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
 
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 -- We implement list as a newtype instead of a type synonym to make type
 -- inference easier when using -XOverloadedLists and -XOverloadedStrings. When
@@ -103,15 +103,15 @@ newtype List a = List { toSerial :: SerialT Identity a }
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
-    fromString = List . Stream.fromList
+    fromString = List . fromList
 
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (List a) where
     type (Item (List a)) = a
     {-# INLINE fromList #-}
-    fromList = List . Stream.fromList
+    fromList = List . fromList
     {-# INLINE toList #-}
-    toList = runIdentity . Stream.toList . toSerial
+    toList = toList . toSerial
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -128,8 +128,8 @@ instance IsList (List a) where
 --
 -- @since 0.6.0
 pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . toSerial -> True) where
-    Nil = List K.nil
+pattern Nil <- (runIdentity . K.null . getSerialT . toSerial -> True) where
+    Nil = List $ SerialT K.nil
 
 infixr 5 `Cons`
 
@@ -139,9 +139,14 @@ infixr 5 `Cons`
 -- @since 0.6.0
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second List) . runIdentity . K.uncons . toSerial
-        -> Just (x, xs)) where
-            Cons x xs = List $ K.cons x (toSerial xs)
+    (fmap (second (List . SerialT))
+        . runIdentity . K.uncons . getSerialT . toSerial
+            -> Just (x, xs)
+    )
+
+    where
+
+    Cons x xs = List $ Serial.cons x (toSerial xs)
 
 #if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE Nil, Cons #-}
@@ -165,24 +170,24 @@ newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
 
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}
-    fromString = ZipList . Stream.fromList
+    fromString = ZipList . fromList
 
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (ZipList a) where
     type (Item (ZipList a)) = a
     {-# INLINE fromList #-}
-    fromList = ZipList . Stream.fromList
+    fromList = ZipList . fromList
     {-# INLINE toList #-}
-    toList = runIdentity . Stream.toList . K.adapt . toZipSerial
+    toList = toList . toZipSerial
 
 -- | Convert a 'ZipList' to a regular 'List'
 --
 -- @since 0.6.0
 fromZipList :: ZipList a -> List a
-fromZipList = List . K.adapt . toZipSerial
+fromZipList (ZipList zs) = List $ SerialT $ getZipSerialM zs
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
 -- @since 0.6.0
 toZipList :: List a -> ZipList a
-toZipList = ZipList . K.adapt . toSerial
+toZipList = ZipList . ZipSerialM . getSerialT . toSerial

@@ -255,14 +255,15 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
+import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K (uncons)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Unfold.Enumeration
@@ -485,8 +486,8 @@ fromStreamK = Unfold step return
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: (K.IsStream t, Monad m) => Unfold m (t m a) a
-fromStream = lmap K.toStream fromStreamK
+fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
+fromStream = lmap IsStream.toStream fromStreamK
 
 -------------------------------------------------------------------------------
 -- Unfolds

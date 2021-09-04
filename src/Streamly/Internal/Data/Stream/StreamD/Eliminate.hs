@@ -228,19 +228,6 @@ parse_ (PRD.Parser pstep initial extract) stream@(Stream step state) = do
 -- Specialized Folds
 ------------------------------------------------------------------------------
 
--- | Run a streaming composition, discard the results.
-{-# INLINE_LATE drain #-}
-drain :: Monad m => Stream m a -> m ()
--- drain = foldrM (\_ xs -> xs) (return ())
-drain (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-        r <- step defState st
-        case r of
-            Yield _ s -> go SPEC s
-            Skip s    -> go SPEC s
-            Stop      -> return ()
-
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
 null = foldrM (\_ _ -> return False) (return True)

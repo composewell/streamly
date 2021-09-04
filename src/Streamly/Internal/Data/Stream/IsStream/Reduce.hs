@@ -163,11 +163,14 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , fold
     , interjectSuffix
     , intersperseM
+    , map
+    , parallelFst
     , repeatM
     , scanlMAfter'
     , splitOnSeq
     , fromPure)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamD, toStreamD, cons)
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
@@ -179,12 +182,10 @@ import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 
-import Prelude hiding (concatMap)
+import Prelude hiding (concatMap, map)
 
 -- $setup
 -- >>> :m
@@ -265,7 +266,7 @@ foldManyPost
     => Fold m a b
     -> t m a
     -> t m b
-foldManyPost f m = D.fromStreamD $ D.foldManyPost f (D.toStreamD m)
+foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 
 -- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
 -- output stream.
@@ -292,7 +293,7 @@ foldMany
     => Fold m a b
     -> t m a
     -> t m b
-foldMany f m = D.fromStreamD $ D.foldMany f (D.toStreamD m)
+foldMany f m = fromStreamD $ D.foldMany f (toStreamD m)
 
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
@@ -328,7 +329,7 @@ foldSequence _f _m = undefined
 {-# INLINE foldIterateM #-}
 foldIterateM ::
        (IsStream t, Monad m) => (b -> m (Fold m a b)) -> b -> t m a -> t m b
-foldIterateM f i m = D.fromStreamD $ D.foldIterateM f i (D.toStreamD m)
+foldIterateM f i m = fromStreamD $ D.foldIterateM f i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -365,7 +366,7 @@ parseMany
     -> t m a
     -> t m b
 parseMany p m =
-    D.fromStreamD $ D.parseMany (PRK.fromParserK p) (D.toStreamD m)
+    fromStreamD $ D.parseMany (PRK.fromParserK p) (toStreamD m)
 
 {-# INLINE parseManyD #-}
 parseManyD
@@ -374,7 +375,7 @@ parseManyD
     -> t m a
     -> t m b
 parseManyD p m =
-    D.fromStreamD $ D.parseMany p (D.toStreamD m)
+    fromStreamD $ D.parseMany p (toStreamD m)
 
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
@@ -428,8 +429,8 @@ parseIterate
     -> b
     -> t m a
     -> t m b
-parseIterate f i m = D.fromStreamD $
-    D.parseIterate (PRK.fromParserK . f) i (D.toStreamD m)
+parseIterate f i m = fromStreamD $
+    D.parseIterate (PRK.fromParserK . f) i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Generalized grouping
@@ -492,7 +493,7 @@ groupsBy
     -> Fold m a b
     -> t m a
     -> t m b
-groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
+groupsBy cmp f m = fromStreamD $ D.groupsBy cmp f (toStreamD m)
 
 -- | Unlike @groupsBy@ this function performs a rolling comparison of two
 -- successive elements in the input stream. @groupsByRolling cmp f $ S.fromList
@@ -513,7 +514,7 @@ groupsByRolling
     -> Fold m a b
     -> t m a
     -> t m b
-groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
+groupsByRolling cmp f m =  fromStreamD $ D.groupsRollingBy cmp f (toStreamD m)
 
 -- |
 -- > groups = groupsBy (==)
@@ -736,7 +737,7 @@ wordsBy
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 wordsBy predicate f m =
-    D.fromStreamD $ D.wordsBy predicate f (D.toStreamD m)
+    fromStreamD $ D.wordsBy predicate f (toStreamD m)
 
 -- | Like 'splitOnSuffix' but keeps the suffix attached to the resulting
 -- splits.
@@ -812,7 +813,8 @@ splitWithSuffix predicate f = foldMany (FL.takeEndBy predicate f)
 splitOnAny
     :: (IsStream t, Monad m, Storable a, Integral a)
     => [Array a] -> Fold m a b -> t m a -> t m b
-splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
+splitOnAny subseq f m = undefined
+    -- fromStreamD $ D.splitOnAny f subseq (toStreamD m)
 -}
 
 -- XXX use a non-monadic intersperse to remove the MonadAsync constraint.
@@ -907,7 +909,7 @@ splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
-    D.fromStreamD $ D.splitOnSuffixSeq False patt f (D.toStreamD m)
+    fromStreamD $ D.splitOnSuffixSeq False patt f (toStreamD m)
 
 {-
 -- | Like 'splitOn' but drops any empty splits.
@@ -916,7 +918,8 @@ splitOnSuffixSeq patt f m =
 wordsOn
     :: (IsStream t, Monad m, Storable a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
+wordsOn subseq f m = undefined
+    -- fromStreamD $ D.wordsOn f subseq (toStreamD m)
 -}
 
 -- | Like 'splitOnSuffixSeq' but keeps the suffix intact in the splits.
@@ -953,7 +956,7 @@ splitWithSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
-    D.fromStreamD $ D.splitOnSuffixSeq True patt f (D.toStreamD m)
+    fromStreamD $ D.splitOnSuffixSeq True patt f (toStreamD m)
 
 {-
 -- This can be implemented easily using Rabin Karp
@@ -963,7 +966,7 @@ splitOnSuffixSeqAny
     :: (IsStream t, Monad m, Storable a, Integral a)
     => [Array a] -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeqAny subseq f m = undefined
-    -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
+    -- fromStreamD $ D.splitPostAny f subseq (toStreamD m)
 -}
 
 ------------------------------------------------------------------------------
@@ -986,7 +989,7 @@ splitOnSuffixSeqAny subseq f m = undefined
 chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-chunksOf n f = D.fromStreamD . D.chunksOf n f . D.toStreamD
+chunksOf n f = fromStreamD . D.chunksOf n f . toStreamD
 
 -- |
 --
@@ -995,7 +998,7 @@ chunksOf n f = D.fromStreamD . D.chunksOf n f . D.toStreamD
 chunksOf2
     :: (IsStream t, Monad m)
     => Int -> m c -> Fold2 m c a b -> t m a -> t m b
-chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
+chunksOf2 n action f m = fromStreamD $ D.groupsOf2 n action f (toStreamD m)
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -1008,7 +1011,7 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = D.fromStreamD . A.arraysOf n . D.toStreamD
+arraysOf n = fromStreamD . A.arraysOf n . toStreamD
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
@@ -1026,7 +1029,7 @@ intervalsOf
     => Double -> Fold m a b -> t m a -> t m b
 intervalsOf n f xs =
     splitWithSuffix isNothing (FL.catMaybes f)
-        (interjectSuffix n (return Nothing) (Serial.map Just xs))
+        (interjectSuffix n (return Nothing) (map Just xs))
 
 ------------------------------------------------------------------------------
 -- Windowed classification
@@ -1223,7 +1226,7 @@ classifySessionsBy tick reset ejectPred tmout
         , sessionCount = 0
         , sessionTimerHeap = H.empty
         , sessionKeyValueMap = Map.empty
-        , sessionOutputStream = K.nil
+        , sessionOutputStream = IsStream.nil
         }
 
     -- We can eject sessions based on the current session count to limit
@@ -1274,7 +1277,7 @@ classifySessionsBy tick reset ejectPred tmout
                 let acc = Tuple' timestamp fs1
                 (hp1, mp1, out1, cnt1) <- do
                         let vars = (sessionTimerHeap, sessionKeyValueMap,
-                                           K.nil, sessionCount)
+                                           IsStream.nil, sessionCount)
                         case mOld of
                             -- inserting new entry
                             Nothing -> do
@@ -1323,7 +1326,7 @@ classifySessionsBy tick reset ejectPred tmout
             ejectAll
                 ( sessionTimerHeap
                 , sessionKeyValueMap
-                , K.nil
+                , IsStream.nil
                 , sessionCount
                 )
         return $ session
@@ -1336,7 +1339,7 @@ classifySessionsBy tick reset ejectPred tmout
     -- delete from map and output the fold accumulator
     ejectEntry hp mp out cnt acc key = do
         sess <- extract acc
-        let out1 = (key, sess) `K.cons` out
+        let out1 = (key, sess) `cons` out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)
 
@@ -1372,7 +1375,8 @@ classifySessionsBy tick reset ejectPred tmout
 
     ejectExpired session@SessionState{..} curTime = do
         (hp', mp', out, count) <-
-            ejectLoop sessionTimerHeap sessionKeyValueMap K.nil sessionCount
+            ejectLoop
+                sessionTimerHeap sessionKeyValueMap IsStream.nil sessionCount
         return $ session
             { sessionCurTime = curTime
             , sessionCount = count
@@ -1414,7 +1418,7 @@ classifySessionsBy tick reset ejectPred tmout
                     return (hp, mp, out, cnt)
 
     -- merge timer events in the stream
-    stream = Serial.map Just str `Par.parallelFst` repeatM timer
+    stream = map Just str `parallelFst` repeatM timer
     timer = do
         liftIO $ threadDelay (round $ tick * 1000000)
         return Nothing
@@ -1510,7 +1514,7 @@ splitInnerBy
     -> t m (f a)
     -> t m (f a)
 splitInnerBy splitter joiner xs =
-    D.fromStreamD $ D.splitInnerBy splitter joiner $ D.toStreamD xs
+    fromStreamD $ D.splitInnerBy splitter joiner $ toStreamD xs
 
 -- | Like 'splitInnerBy' but splits assuming the separator joins the segment in
 -- a suffix style.
@@ -1524,4 +1528,4 @@ splitInnerBySuffix
     -> t m (f a)
     -> t m (f a)
 splitInnerBySuffix splitter joiner xs =
-    D.fromStreamD $ D.splitInnerBySuffix splitter joiner $ D.toStreamD xs
+    fromStreamD $ D.splitInnerBySuffix splitter joiner $ toStreamD xs

@@ -15,7 +15,6 @@ import Streamly.Prelude
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Streamly.Benchmark.Common
@@ -72,7 +71,7 @@ parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
 
 {-# INLINE tapAsyncS #-}
 tapAsyncS :: S.MonadAsync m => Int -> SerialT m Int -> m ()
-tapAsyncS n = composeN n $ Par.tapAsync S.sum
+tapAsyncS n = composeN n $ Internal.tapAsyncK S.sum
 
 {-# INLINE tapAsync #-}
 tapAsync :: S.MonadAsync m => Int -> SerialT m Int -> m ()

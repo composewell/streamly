@@ -84,6 +84,7 @@ iterateStateT n = do
     else return x
 
 {-# INLINE iterateState #-}
+{-# SPECIALIZE iterateState :: Int -> SerialT (StateT Int IO) Int #-}
 iterateState ::
        (S.MonadAsync m, MonadState Int m)
     => Int

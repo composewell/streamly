@@ -60,9 +60,9 @@ import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 
-import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream(..))
+import Streamly.Internal.Data.Stream.IsStream.Type (IsStream(..), fromStreamD)
 
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 
@@ -292,8 +292,10 @@ enumerateFromThenToFractional from next to =
 -- @since 0.6.0
 {-# INLINE enumerateFromToSmall #-}
 enumerateFromToSmall :: (IsStream t, Monad m, Enum a) => a -> a -> t m a
-enumerateFromToSmall from to = Serial.map toEnum $
-    enumerateFromToIntegral (fromEnum from) (fromEnum to)
+enumerateFromToSmall from to =
+    IsStream.fromSerial
+        $ Serial.map toEnum
+        $ enumerateFromToIntegral (fromEnum from) (fromEnum to)
 
 -- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.
 --
@@ -301,8 +303,11 @@ enumerateFromToSmall from to = Serial.map toEnum $
 {-# INLINE enumerateFromThenToSmall #-}
 enumerateFromThenToSmall :: (IsStream t, Monad m, Enum a)
     => a -> a -> a -> t m a
-enumerateFromThenToSmall from next to = Serial.map toEnum $
-    enumerateFromThenToIntegral (fromEnum from) (fromEnum next) (fromEnum to)
+enumerateFromThenToSmall from next to =
+    IsStream.fromSerial
+        $ Serial.map toEnum
+        $ enumerateFromThenToIntegral
+            (fromEnum from) (fromEnum next) (fromEnum to)
 
 -- | 'enumerateFromThen' for 'Enum' types not larger than 'Int'.
 --
@@ -550,17 +555,19 @@ ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
 
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}
-    enumerateFrom (Identity from) = Serial.map Identity $
-        enumerateFrom from
+    enumerateFrom (Identity from) =
+        IsStream.fromSerial $ Serial.map Identity $ enumerateFrom from
     {-# INLINE enumerateFromThen #-}
-    enumerateFromThen (Identity from) (Identity next) = Serial.map Identity $
-        enumerateFromThen from next
+    enumerateFromThen (Identity from) (Identity next) =
+        IsStream.fromSerial $ Serial.map Identity $ enumerateFromThen from next
     {-# INLINE enumerateFromTo #-}
-    enumerateFromTo (Identity from) (Identity to) = Serial.map Identity $
-        enumerateFromTo from to
+    enumerateFromTo (Identity from) (Identity to) =
+        IsStream.fromSerial $ Serial.map Identity $ enumerateFromTo from to
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
-        Serial.map Identity $ enumerateFromThenTo from next to
+        IsStream.fromSerial
+            $ Serial.map Identity
+            $ enumerateFromThenTo from next to
 
 -- TODO
 {-

@@ -32,8 +32,9 @@ import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
@@ -51,7 +52,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = D.fromStreamD . MArray.arraysOf n . D.toStreamD
+arraysOf n = fromStreamD . MArray.arraysOf n . toStreamD
 
 -------------------------------------------------------------------------------
 -- Compact
@@ -190,7 +191,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compact n xs = D.fromStreamD $ packArraysChunksOf n (D.toStreamD xs)
+compact n (SerialT xs) =
+    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
 
 -- See lpackArraysChunksOf/packArraysChunksOf to implement this.
 --
@@ -212,7 +214,8 @@ compactLEFold = undefined
 -- /Internal/
 compactLE :: (MonadIO m {-, Storable a-}) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactLE n xs = D.fromStreamD $ D.foldMany (compactLEFold n) (D.toStreamD xs)
+compactLE n (SerialT xs) =
+    SerialT $ D.toStreamK $ D.foldMany (compactLEFold n) (D.fromStreamK xs)
 
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
@@ -222,7 +225,7 @@ compactLE n xs = D.fromStreamD $ D.foldMany (compactLEFold n) (D.toStreamD xs)
 compactEQ :: -- (MonadIO m, Storable a) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
 compactEQ _n _xs = undefined
-    -- D.fromStreamD $ D.foldMany (compactEQFold n) (D.toStreamD xs)
+    -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
 
 -- | Like 'compactLE' but generates arrays of size greater than or equal to the
 -- specified except for the last array in the stream which could be shorter.
@@ -232,4 +235,4 @@ compactEQ _n _xs = undefined
 compactGE :: -- (MonadIO m, Storable a) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
 compactGE _n _xs = undefined
-    -- D.fromStreamD $ D.foldMany (compactGEFold n) (D.toStreamD xs)
+    -- IsStream.fromStreamD $ D.foldMany (compactGEFold n) (IsStream.toStreamD xs)

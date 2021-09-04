@@ -26,6 +26,7 @@ import qualified Data.Foldable as F
 import qualified Data.List as List
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
@@ -89,7 +90,8 @@ sourceUnfoldrM count start = S.unfoldrM step start
 
 {-# INLINE sourceUnfoldrMSerial #-}
 sourceUnfoldrMSerial :: (S.IsStream t, Monad m) => Int -> Int -> t m Int
-sourceUnfoldrMSerial count start = Serial.unfoldrM step start
+sourceUnfoldrMSerial count start =
+    IsStream.fromSerial $ Serial.unfoldrM step start
     where
     step cnt =
         if cnt > start + count

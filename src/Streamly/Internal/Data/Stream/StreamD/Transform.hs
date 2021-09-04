@@ -99,7 +99,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Reordering
     -- | Produce strictly the same set but reordered.
     , reverse
-    , reverse'
+    -- , reverse'
 
     -- * Position Indexing
     , indexed
@@ -129,7 +129,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.IORef (newIORef, mkWeakIORef)
 import Data.Maybe (fromJust, isJust)
-import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
 
@@ -140,13 +139,10 @@ import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
-import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
@@ -1100,12 +1096,12 @@ reverse m = Stream step Nothing
     step _ (Just []) = return Stop
 
 -- Much faster reverse for Storables
+{-
 {-# INLINE_NORMAL reverse' #-}
 reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
-{-
 -- This commented implementation copies the whole stream into one single array
 -- and then streams from that array, this has exactly the same performance as
--- the chunked code that follows.  Though this could be problematic due to
+-- the chunked code in IsStream.Common.reverse' .  Though this could be problematic due to
 -- unbounded large allocations. However, if we use an idiomatic implementation
 -- of arraysOf instead of the custom implementation then the chunked code
 -- becomes worse by 6 times. Need to investigate if that can be improved.
@@ -1130,12 +1126,6 @@ reverse' m = Stream step Nothing
             next = p `plusPtr` negate (sizeOf (undefined :: a))
         return $ Yield x (Just (start, next))
 -}
-reverse' =
-          A.flattenArraysRev -- unfoldMany A.readRev
-        . fromStreamK
-        . K.reverse
-        . toStreamK
-        . A.arraysOf defaultChunkSize
 
 ------------------------------------------------------------------------------
 -- Position Indexing

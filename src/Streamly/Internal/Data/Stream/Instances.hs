@@ -10,7 +10,8 @@
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                             \
 instance Monad m => Functor (STREAM m) where {                                \
     {-# INLINE fmap #-};                                                      \
-    fmap f (STREAM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m;  \
+    fmap f (STREAM m) =                                                       \
+        STREAM $ D.toStreamK $ D.mapM (return . f) $ D.fromStreamK m;         \
     {-# INLINE (<$) #-};                                                      \
     (<$) =  fmap . const };                                                   \
                                                                               \
@@ -32,7 +33,7 @@ instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     ask = lift ask;                                                           \
-    local f m = fromStream $ K.withLocal f (toStream m) };                    \
+    local f (STREAM m) = STREAM $ K.withLocal f m };                          \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     {-# INLINE get #-}; \
@@ -59,7 +60,7 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
 #define NFDATA1_INSTANCE(STREAM)                                              \
 instance NFData1 (STREAM Identity) where {                                    \
     {-# INLINE liftRnf #-};                                                   \
-    liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
+    liftRnf f (STREAM xs) = runIdentity $ P.foldl' (\_ x -> f x) () xs}
 #else
 #define NFDATA1_INSTANCE(STREAM)
 #endif
@@ -68,17 +69,17 @@ instance NFData1 (STREAM Identity) where {                                    \
 instance IsList (STREAM Identity a) where {                                   \
     type (Item (STREAM Identity a)) = a;                                      \
     {-# INLINE fromList #-};                                                  \
-    fromList = P.fromList;                                                    \
+    fromList xs = STREAM $ P.fromList xs;                                     \
     {-# INLINE toList #-};                                                    \
-    toList = runIdentity . P.toList };                                        \
+    toList (STREAM xs) = runIdentity $ P.toList xs };                         \
                                                                               \
 instance Eq a => Eq (STREAM Identity a) where {                               \
     {-# INLINE (==) #-};                                                      \
-    (==) xs ys = runIdentity $ P.eqBy (==) xs ys };                           \
+    (==) (STREAM xs) (STREAM ys) = runIdentity $ P.eqBy (==) xs ys };         \
                                                                               \
 instance Ord a => Ord (STREAM Identity a) where {                             \
     {-# INLINE compare #-};                                                   \
-    compare xs ys = runIdentity $ P.cmpBy compare xs ys;                      \
+    compare (STREAM xs) (STREAM ys) = runIdentity $ P.cmpBy compare xs ys;    \
     {-# INLINE (<) #-};                                                       \
     x <  y = case compare x y of { LT -> True;  _ -> False };                 \
     {-# INLINE (<=) #-};                                                      \
@@ -104,11 +105,11 @@ instance Read a => Read (STREAM Identity a) where {                           \
                                                                               \
 instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
     {-# INLINE fromString #-};                                                \
-    fromString = P.fromList };                                                \
+    fromString xs = STREAM $ P.fromList xs };                                                \
                                                                               \
 instance NFData a => NFData (STREAM Identity a) where {                       \
     {-# INLINE rnf #-};                                                       \
-    rnf = runIdentity . P.foldl' (\_ x -> rnf x) () };                        \
+    rnf (STREAM xs) = runIdentity $ P.foldl' (\_ x -> rnf x) () xs};                        \
 
 -------------------------------------------------------------------------------
 -- Foldable
@@ -125,7 +126,7 @@ instance NFData a => NFData (STREAM Identity a) where {                       \
 instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
                                                                               \
     {-# INLINE foldMap #-};                                                   \
-    foldMap f = fold . P.foldr (mappend . f) mempty;                          \
+    foldMap f (STREAM xs) = fold $ P.foldr (mappend . f) mempty xs;           \
                                                                               \
     {-# INLINE foldr #-};                                                     \
     foldr f z t = appEndo (foldMap (Endo #. f) t) z;                          \
@@ -169,5 +170,6 @@ instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
 #define TRAVERSABLE_INSTANCE(STREAM)                                          \
 instance Traversable (STREAM Identity) where {                                \
     {-# INLINE traverse #-};                                                  \
-    traverse f s = runIdentity $ P.foldr consA (pure mempty) s                \
+    traverse f (STREAM xs) =                                                  \
+        fmap STREAM $ runIdentity $ P.foldr consA (pure mempty) xs            \
         where { consA x ys = liftA2 K.cons (f x) ys }}

@@ -32,14 +32,11 @@ import Data.Char (isAsciiUpper, isAsciiLower, chr, ord)
 import Data.Typeable (Typeable)
 
 import Unicode.Char (DecomposeMode(..))
-import Streamly.Internal.Data.Stream.IsStream (IsStream)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 
 import qualified Unicode.Char as Char
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
-
-
--- import Streamly.Prelude (IsStream)
 
 -------------------------------------------------------------------------------
 -- Unicode aware operations on strings
@@ -319,4 +316,4 @@ normalizeD NFC = partialComposeD . decomposeD False Canonical
 normalizeD NFKC = partialComposeD . decomposeD False Kompat
 
 normalize :: (IsStream t, Monad m) => NormalizationMode -> t m Char -> t m Char
-normalize mode = StreamD.fromStreamD . normalizeD mode  . StreamD.toStreamD
+normalize mode = fromStreamD . normalizeD mode  . toStreamD

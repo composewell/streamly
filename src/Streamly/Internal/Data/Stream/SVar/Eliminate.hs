@@ -35,6 +35,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync, doFork)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Fold.SVar (write, writeLimited)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -203,8 +204,8 @@ fromProducer sv = K.mkStream $ \st yld sng stp -> do
 -- function.
 --
 {-# INLINE newFoldSVar #-}
-newFoldSVar :: (K.IsStream t, MonadAsync m)
-    => State K.Stream m a -> (t m a -> m b) -> m (SVar K.Stream m a)
+newFoldSVar :: MonadAsync m
+    => State K.Stream m a -> (SerialT m a -> m b) -> m (SVar K.Stream m a)
 newFoldSVar stt f = do
     -- Buffer size for the SVar is derived from the current state
     sv <- newParallelVar StopAny (adaptState stt)
@@ -212,7 +213,7 @@ newFoldSVar stt f = do
     -- Add the producer thread-id to the SVar.
     liftIO myThreadId >>= modifyThread sv
 
-    void $ doFork (void $ f $ K.fromStream $ fromProducer sv)
+    void $ doFork (void $ f $ SerialT $ fromProducer sv)
                   (svarMrun sv)
                   (handleFoldException sv)
     return sv
@@ -365,9 +366,9 @@ pushToFold sv a = do
 -- @
 --
 {-# INLINE teeToSVar #-}
-teeToSVar :: (K.IsStream t, MonadAsync m) =>
-    SVar K.Stream m a -> t m a -> t m a
-teeToSVar svr m = K.mkStream $ \st yld sng stp -> do
+teeToSVar :: MonadAsync m =>
+    SVar K.Stream m a -> SerialT m a -> SerialT m a
+teeToSVar svr (SerialT m) = SerialT $ K.mkStream $ \st yld sng stp -> do
     K.foldStreamShared st yld sng stp (go False m)
 
     where

@@ -72,7 +72,8 @@ import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (memcpy, bytesToElemCount)
 import Streamly.Internal.System.IO (mkChunkSizeKB)
@@ -102,7 +103,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
-arraysOf n str = D.fromStreamD $ A.arraysOf n (D.toStreamD str)
+arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 
 -------------------------------------------------------------------------------
 -- Append
@@ -121,9 +122,9 @@ arraysOf n str = D.fromStreamD $ A.arraysOf n (D.toStreamD str)
 -- @since 0.7.0
 {-# INLINE concat #-}
 concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
--- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
--- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
-concat m = D.fromStreamD $ D.unfoldMany A.read (D.toStreamD m)
+-- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
+-- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
+concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
 
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
@@ -133,7 +134,7 @@ concat m = D.fromStreamD $ D.unfoldMany A.read (D.toStreamD m)
 -- @since 0.7.0
 {-# INLINE concatRev #-}
 concatRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
-concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
+concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
 
 -------------------------------------------------------------------------------
 -- Intersperse and append
@@ -159,7 +160,7 @@ intercalateSuffix = S.intercalateSuffix A.read
 {-# INLINE interposeSuffix #-}
 interposeSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
--- interposeSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
+-- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
 interposeSuffix x = S.interposeSuffix x A.read
 
 data FlattenState s a =
@@ -220,7 +221,7 @@ lpackArraysChunksOf n fld =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compact n xs = D.fromStreamD $ packArraysChunksOf n (D.toStreamD xs)
+compact n xs = fromStreamD $ packArraysChunksOf n (toStreamD xs)
 
 -------------------------------------------------------------------------------
 -- Split
@@ -294,7 +295,7 @@ splitOn
     -> t m (Array Word8)
     -> t m (Array Word8)
 splitOn byte s =
-    D.fromStreamD $ D.splitInnerBy (A.breakOn byte) A.spliceTwo $ D.toStreamD s
+    fromStreamD $ D.splitInnerBy (A.breakOn byte) A.spliceTwo $ toStreamD s
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -302,9 +303,9 @@ splitOnSuffix
     => Word8
     -> t m (Array Word8)
     -> t m (Array Word8)
--- splitOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
+-- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
 splitOnSuffix byte s =
-    D.fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.spliceTwo $ D.toStreamD s
+    fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.spliceTwo $ toStreamD s
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds
@@ -362,7 +363,7 @@ fold ::
     => FL.Fold m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-fold f s = fmap D.fromStreamD <$> foldD f (D.toStreamD s)
+fold f s = fmap fromStreamD <$> foldD f (toStreamD s)
 
 -------------------------------------------------------------------------------
 -- Fold to a single Array
@@ -613,7 +614,7 @@ parse ::
     => PRD.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-parse p s = fmap D.fromStreamD <$> parseD p (D.toStreamD s)
+parse p s = fmap fromStreamD <$> parseD p (toStreamD s)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
@@ -695,7 +696,7 @@ parseArr ::
     => ASF.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-parseArr p s = fmap D.fromStreamD <$> parseD p (D.toStreamD s)
+parseArr p s = fmap fromStreamD <$> parseD p (toStreamD s)
 -}
 
 -- | Fold an array stream using the supplied array stream 'Fold'.
@@ -705,7 +706,7 @@ parseArr p s = fmap D.fromStreamD <$> parseD p (D.toStreamD s)
 {-# INLINE foldArr #-}
 foldArr :: (MonadIO m, MonadThrow m, Storable a) =>
     ASF.Fold m a b -> SerialT m (A.Array a) -> m b
-foldArr (ASF.Fold p) s = fst <$> parseArrD p (D.toStreamD s)
+foldArr (ASF.Fold p) s = fst <$> parseArrD p (toStreamD s)
 
 -- | Like 'fold' but also returns the remaining stream.
 --
@@ -714,7 +715,7 @@ foldArr (ASF.Fold p) s = fst <$> parseArrD p (D.toStreamD s)
 {-# INLINE foldArr_ #-}
 foldArr_ :: (MonadIO m, MonadThrow m, Storable a) =>
     ASF.Fold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
-foldArr_ (ASF.Fold p) s = second D.fromStreamD <$> parseArrD p (D.toStreamD s)
+foldArr_ (ASF.Fold p) s = second fromStreamD <$> parseArrD p (toStreamD s)
 
 {-# ANN type ParseChunksState Fuse #-}
 data ParseChunksState x inpBuf st pst =
@@ -856,4 +857,4 @@ foldArrMany
     => ASF.Fold m a b
     -> t m (Array a)
     -> t m b
-foldArrMany p m = D.fromStreamD $ foldArrManyD p (D.toStreamD m)
+foldArrMany p m = fromStreamD $ foldArrManyD p (toStreamD m)

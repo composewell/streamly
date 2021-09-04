@@ -91,6 +91,7 @@ import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
@@ -429,7 +430,7 @@ toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamD arr = MA.toStreamD (unsafeThaw arr)
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamK arr = MA.toStreamK (unsafeThaw arr)
 
 {-# INLINE_NORMAL toStreamDRev #-}
@@ -437,15 +438,15 @@ toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamDRev arr = MA.toStreamDRev (unsafeThaw arr)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamKRev :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamKRev arr = MA.toStreamKRev (unsafeThaw arr)
 
 -- | Convert an 'Array' into a stream.
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
-toStream = D.fromStreamD . toStreamD
+toStream :: (Monad m, Storable a) => Array a -> SerialT m a
+toStream = SerialT . D.toStreamK . toStreamD
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
 --     forall a. S.readK (read a) = K.fromArray a #-}
@@ -454,8 +455,8 @@ toStream = D.fromStreamD . toStreamD
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
-toStreamRev = D.fromStreamD . toStreamDRev
+toStreamRev :: (Monad m, Storable a) => Array a -> SerialT m a
+toStreamRev = SerialT . D.toStreamK . toStreamDRev
 
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]

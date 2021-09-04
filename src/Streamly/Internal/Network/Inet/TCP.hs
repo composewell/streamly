@@ -106,8 +106,8 @@ import Prelude hiding (read)
 import Streamly.Internal.Control.Concurrent (MonadAsync, fork)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
@@ -121,7 +121,6 @@ import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Network.Socket as SK
 import qualified Streamly.Internal.Network.Socket as ISK
 
 -------------------------------------------------------------------------------
@@ -356,7 +355,8 @@ writeChunks addr port = Fold step initial extract
     where
     initial = do
         skt <- liftIO (connect addr port)
-        fld <- FL.initialize (SK.writeChunks skt) `MC.onException` liftIO (Net.close skt)
+        fld <- FL.initialize (ISK.writeChunks skt)
+                    `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' fld skt)
     step (Tuple' fld skt) x = do
         r <- FL.runStep fld x `MC.onException` liftIO (Net.close skt)

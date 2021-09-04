@@ -9,7 +9,7 @@ import Prelude hiding (mapM)
 
 import Streamly.Prelude (fromAsync, async, maxBuffer, maxThreads, fromSerial)
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as Internal
+import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
@@ -48,7 +48,7 @@ foldrSShared :: Int -> Int -> IO ()
 foldrSShared count n =
       S.drain
     $ fromAsync
-    $ Internal.foldrSShared (\x xs -> S.consM (return x) xs) S.nil
+    $ Transform.foldrSShared (\x xs -> S.consM (return x) xs) S.nil
     $ fromSerial
     $ sourceUnfoldrM count n
 

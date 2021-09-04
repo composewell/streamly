@@ -25,7 +25,7 @@ import qualified GHC.Exts as Exts
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import GHC.Exts hiding (fromListN, fromList, toList)
 import Prelude hiding (length, unlines, foldr)
@@ -398,7 +398,7 @@ toStreamD arr = D.Stream step 0
     step _ i = return $ D.Yield (unsafeIndex arr i) (i + 1)
 
 {-# INLINE toStreamK #-}
-toStreamK :: (K.IsStream t, Prim a) => Array a -> t m a
+toStreamK :: Prim a => Array a -> K.Stream m a
 toStreamK arr = go 0
 
     where
@@ -423,7 +423,7 @@ toStreamDRev arr = D.Stream step (length arr - 1)
     step _ i = return $ D.Yield (unsafeIndex arr i) (i - 1)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: (K.IsStream t, Prim a) => Array a -> t m a
+toStreamKRev :: Prim a => Array a -> K.Stream m a
 toStreamKRev arr = go (length arr - 1)
 
     where

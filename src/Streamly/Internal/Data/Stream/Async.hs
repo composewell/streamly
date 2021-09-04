@@ -24,18 +24,17 @@
 --
 module Streamly.Internal.Data.Stream.Async
     (
-      AsyncT
+      AsyncT(..)
     , Async
-    , fromAsync
-    , async
-    , (<|)             --deprecated
-    , mkAsync
+    , consMAsync
+    , asyncK
     , mkAsyncK
+    , mkAsyncD
 
-    , WAsyncT
+    , WAsyncT(..)
     , WAsync
-    , fromWAsync
-    , wAsync
+    , consMWAsync
+    , wAsyncK
     )
 where
 
@@ -63,11 +62,10 @@ import Streamly.Internal.Control.Concurrent
     (MonadAsync, RunInIO(..), captureMonadState)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
+import Streamly.Internal.Data.Stream.Serial (SerialT (..))
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
-import Streamly.Internal.Data.Stream.StreamK.Type
-       (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared)
 
-import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -130,7 +128,7 @@ workLoopLIFO q st sv winfo = run
                 -- monad state here. That way it can work easily for
                 -- distributed case as well.
                 r <- liftIO $ runin $
-                        foldStreamShared st yieldk single (return Continue) m
+                        K.foldStreamShared st yieldk single (return Continue) m
                 res <- restoreM r
                 case res of
                     Continue -> run
@@ -143,7 +141,7 @@ workLoopLIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then foldStreamShared st yieldk single (return Continue) r
+        then K.foldStreamShared st yieldk single (return Continue) r
         else do
             runInIO <- captureMonadState
             liftIO $ enqueueLIFO sv q (runInIO, r)
@@ -187,7 +185,7 @@ workLoopLIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     r <- liftIO $ runin $
-                            foldStreamShared st yieldk single incrContinue m
+                            K.foldStreamShared st yieldk single incrContinue m
                     res <- restoreM r
                     case res of
                         Continue -> run
@@ -209,7 +207,7 @@ workLoopLIFOLimited q st sv winfo = run
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if res && yieldLimitOk
-        then foldStreamShared st yieldk single incrContinue r
+        then K.foldStreamShared st yieldk single incrContinue r
         else do
             runInIO <- captureMonadState
             liftIO $ incrementYieldLimit sv
@@ -259,7 +257,7 @@ workLoopFIFO q st sv winfo = run
             Nothing -> stop
             Just (RunInIO runin, m) -> do
                 r <- liftIO $ runin $
-                        foldStreamShared st yieldk single (return Continue) m
+                        K.foldStreamShared st yieldk single (return Continue) m
                 res <- restoreM r
                 case res of
                     Continue -> run
@@ -302,7 +300,7 @@ workLoopFIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     r <- liftIO $ runin $
-                            foldStreamShared st yieldk single incrContinue m
+                            K.foldStreamShared st yieldk single incrContinue m
                     res <- restoreM r
                     case res of
                         Continue -> run
@@ -545,18 +543,21 @@ newAsyncVar st m = do
 -- /Pre-release/
 --
 {-# INLINABLE mkAsyncK #-}
-mkAsyncK :: (IsStream t, MonadAsync m) => t m a -> t m a
-mkAsyncK m = mkStream $ \st yld sng stp -> do
-    sv <- newAsyncVar (adaptState st) (toStream m)
-    foldStream st yld sng stp $ fromSVar sv
+mkAsyncK :: MonadAsync m => Stream m a -> Stream m a
+mkAsyncK m = K.mkStream $ \st yld sng stp -> do
+    sv <- newAsyncVar (adaptState st) m
+    K.foldStream st yld sng stp $ getSerialT $ fromSVar sv
 
+--
+-- This is slightly faster than the CPS version above
+--
 {-# INLINE_NORMAL mkAsyncD #-}
 mkAsyncD :: MonadAsync m => D.Stream m a -> D.Stream m a
 mkAsyncD m = D.Stream step Nothing
     where
 
     step gst Nothing = do
-        sv <- newAsyncVar gst (D.fromStreamD m)
+        sv <- newAsyncVar gst (D.toStreamK m)
         return $ D.Skip $ Just $ fromSVarD sv
 
     step gst (Just (D.UnStream step1 st)) = do
@@ -566,23 +567,7 @@ mkAsyncD m = D.Stream step Nothing
             D.Skip s    -> D.Skip (Just $ D.Stream step1 s)
             D.Stop      -> D.Stop
 
---
--- This is slightly faster than the CPS version above
---
--- | Make the stream producer and consumer run concurrently by introducing a
--- buffer between them. The producer thread evaluates the input stream until
--- the buffer fills, it terminates if the buffer is full and a worker thread is
--- kicked off again to evaluate the remaining stream when there is space in the
--- buffer.  The consumer consumes the stream lazily from the buffer.
---
--- /Since: 0.2.0 (Streamly)/
---
--- @since 0.8.0
---
-{-# INLINE_NORMAL mkAsync #-}
-mkAsync :: (K.IsStream t, MonadAsync m) => t m a -> t m a
-mkAsync = D.fromStreamD . mkAsyncD . D.toStreamD
-
+-- XXX We can pass captureMonadState instead of using MonadAsync
 -- | Create a new SVar and enqueue one stream computation on it.
 {-# INLINABLE newWAsyncVar #-}
 newWAsyncVar :: MonadAsync m
@@ -590,6 +575,8 @@ newWAsyncVar :: MonadAsync m
 newWAsyncVar st m = do
     mrun <- captureMonadState
     sv <- liftIO $ getFifoSVar st mrun
+    -- XXX Use just Stream and IO in all the functions below
+    -- XXX pass mrun instead of calling captureMonadState again inside it
     sendFirstWorker sv m
 
 ------------------------------------------------------------------------------
@@ -656,109 +643,38 @@ newWAsyncVar st m = do
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
 
-forkSVarAsync :: (IsStream t, MonadAsync m)
-    => SVarStyle -> t m a -> t m a -> t m a
-forkSVarAsync style m1 m2 = mkStream $ \st yld sng stp -> do
+forkSVarAsync :: MonadAsync m
+    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
+forkSVarAsync style m1 m2 = K.mkStream $ \st yld sng stp -> do
     sv <- case style of
-        AsyncVar -> newAsyncVar st (concurrently (toStream m1) (toStream m2))
-        WAsyncVar -> newWAsyncVar st (concurrently (toStream m1) (toStream m2))
+        AsyncVar -> newAsyncVar st (concurrently m1 m2)
+        WAsyncVar -> newWAsyncVar st (concurrently m1 m2)
         _ -> error "illegal svar type"
-    foldStream st yld sng stp $ fromSVar sv
+    K.foldStream st yld sng stp $ getSerialT $ fromSVar sv
     where
-    concurrently ma mb = mkStream $ \st yld sng stp -> do
+    concurrently ma mb = K.mkStream $ \st yld sng stp -> do
         runInIO <- captureMonadState
         liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
-        foldStreamShared st yld sng stp ma
+        K.foldStreamShared st yld sng stp ma
 
 {-# INLINE joinStreamVarAsync #-}
-joinStreamVarAsync :: (IsStream t, MonadAsync m)
-    => SVarStyle -> t m a -> t m a -> t m a
-joinStreamVarAsync style m1 m2 = mkStream $ \st yld sng stp ->
+joinStreamVarAsync :: MonadAsync m
+    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
+joinStreamVarAsync style m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
             runInIO <- captureMonadState
-            liftIO $ enqueue sv (runInIO, toStream m2)
-            foldStreamShared st yld sng stp m1
-        _ -> foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)
+            liftIO $ enqueue sv (runInIO, m2)
+            K.foldStreamShared st yld sng stp m1
+        _ -> K.foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-infixr 6 `async`
-
--- | Merges two streams, both the streams may be evaluated concurrently,
--- outputs from both are used as they arrive:
---
--- >>> import Streamly.Prelude (async)
--- >>> stream1 = Stream.fromEffect (delay 4)
--- >>> stream2 = Stream.fromEffect (delay 2)
--- >>> Stream.toList $ stream1 `async` stream2
--- 2 sec
--- 4 sec
--- [2,4]
---
--- Multiple streams can be combined. With enough threads, all of them can be
--- scheduled simultaneously:
---
--- >>> stream3 = Stream.fromEffect (delay 1)
--- >>> Stream.toList $ stream1 `async` stream2 `async` stream3
--- ...
--- [1,2,4]
---
--- With 2 threads, only two can be scheduled at a time, when one of those
--- finishes, the third one gets scheduled:
---
--- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
--- ...
--- [2,1,4]
---
--- With a single thread, it becomes serial:
---
--- >>> Stream.toList $ Stream.maxThreads 1 $ stream1 `async` stream2 `async` stream3
--- ...
--- [4,2,1]
---
--- Only streams are scheduled for async evaluation, how actions within a
--- stream are evaluated depends on the stream type. If it is a concurrent
--- stream they will be evaluated concurrently.
---
--- In the following example, both the streams are scheduled for concurrent
--- evaluation but each individual stream is evaluated serially:
---
--- >>> stream1 = Stream.fromListM $ Prelude.map delay [3,3] -- SerialT IO Int
--- >>> stream2 = Stream.fromListM $ Prelude.map delay [1,1] -- SerialT IO Int
--- >>> Stream.toList $ stream1 `async` stream2 -- IO [Int]
--- ...
--- [1,1,3,3]
---
--- If total threads are 2, the third stream is scheduled only after one of the
--- first two has finished:
---
--- > stream3 = Stream.fromListM $ Prelude.map delay [2,2] -- SerialT IO Int
--- > Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3 -- IO [Int]
--- ...
--- [1,1,3,2,3,2]
---
--- Thus 'async' goes deep in first few streams rather than going wide in all
--- streams. It prefers to evaluate the leftmost streams as much as possible.
--- Because of this behavior, 'async' can be safely used to fold an infinite
--- lazy container of streams.
---
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
-{-# INLINE async #-}
-async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-async = joinStreamVarAsync AsyncVar
-
--- | Same as 'async'.
---
--- @since 0.1.0
-{-# DEPRECATED (<|) "Please use 'async' instead." #-}
-{-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-(<|) = async
+{-# INLINE asyncK #-}
+asyncK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+asyncK = joinStreamVarAsync AsyncVar
 
 -- IMPORTANT: using a monomorphically typed and SPECIALIZED consMAsync makes a
 -- huge difference in the performance of consM in IsStream instance even we
@@ -769,7 +685,7 @@ async = joinStreamVarAsync AsyncVar
 {-# INLINE consMAsync #-}
 {-# SPECIALIZE consMAsync :: IO a -> AsyncT IO a -> AsyncT IO a #-}
 consMAsync :: MonadAsync m => m a -> AsyncT m a -> AsyncT m a
-consMAsync m r = fromStream $ K.fromEffect m `async` toStream r
+consMAsync m (AsyncT r) = AsyncT $ asyncK (K.fromEffect m) r
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -829,40 +745,26 @@ newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
 -- @since 0.8.0
 type Async = AsyncT IO
 
--- | Fix the type of a polymorphic stream as 'AsyncT'.
---
--- /Since: 0.1.0 ("Streamly")/
---
--- @since 0.8.0
-fromAsync :: IsStream t => AsyncT m a -> t m a
-fromAsync = adapt
-
-instance IsStream AsyncT where
-    toStream = getAsyncT
-    fromStream = AsyncT
-    consM = consMAsync
-    (|:) = consMAsync
-
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
 -- Monomorphically typed version of "async" for better performance of Semigroup
 -- instance.
-{-# INLINE mappendAsync #-}
-{-# SPECIALIZE mappendAsync :: AsyncT IO a -> AsyncT IO a -> AsyncT IO a #-}
-mappendAsync :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-mappendAsync m1 m2 = fromStream $ async (toStream m1) (toStream m2)
+{-# INLINE append #-}
+{-# SPECIALIZE append :: AsyncT IO a -> AsyncT IO a -> AsyncT IO a #-}
+append :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+append (AsyncT m1) (AsyncT m2) = AsyncT $ asyncK m1 m2
 
 instance MonadAsync m => Semigroup (AsyncT m a) where
-    (<>) = mappendAsync
+    (<>) = append
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (AsyncT m a) where
-    mempty = K.nil
+    mempty = AsyncT K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -873,12 +775,13 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 {-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
 apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
 apAsync (AsyncT m1) (AsyncT m2) =
-    let f x1 = K.concatMapBy async (pure . x1) m2
-    in AsyncT $ K.concatMapBy async f m1
+    let f x1 = K.concatMapWith asyncK (pure . x1) m2
+    in AsyncT $ K.concatMapWith asyncK f m1
 
 instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
     {-# INLINE pure #-}
     pure = AsyncT . K.fromPure
+
     {-# INLINE (<*>) #-}
     (<*>) = apAsync
 
@@ -889,9 +792,10 @@ instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
 -- GHC: if we change the implementation of bindWith with arguments in a
 -- different order we see a significant performance degradation (~2x).
 {-# INLINE bindAsync #-}
-{-# SPECIALIZE bindAsync :: AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
+{-# SPECIALIZE bindAsync ::
+    AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
 bindAsync :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-bindAsync m f = fromStream $ K.bindWith async (adapt m) (adapt . f)
+bindAsync (AsyncT m) f = AsyncT $ K.bindWith asyncK m (getAsyncT . f)
 
 -- GHC: if we specify arguments in the definition of (>>=) we see a significant
 -- performance degradation (~2x).
@@ -909,84 +813,16 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 -- WAsyncT
 ------------------------------------------------------------------------------
 
+{-# INLINE wAsyncK #-}
+wAsyncK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+wAsyncK = joinStreamVarAsync WAsyncVar
+
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using wAsync.
 {-# INLINE consMWAsync #-}
 {-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
 consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
-consMWAsync m r = fromStream $ K.fromEffect m `wAsync` toStream r
-
-infixr 6 `wAsync`
-
--- | For singleton streams, 'wAsync' is the same as 'async'.  See 'async' for
--- singleton stream behavior. For multi-element streams, while 'async' is left
--- biased i.e. it tries to evaluate the left side stream as much as possible,
--- 'wAsync' tries to schedule them both fairly. In other words, 'async' goes
--- deep while 'wAsync' goes wide. However, outputs are always used as they
--- arrive.
---
--- With a single thread, 'async' starts behaving like 'serial' while 'wAsync'
--- starts behaving like 'wSerial'.
---
--- >>> import Streamly.Prelude (wAsync)
--- >>> stream1 = Stream.fromList [1,2,3]
--- >>> stream2 = Stream.fromList [4,5,6]
--- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 1 $ stream1 `async` stream2
--- [1,2,3,4,5,6]
---
--- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 1 $ stream1 `wAsync` stream2
--- [1,4,2,5,3,6]
---
--- With two threads available, and combining three streams:
---
--- >>> stream3 = Stream.fromList [7,8,9]
--- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
--- [1,2,3,4,5,6,7,8,9]
---
--- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 2 $ stream1 `wAsync` stream2 `wAsync` stream3
--- [1,4,2,7,5,3,8,6,9]
---
--- This operation cannot be used to fold an infinite lazy container of streams,
--- because it schedules all the streams in a round robin manner.
---
--- Note that 'WSerialT' and single threaded 'WAsyncT' both interleave streams
--- but the exact scheduling is slightly different in both cases.
---
--- @since 0.8.0
---
--- /Since: 0.2.0 ("Streamly")/
-
--- Scheduling details:
---
--- This is how the execution of the above example proceeds:
---
--- 1. The scheduler queue is initialized with @[S.fromList [1,2,3],
--- (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])]@ assuming the head of the
--- queue is represented by the  rightmost item.
--- 2. @S.fromList [1,2,3]@ is executed, yielding the element @1@ and putting
--- @[2,3]@ at the back of the scheduler queue. The scheduler queue now looks
--- like @[(S.fromList [4,5,6]) \<> (S.fromList [7,8,9]), S.fromList [2,3]]@.
--- 3. Now @(S.fromList [4,5,6]) \<> (S.fromList [7,8,9])@ is picked up for
--- execution, @S.fromList [7,8,9]@ is added at the back of the queue and
--- @S.fromList [4,5,6]@ is executed, yielding the element @4@ and adding
--- @S.fromList [5,6]@ at the back of the queue. The queue now looks like
--- @[S.fromList [2,3], S.fromList [7,8,9], S.fromList [5,6]]@.
--- 4. Note that the scheduler queue expands by one more stream component in
--- every pass because one more @<>@ is broken down into two components. At this
--- point there are no more @<>@ operations to be broken down further and the
--- queue has reached its maximum size. Now these streams are scheduled in
--- round-robin fashion yielding @[2,7,5,3,8,6,9]@.
---
--- As we see above, in a right associated expression composed with @<>@, only
--- one @<>@ operation is broken down into two components in one execution,
--- therefore, if we have @n@ streams composed using @<>@ it will take @n@
--- scheduler passes to expand the whole expression.  By the time @n-th@
--- component is added to the scheduler queue, the first component would have
--- received @n@ scheduler passes.
---
-{-# INLINE wAsync #-}
-wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-wAsync = joinStreamVarAsync WAsyncVar
+consMWAsync m (WAsyncT r) = WAsyncT $ wAsyncK (K.fromEffect m) r
 
 -- | For 'WAsyncT' streams:
 --
@@ -1132,38 +968,24 @@ newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
 -- @since 0.8.0
 type WAsync = WAsyncT IO
 
--- | Fix the type of a polymorphic stream as 'WAsyncT'.
---
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
-fromWAsync :: IsStream t => WAsyncT m a -> t m a
-fromWAsync = adapt
-
-instance IsStream WAsyncT where
-    toStream = getWAsyncT
-    fromStream = WAsyncT
-    consM = consMWAsync
-    (|:) = consMWAsync
-
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
-{-# INLINE mappendWAsync #-}
-{-# SPECIALIZE mappendWAsync :: WAsyncT IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-mappendWAsync :: MonadAsync m => WAsyncT m a -> WAsyncT m a -> WAsyncT m a
-mappendWAsync m1 m2 = fromStream $ wAsync (toStream m1) (toStream m2)
+{-# INLINE wAppend #-}
+{-# SPECIALIZE wAppend :: WAsyncT IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+wAppend :: MonadAsync m => WAsyncT m a -> WAsyncT m a -> WAsyncT m a
+wAppend (WAsyncT m1) (WAsyncT m2) = WAsyncT $ wAsyncK m1 m2
 
 instance MonadAsync m => Semigroup (WAsyncT m a) where
-    (<>) = mappendWAsync
+    (<>) = wAppend
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (WAsyncT m a) where
-    mempty = K.nil
+    mempty = WAsyncT K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -1171,11 +993,12 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 ------------------------------------------------------------------------------
 
 {-# INLINE apWAsync #-}
-{-# SPECIALIZE apWAsync :: WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
+{-# SPECIALIZE apWAsync ::
+    WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
 apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
 apWAsync (WAsyncT m1) (WAsyncT m2) =
-    let f x1 = K.concatMapBy wAsync (pure . x1) m2
-    in WAsyncT $ K.concatMapBy wAsync f m1
+    let f x1 = K.concatMapWith wAsyncK (pure . x1) m2
+    in WAsyncT $ K.concatMapWith wAsyncK f m1
 
 -- GHC: if we specify arguments in the definition of (<*>) we see a significant
 -- performance degradation (~2x).
@@ -1190,9 +1013,10 @@ instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
 -- GHC: if we change the implementation of bindWith with arguments in a
 -- different order we see a significant performance degradation (~2x).
 {-# INLINE bindWAsync #-}
-{-# SPECIALIZE bindWAsync :: WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
+{-# SPECIALIZE bindWAsync ::
+    WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
 bindWAsync :: MonadAsync m => WAsyncT m a -> (a -> WAsyncT m b) -> WAsyncT m b
-bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (adapt . f)
+bindWAsync (WAsyncT m) f = WAsyncT $ K.bindWith wAsyncK m (getWAsyncT . f)
 
 -- GHC: if we specify arguments in the definition of (>>=) we see a significant
 -- performance degradation (~2x).

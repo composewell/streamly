@@ -936,6 +936,7 @@ module Streamly.Prelude
     )
 where
 
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,

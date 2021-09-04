@@ -45,6 +45,10 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , foldr
 
     -- * Left Folds
+    -- Lazy left folds are useful only for reversing the stream
+    , foldlS
+    , foldlT
+
     , foldl'
     , foldl1'
     , foldlM'
@@ -151,24 +155,23 @@ where
 
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold, fold_, drop, findIndices, reverse, splitOnSeq, take
-    , takeWhile)
-import Streamly.Internal.Data.Stream.Prelude (toStreamS)
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+    , takeWhile, mkParallel)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, toStreamS, fromStreamD, toStreamD)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Prelude as P
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified System.IO as IO
@@ -212,7 +215,7 @@ import Prelude hiding
 -- @since 0.1.0
 {-# INLINE uncons #-}
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
-uncons m = K.uncons (K.adapt m)
+uncons (SerialT m) = fmap (fmap (fmap IsStream.fromStream)) $ K.uncons m
 
 ------------------------------------------------------------------------------
 -- Right Folds
@@ -240,7 +243,7 @@ uncons m = K.uncons (K.adapt m)
 -- /Since: 0.1.0/
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
-foldrM = P.foldrM
+foldrM = IsStream.foldrM
 
 -- | Right fold, lazy for lazy monads and pure streams, and strict for strict
 -- monads.
@@ -255,7 +258,7 @@ foldrM = P.foldrM
 -- @since 0.1.0
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
-foldr = P.foldr
+foldr = IsStream.foldr
 
 -- XXX This seems to be of limited use as it cannot be used to construct
 -- recursive structures and for reduction foldl1' is better.
@@ -273,6 +276,27 @@ foldr1 f m = S.foldr1 f (toStreamS m)
 -- Left Folds
 ------------------------------------------------------------------------------
 
+-- | Lazy left fold to a stream.
+{-# INLINE foldlS #-}
+foldlS :: IsStream t => (t m b -> a -> t m b) -> t m b -> t m a -> t m b
+foldlS f z =
+    IsStream.fromStream
+        . K.foldlS
+            (\xs x -> IsStream.toStream $ f (IsStream.fromStream xs) x)
+            (IsStream.toStream z)
+        . IsStream.toStream
+
+-- | Lazy left fold to a transformer monad.
+--
+-- For example, to reverse a stream:
+--
+-- > S.toList $ S.foldlT (flip S.cons) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
+--
+{-# INLINE foldlT #-}
+foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
+foldlT f z s = S.foldlT f z (toStreamS s)
+
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -282,7 +306,7 @@ foldr1 f m = S.foldr1 f (toStreamS m)
 {-# DEPRECATED foldx "Please use foldl' followed by fmap instead." #-}
 {-# INLINE foldx #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx = P.foldlx'
+foldx = IsStream.foldlx'
 
 -- | Left associative/strict push fold. @foldl' reduce initial stream@ invokes
 -- @reduce@ with the accumulator and the next input in the input stream, using
@@ -295,7 +319,7 @@ foldx = P.foldlx'
 -- @since 0.2.0
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
-foldl' = P.foldl'
+foldl' = IsStream.foldl'
 
 -- | Strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns 'Nothing' if the stream is empty.
@@ -317,7 +341,7 @@ foldl1' step m = do
 {-# DEPRECATED foldxM "Please use foldlM' followed by fmap instead." #-}
 {-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM = P.foldlMx'
+foldxM = IsStream.foldlMx'
 
 -- | Like 'foldl'' but with a monadic step function.
 --
@@ -422,7 +446,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- @since 0.7.0
 {-# INLINE drain #-}
 drain :: Monad m => SerialT m a -> m ()
-drain = P.drain
+drain = IsStream.drain
 
 -- |
 -- > drainN n = Stream.drain . Stream.take n
@@ -513,14 +537,14 @@ headElse x = D.headElse x . toStreamD
 -- @since 0.1.1
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-tail m = K.tail (K.adapt m)
+tail (SerialT m) = fmap (fmap IsStream.fromStream) $ K.tail m
 
 -- | Extract all but the last element of the stream, if any.
 --
 -- @since 0.5.0
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-init m = K.init (K.adapt m)
+init (SerialT m) = fmap (fmap IsStream.fromStream) $ K.init m
 
 -- | Extract the last element of the stream, if any.
 --
@@ -657,7 +681,7 @@ minimumBy cmp m = S.minimumBy cmp (toStreamS m)
 -- @since 0.1.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-maximum = P.maximum
+maximum m = S.maximum (toStreamS m)
 
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
@@ -755,7 +779,7 @@ elemIndex a = findIndex (== a)
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
-toList = P.toList
+toList = IsStream.toList
 
 -- |
 -- @
@@ -789,7 +813,7 @@ toHandle h = go
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in K.foldStream defState yieldk single stop m1
+        in IsStream.foldStream defState yieldk single stop m1
 
 -- | Convert a stream to a pure stream.
 --
@@ -801,7 +825,7 @@ toHandle h = go
 --
 {-# INLINE toStream #-}
 toStream :: Monad m => SerialT m a -> m (SerialT n a)
-toStream = foldr K.cons K.nil
+toStream = foldr IsStream.cons IsStream.nil
 
 -- | Convert a stream to a pure stream in reverse order.
 --
@@ -813,7 +837,7 @@ toStream = foldr K.cons K.nil
 --
 {-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => SerialT m a -> m (SerialT n a)
-toStreamRev = foldl' (flip K.cons) K.nil
+toStreamRev = foldl' (flip IsStream.cons) IsStream.nil
 
 ------------------------------------------------------------------------------
 -- Concurrent Application
@@ -853,7 +877,7 @@ toStreamRev = foldl' (flip K.cons) K.nil
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 -- (|$.) f = f . Async.mkAsync
-(|$.) f = f . Par.mkParallel
+(|$.) f = f . mkParallel
 
 infixr 0 |$.
 
@@ -1009,7 +1033,7 @@ stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)
 -- @since 0.6.0
 {-# INLINABLE eqBy #-}
 eqBy :: (IsStream t, Monad m) => (a -> b -> Bool) -> t m a -> t m b -> m Bool
-eqBy = P.eqBy
+eqBy = IsStream.eqBy
 
 -- | Compare two streams lexicographically using a comparison function.
 --
@@ -1018,4 +1042,4 @@ eqBy = P.eqBy
 cmpBy
     :: (IsStream t, Monad m)
     => (a -> b -> Ordering) -> t m a -> t m b -> m Ordering
-cmpBy = P.cmpBy
+cmpBy = IsStream.cmpBy

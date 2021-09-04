@@ -11,7 +11,7 @@
 -- experimental APIs.
 
 module Streamly.Internal.Data.Stream.IsStream
-    ( module Streamly.Internal.Data.Stream.IsStream.Types
+    ( module Streamly.Internal.Data.Stream.IsStream.Type
     , module Streamly.Internal.Data.Stream.IsStream.Generate
     , module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , module Streamly.Internal.Data.Stream.IsStream.Transform
@@ -31,4 +31,6 @@ import Streamly.Internal.Data.Stream.IsStream.Lift
 import Streamly.Internal.Data.Stream.IsStream.Expand
 import Streamly.Internal.Data.Stream.IsStream.Reduce
 import Streamly.Internal.Data.Stream.IsStream.Transform
-import Streamly.Internal.Data.Stream.IsStream.Types
+import Streamly.Internal.Data.Stream.IsStream.Type
+    hiding (cmpBy, drain, eqBy, foldl', foldrM, foldr, fold, toList, toStream
+        , fromEffect, fromPure, repeat)

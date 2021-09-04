@@ -9,13 +9,10 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Primitive.Types (Prim(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
@@ -30,9 +27,9 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 -- /Pre-release/
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Prim a) => Int -> SerialT m a -> m (Array a)
-fromStreamN n m = do
+fromStreamN n (SerialT m) = do
     when (n < 0) $ error "writeN: negative write count specified"
-    A.fromStreamDN n $ D.toStreamD m
+    A.fromStreamDN n $ D.fromStreamK m
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
@@ -45,7 +42,7 @@ fromStreamN n m = do
 -- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Prim a) => SerialT m a -> m (Array a)
-fromStream = P.fold A.write
+fromStream (SerialT m) = P.fold A.write m
 -- write m = A.fromStreamD $ D.toStreamD m
 
 -------------------------------------------------------------------------------
@@ -56,8 +53,8 @@ fromStream = P.fold A.write
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStream #-}
-toStream :: (MonadIO m, K.IsStream t, Prim a) => Array a -> t m a
-toStream = D.fromStreamD . A.toStreamD
+toStream :: (MonadIO m, Prim a) => Array a -> SerialT m a
+toStream = SerialT . D.toStreamK . A.toStreamD
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
 --     forall a. S.readK (read a) = K.fromArray a #-}
@@ -66,8 +63,8 @@ toStream = D.fromStreamD . A.toStreamD
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (MonadIO m, IsStream t, Prim a) => Array a -> t m a
-toStreamRev = D.fromStreamD . A.toStreamDRev
+toStreamRev :: (MonadIO m, Prim a) => Array a -> SerialT m a
+toStreamRev = SerialT . D.toStreamK . A.toStreamDRev
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
@@ -128,7 +125,7 @@ null arr = length arr == 0
 -- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Prim a) => Fold m a b -> Array a -> m b
-fold f arr = P.fold f (toStream arr :: Serial.SerialT m a)
+fold f arr = P.fold f (getSerialT (toStream arr))
 
 -- | Fold an array using a stream fold operation.
 --
@@ -170,10 +167,11 @@ last arr = readIndex arr (length arr - 1)
 --
 -- /Pre-release/
 {-# INLINE concat #-}
-concat :: (IsStream t, MonadIO m, Prim a) => t m (Array a) -> t m a
+concat :: (MonadIO m, Prim a) => SerialT m (Array a) -> SerialT m a
 -- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
-concat m = D.fromStreamD $ D.unfoldMany read (D.toStreamD m)
+concat (SerialT m) =
+    SerialT $ D.toStreamK $ D.unfoldMany read (D.fromStreamK m)
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
@@ -182,4 +180,5 @@ concat m = D.fromStreamD $ D.unfoldMany read (D.toStreamD m)
 {-# INLINE compact #-}
 compact ::
        (MonadIO m, Prim a) => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compact n xs = D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
+compact n (SerialT xs) =
+    SerialT $ D.toStreamK $ A.packArraysChunksOf n (D.fromStreamK xs)

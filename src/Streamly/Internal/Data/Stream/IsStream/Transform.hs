@@ -14,11 +14,12 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Folding
     , foldrS
+    , foldrSShared
     , foldrT
 
     -- * Mapping
     -- | Stateless one-to-one maps.
-    , Serial.map
+    , map
     , sequence
     , mapM
     , smapM
@@ -30,6 +31,8 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , tap
     , tapOffsetEvery
     , tapAsync
+    , tapAsyncK
+    , distributeAsync_
     , tapRate
     , pollCounts
 
@@ -170,7 +173,8 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- ** Concurrent Pipelines
     -- | Run streaming stages concurrently.
 
-    , Par.mkParallel
+    , mkAsync
+    , mkParallel
     , applyAsync
     , (|$)
     , (|&)
@@ -226,6 +230,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     ( absTimesWith
     , drop
     , findIndices
+    , map
     , postscanlM'
     , relTimesWith
     , reverse
@@ -236,31 +241,35 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , takeWhile
     , interjectSuffix
     , intersperseM
+    , mkAsync
+    , mkParallel
+    , zipWith
     )
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamS, toStreamS, fromStreamD, toStreamD, toConsK)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+#if __GLASGOW_HASKELL__ == 802
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Zip as Z
+#endif
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
+import qualified Prelude
 
 import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence
-       , reverse, foldr1 , scanl, scanl1)
+       , reverse, foldr1 , scanl, scanl1, zipWith)
 
 --
 -- $setup
@@ -320,7 +329,21 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- /Pre-release/
 {-# INLINE foldrS #-}
 foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrS = K.foldrS
+foldrS f z xs =
+    fromStream
+        $ K.foldrS
+            (\y ys -> toStream $ f y (fromStream ys))
+            (toStream z)
+            (toStream xs)
+
+{-# INLINE foldrSShared #-}
+foldrSShared :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrSShared f z xs =
+    fromStream
+        $ K.foldrSShared
+            (\y ys -> toStream $ f y (fromStream ys))
+            (toStream z)
+            (toStream xs)
 
 -- | Right fold to a transformer monad.  This is the most general right fold
 -- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
@@ -370,8 +393,9 @@ foldrT f z s = S.foldrT f z (toStreamS s)
 --
 -- @since 0.1.0
 {-# INLINE_EARLY mapM #-}
-mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
-mapM = K.mapM
+mapM :: forall t m a b. (IsStream t, MonadAsync m) =>
+    (a -> m b) -> t m a -> t m b
+mapM f = fromStream . K.mapMWith (toConsK (consM @t)) f . toStream
 
 {-# RULES "mapM serial" mapM = mapMSerial #-}
 {-# INLINE mapMSerial #-}
@@ -439,7 +463,7 @@ sequence m = fromStreamS $ S.sequence (toStreamS m)
 -- @since 0.7.0
 {-# INLINE tap #-}
 tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
-tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
+tap f xs = fromStreamD $ D.tap f (toStreamD xs)
 
 -- XXX Remove this. It can be expressed in terms of Fold.sampleFromThen.
 --
@@ -458,7 +482,7 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 tapOffsetEvery :: (IsStream t, Monad m)
     => Int -> Int -> FL.Fold m a b -> t m a -> t m a
 tapOffsetEvery offset n f xs =
-    D.fromStreamD $ D.tapOffsetEvery offset n f (D.toStreamD xs)
+    fromStreamD $ D.tapOffsetEvery offset n f (toStreamD xs)
 
 -- | Redirect a copy of the stream to a supplied fold and run it concurrently
 -- in an independent thread. The fold may buffer some elements. The buffer size
@@ -490,7 +514,61 @@ tapOffsetEvery offset n f xs =
 -- /Pre-release/
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
-tapAsync f xs = D.fromStreamD $ Par.tapAsyncF f (D.toStreamD xs)
+tapAsync f xs = fromStreamD $ Par.tapAsyncF f (toStreamD xs)
+
+-- | Redirect a copy of the stream to a supplied fold and run it concurrently
+-- in an independent thread. The fold may buffer some elements. The buffer size
+-- is determined by the prevailing 'Streamly.Prelude.maxBuffer' setting.
+--
+-- @
+--               Stream m a -> m b
+--                       |
+-- -----stream m a ---------------stream m a-----
+--
+-- @
+--
+-- @
+-- > S.drain $ S.tapAsync (S.mapM_ print) (S.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- @
+--
+-- Exceptions from the concurrently running fold are propagated to the current
+-- computation.  Note that, because of buffering in the fold, exceptions may be
+-- delayed and may not correspond to the current element being processed in the
+-- parent stream, but we guarantee that before the parent stream stops the tap
+-- finishes and all exceptions from it are drained.
+--
+--
+-- Compare with 'tap'.
+--
+-- /Pre-release/
+{-# INLINE tapAsyncK #-}
+tapAsyncK :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
+tapAsyncK f m = fromStream $ Par.tapAsyncK (f . fromStream) (toStream m)
+
+-- | Concurrently distribute a stream to a collection of fold functions,
+-- discarding the outputs of the folds.
+--
+-- @
+-- > Stream.drain $ Stream.distributeAsync_ [Stream.mapM_ print, Stream.mapM_ print] (Stream.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- 1
+-- 2
+--
+-- @
+--
+-- @
+-- distributeAsync_ = flip (foldr tapAsync)
+-- @
+--
+-- /Pre-release/
+--
+{-# INLINE distributeAsync_ #-}
+distributeAsync_ :: (Foldable f, IsStream t, MonadAsync m)
+    => f (t m a -> m b) -> t m a -> t m a
+distributeAsync_ = flip (Prelude.foldr tapAsyncK)
 
 -- | @pollCounts predicate transform fold stream@ counts those elements in the
 -- stream that pass the @predicate@. The resulting count stream is sent to
@@ -518,9 +596,9 @@ pollCounts ::
     -> t m a
     -> t m a
 pollCounts predicate transf f xs =
-      D.fromStreamD
-    $ D.pollCounts predicate (D.toStreamD . transf . D.fromStreamD) f
-    $ D.toStreamD xs
+      fromStreamD
+    $ D.pollCounts predicate (toStreamD . transf . fromStreamD) f
+    $ toStreamD xs
 
 -- | Calls the supplied function with the number of elements consumed
 -- every @n@ seconds. The given function is run in a separate thread
@@ -547,7 +625,7 @@ tapRate ::
     -> (Int -> m b)
     -> t m a
     -> t m a
-tapRate n f xs = D.fromStreamD $ D.tapRate n f $ D.toStreamD xs
+tapRate n f xs = fromStreamD $ D.tapRate n f $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.
@@ -583,7 +661,7 @@ trace f = mapM (\x -> void (f x) >> return x)
 -- /Pre-release/
 {-# INLINE trace_ #-}
 trace_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
-trace_ eff = Serial.mapM (\x -> eff >> return x)
+trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
@@ -597,7 +675,8 @@ trace_ eff = Serial.mapM (\x -> eff >> return x)
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan = P.scanOnce
+-- scan = P.scanOnce
+scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
 
 -- | Postscan a stream using the given monadic fold.
 --
@@ -617,7 +696,7 @@ scan = P.scanOnce
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan = P.postscanOnce
+postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
 
 ------------------------------------------------------------------------------
 -- Scanning - Transformation by Folding
@@ -644,7 +723,7 @@ postscan = P.postscanOnce
 {-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx = P.scanlx'
+scanx step begin done = fromStreamS . S.scanlx' step begin done . toStreamS
 
 -- XXX this needs to be concurrent
 -- XXX because of the use of D.cons for appending, scanlM' has quadratic
@@ -807,7 +886,7 @@ filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
 filter p m = fromStreamS $ S.filter p $ toStreamS m
 #else
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter = K.filter
+filter p m = fromStream $ K.filter p $ toStream m
 #endif
 
 -- | Same as 'filter' but with a monadic predicate.
@@ -1365,7 +1444,7 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 {-# INLINE timestampWith #-}
 timestampWith :: (IsStream t, MonadAsync m, Functor (t m))
     => Double -> t m a -> t m (AbsTime, a)
-timestampWith g stream = Z.zipWith (flip (,)) stream (absTimesWith g)
+timestampWith g stream = zipWith (flip (,)) stream (absTimesWith g)
 
 -- TBD: check performance vs a custom implementation without using zipWith.
 --
@@ -1390,7 +1469,7 @@ timestamped = timestampWith 0.01
 {-# INLINE timeIndexWith #-}
 timeIndexWith :: (IsStream t, MonadAsync m, Functor (t m))
     => Double -> t m a -> t m (RelTime64, a)
-timeIndexWith g stream = Z.zipWith (flip (,)) stream (relTimesWith g)
+timeIndexWith g stream = zipWith (flip (,)) stream (relTimesWith g)
 
 -- | Pair each element in a stream with relative times starting from 0, using a
 -- 10 ms granularity clock. The time is measured just before the element is
@@ -1480,7 +1559,7 @@ mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
 {-# INLINE_EARLY mapMaybeM #-}
 mapMaybeM :: (IsStream t, MonadAsync m, Functor (t m))
           => (a -> m (Maybe b)) -> t m a -> t m b
-mapMaybeM f = fmap fromJust . filter isJust . K.mapM f
+mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 {-# RULES "mapMaybeM serial" mapMaybeM = mapMaybeMSerial #-}
 {-# INLINE mapMaybeMSerial #-}
@@ -1559,8 +1638,8 @@ both = fmap (either id id)
 -- @since 0.8.0
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> (t m a -> t m b)
--- (|$) f = f . Async.mkAsync
-(|$) f = f . Par.mkParallel
+-- (|$) f = f . mkAsync
+(|$) f = f . mkParallel
 
 infixr 0 |$
 

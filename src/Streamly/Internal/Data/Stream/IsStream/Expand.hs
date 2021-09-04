@@ -30,8 +30,8 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , async
     , wAsync
     , parallel
-    , Par.parallelFst
-    , Par.parallelMin
+    , parallelFst
+    , parallelMin
 
     -- * Binary Combinators (Pair Wise)
     -- | Like the functions in the section above these functions also combine
@@ -68,10 +68,10 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , roundrobin
 
     -- ** Zip
-    , Z.zipWith
-    , Z.zipWithM
-    , Z.zipAsyncWith
-    , Z.zipAsyncWithM
+    , zipWith
+    , zipWithM
+    , zipAsyncWith
+    , zipAsyncWithM
 
     -- ** Merge
     -- , merge
@@ -120,9 +120,9 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     -- * Flatten Containers
     -- | Flatten 'Foldable' containers using the binary stream merging
     -- operations.
-    , concatFoldableWith
-    , concatMapFoldableWith
-    , concatForFoldableWith
+    , IsStream.concatFoldableWith
+    , IsStream.concatMapFoldableWith
+    , IsStream.concatForFoldableWith
 
     -- * ConcatMapWith
     -- | Map and flatten a stream like 'concatMap' but using a custom binary
@@ -136,8 +136,8 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     -- fashion, a pair wise merging using 'concatPairsWith' would be more
     -- efficient. These cases include operations like 'mergeBy' or 'zipWith'.
 
-    , concatMapWith
-    , K.bindWith
+    , IsStream.concatMapWith
+    , IsStream.bindWith
     , concatSmapMWith
 
     -- * ConcatPairsWith
@@ -153,49 +153,56 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
 
     -- * Deprecated
     , concatUnfold
+    , (<=>)
+    , (<|)
     )
 where
 
 #include "inline.hs"
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.Ahead (ahead)
-import Streamly.Internal.Data.Stream.Async (async, wAsync)
+import Streamly.Internal.Data.Stream.Ahead (aheadK)
+import Streamly.Internal.Data.Stream.Async (asyncK, wAsyncK)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    (concatM, concatMapM, concatMap, smapM, fromPure, fromEffect)
-import Streamly.Internal.Data.Stream.Parallel (parallel)
-import Streamly.Internal.Data.Stream.Prelude
-       ( concatFoldableWith, concatMapFoldableWith
-       , concatForFoldableWith, fromStreamS, toStreamS)
-import Streamly.Internal.Data.Stream.Serial (serial, wSerial)
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
+    ( concatM, concatMapM, concatMap, smapM, fromPure, fromEffect, parallelFst
+    , zipWith, zipWithM)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamS, toStreamS, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
-import qualified Streamly.Internal.Data.Stream.Zip as Z
+import qualified Streamly.Internal.Data.Stream.Zip as Zip
 
-import Prelude hiding (concat, concatMap)
+import Prelude hiding (concat, concatMap, zipWith)
 
 -- $setup
 -- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
 -- >>> import Data.IORef
 -- >>> import Prelude hiding (zipWith, concatMap, concat)
 -- >>> import qualified Streamly.Prelude as Stream
--- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
+--
 
 -------------------------------------------------------------------------------
 -- Appending
@@ -218,9 +225,78 @@ import Prelude hiding (concat, concatMap)
 append ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 
+infixr 6 `serial`
+
+-- | Appends two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> import Streamly.Prelude (serial)
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ stream1 `serial` stream2
+-- [1,2,3,4]
+--
+-- This operation can be used to fold an infinite lazy container of streams.
+--
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE serial #-}
+serial :: IsStream t => t m a -> t m a -> t m a
+serial m1 m2 = fromStream $ K.serial (toStream m1) (toStream m2)
+
 -------------------------------------------------------------------------------
 -- Interleaving
 -------------------------------------------------------------------------------
+
+infixr 6 `wSerial`
+
+-- XXX doc duplicated from Stream.Serial module.
+--
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- >>> import Streamly.Prelude (wSerial)
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ Stream.fromWSerial $ stream1 `wSerial` stream2
+-- [1,3,2,4]
+--
+-- Note, for singleton streams 'wSerial' and 'serial' are identical.
+--
+-- Note that this operation cannot be used to fold a container of infinite
+-- streams but it can be used for very large streams as the state that it needs
+-- to maintain is proportional to the logarithm of the number of streams.
+--
+-- @since 0.8.0
+--
+-- /Since: 0.2.0 ("Streamly")/
+
+-- Scheduling Notes:
+--
+-- Note that evaluation of @a \`wSerial` b \`wSerial` c@ does not interleave
+-- @a@, @b@ and @c@ with equal priority.  This expression is equivalent to @a
+-- \`wSerial` (b \`wSerial` c)@, therefore, it fairly interleaves @a@ with the
+-- result of @b \`wSerial` c@.  For example, @Stream.fromList [1,2] \`wSerial`
+-- Stream.fromList [3,4] \`wSerial` Stream.fromList [5,6]@ would result in
+-- [1,3,2,5,4,6].  In other words, the leftmost stream gets the same scheduling
+-- priority as the rest of the streams taken together. The same is true for
+-- each subexpression on the right.
+--
+{-# INLINE wSerial #-}
+wSerial :: IsStream t => t m a -> t m a -> t m a
+wSerial m1 m2 = fromStream $ Serial.wSerialK (toStream m1) (toStream m2)
+
+infixr 5 <=>
+
+-- | Same as 'wSerial'.
+--
+-- @since 0.1.0
+{-# DEPRECATED (<=>) "Please use 'wSerial' instead." #-}
+{-# INLINE (<=>) #-}
+(<=>) :: IsStream t => t m a -> t m a -> t m a
+(<=>) = wSerial
 
 -- XXX Same as 'wSerial'. We should perhaps rename wSerial to interleave.
 -- XXX Document the interleaving behavior of side effects in all the
@@ -340,6 +416,276 @@ interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2
 {-# INLINE roundrobin #-}
 roundrobin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
+
+infixr 6 `async`
+
+-- | Merges two streams, both the streams may be evaluated concurrently,
+-- outputs from both are used as they arrive:
+--
+-- >>> import Streamly.Prelude (async)
+-- >>> stream1 = Stream.fromEffect (delay 4)
+-- >>> stream2 = Stream.fromEffect (delay 2)
+-- >>> Stream.toList $ stream1 `async` stream2
+-- 2 sec
+-- 4 sec
+-- [2,4]
+--
+-- Multiple streams can be combined. With enough threads, all of them can be
+-- scheduled simultaneously:
+--
+-- >>> stream3 = Stream.fromEffect (delay 1)
+-- >>> Stream.toList $ stream1 `async` stream2 `async` stream3
+-- ...
+-- [1,2,4]
+--
+-- With 2 threads, only two can be scheduled at a time, when one of those
+-- finishes, the third one gets scheduled:
+--
+-- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
+-- ...
+-- [2,1,4]
+--
+-- With a single thread, it becomes serial:
+--
+-- >>> Stream.toList $ Stream.maxThreads 1 $ stream1 `async` stream2 `async` stream3
+-- ...
+-- [4,2,1]
+--
+-- Only streams are scheduled for async evaluation, how actions within a
+-- stream are evaluated depends on the stream type. If it is a concurrent
+-- stream they will be evaluated concurrently.
+--
+-- In the following example, both the streams are scheduled for concurrent
+-- evaluation but each individual stream is evaluated serially:
+--
+-- >>> stream1 = Stream.fromListM $ Prelude.map delay [3,3] -- SerialT IO Int
+-- >>> stream2 = Stream.fromListM $ Prelude.map delay [1,1] -- SerialT IO Int
+-- >>> Stream.toList $ stream1 `async` stream2 -- IO [Int]
+-- ...
+-- [1,1,3,3]
+--
+-- If total threads are 2, the third stream is scheduled only after one of the
+-- first two has finished:
+--
+-- > stream3 = Stream.fromListM $ Prelude.map delay [2,2] -- SerialT IO Int
+-- > Stream.toList $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3 -- IO [Int]
+-- ...
+-- [1,1,3,2,3,2]
+--
+-- Thus 'async' goes deep in first few streams rather than going wide in all
+-- streams. It prefers to evaluate the leftmost streams as much as possible.
+-- Because of this behavior, 'async' can be safely used to fold an infinite
+-- lazy container of streams.
+--
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE async #-}
+async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+async m1 m2 = fromStream $ asyncK (toStream m1) (toStream m2)
+
+-- | Same as 'async'.
+--
+-- @since 0.1.0
+{-# DEPRECATED (<|) "Please use 'async' instead." #-}
+{-# INLINE (<|) #-}
+(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+(<|) = async
+
+infixr 6 `wAsync`
+
+-- | For singleton streams, 'wAsync' is the same as 'async'.  See 'async' for
+-- singleton stream behavior. For multi-element streams, while 'async' is left
+-- biased i.e. it tries to evaluate the left side stream as much as possible,
+-- 'wAsync' tries to schedule them both fairly. In other words, 'async' goes
+-- deep while 'wAsync' goes wide. However, outputs are always used as they
+-- arrive.
+--
+-- With a single thread, 'async' starts behaving like 'serial' while 'wAsync'
+-- starts behaving like 'wSerial'.
+--
+-- >>> import Streamly.Prelude (async, wAsync)
+-- >>> stream1 = Stream.fromList [1,2,3]
+-- >>> stream2 = Stream.fromList [4,5,6]
+-- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 1 $ stream1 `async` stream2
+-- [1,2,3,4,5,6]
+--
+-- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 1 $ stream1 `wAsync` stream2
+-- [1,4,2,5,3,6]
+--
+-- With two threads available, and combining three streams:
+--
+-- >>> stream3 = Stream.fromList [7,8,9]
+-- >>> Stream.toList $ Stream.fromAsync $ Stream.maxThreads 2 $ stream1 `async` stream2 `async` stream3
+-- [1,2,3,4,5,6,7,8,9]
+--
+-- >>> Stream.toList $ Stream.fromWAsync $ Stream.maxThreads 2 $ stream1 `wAsync` stream2 `wAsync` stream3
+-- [1,4,2,7,5,3,8,6,9]
+--
+-- This operation cannot be used to fold an infinite lazy container of streams,
+-- because it schedules all the streams in a round robin manner.
+--
+-- Note that 'WSerialT' and single threaded 'WAsyncT' both interleave streams
+-- but the exact scheduling is slightly different in both cases.
+--
+-- @since 0.8.0
+--
+-- /Since: 0.2.0 ("Streamly")/
+
+-- Scheduling details:
+--
+-- This is how the execution of the above example proceeds:
+--
+-- 1. The scheduler queue is initialized with @[S.fromList [1,2,3],
+-- (S.fromList [4,5,6]) \<> (S.fromList [7,8,9])]@ assuming the head of the
+-- queue is represented by the  rightmost item.
+-- 2. @S.fromList [1,2,3]@ is executed, yielding the element @1@ and putting
+-- @[2,3]@ at the back of the scheduler queue. The scheduler queue now looks
+-- like @[(S.fromList [4,5,6]) \<> (S.fromList [7,8,9]), S.fromList [2,3]]@.
+-- 3. Now @(S.fromList [4,5,6]) \<> (S.fromList [7,8,9])@ is picked up for
+-- execution, @S.fromList [7,8,9]@ is added at the back of the queue and
+-- @S.fromList [4,5,6]@ is executed, yielding the element @4@ and adding
+-- @S.fromList [5,6]@ at the back of the queue. The queue now looks like
+-- @[S.fromList [2,3], S.fromList [7,8,9], S.fromList [5,6]]@.
+-- 4. Note that the scheduler queue expands by one more stream component in
+-- every pass because one more @<>@ is broken down into two components. At this
+-- point there are no more @<>@ operations to be broken down further and the
+-- queue has reached its maximum size. Now these streams are scheduled in
+-- round-robin fashion yielding @[2,7,5,3,8,6,9]@.
+--
+-- As we see above, in a right associated expression composed with @<>@, only
+-- one @<>@ operation is broken down into two components in one execution,
+-- therefore, if we have @n@ streams composed using @<>@ it will take @n@
+-- scheduler passes to expand the whole expression.  By the time @n-th@
+-- component is added to the scheduler queue, the first component would have
+-- received @n@ scheduler passes.
+--
+{-# INLINE wAsync #-}
+wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+wAsync m1 m2 = fromStream $ wAsyncK (toStream m1) (toStream m2)
+
+infixr 6 `ahead`
+
+-- | Appends two streams, both the streams may be evaluated concurrently but
+-- the outputs are used in the same order as the corresponding actions in the
+-- original streams, side effects will happen in the order in which the streams
+-- are evaluated:
+--
+-- >>> import Streamly.Prelude (ahead, SerialT)
+-- >>> stream1 = Stream.fromEffect (delay 4) :: SerialT IO Int
+-- >>> stream2 = Stream.fromEffect (delay 2) :: SerialT IO Int
+-- >>> Stream.toList $ stream1 `ahead` stream2 :: IO [Int]
+-- 2 sec
+-- 4 sec
+-- [4,2]
+--
+-- Multiple streams can be combined. With enough threads, all of them can be
+-- scheduled simultaneously:
+--
+-- >>> stream3 = Stream.fromEffect (delay 1)
+-- >>> Stream.toList $ stream1 `ahead` stream2 `ahead` stream3
+-- 1 sec
+-- 2 sec
+-- 4 sec
+-- [4,2,1]
+--
+-- With 2 threads, only two can be scheduled at a time, when one of those
+-- finishes, the third one gets scheduled:
+--
+-- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `ahead` stream2 `ahead` stream3
+-- 2 sec
+-- 1 sec
+-- 4 sec
+-- [4,2,1]
+--
+-- Only streams are scheduled for ahead evaluation, how actions within a stream
+-- are evaluated depends on the stream type. If it is a concurrent stream they
+-- will be evaluated concurrently. It may not make much sense combining serial
+-- streams using 'ahead'.
+--
+-- 'ahead' can be safely used to fold an infinite lazy container of streams.
+--
+-- /Since: 0.3.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE ahead #-}
+ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+ahead m1 m2 = fromStream $ aheadK (toStream m1) (toStream m2)
+
+infixr 6 `parallel`
+
+-- | Like 'Streamly.Prelude.async' except that the execution is much more
+-- strict. There is no limit on the number of threads. While
+-- 'Streamly.Prelude.async' may not schedule a stream if there is no demand
+-- from the consumer, 'parallel' always evaluates both the streams immediately.
+-- The only limit that applies to 'parallel' is 'Streamly.Prelude.maxBuffer'.
+-- Evaluation may block if the output buffer becomes full.
+--
+-- >>> import Streamly.Prelude (parallel)
+-- >>> stream = Stream.fromEffect (delay 2) `parallel` Stream.fromEffect (delay 1)
+-- >>> Stream.toList stream -- IO [Int]
+-- 1 sec
+-- 2 sec
+-- [1,2]
+--
+-- 'parallel' guarantees that all the streams are scheduled for execution
+-- immediately, therefore, we could use things like starting timers inside the
+-- streams and relying on the fact that all timers were started at the same
+-- time.
+--
+-- Unlike 'async' this operation cannot be used to fold an infinite lazy
+-- container of streams, because it schedules all the streams strictly
+-- concurrently.
+--
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
+{-# INLINE parallel #-}
+parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallel m1 m2 = fromStream $ Par.parallelK (toStream m1) (toStream m2)
+
+-- This is a race like combinator for streams.
+--
+-- | Like `parallel` but stops the output as soon as any of the two streams
+-- stops.
+--
+-- /Pre-release/
+{-# INLINE parallelMin #-}
+parallelMin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelMin m1 m2 = fromStream $ Par.parallelMinK (toStream m1) (toStream m2)
+
+------------------------------------------------------------------------------
+-- Zipping
+------------------------------------------------------------------------------
+
+-- | Like 'zipAsyncWith' but with a monadic zipping function.
+--
+-- @since 0.4.0
+{-# INLINE zipAsyncWithM #-}
+zipAsyncWithM :: (IsStream t, MonadAsync m)
+    => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipAsyncWithM f m1 m2 =
+    fromStream $ Zip.zipAsyncWithMK f (toStream m1) (toStream m2)
+
+-- XXX Should we rename this to zipParWith or zipParallelWith? This can happen
+-- along with the change of behvaior to end the stream concurrently.
+--
+-- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
+-- are evaluated concurrently using the 'ParallelT' concurrent evaluation
+-- style. The maximum number of elements of each stream evaluated in advance
+-- can be controlled by 'maxBuffer'.
+--
+-- The stream ends if stream @a@ or stream @b@ ends. However, if stream @b@
+-- ends while we are still evaluating stream @a@ and waiting for a result then
+-- stream will not end until after the evaluation of stream @a@ finishes. This
+-- behavior can potentially be changed in future to end the stream immediately
+-- as soon as any of the stream end is detected.
+--
+-- @since 0.1.0
+{-# INLINE zipAsyncWith #-}
+zipAsyncWith :: (IsStream t, MonadAsync m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Merging (sorted streams)
@@ -510,7 +856,7 @@ unfoldManyRoundRobin u m =
 interpose :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interpose x unf str =
-    D.fromStreamD $ D.interpose (return x) unf (D.toStreamD str)
+    fromStreamD $ D.interpose (return x) unf (toStreamD str)
 
 -- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 --
@@ -524,7 +870,7 @@ interpose x unf str =
 interposeSuffix :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interposeSuffix x unf str =
-    D.fromStreamD $ D.interposeSuffix (return x) unf (D.toStreamD str)
+    fromStreamD $ D.interposeSuffix (return x) unf (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -546,9 +892,9 @@ gintercalate
     :: (IsStream t, Monad m)
     => Unfold m a c -> t m a -> Unfold m b c -> t m b -> t m c
 gintercalate unf1 str1 unf2 str2 =
-    D.fromStreamD $ D.gintercalate
-        unf1 (D.toStreamD str1)
-        unf2 (D.toStreamD str2)
+    fromStreamD $ D.gintercalate
+        unf1 (toStreamD str1)
+        unf2 (toStreamD str2)
 
 -- > intercalate unf seed str = gintercalate unf str unf (repeatM seed)
 --
@@ -565,7 +911,7 @@ gintercalate unf1 str1 unf2 str2 =
 {-# INLINE intercalate #-}
 intercalate :: (IsStream t, Monad m)
     => Unfold m b c -> b -> t m b -> t m c
-intercalate unf seed str = D.fromStreamD $
+intercalate unf seed str = fromStreamD $
     D.unfoldMany unf $ D.intersperse seed (toStreamD str)
 
 -- | 'interleaveSuffix' followed by unfold and concat.
@@ -576,9 +922,9 @@ gintercalateSuffix
     :: (IsStream t, Monad m)
     => Unfold m a c -> t m a -> Unfold m b c -> t m b -> t m c
 gintercalateSuffix unf1 str1 unf2 str2 =
-    D.fromStreamD $ D.gintercalateSuffix
-        unf1 (D.toStreamD str1)
-        unf2 (D.toStreamD str2)
+    fromStreamD $ D.gintercalateSuffix
+        unf1 (toStreamD str1)
+        unf2 (toStreamD str2)
 
 -- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
 --
@@ -596,7 +942,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 intercalateSuffix :: (IsStream t, Monad m)
     => Unfold m b c -> b -> t m b -> t m c
 intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
-    $ D.intersperseSuffix (return seed) (D.toStreamD str)
+    $ D.intersperseSuffix (return seed) (toStreamD str)
 
 {-
 {-# INLINE iterateUnfold #-}
@@ -624,25 +970,6 @@ concat = concatMap id
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------
 
--- | @concatMapWith mixer generator stream@ is a two dimensional looping
--- combinator.  The @generator@ function is used to generate streams from the
--- elements in the input @stream@ and the @mixer@ function is used to merge
--- those streams.
---
--- Note we can merge streams concurrently by using a concurrent merge function.
---
--- /Since: 0.7.0/
---
--- /Since: 0.8.0 (signature change)/
-{-# INLINE concatMapWith #-}
-concatMapWith
-    :: IsStream t
-    => (t m b -> t m b -> t m b)
-    -> (a -> t m b)
-    -> t m a
-    -> t m b
-concatMapWith = K.concatMapBy
-
 -- | Like 'concatMapWith' but carries a state which can be used to share
 -- information across multiple steps of concat.
 --
@@ -660,7 +987,8 @@ concatSmapMWith
     -> m s
     -> t m a
     -> t m b
-concatSmapMWith combine f initial = concatMapWith combine id . smapM f initial
+concatSmapMWith combine f initial =
+    IsStream.concatMapWith combine id . smapM f initial
 
 -- Keep concating either streams as long as rights are generated, stop as soon
 -- as a left is generated and concat the left stream.
@@ -700,7 +1028,12 @@ concatPairsWith :: IsStream t =>
     -> (a -> t m b)
     -> t m a
     -> t m b
-concatPairsWith = K.concatPairsWith
+concatPairsWith par f m =
+    fromStream
+        $ K.concatPairsWith
+            (\s1 s2 -> toStream $ fromStream s1 `par` fromStream s2)
+            (toStream . f)
+            (toStream m)
 
 ------------------------------------------------------------------------------
 -- IterateMap - Map and flatten Trees of Streams
@@ -737,9 +1070,9 @@ iterateMapWith
     -> (a -> t m a)
     -> t m a
     -> t m a
-iterateMapWith combine f = concatMapWith combine go
+iterateMapWith combine f = IsStream.concatMapWith combine go
     where
-    go x = fromPure x `combine` concatMapWith combine go (f x)
+    go x = fromPure x `combine` IsStream.concatMapWith combine go (f x)
 
 {-
 {-# INLINE iterateUnfold #-}
@@ -776,7 +1109,9 @@ iterateSmapMWith
     -> t m a
     -> t m a
 iterateSmapMWith combine f initial stream =
-    concatMap (\b -> concatMapWith combine (go b) stream) (fromEffect initial)
+    concatMap
+        (\b -> IsStream.concatMapWith combine (go b) stream)
+        (fromEffect initial)
 
     where
 
@@ -784,7 +1119,7 @@ iterateSmapMWith combine f initial stream =
 
     feedback b a =
         concatMap
-            (\(b1, s) -> concatMapWith combine (go b1) s)
+            (\(b1, s) -> IsStream.concatMapWith combine (go b1) s)
             (fromEffect $ f b a)
 
 ------------------------------------------------------------------------------
@@ -813,4 +1148,5 @@ iterateMapLeftsWith
     -> (a -> t m (Either a b))
     -> t m (Either a b)
     -> t m (Either a b)
-iterateMapLeftsWith combine f = iterateMapWith combine (either f (const K.nil))
+iterateMapLeftsWith combine f =
+    iterateMapWith combine (either f (const IsStream.nil))

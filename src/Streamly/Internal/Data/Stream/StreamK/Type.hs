@@ -17,26 +17,15 @@
 --
 module Streamly.Internal.Data.Stream.StreamK.Type
     (
-    -- * A class for streams
-      IsStream (..)
-    , adapt
-
     -- * The stream type
-    , Stream (..)
-
-    -- * Construction
-    , mkStream
-    , fromStopK
-    , fromYieldK
-    , consK
-
-    -- * Elimination
-    , foldStream
-    , foldStreamShared
-    , foldl'
-    , foldlx'
+      Stream (..)
+    , toStreamK
+    , fromStreamK
 
     -- * foldr/build
+    , mkStream
+    , foldStream
+    , foldStreamShared
     , foldrM
     , foldrS
     , foldrSShared
@@ -45,27 +34,51 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , buildS
     , buildM
     , buildSM
-    , sharedM
     , augmentS
     , augmentSM
 
-    -- instances
+    -- * Construction
+    , fromStopK
+    , fromYieldK
+    , consK
     , cons
     , (.:)
-    , consMStream
+    , consM
     , consMBy
-    , fromEffect
-    , fromPure
-
     , nil
     , nilM
+
+    -- * Generation
+    , fromEffect
+    , fromPure
+    , unfoldr
+    , unfoldrMWith
+    , repeat
+    , repeatMWith
+    , replicateMWith
+    , fromIndicesMWith
+    , iterateMWith
+    , fromFoldable
+    , fromFoldableM
+    , mfix
+
+    -- * Elimination
+    , uncons
+    , foldl'
+    , foldlx'
+    , drain
+    , null
+    , tail
+    , init
+
+    -- * Transformation
     , conjoin
     , serial
     , map
-    , mapM
+    , mapMWith
     , mapMSerial
     , unShare
-    , concatMapBy
+    , concatMapWith
     , concatMap
     , bindWith
     , concatPairsWith
@@ -73,23 +86,25 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , apSerial
     , apSerialDiscardFst
     , apSerialDiscardSnd
+    , foldlS
+    , reverse
 
-    , Streaming   -- deprecated
+    -- * Reader
+    , withLocal
     )
 where
 
 import Control.Monad (ap, (>=>))
+import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Kind (Type)
-#if __GLASGOW_HASKELL__ < 808
+import Data.Function (fix)
+#if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
-import Prelude hiding (map, mapM, concatMap, foldr)
-
--- $setup
--- >>> import Streamly.Prelude as Stream
+import Prelude hiding
+    (map, mapM, concatMap, foldr, repeat, null, reverse, tail, init)
+import qualified Prelude
 
 ------------------------------------------------------------------------------
 -- Basic stream type
@@ -124,140 +139,22 @@ newtype Stream m a =
             -> m r
             )
 
-------------------------------------------------------------------------------
--- Types that can behave as a Stream
-------------------------------------------------------------------------------
+{-# INLINE fromStreamK #-}
+fromStreamK :: Stream m a -> Stream m a
+fromStreamK = id
 
-infixr 5 `consM`
-infixr 5 |:
+{-# INLINE toStreamK #-}
+toStreamK :: Stream m a -> Stream m a
+toStreamK = id
 
--- XXX Use a different SVar based on the stream type. But we need to make sure
--- that we do not lose performance due to polymorphism.
---
--- | Class of types that can represent a stream of elements of some type 'a' in
--- some monad 'm'.
---
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
-class
-#if __GLASGOW_HASKELL__ >= 806
-    ( forall m a. MonadAsync m => Semigroup (t m a)
-    , forall m a. MonadAsync m => Monoid (t m a)
-    , forall m. Monad m => Functor (t m)
-    , forall m. MonadAsync m => Applicative (t m)
-    ) =>
-#endif
-      IsStream t where
-    toStream :: t m a -> Stream m a
-    fromStream :: Stream m a -> t m a
-    -- | Constructs a stream by adding a monadic action at the head of an
-    -- existing stream. For example:
-    --
-    -- @
-    -- > toList $ getLine \`consM` getLine \`consM` nil
-    -- hello
-    -- world
-    -- ["hello","world"]
-    -- @
-    --
-    -- /Concurrent (do not use 'fromParallel' to construct infinite streams)/
-    --
-    -- @since 0.2.0
-    consM :: MonadAsync m => m a -> t m a -> t m a
-    -- | Operator equivalent of 'consM'. We can read it as "@parallel colon@"
-    -- to remember that @|@ comes before ':'.
-    --
-    -- @
-    -- > toList $ getLine |: getLine |: nil
-    -- hello
-    -- world
-    -- ["hello","world"]
-    -- @
-    --
-    -- @
-    -- let delay = threadDelay 1000000 >> print 1
-    -- drain $ fromSerial  $ delay |: delay |: delay |: nil
-    -- drain $ fromParallel $ delay |: delay |: delay |: nil
-    -- @
-    --
-    -- /Concurrent (do not use 'fromParallel' to construct infinite streams)/
-    --
-    -- @since 0.2.0
-    (|:) :: MonadAsync m => m a -> t m a -> t m a
-    -- We can define (|:) just as 'consM' but it is defined explicitly for each
-    -- type because we want to use SPECIALIZE pragma on the definition.
-
--- | Same as 'IsStream'.
---
--- @since 0.1.0
-{-# DEPRECATED Streaming "Please use IsStream instead." #-}
-type Streaming = IsStream
-
--------------------------------------------------------------------------------
--- Type adapting combinators
--------------------------------------------------------------------------------
-
--- XXX Move/reset the State here by reconstructing the stream with cleared
--- state. Can we make sure we do not do that when t1 = t2? If we do this then
--- we do not need to do that explicitly using svarStyle.  It would act as
--- unShare when the stream type is the same.
---
--- | Adapt any specific stream type to any other specific stream type.
---
--- /Since: 0.1.0 ("Streamly")/
---
--- @since 0.8.0
-adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
-adapt = fromStream . toStream
-
-------------------------------------------------------------------------------
--- Building a stream
-------------------------------------------------------------------------------
-
--- XXX The State is always parameterized by "Stream" which means State is not
--- different for different stream types. So we have to manually make sure that
--- when converting from one stream to another we migrate the state correctly.
--- This can be fixed if we use a different SVar type for different streams.
--- Currently we always use "SVar Stream" and therefore a different State type
--- parameterized by that stream.
---
--- XXX Since t is coercible we should be able to coerce k
--- mkStream k = fromStream $ MkStream $ coerce k
---
--- | Build a stream from an 'SVar', a stop continuation, a singleton stream
--- continuation and a yield continuation.
-{-# INLINE_EARLY mkStream #-}
-mkStream :: IsStream t
-    => (forall r. State Stream m a
-        -> (a -> t m a -> m r)
-        -> (a -> m r)
-        -> m r
-        -> m r)
-    -> t m a
-mkStream k = fromStream $ MkStream $ \st yld sng stp ->
-    let yieldk a r = yld a (toStream r)
-     in k st yieldk sng stp
-
-{-# RULES "mkStream from stream" mkStream = mkStreamFromStream #-}
-mkStreamFromStream :: IsStream t
-    => (forall r. State Stream m a
-        -> (a -> Stream m a -> m r)
-        -> (a -> m r)
-        -> m r
-        -> m r)
-    -> t m a
-mkStreamFromStream k = fromStream $ MkStream k
-
-{-# RULES "mkStream stream" mkStream = mkStreamStream #-}
-mkStreamStream
+mkStream
     :: (forall r. State Stream m a
         -> (a -> Stream m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r)
     -> Stream m a
-mkStreamStream = MkStream
+mkStream = MkStream
 
 -- | A terminal function that has no continuation to follow.
 type StopK m = forall r. m r -> m r
@@ -272,17 +169,17 @@ _wrapM :: Monad m => m a -> YieldK m a
 _wrapM m = (m >>=)
 
 -- | Make an empty stream from a stop function.
-fromStopK :: IsStream t => StopK m -> t m a
+fromStopK :: StopK m -> Stream m a
 fromStopK k = mkStream $ \_ _ _ stp -> k stp
 
 -- | Make a singleton stream from a callback function. The callback function
 -- calls the one-shot yield continuation to yield an element.
-fromYieldK :: IsStream t => YieldK m a -> t m a
+fromYieldK :: YieldK m a -> Stream m a
 fromYieldK k = mkStream $ \_ _ sng _ -> k sng
 
 -- | Add a yield function at the head of the stream.
-consK :: IsStream t => YieldK m a -> t m a -> t m a
-consK k r = mkStream $ \_ yld _ _ -> k (`yld` r)
+consK :: YieldK m a -> Stream m a -> Stream m a
+consK k r = mkStream $ \_ yld _ _ -> k (\x -> yld x r)
 
 -- XXX Build a stream from a repeating callback function.
 
@@ -305,8 +202,8 @@ infixr 5 `cons`
 --
 -- @since 0.1.0
 {-# INLINE_NORMAL cons #-}
-cons :: IsStream t => a -> t m a -> t m a
-cons a r = mkStream $ \_ yld _ _ -> yld a r
+cons :: a -> Stream m a -> Stream m a
+cons a r = mkStream $ \_ yield _ _ -> yield a r
 
 infixr 5 .:
 
@@ -319,7 +216,7 @@ infixr 5 .:
 --
 -- @since 0.1.1
 {-# INLINE (.:) #-}
-(.:) :: IsStream t => a -> t m a -> t m a
+(.:) :: a -> Stream m a -> Stream m a
 (.:) = cons
 
 -- | An empty stream.
@@ -331,7 +228,7 @@ infixr 5 .:
 --
 -- @since 0.1.0
 {-# INLINE_NORMAL nil #-}
-nil :: IsStream t => t m a
+nil :: Stream m a
 nil = mkStream $ \_ _ _ stp -> stp
 
 -- | An empty stream producing a side effect.
@@ -344,22 +241,32 @@ nil = mkStream $ \_ _ _ stp -> stp
 --
 -- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
-nilM :: (IsStream t, Monad m) => m b -> t m a
+nilM :: Monad m => m b -> Stream m a
 nilM m = mkStream $ \_ _ _ stp -> m >> stp
 
 {-# INLINE_NORMAL fromPure #-}
-fromPure :: IsStream t => a -> t m a
+fromPure :: a -> Stream m a
 fromPure a = mkStream $ \_ _ single _ -> single a
 
 {-# INLINE_NORMAL fromEffect #-}
-fromEffect :: (Monad m, IsStream t) => m a -> t m a
-fromEffect m = fromStream $ mkStream $ \_ _ single _ -> m >>= single
+fromEffect :: Monad m => m a -> Stream m a
+fromEffect m = mkStream $ \_ _ single _ -> m >>= single
+
+infixr 5 `consM`
+
+-- NOTE: specializing the function outside the instance definition seems to
+-- improve performance quite a bit at times, even if we have the same
+-- SPECIALIZE in the instance definition.
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
+consM :: (Monad m) => m a -> Stream m a -> Stream m a
+consM m r = MkStream $ \_ yld _ _ -> m >>= \a -> yld a r
 
 -- XXX specialize to IO?
 {-# INLINE consMBy #-}
-consMBy :: (IsStream t, MonadAsync m) => (t m a -> t m a -> t m a)
-    -> m a -> t m a -> t m a
-consMBy f m r = fromStream (fromEffect m) `f` r
+consMBy :: Monad m =>
+    (Stream m a -> Stream m a -> Stream m a) -> m a -> Stream m a -> Stream m a
+consMBy f m r = fromEffect m `f` r
 
 ------------------------------------------------------------------------------
 -- Folding a stream
@@ -370,78 +277,27 @@ consMBy f m r = fromStream (fromEffect m) `f` r
 -- SVar passed via the State.
 {-# INLINE_EARLY foldStreamShared #-}
 foldStreamShared
-    :: IsStream t
-    => State Stream m a
-    -> (a -> t m a -> m r)
-    -> (a -> m r)
-    -> m r
-    -> t m a
-    -> m r
-foldStreamShared st yld sng stp m =
-    let yieldk a x = yld a (fromStream x)
-        MkStream k = toStream m
-     in k st yieldk sng stp
-
--- XXX write a similar rule for foldStream as well?
-{-# RULES "foldStreamShared from stream"
-   foldStreamShared = foldStreamSharedStream #-}
-foldStreamSharedStream
     :: State Stream m a
     -> (a -> Stream m a -> m r)
     -> (a -> m r)
     -> m r
     -> Stream m a
     -> m r
-foldStreamSharedStream st yld sng stp m =
-    let MkStream k = toStream m
-     in k st yld sng stp
+foldStreamShared s yield single stop (MkStream k) = k s yield single stop
 
 -- | Fold a stream by providing a State, stop continuation, a singleton
 -- continuation and a yield continuation. The stream will not use the SVar
 -- passed via State.
 {-# INLINE foldStream #-}
 foldStream
-    :: IsStream t
-    => State Stream m a
-    -> (a -> t m a -> m r)
+    :: State Stream m a
+    -> (a -> Stream m a -> m r)
     -> (a -> m r)
     -> m r
-    -> t m a
+    -> Stream m a
     -> m r
-foldStream st yld sng stp m =
-    let yieldk a x = yld a (fromStream x)
-        MkStream k = toStream m
-     in k (adaptState st) yieldk sng stp
-
--------------------------------------------------------------------------------
--- Instances
--------------------------------------------------------------------------------
-
--- NOTE: specializing the function outside the instance definition seems to
--- improve performance quite a bit at times, even if we have the same
--- SPECIALIZE in the instance definition.
-{-# INLINE consMStream #-}
-{-# SPECIALIZE consMStream :: IO a -> Stream IO a -> Stream IO a #-}
-consMStream :: (Monad m) => m a -> Stream m a -> Stream m a
-consMStream m r = MkStream $ \_ yld _ _ -> m >>= \a -> yld a r
-
--------------------------------------------------------------------------------
--- IsStream Stream
--------------------------------------------------------------------------------
-
-instance IsStream Stream where
-    toStream = id
-    fromStream = id
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
-    consM :: Monad m => m a -> Stream m a -> Stream m a
-    consM = consMStream
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> Stream IO a -> Stream IO a #-}
-    (|:) :: Monad m => m a -> Stream m a -> Stream m a
-    (|:) = consMStream
+foldStream s yield single stop (MkStream k) =
+    k (adaptState s) yield single stop
 
 -------------------------------------------------------------------------------
 -- foldr/build fusion
@@ -454,15 +310,18 @@ instance IsStream Stream where
 -- reconstruct using a shared state (SVar) or without sharing the state.
 --
 {-# INLINE foldrSWith #-}
-foldrSWith :: IsStream t
-    => (forall r. State Stream m b
-        -> (b -> t m b -> m r)
+foldrSWith ::
+    (forall r. State Stream m b
+        -> (b -> Stream m b -> m r)
         -> (b -> m r)
         -> m r
-        -> t m b
+        -> Stream m b
         -> m r)
-    -> (a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrSWith f step final = go
+    -> (a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
+foldrSWith f step final m = go m
     where
     go m1 = mkStream $ \st yld sng stp ->
         let run x = f st yld sng stp x
@@ -480,7 +339,11 @@ foldrSWith f step final = go
 
 -- | Fold sharing the SVar state within the reconstructed stream
 {-# INLINE_NORMAL foldrSShared #-}
-foldrSShared :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrSShared ::
+       (a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
 foldrSShared = foldrSWith foldStreamShared
 
 -- XXX consM is a typeclass method, therefore rewritten already. Instead maybe
@@ -495,7 +358,11 @@ foldrSShared = foldrSWith foldStreamShared
 
 -- | Lazy right associative fold to a stream.
 {-# INLINE_NORMAL foldrS #-}
-foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrS ::
+       (a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
 foldrS = foldrSWith foldStream
 
 {-# RULES "foldrS/id"     foldrS cons nil = \x -> x #-}
@@ -512,15 +379,18 @@ foldrS = foldrSWith foldStream
 -------------------------------------------------------------------------------
 
 {-# INLINE foldrSMWith #-}
-foldrSMWith :: (IsStream t, Monad m)
+foldrSMWith :: Monad m
     => (forall r. State Stream m b
-        -> (b -> t m b -> m r)
+        -> (b -> Stream m b -> m r)
         -> (b -> m r)
         -> m r
-        -> t m b
+        -> Stream m b
         -> m r)
-    -> (m a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrSMWith f step final = go
+    -> (m a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
+foldrSMWith f step final m = go m
     where
     go m1 = mkStream $ \st yld sng stp ->
         let run x = f st yld sng stp x
@@ -530,8 +400,11 @@ foldrSMWith f step final = go
          in foldStream (adaptState st) yieldk single stop m1
 
 {-# INLINE_NORMAL foldrSM #-}
-foldrSM :: (IsStream t, Monad m)
-    => (m a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrSM :: Monad m
+    => (m a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
 foldrSM = foldrSMWith foldStream
 
 -- {-# RULES "foldrSM/id"     foldrSM consM nil = \x -> x #-}
@@ -542,8 +415,11 @@ foldrSM = foldrSMWith foldStream
 
 -- Like foldrSM but sharing the SVar state within the recostructed stream.
 {-# INLINE_NORMAL foldrSMShared #-}
-foldrSMShared :: (IsStream t, Monad m)
-    => (m a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrSMShared :: Monad m
+    => (m a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
 foldrSMShared = foldrSMWith foldStreamShared
 
 -- {-# RULES "foldrSM/id"     foldrSM consM nil = \x -> x #-}
@@ -559,7 +435,7 @@ foldrSMShared = foldrSMWith foldStreamShared
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL build #-}
-build :: IsStream t => forall a. (forall b. (a -> b -> b) -> b -> b) -> t m a
+build :: forall m a. (forall b. (a -> b -> b) -> b -> b) -> Stream m a
 build g = g cons nil
 
 {-# RULES "foldrM/build"
@@ -584,37 +460,46 @@ build g = g cons nil
 
 -- build a stream by applying cons and nil to a build function
 {-# INLINE_NORMAL buildS #-}
-buildS :: IsStream t => ((a -> t m a -> t m a) -> t m a -> t m a) -> t m a
+buildS ::
+       ((a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+    -> Stream m a
 buildS g = g cons nil
 
 {-# RULES "foldrS/buildS"
-      forall k z (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+      forall k z
+        (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
       foldrS k z (buildS g) = g k z #-}
 
 {-# RULES "foldrS/cons/buildS"
-      forall k z x (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+      forall k z x
+        (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
       foldrS k z (x `cons` buildS g) = k x (g k z) #-}
 
 {-# RULES "foldrSShared/buildS"
-      forall k z (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+      forall k z
+        (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
       foldrSShared k z (buildS g) = g k z #-}
 
 {-# RULES "foldrSShared/cons/buildS"
-      forall k z x (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+      forall k z x
+        (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
       foldrSShared k z (x `cons` buildS g) = k x (g k z) #-}
 
 -- build a stream by applying consM and nil to a build function
 {-# INLINE_NORMAL buildSM #-}
-buildSM :: (IsStream t, MonadAsync m)
-    => ((m a -> t m a -> t m a) -> t m a -> t m a) -> t m a
+buildSM :: Monad m
+    => ((m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+    -> Stream m a
 buildSM g = g consM nil
 
 {-# RULES "foldrSM/buildSM"
-     forall k z (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+     forall k z
+        (g :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
      foldrSM k z (buildSM g) = g k z #-}
 
 {-# RULES "foldrSMShared/buildSM"
-     forall k z (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+     forall k z
+        (g :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
      foldrSMShared k z (buildSM g) = g k z #-}
 
 -- Disabled because this may not fire as consM is a class Op
@@ -629,71 +514,79 @@ buildSM g = g consM nil
 -- Build using monadic build functions (continuations) instead of
 -- reconstructing a stream.
 {-# INLINE_NORMAL buildM #-}
-buildM :: (IsStream t, MonadAsync m)
-    => (forall r. (a -> t m a -> m r)
+buildM :: Monad m
+    => (forall r. (a -> Stream m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r
        )
-    -> t m a
+    -> Stream m a
 buildM g = mkStream $ \st yld sng stp ->
     g (\a r -> foldStream st yld sng stp (return a `consM` r)) sng stp
 
 -- | Like 'buildM' but shares the SVar state across computations.
-{-# INLINE_NORMAL sharedM #-}
-sharedM :: (IsStream t, MonadAsync m)
-    => (forall r. (a -> t m a -> m r)
+{-# INLINE_NORMAL sharedMWith #-}
+sharedMWith :: Monad m
+    => (m a -> Stream m a -> Stream m a)
+    -> (forall r. (a -> Stream m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r
        )
-    -> t m a
-sharedM g = mkStream $ \st yld sng stp ->
-    g (\a r -> foldStreamShared st yld sng stp (return a `consM` r)) sng stp
+    -> Stream m a
+sharedMWith cns g = mkStream $ \st yld sng stp ->
+    g (\a r -> foldStreamShared st yld sng stp (return a `cns` r)) sng stp
 
 -------------------------------------------------------------------------------
 -- augment
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL augmentS #-}
-augmentS :: IsStream t
-    => ((a -> t m a -> t m a) -> t m a -> t m a) -> t m a -> t m a
-augmentS g = g cons
+augmentS ::
+       ((a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+augmentS g xs = g cons xs
 
 {-# RULES "augmentS/nil"
-    forall (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+    forall (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     augmentS g nil = buildS g
     #-}
 
 {-# RULES "foldrS/augmentS"
-    forall k z xs (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+    forall k z xs
+        (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     foldrS k z (augmentS g xs) = g k (foldrS k z xs)
     #-}
 
 {-# RULES "augmentS/buildS"
-    forall (g :: (a -> t m a -> t m a) -> t m a -> t m a)
-           (h :: (a -> t m a -> t m a) -> t m a -> t m a).
+    forall (g :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+           (h :: (a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     augmentS g (buildS h) = buildS (\c n -> g c (h c n))
     #-}
 
 {-# INLINE_NORMAL augmentSM #-}
-augmentSM :: (IsStream t, MonadAsync m)
-    => ((m a -> t m a -> t m a) -> t m a -> t m a) -> t m a -> t m a
-augmentSM g = g consM
+augmentSM :: Monad m =>
+       ((m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+    -> Stream m a -> Stream m a
+augmentSM g xs = g consM xs
 
 {-# RULES "augmentSM/nil"
-    forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    forall
+        (g :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     augmentSM g nil = buildSM g
     #-}
 
 {-# RULES "foldrSM/augmentSM"
-    forall k z xs (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    forall k z xs
+        (g :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     foldrSM k z (augmentSM g xs) = g k (foldrSM k z xs)
     #-}
 
 {-# RULES "augmentSM/buildSM"
-    forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a)
-           (h :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    forall
+        (g :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a)
+        (h :: (m a -> Stream m a -> Stream m a) -> Stream m a -> Stream m a).
     augmentSM g (buildSM h) = buildSM (\c n -> g c (h c n))
     #-}
 
@@ -703,8 +596,8 @@ augmentSM g = g consM
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE_NORMAL foldrM #-}
-foldrM :: IsStream t => (a -> m b -> m b) -> m b -> t m a -> m b
-foldrM step acc = go
+foldrM :: (a -> m b -> m b) -> m b -> Stream m a -> m b
+foldrM step acc m = go m
     where
     go m1 =
         let stop = acc
@@ -715,14 +608,14 @@ foldrM step acc = go
 {-# INLINE_NORMAL foldrMKWith #-}
 foldrMKWith
     :: (State Stream m a
-        -> (a -> t m a -> m b)
+        -> (a -> Stream m a -> m b)
         -> (a -> m b)
         -> m b
-        -> t m a
+        -> Stream m a
         -> m b)
     -> (a -> m b -> m b)
     -> m b
-    -> ((a -> t m a -> m b) -> (a -> m b) -> m b -> m b)
+    -> ((a -> Stream m a -> m b) -> (a -> m b) -> m b -> m b)
     -> m b
 foldrMKWith f step acc = go
     where
@@ -742,7 +635,7 @@ foldrMKWith f step acc = go
 -- XXX in which case will foldrM/buildM fusion be useful?
 {-# RULES "foldrM/buildM"
     forall step acc (g :: (forall r.
-           (a -> t m a -> m r)
+           (a -> Stream m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r
@@ -750,15 +643,17 @@ foldrMKWith f step acc = go
     foldrM step acc (buildM g) = foldrMKWith foldStream step acc g
     #-}
 
+{-
 {-# RULES "foldrM/sharedM"
     forall step acc (g :: (forall r.
-           (a -> t m a -> m r)
+           (a -> Stream m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r
        )).
     foldrM step acc (sharedM g) = foldrMKWith foldStreamShared step acc g
     #-}
+-}
 
 ------------------------------------------------------------------------------
 -- Left fold
@@ -771,12 +666,12 @@ foldrMKWith f step acc = go
 --
 -- Note that the accumulator is always evaluated including the initial value.
 {-# INLINE foldlx' #-}
-foldlx' :: forall t m a b x. (IsStream t, Monad m)
-    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldlx' :: forall m a b x. Monad m
+    => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
 foldlx' step begin done m = get $ go m begin
     where
     {-# NOINLINE get #-}
-    get :: t m x -> m b
+    get :: Stream m x -> m b
     get m1 =
         -- XXX we are not strictly evaluating the accumulator here. Is this
         -- okay?
@@ -788,7 +683,7 @@ foldlx' step begin done m = get $ go m begin
     -- however that is more expensive because of unnecessary recursion
     -- that cannot be tail call optimized. Unfolding recursion explicitly via
     -- continuations is much more efficient.
-    go :: t m a -> x -> t m x
+    go :: Stream m a -> x -> Stream m x
     go m1 !acc = mkStream $ \_ yld sng _ ->
         let stop = sng acc
             single a = sng $ step acc a
@@ -799,8 +694,43 @@ foldlx' step begin done m = get $ go m begin
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
-foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
+foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' step begin = foldlx' step begin id
+
+------------------------------------------------------------------------------
+-- Specialized folds
+------------------------------------------------------------------------------
+
+-- XXX use foldrM to implement folds where possible
+-- XXX This (commented) definition of drain and mapM_ perform much better on
+-- some benchmarks but worse on others. Need to investigate why, may there is
+-- an optimization opportunity that we can exploit.
+-- drain = foldrM (\_ xs -> return () >> xs) (return ())
+
+-- |
+-- > drain = foldl' (\_ _ -> ()) ()
+-- > drain = mapM_ (\_ -> return ())
+{-# INLINE drain #-}
+drain :: Monad m => Stream m a -> m ()
+drain = foldrM (\_ xs -> xs) (return ())
+{-
+drain = go
+    where
+    go m1 =
+        let stop = return ()
+            single _ = return ()
+            yieldk _ r = go r
+         in foldStream defState yieldk single stop m1
+-}
+
+{-# INLINE null #-}
+null :: Monad m => Stream m a -> m Bool
+-- null = foldrM (\_ _ -> return True) (return False)
+null m =
+    let stop      = return True
+        single _  = return False
+        yieldk _ _ = return False
+    in foldStream defState yieldk single stop m
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -811,19 +741,8 @@ infixr 6 `serial`
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
--- >>> import Streamly.Prelude (serial)
--- >>> stream1 = Stream.fromList [1,2]
--- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ stream1 `serial` stream2
--- [1,2,3,4]
---
--- This operation can be used to fold an infinite lazy container of streams.
---
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
 {-# INLINE serial #-}
-serial :: IsStream t => t m a -> t m a -> t m a
+serial :: Stream m a -> Stream m a -> Stream m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
 -- serial xs ys = augmentS (\c n -> foldrS c n xs) ys
 serial m1 m2 = go m1
@@ -836,7 +755,7 @@ serial m1 m2 = go m1
 
 -- join/merge/append streams depending on consM
 {-# INLINE conjoin #-}
-conjoin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+conjoin :: Monad m => Stream m a -> Stream m a -> Stream m a
 conjoin xs = augmentSM (\c n -> foldrSM c n xs)
 
 instance Semigroup (Stream m a) where
@@ -856,10 +775,13 @@ instance Monoid (Stream m a) where
 
 -- Note eta expanded
 {-# INLINE_LATE mapFB #-}
-mapFB :: forall (t :: (Type -> Type) -> Type -> Type) b m a.
-    (b -> t m b -> t m b) -> (a -> b) -> a -> t m b -> t m b
-mapFB c f x ys = c (f x) ys
-#undef Type
+mapFB :: forall b m a.
+       (b -> Stream m b -> Stream m b)
+    -> (a -> b)
+    -> a
+    -> Stream m b
+    -> Stream m b
+mapFB c f = \x ys -> c (f x) ys
 
 {-# RULES
 "mapFB/mapFB" forall c f g. mapFB (mapFB c f) g = mapFB c (f . g)
@@ -867,7 +789,7 @@ mapFB c f x ys = c (f x) ys
     #-}
 
 {-# INLINE map #-}
-map :: IsStream t => (a -> b) -> t m a -> t m b
+map :: (a -> b) -> Stream m a -> Stream m b
 map f xs = buildS (\c n -> foldrS (mapFB c f) n xs)
 
 -- XXX This definition might potentially be more efficient, but the cost in the
@@ -898,21 +820,6 @@ mapMFB c f x = c (x >>= f)
 "mapMFB/return"  forall c.     mapMFB c (\x -> return x) = c
 -}
 
--- Be careful when modifying this, this uses a consM (|:) deliberately to allow
--- other stream types to overload it.
-{-# INLINE mapM #-}
-mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
-mapM f = foldrSShared (\x xs -> f x `consM` xs) nil
--- See note under map definition above.
-{-
-mapM f m = go m
-    where
-    go m1 = mkStream $ \st yld sng stp ->
-        let single a  = f a >>= sng
-            yieldk a r = foldStreamShared st yld sng stp $ f a |: go r
-         in foldStream (adaptState st) yieldk single stp m1
-         -}
-
 -- This is experimental serial version supporting fusion.
 --
 -- XXX what if we do not want to fuse two concurrent mapMs?
@@ -921,8 +828,26 @@ mapM f m = go m
 -- XXX fusion would be easier for monomoprhic stream types.
 -- {-# RULES "mapM serial" mapM = mapMSerial #-}
 {-# INLINE mapMSerial #-}
-mapMSerial :: MonadAsync m => (a -> m b) -> Stream m a -> Stream m b
+mapMSerial :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapMSerial f xs = buildSM (\c n -> foldrSMShared (mapMFB c f) n xs)
+
+{-# INLINE mapMWith #-}
+mapMWith ::
+       (m b -> Stream m b -> Stream m b)
+    -> (a -> m b)
+    -> Stream m a
+    -> Stream m b
+mapMWith cns f = foldrSShared (\x xs -> f x `cns` xs) nil
+
+{-
+-- See note under map definition above.
+mapMWith cns f = go
+    where
+    go m1 = mkStream $ \st yld sng stp ->
+        let single a  = f a >>= sng
+            yieldk a r = foldStreamShared st yld sng stp $ f a `cns` go r
+         in foldStream (adaptState st) yieldk single stp m1
+-}
 
 -- XXX in fact use the Stream type everywhere and only use polymorphism in the
 -- high level modules/prelude.
@@ -943,18 +868,17 @@ instance MonadTrans Stream where
 
 -- | Detach a stream from an SVar
 {-# INLINE unShare #-}
-unShare :: IsStream t => t m a -> t m a
+unShare :: Stream m a -> Stream m a
 unShare x = mkStream $ \st yld sng stp ->
     foldStream st yld sng stp x
 
 -- XXX the function stream and value stream can run in parallel
 {-# INLINE apWith #-}
-apWith
-    :: IsStream t
-    => (t m b -> t m b -> t m b)
-    -> t m (a -> b)
-    -> t m a
-    -> t m b
+apWith ::
+       (Stream m b -> Stream m b -> Stream m b)
+    -> Stream m (a -> b)
+    -> Stream m a
+    -> Stream m b
 apWith par fstream stream = go1 fstream
 
     where
@@ -973,11 +897,10 @@ apWith par fstream stream = go1 fstream
             in foldStream (adaptState st) yieldk single stp m
 
 {-# INLINE apSerial #-}
-apSerial
-    :: IsStream t
-    => t m (a -> b)
-    -> t m a
-    -> t m b
+apSerial ::
+       Stream m (a -> b)
+    -> Stream m a
+    -> Stream m b
 apSerial fstream stream = go1 fstream
 
     where
@@ -1004,11 +927,10 @@ apSerial fstream stream = go1 fstream
             in foldStream (adaptState st) yieldk single stp m
 
 {-# INLINE apSerialDiscardFst #-}
-apSerialDiscardFst
-    :: IsStream t
-    => t m a
-    -> t m b
-    -> t m b
+apSerialDiscardFst ::
+       Stream m a
+    -> Stream m b
+    -> Stream m b
 apSerialDiscardFst fstream stream = go1 fstream
 
     where
@@ -1029,11 +951,10 @@ apSerialDiscardFst fstream stream = go1 fstream
             in foldStream st yieldk single stop m
 
 {-# INLINE apSerialDiscardSnd #-}
-apSerialDiscardSnd
-    :: IsStream t
-    => t m a
-    -> t m b
-    -> t m a
+apSerialDiscardSnd ::
+       Stream m a
+    -> Stream m b
+    -> Stream m a
 apSerialDiscardSnd fstream stream = go1 fstream
 
     where
@@ -1059,17 +980,16 @@ apSerialDiscardSnd fstream stream = go1 fstream
                 yieldk _ r = yld f (go3 f r)
             in foldStream (adaptState st) yieldk single stp m
 
--- XXX This is just concatMapBy with arguments flipped. We need to keep this
+-- XXX This is just concatMapWith with arguments flipped. We need to keep this
 -- instead of using a concatMap style definition because the bind
 -- implementation in Async and WAsync streams show significant perf degradation
 -- if the argument order is changed.
 {-# INLINE bindWith #-}
-bindWith
-    :: IsStream t
-    => (t m b -> t m b -> t m b)
-    -> t m a
-    -> (a -> t m b)
-    -> t m b
+bindWith ::
+       (Stream m b -> Stream m b -> Stream m b)
+    -> Stream m a
+    -> (a -> Stream m b)
+    -> Stream m b
 bindWith par m1 f = go m1
     where
         go m =
@@ -1094,21 +1014,18 @@ bindWith par m1 f = go m1
 -- function.
 --
 -- @since 0.7.0
-{-# INLINE concatMapBy #-}
-concatMapBy
-    :: IsStream t
-    => (t m b -> t m b -> t m b)
-    -> (a -> t m b)
-    -> t m a
-    -> t m b
-concatMapBy par f xs = bindWith par xs f
+{-# INLINE concatMapWith #-}
+concatMapWith
+    ::
+       (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> Stream m a
+    -> Stream m b
+concatMapWith par f xs = bindWith par xs f
 
 {-# INLINE concatMap #-}
-concatMap :: IsStream t => (a -> t m b) -> t m a -> t m b
-concatMap f m = fromStream $
-    concatMapBy serial
-        (adapt . toStream . f)
-        (adapt $ toStream m)
+concatMap :: (a -> Stream m b) -> Stream m a -> Stream m b
+concatMap = concatMapWith serial
 
 {-
 -- Fused version.
@@ -1133,11 +1050,11 @@ concatMap_ f xs = buildS
 --
 {-# INLINE concatPairsWith #-}
 concatPairsWith
-    :: IsStream t
-    => (t m b -> t m b -> t m b)
-    -> (a -> t m b)
-    -> t m a
-    -> t m b
+    ::
+       (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> Stream m a
+    -> Stream m b
 concatPairsWith combine f = go Nothing
 
     where
@@ -1195,3 +1112,194 @@ concatUnfoldr :: IsStream t
     => (b -> t m (Maybe (a, b))) -> t m b -> t m a
 concatUnfoldr = undefined
 -}
+
+------------------------------------------------------------------------------
+-- MonadReader
+------------------------------------------------------------------------------
+
+{-# INLINABLE withLocal #-}
+withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
+withLocal f m =
+    mkStream $ \st yld sng stp ->
+        let single = local f . sng
+            yieldk a r = local f $ yld a (withLocal f r)
+        in foldStream st yieldk single (local f stp) m
+
+-------------------------------------------------------------------------------
+-- Generation
+-------------------------------------------------------------------------------
+
+{-# INLINE unfoldr #-}
+unfoldr :: (b -> Maybe (a, b)) -> b -> Stream m a
+unfoldr next s0 = build $ \yld stp ->
+    let go s =
+            case next s of
+                Just (a, b) -> yld a (go b)
+                Nothing -> stp
+    in go s0
+
+{-# INLINE unfoldrMWith #-}
+unfoldrMWith :: Monad m =>
+       (m a -> Stream m a -> Stream m a)
+    -> (b -> m (Maybe (a, b)))
+    -> b
+    -> Stream m a
+unfoldrMWith cns step = go
+
+    where
+
+    go s = sharedMWith cns $ \yld _ stp -> do
+                r <- step s
+                case r of
+                    Just (a, b) -> yld a (go b)
+                    Nothing -> stp
+
+-- | Generate an infinite stream by repeating a pure value.
+--
+-- /Pre-release/
+{-# INLINE repeat #-}
+repeat :: a -> Stream m a
+repeat a = let x = cons a x in x
+
+-- | Like 'repeatM' but takes a stream 'cons' operation to combine the actions
+-- in a stream specific manner. A serial cons would repeat the values serially
+-- while an async cons would repeat concurrently.
+--
+-- /Pre-release/
+repeatMWith :: (m a -> t m a -> t m a) -> m a -> t m a
+repeatMWith cns = go
+
+    where
+
+    go m = m `cns` go m
+
+{-# INLINE replicateMWith #-}
+replicateMWith :: (m a -> Stream m a -> Stream m a) -> Int -> m a -> Stream m a
+replicateMWith cns n m = go n
+
+    where
+
+    go cnt = if cnt <= 0 then nil else m `cns` go (cnt - 1)
+
+{-# INLINE fromIndicesMWith #-}
+fromIndicesMWith ::
+    (m a -> Stream m a -> Stream m a) -> (Int -> m a) -> Stream m a
+fromIndicesMWith cns gen = go 0
+
+    where
+
+    go i = mkStream $ \st stp sng yld -> do
+        foldStreamShared st stp sng yld (gen i `cns` go (i + 1))
+
+{-# INLINE iterateMWith #-}
+iterateMWith :: Monad m =>
+    (m a -> Stream m a -> Stream m a) -> (a -> m a) -> m a -> Stream m a
+iterateMWith cns step = go
+
+    where
+
+    go s = mkStream $ \st stp sng yld -> do
+        !next <- s
+        foldStreamShared st stp sng yld (return next `cns` go (step next))
+
+{-# INLINE headPartial #-}
+headPartial :: Monad m => Stream m a -> m a
+headPartial = foldrM (\x _ -> return x) (error "head of nil")
+
+{-# INLINE tailPartial #-}
+tailPartial :: Stream m a -> Stream m a
+tailPartial m = mkStream $ \st yld sng stp ->
+    let stop      = error "tail of nil"
+        single _  = stp
+        yieldk _ r = foldStream st yld sng stp r
+    in foldStream st yieldk single stop m
+
+{-# INLINE mfix #-}
+mfix :: Monad m => (m a -> Stream m a) -> Stream m a
+mfix f = mkStream $ \st yld sng stp ->
+    let single a  = foldStream st yld sng stp $ a `cons` ys
+        yieldk a _ = foldStream st yld sng stp $ a `cons` ys
+    in foldStream st yieldk single stp xs
+
+    where
+
+    -- fix the head element of the stream
+    xs = fix  (f . headPartial)
+
+    -- now fix the tail recursively
+    ys = mfix (tailPartial . f)
+
+-------------------------------------------------------------------------------
+-- Conversions
+-------------------------------------------------------------------------------
+
+-- |
+-- @
+-- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
+-- @
+--
+-- Construct a stream from a 'Foldable' containing pure values:
+--
+-- @since 0.2.0
+{-# INLINE fromFoldable #-}
+fromFoldable :: Foldable f => f a -> Stream m a
+fromFoldable = Prelude.foldr cons nil
+
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: (Foldable f, Monad m) => f (m a) -> Stream m a
+fromFoldableM = Prelude.foldr consM nil
+
+-------------------------------------------------------------------------------
+-- Deconstruction
+-------------------------------------------------------------------------------
+
+{-# INLINE uncons #-}
+uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+uncons m =
+    let stop = return Nothing
+        single a = return (Just (a, nil))
+        yieldk a r = return (Just (a, r))
+    in foldStream defState yieldk single stop m
+
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
+tail =
+    let stop      = return Nothing
+        single _  = return $ Just nil
+        yieldk _ r = return $ Just r
+    in foldStream defState yieldk single stop
+
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> m (Maybe (Stream m a))
+init = go1
+    where
+    go1 m1 = do
+        r <- uncons m1
+        case r of
+            Nothing -> return Nothing
+            Just (h, t) -> return . Just $ go h t
+    go p m1 = mkStream $ \_ yld sng stp ->
+        let single _ = sng p
+            yieldk a x = yld p $ go a x
+         in foldStream defState yieldk single stp m1
+
+------------------------------------------------------------------------------
+-- Reordering
+------------------------------------------------------------------------------
+
+-- | Lazy left fold to a stream.
+{-# INLINE foldlS #-}
+foldlS ::
+    (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+foldlS step = go
+    where
+    go acc rest = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
+            stop = run acc
+            single a = run $ step acc a
+            yieldk a r = run $ go (step acc a) r
+         in foldStream (adaptState st) yieldk single stop rest
+
+{-# INLINE reverse #-}
+reverse :: Stream m a -> Stream m a
+reverse = foldlS (flip cons) nil

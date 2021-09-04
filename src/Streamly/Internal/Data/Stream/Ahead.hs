@@ -22,10 +22,10 @@
 --
 module Streamly.Internal.Data.Stream.Ahead
     (
-      AheadT
+      AheadT(..)
     , Ahead
-    , fromAhead
-    , ahead
+    , aheadK
+    , consM
     )
 where
 
@@ -52,10 +52,9 @@ import qualified Data.Heap as H
 
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, RunInIO(..), captureMonadState)
-import Streamly.Internal.Data.Stream.StreamK.Type
-    (IsStream(..), Stream, mkStream, foldStream, foldStreamShared)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -321,7 +320,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             let stop = do
                   liftIO (incrementYieldLimit sv)
                   nextHeap seqNo
-            foldStreamShared st
+            K.foldStreamShared st
                           (yieldStreamFromHeap seqNo)
                           (singleStreamFromHeap seqNo)
                           stop
@@ -380,7 +379,7 @@ processWithoutToken q heap st sv winfo m seqNo = do
         mrun = runInIO $ svarMrun sv
 
     r <- liftIO $ mrun $
-            foldStreamShared st
+            K.foldStreamShared st
                 (\a r -> do
                     runIn <- captureMonadState
                     toHeap $ AheadEntryStream (runIn, K.cons a r))
@@ -451,7 +450,7 @@ processWithToken q heap st sv winfo action sno = do
         mrun = runInIO $ svarMrun sv
 
     r <- liftIO $ mrun $
-        foldStreamShared st (yieldOutput sno) (singleOutput sno) stop action
+        K.foldStreamShared st (yieldOutput sno) (singleOutput sno) stop action
 
     res <- restoreM r
     case res of
@@ -479,7 +478,7 @@ processWithToken q heap st sv winfo action sno = do
             let stop = do
                     liftIO (incrementYieldLimit sv)
                     return $ TokenContinue (seqNo + 1)
-            foldStreamShared st
+            K.foldStreamShared st
                           (yieldOutput seqNo)
                           (singleOutput seqNo)
                           stop
@@ -513,7 +512,7 @@ processWithToken q heap st sv winfo action sno = do
                                 return $ TokenContinue (seqNo + 1)
                             mrun = runInIO $ svarMrun sv
                         r <- liftIO $ mrun $
-                            foldStreamShared st
+                            K.foldStreamShared st
                                           (yieldOutput seqNo)
                                           (singleOutput seqNo)
                                           stop
@@ -604,80 +603,36 @@ workLoopAhead q heap st sv winfo = do
 
 -- The only difference between forkSVarAsync and this is that we run the left
 -- computation without a shared SVar.
-forkSVarAhead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-forkSVarAhead m1 m2 = mkStream $ \st yld sng stp -> do
-        sv <- newAheadVar st (concurrently (toStream m1) (toStream m2))
+forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+forkSVarAhead m1 m2 = K.mkStream $ \st yld sng stp -> do
+        sv <- newAheadVar st (concurrently m1 m2)
                           workLoopAhead
-        foldStream st yld sng stp (fromSVar sv)
+        K.foldStream st yld sng stp $ getSerialT (fromSVar sv)
     where
-    concurrently ma mb = mkStream $ \st yld sng stp -> do
+    concurrently ma mb = K.mkStream $ \st yld sng stp -> do
         runInIO <- captureMonadState
         liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
-        foldStream st yld sng stp ma
+        K.foldStream st yld sng stp ma
 
-infixr 6 `ahead`
-
--- | Appends two streams, both the streams may be evaluated concurrently but
--- the outputs are used in the same order as the corresponding actions in the
--- original streams, side effects will happen in the order in which the streams
--- are evaluated:
---
--- >>> import Streamly.Prelude (ahead, SerialT)
--- >>> stream1 = Stream.fromEffect (delay 4) :: SerialT IO Int
--- >>> stream2 = Stream.fromEffect (delay 2) :: SerialT IO Int
--- >>> Stream.toList $ stream1 `ahead` stream2 :: IO [Int]
--- 2 sec
--- 4 sec
--- [4,2]
---
--- Multiple streams can be combined. With enough threads, all of them can be
--- scheduled simultaneously:
---
--- >>> stream3 = Stream.fromEffect (delay 1)
--- >>> Stream.toList $ stream1 `ahead` stream2 `ahead` stream3
--- 1 sec
--- 2 sec
--- 4 sec
--- [4,2,1]
---
--- With 2 threads, only two can be scheduled at a time, when one of those
--- finishes, the third one gets scheduled:
---
--- >>> Stream.toList $ Stream.maxThreads 2 $ stream1 `ahead` stream2 `ahead` stream3
--- 2 sec
--- 1 sec
--- 4 sec
--- [4,2,1]
---
--- Only streams are scheduled for ahead evaluation, how actions within a stream
--- are evaluated depends on the stream type. If it is a concurrent stream they
--- will be evaluated concurrently. It may not make much sense combining serial
--- streams using 'ahead'.
---
--- 'ahead' can be safely used to fold an infinite lazy container of streams.
---
--- /Since: 0.3.0 ("Streamly")/
---
--- @since 0.8.0
-{-# INLINE ahead #-}
-ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-ahead m1 m2 = mkStream $ \st yld sng stp ->
+{-# INLINE aheadK #-}
+aheadK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+aheadK m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
             runInIO <- captureMonadState
-            liftIO $ enqueue sv (runInIO, toStream m2)
+            liftIO $ enqueue sv (runInIO, m2)
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
-            foldStream st yld sng stp m1
-        _ -> foldStreamShared st yld sng stp (forkSVarAhead m1 m2)
+            K.foldStream st yld sng stp m1
+        _ -> K.foldStreamShared st yld sng stp (forkSVarAhead m1 m2)
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
-{-# INLINE consMAhead #-}
-{-# SPECIALIZE consMAhead :: IO a -> AheadT IO a -> AheadT IO a #-}
-consMAhead :: MonadAsync m => m a -> AheadT m a -> AheadT m a
-consMAhead m r = fromStream $ K.fromEffect m `ahead` toStream r
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
+consM :: MonadAsync m => m a -> AheadT m a -> AheadT m a
+consM m (AheadT r) = AheadT $ aheadK (K.fromEffect m) r
 
 ------------------------------------------------------------------------------
 -- AheadT
@@ -737,66 +692,58 @@ newtype AheadT m a = AheadT {getAheadT :: Stream m a}
 -- @since 0.8.0
 type Ahead = AheadT IO
 
--- | Fix the type of a polymorphic stream as 'AheadT'.
---
--- /Since: 0.3.0 ("Streamly")/
---
--- @since 0.8.0
-fromAhead :: IsStream t => AheadT m a -> t m a
-fromAhead = K.adapt
-
-instance IsStream AheadT where
-    toStream = getAheadT
-    fromStream = AheadT
-    consM = consMAhead
-    (|:) = consMAhead
-
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
-{-# INLINE mappendAhead #-}
-{-# SPECIALIZE mappendAhead :: AheadT IO a -> AheadT IO a -> AheadT IO a #-}
-mappendAhead :: MonadAsync m => AheadT m a -> AheadT m a -> AheadT m a
-mappendAhead m1 m2 = fromStream $ ahead (toStream m1) (toStream m2)
+{-# INLINE append #-}
+{-# SPECIALIZE append :: AheadT IO a -> AheadT IO a -> AheadT IO a #-}
+append :: MonadAsync m => AheadT m a -> AheadT m a -> AheadT m a
+append (AheadT m1) (AheadT m2) = AheadT $ aheadK m1 m2
 
 instance MonadAsync m => Semigroup (AheadT m a) where
-    (<>) = mappendAhead
+    (<>) = append
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (AheadT m a) where
-    mempty = K.nil
+    mempty = AheadT K.nil
     mappend = (<>)
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+{-# INLINE apAhead #-}
+apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
+apAhead (AheadT m1) (AheadT m2) =
+    let f x1 = K.concatMapWith aheadK (pure . x1) m2
+    in AheadT $ K.concatMapWith aheadK f m1
+
+instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
+    {-# INLINE pure #-}
+    pure = AheadT . K.fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = apAhead
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-{-# INLINE concatMapAhead #-}
-{-# SPECIALIZE concatMapAhead :: (a -> AheadT IO b) -> AheadT IO a -> AheadT IO b #-}
-concatMapAhead :: MonadAsync m => (a -> AheadT m b) -> AheadT m a -> AheadT m b
-concatMapAhead f m = fromStream $
-    K.concatMapBy ahead (K.adapt . f) (K.adapt m)
-
-{-# INLINE apAhead #-}
-apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
-apAhead (AheadT m1) (AheadT m2) =
-        let f x1 = K.concatMapBy ahead (pure . x1) m2
-         in AheadT $ K.concatMapBy ahead f m1
-
-instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
-    {-# INLINE pure #-}
-    pure = AheadT . K.fromPure
-    {-# INLINE (<*>) #-}
-    (<*>) = apAhead
+{-# INLINE bindAhead #-}
+{-# SPECIALIZE bindAhead ::
+    AheadT IO a -> (a -> AheadT IO b) -> AheadT IO b #-}
+bindAhead :: MonadAsync m => AheadT m a -> (a -> AheadT m b) -> AheadT m b
+bindAhead (AheadT m) f = AheadT $ K.bindWith aheadK m (getAheadT . f)
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
+
     {-# INLINE (>>=) #-}
-    (>>=) = flip concatMapAhead
+    (>>=) = bindAhead
 
 ------------------------------------------------------------------------------
 -- Other instances

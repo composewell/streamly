@@ -29,8 +29,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.StreamD (toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamD, toStreamD)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -53,7 +53,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- @since 0.7.0
 {-# INLINE before #-}
 before :: (IsStream t, Monad m) => m b -> t m a -> t m a
-before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
+before action xs = fromStreamD $ D.before action $ toStreamD xs
 
 -- | Like 'after', with following differences:
 --
@@ -70,7 +70,7 @@ before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 --
 {-# INLINE after_ #-}
 after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
-after_ action xs = D.fromStreamD $ D.after_ action $ D.toStreamD xs
+after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @t m a@ stops normally, or if it
 -- is garbage collected after a partial lazy evaluation.
@@ -85,7 +85,7 @@ after_ action xs = D.fromStreamD $ D.after_ action $ D.toStreamD xs
 {-# INLINE after #-}
 after :: (IsStream t, MonadIO m, MonadBaseControl IO m)
     => m b -> t m a -> t m a
-after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
+after action xs = fromStreamD $ D.after action $ toStreamD xs
 
 -- | Run the action @m b@ if the stream aborts due to an exception. The
 -- exception is not caught, simply rethrown.
@@ -95,7 +95,7 @@ after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 -- @since 0.7.0
 {-# INLINE onException #-}
 onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
-onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
+onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 
 -- | Like 'finally' with following differences:
 --
@@ -110,7 +110,7 @@ onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 --
 {-# INLINE finally_ #-}
 finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
-finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
+finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @t m a@ stops normally, aborts
 -- due to an exception or if it is garbage collected after a partial lazy
@@ -131,7 +131,7 @@ finally_ action xs = D.fromStreamD $ D.finally_ action $ D.toStreamD xs
 --
 {-# INLINE finally #-}
 finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
-finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
+finally action xs = fromStreamD $ D.finally action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
 --
@@ -148,7 +148,7 @@ finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 {-# INLINE bracket_ #-}
 bracket_ :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
-bracket_ bef aft bet = D.fromStreamD $
+bracket_ bef aft bet = fromStreamD $
     D.bracket_ bef aft (toStreamD . bet)
 
 -- | Run the alloc action @m b@ with async exceptions disabled but keeping
@@ -193,7 +193,7 @@ bracket bef aft = bracket' bef aft aft aft
 {-# INLINE bracket' #-}
 bracket' :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> t m a) -> t m a
-bracket' bef aft gc exc bet = D.fromStreamD $
+bracket' bef aft gc exc bet = fromStreamD $
     D.bracket' bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
@@ -212,9 +212,9 @@ bracket' bef aft gc exc bet = D.fromStreamD $
 ghandle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a -> t m a) -> t m a -> t m a
 ghandle handler =
-      D.fromStreamD
-    . D.ghandle (\e xs -> D.toStreamD $ handler e (D.fromStreamD xs))
-    . D.toStreamD
+      fromStreamD
+    . D.ghandle (\e xs -> toStreamD $ handler e (fromStreamD xs))
+    . toStreamD
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
@@ -226,7 +226,7 @@ ghandle handler =
 handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a) -> t m a -> t m a
 handle handler xs =
-    D.fromStreamD $ D.handle (D.toStreamD . handler) $ D.toStreamD xs
+    fromStreamD $ D.handle (toStreamD . handler) $ toStreamD xs
 
 
 -- | @retry@ takes 3 arguments
@@ -269,4 +269,4 @@ retry :: (IsStream t, MonadCatch m, Exception e, Ord e)
     -> t m a
     -> t m a
 retry emap handler inp =
-    D.fromStreamD $ D.retry emap (D.toStreamD . handler) $ D.toStreamD inp
+    fromStreamD $ D.retry emap (toStreamD . handler) $ toStreamD inp

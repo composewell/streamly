@@ -82,8 +82,6 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     -- * Conversions
     , fromStreamK
     , toStreamK
-    , fromStreamD
-    , toStreamD
     )
 where
 

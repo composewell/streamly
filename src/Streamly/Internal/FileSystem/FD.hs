@@ -135,12 +135,11 @@ import Streamly.Internal.Data.Array.Foreign.Type
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
-
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, mkStream, fromStreamD)
 #if !defined(mingw32_HOST_OS)
+import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
 import Streamly.Internal.System.IOVec (groupIOVecsOf)
-import Streamly.Internal.Data.Stream.StreamD (toStreamD)
-import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.Internal.FileSystem.FDIO as RawIO hiding (write)
 import qualified Streamly.Internal.System.IOVec.Type as RawIO
 #endif
@@ -290,7 +289,7 @@ _readArraysOfUpto size h = go
 {-# INLINE_NORMAL readArraysOfUpto #-}
 readArraysOfUpto :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
-readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
+readArraysOfUpto size h = fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do

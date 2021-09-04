@@ -110,25 +110,26 @@ import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
 import Streamly.Internal.BaseCompat
-import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Unfold as UF
 
 -- $setup
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
@@ -219,7 +220,7 @@ _toChunksWithBufferOf size h = go
 {-# INLINE_NORMAL toChunksWithBufferOf #-}
 toChunksWithBufferOf :: (IsStream t, MonadIO m) =>
     Int -> Handle -> t m (Array Word8)
-toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
+toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do

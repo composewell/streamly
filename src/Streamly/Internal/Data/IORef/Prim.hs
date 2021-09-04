@@ -35,7 +35,6 @@ module Streamly.Internal.Data.IORef.Prim
 
     -- * Read
     , readIORef
-    , toStream
     , toStreamD
     )
 where
@@ -48,7 +47,6 @@ import Data.Primitive.Types (Prim, sizeOf#, readByteArray#, writeByteArray#)
 import GHC.Exts (MutableByteArray#, newByteArray#, RealWorld)
 import GHC.IO (IO(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | An 'IORef' holds a single 'Prim' value.
@@ -100,11 +98,3 @@ toStreamD var = D.Stream step ()
 
     {-# INLINE_LATE step #-}
     step _ () = liftIO (readIORef var) >>= \x -> return $ D.Yield x ()
-
--- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
---
--- /Pre-release/
---
-{-# INLINE toStream #-}
-toStream :: (K.IsStream t, MonadIO m, Prim a) => IORef a -> t m a
-toStream = D.fromStreamD . toStreamD

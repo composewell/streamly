@@ -39,8 +39,6 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     -- * Conversions From/To
     , fromStreamK
     , toStreamK
-    , toStreamD
-    , fromStreamD
 
     -- * Running a 'Fold'
     , fold
@@ -58,6 +56,9 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , foldlM'
     , foldlx'
     , foldlMx'
+
+    -- * Special Folds
+    , drain
 
     -- * To Containers
     , toList
@@ -239,7 +240,7 @@ fromStreamK = Stream step
 toStreamK :: Monad m => Stream m a -> K.Stream m a
 toStreamK (Stream step state) = go state
     where
-    go st = K.mkStream $ \gst yld _ stp ->
+    go st = K.MkStream $ \gst yld _ stp ->
       let go' ss = do
            r <- step gst ss
            case r of
@@ -254,16 +255,6 @@ toStreamK (Stream step state) = go state
 {-# RULES "toStreamK/fromStreamK fusion"
     forall s. fromStreamK (toStreamK s) = s #-}
 #endif
-
--- XXX Rename to toStream or move to some IsStream common module
-{-# INLINE fromStreamD #-}
-fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
-fromStreamD = K.fromStream . toStreamK
-
--- XXX Rename to toStream or move to some IsStream common module
-{-# INLINE toStreamD #-}
-toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
-toStreamD = fromStreamK . K.toStream
 
 ------------------------------------------------------------------------------
 -- Running a 'Fold'
@@ -442,6 +433,23 @@ foldlM' fstep mbegin (Stream step state) = do
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep begin = foldlM' (\b a -> return (fstep b a)) (return begin)
+
+------------------------------------------------------------------------------
+-- Special folds
+------------------------------------------------------------------------------
+
+-- | Run a streaming composition, discard the results.
+{-# INLINE_LATE drain #-}
+drain :: Monad m => Stream m a -> m ()
+-- drain = foldrM (\_ xs -> xs) (return ())
+drain (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+        r <- step defState st
+        case r of
+            Yield _ s -> go SPEC s
+            Skip s    -> go SPEC s
+            Stop      -> return ()
 
 ------------------------------------------------------------------------------
 -- To Containers

@@ -86,24 +86,25 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly.Internal.BaseCompat
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
-import Streamly.Internal.Data.Stream.IsStream (MonadAsync)
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
+import Streamly.Internal.Data.Fold (Fold)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
-import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Unfold as UF
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from
@@ -343,7 +344,7 @@ _readChunksUptoWith f size h = go
 toChunksWithBufferOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
 -- toChunksWithBufferOf = _readChunksUptoWith readChunk
-toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
+toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
     where
     {-# INLINE_LATE step #-}
     step _ _ = do

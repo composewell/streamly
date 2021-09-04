@@ -16,21 +16,28 @@
 module Streamly.Internal.Data.Stream.Serial
     (
     -- * Serial appending stream
-      SerialT
+      SerialT(..)
     , Serial
-    , K.serial
-    , fromSerial
+    , serial
 
     -- * Serial interleaving stream
-    , WSerialT
+    , WSerialT(..)
     , WSerial
+    , wSerialK
     , wSerial
     , wSerialFst
     , wSerialMin
-    , fromWSerial
+    , consMWSerial
 
     -- * Construction
+    , cons
+    , consM
+    , repeat
     , unfoldrM
+    , fromList
+
+    -- * Elimination
+    , toList
 
     -- * Transformation
     , map
@@ -39,8 +46,6 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Deprecated
     , StreamT
     , InterleavedT
-    , (<=>)
-    , interleaving
     )
 where
 
@@ -67,18 +72,16 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
-import Streamly.Internal.Data.Stream.StreamK.Type
-       (IsStream(..), adapt, Stream, mkStream, foldStream)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
+import Streamly.Internal.Data.Stream.StreamK.Type
+       (Stream, mkStream, foldStream)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-    (cmpBy, foldl', foldr, eqBy, fromList, toList)
-import qualified Streamly.Internal.Data.Stream.StreamK as K (withLocal)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D (unfoldrM)
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (map, mapM, errorWithoutStackTrace)
+import Prelude hiding (map, mapM, errorWithoutStackTrace, repeat)
 
 #include "Instances.hs"
 #include "inline.hs"
@@ -136,24 +139,33 @@ type Serial = SerialT IO
 {-# DEPRECATED StreamT "Please use 'SerialT' instead." #-}
 type StreamT = SerialT
 
--- | Fix the type of a polymorphic stream as 'SerialT'.
---
--- /Since: 0.1.0 ("Streamly")/
---
--- @since 0.8.0
-fromSerial :: IsStream t => SerialT m a -> t m a
-fromSerial = adapt
+------------------------------------------------------------------------------
+-- Generation
+------------------------------------------------------------------------------
 
-{-# INLINE consMSerial #-}
-{-# SPECIALIZE consMSerial :: IO a -> SerialT IO a -> SerialT IO a #-}
-consMSerial :: Monad m => m a -> SerialT m a -> SerialT m a
-consMSerial m ms = fromStream $ K.consMStream m (toStream ms)
+{-# INLINE cons #-}
+cons :: a -> SerialT m a -> SerialT m a
+cons x (SerialT ms) = SerialT $ K.cons x ms
 
-instance IsStream SerialT where
-    toStream = getSerialT
-    fromStream = SerialT
-    consM = consMSerial
-    (|:) = consMSerial
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+consM :: Monad m => m a -> SerialT m a -> SerialT m a
+consM m (SerialT ms) = SerialT $ K.consM m ms
+
+-- |
+-- Generate an infinite stream by repeating a pure value.
+--
+{-# INLINE_NORMAL repeat #-}
+repeat :: Monad m => a -> SerialT m a
+repeat = SerialT . D.toStreamK . D.repeat
+
+------------------------------------------------------------------------------
+-- Combining
+------------------------------------------------------------------------------
+
+{-# INLINE serial #-}
+serial :: SerialT m a -> SerialT m a -> SerialT m a
+serial = (<>)
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -173,7 +185,7 @@ instance Monad m => Monad (SerialT m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) = K.bindWith K.serial
+    (>>=) (SerialT m) f = SerialT $ K.bindWith K.serial m (getSerialT . f)
 
     {-# INLINE (>>) #-}
     (>>)  = (*>)
@@ -183,8 +195,8 @@ instance Monad m => Monad (SerialT m) where
 ------------------------------------------------------------------------------
 
 {-# INLINE mapM #-}
-mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
-mapM f m = D.fromStreamD $ D.mapM f $ D.toStreamD m
+mapM :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
+mapM f (SerialT m) = SerialT $ D.toStreamK $ D.mapM f $ D.fromStreamK m
 
 -- |
 -- @
@@ -200,23 +212,23 @@ mapM f m = D.fromStreamD $ D.mapM f $ D.toStreamD m
 --
 -- @since 0.4.0
 {-# INLINE map #-}
-map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
+map :: Monad m => (a -> b) -> SerialT m a -> SerialT m b
 map f = mapM (return . f)
 
 {-# INLINE apSerial #-}
 apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
 apSerial (SerialT m1) (SerialT m2) =
-    D.fromStreamD $ D.toStreamD m1 <*> D.toStreamD m2
+    SerialT $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
 
 {-# INLINE apSequence #-}
 apSequence :: Monad m => SerialT m a -> SerialT m b -> SerialT m b
 apSequence (SerialT m1) (SerialT m2) =
-    D.fromStreamD $ D.toStreamD m1 *> D.toStreamD m2
+    SerialT $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
 
 {-# INLINE apDiscardSnd #-}
 apDiscardSnd :: Monad m => SerialT m a -> SerialT m b -> SerialT m a
 apDiscardSnd (SerialT m1) (SerialT m2) =
-    D.fromStreamD $ D.toStreamD m1 <* D.toStreamD m2
+    SerialT $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
@@ -285,7 +297,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- @2@:
 --
 -- >>> import Streamly.Prelude (wSerial)
--- >>> Stream.toList $ Stream.fromList [(1,3),(1,4)] `wSerial` Stream.fromList [(2,3),(2,4)]
+-- >>> Stream.toList $ Stream.fromList [(1,3),(1,4)] `Stream.wSerial` Stream.fromList [(2,3),(2,4)]
 -- [(1,3),(2,3),(1,4),(2,4)]
 --
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
@@ -310,37 +322,10 @@ type WSerial = WSerialT IO
 {-# DEPRECATED InterleavedT "Please use 'WSerialT' instead." #-}
 type InterleavedT = WSerialT
 
--- | Fix the type of a polymorphic stream as 'WSerialT'.
---
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
-fromWSerial :: IsStream t => WSerialT m a -> t m a
-fromWSerial = adapt
-
--- | Same as 'fromWSerial'.
---
--- @since 0.1.0
-{-# DEPRECATED interleaving "Please use fromWSerial instead." #-}
-interleaving :: IsStream t => WSerialT m a -> t m a
-interleaving = fromWSerial
-
+{-# INLINE consMWSerial #-}
+{-# SPECIALIZE consMWSerial :: IO a -> WSerialT IO a -> WSerialT IO a #-}
 consMWSerial :: Monad m => m a -> WSerialT m a -> WSerialT m a
-consMWSerial m ms = fromStream $ K.consMStream m (toStream ms)
-
-instance IsStream WSerialT where
-    toStream = getWSerialT
-    fromStream = WSerialT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
-    consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    consM = consMWSerial
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
-    (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    (|:) = consMWSerial
+consMWSerial m (WSerialT ms) = WSerialT $ K.consM m ms
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -355,25 +340,17 @@ infixr 6 `wSerial`
 --
 -- Similar combinators can be implemented using WAhead style.
 
+{-# INLINE wSerialK #-}
+wSerialK :: Stream m a -> Stream m a -> Stream m a
+wSerialK m1 m2 = mkStream $ \st yld sng stp -> do
+    let stop       = foldStream st yld sng stp m2
+        single a   = yld a m2
+        yieldk a r = yld a (wSerialK m2 r)
+    foldStream st yieldk single stop m1
+
 -- | Interleaves two streams, yielding one element from each stream
 -- alternately.  When one stream stops the rest of the other stream is used in
 -- the output stream.
---
--- >>> import Streamly.Prelude (wSerial)
--- >>> stream1 = Stream.fromList [1,2]
--- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ Stream.fromWSerial $ stream1 `wSerial` stream2
--- [1,3,2,4]
---
--- Note, for singleton streams 'wSerial' and 'serial' are identical.
---
--- Note that this operation cannot be used to fold a container of infinite
--- streams but it can be used for very large streams as the state that it needs
--- to maintain is proportional to the logarithm of the number of streams.
---
--- @since 0.8.0
---
--- /Since: 0.2.0 ("Streamly")/
 
 -- Scheduling Notes:
 --
@@ -387,19 +364,15 @@ infixr 6 `wSerial`
 -- each subexpression on the right.
 --
 {-# INLINE wSerial #-}
-wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = mkStream $ \st yld sng stp -> do
-    let stop       = foldStream st yld sng stp m2
-        single a   = yld a m2
-        yieldk a r = yld a (wSerial m2 r)
-    foldStream st yieldk single stop m1
+wSerial :: WSerialT m a -> WSerialT m a -> WSerialT m a
+wSerial (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialK m1 m2
 
 -- | Like `wSerial` but stops interleaving as soon as the first stream stops.
 --
 -- @since 0.7.0
-{-# INLINE wSerialFst #-}
-wSerialFst :: IsStream t => t m a -> t m a -> t m a
-wSerialFst m1 m2 = mkStream $ \st yld sng stp -> do
+{-# INLINE wSerialFstK #-}
+wSerialFstK :: Stream m a -> Stream m a -> Stream m a
+wSerialFstK m1 m2 = mkStream $ \st yld sng stp -> do
     let yieldFirst a r = yld a (yieldSecond r m2)
      in foldStream st yieldFirst sng stp m1
 
@@ -408,49 +381,47 @@ wSerialFst m1 m2 = mkStream $ \st yld sng stp -> do
     yieldSecond s1 s2 = mkStream $ \st yld sng stp -> do
             let stop       = foldStream st yld sng stp s1
                 single a   = yld a s1
-                yieldk a r = yld a (wSerial s1 r)
+                yieldk a r = yld a (wSerialK s1 r)
              in foldStream st yieldk single stop s2
+
+{-# INLINE wSerialFst #-}
+wSerialFst :: WSerialT m a -> WSerialT m a -> WSerialT m a
+wSerialFst (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialFstK m1 m2
 
 -- | Like `wSerial` but stops interleaving as soon as any of the two streams
 -- stops.
 --
 -- @since 0.7.0
-{-# INLINE wSerialMin #-}
-wSerialMin :: IsStream t => t m a -> t m a -> t m a
-wSerialMin m1 m2 = mkStream $ \st yld _ stp -> do
+{-# INLINE wSerialMinK #-}
+wSerialMinK :: Stream m a -> Stream m a -> Stream m a
+wSerialMinK m1 m2 = mkStream $ \st yld _ stp -> do
     let stop       = stp
         -- "single a" is defined as "yld a (wSerialMin m2 K.nil)" instead of
         -- "sng a" to keep the behaviour consistent with the yield continuation.
-        single a   = yld a (wSerialMin m2 K.nil)
-        yieldk a r = yld a (wSerialMin m2 r)
+        single a   = yld a (wSerialMinK m2 K.nil)
+        yieldk a r = yld a (wSerialMinK m2 r)
     foldStream st yieldk single stop m1
+
+{-# INLINE wSerialMin #-}
+wSerialMin :: WSerialT m a -> WSerialT m a -> WSerialT m a
+wSerialMin (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialMinK m1 m2
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
-
-infixr 5 <=>
-
--- | Same as 'wSerial'.
---
--- @since 0.1.0
-{-# DEPRECATED (<=>) "Please use 'wSerial' instead." #-}
-{-# INLINE (<=>) #-}
-(<=>) :: IsStream t => t m a -> t m a -> t m a
-(<=>) = wSerial
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
 instance Monoid (WSerialT m a) where
-    mempty = K.nil
+    mempty = WSerialT K.nil
     mappend = (<>)
 
 {-# INLINE apWSerial #-}
 apWSerial :: Monad m => WSerialT m (a -> b) -> WSerialT m a -> WSerialT m b
 apWSerial (WSerialT m1) (WSerialT m2) =
-    let f x1 = K.concatMapBy wSerial (pure . x1) m2
-    in WSerialT $ K.concatMapBy wSerial f m1
+    let f x1 = K.concatMapWith wSerialK (pure . x1) m2
+    in WSerialT $ K.concatMapWith wSerialK f m1
 
 instance Monad m => Applicative (WSerialT m) where
     {-# INLINE pure #-}
@@ -465,7 +436,7 @@ instance Monad m => Applicative (WSerialT m) where
 instance Monad m => Monad (WSerialT m) where
     return = pure
     {-# INLINE (>>=) #-}
-    (>>=) = K.bindWith wSerial
+    (>>=) (WSerialT m) f = WSerialT $ K.bindWith wSerialK m (getWSerialT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -503,5 +474,5 @@ TRAVERSABLE_INSTANCE(WSerialT)
 -- /Pre-release/
 --
 {-# INLINE unfoldrM #-}
-unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldrM step seed = D.fromStreamD (D.unfoldrM step seed)
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
+unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)

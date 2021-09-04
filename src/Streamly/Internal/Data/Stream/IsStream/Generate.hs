@@ -18,10 +18,10 @@
 module Streamly.Internal.Data.Stream.IsStream.Generate
     (
     -- * Primitives
-      K.nil
-    , K.nilM
-    , K.cons
-    , (K..:)
+      IsStream.nil
+    , IsStream.nilM
+    , IsStream.cons
+    , (IsStream..:)
 
     , consM
     , (|:)
@@ -68,17 +68,18 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , iterateM
 
     -- * Cyclic Elements
-    , K.mfix
+    , mfix
 
     -- * From Containers
-    , P.fromList
+    , IsStream.fromList
     , fromListM
-    , K.fromFoldable
+    , fromFoldable
     , fromFoldableM
     , fromCallback
+    , fromPrimIORef
 
     -- * Deprecated
-    , K.once
+    , once
     , yield
     , yieldM
     , each
@@ -90,6 +91,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Primitive.Types (Prim)
 import Data.Void (Void)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
@@ -99,20 +101,21 @@ import Streamly.Internal.Data.Stream.IsStream.Enumeration
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( absTimesWith, concatM, relTimesWith, timesWith, fromPure, fromEffect
     , yield, yieldM, repeatM)
-import Streamly.Internal.Data.Stream.Prelude (fromStreamS)
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
-import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream (..), fromSerial, consM, fromStreamD, fromStreamS)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..), WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 
+import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as S
 #endif
@@ -217,8 +220,9 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 --
 -- /Since: 0.1.0/
 {-# INLINE_EARLY unfoldrM #-}
-unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldrM = K.unfoldrM
+unfoldrM :: forall t m a b. (IsStream t, MonadAsync m) =>
+    (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM step = fromStream . K.unfoldrMWith (IsStream.toConsK (consM @t)) step
 
 {-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
 {-# INLINE_EARLY unfoldrMSerial #-}
@@ -228,12 +232,13 @@ unfoldrMSerial = Serial.unfoldrM
 {-# RULES "unfoldrM wSerial" unfoldrM = unfoldrMWSerial #-}
 {-# INLINE_EARLY unfoldrMWSerial #-}
 unfoldrMWSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> WSerialT m a
-unfoldrMWSerial = Serial.unfoldrM
+unfoldrMWSerial f = fromSerial . Serial.unfoldrM f
 
 {-# RULES "unfoldrM zipSerial" unfoldrM = unfoldrMZipSerial #-}
 {-# INLINE_EARLY unfoldrMZipSerial #-}
-unfoldrMZipSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
-unfoldrMZipSerial = Serial.unfoldrM
+unfoldrMZipSerial :: MonadAsync m =>
+    (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
+unfoldrMZipSerial f = fromSerial . Serial.unfoldrM f
 
 ------------------------------------------------------------------------------
 -- From Values
@@ -275,8 +280,9 @@ replicate n = fromStreamS . S.replicate n
 --
 -- @since 0.1.1
 {-# INLINE_EARLY replicateM #-}
-replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
-replicateM = K.replicateM
+replicateM :: forall t m a. (IsStream t, MonadAsync m) => Int -> m a -> t m a
+replicateM count =
+    fromStream . K.replicateMWith (IsStream.toConsK (consM @t)) count
 
 {-# RULES "replicateM serial" replicateM = replicateMSerial #-}
 {-# INLINE replicateMSerial #-}
@@ -422,8 +428,9 @@ fromIndices = fromStreamS . S.fromIndices
 --
 -- @since 0.6.0
 {-# INLINE_EARLY fromIndicesM #-}
-fromIndicesM :: (IsStream t, MonadAsync m) => (Int -> m a) -> t m a
-fromIndicesM = K.fromIndicesM
+fromIndicesM :: forall t m a. (IsStream t, MonadAsync m) =>
+    (Int -> m a) -> t m a
+fromIndicesM = fromStream . K.fromIndicesMWith (IsStream.toConsK (consM @t))
 
 {-# RULES "fromIndicesM serial" fromIndicesM = fromIndicesMSerial #-}
 {-# INLINE fromIndicesMSerial #-}
@@ -482,17 +489,89 @@ iterate step = fromStreamS . S.iterate step
 --
 -- /Since: 0.7.0 (signature change)/
 {-# INLINE_EARLY iterateM #-}
-iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
-iterateM = K.iterateM
+iterateM :: forall t m a. (IsStream t, MonadAsync m) =>
+    (a -> m a) -> m a -> t m a
+iterateM f = fromStream . K.iterateMWith (IsStream.toConsK (consM @t))  f
 
 {-# RULES "iterateM serial" iterateM = iterateMSerial #-}
 {-# INLINE iterateMSerial #-}
 iterateMSerial :: MonadAsync m => (a -> m a) -> m a -> SerialT m a
 iterateMSerial step = fromStreamS . S.iterateM step
 
+-- | We can define cyclic structures using @let@:
+--
+-- >>> let (a, b) = ([1, b], head a) in (a, b)
+-- ([1,1],1)
+--
+-- The function @fix@ defined as:
+--
+-- > fix f = let x = f x in x
+--
+-- ensures that the argument of a function and its output refer to the same
+-- lazy value @x@ i.e.  the same location in memory.  Thus @x@ can be defined
+-- in terms of itself, creating structures with cyclic references.
+--
+-- >>> import Data.Function (fix)
+-- >>> f ~(a, b) = ([1, b], head a)
+-- >>> fix f
+-- ([1,1],1)
+--
+-- 'Control.Monad.mfix' is essentially the same as @fix@ but for monadic
+-- values.
+--
+-- Using 'mfix' for streams we can construct a stream in which each element of
+-- the stream is defined in a cyclic fashion. The argument of the function
+-- being fixed represents the current element of the stream which is being
+-- returned by the stream monad. Thus, we can use the argument to construct
+-- itself.
+--
+-- In the following example, the argument @action@ of the function @f@
+-- represents the tuple @(x,y)@ returned by it in a given iteration. We define
+-- the first element of the tuple in terms of the second.
+--
+-- @
+-- import Streamly.Internal.Data.Stream.IsStream as Stream
+-- import System.IO.Unsafe (unsafeInterleaveIO)
+--
+-- main = do
+--     Stream.mapM_ print $ Stream.mfix f
+--
+--     where
+--
+--     f action = do
+--         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
+--         x <- Stream.fromListM [incr 1 action, incr 2 action]
+--         y <- Stream.fromList [4,5]
+--         return (x, y)
+-- @
+--
+-- Note: you cannot achieve this by just changing the order of the monad
+-- statements because that would change the order in which the stream elements
+-- are generated.
+--
+-- Note that the function @f@ must be lazy in its argument, that's why we use
+-- 'unsafeInterleaveIO' on @action@ because IO monad is strict.
+--
+-- /Pre-release/
+{-# INLINE mfix #-}
+mfix :: (IsStream t, Monad m) => (m a -> t m a) -> t m a
+mfix f = fromStream $ K.mfix (toStream . f)
+
 ------------------------------------------------------------------------------
 -- Conversions
 ------------------------------------------------------------------------------
+
+-- |
+-- @
+-- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
+-- @
+--
+-- Construct a stream from a 'Foldable' containing pure values:
+--
+-- @since 0.2.0
+{-# INLINE fromFoldable #-}
+fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
+fromFoldable = fromStream . K.fromFoldable
 
 -- |
 -- @
@@ -511,7 +590,7 @@ iterateMSerial step = fromStreamS . S.iterateM step
 -- @since 0.3.0
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
-fromFoldableM = Prelude.foldr consM K.nil
+fromFoldableM = Prelude.foldr consM IsStream.nil
 
 -- |
 -- @
@@ -526,7 +605,7 @@ fromFoldableM = Prelude.foldr consM K.nil
 fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
 fromListM = fromFoldableM
 {-# RULES "fromListM fallback to StreamK" [1]
-    forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
+    forall a. D.toStreamK (D.fromListM a) = K.fromFoldableM a #-}
 
 {-# RULES "fromListM serial" fromListM = fromListMSerial #-}
 {-# INLINE_EARLY fromListMSerial #-}
@@ -539,7 +618,7 @@ fromListMSerial = fromStreamD . D.fromListM
 {-# DEPRECATED each "Please use fromFoldable instead." #-}
 {-# INLINE each #-}
 each :: (IsStream t, Foldable f) => f a -> t m a
-each = K.fromFoldable
+each = fromFoldable
 
 -- | Read lines from an IO Handle into a stream of Strings.
 --
@@ -549,7 +628,7 @@ each = K.fromFoldable
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
-  go = K.mkStream $ \_ yld _ stp -> do
+  go = IsStream.mkStream $ \_ yld _ stp -> do
         eof <- liftIO $ IO.hIsEOF h
         if eof
         then stp
@@ -570,4 +649,20 @@ fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> SerialT m a
 fromCallback setCallback = concatM $ do
     (callback, stream) <- Par.newCallbackStream
     setCallback callback
-    return stream
+    return $ SerialT stream
+
+-- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
+--
+-- /Pre-release/
+--
+{-# INLINE fromPrimIORef #-}
+fromPrimIORef :: (IsStream t, MonadIO m, Prim a) => Prim.IORef a -> t m a
+fromPrimIORef = fromStreamD . Prim.toStreamD
+
+-- | Same as fromEffect
+--
+-- @since 0.2.0
+{-# DEPRECATED once "Please use fromEffect instead." #-}
+{-# INLINE once #-}
+once :: (Monad m, IsStream t) => m a -> t m a
+once = IsStream.fromEffect

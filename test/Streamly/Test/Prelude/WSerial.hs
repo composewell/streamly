@@ -60,7 +60,8 @@ interleaveCheck t f =
 wSerialMinLengthProp :: Property
 wSerialMinLengthProp =
     forAll (chooseInt (0, 10))
-        $ \len -> S.length (combined len) `shouldReturn` 2 * len + 1
+        $ \len ->
+            S.length (fromWSerial $ combined len) `shouldReturn` 2 * len + 1
 
     where
 

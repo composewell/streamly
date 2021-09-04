@@ -213,17 +213,16 @@ import Data.Semigroup (Semigroup(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Stream.Ahead
-import Streamly.Internal.Data.Stream.Async hiding (mkAsync)
+import Streamly.Internal.Data.Stream.Async
 import Streamly.Internal.Data.Stream.IsStream.Combinators
-import Streamly.Internal.Data.Stream.Parallel
-import Streamly.Internal.Data.Stream.Serial
-import Streamly.Internal.Data.Stream.StreamK hiding (serial)
+import Streamly.Internal.Data.Stream.IsStream.Expand
+import Streamly.Internal.Data.Stream.IsStream.Type
+import Streamly.Internal.Data.Stream.Serial (StreamT, InterleavedT)
 import Streamly.Internal.Data.Stream.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 
 -- XXX provide good succinct examples of pipelining, merging, splitting etc.
 -- below.
@@ -364,7 +363,7 @@ import qualified Streamly.Internal.Data.Stream.Async as Async
 -- @since 0.1.0
 {-# DEPRECATED runStreaming "Please use runStream instead." #-}
 runStreaming :: (Monad m, IsStream t) => t m a -> m ()
-runStreaming = P.drain . K.adapt
+runStreaming = P.drain . adapt
 
 -- | Same as @runStream@.
 --
@@ -384,35 +383,35 @@ runStream = P.drain
 -- @since 0.1.0
 {-# DEPRECATED runInterleavedT "Please use 'drain . interleaving' instead." #-}
 runInterleavedT :: Monad m => WSerialT m a -> m ()
-runInterleavedT = P.drain . K.adapt
+runInterleavedT = P.drain . adapt
 
 -- | Same as @drain . fromParallel@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runParallelT "Please use 'drain . fromParallel' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
-runParallelT = P.drain . K.adapt
+runParallelT = P.drain . adapt
 
 -- | Same as @drain . fromAsync@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runAsyncT "Please use 'drain . fromAsync' instead." #-}
 runAsyncT :: Monad m => AsyncT m a -> m ()
-runAsyncT = P.drain . K.adapt
+runAsyncT = P.drain . adapt
 
 -- | Same as @drain . zipping@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runZipStream "Please use 'drain . fromZipSerial instead." #-}
 runZipStream :: Monad m => ZipSerialM m a -> m ()
-runZipStream = P.drain . K.adapt
+runZipStream = P.drain . adapt
 
 -- | Same as @drain . zippingAsync@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runZipAsync "Please use 'drain . fromZipAsync instead." #-}
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
-runZipAsync = P.drain . K.adapt
+runZipAsync = P.drain . adapt
 
 {-
 -- | Same as "Streamly.Prelude.foldWith".
@@ -451,7 +450,7 @@ forEachWith = P.forEachWith
 -- @since 0.2.0
 {-# INLINABLE mkAsync #-}
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
-mkAsync = return . Async.mkAsync
+mkAsync = return . Transform.mkAsync
 
 ------------------------------------------------------------------------------
 -- Documentation

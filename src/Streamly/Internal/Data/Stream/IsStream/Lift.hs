@@ -28,10 +28,9 @@ import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor.Identity (Identity (..))
-import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamS, toStreamS, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #ifdef USE_STREAMK_ONLY

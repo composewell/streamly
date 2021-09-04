@@ -26,6 +26,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , fold_
 
     -- * Transformation
+    , map
     , scanlMAfter'
     , postscanlM'
     , smapM
@@ -39,11 +40,20 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , reverse
     , reverse'
 
+    -- * Concurrent
+    , mkAsync
+    , mkParallel
+    , parallelFst
+
     -- * Nesting
     , concatM
     , concatMapM
     , concatMap
     , splitOnSeq
+
+    -- * Zipping
+    , zipWithM
+    , zipWith
 
     -- * Deprecated
     , yield
@@ -60,15 +70,15 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
-import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), fromStreamD, toStreamD, fromStreamS, toStreamS)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.StreamK.Type (IsStream())
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamK as K (repeatM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #ifdef USE_STREAMK_ONLY
@@ -76,8 +86,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
+import Streamly.Internal.System.IO (defaultChunkSize)
 
-import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
+import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 
 --
 -- $setup
@@ -124,7 +135,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap)
 --
 {-# INLINE fromPure #-}
 fromPure :: IsStream t => a -> t m a
-fromPure = K.fromPure
+fromPure = fromStream . K.fromPure
 
 -- | Same as 'fromPure'
 --
@@ -151,7 +162,7 @@ yield = fromPure
 --
 {-# INLINE fromEffect #-}
 fromEffect :: (Monad m, IsStream t) => m a -> t m a
-fromEffect = K.fromEffect
+fromEffect = fromStream . K.fromEffect
 
 -- | Same as 'fromEffect'
 --
@@ -179,7 +190,7 @@ yieldM = fromEffect
 -- @since 0.2.0
 {-# INLINE_EARLY repeatM #-}
 repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
-repeatM = K.repeatM
+repeatM = K.repeatMWith IsStream.consM
 
 {-# RULES "repeatM serial" repeatM = repeatMSerial #-}
 {-# INLINE repeatMSerial #-}
@@ -286,12 +297,29 @@ fold fl strm = do
 {-# INLINE fold_ #-}
 fold_ :: Monad m => Fold m a b -> SerialT m a -> m (b, SerialT m a)
 fold_ fl strm = do
-    (b, str) <- D.fold_ fl $ D.toStreamD strm
-    return $! (b, D.fromStreamD str)
+    (b, str) <- D.fold_ fl $ IsStream.toStreamD strm
+    return $! (b, IsStream.fromStreamD str)
 
 ------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
+
+-- |
+-- @
+-- map = fmap
+-- @
+--
+-- Same as 'fmap'.
+--
+-- @
+-- > S.toList $ S.map (+1) $ S.fromList [1,2,3]
+-- [2,3,4]
+-- @
+--
+-- @since 0.4.0
+{-# INLINE map #-}
+map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
+map f = fromStreamD . D.map f . toStreamD
 
 -- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
 -- that it provides an additional @done@ function to be applied on the
@@ -366,7 +394,7 @@ smapM step initial stream =
                 (\(s, _) a -> step s a)
                 (fmap (,undefined) initial)
                 stream
-     in Serial.map snd r
+     in map snd r
 
 ------------------------------------------------------------------------------
 -- Transformation - Trimming
@@ -439,7 +467,7 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 interjectSuffix
     :: (IsStream t, MonadAsync m)
     => Double -> m a -> t m a -> t m a
-interjectSuffix n f xs = xs `Par.parallelFst` repeatM timed
+interjectSuffix n f xs = xs `parallelFst` repeatM timed
     where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 ------------------------------------------------------------------------------
@@ -469,7 +497,59 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 -- /Pre-release/
 {-# INLINE reverse' #-}
 reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
-reverse' s = fromStreamD $ D.reverse' $ toStreamD s
+-- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
+reverse' =
+        fromStreamD
+        . A.flattenArraysRev -- unfoldMany A.readRev
+        . D.fromStreamK
+        . K.reverse
+        . D.toStreamK
+        . A.arraysOf defaultChunkSize
+        . toStreamD
+
+------------------------------------------------------------------------------
+-- Concurrent Transformations and Combining
+------------------------------------------------------------------------------
+
+-- | Make the stream producer and consumer run concurrently by introducing a
+-- buffer between them. The producer thread evaluates the input stream until
+-- the buffer fills, it terminates if the buffer is full and a worker thread is
+-- kicked off again to evaluate the remaining stream when there is space in the
+-- buffer.  The consumer consumes the stream lazily from the buffer.
+--
+-- /Since: 0.2.0 (Streamly)/
+--
+-- @since 0.8.0
+--
+{-# INLINE_NORMAL mkAsync #-}
+mkAsync :: (IsStream t, MonadAsync m) => t m a -> t m a
+mkAsync = fromStreamD . Async.mkAsyncD . toStreamD
+
+-- Compare with mkAsync. mkAsync uses an Async style SVar whereas this uses a
+-- parallel style SVar for evaluation. Currently, parallel style cannot use
+-- rate control whereas Async style can use rate control. In async style SVar
+-- the worker thread terminates when the buffer is full whereas in Parallel
+-- style it blocks.
+--
+-- | Make the stream producer and consumer run concurrently by introducing a
+-- buffer between them. The producer thread evaluates the input stream until
+-- the buffer fills, it blocks if the buffer is full until there is space in
+-- the buffer. The consumer consumes the stream lazily from the buffer.
+--
+-- @mkParallel = IsStream.fromStreamD . mkParallelD . IsStream.toStreamD@
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL mkParallel #-}
+mkParallel :: (IsStream t, MonadAsync m) => t m a -> t m a
+mkParallel = fromStreamD . Par.mkParallelD . toStreamD
+
+-- | Like `parallel` but stops the output as soon as the first stream stops.
+--
+-- /Pre-release/
+{-# INLINE parallelFst #-}
+parallelFst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelFst m1 m2 = fromStream $ Par.parallelFstK (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Combine streams and flatten
@@ -575,4 +655,37 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOnSeq patt f m = D.fromStreamD $ D.splitOnSeq patt f (D.toStreamD m)
+splitOnSeq patt f m =
+    IsStream.fromStreamD $ D.splitOnSeq patt f (IsStream.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Zipping
+------------------------------------------------------------------------------
+
+-- | Like 'zipWith' but using a monadic zipping function.
+--
+-- @since 0.4.0
+{-# INLINABLE zipWithM #-}
+zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipWithM f m1 m2 =
+    IsStream.fromStreamS
+        $ S.zipWithM f (IsStream.toStreamS m1) (IsStream.toStreamS m2)
+
+-- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
+-- elements @a@ and @b@ are then zipped using the supplied zip function and the
+-- result @c@ is yielded to the consumer.
+--
+-- If stream @a@ or stream @b@ ends, the zipped stream ends. If stream @b@ ends
+-- first, the element @a@ from previous evaluation of stream @a@ is discarded.
+--
+-- @
+-- > S.toList $ S.zipWith (+) (S.fromList [1,2,3]) (S.fromList [4,5,6])
+-- [5,7,9]
+-- @
+--
+-- @since 0.1.0
+{-# INLINABLE zipWith #-}
+zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 =
+    IsStream.fromStreamS
+        $ S.zipWith f (IsStream.toStreamS m1) (IsStream.toStreamS m2)

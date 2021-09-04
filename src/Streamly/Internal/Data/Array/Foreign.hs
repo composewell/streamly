@@ -141,7 +141,7 @@ import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -150,7 +150,6 @@ import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Producer.Type as Producer
@@ -176,9 +175,9 @@ plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
 -- /Pre-release/
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-fromStreamN n m = do
+fromStreamN n (SerialT m) = do
     when (n < 0) $ error "writeN: negative write count specified"
-    A.fromStreamDN n $ D.toStreamD m
+    A.fromStreamDN n $ D.fromStreamK m
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
@@ -191,8 +190,8 @@ fromStreamN n m = do
 -- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-fromStream = P.fold A.write
--- write m = A.fromStreamD $ D.toStreamD m
+fromStream (SerialT m) = P.fold A.write m
+-- write m = A.fromStreamD $ D.fromStreamK m
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -454,7 +453,7 @@ streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
 streamTransform f arr =
     P.fold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
-        $ f (A.toStream arr)
+        $ getSerialT $ f (A.toStream arr)
 
 -------------------------------------------------------------------------------
 -- Casts
@@ -527,7 +526,7 @@ unsafeAsCString arr act = do
 -- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-fold f arr = P.fold f (A.toStream arr :: Serial.SerialT m a)
+fold f arr = P.fold f (getSerialT (A.toStream arr))
 
 -- | Fold an array using a stream fold operation.
 --

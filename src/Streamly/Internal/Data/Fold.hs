@@ -143,7 +143,6 @@ module Streamly.Internal.Data.Fold
 
     -- ** Trimming
     , take
-    , takeInterval
 
     -- By elements
     , takeEndBy
@@ -215,7 +214,6 @@ module Streamly.Internal.Data.Fold
 
     -- ** Splitting
     , many
-    , intervalsOf
     , chunksOf
     , chunksBetween
 
@@ -252,12 +250,12 @@ import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Prelude
 
 import Prelude hiding
@@ -1690,7 +1688,7 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Pre-release/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = foldr K.cons K.nil
+toStream = fmap SerialT $ foldr K.cons K.nil
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -1708,4 +1706,4 @@ toStream = foldr K.cons K.nil
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = foldl' (flip K.cons) K.nil
+toStreamRev = fmap SerialT $ foldl' (flip K.cons) K.nil

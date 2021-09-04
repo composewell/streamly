@@ -32,6 +32,7 @@ import qualified Prelude as P
 import qualified Data.List as List
 
 import qualified Streamly.Internal.Control.Concurrent as S
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
@@ -127,7 +128,7 @@ unfoldr streamLen n = S.unfoldr step n
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: S.MonadAsync m => Int -> Int -> Stream m Int
-unfoldrM streamLen n = S.unfoldrM step n
+unfoldrM streamLen n = S.unfoldrMWith S.consM step n
     where
     step cnt =
         if cnt > n + streamLen
@@ -148,7 +149,7 @@ replicate = S.replicate
 
 {-# INLINE replicateM #-}
 replicateM :: S.MonadAsync m => Int -> Int -> Stream m Int
-replicateM streamLen = S.replicateM streamLen . return
+replicateM streamLen = S.replicateMWith S.consM streamLen . return
 
 {-# INLINE iterate #-}
 iterate :: Int -> Int -> Stream m Int
@@ -168,8 +169,11 @@ fromFoldableM streamLen n =
     Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
 
 {-# INLINABLE concatMapFoldableWith #-}
-concatMapFoldableWith :: (S.IsStream t, Foldable f)
-    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+concatMapFoldableWith :: Foldable f
+    => (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> f a
+    -> Stream m b
 concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
 
 {-# INLINE concatMapFoldableSerial #-}
@@ -202,13 +206,13 @@ uncons s = do
         Just (_, t) -> uncons t
 
 {-# INLINE init #-}
-init :: (Monad m, S.IsStream t) => t m a -> m ()
+init :: Monad m => Stream m a -> m ()
 init s = do
     t <- S.init s
     P.mapM_ S.drain t
 
 {-# INLINE tail #-}
-tail :: (Monad m, S.IsStream t) => t m a -> m ()
+tail :: Monad m => Stream m a -> m ()
 tail s = S.tail s >>= P.mapM_ tail
 
 {-# INLINE nullTail #-}
@@ -265,7 +269,7 @@ fmapK n = composeN n $ P.fmap (+ 1)
 
 {-# INLINE mapM #-}
 mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
-mapM n = composeN n $ S.mapM return
+mapM n = composeN n $ S.mapMWith S.consM return
 
 {-# INLINE mapMSerial #-}
 mapMSerial :: S.MonadAsync m => Int -> Stream m Int -> m ()
@@ -339,7 +343,8 @@ iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
 -- this is quadratic
 {-# INLINE iterateScan #-}
 iterateScan :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateScan iterStreamLen maxIters = iterateSource iterStreamLen (S.scanl' (+) 0) (maxIters `div` 10)
+iterateScan iterStreamLen maxIters =
+    iterateSource iterStreamLen (S.scanl' (+) 0) (maxIters `div` 10)
 
 -- this is quadratic
 {-# INLINE iterateDropWhileFalse #-}
@@ -349,23 +354,27 @@ iterateDropWhileFalse streamLen iterStreamLen maxIters =
 
 {-# INLINE iterateMapM #-}
 iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateMapM iterStreamLen maxIters = iterateSource iterStreamLen (S.mapM return) maxIters
+iterateMapM iterStreamLen =
+    iterateSource iterStreamLen (S.mapMWith S.consM return)
 
 {-# INLINE iterateFilterEven #-}
 iterateFilterEven :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateFilterEven iterStreamLen maxIters = iterateSource iterStreamLen (S.filter even) maxIters
+iterateFilterEven iterStreamLen = iterateSource iterStreamLen (S.filter even)
 
 {-# INLINE iterateTakeAll #-}
 iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateTakeAll streamLen iterStreamLen maxIters = iterateSource iterStreamLen (S.take streamLen) maxIters
+iterateTakeAll streamLen iterStreamLen =
+    iterateSource iterStreamLen (S.take streamLen)
 
 {-# INLINE iterateDropOne #-}
 iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateDropOne iterStreamLen maxIters = iterateSource iterStreamLen (S.drop 1) maxIters
+iterateDropOne iterStreamLen = iterateSource iterStreamLen (S.drop 1)
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileTrue streamLen iterStreamLen maxIters = iterateSource iterStreamLen (S.dropWhile (<= streamLen)) maxIters
+iterateDropWhileTrue :: S.MonadAsync m =>
+    Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileTrue streamLen iterStreamLen =
+    iterateSource iterStreamLen (S.dropWhile (<= streamLen))
 
 -------------------------------------------------------------------------------
 -- Zipping
@@ -471,7 +480,7 @@ sourceConcatMapId val n =
 {-# INLINE concatMapBySerial #-}
 concatMapBySerial :: Int -> Int -> Int -> IO ()
 concatMapBySerial outer inner n =
-    S.drain $ S.concatMapBy S.serial
+    S.drain $ S.concatMapWith S.serial
         (unfoldrM inner)
         (unfoldrM outer n)
 
@@ -681,7 +690,9 @@ o_1_space_concat streamLen =
 
         -- This is for comparison with concatMapFoldableWith
         , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
-            (S.drain . S.concatMapBy S.serial id . sourceConcatMapId streamLen)
+            (S.drain
+                . S.concatMapWith S.serial id
+                . sourceConcatMapId streamLen)
 
         , benchIOSrc1 "concatMapBy serial (n of 1)"
             (concatMapBySerial streamLen 1)

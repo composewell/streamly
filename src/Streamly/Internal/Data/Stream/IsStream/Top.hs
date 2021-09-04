@@ -61,9 +61,9 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
-import Streamly.Internal.Data.Stream.Prelude (foldl', fromList)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream(..), adapt, foldl', fromList)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
@@ -75,7 +75,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Reduce as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
@@ -272,7 +272,7 @@ innerJoin eq s1 s2 = do
     b <- s2
     if a `eq` b
     then return (a, b)
-    else StreamK.nil
+    else Stream.nil
 
 -- If the second stream is too big it can be partitioned based on hashes and
 -- then we can process one parition at a time.
@@ -338,8 +338,8 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
     let final = do
             r <- lift get
             if r
-            then StreamK.nil
-            else StreamK.fromPure Nothing
+            then Stream.nil
+            else Stream.fromPure Nothing
     b <- fmap Just (Stream.liftInner s2) <> final
     case b of
         Just b1 ->
@@ -347,7 +347,7 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
             then do
                 lift $ put True
                 return (a, Just b1)
-            else StreamK.nil
+            else Stream.nil
         Nothing -> return (a, Nothing)
 
 -- | Like 'outerJoin' but uses a hashmap for efficiency.
@@ -415,11 +415,11 @@ outerJoin eq s1 s =
         let final = do
                 r <- lift get
                 if r
-                then StreamK.nil
-                else StreamK.fromPure Nothing
+                then Stream.nil
+                else Stream.fromPure Nothing
         (_i, b) <-
-            Stream.indexed
-                $ fmap Just (Stream.liftInner (Array.toStream arr)) <> final
+            let stream = IsStream.fromSerial $ Array.toStream arr
+             in Stream.indexed $ fmap Just (Stream.liftInner stream) <> final
         case b of
             Just (b1, _used) ->
                 if a `eq` b1
@@ -428,7 +428,7 @@ outerJoin eq s1 s =
                     -- XXX Need to use a mutable array
                     -- when (not used) $ Array.writeIndex i True
                     return (Just a, Just b1)
-                else StreamK.nil
+                else Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set
@@ -496,7 +496,7 @@ intersectBy eq s1 s2 =
     concatM
         $ do
             -- This may work well when s2 is small
-            xs <- Stream.toListRev $ Stream.uniqBy eq $ StreamK.adapt s2
+            xs <- Stream.toListRev $ Stream.uniqBy eq $ adapt s2
             return $ Stream.filter (\x -> List.any (eq x) xs) s1
 
 -- | Like 'intersectBy' but works only on sorted streams.
@@ -546,7 +546,7 @@ differenceBy eq s1 s2 =
             -- not emitting an element if it was successfully deleted from s2.
             -- we will need a deleteBy that can return whether the element was
             -- deleted or not.
-            xs <- Stream.toList $ StreamK.adapt s1
+            xs <- Stream.toList $ adapt s1
             fmap fromList $ foldl' (flip (List.deleteBy eq)) xs s2
 
 -- | Like 'differenceBy' but works only on sorted streams.
@@ -585,7 +585,7 @@ unionBy :: (IsStream t, MonadAsync m, Semigroup (t m a)) =>
 unionBy eq s1 s2 =
     concatM
         $ do
-            xs <- Stream.toList $ StreamK.adapt s2
+            xs <- Stream.toList $ adapt s2
             -- XXX we can use postscanlMAfter' instead of IORef
             ref <- liftIO $ newIORef $! List.nubBy eq xs
             let f x = do
