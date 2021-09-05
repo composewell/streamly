@@ -238,7 +238,7 @@ common compile-options
       ghc-options:    -fno-ignore-asserts
 
     if flag(limit-build-mem)
-      ghc-options: +RTS -M512M -RTS
+        ghc-options: +RTS -M1000M -RTS
 
 common default-extensions
     default-extensions:

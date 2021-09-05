@@ -297,7 +297,10 @@ decode1 table state codep byte =
 -- Resumable UTF-8 decoding
 -------------------------------------------------------------------------------
 
+-- Strangely, GHCJS hangs linking template-haskell with this
+#ifndef __GHCJS__
 {-# ANN type UTF8DecodeState Fuse #-}
+#endif
 data UTF8DecodeState s a
     = UTF8DecodeInit s
     | UTF8DecodeInit1 s Word8
@@ -567,7 +570,9 @@ decodeUtf8Lax = decodeUtf8
 -- Decoding Array Streams
 -------------------------------------------------------------------------------
 
+#ifndef __GHCJS__
 {-# ANN type FlattenState Fuse #-}
+#endif
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s (ForeignPtr a) !(Ptr a) !(Ptr a)
@@ -777,10 +782,14 @@ ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
     x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
     x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
+#ifndef __GHCJS__
 {-# ANN type EncodeState Fuse #-}
+#endif
 data EncodeState s = EncodeState s !WList
 
+#ifndef __GHCJS__
 {-# ANN type InvalidAction Fuse #-}
+#endif
 data InvalidAction =
     DropInvalid | ErrorInvalid | IgnoreInvalid | ReplaceInvalid
 

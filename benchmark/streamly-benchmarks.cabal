@@ -510,6 +510,9 @@ benchmark Unicode.Char
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Char.hs
+  -- Takes too much memory for ghcjs
+  if impl(ghcjs)
+    buildable: false
 
 benchmark Unicode.Utf8
   import: bench-options
