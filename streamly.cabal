@@ -181,6 +181,11 @@ flag opt
   manual: True
   default: True
 
+flag limit-build-mem
+  description: Limits memory when building
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -231,6 +236,9 @@ common compile-options
 
     if flag(dev) || flag(debug)
       ghc-options:    -fno-ignore-asserts
+
+    if flag(limit-build-mem)
+      ghc-options: +RTS -M512M -RTS
 
 common default-extensions
     default-extensions:
