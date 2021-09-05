@@ -12,6 +12,8 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" || exit; pwd)
 SCRIPT_NAME=$(basename "$0")
 source "$SCRIPT_DIR/../benchmark/bench-report/bin/build-lib.sh"
 
+CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+
 #------------------------------------------------------------------------------
 # Prime version (GHC 8.10)
 #------------------------------------------------------------------------------
@@ -28,7 +30,7 @@ ghc_prime_dist () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$GHC_PRIME_VER \
-      CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y"
 }
@@ -40,7 +42,7 @@ ghc_prime_dist_tests () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$GHC_PRIME_VER \
-      CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
       CABAL_PROJECT=cabal.project \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y"
@@ -103,13 +105,13 @@ werror () {
 ghc_prime_Werror () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "cabal build --jobs=$JOBS --project-file cabal.project.Werror all"
+    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.Werror all"
 }
 
 ghc_prime_doctests () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "cabal build --jobs=$JOBS --project-file cabal.project.doctest all"
+    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.doctest all"
   cabal-docspec --timeout 60
 }
 
@@ -171,7 +173,7 @@ ghc () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$2 \
-      CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y \
       DISABLE_SDIST_BUILD=y \
@@ -192,7 +194,7 @@ ghcHEAD () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=9.3 \
-      CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
       CABAL_CHECK_RELAX=y \
       DISABLE_SDIST_BUILD=y \
       CABAL_BUILD_OPTIONS=\"--allow-newer --project-file cabal.project.ghc-head"
@@ -206,7 +208,7 @@ ghcjs () {
       export PATH=~/.local/bin:/opt/ghc/bin:/opt/ghcjs/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
       packcheck.sh cabal-v2 \
         GHCVER=8.4.0 \
-        CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
+        CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
         CABAL_CHECK_RELAX=y \
         DISABLE_SDIST_BUILD=y \
         DISABLE_TEST=y \
