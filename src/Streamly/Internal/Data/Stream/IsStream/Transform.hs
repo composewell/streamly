@@ -241,6 +241,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Prelude (fromStreamS, toStreamS)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
+
 import Streamly.Internal.Data.Stream.StreamK (IsStream)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
