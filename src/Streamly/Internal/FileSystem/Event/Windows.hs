@@ -64,11 +64,11 @@ module Streamly.Internal.FileSystem.Event.Windows
 
     -- ** Watch APIs
     , watch
-    , watchTrees
-    , watchTreesWith
+    , watchRecursive
+    , watchWith
 
     -- * Handling Events
-    , Event
+    , Event(..)
     , getRoot
     , getRelPath
     , getAbsPath
@@ -76,9 +76,10 @@ module Streamly.Internal.FileSystem.Event.Windows
     -- ** Item CRUD events
     , isCreated
     , isDeleted
+    , isModified
+    , isMoved
     , isMovedFrom
     , isMovedTo
-    , isModified
 
     -- ** Exception Conditions
     , isEventsLost
@@ -410,7 +411,7 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- path is a directory, only the files and directories directly under the
 -- watched directory are monitored, contents of subdirectories are not
 -- monitored.  Monitoring starts from the current time onwards. The paths are
--- specified as UTF-8 encoded 'Array' of 'Word8'.
+-- specified as encoded 'Array' of 'Word8'.
 --
 -- @
 -- watchWith
@@ -468,11 +469,46 @@ getRoot :: Event -> Array Word8
 getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 
 getAbsPath :: Event -> Array Word8
-getAbsPath ev = getRoot ev <> getRelPath ev
+getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> (getRelPath ev)
 
 -- XXX need to document the exact semantics of these.
 --
 -- | File/directory created in watched directory.
+-- ** In non-recursive mode
+-- @
+-- When a file or directory is created, Created and Modified events are
+-- generated for corresponding file or directory. Parent directory will not
+-- generate any events.
+--
+-- When a nested directory is created following events are generated:
+-- Created event for the directory created.
+-- Modified event for the directory created.
+-- Modified event for each entry inside it.
+-- If a nested directory contains 5 entries on top level then we will get
+-- one Created and six Modified events for the created top directory path.
+-- @
+--
+-- ** In recursive mode
+-- @
+-- When a file is created we get following events:
+-- Created event for the file got created.
+-- Modified event for the file got created.
+-- Modified event for the parent directory.
+-- @
+--
+-- @
+-- When an empty directory is created we get following events:
+-- Created event for the directory got created.
+-- Modified event for the parent directory.
+-- @
+--
+-- @
+-- When a nested directory is created we get
+-- following events:
+-- Created and Modified events for all the files and subdirectories
+-- recursively inside the given directory.
+-- Modified event for the parent directory.
+-- @
 --
 -- /Pre-release/
 --
@@ -480,7 +516,13 @@ isCreated :: Event -> Bool
 isCreated = getFlag fILE_ACTION_ADDED
 
 -- | File/directory deleted from watched directory.
+-- ** In non-recursive mode:
+-- Deleted event is generated for object deleted from watched directory.
+-- No events are generated for nested objects.
 --
+-- ** In recursive mode:
+-- If a nested directory is deleted Modified events are received for nested
+-- sub-directories recursively. No events are generated for nested files.
 -- /Pre-release/
 --
 isDeleted :: Event -> Bool
@@ -488,6 +530,7 @@ isDeleted = getFlag fILE_ACTION_REMOVED
 
 -- | Generated for the original path when an object is moved from under a
 -- monitored directory.
+-- In recursive mode Modified events is generated for parent directory.
 --
 -- /Pre-release/
 --
@@ -496,17 +539,32 @@ isMovedFrom = getFlag fILE_ACTION_RENAMED_OLD_NAME
 
 -- | Generated for the new path when an object is moved under a monitored
 -- directory.
+-- In recursive mode Modified events is generated for parent directory.
 --
 -- /Pre-release/
 --
 isMovedTo :: Event -> Bool
 isMovedTo = getFlag fILE_ACTION_RENAMED_NEW_NAME
 
+-- | Generated for a path that is moved from or moved to the monitored
+-- directory.
+--
+-- >>> isMoved ev = isMovedFrom ev || isMovedTo ev
+--
+-- /Occurs only for an object inside the watched directory/
+--
+-- /Pre-release/
+--
+isMoved :: Event -> Bool
+isMoved ev = isMovedFrom ev || isMovedTo ev
+
 -- XXX This event is generated only for files and not directories?
 --
 -- | Determine whether the event indicates modification of an object within the
 -- monitored path.
---
+-- In non-recursive mode Modified event is not generated for a directory.
+-- In recursive mode Modified event is generated for parent directory if a file
+-- or directory is created or renamed.
 -- /Pre-release/
 --
 isModified :: Event -> Bool
@@ -531,6 +589,7 @@ showEvent ev@Event{..} =
         "--------------------------"
     ++ "\nRoot = " ++ utf8ToString (getRoot ev)
     ++ "\nPath = " ++ utf8ToString (getRelPath ev)
+    ++ "\ngetAbsPath = " ++ utf8ToString (getAbsPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isEventsLost "Overflow"
     ++ showev isCreated "Created"

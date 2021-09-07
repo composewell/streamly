@@ -66,6 +66,7 @@ module Streamly.Internal.FileSystem.Event.Linux
       Config (..)
     , Toggle (..)
     , defaultConfig
+    , setRecursiveMode
 
     -- ** Watch Behavior
     , setFollowSymLinks
@@ -80,6 +81,7 @@ module Streamly.Internal.FileSystem.Event.Linux
     , setRootDeleted
     , setRootMoved
     -- XXX make a setRootPathEvents to include all root events
+    , setRootPathEvents
 
     -- *** Item Level Metadata change
     , setMetadataChanged
@@ -103,6 +105,8 @@ module Streamly.Internal.FileSystem.Event.Linux
     , watch
     , watchRecursive
     , watchWith
+    , watchWithFlags
+    , watchRecursiveWithFlags
 
     -- Low level watch APIs
     , addToWatch
@@ -117,6 +121,7 @@ module Streamly.Internal.FileSystem.Event.Linux
 
     -- ** Root Level Events
     -- XXX create a isRootPathEvent similar to macOS.
+    , isRootPathEvent
     , isRootUnwatched
     , isRootDeleted
     , isRootMoved
@@ -359,6 +364,15 @@ foreign import capi
 --
 setRootMoved :: Toggle -> Config -> Config
 setRootMoved = setFlag iN_MOVE_SELF
+
+-- | Report when the watched root path itself gets deleted or renamed.
+--
+-- /default: On/
+--
+-- /Pre-release/
+--
+setRootPathEvents :: Toggle -> Config -> Config
+setRootPathEvents = setFlag (iN_DELETE_SELF .|. iN_MOVE_SELF)
 
 foreign import capi
     "sys/inotify.h value IN_ATTRIB" iN_ATTRIB :: Word32
@@ -904,6 +918,31 @@ watchRecursive = watchWith id
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
 watch = watchWith (setRecursiveMode False)
 
+-- | In recursive mode when a nested directory is created,
+-- 'Created' event is generated only for the top directory.
+-- No recursive Created events are generated for nested contents.
+-- When a nested directory is deleted 'Deleted' events are generated
+-- for the nested content recursively.
+-- The nested directories are added into watch list for future events.
+-- [flags] are used to filter the events with specific event flag.
+--
+-- /Pre-release/
+--
+watchRecursiveWithFlags ::
+    [Word32] -> NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursiveWithFlags flags =
+    S.filter (\ev -> any (flip getFlag ev) flags) . watchRecursive
+
+-- | When a nested directory is created,
+-- Created event is generated only for the top directory.
+-- [flags] are used to filter the events with specific event flag.
+--
+-- /Pre-release/
+--
+watchWithFlags :: [Word32] -> NonEmpty (Array Word8) -> SerialT IO Event
+watchWithFlags flags =
+    S.filter (\ev -> any (flip getFlag ev) flags) . watch
+
 -------------------------------------------------------------------------------
 -- Examine event stream
 -------------------------------------------------------------------------------
@@ -942,7 +981,7 @@ getRelPath Event{..} = eventRelPath
 -- /Pre-release/
 --
 getAbsPath :: Event -> Array Word8
-getAbsPath ev = getRoot ev <> A.fromCString# "/"# <> getRelPath ev
+getAbsPath ev = ensureTrailingSlash (getRoot ev) <> getRelPath ev
 
 -- XXX should we use a Maybe?
 -- | Cookie is set when a rename occurs. The cookie value can be used to
@@ -1036,6 +1075,17 @@ foreign import capi
 --
 isRootUnmounted :: Event -> Bool
 isRootUnmounted = getFlag iN_UNMOUNT
+
+-- | Determine whether the event indicates a change of path of the monitored
+-- object itself. Note that the object may become unreachable or deleted after
+-- a change of path.
+--
+-- /Occurs only for a watched path/
+--
+-- /Pre-release/
+--
+isRootPathEvent :: Event -> Bool
+isRootPathEvent = getFlag (iN_DELETE_SELF .|. iN_MOVE_SELF .|. iN_UNMOUNT)
 
 -------------------------------------------------------------------------------
 -- Metadata change Events

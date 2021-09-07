@@ -18,6 +18,7 @@ import Data.Maybe (fromJust)
 import Data.Word (Word8)
 import System.Directory
     ( createDirectoryIfMissing
+    , createDirectoryLink
     , removeFile
     , removeDirectory
     , removePathForcibly
@@ -33,6 +34,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Foreign (Array)
 
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Data.Array.Foreign as Array
@@ -40,6 +42,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
+import qualified Streamly.Internal.FileSystem.Event as CommonEvent
 #if defined(CABAL_OS_DARWIN)
 import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
 #elif defined(CABAL_OS_LINUX)
@@ -74,11 +77,7 @@ eoTask = "EOTask"
 -- XXX Make the getRelPath type same on windows and other platforms
 eventPredicate :: Event.Event -> Bool
 eventPredicate ev =
-#if defined(CABAL_OS_WINDOWS)
     if (utf8ToString $ Event.getRelPath ev) == eoTask
-#else
-    if (utf8ToString $ Event.getRelPath ev) == eoTask
-#endif
     then False
     else True
 
@@ -122,18 +121,37 @@ showEventShort ev@Event.Event{..} =
 #error "Unsupported OS"
 #endif
 
+rootPathRemovedEventCount :: Int
+#if defined(CABAL_OS_WINDOWS)
+rootPathRemovedEventCount = 3
+#else
+rootPathRemovedEventCount = 10
+eventListWithFixLenSymLink :: ToEventList
+eventListWithFixLenSymLink = S.toList . S.take 1
+#endif
+
 -------------------------------------------------------------------------------
 -- Event Watcher
 -------------------------------------------------------------------------------
 
-checkEvents :: FilePath -> MVar () -> [String] -> IO String
-checkEvents rootPath m matchList = do
+type EventChecker = FilePath -> MVar () -> [String] -> IO String
+type EventWatch = NonEmpty (Array Word8) -> S.SerialT IO Event.Event
+type ToEventList = S.SerialT IO Event.Event -> IO [Event.Event]
+
+eventListWithFixLen :: ToEventList
+eventListWithFixLen = S.toList . S.take rootPathRemovedEventCount
+
+eventListWithEOtask :: ToEventList
+eventListWithEOtask = S.parse (PR.takeWhile eventPredicate FL.toList)
+
+checkEvents :: ToEventList -> EventWatch -> EventChecker
+checkEvents toEL ew rootPath m matchList = do
     let args = [rootPath]
     paths <- mapM toUtf8 args
     putStrLn ("Watch started !!!! on Path " ++ rootPath)
-    events <- S.parse (PR.takeWhile eventPredicate FL.toList)
+    events <- toEL
         $ S.before (putMVar m ())
-        $ Event.watchTrees (NonEmpty.fromList paths)
+        $ ew (NonEmpty.fromList paths)
     let eventStr =  map showEventShort events
     let baseSet = Set.fromList matchList
         resultSet = Set.fromList eventStr
@@ -150,9 +168,9 @@ checkEvents rootPath m matchList = do
 -------------------------------------------------------------------------------
 
 checker :: S.IsStream t =>
-                FilePath -> MVar () -> [String] -> t IO String
-checker rootPath synch matchList =
-    S.fromEffect (checkEvents rootPath synch matchList)
+      EventChecker -> FilePath -> MVar () -> [String] -> t IO String
+checker ec rootPath synch matchList =
+    S.fromEffect (ec rootPath synch matchList)
     `S.parallelFst`
     S.fromEffect timeout
 
@@ -161,30 +179,41 @@ checker rootPath synch matchList =
 -------------------------------------------------------------------------------
 
 driver ::
-       ( String
+       EventChecker
+    -> ( String
        , FilePath -> IO ()
        , FilePath -> IO ()
        , [String]
+       , Bool
        )
     -> SpecWith ()
-driver (desc, pre, ops, events) = it desc $ runTest `shouldReturn` "PASS"
+driver ec (desc, pre, ops, events, sym) = it desc $ runTest `shouldReturn` "PASS"
 
     where
 
     runTest = do
         sync <- newEmptyMVar
-        withSystemTempDirectory fseventDir $ \fp -> do
-            pre fp
-            let eventStream = checker fp sync events
-                fsOps = S.fromEffect $ runFSOps fp sync
-            fmap fromJust $ S.head $ eventStream `S.parallelFst` fsOps
+        withSystemTempDirectory fseventDir $ \fp ->
+            if sym
+            then do
+                  createDirectoryLink fp (fp  ++ "SymLink")
+                  pre (fp  ++ "SymLink")
+                  let eventStream = checker ec (fp  ++ "SymLink") sync events
+                      fsOps = S.fromEffect $ runFSOps (fp  ++ "SymLink") sync
+                  fmap fromJust $ S.head $ eventStream `S.parallelFst` fsOps
+            else do
+                  pre fp
+                  let eventStream = checker ec fp sync events
+                      fsOps = S.fromEffect $ runFSOps fp sync
+                  fmap fromJust $ S.head $ eventStream `S.parallelFst` fsOps
 
     runFSOps fp sync = do
         _ <- takeMVar sync
         threadDelay 200000
         ops fp
+        -- 'EOTask Created dir' event gets out of order so need to wait here
         threadDelay 200000 -- Why this delay?
-        createDirectoryIfMissing True (fp </> "EOTask")
+        createDirectoryIfMissing True (fp </> eoTask)
         threadDelay 10000000
         error "fs ops timed out"
 
@@ -192,11 +221,12 @@ driver (desc, pre, ops, events) = it desc $ runTest `shouldReturn` "PASS"
 -- Main
 -------------------------------------------------------------------------------
 
-testDesc ::
+testDesc, testDescRootDir ::
     [ ( String                       -- test description
       , FilePath -> IO ()            -- pre test operation
       , FilePath -> IO ()            -- file system actions
-      , [String])                    -- expected events
+      , [String]                     -- expected events
+      , Bool )                       -- SymLink
     ]
 testDesc =
     [
@@ -206,12 +236,9 @@ testDesc =
 #if defined(CABAL_OS_WINDOWS)
       , [ "dir1Single_1" ]
 #elif defined(CABAL_OS_LINUX)
-      , [ "dir1Single_1073742080_Dir"
-        , "dir1Single_1073741856_Dir"
-        , "dir1Single_1073741825_Dir"
-        , "dir1Single_1073741840_Dir"
-        ]
+      , ["dir1Single_1073742080_Dir"]
 #endif
+      , False
       )
     , ( "Remove a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
@@ -219,10 +246,11 @@ testDesc =
 #if defined(CABAL_OS_WINDOWS)
       , [ "dir1Single_2" ]
 #elif defined(CABAL_OS_LINUX)
-      , [ "dir1Single_1024"
-        , "dir1Single_32768"
+      , [
+        "dir1Single_1073742336_Dir"
         ]
 #endif
+      , False
       )
     , ( "Rename a single directory"
       , \fp -> createDirectoryIfMissing True (fp </> "dir1Single")
@@ -239,6 +267,7 @@ testDesc =
         , "dir1SingleRenamed_1073741952_Dir"
         ]
 #endif
+      , False
       )
     , ( "Create a nested directory"
       , const (return ())
@@ -251,28 +280,9 @@ testDesc =
         ]
 #elif defined(CABAL_OS_LINUX)
       , [ "dir1_1073742080_Dir"
-        , "dir1_1073741856_Dir"
-        , "dir1_1073741825_Dir"
-        , "dir1_1073741840_Dir"
         ]
 #endif
-      )
-    , ( "Remove a nested directory"
-      , \fp ->
-            createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
-      , \fp -> removePathForcibly (fp </> "dir1")
-#if defined(CABAL_OS_WINDOWS)
-      , [ "dir1_3"
-        , "dir1\\dir2_3"
-        , "dir1\\dir2\\dir3_2"
-        , "dir1\\dir2_2","dir1_2"
-        ]
-#elif defined(CABAL_OS_LINUX)
-      , [ "dir1/dir2/dir3_1073742336_Dir"
-        , "dir1/dir2_1073742336_Dir"
-        , "dir1_1073742336_Dir"
-        ]
-#endif
+      , False
       )
     , ( "Rename a nested directory"
       , \fp -> createDirectoryIfMissing True
@@ -292,6 +302,7 @@ testDesc =
         , "dir1/dir2/dir3Renamed_1073741952_Dir"
         ]
 #endif
+      , False
       )
     , ( "Create a file in root Dir"
       , const (return ())
@@ -303,10 +314,10 @@ testDesc =
         ]
 #elif defined(CABAL_OS_LINUX)
       , [ "FileCreated.txt_256"
-        , "FileCreated.txt_32"
         , "FileCreated.txt_2"
         ]
 #endif
+      , False
       )
     , ( "Remove a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
@@ -316,6 +327,7 @@ testDesc =
 #elif defined(CABAL_OS_LINUX)
       , [ "FileCreated.txt_512" ]
 #endif
+      , False
       )
     , ( "Rename a file in root Dir"
       , \fp -> writeFile (fp </> "FileCreated.txt") "Test Data"
@@ -332,6 +344,7 @@ testDesc =
         , "FileRenamed.txt_128"
         ]
 #endif
+      , False
       )
     , ( "Create a file in a nested Dir"
       , \fp ->
@@ -345,11 +358,10 @@ testDesc =
         ]
 #elif defined(CABAL_OS_LINUX)
       , [ "dir1/dir2/dir3/FileCreated.txt_256"
-        , "dir1/dir2/dir3/FileCreated.txt_32"
         , "dir1/dir2/dir3/FileCreated.txt_2"
-        , "dir1/dir2/dir3/FileCreated.txt_8"
         ]
 #endif
+      , False
       )
     , ( "Remove a file in a nested Dir"
       , \fp ->
@@ -366,6 +378,7 @@ testDesc =
 #elif defined(CABAL_OS_LINUX)
       , ["dir1/dir2/dir3/FileCreated.txt_512"]
 #endif
+      , False
       )
     , ( "Rename a file in a nested Dir"
       , \fp ->
@@ -388,8 +401,79 @@ testDesc =
         , "dir1/dir2/dir3/FileRenamed.txt_128"
         ]
 #endif
+      , False
+      )
+    , ( "Remove the nested directory"
+      , \fp ->
+            createDirectoryIfMissing True (fp </> "dir1" </> "dir2" </> "dir3")
+      , \fp -> removePathForcibly (fp </> "dir1")
+#if defined(CABAL_OS_WINDOWS)
+      , [ "dir1_3"
+        , "dir1\\dir2_3"
+        , "dir1\\dir2\\dir3_2"
+        , "dir1\\dir2_2","dir1_2"
+        ]
+#elif defined(CABAL_OS_LINUX)
+      , [ "dir1_1073741828_Dir"
+        , "dir1_1073741828_Dir"
+        , "dir1/dir2_1073741828_Dir"
+        , "dir1/dir2_1073741828_Dir"
+        , "dir1/dir2/dir3_1073741828_Dir"
+        , "dir1/dir2/dir3_1073741828_Dir"
+        , "dir1/dir2/dir3_1024"
+        , "dir1/dir2/dir3_1073742336_Dir"
+        , "dir1/dir2_1024"
+        , "dir1/dir2_1073742336_Dir"
+        , "dir1_1024"
+        , "dir1_1073742336_Dir"
+        ]
+#endif
+      , False
       )
     ]
+
+testDescRootDir =
+    [ ( "Remove the root directory"
+    , \fp ->
+          createDirectoryIfMissing True (fp </> "dir1" </> "dir2")
+    , \fp -> removePathForcibly fp
+#if defined(CABAL_OS_WINDOWS)
+    , ["dir1_2", "dir1_3", "dir1\\dir2_2"]
+#elif defined(CABAL_OS_LINUX)
+    , [ "_1073741828_Dir"
+      , "dir1_1073741828_Dir"
+      , "dir1_1073741828_Dir"
+      , "dir1/dir2_1073741828_Dir"
+      , "dir1/dir2_1073741828_Dir"
+      , "dir1/dir2_1024"
+      , "dir1/dir2_1073742336_Dir"
+      , "dir1_1024"
+      , "dir1_1073742336_Dir"
+      , "_1024"
+    ]
+#endif
+      , False
+     )
+   ]
+
+#if defined(CABAL_OS_LINUX)
+testDescRootDirSymLink ::
+    [ ( String                       -- test description
+      , FilePath -> IO ()            -- pre test operation
+      , FilePath -> IO ()            -- file system actions
+      , [String]                     -- expected events
+      , Bool )                       -- SymLink
+    ]
+testDescRootDirSymLink =
+      [ ( "Remove the root directory as SymLink"
+      , \fp ->
+            createDirectoryIfMissing True (fp </> "dir1" </> "dir2")
+      , \fp -> removePathForcibly fp
+      , ["_1073741828_Dir"]
+      , True
+       )
+     ]
+#endif
 
 moduleName :: String
 moduleName = "FileSystem.Event"
@@ -397,4 +481,30 @@ moduleName = "FileSystem.Event"
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    hspec $ describe moduleName $ mapM_ driver testDesc
+#if defined(CABAL_OS_LINUX)
+    hspec
+      $ describe moduleName
+      $ mapM_
+      (driver $ checkEvents eventListWithEOtask Event.watchRecursive)
+      testDesc
+    hspec
+      $ describe moduleName
+      $ mapM_
+      (driver $ checkEvents eventListWithEOtask CommonEvent.watchRecursive)
+      (map (\(a, b, c, d, _) -> (a, b, c, d, True)) testDesc)
+    hspec
+      $ describe moduleName
+      $ mapM_
+      (driver $ checkEvents eventListWithFixLenSymLink CommonEvent.watchRecursive)
+      testDescRootDirSymLink
+#endif
+    hspec
+      $ describe moduleName
+      $ mapM_
+      (driver $ checkEvents eventListWithEOtask CommonEvent.watchRecursive)
+      testDesc
+    hspec
+      $ describe moduleName
+      $ mapM_
+      (driver $ checkEvents eventListWithFixLen CommonEvent.watchRecursive)
+      testDescRootDir
