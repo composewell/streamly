@@ -98,6 +98,7 @@ module Streamly.Internal.FileSystem.Handle
     )
 where
 
+import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -252,6 +253,8 @@ readChunksWithBufferOf = Unfold step return
 -- the array lengths and trim the last array to correct size.
 -- 2. Simply implement it from scratch like readChunksWithBufferOf.
 --
+-- XXX Change this to readChunksWithFromTo (bufferSize, from, to, h)?
+--
 -- | The input to the unfold is @(from, to, bufferSize, handle)@. It starts
 -- reading from the offset `from` in the file and reads up to the offset `to`.
 --
@@ -263,26 +266,23 @@ readChunksFromToWith = Unfold step inject
 
     where
 
-    inject (from, to, buffSize, h) = do
+    inject (from, to, bufSize, h) = do
         liftIO $ hSeek h AbsoluteSeek $ fromIntegral from
-        return (to - from + 1, buffSize, h)
+        -- XXX Use a strict Tuple?
+        return (to - from + 1, bufSize, h)
 
     {-# INLINE_LATE step #-}
-    step (remaining, buffSize, h) =
+    step (remaining, bufSize, h) =
         if remaining <= 0
         then return D.Stop
-        else
-            do
-            arr <- getChunk (min buffSize remaining) h
+        else do
+            arr <- getChunk (min bufSize remaining) h
             return $
                 case A.length arr of
                     0 -> D.Stop
                     len ->
-                        if (remaining - len) >= 0
-                        then
-                            D.Yield arr (remaining - len, buffSize, h)
-                        else
-                            error "Bug: getChunk returned array length more than expected"
+                        assert (len <= remaining)
+                            $ D.Yield arr (remaining - len, bufSize, h)
 
 -- XXX read 'Array a' instead of Word8
 --

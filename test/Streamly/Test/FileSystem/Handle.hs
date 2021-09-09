@@ -27,7 +27,7 @@ import Test.QuickCheck (Property, forAll, Gen, vectorOf, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.FileSystem.Handle as Handle
+import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -155,52 +155,48 @@ testWriteWithChunk =
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
+testReadChunksFromToWith :: Int -> Int -> Int -> [[Word8]] -> Property
+testReadChunksFromToWith from to buffSize res = monadicIO $ run go
 
-testReadChunksFromToWith :: Int -> Int -> Int -> String -> Property
-testReadChunksFromToWith from to buffSize expRes =
-    monadicIO $ do
-        res <- run go
-        assert res
+    where
 
-        where
-
-        go =
-            withSystemTempDirectory "fs_handle" $ \fp -> do
-                let fpathRead = fp </> "tmp_read.txt"
-                writeFile fpathRead testBinData
-                h <- openFile fpathRead ReadMode
-                ls <- Stream.toList $
-                    Stream.unfold
-                    Handle.readChunksFromToWith
-                    (from, to, buffSize, h)
-                return ( expRes == show ls)
+    go =
+        withSystemTempDirectory "fs_handle" $ \fp -> do
+            let fpathRead = fp </> "tmp_read.txt"
+            writeFile fpathRead testBinData
+            h <- openFile fpathRead ReadMode
+            ls <-
+                Stream.toList
+                    $ Stream.unfold
+                        Handle.readChunksFromToWith (from, to, buffSize, h)
+            return (res `shouldBe` fmap Array.toList ls)
 
 -- Test for first byte
 testReadChunksFromToWithFirstByte :: Property
-testReadChunksFromToWithFirstByte = testReadChunksFromToWith 0 0 15 "[[48]]"
+testReadChunksFromToWithFirstByte = testReadChunksFromToWith 0 0 15 [[48]]
 
 -- Test for second byte
 testReadChunksFromToWithSecondByte :: Property
-testReadChunksFromToWithSecondByte = testReadChunksFromToWith 1 1 15 "[[49]]"
+testReadChunksFromToWithSecondByte = testReadChunksFromToWith 1 1 15 [[49]]
 
 -- Test for second to 10th bytes
 testReadChunksFromToWithSecondToTenthBytes :: Property
 testReadChunksFromToWithSecondToTenthBytes =
-    testReadChunksFromToWith 1 10 15 "[[49,50,51,52,53,54,55,56,57,48]]"
+    testReadChunksFromToWith 1 10 15 [[49,50,51,52,53,54,55,56,57,48]]
 
 -- Test for offset of buffer size
 testReadChunksFromToWithBuffSizeOffset :: Property
 testReadChunksFromToWithBuffSizeOffset =
-    testReadChunksFromToWith 15 25 15 "[[53,54,55,56,57,48,49,50,51,52,53]]"
+    testReadChunksFromToWith 15 25 15 [[53,54,55,56,57,48,49,50,51,52,53]]
 
 -- Test with multi buffer size
 testReadChunksFromToWithMultiBuff :: Property
 testReadChunksFromToWithMultiBuff =
     testReadChunksFromToWith
-    5 22 5 "[[53,54,55,56,57],[48,49,50,51,52],[53,54,55,56,57],[48,49,50]]"
+        5 22 5 [[53,54,55,56,57],[48,49,50,51,52],[53,54,55,56,57],[48,49,50]]
 
 testReadChunksFromToWithRangeInvalid :: Property
-testReadChunksFromToWithRangeInvalid = testReadChunksFromToWith 15 5 15 "[]"
+testReadChunksFromToWithRangeInvalid = testReadChunksFromToWith 15 5 15 []
 
 moduleName :: String
 moduleName = "FileSystem.Handle"
@@ -216,14 +212,21 @@ main =
             prop "readWithBufferOf" $ testRead readWithBufferFromHandle
             prop "readChunks" $ testRead readChunksFromHandle
             prop "readChunksWithBufferOf" $ testRead readChunksWithBuffer
-            prop "readChunksFromToWithFirstByte" testReadChunksFromToWithFirstByte
-            prop "readChunksFromToWithSecondByte" testReadChunksFromToWithSecondByte
-            prop "readChunksFromToWithSecondToTenthBytes" testReadChunksFromToWithSecondToTenthBytes
-            prop "readChunksFromToWithBuffSizeOffset" testReadChunksFromToWithBuffSizeOffset
-            prop "readChunksFromToWithMultiBuff" testReadChunksFromToWithMultiBuff
-            prop "readChunksFromToWithRangeInvalid" testReadChunksFromToWithRangeInvalid
+            prop "readChunksFromToWith (0,0,n)"
+                testReadChunksFromToWithFirstByte
+            prop "readChunksFromToWith (1,1,n)"
+                testReadChunksFromToWithSecondByte
+            prop "readChunksFromToWith (1,10,n)"
+                testReadChunksFromToWithSecondToTenthBytes
+            prop "readChunksFromToWith (n,<2n,n)"
+                testReadChunksFromToWithBuffSizeOffset
+            prop "readChunksFromToWith (n,>2n,n)"
+                testReadChunksFromToWithMultiBuff
+            prop "readChunksFromToWith (n,<n,n)"
+                testReadChunksFromToWithRangeInvalid
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
-            prop "writeWithBufferOf" $ testWrite $ Handle.writeWithBufferOf 1024
+            prop "writeWithBufferOf"
+                $ testWrite $ Handle.writeWithBufferOf 1024
             -- XXX This test needs a lot of stack when built with -O0
             prop "writeChunks" testWriteWithChunk
