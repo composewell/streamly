@@ -177,5 +177,6 @@ jobs:
           which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
           # Run tests and upload results to coveralls.io
           bin/test.sh --coverage --raw
-          hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
+          # XXX Uncomment this and fix it properly later
+          # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
         fi
