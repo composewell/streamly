@@ -55,6 +55,7 @@ module Streamly.Internal.FileSystem.File
 
     -- -- * Array Read
     , readChunksWithBufferOf
+    , readChunksFromToWith
     , readChunks
 
     , toChunksWithBufferOf
@@ -170,6 +171,19 @@ usingFile2 = UF.bracket before after
 
     after (_, h) = liftIO $ hClose h
 
+{-# INLINABLE usingFile3 #-}
+usingFile3 :: (MonadCatch m, MonadAsync m)
+    => Unfold m (x, y, z, Handle) a -> Unfold m (x, y, z, FilePath) a
+usingFile3 = UF.bracket before after
+
+    where
+
+    before (x, y, z, file) =  do
+        h <- liftIO $ openFile file ReadMode
+        return (x, y, z, h)
+
+    after (_, _, _, h) = liftIO $ hClose h
+
 -------------------------------------------------------------------------------
 -- Array IO (Input)
 -------------------------------------------------------------------------------
@@ -240,6 +254,19 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 readChunksWithBufferOf :: (MonadCatch m, MonadAsync m)
     => Unfold m (Int, FilePath) (Array Word8)
 readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
+
+-- | Unfold the tuple @(from, to, bufsize, filepath)@ into a stream
+-- of 'Word8' arrays.
+-- Read requests to the IO device are performed using a buffer of size
+-- @bufsize@ starting from absolute offset of @from@ till the absolute
+-- position of @to@. The size of an array in the resulting stream is always
+-- less than or equal to @bufsize@.
+--
+-- /Pre-release/
+{-# INLINE readChunksFromToWith #-}
+readChunksFromToWith :: (MonadCatch m, MonadAsync m) =>
+    Unfold m (Int, Int, Int, FilePath) (Array Word8)
+readChunksFromToWith = usingFile3 FH.readChunksFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
