@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingVia #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Tee
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -18,6 +20,7 @@ import Control.Applicative (liftA2)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Data.Monoid (Ap(..))
 import Streamly.Internal.Data.Fold.Type (Fold)
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -31,6 +34,21 @@ newtype Tee m a b =
     Tee { toFold :: Fold m a b }
     deriving (Functor)
 
+    deriving ( Semigroup -- ^ '<>' distributes the input to both the
+                         -- argument 'Tee's and combines their outputs
+                         -- using the 'Semigroup' instance of the
+                         -- output type.
+             , Monoid    -- ^ '<>' distributes the input to both the
+                         -- argument 'Tee's and combines their outputs
+                         -- using the 'Monoid' instance of the output
+                         -- type.
+             , Num       -- ^ Binary 'Num' operations distribute the
+                         -- input to both the argument 'Tee's and
+                         -- combine their outputs using the 'Num'
+                         -- instance of the output type.
+             )
+    via Ap (Tee m a) b
+
 -- | '<*>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using function application.
 --
@@ -42,47 +60,6 @@ instance Monad m => Applicative (Tee m a) where
     {-# INLINE (<*>) #-}
     (<*>) a b = Tee (Fold.teeWith ($) (toFold a) (toFold b))
 
--- | '<>' distributes the input to both the argument 'Tee's and combines their
--- outputs using the 'Semigroup' instance of the output type.
---
-instance (Semigroup b, Monad m) => Semigroup (Tee m a b) where
-    {-# INLINE (<>) #-}
-    (<>) = liftA2 (<>)
-
--- | '<>' distributes the input to both the argument 'Tee's and combines their
--- outputs using the 'Monoid' instance of the output type.
---
-instance (Semigroup b, Monoid b, Monad m) => Monoid (Tee m a b) where
-    {-# INLINE mempty #-}
-    mempty = pure mempty
-
-    {-# INLINE mappend #-}
-    mappend = (<>)
-
--- | Binary 'Num' operations distribute the input to both the argument 'Tee's
--- and combine their outputs using the 'Num' instance of the output type.
---
-instance (Monad m, Num b) => Num (Tee m a b) where
-    {-# INLINE fromInteger #-}
-    fromInteger = pure . fromInteger
-
-    {-# INLINE negate #-}
-    negate = fmap negate
-
-    {-# INLINE abs #-}
-    abs = fmap abs
-
-    {-# INLINE signum #-}
-    signum = fmap signum
-
-    {-# INLINE (+) #-}
-    (+) = liftA2 (+)
-
-    {-# INLINE (*) #-}
-    (*) = liftA2 (*)
-
-    {-# INLINE (-) #-}
-    (-) = liftA2 (-)
 
 -- | Binary 'Fractional' operations distribute the input to both the argument
 -- 'Tee's and combine their outputs using the 'Fractional' instance of the
