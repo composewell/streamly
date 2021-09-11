@@ -243,15 +243,15 @@ drain (Stream step state) = go SPEC state
 
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
-null m = foldrM (\_ _ -> return False) (return True) m
+null = foldrM (\_ _ -> return False) (return True)
 
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
-head m = foldrM (\x _ -> return (Just x)) (return Nothing) m
+head = foldrM (\x _ -> return (Just x)) (return Nothing)
 
 {-# INLINE_NORMAL headElse #-}
 headElse :: Monad m => a -> Stream m a -> m a
-headElse a m = foldrM (\x _ -> return x) (return a) m
+headElse a = foldrM (\x _ -> return x) (return a)
 
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}
@@ -407,13 +407,13 @@ minimumBy cmp (Stream step state) = go Nothing state
 
 {-# INLINE_NORMAL lookup #-}
 lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
-lookup e m = foldrM (\(a, b) xs -> if e == a then return (Just b) else xs)
-                   (return Nothing) m
+lookup e = foldrM (\(a, b) xs -> if e == a then return (Just b) else xs)
+                   (return Nothing)
 
 {-# INLINE_NORMAL findM #-}
 findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
-findM p m = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
-                   (return Nothing) m
+findM p = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
+                   (return Nothing)
 
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)

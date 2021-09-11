@@ -535,8 +535,8 @@ postscanlMx' fstep begin done (Stream step state) = do
 {-# INLINE_NORMAL postscanlx' #-}
 postscanlx' :: Monad m
     => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
-postscanlx' fstep begin done s =
-    postscanlMx' (\b a -> return (fstep b a)) (return begin) (return . done) s
+postscanlx' fstep begin done =
+    postscanlMx' (\b a -> return (fstep b a)) (return begin) (return . done)
 
 -- XXX do we need consM strict to evaluate the begin value?
 {-# INLINE scanlMx' #-}
@@ -548,8 +548,8 @@ scanlMx' fstep begin done s =
 {-# INLINE scanlx' #-}
 scanlx' :: Monad m
     => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
-scanlx' fstep begin done s =
-    scanlMx' (\b a -> return (fstep b a)) (return begin) (return . done) s
+scanlx' fstep begin done =
+    scanlMx' (\b a -> return (fstep b a)) (return begin) (return . done)
 
 ------------------------------------------------------------------------------
 -- postscans
@@ -669,7 +669,7 @@ scanlM fstep begin (Stream step state) = Stream step' Nothing
                 y <- fstep acc x
                 return $ Yield y (Just (s, y))
             Skip s -> return $ Skip (Just (s, acc))
-            Stop   -> return $ Stop
+            Stop   -> return Stop
 
 {-# INLINE scanl #-}
 scanl :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
@@ -1068,12 +1068,12 @@ intersperseSuffixBySpan n action (Stream step state) =
     step' _ (SuffixSpanSuffix st) = do
         action >>= \r -> return $ Skip (SuffixSpanYield r (SuffixSpanElem st n))
 
-    step' _ (SuffixSpanLast) = do
+    step' _ SuffixSpanLast = do
         action >>= \r -> return $ Skip (SuffixSpanYield r SuffixSpanStop)
 
     step' _ (SuffixSpanYield x next) = return $ Yield x next
 
-    step' _ (SuffixSpanStop) = return Stop
+    step' _ SuffixSpanStop = return Stop
 
 ------------------------------------------------------------------------------
 -- Reordering
@@ -1208,7 +1208,7 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
                 !res <- f x x1
                 return $ Yield res $ RollingMapGo s x
             Skip s -> return $ Skip $ RollingMapGo s x1
-            Stop   -> return $ Stop
+            Stop   -> return Stop
 
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b

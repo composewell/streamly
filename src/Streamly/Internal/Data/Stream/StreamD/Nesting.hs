@@ -2173,7 +2173,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     r <- if withSep then fstep fs x else fstep fs old
                     case r of
                         FL.Partial fs1 ->
-                            if (cksum1 /= patHash)
+                            if cksum1 /= patHash
                             then go SPEC fs1 s rh1 cksum1
                             else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
                         FL.Done b -> do
@@ -2239,7 +2239,7 @@ splitInnerBy
     -> Stream m (f a)
     -> Stream m (f a)
 splitInnerBy splitter joiner (Stream step1 state1) =
-    (Stream step (SplitInitial state1))
+    Stream step (SplitInitial state1)
 
     where
 
@@ -2253,7 +2253,7 @@ splitInnerBy splitter joiner (Stream step1 state1) =
                     Nothing -> Skip (SplitBuffering s x1)
                     Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitInitial s)
-            Stop -> return $ Stop
+            Stop -> return Stop
 
     step gst (SplitBuffering st buf) = do
         r <- step1 gst st
@@ -2274,7 +2274,7 @@ splitInnerBy splitter joiner (Stream step1 state1) =
                 Just x2 -> Skip $ SplitYielding x1 (SplitSplitting st x2)
 
     step _ (SplitYielding x next) = return $ Yield x next
-    step _ SplitFinishing = return $ Stop
+    step _ SplitFinishing = return Stop
 
 -- | Performs infix separator style splitting.
 {-# INLINE_NORMAL splitInnerBySuffix #-}
@@ -2285,7 +2285,7 @@ splitInnerBySuffix
     -> Stream m (f a)
     -> Stream m (f a)
 splitInnerBySuffix splitter joiner (Stream step1 state1) =
-    (Stream step (SplitInitial state1))
+    Stream step (SplitInitial state1)
 
     where
 
@@ -2299,7 +2299,7 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
                     Nothing -> Skip (SplitBuffering s x1)
                     Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitInitial s)
-            Stop -> return $ Stop
+            Stop -> return Stop
 
     step gst (SplitBuffering st buf) = do
         r <- step1 gst st

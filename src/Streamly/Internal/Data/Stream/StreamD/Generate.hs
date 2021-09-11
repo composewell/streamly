@@ -133,7 +133,7 @@ cons x (Stream step state) = Stream step1 Nothing
 -- Adapted from vector package
 {-# INLINE_NORMAL unfoldrM #-}
 unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
-unfoldrM next state = Stream step state
+unfoldrM next = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ st = do
