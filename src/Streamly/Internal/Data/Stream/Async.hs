@@ -667,7 +667,7 @@ forkSVarAsync style m1 m2 = mkStream $ \st yld sng stp -> do
     where
     concurrently ma mb = mkStream $ \st yld sng stp -> do
         runInIO <- captureMonadState
-        liftIO $ enqueue (fromJust $ streamVar st) $ (runInIO, mb)
+        liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
         foldStreamShared st yld sng stp ma
 
 {-# INLINE joinStreamVarAsync #-}
@@ -677,7 +677,7 @@ joinStreamVarAsync style m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
             runInIO <- captureMonadState
-            liftIO $ enqueue sv $ (runInIO, toStream m2)
+            liftIO $ enqueue sv (runInIO, toStream m2)
             foldStreamShared st yld sng stp m1
         _ -> foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)
 
@@ -769,7 +769,7 @@ async = joinStreamVarAsync AsyncVar
 {-# INLINE consMAsync #-}
 {-# SPECIALIZE consMAsync :: IO a -> AsyncT IO a -> AsyncT IO a #-}
 consMAsync :: MonadAsync m => m a -> AsyncT m a -> AsyncT m a
-consMAsync m r = fromStream $ K.fromEffect m `async` (toStream r)
+consMAsync m r = fromStream $ K.fromEffect m `async` toStream r
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -891,7 +891,7 @@ instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
 {-# INLINE bindAsync #-}
 {-# SPECIALIZE bindAsync :: AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
 bindAsync :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-bindAsync m f = fromStream $ K.bindWith async (adapt m) (\a -> adapt $ f a)
+bindAsync m f = fromStream $ K.bindWith async (adapt m) (adapt . f)
 
 -- GHC: if we specify arguments in the definition of (>>=) we see a significant
 -- performance degradation (~2x).
@@ -914,7 +914,7 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 {-# INLINE consMWAsync #-}
 {-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
 consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
-consMWAsync m r = fromStream $ K.fromEffect m `wAsync` (toStream r)
+consMWAsync m r = fromStream $ K.fromEffect m `wAsync` toStream r
 
 infixr 6 `wAsync`
 
@@ -1192,7 +1192,7 @@ instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
 {-# INLINE bindWAsync #-}
 {-# SPECIALIZE bindWAsync :: WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
 bindWAsync :: MonadAsync m => WAsyncT m a -> (a -> WAsyncT m b) -> WAsyncT m b
-bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (\a -> adapt $ f a)
+bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (adapt . f)
 
 -- GHC: if we specify arguments in the definition of (>>=) we see a significant
 -- performance degradation (~2x).

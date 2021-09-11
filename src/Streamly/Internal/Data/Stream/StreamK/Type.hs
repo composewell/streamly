@@ -269,7 +269,7 @@ type StopK m = forall r. m r -> m r
 type YieldK m a = forall r. (a -> m r) -> m r
 
 _wrapM :: Monad m => m a -> YieldK m a
-_wrapM m = \k -> m >>= k
+_wrapM m = (m >>=)
 
 -- | Make an empty stream from a stop function.
 fromStopK :: IsStream t => StopK m -> t m a
@@ -282,7 +282,7 @@ fromYieldK k = mkStream $ \_ _ sng _ -> k sng
 
 -- | Add a yield function at the head of the stream.
 consK :: IsStream t => YieldK m a -> t m a -> t m a
-consK k r = mkStream $ \_ yld _ _ -> k (\x -> yld x r)
+consK k r = mkStream $ \_ yld _ _ -> k (`yld` r)
 
 -- XXX Build a stream from a repeating callback function.
 
@@ -359,7 +359,7 @@ fromEffect m = fromStream $ mkStream $ \_ _ single _ -> m >>= single
 {-# INLINE consMBy #-}
 consMBy :: (IsStream t, MonadAsync m) => (t m a -> t m a -> t m a)
     -> m a -> t m a -> t m a
-consMBy f m r = (fromStream $ fromEffect m) `f` r
+consMBy f m r = fromStream (fromEffect m) `f` r
 
 ------------------------------------------------------------------------------
 -- Folding a stream
@@ -462,7 +462,7 @@ foldrSWith :: IsStream t
         -> t m b
         -> m r)
     -> (a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrSWith f step final m = go m
+foldrSWith f step final = go
     where
     go m1 = mkStream $ \st yld sng stp ->
         let run x = f st yld sng stp x
@@ -520,7 +520,7 @@ foldrSMWith :: (IsStream t, Monad m)
         -> t m b
         -> m r)
     -> (m a -> t m b -> t m b) -> t m b -> t m a -> t m b
-foldrSMWith f step final m = go m
+foldrSMWith f step final = go
     where
     go m1 = mkStream $ \st yld sng stp ->
         let run x = f st yld sng stp x
@@ -658,7 +658,7 @@ sharedM g = mkStream $ \st yld sng stp ->
 {-# INLINE_NORMAL augmentS #-}
 augmentS :: IsStream t
     => ((a -> t m a -> t m a) -> t m a -> t m a) -> t m a -> t m a
-augmentS g xs = g cons xs
+augmentS g = g cons
 
 {-# RULES "augmentS/nil"
     forall (g :: (a -> t m a -> t m a) -> t m a -> t m a).
@@ -679,7 +679,7 @@ augmentS g xs = g cons xs
 {-# INLINE_NORMAL augmentSM #-}
 augmentSM :: (IsStream t, MonadAsync m)
     => ((m a -> t m a -> t m a) -> t m a -> t m a) -> t m a -> t m a
-augmentSM g xs = g consM xs
+augmentSM g = g consM
 
 {-# RULES "augmentSM/nil"
     forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
@@ -704,7 +704,7 @@ augmentSM g xs = g consM xs
 -- | Lazy right fold with a monadic step function.
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: IsStream t => (a -> m b -> m b) -> m b -> t m a -> m b
-foldrM step acc m = go m
+foldrM step acc = go
     where
     go m1 =
         let stop = acc
@@ -724,7 +724,7 @@ foldrMKWith
     -> m b
     -> ((a -> t m a -> m b) -> (a -> m b) -> m b -> m b)
     -> m b
-foldrMKWith f step acc g = go g
+foldrMKWith f step acc = go
     where
     go k =
         let stop = acc
@@ -837,7 +837,7 @@ serial m1 m2 = go m1
 -- join/merge/append streams depending on consM
 {-# INLINE conjoin #-}
 conjoin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-conjoin xs ys = augmentSM (\c n -> foldrSM c n xs) ys
+conjoin xs = augmentSM (\c n -> foldrSM c n xs)
 
 instance Semigroup (Stream m a) where
     (<>) = serial
@@ -858,7 +858,7 @@ instance Monoid (Stream m a) where
 {-# INLINE_LATE mapFB #-}
 mapFB :: forall (t :: (Type -> Type) -> Type -> Type) b m a.
     (b -> t m b -> t m b) -> (a -> b) -> a -> t m b -> t m b
-mapFB c f = \x ys -> c (f x) ys
+mapFB c f x ys = c (f x) ys
 #undef Type
 
 {-# RULES
@@ -886,7 +886,7 @@ map f m = go m
 
 {-# INLINE_LATE mapMFB #-}
 mapMFB :: Monad m => (m b -> t m b -> t m b) -> (a -> m b) -> m a -> t m b -> t m b
-mapMFB c f = \x ys -> c (x >>= f) ys
+mapMFB c f x = c (x >>= f)
 
 {-# RULES
     "mapMFB/mapMFB" forall c f g. mapMFB (mapMFB c f) g = mapMFB c (f >=> g)
@@ -1016,7 +1016,7 @@ apSerialDiscardFst fstream stream = go1 fstream
     go1 m =
         mkStream $ \st yld sng stp ->
             let foldShared = foldStreamShared st yld sng stp
-                single _   = foldShared $ stream
+                single _   = foldShared stream
                 yieldk _ r = foldShared $ go2 r stream
             in foldStream (adaptState st) yieldk single stp m
 
@@ -1107,7 +1107,7 @@ concatMapBy par f xs = bindWith par xs f
 concatMap :: IsStream t => (a -> t m b) -> t m a -> t m b
 concatMap f m = fromStream $
     concatMapBy serial
-        (\a -> adapt $ toStream $ f a)
+        (adapt . toStream . f)
         (adapt $ toStream m)
 
 {-

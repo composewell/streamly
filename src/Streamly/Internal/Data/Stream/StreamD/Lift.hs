@@ -41,7 +41,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 
 {-# INLINE_NORMAL hoist #-}
 hoist :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
-hoist f (Stream step state) = (Stream step' state)
+hoist f (Stream step state) = Stream step' state
     where
     {-# INLINE_LATE step' #-}
     step' gst st = do
