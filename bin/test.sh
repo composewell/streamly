@@ -59,14 +59,14 @@ do
     # options with arguments
     --targets) shift; TARGETS=$1; shift ;;
     --with-compiler) shift; CABAL_WITH_COMPILER=$1; shift ;;
-    --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
-    --hpc-report-options) shift; HPC_REPORT_OPTIONS=$1; shift ;;
-    --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
+    --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=" $1"; shift ;;
+    --hpc-report-options) shift; HPC_REPORT_OPTIONS="$1"; shift ;;
+    --rtsopts) shift; RTS_OPTIONS="$1"; shift ;;
     # flags
     --raw) RAW=1; shift ;;
     #--slow) SLOW=1; shift ;; # not implemented
     #--quick) QUICK_MODE=1; shift ;; # not implemented
-    --dev-build) RUNNING_DEVBUILD=1; shift ;;
+    --dev-build) RUNNING_DEVBUILD=1 CABAL_BUILD_OPTIONS+=" --flag dev"; shift ;;
     --coverage) COVERAGE=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;
