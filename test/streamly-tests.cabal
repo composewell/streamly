@@ -371,6 +371,10 @@ test-suite Unicode.Char
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Char.hs
   ghc-options: -main-is Streamly.Test.Unicode.Char.main
+  if flag(dev)
+    buildable: True
+  else
+    buildable: False
 
 test-suite version-bounds
   import: test-options

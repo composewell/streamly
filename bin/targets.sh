@@ -109,7 +109,8 @@ targets () {
   INDIVIDUAL_TARGETS="\
       Data.Unfold \
       Unicode.Stream \
-      Unicode.Char \
+      $(test_only $(dev_build Unicode.Char)) \
+      `bench_only Unicode.Char` \
       `bench_only Unicode.Utf8` \
       FileSystem.Handle \
       `test_only FileSystem.Event` \
