@@ -126,7 +126,7 @@ testNormalize file = do
         checkAll []     = return ()
 
 filesDir :: String
-filesDir = "Streamly/Test/Unicode"
+filesDir = "test/Streamly/Test/Unicode"
 
 main :: IO ()
 main = do
