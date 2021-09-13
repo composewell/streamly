@@ -107,6 +107,7 @@ test_exe_rts_opts () {
     Data.Array.Foreign) echo -n "-M128M" ;;
     Data.Array.Prim) echo -n "-M128M" ;;
     Data.Array.Prim.Pinned) echo -n "-M128M" ;;
+    Prelude.Rate) echo -n "-M512M" ;;
     # For -O0 case writeChunks test fails, maybe we should have a separate flag
     # for O0 case?
     FileSystem.Handle) echo -n "-K16M" ;;

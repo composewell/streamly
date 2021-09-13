@@ -177,9 +177,11 @@ main = hspec $ do
             forM_ rates (\r -> measureRate "asyncly" fromAsync r 0 0 range)
 
     -- XXX try staggering the dispatches to achieve higher rates
-    let rates = [1, 10, 100, 1000
-#ifndef __GHCJS__
-                , 10000, 25000
+    -- Producer delay causes a lot of threads to be created, consuming large
+    -- amounts of memory at higher rates.
+    let rates = [1, 10, 100
+#if !defined(__GHCJS__) && defined USE_LARGE_MEMORY
+                1000, 10000, 25000
 #endif
                 ]
      in describe "asyncly no consumer delay and 1 sec producer delay" $
@@ -187,12 +189,12 @@ main = hspec $ do
 
     -- At lower rates (1/10) this is likely to vary quite a bit depending on
     -- the spread of random producer latencies generated.
-    let rates = [1, 10, 100, 1000
-#ifndef __GHCJS__
-                , 10000, 25000
+    let rates = [1, 10, 100
+#if !defined(__GHCJS__) && defined USE_LARGE_MEMORY
+                , 1000, 10000, 25000
 #endif
                 ]
-     in describe "asyncly no consumer delay and variable producer delay" $
+     in describe "asyncly, no consumer delay and variable producer delay" $
             forM_ rates $ \r ->
                 measureRateVariable "asyncly" fromAsync r 0 (0.1, 3) range
 
@@ -201,15 +203,15 @@ main = hspec $ do
                 , 100000, 1000000
 #endif
                 ]
-     in describe "fromWAsync no consumer delay no producer delay" $
+     in describe "fromWAsync, no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "fromWAsync" fromWAsync r 0 0 range)
 
     let rates = [1, 10, 100, 1000
-#ifndef __GHCJS__
+#if !defined(__GHCJS__) && defined USE_LARGE_MEMORY
                 , 10000, 25000
 #endif
                 ]
-     in describe "fromWAsync no consumer delay and 1 sec producer delay" $
+     in describe "fromWAsync, no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "fromWAsync" fromWAsync r 0 1 range)
 
     let rates = [1, 10, 100, 1000, 10000
@@ -217,20 +219,20 @@ main = hspec $ do
                 , 100000, 1000000
 #endif
                 ]
-     in describe "aheadly no consumer delay no producer delay" $
+     in describe "aheadly, no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "aheadly" fromAhead r 0 0 range)
 
     -- XXX after the change to stop workers when the heap is clearing
     -- thi does not work well at a 25000 ops per second, need to fix.
     let rates = [1, 10, 100, 1000
-#ifndef __GHCJS__
+#if !defined(__GHCJS__) && defined USE_LARGE_MEMORY
                 , 10000, 12500
 #endif
                 ]
-     in describe "aheadly no consumer delay and 1 sec producer delay" $
+     in describe "aheadly, no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "aheadly" fromAhead r 0 1 range)
 
-    describe "asyncly with 1 sec producer delay and some consumer delay" $ do
+    describe "asyncly, some consumer delay and 1 sec producer delay" $ do
         -- ideally it should take 10 x 1 + 1 seconds
         forM_ [1] (\r -> measureRate "asyncly" fromAsync r 1 1 (11, 16))
         -- ideally it should take 10 x 2 + 1 seconds
@@ -238,7 +240,7 @@ main = hspec $ do
         -- ideally it should take 10 x 3 + 1 seconds
         forM_ [1] (\r -> measureRate "asyncly" fromAsync r 3 1 (31, 33))
 
-    describe "aheadly with 1 sec producer delay and some consumer delay" $ do
+    describe "aheadly, some consumer delay and 1 sec producer delay" $ do
         forM_ [1] (\r -> measureRate "aheadly" fromAhead r 1 1 (11, 16))
         forM_ [1] (\r -> measureRate "aheadly" fromAhead r 2 1 (21, 23))
         forM_ [1] (\r -> measureRate "aheadly" fromAhead r 3 1 (31, 33))
