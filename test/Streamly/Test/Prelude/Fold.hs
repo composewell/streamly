@@ -13,12 +13,13 @@ module Streamly.Test.Prelude.Fold where
 import Control.Concurrent (threadDelay)
 #endif
 import Control.Exception (ErrorCall(..), catch)
-import Data.IORef ( newIORef, readIORef, writeIORef, IORef )
+import Data.IORef (newIORef, readIORef, writeIORef, IORef)
 #ifdef COVERAGE_BUILD
 import Test.Hspec.QuickCheck (modifyMaxSuccess)
 #endif
 import Test.Hspec as H
 #ifdef DEVBUILD
+import Data.IORef (modifyIORef)
 import System.Mem (performMajorGC)
 #endif
 
@@ -63,14 +64,20 @@ checkCleanupFold :: IsStream t
     -> (SerialT IO Int -> IO (Maybe Int))
     -> IO ()
 checkCleanupFold t op = do
-    r <- newIORef (-1 :: Int)
+    r <- newIORef ([] :: [Int])
     _ <- op $ t $ delay r 0 S.|: delay r 2 S.|: delay r 3 S.|: S.nil
     performMajorGC
-    threadDelay 700000
+    -- In case the actions are not killed let them fire before we check so that
+    -- the test fails.
+    threadDelay (4 * delayUnit)
     res <- readIORef r
-    res `shouldBe` 0
+    res `shouldBe` [0]
+
     where
-    delay ref i = threadDelay (i*200000) >> writeIORef ref i >> return i
+
+    delayUnit = 400000
+    delay ref i =
+        threadDelay (i * delayUnit) >> modifyIORef ref (i :) >> return i
 
 testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
 testFoldOpsCleanup name f = do
