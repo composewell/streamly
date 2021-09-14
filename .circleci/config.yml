@@ -418,4 +418,4 @@ workflows:
       #- coveralls-ghc-8_10_2:
       #    name: GHC 8.10.2 + inspection + coverage + Werror
       - hlint-src:
-          name: Hlint src + Trailing Spaces
+          name: Hlint src + Trailing Spaces + Column Length

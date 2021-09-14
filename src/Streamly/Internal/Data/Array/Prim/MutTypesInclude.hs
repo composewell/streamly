@@ -44,7 +44,7 @@ unsafeCopy ::
     -> m ()
 unsafeCopy (Array dst#) (I# doff#) (Array src#) (I# soff#) (I# n#) =
     liftIO $ do
-        let toBytes cnt# = cnt# *# (sizeOf# (undefined :: a))
+        let toBytes cnt# = cnt# *# sizeOf# (undefined :: a)
         primitive_ $
             copyMutableByteArray#
                 src#
@@ -127,7 +127,7 @@ shrinkArray ::
     -> m ()
 shrinkArray (Array arr#) (I# n#) =
     liftIO $ do
-        let bytes = n# *# (sizeOf# (undefined :: a))
+        let bytes = n# *# sizeOf# (undefined :: a)
         primitive_ (shrinkMutableByteArray# arr# bytes)
 
 -- | Fold the whole input to a single array.
@@ -215,14 +215,14 @@ writeNUnsafe n = FL.rmapM extract $ FL.foldlM' step initial
 fromStreamDN :: (MonadIO m, Prim a) => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
     marr <- newArray (max limit 0)
-    let step i x = i `seq` (unsafeWriteIndex marr i x) >> return (i + 1)
+    let step i x = i `seq` unsafeWriteIndex marr i x >> return (i + 1)
     n <- D.foldlM' step (return 0) $ D.take limit str
     shrinkArray marr n
     return marr
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Prim a) => D.Stream m a -> m (Array a)
-fromStreamD str = D.fold write str
+fromStreamD  = D.fold write
 
 {-# INLINABLE fromListNM #-}
 fromListNM :: (MonadIO m, Prim a) => Int -> [a] -> m (Array a)
@@ -336,7 +336,7 @@ packArraysChunksOf n (D.Stream step state) =
                   then D.Skip $ SpliceYielding arr (SpliceInitial s)
                   else D.Skip $ SpliceBuffering s arr
             D.Skip s -> return $ D.Skip (SpliceInitial s)
-            D.Stop -> return $ D.Stop
+            D.Stop -> return D.Stop
 
     step' gst (SpliceBuffering st buf) = do
         r <- step gst st
