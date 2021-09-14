@@ -1628,13 +1628,13 @@ exceptionOps desc t = do
     prop (desc <> " before") $ beforeProp t
     prop (desc <> " after") $ afterProp t
     prop (desc <> " bracket end of stream") $ bracketProp t
-#ifdef DEVBUILD
+#ifdef INCLUDE_FLAKY_TESTS
     prop (desc <> " bracket partial stream") $ bracketPartialStreamProp t
 #endif
     prop (desc <> " bracket exception in stream") $ bracketExceptionProp t
     prop (desc <> " onException") $ onExceptionProp t
     prop (desc <> " finally end of stream") $ finallyProp t
-#ifdef DEVBUILD
+#ifdef INCLUDE_FLAKY_TESTS
     prop (desc <> " finally partial stream") $ finallyPartialStreamProp t
 #endif
     prop (desc <> " finally exception in stream") $ finallyExceptionProp t

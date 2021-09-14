@@ -20,6 +20,11 @@ flag use-large-mem
   manual: True
   default: False
 
+flag include-flaky-tests
+  description: Include tests that are unpredictable
+  manual: True
+  default: False
+
 flag dev
   description: Development build
   manual: True
@@ -77,6 +82,9 @@ common compile-options
 
     if flag(use-large-mem)
       cpp-options: -DUSE_LARGE_MEMORY
+
+    if flag(include-flaky-tests)
+      cpp-options: -DINCLUDE_FLAKY_TESTS
 
 common default-extensions
     default-extensions:

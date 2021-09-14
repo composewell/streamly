@@ -85,7 +85,9 @@ testFoldOpsCleanup name f = do
     it (name <> " asyncly") $ checkCleanupFold S.fromAsync (testOp f)
     it (name <> " wAsyncly") $ checkCleanupFold S.fromWAsync (testOp f)
     it (name <> " aheadly") $ checkCleanupFold S.fromAhead (testOp f)
+#ifdef INCLUDE_FLAKY_TESTS
     it (name <> " parallely") $ checkCleanupFold S.fromParallel (testOp f)
+#endif
 #endif
 
 checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()
