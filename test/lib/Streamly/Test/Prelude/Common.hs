@@ -1754,7 +1754,9 @@ makeCommonOps t =
             , ("maxBuffer 0", t . maxBuffer 0)
             , ("maxThreads 0", t . maxThreads 0)
             , ("maxThreads 1", t . maxThreads 1)
+#ifdef USE_LARGE_MEMORY
             , ("maxThreads -1", t . maxThreads (-1))
+#endif
 #endif
             ]
 

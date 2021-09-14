@@ -15,6 +15,11 @@ flag limit-build-mem
   manual: True
   default: False
 
+flag use-large-mem
+  description: Include tests that require large amount of memory
+  manual: True
+  default: False
+
 flag dev
   description: Development build
   manual: True
@@ -69,6 +74,9 @@ common compile-options
 
     if flag(limit-build-mem)
       ghc-options: +RTS -M512M -RTS
+
+    if flag(use-large-mem)
+      cpp-options: -DUSE_LARGE_MEMORY
 
 common default-extensions
     default-extensions:
