@@ -437,7 +437,7 @@ mapMSerial = Serial.mapM
 -- @since 0.1.0
 {-# INLINE sequence #-}
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence m = fromStreamS $ S.sequence (toStreamS m)
+sequence = mapM id
 
 ------------------------------------------------------------------------------
 -- Mapping side effects

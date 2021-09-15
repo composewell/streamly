@@ -164,6 +164,10 @@ concurrentOps constr desc eq t = do
         concurrentMapM constr eq $ \n mv stream ->
             t $ S.mapM (mvarSequenceOp mv n) stream
 
+    prop1 (desc <> " sequence") $
+        concurrentMapM constr eq $ \n mv stream ->
+            t $ S.sequence $ S.map (mvarSequenceOp mv n) stream
+
 -------------------------------------------------------------------------------
 -- Concurrent Application
 -------------------------------------------------------------------------------
