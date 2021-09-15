@@ -116,9 +116,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , intersperseSuffixBySpan
     , interjectSuffix
     , justsOfTimeout
-    -- , intersperseBySpan
-    -- , intersperseByIndices -- using an index function/stream
-
+    
     -- , interspersePrefix
     -- , interspersePrefixBySpan
 

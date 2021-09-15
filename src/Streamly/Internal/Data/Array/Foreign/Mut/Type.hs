@@ -93,7 +93,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
-    , bytesToElemCount
     , writeNUnsafeMaybe
     , writeMaybesN
     , writeMaybes
@@ -1162,14 +1161,6 @@ toStreamD_ size Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` size)
 #endif
-    Array a
-nil = Array nullForeignPtr (Ptr nullAddr#) (Ptr nullAddr#)
-
-instance Storable a => Monoid (Array a) where
-    {-# INLINE mempty #-}
-    mempty = nil
-    {-# INLINE mappend #-}
-    mappend = (<>)
 
 {-# INLINE_NORMAL writeMaybesN #-}
 writeMaybesN :: forall m a. (MonadIO m, Storable a)
@@ -1195,7 +1186,7 @@ writeMaybesN n = Fold step initial extract
 {-# INLINE_NORMAL writeMaybes #-}
 writeMaybes :: forall m a. (MonadIO m, Storable a)
     => Fold m (Maybe a) (Array a)
-writeMaybes = FL.mkAccumM step initial extract
+writeMaybes = FL.mkFoldM_ step initial extract
 
     where
 
