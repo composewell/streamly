@@ -1675,7 +1675,7 @@ infixl 1 |&
 {-# INLINE justsOf #-}
 justsOf :: (MonadIO m, IsStream t)
     => t m a -> t m (Maybe a)
-justsOf = Serial.map Just
+justsOf = map Just
 
 -- | Transform a stream of @a@ to @(Just a)@ then intersperse a Nothing into the input
 -- stream after every n elements then interject Nothing every @t@ seconds.

@@ -72,10 +72,10 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , flattenArrays
     , flattenArraysRev
     -- * Utilities
-    , MA.defaultChunkSize
-    , MA.mkChunkSize
-    , MA.mkChunkSizeKB
-    , MA.unsafeInlineIO
+    -- , MA.defaultChunkSize
+    -- , MA.mkChunkSize
+    -- , MA.mkChunkSizeKB
+    -- , MA.unsafeInlineIO
 
     , MA.memcpy
     , MA.memcmp

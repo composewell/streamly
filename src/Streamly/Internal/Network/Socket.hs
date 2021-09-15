@@ -56,8 +56,7 @@ module Streamly.Internal.Network.Socket
     , writeChunk
     , writeChunks
     , writeChunksWithBufferOf
-    , writeStrings
-    , writeMaybesWithBufferOf
+    ,writeMaybesWithBufferOf
 
     -- reading/writing datagrams
     )
@@ -96,22 +95,63 @@ import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
+import Streamly.Internal.System.IO (defaultChunkSize)
+
+import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Unfold as UF
+
+-- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
+-- the socket handle to it.  The handle will be closed on exit from
+-- 'forSocketM', whether by normal termination or by raising an exception.  If
+-- closing the handle raises an exception, then this exception will be raised
+-- by 'forSocketM' rather than any exception raised by 'action'.
 --
+-- @since 0.8.0
+{-# INLINE forSocketM #-}
 forSocketM :: (MonadMask m, MonadIO m) => (Socket -> m ()) -> Socket -> m ()
+forSocketM f sk = finally (f sk) (liftIO (Net.close sk))
+
 -- | Like 'forSocketM' but runs a streaming computation instead of a monadic
+-- computation.
+--
 -- /Inhibits stream fusion/
+--
+-- /Internal/
 {-# INLINE withSocket #-}
+withSocket :: (IsStream t, MonadAsync m, MonadCatch m)
+    => Socket -> (Socket -> t m a) -> t m a
+withSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
+
+-------------------------------------------------------------------------------
 -- Accept (Unfolds)
+-------------------------------------------------------------------------------
+
+-- XXX Protocol specific socket options should be separated from socket level
+-- options.
+--
 -- | Specify the socket protocol details.
 data SockSpec = SockSpec
+    {
       sockFamily :: !Family
     , sockType   :: !SocketType
+    , sockProto  :: !ProtocolNumber
     , sockOpts   :: ![(SocketOption, Int)]
     }
+
 initListener :: Int -> SockSpec -> SockAddr -> IO Socket
+initListener listenQLen SockSpec{..} addr =
+  withSocketsDo $ do
     sock <- socket sockFamily sockType sockProto
     use sock `onException` Net.close sock
+    return sock
+
     where
 
     use sock = do
@@ -459,20 +499,6 @@ writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
 
 -- > write = 'writeWithBufferOf' defaultChunkSize
--- | Write a (Maybe Word8) stream to a socket. Accumulates the input in chunks of
--- specified number of bytes or till Nothing before writing.
---
--- >>> S.unfold readWithBufferOf (1024, sk)
---             & S.justsOfTimeout 1024 1
---             & S.fold (writeMaybesWithBufferOf 1024 sk)
--- /Internal/
-
-{-# INLINE writeMaybesWithBufferOf #-}
-writeMaybesWithBufferOf :: (MonadIO m )
-    => Int -> Socket -> Fold m (Maybe Word8) ()
-writeMaybesWithBufferOf n h = FL.many (writeChunks h) (A.writeMaybesN n)
-
--- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'defaultChunkSize' before writing.  Note that the write behavior
@@ -494,6 +520,11 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 {-# INLINE write #-}
 write :: MonadIO m => Socket -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
+
+{-# INLINE writeMaybesWithBufferOf #-}
+writeMaybesWithBufferOf :: (MonadIO m )
+    => Int -> Socket -> Fold m (Maybe Word8) ()
+writeMaybesWithBufferOf n h = FL.many (A.writeMaybesN n) (writeChunks h)
 
 {-
 {-# INLINE write #-}

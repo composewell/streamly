@@ -93,7 +93,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
-    , writeNUnsafeMaybe
     , writeMaybesN
     , writeMaybes
     )
@@ -1186,7 +1185,7 @@ writeMaybesN n = Fold step initial extract
 {-# INLINE_NORMAL writeMaybes #-}
 writeMaybes :: forall m a. (MonadIO m, Storable a)
     => Fold m (Maybe a) (Array a)
-writeMaybes = FL.mkFoldM_ step initial extract
+writeMaybes = FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
