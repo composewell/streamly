@@ -484,8 +484,8 @@ do
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
     --with-compiler) shift; CABAL_WITH_COMPILER=$1; shift ;;
-    --cabal-build-flags) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
-    --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=$1; shift ;;
+    --cabal-build-flags) shift; CABAL_BUILD_OPTIONS+=" $1"; shift ;;
+    --cabal-build-options) shift; CABAL_BUILD_OPTIONS+=" $1"; shift ;;
     --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     --config) shift; BENCH_CONFIG_FILE=$1; shift ;;
     --diff-style) shift; BENCH_DIFF_STYLE=$1; shift ;;
