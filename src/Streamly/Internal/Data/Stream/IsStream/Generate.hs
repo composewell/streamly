@@ -125,11 +125,15 @@ import Prelude hiding (iterate, replicate, repeat)
 
 -- $setup
 -- >>> :m
+-- >>> import Data.Function ((&))
 -- >>> import Prelude hiding (iterate, replicate, repeat)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import Control.Concurrent (threadDelay)
+-- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+--
+-- >>> hSetBuffering stdout LineBuffering
 
 ------------------------------------------------------------------------------
 -- From Unfold
@@ -159,29 +163,26 @@ unfold0 unf = unfold unf (error "unfold0: unexpected void evaluation")
 ------------------------------------------------------------------------------
 
 -- |
--- @
+-- >>> :{
 -- unfoldr step s =
 --     case step s of
---         Nothing -> 'K.nil'
---         Just (a, b) -> a \`cons` unfoldr step b
--- @
+--         Nothing -> Stream.nil
+--         Just (a, b) -> a `Stream.cons` unfoldr step b
+-- :}
 --
 -- Build a stream by unfolding a /pure/ step function @step@ starting from a
 -- seed @s@.  The step function returns the next element in the stream and the
 -- next seed value. When it is done it returns 'Nothing' and the stream ends.
 -- For example,
 --
--- @
 -- >>> :{
 -- let f b =
---         if b > 3
+--         if b > 2
 --         then Nothing
 --         else Just (b, b + 1)
 -- in Stream.toList $ Stream.unfoldr f 0
 -- :}
--- [0,1,2,3]
---
--- @
+-- [0,1,2]
 --
 -- @since 0.1.0
 {-# INLINE_EARLY unfoldr #-}
@@ -195,26 +196,28 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 -- seed value. When it is done it returns 'Nothing' and the stream ends. For
 -- example,
 --
--- @
 -- >>> :{
 -- let f b =
---         if b > 3
+--         if b > 2
 --         then return Nothing
 --         else return (Just (b, b + 1))
 -- in Stream.toList $ Stream.unfoldrM f 0
 -- :}
--- [0,1,2,3]
+-- [0,1,2]
 --
--- @
 -- When run concurrently, the next unfold step can run concurrently with the
 -- processing of the output of the previous step.  Note that more than one step
 -- cannot run concurrently as the next step depends on the output of the
 -- previous step.
 --
--- @
--- (fromAsync $ S.unfoldrM (\\n -> liftIO (threadDelay 1000000) >> return (Just (n, n + 1))) 0)
---     & S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
--- @
+-- >>> :{
+-- let f b =
+--         if b > 2
+--         then return Nothing
+--         else threadDelay 1000000 >> return (Just (b, b + 1))
+-- in Stream.toList $ Stream.delay 1 $ Stream.fromAsync $ Stream.unfoldrM f 0
+-- :}
+-- [0,1,2]
 --
 -- /Concurrent/
 --
@@ -253,9 +256,7 @@ repeat :: (IsStream t, Monad m) => a -> t m a
 repeat = fromStreamS . S.repeat
 
 -- |
--- @
--- replicate = take n . repeat
--- @
+-- >>> replicate n = Stream.take n . Stream.repeat
 --
 -- Generate a stream of length @n@ by repeating a value @n@ times.
 --
@@ -265,16 +266,25 @@ replicate :: (IsStream t, Monad m) => Int -> a -> t m a
 replicate n = fromStreamS . S.replicate n
 
 -- |
--- @
--- replicateM = take n . repeatM
--- @
+-- >>> replicateM n = Stream.take n . Stream.repeatM
 --
 -- Generate a stream by performing a monadic action @n@ times. Same as:
 --
--- @
--- drain $ fromSerial $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
--- drain $ fromAsync  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
--- @
+-- >>> pr n = threadDelay 1000000 >> print n
+--
+-- This runs serially and takes 3 seconds:
+--
+-- >>> Stream.drain $ Stream.fromSerial $ Stream.replicateM 3 $ pr 1
+-- 1
+-- 1
+-- 1
+--
+-- This runs concurrently and takes just 1 second:
+--
+-- >>> Stream.drain $ Stream.fromAsync  $ Stream.replicateM 3 $ pr 1
+-- 1
+-- 1
+-- 1
 --
 -- /Concurrent/
 --
@@ -398,10 +408,8 @@ timeout = undefined
 -- map. Check performance equivalence.
 --
 -- |
--- @
--- fromIndices f = fmap f $ Stream.enumerateFrom 0
--- fromIndices f = let g i = f i \`cons` g (i + 1) in g 0
--- @
+-- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
+-- >>> fromIndices f = let g i = f i `Stream.cons` g (i + 1) in g 0
 --
 -- Generate an infinite stream, whose values are the output of a function @f@
 -- applied on the corresponding index.  Index starts at 0.
@@ -416,10 +424,8 @@ fromIndices = fromStreamS . S.fromIndices
 
 --
 -- |
--- @
--- fromIndicesM f = Stream.mapM f $ Stream.enumerateFrom 0
--- fromIndicesM f = let g i = f i \`consM` g (i + 1) in g 0
--- @
+-- >>> fromIndicesM f = Stream.mapM f $ Stream.enumerateFrom 0
+-- >>> fromIndicesM f = let g i = f i `Stream.consM` g (i + 1) in g 0
 --
 -- Generate an infinite stream, whose values are the output of a monadic
 -- function @f@ applied on the corresponding index. Index starts at 0.
@@ -442,19 +448,14 @@ fromIndicesMSerial = fromStreamS . S.fromIndicesM
 ------------------------------------------------------------------------------
 
 -- |
--- @
--- iterate f x = x \`cons` iterate f x
--- @
+-- >>> iterate f x = x `Stream.cons` iterate f x
 --
 -- Generate an infinite stream with @x@ as the first element and each
 -- successive element derived by applying the function @f@ on the previous
 -- element.
 --
--- @
 -- >>> Stream.toList $ Stream.take 5 $ Stream.iterate (+1) 1
 -- [1,2,3,4,5]
---
--- @
 --
 -- @since 0.1.2
 {-# INLINE_NORMAL iterate #-}
@@ -462,26 +463,39 @@ iterate :: (IsStream t, Monad m) => (a -> a) -> a -> t m a
 iterate step = fromStreamS . S.iterate step
 
 -- |
--- @
--- iterateM f m = m >>= \a -> return a \`consM` iterateM f (f a)
--- @
+-- >>> iterateM f m = m >>= \a -> return a `Stream.consM` iterateM f (f a)
 --
 -- Generate an infinite stream with the first element generated by the action
 -- @m@ and each successive element derived by applying the monadic function
 -- @f@ on the previous element.
+--
+-- >>> pr n = threadDelay 1000000 >> print n
+-- >>> :{
+-- Stream.iterateM (\x -> pr x >> return (x + 1)) (return 0)
+--     & Stream.take 3
+--     & Stream.fromSerial
+--     & Stream.toList
+-- :}
+-- 0
+-- 1
+-- [0,1,2]
 --
 -- When run concurrently, the next iteration can run concurrently with the
 -- processing of the previous iteration. Note that more than one iteration
 -- cannot run concurrently as the next iteration depends on the output of the
 -- previous iteration.
 --
--- @
--- drain $ fromSerial $ S.take 10 $ S.iterateM
---      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) (return 0)
---
--- drain $ fromAsync  $ S.take 10 $ S.iterateM
---      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) (return 0)
--- @
+-- >>> :{
+-- Stream.iterateM (\x -> pr x >> return (x + 1)) (return 0)
+--     & Stream.delay 1
+--     & Stream.take 3
+--     & Stream.fromAsync
+--     & Stream.toList
+-- :}
+-- 0
+-- 1
+-- 2
+-- [0,1,2]
 --
 -- /Concurrent/
 --
@@ -505,13 +519,12 @@ iterateMSerial step = fromStreamS . S.iterateM step
 --
 -- The function @fix@ defined as:
 --
--- > fix f = let x = f x in x
+-- >>> fix f = let x = f x in x
 --
 -- ensures that the argument of a function and its output refer to the same
 -- lazy value @x@ i.e.  the same location in memory.  Thus @x@ can be defined
 -- in terms of itself, creating structures with cyclic references.
 --
--- >>> import Data.Function (fix)
 -- >>> f ~(a, b) = ([1, b], head a)
 -- >>> fix f
 -- ([1,1],1)
@@ -529,21 +542,18 @@ iterateMSerial step = fromStreamS . S.iterateM step
 -- represents the tuple @(x,y)@ returned by it in a given iteration. We define
 -- the first element of the tuple in terms of the second.
 --
--- @
--- import Streamly.Internal.Data.Stream.IsStream as Stream
--- import System.IO.Unsafe (unsafeInterleaveIO)
+-- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import System.IO.Unsafe (unsafeInterleaveIO)
 --
--- main = do
---     Stream.mapM_ print $ Stream.mfix f
---
+-- >>> :{
+-- main = Stream.mapM_ print $ Stream.mfix f
 --     where
---
 --     f action = do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
 --         x <- Stream.fromListM [incr 1 action, incr 2 action]
 --         y <- Stream.fromList [4,5]
 --         return (x, y)
--- @
+-- :}
 --
 -- Note: you cannot achieve this by just changing the order of the monad
 -- statements because that would change the order in which the stream elements
@@ -562,9 +572,7 @@ mfix f = fromStream $ K.mfix (toStream . f)
 ------------------------------------------------------------------------------
 
 -- |
--- @
--- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
--- @
+-- >>> fromFoldable = Prelude.foldr Stream.cons Stream.nil
 --
 -- Construct a stream from a 'Foldable' containing pure values:
 --
@@ -574,16 +582,20 @@ fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = fromStream . K.fromFoldable
 
 -- |
--- @
--- fromFoldableM = 'Prelude.foldr' 'consM' 'K.nil'
--- @
+-- >>> fromFoldableM = Prelude.foldr Stream.consM Stream.nil
 --
 -- Construct a stream from a 'Foldable' containing monadic actions.
 --
--- @
--- drain $ fromSerial $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
--- drain $ fromAsync  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
--- @
+-- >>> pr n = threadDelay 1000000 >> print n
+-- >>> Stream.drain $ Stream.fromSerial $ Stream.fromFoldableM $ map pr [1,2,3]
+-- 1
+-- 2
+-- 3
+--
+-- >>> Stream.drain $ Stream.fromAsync $ Stream.fromFoldableM $ map pr [1,2,3]
+-- ...
+-- ...
+-- ...
 --
 -- /Concurrent (do not use with 'fromParallel' on infinite containers)/
 --
@@ -593,9 +605,10 @@ fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
 fromFoldableM = Prelude.foldr consM IsStream.nil
 
 -- |
--- @
--- fromListM = 'Prelude.foldr' 'K.consM' 'K.nil'
--- @
+-- >>> fromListM = Stream.fromFoldableM
+-- >>> fromListM = Stream.sequence . Stream.fromList
+-- >>> fromListM = Stream.mapM id . Stream.fromList
+-- >>> fromListM = Prelude.foldr Stream.consM Stream.nil
 --
 -- Construct a stream from a list of monadic actions. This is more efficient
 -- than 'fromFoldableM' for serial streams.
