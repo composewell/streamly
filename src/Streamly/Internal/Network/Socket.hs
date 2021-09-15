@@ -56,7 +56,7 @@ module Streamly.Internal.Network.Socket
     , writeChunk
     , writeChunks
     , writeChunksWithBufferOf
-    ,writeMaybesWithBufferOf
+    , writeMaybesWithBufferOf
 
     -- reading/writing datagrams
     )
