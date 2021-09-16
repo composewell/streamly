@@ -114,6 +114,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , intersperseSuffix
     , intersperseSuffixBySpan
     , interjectSuffix
+    , justsOfTimeout
 
     -- , interspersePrefix
     -- , interspersePrefixBySpan
@@ -1666,3 +1667,24 @@ applyAsync = (|$)
 x |& f = f |$ x
 
 infixl 1 |&
+
+-- | Transform a stream of @a@ to @(Just a)@
+-- /Internal/
+--
+{-# INLINE justsOf #-}
+justsOf :: (MonadIO m, IsStream t)
+    => t m a -> t m (Maybe a)
+justsOf = map Just
+
+-- | Transform a stream of @a@ to stream of @(Just a)@ then intersperse a
+-- Nothing intothe input stream after every n elements then interject Nothing
+-- after every @t@ seconds.
+-- /Pre-release/
+--
+{-# INLINE justsOfTimeout #-}
+justsOfTimeout :: (MonadIO m, IsStream t, MonadAsync m)
+    => Int -> Double -> t m a -> t m (Maybe a)
+justsOfTimeout n t =
+      interjectSuffix t (return Nothing)
+    . intersperseSuffixBySpan n (return Nothing)
+    . justsOf

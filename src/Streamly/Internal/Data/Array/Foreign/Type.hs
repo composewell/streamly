@@ -65,6 +65,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , writeNAlignedUnmanaged
     , write
     , writeAligned
+    , writeMaybesN
 
     -- * Streams of arrays
     , arraysOf
@@ -696,3 +697,9 @@ nil = Array nullForeignPtr (Ptr nullAddr#)
 instance Storable a => Monoid (Array a) where
     mempty = nil
     mappend = (<>)
+
+{-# INLINE_NORMAL writeMaybesN #-}
+writeMaybesN :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m (Maybe a) (Array a)
+writeMaybesN n = unsafeFreeze <$> MA.writeMaybesN n  
+  

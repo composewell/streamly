@@ -58,6 +58,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , writeNAlignedUnmanaged
     , write
     , writeAligned
+    , writeMaybesN
 
     -- * Unfolds
     , ReadUState
@@ -106,6 +107,7 @@ import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Data.Maybe (isJust, fromJust)
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.ForeignPtr (touchForeignPtr)
@@ -1157,3 +1159,24 @@ toStreamD_ size Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` size)
 #endif
+
+{-# INLINE_NORMAL writeMaybesN #-}
+writeMaybesN :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m (Maybe a) (Array a)
+writeMaybesN n = Fold step initial extract
+
+    where
+
+    initial = do
+        (Array start end _) <- liftIO $ newArray (max n 0)
+        return $ FL.Partial (ArrayUnsafe start end, 0 :: Int)
+
+    step (ArrayUnsafe start end, i :: Int) x = do
+        if isJust x && i < n -- check for boundary
+        then  do
+            liftIO $ poke end (fromJust x)
+            return $ FL.Partial (ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a)), i+1)
+        else do
+            return $ FL.Done $ Array start end end
+
+    extract (ArrayUnsafe start end , _) = return $ Array start end end -- liftIO . shrinkToFit

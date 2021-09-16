@@ -26,6 +26,7 @@ import System.IO (Handle)
 import Prelude hiding (last, length)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
+import qualified Streamly.Internal.Data.Stream.IsStream as ISS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
@@ -43,6 +44,7 @@ import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+
 
 import Test.Inspection
 #endif
@@ -168,6 +170,16 @@ writeReadWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     fld = FH.writeWithBufferOf defaultChunkSize devNull
     unf = FH.readWithBufferOf
 
+{-# NOINLINE writeReadWithBufferOfMaybe #-}
+writeReadWithBufferOfMaybe :: Handle -> Handle -> IO ()
+writeReadWithBufferOfMaybe inh devNull = S.fold fld strm 
+
+    where
+
+    fld = FH.writeMaybesWithBufferOf defaultChunkSize devNull
+    strm = ISS.justsOfTimeout defaultChunkSize 0.5 
+            $ S.unfold FH.readWithBufferOf (defaultChunkSize, inh)  
+
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadWithBufferOf
 inspect $ 'writeReadWithBufferOf `hasNoType` ''Step
@@ -201,7 +213,9 @@ o_1_space_copy env =
             writeRead inh (nullH env)
         , mkBench "FH.writeWithBufferOf . FH.readWithBufferOf" env $ \inh _ ->
             writeReadWithBufferOf inh (nullH env)
-        ]
+        , mkBench "FH.writeWithBufferOfMaybe . FH.readWithBufferOf" env $ \inh _ ->
+            writeReadWithBufferOfMaybe inh (nullH env)    
+    ]
     ]
 
 -------------------------------------------------------------------------------

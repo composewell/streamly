@@ -88,6 +88,7 @@ module Streamly.FileSystem.Handle
 
     , write
     , writeWithBufferOf
+    , writeMaybesWithBufferOf
     , writeChunks
     )
 where

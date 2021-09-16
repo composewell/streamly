@@ -51,6 +51,7 @@ module Streamly.Internal.FileSystem.Handle
     -- , writeByFrames
     -- , writeLines
     , writeWithBufferOf
+    , writeMaybesWithBufferOf
 
     , putBytes
     , putBytesWithBufferOf
@@ -114,7 +115,7 @@ import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
-       (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
+       (Array(..), writeNUnsafe, writeMaybesN, unsafeFreezeWithShrink)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -501,6 +502,12 @@ writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 {-# INLINE writeWithBufferOf2 #-}
 writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
 writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
+
+{-# INLINE writeMaybesWithBufferOf #-}
+writeMaybesWithBufferOf :: (MonadIO m ) => 
+    Int -> Handle -> Fold m (Maybe Word8) ()
+writeMaybesWithBufferOf n h = FL.many (writeMaybesN n) (writeChunks h)
+
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing
