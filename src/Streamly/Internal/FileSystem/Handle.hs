@@ -504,7 +504,7 @@ writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
 writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 
 {-# INLINE writeMaybesWithBufferOf #-}
-writeMaybesWithBufferOf :: (MonadIO m ) => 
+writeMaybesWithBufferOf :: (MonadIO m ) =>
     Int -> Handle -> Fold m (Maybe Word8) ()
 writeMaybesWithBufferOf n h = FL.many (writeMaybesN n) (writeChunks h)
 

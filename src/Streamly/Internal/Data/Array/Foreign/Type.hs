@@ -701,5 +701,4 @@ instance Storable a => Monoid (Array a) where
 {-# INLINE_NORMAL writeMaybesN #-}
 writeMaybesN :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m (Maybe a) (Array a)
-writeMaybesN n = unsafeFreeze <$> MA.writeMaybesN n  
-  
+writeMaybesN n = unsafeFreeze <$> MA.writeMaybesN n

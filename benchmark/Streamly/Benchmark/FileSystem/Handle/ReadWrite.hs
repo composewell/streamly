@@ -172,13 +172,13 @@ writeReadWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
 {-# NOINLINE writeReadWithBufferOfMaybe #-}
 writeReadWithBufferOfMaybe :: Handle -> Handle -> IO ()
-writeReadWithBufferOfMaybe inh devNull = S.fold fld strm 
+writeReadWithBufferOfMaybe inh devNull = S.fold fld strm
 
     where
 
     fld = FH.writeMaybesWithBufferOf defaultChunkSize devNull
-    strm = ISS.justsOfTimeout defaultChunkSize 0.5 
-            $ S.unfold FH.readWithBufferOf (defaultChunkSize, inh)  
+    strm = ISS.justsOfTimeout defaultChunkSize 0.5
+            $ S.unfold FH.readWithBufferOf (defaultChunkSize, inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadWithBufferOf
@@ -214,7 +214,7 @@ o_1_space_copy env =
         , mkBench "FH.writeWithBufferOf . FH.readWithBufferOf" env $ \inh _ ->
             writeReadWithBufferOf inh (nullH env)
         , mkBench "FH.writeWithBufferOfMaybe . FH.readWithBufferOf" env $ \inh _ ->
-            writeReadWithBufferOfMaybe inh (nullH env)    
+            writeReadWithBufferOfMaybe inh (nullH env)
     ]
     ]
 
