@@ -250,6 +250,8 @@ import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Data.Functor.Identity (Identity, runIdentity)
+import Data.String
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -1137,3 +1139,7 @@ handle :: (MonadCatch m, Exception e)
     => Unfold m e b -> Unfold m a b -> Unfold m a b
 handle exc =
     gbracket_ return MC.try (\_ -> return ()) (discardFirst exc)
+
+instance (a ~ Char) => IsString (Unfold Identity [a] a) where
+    {-# INLINE fromString #-}
+    fromString _ = fromList
