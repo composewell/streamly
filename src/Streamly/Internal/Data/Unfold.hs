@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans  #-}
 #include "inline.hs"
 
 -- |
@@ -250,6 +251,8 @@ import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Data.Functor.Identity (Identity, runIdentity)
+import Data.Void
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -261,8 +264,10 @@ import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
+import qualified GHC.Exts as EXT
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
+import qualified Streamly.Internal.Data.Stream.IsStream as IsStream2
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -1137,3 +1142,21 @@ handle :: (MonadCatch m, Exception e)
     => Unfold m e b -> Unfold m a b -> Unfold m a b
 handle exc =
     gbracket_ return MC.try (\_ -> return ()) (discardFirst exc)
+
+instance EXT.IsList (Unfold Identity Void a) where
+    type Item (Unfold Identity Void a) = a
+
+    {-# INLINE fromList #-}
+    fromList _ = Unfold step inject
+
+        where
+
+        inject = return
+        {-# INLINE_LATE step #-}
+        step _  = return Stop
+
+    {-# INLINE toList #-}
+    toList uf =
+        runIdentity
+        $ IsStream2.toList
+        ( IsStream2.unfold uf undefined :: IsStream2.SerialT Identity a )
