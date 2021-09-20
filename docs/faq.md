@@ -57,3 +57,14 @@ g f xs =
 >>> g f2 [1,2,3,4::Int]
 [("1",2,0.5),("2",3,1.0),("3",4,1.5),("4",5,2.0)]
 ```
+
+## Sliding Window
+
+```
+>>> :{
+  Stream.fromList [1,2,3,4,5::Int]
+& Stream.scan (Array.writeLastN 2)
+& Stream.toList
+:}
+[[],[1],[1,2],[2,3],[3,4],[4,5]]
+```
