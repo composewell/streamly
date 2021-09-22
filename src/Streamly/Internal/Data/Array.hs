@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Array
     -- * Construction
     , writeN
     , write
+    , writeLastN
 
     , fromStreamDN
     , fromStreamD
@@ -52,6 +53,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.Functor.Identity (runIdentity)
+import Data.IORef
 import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
 
@@ -62,6 +64,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Data.Primitive.Array hiding (fromList, fromListN)
@@ -248,3 +251,30 @@ streamFold f arr = f (toStream arr)
 {-# INLINE getIndexUnsafe #-}
 getIndexUnsafe :: Array a -> Int -> a
 getIndexUnsafe = indexArray
+
+{-# INLINE writeLastN #-}
+writeLastN :: MonadIO m => Int -> Fold m a (Array a)
+writeLastN n
+    | n <= 0 = fmap (const mempty) FL.drain
+    | otherwise = Fold step initial done
+
+    where
+
+    initial = do
+        rb <- liftIO $ RB.createRing n
+        return $ FL.Partial $ Tuple' rb (0 :: Int)
+
+    step (Tuple' rb rh) x = do
+        liftIO $ RB.unsafeInsertRing rb rh x
+        return $ FL.Partial $ Tuple' rb (rh + 1)
+
+    done (Tuple' rb rh) = do
+        arr' <- liftIO $ newArray (min rh n) (undefined :: a)
+        ref <- liftIO $ readIORef $ RB.ringHead rb
+        if rh < n
+        then
+            liftIO $ copyMutableArray arr' 0 (RB.arr rb) 0 ref
+        else do
+            liftIO $ copyMutableArray arr' 0 (RB.arr rb) ref (n - ref)
+            liftIO $ copyMutableArray arr' (n - ref) (RB.arr rb) 0 ref
+        liftIO $ unsafeFreezeArray arr'

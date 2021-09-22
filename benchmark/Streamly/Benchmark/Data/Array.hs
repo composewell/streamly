@@ -13,7 +13,12 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
 import qualified Streamly.Data.Array.Foreign as A
+
+#ifdef DATA_ARRAY
+import qualified Streamly.Internal.Data.Array as IA
+#else
 import qualified Streamly.Internal.Data.Array.Foreign as IA
+#endif
 import qualified Streamly.Prelude  as S
 
 import Gauge
@@ -117,8 +122,10 @@ o_1_space_elimination value =
         , benchIOSink value "foldl'" Ops.pureFoldl'
         , benchIOSink value "read" Ops.unfoldReadDrain
         , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
-        , benchFold "writeLastN.1" (S.fold (IA.writeLastN 1)) (P.sourceUnfoldrM value)
-        , benchFold "writeLastN.10" (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
+        , benchFold "writeLastN.1"
+            (S.fold (IA.writeLastN 1)) (P.sourceUnfoldrM value)
+        , benchFold "writeLastN.10"
+            (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
