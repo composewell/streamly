@@ -477,6 +477,7 @@ library
 
                     -- Memory storage
                      , Streamly.Internal.Ring.Foreign
+                     , Streamly.Internal.Data.Ring
 
                      -- IOVec (depends on arrays/streams)
                      , Streamly.Internal.System.IOVec
