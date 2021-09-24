@@ -1055,39 +1055,55 @@ concatPairsWith
     -> (a -> Stream m b)
     -> Stream m a
     -> Stream m b
-concatPairsWith combine f = go Nothing
+concatPairsWith combine f str = go (leafPairs str)
 
     where
 
-    go Nothing stream =
+    go stream =
         mkStream $ \st yld sng stp ->
             let foldShared = foldStreamShared st yld sng stp
-                single a   = foldShared $ unShare (f a)
-                yieldk a r = foldShared $ go (Just a) r
+                single a   = foldShared $ unShare a
+                yieldk a r = foldShared $ go1 a r
             in foldStream (adaptState st) yieldk single stp stream
-    go (Just a1) stream =
+
+    go1 a1 stream =
         mkStream $ \st yld sng stp ->
             let foldShared = foldStreamShared st yld sng stp
-                stop = foldShared $ unShare (f a1)
-                single a = foldShared $ unShare (f a1) `combine` f a
+                stop = foldShared $ unShare a1
+                single a = foldShared $ unShare a1 `combine` a
                 yieldk a r =
-                    foldShared
-                        $ concatPairsWith combine
-                            (\(x,y) -> combine (unShare x) y)
-                        $ (f a1, f a) `cons` makePairs Nothing r
+                    foldShared $ go $ combine a1 a `cons` nonLeafPairs r
             in foldStream (adaptState st) yieldk single stop stream
 
-    makePairs Nothing stream =
+    -- Exactly the same as "go" except that stop continuation extracts the
+    -- stream.
+    leafPairs stream =
         mkStream $ \st yld sng stp ->
             let foldShared = foldStreamShared st yld sng stp
-                single a   = sng (f a, nil)
-                yieldk a r = foldShared $ makePairs (Just a) r
+                single a   = sng (f a)
+                yieldk a r = foldShared $ leafPairs1 a r
             in foldStream (adaptState st) yieldk single stp stream
-    makePairs (Just a1) stream =
+
+    leafPairs1 a1 stream =
         mkStream $ \st yld sng _ ->
-            let stop = sng (f a1, nil)
-                single a = sng (f a1, f a)
-                yieldk a r = yld (f a1, f a) (makePairs Nothing r)
+            let stop = sng (f a1)
+                single a = sng (f a1 `combine` f a)
+                yieldk a r = yld (f a1 `combine` f a) $ leafPairs r
+            in foldStream (adaptState st) yieldk single stop stream
+
+    -- Exactly the same as "leafPairs" except that it does not map "f"
+    nonLeafPairs stream =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single a   = sng a
+                yieldk a r = foldShared $ nonLeafPairs1 a r
+            in foldStream (adaptState st) yieldk single stp stream
+
+    nonLeafPairs1 a1 stream =
+        mkStream $ \st yld sng _ ->
+            let stop = sng a1
+                single a = sng (a1 `combine` a)
+                yieldk a r = yld (a1 `combine` a) $ nonLeafPairs r
             in foldStream (adaptState st) yieldk single stop stream
 
 instance Monad m => Applicative (Stream m) where
