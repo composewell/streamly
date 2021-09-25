@@ -789,30 +789,134 @@ zipWithM f = go
 mergeByM :: Monad m =>
     (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeByM cmp = go
-    where
-    go mx my = mkStream $ \st yld sng stp -> do
-        let mergeWithY a ra =
-                let stop2 = foldStream st yld sng stp mx
-                    single2 b = do
-                        r <- cmp a b
-                        case r of
-                            GT -> yld b (go (a `cons` ra) nil)
-                            _  -> yld a (go ra (b `cons` nil))
-                    yield2 b rb = do
-                        r <- cmp a b
-                        case r of
-                            GT -> yld b (go (a `cons` ra) rb)
-                            _  -> yld a (go ra (b `cons` rb))
-                 in foldStream st yield2 single2 stop2 my
-        let stopX = foldStream st yld sng stp my
-            singleX a = mergeWithY a nil
-            yieldX = mergeWithY
-        foldStream st yieldX singleX stopX mx
 
-{-# INLINABLE mergeBy #-}
-mergeBy :: Monad m =>
-    (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
+    where
+
+    go mx my = mkStream $ \st yld sng stp -> do
+        let stop = foldStream st yld sng stp my
+            single x = foldStream st yld sng stp (goX0 x my)
+            yield x rx = foldStream st yld sng stp (goX x rx my)
+        foldStream st yield single stop mx
+
+    goX0 x my = mkStream $ \st yld sng _ -> do
+        let stop = sng x
+            single y = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (fromPure x)
+                    _  -> yld x (fromPure y)
+            yield y ry = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (goX0 x ry)
+                    _  -> yld x (y `cons` ry)
+         in foldStream st yield single stop my
+
+    goX x mx my = mkStream $ \st yld _ _ -> do
+        let stop = yld x mx
+            single y = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (x `cons` mx)
+                    _  -> yld x (goY0 mx y)
+            yield y ry = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (goX x mx ry)
+                    _  -> yld x (goY mx y ry)
+         in foldStream st yield single stop my
+
+    goY0 mx y = mkStream $ \st yld sng _ -> do
+        let stop = sng y
+            single x = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y mx
+                    _  -> yld x (fromPure y)
+            yield x rx = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (x `cons` rx)
+                    _  -> yld x (goY0 rx y)
+         in foldStream st yield single stop mx
+
+    goY mx y my = mkStream $ \st yld _ _ -> do
+        let stop = yld y my
+            single x = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (goX0 x my)
+                    _  -> yld x (y `cons` my)
+            yield x rx = do
+                r <- cmp x y
+                case r of
+                    GT -> yld y (goX x rx my)
+                    _  -> yld x (goY rx y my)
+         in foldStream st yield single stop mx
+
+{-# INLINE mergeBy #-}
+mergeBy :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+-- XXX GHC: This has slightly worse performance than replacing "r <- cmp x y"
+-- with "let r = cmp x y" in the monadic version. The definition below is
+-- exactly the same as mergeByM except this change.
+-- mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
+mergeBy cmp = go
+
+    where
+
+    go mx my = mkStream $ \st yld sng stp -> do
+        let stop = foldStream st yld sng stp my
+            single x = foldStream st yld sng stp (goX0 x my)
+            yield x rx = foldStream st yld sng stp (goX x rx my)
+        foldStream st yield single stop mx
+
+    goX0 x my = mkStream $ \st yld sng _ -> do
+        let stop = sng x
+            single y = do
+                case cmp x y of
+                    GT -> yld y (fromPure x)
+                    _  -> yld x (fromPure y)
+            yield y ry = do
+                case cmp x y of
+                    GT -> yld y (goX0 x ry)
+                    _  -> yld x (y `cons` ry)
+         in foldStream st yield single stop my
+
+    goX x mx my = mkStream $ \st yld _ _ -> do
+        let stop = yld x mx
+            single y = do
+                case cmp x y of
+                    GT -> yld y (x `cons` mx)
+                    _  -> yld x (goY0 mx y)
+            yield y ry = do
+                case cmp x y of
+                    GT -> yld y (goX x mx ry)
+                    _  -> yld x (goY mx y ry)
+         in foldStream st yield single stop my
+
+    goY0 mx y = mkStream $ \st yld sng _ -> do
+        let stop = sng y
+            single x = do
+                case cmp x y of
+                    GT -> yld y mx
+                    _  -> yld x (fromPure y)
+            yield x rx = do
+                case cmp x y of
+                    GT -> yld y (x `cons` rx)
+                    _  -> yld x (goY0 rx y)
+         in foldStream st yield single stop mx
+
+    goY mx y my = mkStream $ \st yld _ _ -> do
+        let stop = yld y my
+            single x = do
+                case cmp x y of
+                    GT -> yld y (goX0 x my)
+                    _  -> yld x (y `cons` my)
+            yield x rx = do
+                case cmp x y of
+                    GT -> yld y (goX x rx my)
+                    _  -> yld x (goY rx y my)
+         in foldStream st yield single stop mx
 
 ------------------------------------------------------------------------------
 -- Transformation comprehensions
