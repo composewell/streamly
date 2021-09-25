@@ -210,6 +210,16 @@ benchmark Prelude.WSerial
   else
     buildable: True
 
+benchmark Prelude.Merge
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Merge.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 benchmark Prelude.ZipSerial
   import: bench-options
   type: exitcode-stdio-1.0

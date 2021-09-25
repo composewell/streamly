@@ -84,11 +84,28 @@ inspect $ 'zipWithM `hasNoType` ''SPEC
 inspect $ 'zipWithM `hasNoType` ''D.Step
 #endif
 
+{-
+{-# INLINE concatMapWithZip #-}
+concatMapWithZip :: Int -> Int -> Int -> IO ()
+concatMapWithZip = concatStreamsWith (S.zipWith (+))
+-}
+
+{-# INLINE concatPairsWithZip #-}
+concatPairsWithZip :: Int -> Int -> Int -> IO ()
+concatPairsWithZip = concatPairsWith (S.zipWith (+))
+
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
-        [ benchIOSrc1 "zip (2,x/2)" (zipWith (value `div` 2))
-        , benchIOSrc1 "zipM (2,x/2)" (zipWithM (value `div` 2))
+        [ benchIOSrc1 "zip (2 of n/2)" (zipWith (value `div` 2))
+        , benchIOSrc1 "zipM (2 of n/2)" (zipWithM (value `div` 2))
+        {-
+        -- Not correct because of nil stream at end issue.
+        , benchIOSrc1 "concatMapWithZip (+) (2 of n/2)"
+            (concatMapWithZip 2 (value `div` 2))
+        -}
+        , benchIOSrc1 "concatPairsWithZip (+) (2 of n/2)"
+            (concatPairsWithZip 2 (value `div` 2))
         ]
     ]
 
@@ -104,10 +121,36 @@ o_1_space_mapping value =
     ]
 
 -------------------------------------------------------------------------------
+-- Concat
+-------------------------------------------------------------------------------
+
+o_n_heap_concat :: Int -> [Benchmark]
+o_n_heap_concat value =
+    [ bgroup "concatPairsWith"
+        [ {- -- This fails with stack overflow.
+            benchIOSrc1 "concatMapWithZip (n of 1)"
+            (concatMapWithZip value 1)
+        -- Not correct because of nil stream at end issue.
+        , benchIOSrc1 "concatMapWithZip (sqrtVal of sqrtVal)"
+            (concatMapWithZip sqrtVal sqrtVal)
+        -}
+          benchIOSrc1 "concatPairsWithZip (n of 1)"
+            (concatPairsWithZip value 1)
+        , benchIOSrc1 "concatPairsWithZip (sqrtVal of sqrtVal)"
+            (concatPairsWithZip sqrtVal sqrtVal)
+        ]
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+-------------------------------------------------------------------------------
 -- Monad outer product
 -------------------------------------------------------------------------------
 
 {-
+-- Not correct because of nil stream at end issue.
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
@@ -133,6 +176,7 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_joining size
             , o_1_space_mapping size
+            , o_n_heap_concat size
             -- XXX need to fix, timing in ns
             -- , o_1_space_outerProduct size
             ]

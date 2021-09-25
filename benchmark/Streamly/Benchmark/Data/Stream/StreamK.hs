@@ -384,6 +384,14 @@ iterateDropWhileTrue streamLen iterStreamLen =
 zipWith :: Monad m => Stream m Int -> m ()
 zipWith src = drain $ S.zipWith (,) src src
 
+{-# INLINE sortByK #-}
+sortByK :: (a -> a -> Ordering) -> Stream m a -> Stream m a
+sortByK f = S.concatPairsWith (S.mergeBy f) S.fromPure
+
+{-# INLINE sortBy #-}
+sortBy :: Monad m => Stream m Int -> m ()
+sortBy = drain . sortByK compare
+
 -------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------
@@ -700,6 +708,7 @@ o_1_space_concat streamLen =
             (concatMapBySerial streamLen2 streamLen2)
         , benchIOSrc1 "concatMapBy serial (1 of n)"
             (concatMapBySerial 1 streamLen)
+        , benchFold "sortBy" sortBy (unfoldrM streamLen)
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
