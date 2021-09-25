@@ -20,7 +20,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 
-import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Prelude  as S
@@ -175,19 +174,13 @@ reverse n = composeN n S.reverse
 reverse' :: MonadIO m => Int -> SerialT m Int -> m ()
 reverse' n = composeN n Internal.reverse'
 
-{-# INLINE sortBy #-}
-sortBy :: MonadIO m => Int -> SerialT m Int -> m ()
-sortBy n = composeN n (Internal.sortBy compare)
-
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
-        -- Reversing/sorting a stream
+        -- Reversing a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
-        , benchIOSink value "sortBy" (sortBy 1)
-        , bench "sort Lists" $ nf (\x -> List.sort [1..x]) value
 
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
         ]

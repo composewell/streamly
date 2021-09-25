@@ -125,38 +125,6 @@ inspect $ 'append2 `hasNoType` ''SPEC
 inspect $ 'append2 `hasNoType` ''D.AppendState
 #endif
 
--------------------------------------------------------------------------------
--- Merging
--------------------------------------------------------------------------------
-
-{-# INLINE mergeBy #-}
-mergeBy :: Int -> Int -> IO ()
-mergeBy count n =
-    S.drain $
-    S.mergeBy
-        compare
-        (sourceUnfoldrM count n)
-        (sourceUnfoldrM count (n + 1))
-
-{-# INLINE mergeByM #-}
-mergeByM :: Int -> Int -> IO ()
-mergeByM count n =
-    S.drain $
-    S.mergeByM
-        (\a b -> return $ compare a b)
-        (sourceUnfoldrM count n)
-        (sourceUnfoldrM count (n + 1))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mergeBy
-inspect $ 'mergeBy `hasNoType` ''SPEC
-inspect $ 'mergeBy `hasNoType` ''D.Step
-
-inspect $ hasNoTypeClasses 'mergeByM
-inspect $ 'mergeByM `hasNoType` ''SPEC
-inspect $ 'mergeByM `hasNoType` ''D.Step
-#endif
-
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
@@ -164,8 +132,6 @@ o_1_space_joining value =
         , benchIOSrc1 "append (2,x/2)" (append2 (value `div` 2))
         , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
         , benchIOSrc1 "append (2,2,x/4)" (append4 (value `div` 4))
-        , benchIOSrc1 "mergeBy (2,x/2)" (mergeBy (value `div` 2))
-        , benchIOSrc1 "mergeByM (2,x/2)" (mergeByM (value `div` 2))
         ]
     ]
 
@@ -263,29 +229,13 @@ inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 
 -- concatPairWith
 
+{-# INLINE concatPairWithSerial #-}
+concatPairWithSerial :: Int -> Int -> Int -> IO ()
+concatPairWithSerial = concatPairsWith Internal.serial
+
 {-# INLINE concatPairWithAppend #-}
 concatPairWithAppend :: Int -> Int -> Int -> IO ()
 concatPairWithAppend = concatPairsWith Internal.append
-
-{-# INLINE concatPairWithInterleave #-}
-concatPairWithInterleave :: Int -> Int -> Int -> IO ()
-concatPairWithInterleave = concatPairsWith Internal.interleave
-
-{-# INLINE concatPairWithInterleaveSuffix #-}
-concatPairWithInterleaveSuffix :: Int -> Int -> Int -> IO ()
-concatPairWithInterleaveSuffix = concatPairsWith Internal.interleaveSuffix
-
-{-# INLINE concatPairWithInterleaveInfix #-}
-concatPairWithInterleaveInfix :: Int -> Int -> Int -> IO ()
-concatPairWithInterleaveInfix = concatPairsWith Internal.interleaveInfix
-
-{-# INLINE concatPairWithInterleaveMin #-}
-concatPairWithInterleaveMin :: Int -> Int -> Int -> IO ()
-concatPairWithInterleaveMin = concatPairsWith Internal.interleaveMin
-
-{-# INLINE concatPairWithRoundrobin #-}
-concatPairWithRoundrobin :: Int -> Int -> Int -> IO ()
-concatPairWithRoundrobin = concatPairsWith Internal.roundrobin
 
 -- unfoldMany
 
@@ -356,23 +306,18 @@ o_1_space_concat value = sqrtVal `seq`
 
         -------------------concatPairsWith-----------------
 
-        , benchIOSrc1 "concatPairWithAppend"
-            (concatPairWithAppend 2 (value `div` 2))
-        , benchIOSrc1 "concatPairWithInterleave"
-        (concatPairWithInterleave 2 (value `div` 2))
+        -- Use large number of streams to check scalability
+        , benchIOSrc1 "concatPairWithSerial (n of 1)"
+            (concatPairWithSerial value 1)
+        , benchIOSrc1 "concatPairWithSerial (sqrtVal of sqrtVal)"
+            (concatPairWithSerial sqrtVal sqrtVal)
+        , benchIOSrc1 "concatPairWithSerial (2 of n/2)"
+            (concatPairWithSerial 2 (value `div` 2))
 
-        , benchIOSrc1 "concatPairWithInterleaveSuffix"
-        (concatPairWithInterleaveSuffix 2 (value `div` 2))
-
-        , benchIOSrc1 "concatPairWithInterleaveInfix"
-        (concatPairWithInterleaveInfix 2 (value `div` 2))
-
-        , benchIOSrc1 "concatPairWithInterleaveMin"
-        (concatPairWithInterleaveMin 2 (value `div` 2))
-
-        , benchIOSrc1 "concatPairWithRoundrobin"
-        (concatPairWithRoundrobin 2 (value `div` 2))
-
+        , benchIOSrc1 "concatPairWithAppend (n of 1)"
+            (concatPairWithAppend value 1)
+        , benchIOSrc1 "concatPairWithAppend (sqrtVal of sqrtVal)"
+            (concatPairWithAppend sqrtVal sqrtVal)
         ]
     ]
 

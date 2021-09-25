@@ -346,7 +346,7 @@ sourceConcatMapId value n =
 
 {-# INLINE concatStreamsWith #-}
 concatStreamsWith
-    :: (forall c. S.SerialT IO c -> S.SerialT IO c -> S.SerialT IO c)
+    :: (S.SerialT IO Int -> S.SerialT IO Int -> S.SerialT IO Int)
     -> Int
     -> Int
     -> Int
@@ -358,7 +358,7 @@ concatStreamsWith op outer inner n =
 
 {-# INLINE concatPairsWith #-}
 concatPairsWith
-    :: (forall c. S.SerialT IO c -> S.SerialT IO c -> S.SerialT IO c)
+    :: (S.SerialT IO Int -> S.SerialT IO Int -> S.SerialT IO Int)
     -> Int
     -> Int
     -> Int

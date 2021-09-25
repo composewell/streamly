@@ -42,6 +42,7 @@ benchmark/Streamly/Benchmark/Data/Stream/StreamK.hs
 benchmark/Streamly/Benchmark/Data/Unfold.hs
 benchmark/Streamly/Benchmark/FileSystem/Handle.hs
 benchmark/Streamly/Benchmark/Prelude/Async.hs
+benchmark/Streamly/Benchmark/Prelude/Merge.hs
 benchmark/Streamly/Benchmark/Prelude/Parallel.hs
 benchmark/Streamly/Benchmark/Prelude/Rate.hs
 benchmark/Streamly/Benchmark/Prelude/Serial/Exceptions.hs
@@ -50,4 +51,3 @@ benchmark/Streamly/Benchmark/Prelude/Serial/Split.hs
 benchmark/Streamly/Benchmark/Prelude/Serial/Transformation1.hs
 benchmark/Streamly/Benchmark/Prelude/WAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipAsync.hs
-benchmark/Streamly/Benchmark/Prelude/ZipSerial.hs
