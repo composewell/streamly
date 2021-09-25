@@ -637,6 +637,25 @@ main = hspec
             it "dropInterval" (testDropInterval `shouldReturn` True)
 #endif
 
+    -- Just some basic sanity tests for now
+    let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
+        mustBe g inp out =
+            S.toList (IS.concatPairsWith g S.fromList (S.fromList inp))
+                `shouldReturn` out
+     in do
+        it "concatPairsWith serial"
+            $ mustBe S.serial input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+        it "concatPairsWith wSerial"
+            $ mustBe S.wSerial input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
+        it "concatPairsWith mergeBy sorted"
+            $ mustBe
+                (S.mergeBy compare) input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+        it "concatPairsWith mergeBy reversed"
+            $ mustBe
+                (S.mergeBy compare)
+                (reverse input)
+                [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+
     describe "Stream group and split operations" $ do
         groupSplitOps "serially"
 
