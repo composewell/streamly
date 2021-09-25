@@ -174,6 +174,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
@@ -706,10 +707,9 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 -- @
 --
 -- @since 0.6.0
-{-# INLINABLE mergeBy #-}
-mergeBy ::
-       (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeBy f m1 m2 = fromStreamS $ S.mergeBy f (toStreamS m1) (toStreamS m2)
+{-# INLINE mergeBy #-}
+mergeBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy f m1 m2 = fromStream $ K.mergeBy f (toStream m1) (toStream m2)
 
 -- | Like 'mergeBy' but with a monadic comparison function.
 --

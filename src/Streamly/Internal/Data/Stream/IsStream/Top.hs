@@ -190,8 +190,7 @@ sampleBurstStart gap =
 -- /Pre-release/
 --
 {-# INLINE sortBy #-}
-sortBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
--- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
+sortBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a
 sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 
 ------------------------------------------------------------------------------
