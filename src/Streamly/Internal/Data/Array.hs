@@ -46,6 +46,7 @@ module Streamly.Internal.Data.Array
     -- * Random Access
     , getIndexUnsafe
     , strip
+    , putIndices
     )
 where
 
@@ -54,6 +55,7 @@ import Control.DeepSeq (NFData(..))
 #endif
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Monad.Primitive (PrimMonad)
 import Data.Functor.Identity (runIdentity)
 import Data.IORef
 import GHC.Base (Int(..))
@@ -313,3 +315,20 @@ strip p arr =
             if p (indexArray arr idx) then getIndexR (idx - 1) else idx
 
     getIndexL idx = if p (indexArray arr idx) then getIndexL (idx + 1) else idx
+
+-- | Write an input stream of (index, value) pairs to an array. Throws an
+-- error if any index is out of bounds.
+--
+-- /Pre-release/
+{-# INLINE putIndices #-}
+putIndices :: PrimMonad m
+    => Array a -> Fold m (Int, a) ()
+putIndices arr = FL.rmapM (\ _ -> return ()) (FL.foldlM' step initial)
+
+    where
+
+    initial =  unsafeThawArray arr
+
+    step marr (i, x) = do
+        writeArray marr i x
+        return marr
