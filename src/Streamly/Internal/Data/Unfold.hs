@@ -250,6 +250,7 @@ import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
+import Data.Functor (($>))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -417,25 +418,20 @@ mapMWithInput f (Unfold ustep uinject) = Unfold step inject
 --
 -- /Internal/
 {-# INLINE_NORMAL either #-}
-either :: Monad m => Unfold m a b -> Unfold m (Either a a) (Either b b)
+either :: Applicative m => Unfold m a b -> Unfold m (Either a a) (Either b b)
 either (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject (Left a) = do
-        r <- inject1 a
-        return (r, Left)
-    inject (Right a) = do
-        r <- inject1 a
-        return (r, Right)
+    inject (Left a) = (, Left) <$> inject1 a
+    inject (Right a) = (, Right) <$> inject1 a
 
     {-# INLINE_LATE step #-}
     step (st, f) = do
-        r <- step1 st
-        return $ case r of
+        (\case
             Yield x s -> Yield (f x) (s, f)
             Skip s -> Skip (s, f)
-            Stop -> Stop
+            Stop -> Stop) <$> step1 st
 
 -- See StreamD.scanlM' for implementing this.
 --
@@ -452,30 +448,29 @@ scanlM' = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL fromStreamD #-}
-fromStreamD :: Monad m => Unfold m (Stream m a) a
-fromStreamD = Unfold step return
+fromStreamD :: Applicative m => Unfold m (Stream m a) a
+fromStreamD = Unfold step pure
+
     where
 
     {-# INLINE_LATE step #-}
-    step (UnStream step1 state1) = do
-        r <- step1 defState state1
-        return $ case r of
+    step (UnStream step1 state1) =
+        (\case
             Yield x s -> Yield x (Stream step1 s)
             Skip s    -> Skip (Stream step1 s)
-            Stop      -> Stop
+            Stop      -> Stop) <$> step1 defState state1
 
 {-# INLINE_NORMAL fromStreamK #-}
-fromStreamK :: Monad m => Unfold m (K.Stream m a) a
-fromStreamK = Unfold step return
+fromStreamK :: Applicative m => Unfold m (K.Stream m a) a
+fromStreamK = Unfold step pure
 
     where
 
     {-# INLINE_LATE step #-}
     step stream = do
-        r <- K.uncons stream
-        return $ case r of
+        (\case
             Just (x, xs) -> Yield x xs
-            Nothing -> Stop
+            Nothing -> Stop) <$> K.uncons stream
 
 -- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
 -- case) than using fromStream even if it is implemented using fromStreamD.
@@ -486,7 +481,7 @@ fromStreamK = Unfold step return
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
+fromStream :: (IsStream t, Applicative m) => Unfold m (t m a) a
 fromStream = lmap IsStream.toStream fromStreamK
 
 -------------------------------------------------------------------------------
@@ -497,59 +492,61 @@ fromStream = lmap IsStream.toStream fromStreamK
 -- effect.
 --
 {-# INLINE nilM #-}
-nilM :: Monad m => (a -> m c) -> Unfold m a b
-nilM f = Unfold step return
+nilM :: Applicative m => (a -> m c) -> Unfold m a b
+nilM f = Unfold step pure
+
     where
+
     {-# INLINE_LATE step #-}
-    step x = f x >> return Stop
+    step x = f x $> Stop
 
 -- | Prepend a monadic single element generator function to an 'Unfold'. The
 -- same seed is used in the action as well as the unfold.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL consM #-}
-consM :: Monad m => (a -> m b) -> Unfold m a b -> Unfold m a b
+consM :: Applicative m => (a -> m b) -> Unfold m a b -> Unfold m a b
 consM action unf = Unfold step inject
 
     where
 
-    inject = return . Left
+    inject = pure . Left
 
     {-# INLINE_LATE step #-}
-    step (Left a) =
-        action a >>= \r -> return $ Yield r (Right (D.unfold unf a))
+    step (Left a) = (`Yield` Right (D.unfold unf a)) <$> action a
     step (Right (UnStream step1 st)) = do
-        res <- step1 defState st
-        case res of
-            Yield x s -> return $ Yield x (Right (Stream step1 s))
-            Skip s -> return $ Skip (Right (Stream step1 s))
-            Stop -> return Stop
+        (\case
+            Yield x s -> Yield x (Right (Stream step1 s))
+            Skip s -> Skip (Right (Stream step1 s))
+            Stop -> Stop) <$> step1 defState st
 
 -- | Convert a list of pure values to a 'Stream'
 --
 -- /Since: 0.8.0/
 --
 {-# INLINE_LATE fromList #-}
-fromList :: Monad m => Unfold m [a] a
-fromList = Unfold step inject
-  where
-    inject = return
+fromList :: Applicative m => Unfold m [a] a
+fromList = Unfold step pure
+
+    where
+
     {-# INLINE_LATE step #-}
-    step (x:xs) = return $ Yield x xs
-    step []     = return Stop
+    step (x:xs) = pure $ Yield x xs
+    step [] = pure Stop
 
 -- | Convert a list of monadic values to a 'Stream'
 --
 -- /Since: 0.8.0/
 --
 {-# INLINE_LATE fromListM #-}
-fromListM :: Monad m => Unfold m [m a] a
-fromListM = Unfold step inject
-  where
-    inject = return
+fromListM :: Applicative m => Unfold m [m a] a
+fromListM = Unfold step pure
+
+    where
+
     {-# INLINE_LATE step #-}
-    step (x:xs) = x >>= \r -> return $ Yield r xs
-    step []     = return Stop
+    step (x:xs) = (`Yield` xs) <$> x
+    step [] = pure Stop
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
@@ -560,31 +557,31 @@ fromListM = Unfold step inject
 -- /Since: 0.8.0/
 --
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Unfold m (m a) a
+replicateM :: Applicative m => Int -> Unfold m (m a) a
 replicateM n = Unfold step inject
 
     where
 
-    inject x = return (x, n)
+    inject action = pure (action, n)
 
     {-# INLINE_LATE step #-}
-    step (x, i) =
+    step (action, i) =
         if i <= 0
-        then return Stop
-        else do
-            x1 <- x
-            return $ Yield x1 (x, i - 1)
+        then pure Stop
+        else (\x -> Yield x (action, i - 1)) <$> action
 
 -- | Generates an infinite stream repeating the seed.
 --
 -- /Since: 0.8.0/
 --
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Unfold m (m a) a
-repeatM = Unfold step return
+repeatM :: Applicative m => Unfold m (m a) a
+repeatM = Unfold step pure
+
     where
+
     {-# INLINE_LATE step #-}
-    step x = x >>= \x1 -> return $ Yield x1 x
+    step action = (`Yield` action) <$> action
 
 -- | Generates an infinite stream starting with the given seed and applying the
 -- given function repeatedly.
@@ -592,13 +589,13 @@ repeatM = Unfold step return
 -- /Since: 0.8.0/
 --
 {-# INLINE iterateM #-}
-iterateM :: Monad m => (a -> m a) -> Unfold m (m a) a
+iterateM :: Applicative m => (a -> m a) -> Unfold m (m a) a
 iterateM f = Unfold step id
+
     where
+
     {-# INLINE_LATE step #-}
-    step x = do
-        fx <- f x
-        return $ Yield x fx
+    step x = Yield x <$> f x
 
 -- | @fromIndicesM gen@ generates an infinite stream of values using @gen@
 -- starting from the seed.
@@ -610,13 +607,13 @@ iterateM f = Unfold step id
 -- /Pre-release/
 --
 {-# INLINE_NORMAL fromIndicesM #-}
-fromIndicesM :: Monad m => (Int -> m a) -> Unfold m Int a
-fromIndicesM gen = Unfold step return
-  where
+fromIndicesM :: Applicative m => (Int -> m a) -> Unfold m Int a
+fromIndicesM gen = Unfold step pure
+
+    where
+
     {-# INLINE_LATE step #-}
-    step i = do
-         x <- gen i
-         return $ Yield x (i + 1)
+    step i = (`Yield` (i + 1)) <$> gen i
 
 -------------------------------------------------------------------------------
 -- Filtering
@@ -630,20 +627,20 @@ fromIndicesM gen = Unfold step return
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL take #-}
-take :: Monad m => Int -> Unfold m a b -> Unfold m a b
+take :: Applicative m => Int -> Unfold m a b -> Unfold m a b
 take n (Unfold step1 inject1) = Unfold step inject
-  where
-    inject x = do
-        s <- inject1 x
-        return (s, 0)
+
+    where
+
+    inject x = (, 0) <$> inject1 x
+
     {-# INLINE_LATE step #-}
     step (st, i) | i < n = do
-        r <- step1 st
-        return $ case r of
+        (\case
             Yield x s -> Yield x (s, i + 1)
             Skip s -> Skip (s, i)
-            Stop   -> Stop
-    step (_, _) = return Stop
+            Stop   -> Stop) <$> step1 st
+    step (_, _) = pure Stop
 
 -- | Same as 'filter' but with a monadic predicate.
 --
@@ -676,31 +673,25 @@ filter f = filterM (return . f)
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL drop #-}
-drop :: Monad m => Int -> Unfold m a b -> Unfold m a b
+drop :: Applicative m => Int -> Unfold m a b -> Unfold m a b
 drop n (Unfold step inject) = Unfold step' inject'
 
     where
 
-    inject' a = do
-        b <- inject a
-        return (b, n)
+    inject' a = (, n) <$> inject a
 
     {-# INLINE_LATE step' #-}
     step' (st, i)
         | i > 0 = do
-            r <- step st
-            return
-                $ case r of
-                      Yield _ s -> Skip (s, i - 1)
-                      Skip s -> Skip (s, i)
-                      Stop -> Stop
+            (\case
+                  Yield _ s -> Skip (s, i - 1)
+                  Skip s -> Skip (s, i)
+                  Stop -> Stop) <$> step st
         | otherwise = do
-            r <- step st
-            return
-                $ case r of
-                      Yield x s -> Yield x (s, 0)
-                      Skip s -> Skip (s, 0)
-                      Stop -> Stop
+            (\case
+                  Yield x s -> Yield x (s, 0)
+                  Skip s -> Skip (s, 0)
+                  Stop -> Stop) <$> step st
 
 -- | @dropWhileM f unf@ drops elements from the stream generated by @unf@ while
 -- the condition holds true. The condition function @f@ is /monadic/ in nature.
@@ -793,10 +784,10 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
-        case res of
-            Yield x s -> return $ Yield x (Left s)
-            Skip s    -> return $ Skip (Left s)
-            Stop      -> return Stop
+        return $ case res of
+            Yield x s -> Yield x (Left s)
+            Skip s    -> Skip (Left s)
+            Stop      -> Stop
 
 -- | Run the alloc action @a -> m c@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
@@ -858,10 +849,10 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
-        case res of
-            Yield x s -> return $ Yield x (Left s)
-            Skip s    -> return $ Skip (Left s)
-            Stop      -> return Stop
+        return $ case res of
+            Yield x s -> Yield x (Left s)
+            Skip s    -> Skip (Left s)
+            Stop      -> Stop
 
 -- | Run a side effect @a -> m c@ on the input @a@ before unfolding it using
 -- @Unfold m a b@.
@@ -964,10 +955,10 @@ onException action (Unfold step1 inject1) = Unfold step inject
     {-# INLINE_LATE step #-}
     step (st, v) = do
         res <- step1 st `MC.onException` action v
-        case res of
-            Yield x s -> return $ Yield x (s, v)
-            Skip s    -> return $ Skip (s, v)
-            Stop      -> return Stop
+        return $ case res of
+            Yield x s -> Yield x (s, v)
+            Skip s    -> Skip (s, v)
+            Stop      -> Stop
 
 {-# INLINE_NORMAL _finally #-}
 _finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b

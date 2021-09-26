@@ -179,7 +179,7 @@ fromYieldK k = mkStream $ \_ _ sng _ -> k sng
 
 -- | Add a yield function at the head of the stream.
 consK :: YieldK m a -> Stream m a -> Stream m a
-consK k r = mkStream $ \_ yld _ _ -> k (\x -> yld x r)
+consK k r = mkStream $ \_ yld _ _ -> k (`yld` r)
 
 -- XXX Build a stream from a repeating callback function.
 
@@ -241,8 +241,8 @@ nil = mkStream $ \_ _ _ stp -> stp
 --
 -- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
-nilM :: Monad m => m b -> Stream m a
-nilM m = mkStream $ \_ _ _ stp -> m >> stp
+nilM :: Applicative m => m b -> Stream m a
+nilM m = mkStream $ \_ _ _ stp -> m *> stp
 
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: a -> Stream m a
@@ -259,8 +259,8 @@ infixr 5 `consM`
 -- SPECIALIZE in the instance definition.
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
-consM :: (Monad m) => m a -> Stream m a -> Stream m a
-consM m r = MkStream $ \_ yld _ _ -> m >>= \a -> yld a r
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m r = MkStream $ \_ yld _ _ -> m >>= (`yld` r)
 
 -- XXX specialize to IO?
 {-# INLINE consMBy #-}
@@ -1270,30 +1270,29 @@ fromFoldableM = Prelude.foldr consM nil
 -------------------------------------------------------------------------------
 
 {-# INLINE uncons #-}
-uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+uncons :: Applicative m => Stream m a -> m (Maybe (a, Stream m a))
 uncons m =
-    let stop = return Nothing
-        single a = return (Just (a, nil))
-        yieldk a r = return (Just (a, r))
+    let stop = pure Nothing
+        single a = pure (Just (a, nil))
+        yieldk a r = pure (Just (a, r))
     in foldStream defState yieldk single stop m
 
 {-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
+tail :: Applicative m => Stream m a -> m (Maybe (Stream m a))
 tail =
-    let stop      = return Nothing
-        single _  = return $ Just nil
-        yieldk _ r = return $ Just r
+    let stop      = pure Nothing
+        single _  = pure $ Just nil
+        yieldk _ r = pure $ Just r
     in foldStream defState yieldk single stop
 
 {-# INLINE init #-}
-init :: Monad m => Stream m a -> m (Maybe (Stream m a))
+init :: Applicative m => Stream m a -> m (Maybe (Stream m a))
 init = go1
     where
     go1 m1 = do
-        r <- uncons m1
-        case r of
-            Nothing -> return Nothing
-            Just (h, t) -> return . Just $ go h t
+        (\case
+            Nothing -> Nothing
+            Just (h, t) -> Just $ go h t) <$> uncons m1
     go p m1 = mkStream $ \_ yld sng stp ->
         let single _ = sng p
             yieldk a x = yld p $ go a x

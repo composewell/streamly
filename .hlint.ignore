@@ -3,7 +3,6 @@ src/Streamly/Internal/Data/Stream/PreludeCommon.hs
 src/Streamly/Internal/Data/Stream/Serial.hs
 src/Streamly/Internal/Data/Stream/Zip.hs
 src/Streamly/Internal/Data/Stream/StreamK/Type.hs
-src/Streamly/Internal/Data/Stream/StreamD/Type.hs
 src/Streamly/Internal/Data/Pipe/Type.hs
 src/Streamly/Internal/Data/SmallArray/Type.hs
 src/Streamly/Internal/Unicode/Stream.hs

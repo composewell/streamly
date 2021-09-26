@@ -92,6 +92,7 @@ import Control.Applicative (liftA2)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (lift, MonadTrans)
+import Data.Functor (($>))
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (build)
@@ -134,22 +135,22 @@ pattern Stream step state <- (unShare -> UnStream step state)
 
 -- | An empty 'Stream' with a side effect.
 {-# INLINE_NORMAL nilM #-}
-nilM :: Monad m => m b -> Stream m a
-nilM m = Stream (\_ _ -> m >> return Stop) ()
+nilM :: Applicative m => m b -> Stream m a
+nilM m = Stream (\_ _ -> m $> Stop) ()
 
 {-# INLINE_NORMAL consM #-}
-consM :: Monad m => m a -> Stream m a -> Stream m a
+consM :: Applicative m => m a -> Stream m a -> Stream m a
 consM m (Stream step state) = Stream step1 Nothing
+
     where
+
     {-# INLINE_LATE step1 #-}
-    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
+    step1 _ Nothing = (`Yield` Just state) <$> m
     step1 gst (Just st) = do
-        r <- step gst st
-        return $
-          case r of
+          (\case
             Yield a s -> Yield a (Just s)
             Skip  s   -> Skip (Just s)
-            Stop      -> Stop
+            Stop      -> Stop) <$> step gst st
 
 -- | Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL uncons #-}
@@ -172,17 +173,18 @@ data UnfoldState s = UnfoldNothing | UnfoldJust s
 -- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
 --
 {-# INLINE_NORMAL unfold #-}
-unfold :: Monad m => Unfold m a b -> a -> Stream m b
+unfold :: Applicative m => Unfold m a b -> a -> Stream m b
 unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
-  where
+
+    where
+
     {-# INLINE_LATE step #-}
-    step _ UnfoldNothing = inject seed >>= return . Skip . UnfoldJust
+    step _ UnfoldNothing = Skip . UnfoldJust <$> inject seed
     step _ (UnfoldJust st) = do
-        r <- ustep st
-        return $ case r of
+        (\case
             Yield x s -> Yield x (UnfoldJust s)
             Skip s    -> Skip (UnfoldJust s)
-            Stop      -> Stop
+            Stop      -> Stop) <$> ustep st
 
 ------------------------------------------------------------------------------
 -- From Values
@@ -199,12 +201,14 @@ fromPure x = Stream (\_ s -> pure $ step undefined s) True
 
 -- | Create a singleton 'Stream' from a monadic action.
 {-# INLINE_NORMAL fromEffect #-}
-fromEffect :: Monad m => m a -> Stream m a
+fromEffect :: Applicative m => m a -> Stream m a
 fromEffect m = Stream step True
-  where
+
+    where
+
     {-# INLINE_LATE step #-}
-    step _ True  = m >>= \x -> return $ Yield x False
-    step _ False = return Stop
+    step _ True  = (`Yield` False) <$> m
+    step _ False = pure Stop
 
 ------------------------------------------------------------------------------
 -- From Containers
@@ -226,13 +230,13 @@ fromList = Stream step
 
 -- | Convert a CPS encoded StreamK to direct style step encoded StreamD
 {-# INLINE_LATE fromStreamK #-}
-fromStreamK :: Monad m => K.Stream m a -> Stream m a
+fromStreamK :: Applicative m => K.Stream m a -> Stream m a
 fromStreamK = Stream step
     where
     step gst m1 =
-        let stop       = return Stop
-            single a   = return $ Yield a K.nil
-            yieldk a r = return $ Yield a r
+        let stop       = pure Stop
+            single a   = pure $ Yield a K.nil
+            yieldk a r = pure $ Yield a r
          in K.foldStreamShared gst yieldk single stop m1
 
 -- | Convert a direct style step encoded StreamD to a CPS encoded StreamK
@@ -261,7 +265,7 @@ toStreamK (Stream step state) = go state
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL fold #-}
-fold :: (Monad m) => Fold m a b -> Stream m a -> m b
+fold :: Monad m => Fold m a b -> Stream m a -> m b
 fold fld strm = do
     (b, _) <- fold_ fld strm
     return b
@@ -349,7 +353,7 @@ foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
 --
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr f z = foldrM (\a b -> liftA2 f (return a) b) (return z)
+foldr f z = foldrM (liftA2 f . return) (return z)
 
 -- this performs horribly, should not be used
 {-# INLINE_NORMAL foldrS #-}
@@ -409,8 +413,8 @@ foldlMx' fstep begin done (Stream step state) =
 
 {-# INLINE foldlx' #-}
 foldlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
-foldlx' fstep begin done m =
-    foldlMx' (\b a -> return (fstep b a)) (return begin) (return . done) m
+foldlx' fstep begin done =
+    foldlMx' (\b a -> return (fstep b a)) (return begin) (return . done)
 
 -- Adapted from the vector package.
 -- XXX implement in terms of foldlMx'?
@@ -576,17 +580,18 @@ instance Functor m => Functor (Stream m) where
 
 -- Adapted from the vector package.
 {-# INLINE_NORMAL take #-}
-take :: Monad m => Int -> Stream m a -> Stream m a
+take :: Applicative m => Int -> Stream m a -> Stream m a
 take n (Stream step state) = n `seq` Stream step' (state, 0)
-  where
+
+    where
+
     {-# INLINE_LATE step' #-}
     step' gst (st, i) | i < n = do
-        r <- step gst st
-        return $ case r of
+        (\case
             Yield x s -> Yield x (s, i + 1)
             Skip s    -> Skip (s, i)
-            Stop      -> Stop
-    step' _ (_, _) = return Stop
+            Stop      -> Stop) <$> step gst st
+    step' _ (_, _) = pure Stop
 
 -- Adapted from the vector package.
 {-# INLINE_NORMAL takeWhileM #-}
@@ -613,17 +618,20 @@ takeWhile f = takeWhileM (return . f)
 
 {-# INLINE_NORMAL concatAp #-}
 concatAp :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
-concatAp (Stream stepa statea) (Stream stepb stateb) = Stream step' (Left statea)
-  where
+concatAp (Stream stepa statea) (Stream stepb stateb) =
+    Stream step' (Left statea)
+
+    where
+
     {-# INLINE_LATE step' #-}
     step' gst (Left st) = fmap
-        (\r -> case r of
+        (\case
             Yield f s -> Skip (Right (f, s, stateb))
             Skip    s -> Skip (Left s)
             Stop      -> Stop)
         (stepa (adaptState gst) st)
     step' gst (Right (f, os, st)) = fmap
-        (\r -> case r of
+        (\case
             Yield a s -> Yield (f a) (Right (f, os, s))
             Skip s    -> Skip (Right (f,os, s))
             Stop      -> Skip (Left os))
@@ -639,19 +647,17 @@ apSequence (Stream stepa statea) (Stream stepb stateb) =
     {-# INLINE_LATE step #-}
     step gst (Left st) =
         fmap
-            (\r ->
-                 case r of
-                     Yield _ s -> Skip (Right (s, stateb))
-                     Skip s -> Skip (Left s)
-                     Stop -> Stop)
+            (\case
+                 Yield _ s -> Skip (Right (s, stateb))
+                 Skip s -> Skip (Left s)
+                 Stop -> Stop)
             (stepa (adaptState gst) st)
     step gst (Right (ostate, st)) =
         fmap
-            (\r ->
-                 case r of
-                     Yield b s -> Yield b (Right (ostate, s))
-                     Skip s -> Skip (Right (ostate, s))
-                     Stop -> Skip (Left ostate))
+            (\case
+                 Yield b s -> Yield b (Right (ostate, s))
+                 Skip s -> Skip (Right (ostate, s))
+                 Stop -> Skip (Left ostate))
             (stepb gst st)
 
 {-# INLINE_NORMAL apDiscardSnd #-}
@@ -664,19 +670,17 @@ apDiscardSnd (Stream stepa statea) (Stream stepb stateb) =
     {-# INLINE_LATE step #-}
     step gst (Left st) =
         fmap
-            (\r ->
-                 case r of
-                     Yield b s -> Skip (Right (s, stateb, b))
-                     Skip s -> Skip (Left s)
-                     Stop -> Stop)
+            (\case
+                 Yield b s -> Skip (Right (s, stateb, b))
+                 Skip s -> Skip (Left s)
+                 Stop -> Stop)
             (stepa gst st)
     step gst (Right (ostate, st, b)) =
         fmap
-            (\r ->
-                 case r of
-                     Yield _ s -> Yield b (Right (ostate, s, b))
-                     Skip s -> Skip (Right (ostate, s, b))
-                     Stop -> Skip (Left ostate))
+            (\case
+                 Yield _ s -> Yield b (Right (ostate, s, b))
+                 Skip s -> Skip (Right (ostate, s, b))
+                 Stop -> Skip (Left ostate))
             (stepb (adaptState gst) st)
 
 instance Applicative f => Applicative (Stream f) where
@@ -728,7 +732,7 @@ unfoldMany (Unfold istep inject) (Stream ostep ost) =
                 i <- inject a
                 i `seq` return (Skip (ConcatMapUInner o' i))
             Skip o' -> return $ Skip (ConcatMapUOuter o')
-            Stop -> return $ Stop
+            Stop -> return Stop
 
     step _ (ConcatMapUInner o i) = do
         r <- istep i
