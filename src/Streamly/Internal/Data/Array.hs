@@ -16,6 +16,7 @@ module Streamly.Internal.Data.Array
     ( Array(..)
 
     -- * Construction
+    , nil
     , writeN
     , write
     , writeLastN
@@ -44,6 +45,7 @@ module Streamly.Internal.Data.Array
 
     -- * Random Access
     , getIndexUnsafe
+    , strip
     )
 where
 
@@ -73,6 +75,12 @@ import Prelude hiding (foldr, length, read)
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
 bottomElement = undefined
+
+{-# NOINLINE nil #-}
+nil :: Array a
+nil = unsafePerformIO $ do
+    marr <- liftIO $ newArray 0 bottomElement
+    liftIO $ freezeArray marr 0 0
 
 -------------------------------------------------------------------------------
 -- Construction - Folds
@@ -278,3 +286,30 @@ writeLastN n
             liftIO $ copyMutableArray arr' 0 (RB.arr rb) ref (n - ref)
             liftIO $ copyMutableArray arr' (n - ref) (RB.arr rb) 0 ref
         liftIO $ unsafeFreezeArray arr'
+
+-- XXX This is not efficient as it copies the array. We should support array
+-- slicing so that we can just refer to the underlying array memory instead of
+-- copying.
+--
+-- | Truncate the array at the beginning and end as long as the predicate
+-- holds true.
+strip :: (a -> Bool) -> Array a -> Array a
+strip p arr =
+    let lastIndex = length arr - 1
+        indexR = getIndexR lastIndex -- last predicate failing index
+    in if indexR == -1
+       then nil
+       else
+            let indexL = getIndexL 0 -- first predicate failing index
+            in if indexL == 0 && indexR == lastIndex
+               then arr
+               else cloneArray arr indexL (indexR - indexL + 1)
+
+    where
+
+    getIndexR idx
+        | idx < 0 = idx
+        | otherwise =
+            if p (indexArray arr idx) then getIndexR (idx - 1) else idx
+
+    getIndexL idx = if p (indexArray arr idx) then getIndexL (idx + 1) else idx
