@@ -80,9 +80,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
-
-
-
 -- $setup
 -- >>> :m
 -- >>> import Prelude hiding (filter, zipWith, concatMap, concat)
@@ -200,8 +197,8 @@ sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 
 {-# INLINE sortByD #-}
 sortByD :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a
--- XXX creating StreamD and using D.mergeBy may be more efficient due to fusion
-sortByD f = Stream.concatPairsWithD (NS.mergeBy f) yield
+sortByD f = Stream.concatPairsWithD (Stream.mergeBy f) Stream.fromPure
+
 ------------------------------------------------------------------------------
 -- SQL Joins
 ------------------------------------------------------------------------------

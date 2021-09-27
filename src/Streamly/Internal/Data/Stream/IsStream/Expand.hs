@@ -1038,11 +1038,16 @@ concatPairsWith par f m =
 
 {-# INLINE concatPairsWithD #-}
 concatPairsWithD :: (IsStream t , Monad m) =>
-       (S.Stream m b -> S.Stream m b -> S.Stream m b)
-    -> (a -> S.Stream m b)
+       (t m b -> t m b -> t m b)
+    -> (a -> t m b)
     -> t m a
     -> t m b
-concatPairsWithD c f z = D.fromStreamD $ S.concatPairsWith c f (D.toStreamD z)
+concatPairsWithD par f m =
+    fromStreamD
+        $ D.concatPairsWith
+            (\s1 s2 -> toStreamD $ fromStreamD s1 `par` fromStreamD s2)
+            (toStreamD . f)
+            (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- IterateMap - Map and flatten Trees of Streams

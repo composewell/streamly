@@ -23,7 +23,6 @@
 -- The zipWithM combinator in this module has been adapted from the vector
 -- package (c) Roman Leshchinskiy.
 --
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 module Streamly.Internal.Data.Stream.StreamD.Nesting
     (
     -- * Generate
@@ -147,6 +146,7 @@ where
 
 #include "inline.hs"
 
+import GHC.Exts (SpecConstrAnnotation(..))
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -2327,65 +2327,56 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
     step _ (SplitYielding x next) = return $ Yield x next
     step _ SplitFinishing = return Stop
 
+{-# ANN type List NoSpecConstr #-}
+newtype List a = List {getList :: [a]}
+
+{-# ANN type ConcatPairState Fuse #-}
+data ConcatPairState xs m s a =
+      PairLeaf s (List xs)
+    | PairLeaf1 s (List xs) xs
+    | PairStreams (List xs) (List xs)
+    | ConcatStream (Stream m a)
+
 {-# INLINE_NORMAL concatPairsWith #-}
 concatPairsWith
-    :: (Monad m)
+    :: Monad m
     => (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> Stream m a
     -> Stream m b
 concatPairsWith combine f (Stream stepa sa) =
-    Stream step (sa, Nothing, Nothing)
+    Stream step (PairLeaf sa (List []))
 
     where
 
+    -- f = fromPure
+
     {-# INLINE_LATE step #-}
-    step gst (s, Nothing, Nothing) = do
+    step gst (PairLeaf s xs) = do
         ret <- stepa (adaptState gst) s
         return $ case ret of
-            Stop        -> Stop
-            Yield a sa' -> Skip (sa', Just a, Nothing)
-            Skip sa'    -> Skip (sa', Nothing, Nothing)
+            Stop -> Skip (PairStreams (List []) xs)
+            Yield a sa' -> Skip (PairLeaf1 sa' xs (f a))
+            Skip sa' -> Skip (PairLeaf sa' xs)
 
-    step gst (s, Just a, Nothing) = do
+    step gst (PairLeaf1 s xs x) = do
         ret <- stepa (adaptState gst) s
         return $ case ret of
-            Stop         -> Skip (s, Nothing, Just (f a))
-            Yield a1 sa' ->
-                Skip ( sa'
-                     , Nothing
-                     , Just (concatPairsWith  combine
-                        (\(x,y) -> combine x y)
-                            $ (f a, f a1) `cons` makePairs Nothing sa'))
-            Skip sa'     -> Skip (sa', Just a, Nothing)
+            Stop -> Skip (PairStreams (List []) (List (x : getList xs)))
+            Yield a s1 -> Skip (PairLeaf s1 (List (combine x (f a) : getList xs)))
+            Skip s1 -> Skip (PairLeaf1 s1 xs x)
 
-    step gst (s, Nothing, Just (UnStream nextb sb)) = do
+    step _ (PairStreams (List []) (List [])) = return Stop
+    step _ (PairStreams (List [x]) (List [])) = return (Skip (ConcatStream x))
+    step _ (PairStreams ys (List [])) = return (Skip (PairStreams (List []) ys))
+    step _ (PairStreams ys (List [x])) =
+        return (Skip (PairStreams (List []) (List (x : getList ys))))
+    step _ (PairStreams ys (List (x:y:xs))) =
+        return (Skip (PairStreams (List (combine x y : getList ys)) (List xs)))
+
+    step gst (ConcatStream (UnStream nextb sb)) = do
         ret <- nextb (adaptState gst) sb
         return $ case ret of
-            Stop        -> Stop
-            Yield b sb' -> Yield b (s, Nothing, Just (Stream nextb sb'))
-            Skip sb'    -> Skip (s, Nothing, Just (Stream nextb sb'))
-
-    step _ _  = error "Invalid steps of final Stream"
-
-    makePairs Nothing sc = Stream step3 (sc, Nothing, Nothing)
-
-        where
-
-        step3 gst (s, x, Nothing) = do
-            ret <- stepa (adaptState gst) s
-            return $ case ret of
-                Stop        -> Stop
-                Yield a sc' -> Skip (sc', Just a,  Just a)
-                Skip sc'    -> Skip (sc', x,  Nothing)
-
-        step3 gst (s, Just a, Just a2) = do
-            ret <- stepa (adaptState gst) s
-            return $ case ret of
-                Stop            -> Yield  (f a, nil) (s, Nothing, Nothing)
-                Yield a1 sc'    -> Yield (f a, f a1) (sc', Nothing, Nothing)
-                Skip sc'        -> Skip (sc', Just a, Just a2)
-
-        step3 _ _  = error "Invalid steps of makePairs"
-
-    makePairs _ _ = error "Invalid makePairs options"
+            Stop -> Stop
+            Yield b s -> Yield b (ConcatStream (Stream nextb s))
+            Skip s -> Skip (ConcatStream (Stream nextb s))
