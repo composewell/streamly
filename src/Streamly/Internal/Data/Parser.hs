@@ -97,6 +97,7 @@ module Streamly.Internal.Data.Parser
     , wordBy
     , groupBy
     , groupByRolling
+    , groupByRollingEither
     , eqBy
     -- | Unimplemented
     --
@@ -698,6 +699,21 @@ groupBy eq = K.toParserK . D.groupBy eq
 {-# INLINABLE groupByRolling #-}
 groupByRolling :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupByRolling eq = K.toParserK . D.groupByRolling eq
+
+-- | Like 'groupByRolling', but if the predicate is 'True' then collects using
+-- the first fold as long as the predicate holds 'True', if the predicate is
+-- 'False' collects using the second fold as long as it remains 'False'.
+-- Returns 'Left' for the first case and 'Right' for the second case.
+--
+-- For example, if we want to detect sorted sequences in a stream, both
+-- ascending and descending cases we can use 'groupByRollingEither (<=)
+-- Fold.toList Fold.toList'.
+--
+-- /Unimplemented/
+{-# INLINABLE groupByRollingEither #-}
+groupByRollingEither :: -- MonadCatch m =>
+    (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a (Either b b)
+groupByRollingEither = undefined
 
 -- | Match the given sequence of elements using the given comparison function.
 --

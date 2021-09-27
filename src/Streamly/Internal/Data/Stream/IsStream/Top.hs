@@ -181,6 +181,9 @@ sampleBurstStart gap =
 -- input stream is almost sorted (ascending/descending) or random. We could
 -- serialize the stream to an array and use quicksort.
 --
+-- Use 'groupByRollingEither (\x -> (< GT) . f x) Fold.toList Fold.toListRev'
+-- to generate sorted segments before merging. Compare the perf.
+--
 -- | Sort the input stream using a supplied comparison function.
 --
 -- /O(n) space/

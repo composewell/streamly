@@ -238,6 +238,11 @@ o_n_heap_concat value =
             "concatPairsWithMergeByFused compare (sqrtVal of sqrtVal)"
             (concatPairsWithMergeByFused compare sqrtVal sqrtVal)
         ]
+    -- TODO: change sourceUnfoldrM to generate alternating bigger and lower
+    -- numbers to simulate a random input for a worst case sort benchmark. We
+    -- can use 0 and value as two ints in the state and alternate each in the
+    -- output streams, incrementing the lower number of decrementing the higher
+    -- number.
     , bgroup "sorting"
         [ benchIOSink value "sortBy compare" (sortBy compare)
         , benchIOSink value "sortBy (flip compare)" (sortBy (flip compare))
