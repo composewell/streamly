@@ -44,6 +44,7 @@ module Streamly.Internal.Data.Unfold.Type
     -- * Nesting
     , ConcatState (..)
     , many
+    , manyInterleave
 
     -- Applicative
     , apSequence
@@ -690,3 +691,87 @@ instance Monad m => Arrow (Unfold m) where
     {-# INLINE (***) #-}
     u1 *** u2 = zipWith (,) (lmap fst u1) (lmap snd u2)
 -}
+
+------------------------------------------------------------------------------
+-- Interleaving
+------------------------------------------------------------------------------
+
+-- We can possibly have an "interleave" operation to interleave the streams
+-- from two seeds:
+--
+-- interleave :: Unfold m x a -> Unfold m x a -> Unfold m (x, x) a
+--
+-- Alternatively, we can use a signature like zipWith:
+-- interleave :: Unfold m x a -> Unfold m x a -> Unfold m x a
+--
+-- We can implement this in terms of manyInterleave, but that may
+-- not be as efficient as a custom implementation.
+--
+-- Similarly we can also have other binary combining ops like append, mergeBy.
+-- We already have zipWith.
+--
+
+data ManyInterleaveState o i =
+      ManyInterleaveOuter o [i]
+    | ManyInterleaveInner o [i]
+    | ManyInterleaveInnerL [i] [i]
+    | ManyInterleaveInnerR [i] [i]
+
+-- | 'Streamly.Internal.Data.Stream.IsStream.unfoldManyInterleave' for
+-- documentation and notes.
+--
+-- This is almost identical to unfoldManyInterleave in StreamD module.
+--
+-- The 'many' combinator is in fact 'manyAppend' to be more explicit in naming.
+--
+-- /Internal/
+{-# INLINE_NORMAL manyInterleave #-}
+manyInterleave :: Monad m => Unfold m a b -> Unfold m c a -> Unfold m c b
+manyInterleave (Unfold istep iinject) (Unfold ostep oinject) =
+    Unfold step inject
+
+    where
+
+    inject x = do
+        ost <- oinject x
+        return (ManyInterleaveOuter ost [])
+
+    {-# INLINE_LATE step #-}
+    step (ManyInterleaveOuter o ls) = do
+        r <- ostep o
+        case r of
+            Yield a o' -> do
+                i <- iinject a
+                i `seq` return (Skip (ManyInterleaveInner o' (i : ls)))
+            Skip o' -> return $ Skip (ManyInterleaveOuter o' ls)
+            Stop -> return $ Skip (ManyInterleaveInnerL ls [])
+
+    step (ManyInterleaveInner _ []) = undefined
+    step (ManyInterleaveInner o (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ManyInterleaveOuter o (s:ls))
+            Skip s    -> Skip (ManyInterleaveInner o (s:ls))
+            Stop      -> Skip (ManyInterleaveOuter o ls)
+
+    step (ManyInterleaveInnerL [] []) = return Stop
+    step (ManyInterleaveInnerL [] rs) =
+        return $ Skip (ManyInterleaveInnerR [] rs)
+
+    step (ManyInterleaveInnerL (st:ls) rs) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ManyInterleaveInnerL ls (s:rs))
+            Skip s    -> Skip (ManyInterleaveInnerL (s:ls) rs)
+            Stop      -> Skip (ManyInterleaveInnerL ls rs)
+
+    step (ManyInterleaveInnerR [] []) = return Stop
+    step (ManyInterleaveInnerR ls []) =
+        return $ Skip (ManyInterleaveInnerL ls [])
+
+    step (ManyInterleaveInnerR ls (st:rs)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ManyInterleaveInnerR (s:ls) rs)
+            Skip s    -> Skip (ManyInterleaveInnerR ls (s:rs))
+            Stop      -> Skip (ManyInterleaveInnerR ls rs)
