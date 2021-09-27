@@ -486,7 +486,8 @@ data ConcatUnfoldInterleaveState o i =
     | ConcatUnfoldInterleaveInnerL [i] [i]
     | ConcatUnfoldInterleaveInnerR [i] [i]
 
--- XXX use arrays to store state instead of lists.
+-- XXX use arrays to store state instead of lists?
+--
 -- XXX In general we can use different scheduling strategies e.g. how to
 -- schedule the outer vs inner loop or assigning weights to different streams
 -- or outer and inner loops.
@@ -502,11 +503,31 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 --
+-- XXX Instead of using "concatPairsWith wSerial" we can implement an N-way
+-- interleaving CPS combinator which behaves like unfoldManyInterleave. Intead
+-- of pairing up the streams We just need to go yielding one element from each
+-- stream and storing the remaining streams and then keep doing rounds through
+-- those in a round robin fashion. This would be much like wAsync.
+--
+-- | This does not pair streams like concatPairsWith, instead, it goes through
+-- each stream one by one and yields one element from each stream. After it
+-- goes to the last stream it reverses the traversal to come back to the first
+-- stream yielding elements from each stream on its way back to the first
+-- stream and so on.
+--
+-- >>> input = Stream.fromList [[1,1],[2,2],[3,3],[4,4],[5,5]]
+-- >>> Stream.toList $ Stream.unfoldManyInterleave Unfold.fromList input
+-- [1,2,3,4,5,5,4,3,2,1]
+--
+-- Note that this is order of magnitude more efficient than "concatPairsWith
+-- wSerial"
 {-# INLINE_NORMAL unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
-  where
+
+    where
+
     {-# INLINE_LATE step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
