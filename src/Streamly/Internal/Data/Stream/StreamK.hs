@@ -750,10 +750,12 @@ mapMaybe f = go
 -- | Zip two streams serially using a pure zipping function.
 --
 -- @since 0.1.0
-{-# INLINABLE zipWith #-}
+{-# INLINE zipWith #-}
 zipWith :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f = go
+
     where
+
     go mx my = mkStream $ \st yld sng stp -> do
         let merge a ra =
                 let single2 b = sng (f a b)
@@ -766,16 +768,17 @@ zipWith f = go
 -- | Zip two streams serially using a monadic zipping function.
 --
 -- @since 0.1.0
-{-# INLINABLE zipWithM #-}
+{-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
     (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 zipWithM f = go
+
     where
+
     go mx my = mkStream $ \st yld sng stp -> do
         let merge a ra =
-                let runIt x = foldStream st yld sng stp x
-                    single2 b   = f a b >>= sng
-                    yield2 b rb = f a b >>= \x -> runIt (x `cons` go ra rb)
+                let single2 b   = f a b >>= sng
+                    yield2 b rb = f a b >>= \x -> yld x (go ra rb)
                  in foldStream (adaptState st) yield2 single2 stp my
         let single1 a = merge a nil
             yield1 = merge

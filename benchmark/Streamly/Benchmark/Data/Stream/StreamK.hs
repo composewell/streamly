@@ -384,6 +384,10 @@ iterateDropWhileTrue streamLen iterStreamLen =
 zipWith :: Monad m => Stream m Int -> m ()
 zipWith src = drain $ S.zipWith (,) src src
 
+{-# INLINE zipWithM #-}
+zipWithM :: Monad m => Stream m Int -> m ()
+zipWithM src = drain $ S.zipWithM (curry return) src src
+
 {-# INLINE sortByK #-}
 sortByK :: (a -> a -> Ordering) -> Stream m a -> Stream m a
 sortByK f = S.concatPairsWith (S.mergeBy f) S.fromPure
@@ -745,6 +749,7 @@ o_1_space_zipping :: Int -> Benchmark
 o_1_space_zipping streamLen =
     bgroup "zipping"
         [ benchFold "zipWith" zipWith (unfoldrM streamLen)
+        , benchFold "zipWithM" zipWithM (unfoldrM streamLen)
         ]
 
 o_1_space_mixed :: Int -> Benchmark
