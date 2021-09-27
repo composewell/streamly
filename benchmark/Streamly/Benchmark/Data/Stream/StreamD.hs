@@ -281,6 +281,14 @@ cmpBy src = S.cmpBy P.compare src src
 zip :: Monad m => Stream m Int -> m ()
 zip src = transform $ S.zipWith (,) src src
 
+{-# INLINE sortByD #-}
+sortByD :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a
+sortByD f = S.concatPairsWith (S.mergeBy f) S.fromPure
+
+{-# INLINE sortBy #-}
+sortBy :: Monad m => Stream m Int -> m ()
+sortBy = S.drain . sortByD compare
+
 -------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------
@@ -493,6 +501,7 @@ o_1_space =
             (concatMapRepl value2 value2)
         , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
             (unfoldManyRepl value2 value2)
+        , benchFold "sortBy" sortBy (sourceUnfoldrMN value)
         ]
       , bgroup "filtering"
         [ benchFold "filter-even"     (filterEven     1) sourceUnfoldrM
