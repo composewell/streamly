@@ -314,4 +314,7 @@ strip p arr =
         | otherwise =
             if p (indexArray arr idx) then getIndexR (idx - 1) else idx
 
-    getIndexL idx = if p (indexArray arr idx) then getIndexL (idx + 1) else idx
+    getIndexL idx
+        | idx < 0 = 0
+        | otherwise =
+            if p (indexArray arr idx) then getIndexL (idx + 1) else idx
