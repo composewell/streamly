@@ -296,14 +296,16 @@ writeLastN n
 strip :: (a -> Bool) -> Array a -> Array a
 strip p arr =
     let lastIndex = length arr - 1
-        indexR = getIndexR lastIndex -- last predicate failing index
-    in if indexR == -1
+        indexR = getIndexR lastIndex
+        indexL = if indexR < 0
+                 then 0
+                 else getIndexL (min 0 lastIndex)
+    in if indexL > indexR
        then nil
        else
-            let indexL = getIndexL 0 -- first predicate failing index
-            in if indexL == 0 && indexR == lastIndex
-               then arr
-               else cloneArray arr indexL (indexR - indexL + 1)
+           if  indexR - indexL + 1 == length arr
+           then arr
+           else cloneArray arr indexL (indexR - indexL + 1)
 
     where
 
