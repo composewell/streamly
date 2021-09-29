@@ -282,6 +282,9 @@ import Prelude hiding
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+--
+-- >>> hSetBuffering stdout LineBuffering
 
 ------------------------------------------------------------------------------
 -- Piping
@@ -415,19 +418,19 @@ mapMSerial = Serial.mapM
 -- abc
 --
 -- >>> :{
--- drain $ Stream.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+-- drain $ Stream.replicateM 3 (return $ threadDelay 1000000 >> print 1)
 --  & (fromSerial . Stream.sequence)
 -- :}
 -- 1
--- ...
+-- 1
 -- 1
 --
 -- >>> :{
--- drain $ Stream.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+-- drain $ Stream.replicateM 3 (return $ threadDelay 1000000 >> print 1)
 --  & (fromAsync . Stream.sequence)
 -- :}
 -- 1
--- ...
+-- 1
 -- 1
 --
 -- @
