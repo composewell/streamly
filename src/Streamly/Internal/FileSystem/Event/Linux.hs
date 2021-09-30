@@ -517,6 +517,17 @@ setAllEvents s cfg =
     . setModified s
     ) cfg
 
+setCommonEvents :: Toggle -> Config -> Config
+setCommonEvents s cfg =
+    ( setRootDeleted s
+    . setRootMoved s
+    . setMetadataChanged s    
+    . setCreated s
+    . setDeleted s
+    . setMovedFrom s
+    . setMovedTo s
+    . setModified s
+    ) cfg
 -------------------------------------------------------------------------------
 -- Default config
 -------------------------------------------------------------------------------
@@ -538,7 +549,7 @@ setAllEvents s cfg =
 defaultConfig :: Config
 defaultConfig =
       setWhenExists AddIfExists
-    $ setAllEvents On
+    $ setCommonEvents On
     $ Config
         { watchRec = True
         , createFlags = 0
