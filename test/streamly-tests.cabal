@@ -281,6 +281,24 @@ test-suite FileSystem.Event
   if os(darwin)
     buildable: False
 
+test-suite FileSystem.Event.Linux
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/Event/LinuxTest.hs
+  if os(windows)
+    buildable: False
+  if os(darwin)
+    buildable: False  
+
+test-suite FileSystem.Event.Windows
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/Event/WindowsTest.hs
+  if os(linux)
+    buildable: False
+  if os(darwin)
+    buildable: False      
+
 test-suite FileSystem.Handle
   import: test-options
   type: exitcode-stdio-1.0

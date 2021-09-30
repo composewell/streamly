@@ -105,21 +105,7 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -- /Pre-release/
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
-#if defined(CABAL_OS_WINDOWS)
 watch = Event.watch
-#elif defined(CABAL_OS_LINUX)
-watch = Event.watchWithFlags
-    [ 0x00000002    -- File was modified.
-    , 0x00000004    -- Metadata changed.
-    , 0x00000100    -- Subfile was created.
-    , 0x00000200    -- Subfile was deleted.
-    , 0x00000400    -- Root was deleted.
-    , 0x00000040    -- File was moved from X.
-    , 0x00000080    -- File was moved to Y.
-    ]
-#elif defined(CABAL_OS_DARWIN)
-watch = Event.watch
-#endif
 
 -- | Like 'watch' except that if a watched path is a directory the whole
 -- directory tree under it is watched recursively.
@@ -129,21 +115,7 @@ watch = Event.watch
 -- /Pre-release/
 --
 watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
-#if defined(CABAL_OS_WINDOWS)
 watchRecursive = Event.watchRecursive
-#elif defined(CABAL_OS_LINUX)
-watchRecursive = Event.watchRecursiveWithFlags
-    [ 0x00000002    -- File was modified.
-    , 0x00000004    -- Metadata changed.
-    , 0x00000100    -- Subfile was created.
-    , 0x00000200    -- Subfile was deleted.
-    , 0x00000400    -- Root was deleted.
-    , 0x00000040    -- File was moved from X.
-    , 0x00000080    -- File was moved to Y.
-    ]
-#elif defined(CABAL_OS_DARWIN)
-watchRecursive = Event.watchRecursive
-#endif
 
 -------------------------------------------------------------------------------
 -- Handling Events
