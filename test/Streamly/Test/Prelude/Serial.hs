@@ -14,7 +14,7 @@ import Control.Monad ( when, forM_ )
 import Data.Function ( (&) )
 import Data.IORef ( newIORef, readIORef, writeIORef, modifyIORef' )
 import Data.Int (Int64)
-import Data.List (group, intercalate)
+import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Foreign.Storable (Storable)
 #if __GLASGOW_HASKELL__ < 808
@@ -502,6 +502,12 @@ foldIterateM =
             Nothing -> assert $ s1 == 0
             Just s2 -> assert $ s1 == s2
 
+sortBy :: Property
+sortBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
+        let s1 = sort lst
+        s2 <- S.toList $ IS.sortBy compare $ S.fromList lst
+        assert $ s1 == s2
+
 moduleName :: String
 moduleName = "Prelude.Serial"
 
@@ -693,3 +699,4 @@ main = hspec
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
+        prop "sortBy" sortBy
