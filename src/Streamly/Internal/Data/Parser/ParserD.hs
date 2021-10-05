@@ -71,6 +71,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , wordBy
     , groupBy
     , groupByRolling
+    , groupByRollingEither
     , eqBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
@@ -733,6 +734,13 @@ data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
 
+{-# ANN type GroupByStatePair Fuse #-}
+data GroupByStatePair a s1 s2
+    = GroupByInitPair !s1 !s2
+    | GroupByGroupingPair !a !s1 !s2
+    | GroupByGroupingPairL !a !s1 !s2
+    | GroupByGroupingPairR !a !s1 !s2
+
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
 {-# INLINE groupBy #-}
@@ -796,6 +804,87 @@ groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
 
     extract (GroupByInit s) = fextract s
     extract (GroupByGrouping _ s) = fextract s
+
+{-# INLINABLE groupByRollingEither #-}
+groupByRollingEither :: MonadCatch m =>
+    (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a (Either b b)
+groupByRollingEither
+    eq
+    (Fold fstep1 finitial1 fextract1)
+    (Fold fstep2 finitial2 fextract2) = Parser step initial extract
+
+    where
+
+    {-# INLINE grouper #-}
+    grouper s1 s2 a = do
+        return $ Continue 0 (GroupByGroupingPair a s1 s2)
+
+    {-# INLINE grouperL2 #-}
+    grouperL2 s1 s2 a = do
+        res <- fstep1 s1 a
+        return
+            $ case res of
+                FL.Done b -> Done 0 (Left b)
+                FL.Partial s11 -> Partial 0 (GroupByGroupingPairL a s11 s2)
+
+    {-# INLINE grouperL #-}
+    grouperL s1 s2 a0 a = do
+        res <- fstep1 s1 a0
+        case res of
+            FL.Done b -> return $ Done 0 (Left b)
+            FL.Partial s11 -> grouperL2 s11 s2 a
+
+    {-# INLINE grouperR2 #-}
+    grouperR2 s1 s2 a = do
+        res <- fstep2 s2 a
+        return
+            $ case res of
+                FL.Done b -> Done 0 (Right b)
+                FL.Partial s21 -> Partial 0 (GroupByGroupingPairR a s1 s21)
+
+    {-# INLINE grouperR #-}
+    grouperR s1 s2 a0 a = do
+        res <- fstep2 s2 a0
+        case res of
+            FL.Done b -> return $ Done 0 (Right b)
+            FL.Partial s21 -> grouperR2 s1 s21 a
+
+    initial = do
+        res1 <- finitial1
+        res2 <- finitial2
+        return
+            $ case res1 of
+                FL.Partial s1 ->
+                    case res2 of
+                        FL.Partial s2 -> IPartial $ GroupByInitPair s1 s2
+                        FL.Done b -> IDone (Left b)
+                FL.Done b -> IDone (Left b)
+
+    step (GroupByInitPair s1 s2) a = grouper s1 s2 a
+
+    step (GroupByGroupingPair a0 s1 s2) a =
+        if not (eq a0 a)
+        then grouperL s1 s2 a0 a
+        else grouperR s1 s2 a0 a
+
+    step (GroupByGroupingPairL a0 s1 s2) a =
+        if not (eq a0 a)
+        then grouperL2 s1 s2 a
+        else Done 1 . Left <$> fextract1 s1
+
+    step (GroupByGroupingPairR a0 s1 s2) a =
+        if eq a0 a
+        then grouperR2 s1 s2 a
+        else Done 1 . Right <$> fextract2 s2
+
+    extract (GroupByInitPair s1 _) = Left <$> fextract1 s1
+    extract (GroupByGroupingPairL _ s1 _) = Left <$> fextract1 s1
+    extract (GroupByGroupingPairR _ _ s2) = Right <$> fextract2 s2
+    extract (GroupByGroupingPair a s1 _) = do
+                res <- fstep1 s1 a
+                case res of
+                    FL.Done b -> return $ Left b
+                    FL.Partial s11 -> Left <$> fextract1 s11
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
