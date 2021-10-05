@@ -68,7 +68,6 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
-                      -fno-ignore-asserts
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -130,6 +129,8 @@ common optimization-options
                  -fdicts-strict
                  -fmax-worker-args=16
                  -fspec-constr-recursive=16
+                 -- This must come after -O2
+                 -fno-ignore-asserts
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
       ghc-options: -fplugin Fusion.Plugin
   else
@@ -181,7 +182,7 @@ library
 common test-options
   import: lib-options
         , threading-options
-  ghc-options: -rtsopts
+  ghc-options: -rtsopts -fno-ignore-asserts
   include-dirs: .
   build-depends: streamly-tests
 
@@ -195,6 +196,7 @@ common always-optimized
                -fmax-worker-args=16
                -fspec-constr-recursive=16
                -rtsopts
+               -fno-ignore-asserts
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
 

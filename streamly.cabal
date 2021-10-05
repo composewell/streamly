@@ -235,9 +235,6 @@ common compile-options
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
-    if flag(dev) || flag(debug)
-      ghc-options:    -fno-ignore-asserts
-
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
 
@@ -282,6 +279,10 @@ common optimization-options
                  -fdicts-strict
                  -fspec-constr-recursive=16
                  -fmax-worker-args=16
+
+  -- For this to be effective it must come after the -O2 option
+  if flag(dev) || flag(debug) || !flag(opt)
+    ghc-options: -fno-ignore-asserts
 
 common threading-options
   ghc-options:  -threaded
