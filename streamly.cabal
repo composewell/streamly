@@ -485,6 +485,7 @@ library
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
+                     , Streamly.Internal.Unicode.Char.Parser
                      , Streamly.Internal.Unicode.Array.Char
                      , Streamly.Internal.Unicode.Array.Prim.Pinned
 
