@@ -10,6 +10,13 @@
 
 -- This is a common array test module that gets included in different
 -- Array test modules with the corresponding macro defined.
+--
+-- Meanings of CPP macros:
+-- Default => Data.Array
+-- TEST_ARRAY => Data.Array.Foreign
+-- TEST_SMALL_ARRAY => Data.SmallArray
+-- DATA_ARRAY_PRIM => Data.Array.Prim
+-- DATA_ARRAY_PRIM_PINNED => Data.Array.Prim.Pinned
 
 import Foreign.Storable (Storable(..))
 
@@ -18,10 +25,18 @@ import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Test.Hspec as H
 
+import Streamly.Data.Fold (Fold)
 import Streamly.Prelude (SerialT)
 import Streamly.Test.Common (listEquals)
 
 import qualified Streamly.Prelude as S
+
+#if defined(TEST_ARRAY) ||\
+    defined(DATA_ARRAY_PRIM) ||\
+    defined(DATA_ARRAY_PRIM_PINNED)
+import qualified Streamly.Internal.Data.Fold as Fold
+#endif
+
 #ifdef TEST_SMALL_ARRAY
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
@@ -31,18 +46,15 @@ import Data.Word(Word8)
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
 import qualified Streamly.Internal.Data.Array.Prim.Pinned.Type as A
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #elif defined(DATA_ARRAY_PRIM)
 import qualified Streamly.Internal.Data.Array.Prim as A
 import qualified Streamly.Internal.Data.Array.Prim.Type as A
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
 type Array = A.Array
 #else
 import qualified Streamly.Internal.Data.Array as A
@@ -166,25 +178,17 @@ testFromList =
                     assert (xs == list)
 #endif
 
-#if defined(TEST_ARRAY) ||\
-    defined(DATA_ARRAY_PRIM) ||\
-    defined(DATA_ARRAY_PRIM_PINNED)
-
-testArraysOf :: Property
-testArraysOf =
+foldManyWith :: (Int -> Fold IO Int (Array Int)) -> Property
+foldManyWith f =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- run
                     $ S.toList
                     $ S.unfoldMany A.read
-                    $ arraysOf 240
+                    $ S.foldMany (f 240)
                     $ S.fromList list
                 assert (xs == list)
-  where
-    arraysOf n = IP.chunksOf n (A.writeNUnsafe n)
-
-#endif
 
 #ifdef TEST_ARRAY
 
@@ -261,8 +265,11 @@ main =
 #if defined(TEST_ARRAY) ||\
     defined(DATA_ARRAY_PRIM) ||\
     defined(DATA_ARRAY_PRIM_PINNED)
-            prop "arraysOf concats to original" testArraysOf
+            prop "foldMany with writeNUnsafe concats to original"
+                (foldManyWith (\n -> Fold.take n (A.writeNUnsafe n)))
 #endif
+            prop "foldMany with writeN concats to original"
+                (foldManyWith A.writeN)
 
 #ifdef TEST_ARRAY
             prop "AS.concat . (A.fromList . (:[]) <$>) === id" $ concatArrayW8
