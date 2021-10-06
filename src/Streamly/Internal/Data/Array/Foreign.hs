@@ -242,19 +242,38 @@ unsafeRead = Unfold step inject
 
     touch r = IO $ \s -> case touch# r s of s' -> (# s', () #)
 
--- | > null arr = length arr == 0
+-- |
+--
+-- >>> import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+-- >>> null arr = Array.byteLength arr == 0
 --
 -- /Pre-release/
 {-# INLINE null #-}
-null :: Storable a => Array a -> Bool
-null arr = length arr == 0
+null :: Array a -> Bool
+null arr = A.byteLength arr == 0
 
--- | > last arr = getIndex arr (length arr - 1)
+-- | Like 'getIndex' but indexes the array in reverse from the end.
+--
+-- /Pre-release/
+{-# INLINE getIndexRev #-}
+getIndexRev :: forall a. Storable a => Array a -> Int -> Maybe a
+getIndexRev arr i =
+    unsafeInlineIO $
+        unsafeWithForeignPtr (aStart arr) $ \ptr -> do
+            let elemSize = sizeOf (undefined :: a)
+                elemPtr = aEnd arr `plusPtr` negate (elemSize * (i + 1))
+            if i >= 0 && elemPtr >= ptr
+            then Just <$> peek elemPtr
+            else return Nothing
+
+-- |
+--
+-- >>> last arr = getIndexRev arr 0
 --
 -- /Pre-release/
 {-# INLINE last #-}
 last :: Storable a => Array a -> Maybe a
-last arr = getIndex arr (length arr - 1)
+last arr = getIndexRev arr 0
 
 -------------------------------------------------------------------------------
 -- Folds with Array as the container
@@ -355,16 +374,22 @@ unsafeSlice start len (Array fp _) =
 -- Random reads and writes
 -------------------------------------------------------------------------------
 
--- | /O(1)/ Lookup the element at the given index, starting from 0.
+-- XXX Change this to a partial function instead of a Maybe type? And use
+-- MA.getIndex instead.
+--
+-- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 -- @since 0.8.0
 {-# INLINE getIndex #-}
-getIndex :: Storable a => Array a -> Int -> Maybe a
+getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
 getIndex arr i =
-    if i < 0 || i > length arr - 1
-        then Nothing
-        else unsafeInlineIO $
-            unsafeWithForeignPtr (aStart arr) $ \p -> Just <$> peekElemOff p i
+    unsafeInlineIO $
+        unsafeWithForeignPtr (aStart arr) $ \ptr -> do
+            let elemSize = sizeOf (undefined :: a)
+                elemPtr = ptr `plusPtr` (elemSize * i)
+            if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd arr
+            then Just <$> peek elemPtr
+            else return Nothing
 
 {-
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
@@ -429,6 +454,8 @@ runPipe :: (MonadIO m, Storable a, Storable b)
 runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -}
 
+-- XXX Use byteLength instead of length.
+--
 -- | Transform an array into another array using a stream transformation
 -- operation.
 --
