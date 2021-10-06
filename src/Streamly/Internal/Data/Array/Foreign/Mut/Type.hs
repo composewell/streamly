@@ -206,6 +206,9 @@ where
 
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
+#if MIN_VERSION_deepseq(1,4,3)
+import Control.DeepSeq (NFData1(..))
+#endif
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
@@ -2286,3 +2289,9 @@ cmp arr1 arr2 =
 instance NFData (Array a) where
     {-# INLINE rnf #-}
     rnf Array {} = ()
+
+#if MIN_VERSION_deepseq(1,4,3)
+instance NFData1 Array where
+    {-# INLINE liftRnf #-}
+    liftRnf _ Array{} = ()
+#endif
