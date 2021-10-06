@@ -75,20 +75,29 @@ bottomElement = undefined
 -- Construction - Folds
 -------------------------------------------------------------------------------
 
--- writeN n = S.evertM (fromStreamDN n)
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
-writeN limit = Fold step initial extract
-  where
+writeN len = Fold step initial extract
+
+    where
+
+    {-# INLINE next #-}
+    next marr i = do
+        let i1 = i + 1
+            st = Tuple' marr i1
+        if len > i1
+        then return $ FL.Partial st
+        else fmap FL.Done $ extract st
+
     initial = do
-        marr <- liftIO $ newArray limit bottomElement
-        return $ FL.Partial (Tuple' marr 0)
-    step st@(Tuple' marr i) x
-        | i == limit = fmap FL.Done $ extract st
-        | otherwise = do
-            liftIO $ writeArray marr i x
-            return $ FL.Partial $ Tuple' marr (i + 1)
-    extract (Tuple' marr len) = liftIO $ freezeArray marr 0 len
+        marr <- liftIO $ newArray len bottomElement
+        next marr (-1)
+
+    step (Tuple' marr i) x = do
+        liftIO $ writeArray marr i x
+        next marr i
+
+    extract (Tuple' marr l) = liftIO $ freezeArray marr 0 l
 
 {-# INLINE_NORMAL write #-}
 write :: MonadIO m => Fold m a (Array a)

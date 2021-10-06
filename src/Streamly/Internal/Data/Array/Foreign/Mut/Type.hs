@@ -769,23 +769,13 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 {-# INLINE_NORMAL writeNAllocWith #-}
 writeNAllocWith :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNAllocWith alloc n = Fold step initial extract
-
-    where
-
-    initial = FL.Partial <$> alloc (max n 0)
-    step arr@(Array _ end bound) _ | end == bound = return $ FL.Done arr
-    step (Array start end bound) x = do
-        liftIO $ poke end x
-        return $ FL.Partial $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-    -- XXX note that shirkToFit does not maintain alignment, in case we are
-    -- using aligned allocation.
-    extract = return -- liftIO . shrinkToFit
+writeNAllocWith alloc n = FL.take n (writeNUnsafeWith alloc n)
 
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- @writeN n = Fold.take n writeNUnsafe@
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> writeN n = Fold.take n (writeNUnsafe n)
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
@@ -819,6 +809,31 @@ data ArrayUnsafe a = ArrayUnsafe
     {-# UNPACK #-} !(ForeignPtr a) -- first address
     {-# UNPACK #-} !(Ptr a)        -- first unused address
 
+-- XXX We can carry bound as well in the state to make sure we do not lose the
+-- remaining capacity. Need to check perf impact.
+--
+-- | This API is only useful when we do not want to use the remaining space in
+-- the array to append anything else later as that space is lost.
+--
+{-# INLINE_NORMAL writeNUnsafeWith #-}
+writeNUnsafeWith :: forall m a. (MonadIO m, Storable a)
+    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+writeNUnsafeWith alloc n = Fold step initial extract
+
+    where
+
+    initial = do
+        (Array start end _) <- alloc (max n 0)
+        return $ FL.Partial $ ArrayUnsafe start end
+
+    step (ArrayUnsafe start end) x = do
+        liftIO $ poke end x
+        return
+          $ FL.Partial
+          $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+
+    extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
+
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
 -- corrupt the memory and crash. This function exists mainly because any
@@ -829,21 +844,7 @@ data ArrayUnsafe a = ArrayUnsafe
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
-writeNUnsafe n = Fold step initial extract
-
-    where
-
-    initial = do
-        (Array start end _) <- liftIO $ newArray (max n 0)
-        return $ FL.Partial $ ArrayUnsafe start end
-
-    step (ArrayUnsafe start end) x = do
-        liftIO $ poke end x
-        return
-          $ FL.Partial
-          $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
-
-    extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
+writeNUnsafe = writeNUnsafeWith newArray
 
 -- XXX Buffer to a list instead?
 --

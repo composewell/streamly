@@ -163,21 +163,27 @@ write = FL.rmapM extract $ FL.foldlM' step initial
 -- /Pre-release/
 {-# INLINE_NORMAL writeN #-}
 writeN :: (MonadIO m, Prim a) => Int -> Fold m a (Array a)
-writeN limit = Fold step initial extract
+writeN len = Fold step initial extract
 
     where
 
+    {-# INLINE next #-}
+    next marr i = do
+        let i1 = i + 1
+            st = Tuple' marr i1
+        if len > i1
+        then return $ FL.Partial st
+        else fmap FL.Done $ extract st
+
     initial = do
-        marr <- newArray limit
-        return $ FL.Partial $ Tuple' marr 0
+        marr <- liftIO $ newArray len
+        next marr (-1)
 
-    extract (Tuple' marr len) = shrinkArray marr len >> return marr
+    step (Tuple' marr i) x = do
+        liftIO $ unsafeWriteIndex marr i x
+        next marr i
 
-    step s@(Tuple' marr i) x
-        | i == limit = FL.Done <$> extract s
-        | otherwise = do
-            unsafeWriteIndex marr i x
-            return $ FL.Partial $ Tuple' marr (i + 1)
+    extract (Tuple' marr l) = shrinkArray marr l >> return marr
 
 -- Use Tuple' instead?
 data ArrayUnsafe a = ArrayUnsafe

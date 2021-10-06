@@ -105,21 +105,28 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Data.Array.Foreign".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
-writeN limit = Fold step initial extract
+writeN len = Fold step initial extract
 
     where
 
+    {-# INLINE next #-}
+    next marr i = do
+        let i1 = i + 1
+            st = Tuple' marr i1
+        if len > i1
+        then return $ FL.Partial st
+        else fmap FL.Done $ extract st
+
     initial = do
-        marr <- liftIO $ newSmallArray limit bottomElement
-        return $ FL.Partial (Tuple' marr 0)
+        marr <- liftIO $ newSmallArray len bottomElement
+        next marr (-1)
 
-    step st@(Tuple' marr i) x
-        | i == limit = FL.Done <$> extract st
-        | otherwise = do
-            liftIO $ writeSmallArray marr i x
-            return $ FL.Partial (Tuple' marr (i + 1))
+    step (Tuple' marr i) x = do
+        liftIO $ writeSmallArray marr i x
+        next marr i
 
-    extract (Tuple' marr len) = liftIO $ freezeSmallArray marr 0 len
+    extract (Tuple' marr l) = liftIO $ freezeSmallArray marr 0 l
+
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (SmallArray a)
