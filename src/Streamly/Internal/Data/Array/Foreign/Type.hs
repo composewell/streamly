@@ -153,10 +153,19 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 -- Freezing and Thawing
 -------------------------------------------------------------------------------
 
--- | Returns an immutable array using the same underlying pointers of the
--- mutable array. If the underlying array is mutated, the immutable promise is
--- lost. Please make sure that the mutable array is never used after freezing it
--- using /unsafeFreeze/.
+-- XXX For debugging we can track slices/references through a weak IORef.  Then
+-- trigger a GC after freeze/thaw and assert that there are no references
+-- remaining.
+
+-- | Makes an immutable array using the underlying memory of the mutable
+-- array.
+--
+-- Please make sure that there are no other references to the mutable array
+-- lying around, so that it is never used after freezing it using
+-- /unsafeFreeze/.  If the underlying array is mutated, the immutable promise
+-- is lost.
+--
+-- /Pre-release/
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: MA.Array a -> Array a
 unsafeFreeze (MA.Array as ae _) = Array as ae
@@ -169,10 +178,14 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
   MA.Array as ae _ <- MA.shrinkToFit arr
   return $ Array as ae
 
--- | Returns a mutable array using the same underlying pointers of the immutable
--- array. If the resulting array is mutated, the older immutable array is
--- mutated as well. Please make sure that the immutable array is never used
--- after thawing it using /unsafeThaw/.
+-- | Makes a mutable array using the underlying memory of the immutable array.
+--
+-- Please make sure that there are no other references to the immutable array
+-- lying around, so that it is never used after thawing it using /unsafeThaw/.
+-- If the resulting array is mutated, any references to the older immutable
+-- array are mutated as well.
+--
+-- /Pre-release/
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MA.Array a
 unsafeThaw (Array as ae) = MA.Array as ae ae
@@ -416,7 +429,7 @@ byteLength = MA.byteLength . unsafeThaw
 -- @since 0.8.0
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
-length arr =  MA.length (unsafeThaw arr)
+length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --

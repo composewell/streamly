@@ -158,6 +158,8 @@ foreign import ccall unsafe "string.h memchr" c_memchr
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
 
+-- | Given a 'Storable' type (unused first arg) and a number of bytes, return
+-- how many elements of that type are required to hold those bytes.
 {-# INLINE bytesToElemCount #-}
 bytesToElemCount :: Storable a => a -> Int -> Int
 bytesToElemCount x n =
@@ -176,6 +178,7 @@ memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
 
+-- | Same as unsafeWithForeignPtr but lifted to any MonadIO monad.
 {-# INLINE unsafeWithForeignPtrM #-}
 unsafeWithForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
 unsafeWithForeignPtrM fo f = do
@@ -193,8 +196,25 @@ unsafeWithForeignPtrM fo f = do
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
 -- Investigate a GHC improvement possiblity.
---
+
 -- XXX Rename the fields to better names.
+
+-- | An unboxed, pinned mutable array. An array is created with a given length
+-- and capacity. Length is the number of valid elements in the array.  Capacity
+-- is the maximum number of elements that the array can be expanded to without
+-- having to reallocate the memory.
+--
+-- The elements in the array can be mutated in-place without changing the
+-- reference (constructor). However, the length of the array cannot be mutated
+-- in-place.  A new array reference is generated when the length changes.  When
+-- the length is increased (upto the maximum reserved capacity of the array),
+-- the array is not reallocated and the new reference uses the same underlying
+-- memory as the old one.
+--
+-- Several routines in this module allow the programmer to control the capacity
+-- of the array. The programmer can control the trade-off between memory usage
+-- and performance impact due to reallocations when growing or shrinking the
+-- array.
 --
 data Array a =
 #ifdef DEVBUILD
@@ -218,7 +238,7 @@ mutableArray = Array
 -- Construction
 -------------------------------------------------------------------------------
 
--- | allocate a new array using the provided allocator function.
+-- | allocate a new empty array using the provided allocator function.
 {-# INLINE newArrayAlignedAllocWith #-}
 newArrayAlignedAllocWith :: forall m a. (MonadIO m, Storable a)
     => (Int -> Int -> m (ForeignPtr a)) -> Int -> Int -> m (Array a)
@@ -232,9 +252,9 @@ newArrayAlignedAllocWith alloc alignSize count = do
         , aBound = p `plusPtr` size
         }
 
--- | Allocate a new array aligned to the specified alignmend and using
+-- | Allocate a new empty array using the specified alignment and using
 -- unmanaged pinned memory. The memory will not be automatically freed by GHC.
--- This could be useful in allocate once global data structures. Use carefully
+-- This could be useful in allocate-once global data structures. Use carefully
 -- as incorrect use can lead to memory leak.
 {-# INLINE newArrayAlignedUnmanaged #-}
 newArrayAlignedUnmanaged :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
@@ -257,11 +277,9 @@ newArrayAligned = newArrayAlignedAllocWith mallocForeignPtrAlignedBytes
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
--- | Allocate an array that can hold 'count' items.  The memory of the array is
--- uninitialized.
+-- | Allocate an empty array that can hold 'count' items.  The memory of the
+-- array is uninitialized.
 --
--- Note that this is internal routine, the reference to this array cannot be
--- given out until the array has been written to and frozen.
 {-# INLINE newArray #-}
 newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
@@ -377,7 +395,7 @@ shrinkToFit arr@Array{..} = do
 --
 -------------------------------------------------------------------------------
 
--- | Return element at the specified index without checking the bounds.
+-- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndex #-}
@@ -404,8 +422,15 @@ byteLength Array{..} =
         len = aEnd `minusPtr` p
     in assert (len >= 0) len
 
+-- Note: try to avoid the use of length in performance sensitive internal
+-- routines as it involves a costly 'div' operation. Instead use the end ptr
+-- int he array to check the bounds etc.
+--
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
+--
+-- Note that 'byteLength' is less expensive than this operation, as 'length'
+-- involves a costly division operation.
 --
 -- @since 0.7.0
 {-# INLINE length #-}
@@ -455,8 +480,9 @@ arraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.fromStreamDArraysOf: the size of "
-                 ++ "arrays [" ++ show n ++ "] must be a natural number"
+            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.arraysOf: "
+                    ++ "the size of arrays [" ++ show n
+                    ++ "] must be a natural number"
         Array start end bound <- liftIO $ newArray n
         return $ D.Skip (GroupBuffer st start end bound)
 
@@ -516,7 +542,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
-    step' _ (InnerLoop st _ p end) | p == end =
+    step' _ (InnerLoop st _ p end) | assert (p <= end) (p == end) =
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st startf p end) = do
@@ -581,9 +607,10 @@ producer = Producer step inject extract
         return $ ReadUState (ForeignPtr end contents) (Ptr start)
 
     {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
-        let x = unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return D.Stop
+    step (ReadUState fp@(ForeignPtr end _) p)
+        | assert (p <= Ptr end) (p == Ptr end) =
+            let x = unsafeInlineIO $ touchForeignPtr fp
+            in x `seq` return D.Stop
     step (ReadUState fp p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
@@ -643,7 +670,7 @@ toListFB :: forall a b. Storable a => (a -> b -> b) -> b -> Array a -> b
 toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
     where
 
-    go p | p == aEnd = n
+    go p | assert (p <= aEnd) (p == aEnd) = n
     go p =
         -- unsafeInlineIO allows us to run this in Identity monad for pure
         -- toList/foldr case which makes them much faster due to not
@@ -678,7 +705,7 @@ toStreamD Array{..} =
     where
 
     {-# INLINE_LATE step #-}
-    step _ p | p == aEnd = return D.Stop
+    step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
     step _ p = do
         -- unsafeInlineIO allows us to run this in Identity monad for pure
         -- toList/foldr case which makes them much faster due to not
@@ -700,7 +727,7 @@ toStreamK Array{..} =
 
     where
 
-    go p | p == aEnd = K.nil
+    go p | assert (p <= aEnd) (p == aEnd) = K.nil
          | otherwise =
         -- See Note in toStreamD.
         let !x = unsafeInlineIO $ do
@@ -852,7 +879,8 @@ writeNUnsafe = writeNUnsafeWith newArray
 --
 -- @writeChunks = Fold.many Fold.toStream (Array.writeN n)@
 --
--- See 'bufferChunks'.
+-- Breaking an array into an array stream  can be useful to consume a large
+-- array sequentially such that memory of the array is released incrementatlly.
 --
 -- /Unimplemented/
 --
@@ -939,11 +967,12 @@ writeAligned alignSize =
 
 -- | Use the 'writeN' fold instead.
 --
--- @fromStreamDN n = D.fold (writeN n)@
+-- >>> fromStreamDN n = D.fold (writeN n)
 --
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
+-- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
     arr <- liftIO $ newArray limit
     end <- D.foldlM' fwrite (return $ aEnd arr) $ D.take limit str
@@ -1054,6 +1083,11 @@ spliceWithDoubling dst@(Array start end bound) src  = do
             let oldStart = unsafeForeignPtrToPtr start
                 oldSize = end `minusPtr` oldStart
                 newSize = max (oldSize * 2) (oldSize + srcLen)
+            when (newSize < oldSize + srcLen)
+                $ error
+                    $ "spliceWithDoubling: newSize is less than the total size "
+                    ++ "of arrays being appended. Please check the "
+                    ++ "newSize function passed."
             liftIO $ realloc newSize dst
         else return dst
     spliceWith dst1 src
@@ -1153,25 +1187,3 @@ instance (Storable a, Eq a) => Eq (Array a) where
 instance NFData (Array a) where
     {-# INLINE rnf #-}
     rnf Array {} = ()
-
-#ifdef DEVBUILD
--- Definitions using the Storable constraint from the Array type. These are to
--- make the Foldable instance possible though it is much slower (7x slower).
---
-{-# INLINE_NORMAL toStreamD_ #-}
-toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
-toStreamD_ size Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-    in D.Stream step p
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | p == aEnd = return D.Stop
-    step _ p = do
-        x <- liftIO $ do
-                    r <- peek p
-                    touchForeignPtr aStart
-                    return r
-        return $ D.Yield x (p `plusPtr` size)
-#endif
