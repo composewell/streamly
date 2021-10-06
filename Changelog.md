@@ -2,6 +2,18 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## Unreleased
+
+### Bug Fixes
+
+* Fix array writeN fold eating away one element when applied multiple times
+  [#1258](https://github.com/composewell/streamly/issues/1258).
+* Fix array potentially writing beyond allocated memory when shrinking. Likely
+  cause of [#944](https://github.com/composewell/streamly/issues/944).
+* Fix array potentially writing beyond allocated memory when writing the last
+  element. Likely cause of 
+  [#944](https://github.com/composewell/streamly/issues/944).
+
 ## 0.8.0 (Jun 2021)
 
 See [API Changelog](docs/API-changelog.txt) for a complete list of signature
