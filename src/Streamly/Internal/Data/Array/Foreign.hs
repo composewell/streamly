@@ -36,8 +36,6 @@ module Streamly.Internal.Data.Array.Foreign
     (
       Array
 
-    -- , defaultChunkSize
-
     -- * Construction
 
     -- Pure, From Static Memory (Unsafe)
@@ -55,64 +53,63 @@ module Streamly.Internal.Data.Array.Foreign
     , fromStreamN
     , fromStream
 
-    -- Monadic APIs
-    -- , newArray
+    -- Monadic Folds
     , A.writeN      -- drop new
     , A.writeNAligned
     , A.write       -- full buffer
     , writeLastN
 
     -- * Elimination
-
     , A.toList
     , A.toStream
     , A.toStreamRev
     , read
-    , producer
-    , unsafeRead
+    , unsafeRead    -- XXX readUnsafe?
     , A.readRev
-    -- , readChunksOf
+    , producer -- experimental
 
     -- * Random Access
-    , length
-    , null
-    , last
     -- , (!!)
     , getIndex
-    , A.unsafeIndex
-    -- , readIndices
-    -- , readRanges
+    , A.unsafeIndex -- XXX Rename to getIndexUnsafe??
+    -- , getIndexRev
+    , last           -- XXX getIndexLast?
+    -- , getIndices
+    -- , getIndicesFromThenTo
+    -- , getIndicesFrom    -- read from a given position to the end of file
+    -- , getIndicesUpto    -- read from beginning up to the given position
+    -- , getIndicesFromTo
+    -- , getIndicesFromRev  -- read from a given position to the beginning of file
+    -- , getIndicesUptoRev  -- read from end to the given position in file
 
-    -- , readFrom    -- read from a given position to the end of file
-    -- , readFromRev -- read from a given position to the beginning of file
-    -- , readTo      -- read from beginning up to the given position
-    -- , readToRev   -- read from end to the given position in file
-    -- , readFromTo
-    -- , readFromThenTo
+    -- * Size
+    , length
+    , null
 
-    -- , readChunksOfFrom
-    -- , ...
-
-    -- -- * Search
-    -- , bsearch
-    -- , bsearchIndex
+    -- * Search
+    -- , binarySearch
+    -- , findIndicesOf
+    -- , findIndexOf
     -- , find
-    -- , findIndex
-    -- , findIndices
-
-    , unsafeSlice
-
-    -- * Immutable Transformations
-    , streamTransform
 
     -- * Casting
     , cast
-    , unsafeCast
-    , unsafeAsPtr
     , asBytes
-    , unsafeAsCString
+    , unsafeCast   -- castUnsafe?
+    , unsafeAsPtr  -- asPtrUnsafe?
+    , unsafeAsCString -- asCStringUnsafe?
+    , A.unsafeFreeze -- asImmutableUnsafe?
+    , A.unsafeThaw   -- asMutableUnsafe?
 
-    -- * Folding Arrays
+    -- * Subarrays
+    , unsafeSlice
+    -- , getSlice
+    -- , getSlicesFromLenN
+
+    -- * Streaming Operations
+    , streamTransform
+
+    -- ** Folding
     , streamFold
     , fold
     )
@@ -331,7 +328,7 @@ findIndices = undefined
 -- XXX We can potentially use SIMD instructions on arrays to fold faster.
 
 -------------------------------------------------------------------------------
--- Slice and splice
+-- Slice
 -------------------------------------------------------------------------------
 
 -- | /O(1)/ Slice an array in constant time.
@@ -353,18 +350,6 @@ unsafeSlice start len (Array fp _) =
         fp1 = fp `plusForeignPtr` (start * size)
         end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
      in Array fp1 end
-
-{-
-
-splitAt :: Int -> Array a -> (Array a, Array a)
-splitAt i arr = undefined
-
--- XXX This operation can be performed efficiently via streams.
--- | Append two arrays together to create a single array.
-splice :: Array a -> Array a -> Array a
-splice arr1 arr2 = undefined
-
--}
 
 -------------------------------------------------------------------------------
 -- Random reads and writes
