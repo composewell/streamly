@@ -1144,9 +1144,15 @@ instance (Storable a, Eq a) => Eq (Array a) where
     (==) = arrcmp
     -- arr1 == arr2 = runIdentity $ D.eqBy (==) (toStreamD arr1) (toStreamD arr2)
 
-instance (Storable a, NFData a) => NFData (Array a) where
+-------------------------------------------------------------------------------
+-- NFData
+-------------------------------------------------------------------------------
+
+-- This is a Storable array, we cannot have unevaluated data in it so this is
+-- just a no op.
+instance NFData (Array a) where
     {-# INLINE rnf #-}
-    rnf = foldl' (\_ x -> rnf x) ()
+    rnf Array {} = ()
 
 #ifdef DEVBUILD
 -- Definitions using the Storable constraint from the Array type. These are to

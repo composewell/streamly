@@ -22,7 +22,6 @@ import qualified Streamly.Benchmark.Prelude as P
 
 #ifdef MEMORY_ARRAY
 import qualified GHC.Exts as GHC
-import Foreign.Storable (Storable(..))
 #endif
 
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
@@ -36,8 +35,7 @@ import Control.DeepSeq (deepseq)
 #ifdef MEMORY_ARRAY
 -- Drain a source that generates a pure array
 {-# INLINE benchPureSrc #-}
-benchPureSrc ::
-       (NFData a, Storable a) => String -> (Int -> Ops.Stream a) -> Benchmark
+benchPureSrc :: String -> (Int -> Ops.Stream a) -> Benchmark
 benchPureSrc name src = benchPure name src id
 #endif
 
@@ -49,11 +47,10 @@ benchIO name src f = bench name $ nfIO $
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
 benchIOSrc ::
-#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
+#if !defined(DATA_ARRAY_PRIM) \
+    && !defined(DATA_ARRAY_PRIM_PINNED) \
+    && !defined(MEMORY_ARRAY)
        NFData a =>
-#endif
-#ifdef MEMORY_ARRAY
-       Storable a =>
 #endif
        String -> (Int -> IO (Ops.Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
