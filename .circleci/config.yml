@@ -398,7 +398,7 @@ workflows:
   build:
     jobs:
       - cabal-ghc-8_10_4:
-          name: GHC 8.10.4 + sdist
+          name: GHC 8.10.4 + sdist + no-test + no-bench
       #- cabal-ghc-8.6.5
       #- cabal-ghc-8_4_4:
       #    name: GHC 8.4.4 + x86 + debug
