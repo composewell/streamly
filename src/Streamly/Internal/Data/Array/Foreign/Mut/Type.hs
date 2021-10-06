@@ -869,7 +869,7 @@ writeChunks = undefined -- Fold.many Fold.toStream (Array.writeN n)
 -- XXX The realloc based implementation needs to make one extra copy if we use
 -- shrinkToFit.  On the other hand, the stream of arrays implementation may
 -- buffer the array chunk pointers in memory but it does not have to shrink as
--- we know the exact size in the end. However, memory copying does not seems to
+-- we know the exact size in the end. However, memory copying does not seem to
 -- be as expensive as the allocations. Therefore, we need to reduce the number
 -- of allocations instead. Also, the size of allocations matters, right sizing
 -- an allocation even at the cost of copying sems to help.  Should be measured
@@ -894,7 +894,8 @@ toArrayMinChunk alignSize elemCount =
     initial = do
         when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
         liftIO $ newArrayAligned alignSize elemCount
-    step arr@(Array start end bound) x | end == bound = do
+    step arr@(Array start end bound) x
+        | end `plusPtr` sizeOf (undefined :: a) > bound = do
         let p = unsafeForeignPtrToPtr start
             oldSize = end `minusPtr` p
             newSize = max (oldSize * 2) 1
