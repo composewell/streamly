@@ -10,6 +10,7 @@ module Streamly.Test.Data.Array.Foreign (main) where
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
+import Data.Char (isLower)
 import Data.Word(Word8)
 
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -72,6 +73,48 @@ testLastN_LN len n = do
     let l2 = lastN n list
     return $ l1 == l2
 
+testStrip :: IO Bool
+testStrip = do
+    dt <- MA.fromList "abcDEFgeh"
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == "DEF"
+
+testStripLeft :: IO Bool
+testStripLeft = do
+    dt <- MA.fromList "abcDEF"
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == "DEF"
+
+testStripRight :: IO Bool
+testStripRight = do
+    dt <- MA.fromList "DEFgeh"
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == "DEF"
+
+testStripZero :: IO Bool
+testStripZero = do
+    dt <- MA.fromList "DEF"
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == "DEF"
+
+testStripEmpty :: IO Bool
+testStripEmpty = do
+    dt <- MA.fromList "abc"
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == ""
+
+testStripNull :: IO Bool
+testStripNull = do
+    dt <- MA.fromList ""
+    dt' <- MA.strip isLower dt
+    x <- MA.toList dt'
+    return $ x == ""
+
 -- Instead of hard coding 10000 here we can have maxStreamLength for operations
 -- that use stream of arrays.
 concatArrayW8 :: Property
@@ -118,3 +161,10 @@ main =
                 it "writeLastN 0" (testLastN_LN 10 0 `shouldReturn` True)
                 it "writeLastN length" (testLastN_LN 10 10 `shouldReturn` True)
                 it "writeLastN (length + 1)" (testLastN_LN 10 11 `shouldReturn` True)
+        describe "Strip" $ do
+            it "strip" (testStrip `shouldReturn` True)
+            it "stripLeft" (testStripLeft `shouldReturn` True)
+            it "stripRight" (testStripRight `shouldReturn` True)
+            it "stripZero" (testStripZero `shouldReturn` True)
+            it "stripEmpty" (testStripEmpty `shouldReturn` True)
+            it "stripNull" (testStripNull `shouldReturn` True)

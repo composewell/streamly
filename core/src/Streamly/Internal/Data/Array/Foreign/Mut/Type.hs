@@ -193,6 +193,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
+    , strip
     )
 where
 
@@ -2295,3 +2296,41 @@ instance NFData1 Array where
     {-# INLINE liftRnf #-}
     liftRnf _ Array{} = ()
 #endif
+
+-- | Strip elements which match with predicate from both ends.
+--
+-- /Pre-release/
+strip :: forall a m. (Storable a, MonadIO m) =>
+    (a -> Bool) -> Array a -> m (Array a)
+strip eq arr@Array{..} = do
+    let p = arrStart
+        q = aEnd
+        len = length arr
+    st <- liftIO $ getStart p len
+    end <- liftIO $ do
+        touch arrContents
+        if st == q
+        then return q
+        else getLast $ PTR_PREV(q, a)
+    go st end
+
+    where
+
+    getStart p i = do
+        touch arrContents
+        r <- peek p
+        if eq r && i > 0
+        then getStart (PTR_NEXT(p, a)) (i - 1)
+        else return p
+
+    getLast p = do
+        touch arrContents
+        r <- peek p
+        if eq r
+        then getLast $ PTR_PREV(p, a)
+        else return $ PTR_NEXT(p, a)
+
+    {-# INLINE go #-}
+    go p q = liftIO $ do
+        touch arrContents
+        return arr {arrStart = p, aEnd = q, aBound = q}

@@ -61,6 +61,22 @@ o_n_space_serial_marray value array =
         $ MArray.partitionBy (> (value `div` 2))
     ]
 
+o_1_space_serial_marray :: Int -> MArray.Array Int -> [Benchmark]
+o_1_space_serial_marray value array =
+    [ benchIO "strip (< 0)" (const array)
+        $ MArray.strip (< 0)
+    , benchIO "strip (> 0)" (const array)
+        $ MArray.strip (> 0)
+    , benchIO "strip (< value/2)" (const array)
+        $ MArray.strip (< (value `div` 2))
+    , benchIO "strip (> value/2)" (const array)
+        $ MArray.strip (> (value `div` 2))
+    , benchIO "strip (odd)" (const array)
+        $ MArray.strip odd
+    , benchIO "strip (even)" (const array)
+        $ MArray.strip even
+    ]
+
 -------------------------------------------------------------------------------
 -- Driver
 -------------------------------------------------------------------------------
@@ -79,4 +95,6 @@ main = do
     allBenchmarks array value =
         [ bgroup (o_1_space_prefix moduleName) $
             o_n_space_serial_marray value array
+        , bgroup (o_1_space_prefix moduleName) $
+            o_1_space_serial_marray value array
         ]
