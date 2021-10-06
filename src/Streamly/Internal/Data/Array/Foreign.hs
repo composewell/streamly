@@ -72,10 +72,10 @@ module Streamly.Internal.Data.Array.Foreign
     -- , (!!)
     , getIndex
     , A.unsafeIndex -- XXX Rename to getIndexUnsafe??
-    -- , getIndexRev
+    , getIndexRev
     , last           -- XXX getIndexLast?
-    -- , getIndices
-    -- , getIndicesFromThenTo
+    , getIndices
+    , getIndicesFromThenTo
     -- , getIndicesFrom    -- read from a given position to the end of file
     -- , getIndicesUpto    -- read from beginning up to the given position
     -- , getIndicesFromTo
@@ -87,8 +87,8 @@ module Streamly.Internal.Data.Array.Foreign
     , null
 
     -- * Search
-    -- , binarySearch
-    -- , findIndicesOf
+    , binarySearch
+    , findIndicesOf
     -- , findIndexOf
     -- , find
 
@@ -117,11 +117,11 @@ where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup ((<>))
 #endif
 import Data.Word (Word8)
--- import Data.Functor.Identity (Identity)
 import Foreign.C.String (CString)
 import Foreign.ForeignPtr (castForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -317,27 +317,31 @@ writeLastN n
 -- Searching
 -------------------------------------------------------------------------------
 
-{-
--- | Perform a binary search in the array to find an element.
-bsearch :: a -> Array a -> Maybe Bool
-bsearch = undefined
-
--- | Perform a binary search in the array to find an element index.
-{-# INLINE elemIndex #-}
-bsearchIndex :: a -> Array a -> Maybe Int
-bsearchIndex elem arr = undefined
+-- | Given a sorted array, perform a binary search to find the given element.
+-- Returns the index of the element if found.
+--
+-- /Unimplemented/
+{-# INLINE binarySearch #-}
+binarySearch :: a -> Array a -> Maybe Int
+binarySearch = undefined
 
 -- find/findIndex etc can potentially be implemented more efficiently on arrays
 -- compared to streams by using SIMD instructions.
+-- We can also return a bit array instead.
+
+-- | Perform a linear search to find all the indices where a given element is
+-- present in an array.
+--
+-- /Unimplemented/
+findIndicesOf :: (a -> Bool) -> Unfold Identity (Array a) Int
+findIndicesOf = undefined
+
+{-
+findIndexOf :: (a -> Bool) -> Array a -> Maybe Int
+findIndexOf p = Unfold.fold Fold.head . Stream.unfold (findIndicesOf p)
 
 find :: (a -> Bool) -> Array a -> Bool
-find = undefined
-
-findIndex :: (a -> Bool) -> Array a -> Maybe Int
-findIndex = undefined
-
-findIndices :: (a -> Bool) -> Array a -> Array Int
-findIndices = undefined
+find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
 -}
 
 -------------------------------------------------------------------------------
@@ -391,49 +395,44 @@ getIndex arr i =
             then Just <$> peek elemPtr
             else return Nothing
 
-{-
--- | @readSlice arr i count@ streams a slice of the array @arr@ starting
--- at index @i@ and reading up to @count@ elements in the forward direction
--- ending at the index @i + count - 1@.
+-- | Given a stream of array indices, read the elements on those indices from
+-- the supplied Array. An exception is thrown if an index is out of bounds.
 --
--- @since 0.7.0
-{-# INLINE readSlice #-}
-readSlice :: (IsStream t, Monad m, Storable a)
-    => Array a -> Int -> Int -> t m a
-readSlice arr i len = undefined
+-- This is the most general operation. We can implement other operations in
+-- terms of this:
+--
+-- @
+-- read =
+--      let u = lmap (\arr -> (0, length arr - 1)) Unfold.enumerateFromTo
+--       in Unfold.lmap f (getIndices arr)
+--
+-- readRev =
+--      let i = length arr - 1
+--       in Unfold.lmap f (getIndicesFromThenTo i (i - 1) 0)
+-- @
+--
+-- /Unimplemented/
+{-# INLINE getIndices #-}
+getIndices :: Unfold m (Array a) Int -> Unfold m (Array a) a
+getIndices = undefined
 
--- | @readSliceRev arr i count@ streams a slice of the array @arr@ starting at
--- index @i@ and reading up to @count@ elements in the reverse direction ending
--- at the index @i - count + 1@.
+-- | Unfolds @(from, then, to, array)@ generating a finite stream whose first
+-- element is the array value from the index @from@ and the successive elements
+-- are from the indices in increments of @then@ up to @to@. Index enumeration
+-- can occur downwards or upwards depending on whether @then@ comes before or
+-- after @from@.
 --
--- @since 0.7.0
-{-# INLINE readSliceRev #-}
-readSliceRev :: (IsStream t, Monad m, Storable a)
-    => Array a -> Int -> Int -> t m a
-readSliceRev arr i len = undefined
--}
-
-{-
--- | @writeSlice arr i count stream@ writes a stream to the array @arr@
--- starting at index @i@ and writing up to @count@ elements in the forward
--- direction ending at the index @i + count - 1@.
+-- @
+-- getIndicesFromThenTo =
+--     let f (from, next, to, arr) =
+--             (Stream.enumerateFromThenTo from next to, arr)
+--      in Unfold.lmap f getIndices
+-- @
 --
--- @since 0.7.0
-{-# INLINE writeSlice #-}
-writeSlice :: (IsStream t, Monad m, Storable a)
-    => Array a -> Int -> Int -> t m a -> m (Array a)
-writeSlice arr i len s = undefined
-
--- | @writeSliceRev arr i count stream@ writes a stream to the array @arr@
--- starting at index @i@ and writing up to @count@ elements in the reverse
--- direction ending at the index @i - count + 1@.
---
--- @since 0.7.0
-{-# INLINE writeSliceRev #-}
-writeSliceRev :: (IsStream t, Monad m, Storable a)
-    => Array a -> Int -> Int -> t m a -> m (Array a)
-writeSliceRev arr i len s = undefined
--}
+-- /Unimplemented/
+{-# INLINE getIndicesFromThenTo #-}
+getIndicesFromThenTo :: Unfold m (Int, Int, Int, Array a) a
+getIndicesFromThenTo = undefined
 
 -------------------------------------------------------------------------------
 -- Transform via stream operations
