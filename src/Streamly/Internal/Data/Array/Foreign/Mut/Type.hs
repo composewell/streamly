@@ -332,25 +332,32 @@ snoc arr@Array {..} x =
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
 {-# NOINLINE reallocAligned #-}
-reallocAligned :: Int -> Int -> Array a -> IO (Array a)
-reallocAligned alignSize newSize Array{..} = do
+reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
+reallocAligned elemSize alignSize newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
-    let size = aEnd `minusPtr` oldStart
+        oldSize = aEnd `minusPtr` oldStart
+    assert (oldSize `mod` elemSize == 0) (return ())
     newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
     unsafeWithForeignPtr newPtr $ \pNew -> do
+        let size = min oldSize newSize
+        assert (size >= 0) (return ())
+        assert (size `mod` elemSize == 0) (return ())
         memcpy (castPtr pNew) (castPtr oldStart) size
         touchForeignPtr aStart
         return $ Array
             { aStart = newPtr
-            , aEnd   = pNew `plusPtr` size
+            , aEnd   = pNew `plusPtr` (size - (size `mod` elemSize))
             , aBound = pNew `plusPtr` newSize
             }
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
-realloc i arr = liftIO $ reallocAligned (alignment (undefined :: a)) i arr
+realloc i arr =
+    liftIO
+        $ reallocAligned
+            (sizeOf (undefined :: a)) (alignment (undefined :: a)) i arr
 
 -- | Remove the free space from an Array.
 {-# INLINE shrinkToFit #-}
@@ -890,7 +897,10 @@ toArrayMinChunk alignSize elemCount =
         let p = unsafeForeignPtrToPtr start
             oldSize = end `minusPtr` p
             newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ reallocAligned alignSize newSize arr
+        arr1 <-
+            liftIO
+                $ reallocAligned
+                    (sizeOf (undefined :: a)) alignSize newSize arr
         insertElem arr1 x
     step arr x = insertElem arr x
     extract = liftIO . shrinkToFit
