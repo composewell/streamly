@@ -102,7 +102,7 @@ module Streamly.Internal.Data.Array.Foreign
     , A.unsafeThaw   -- asMutableUnsafe?
 
     -- * Subarrays
-    , unsafeSlice
+    , getSliceUnsafe
     -- , getSlice
     -- , getSlicesFromLenN
 
@@ -115,6 +115,7 @@ module Streamly.Internal.Data.Array.Foreign
     )
 where
 
+import Control.Exception (assert)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
@@ -361,18 +362,18 @@ find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE unsafeSlice #-}
-unsafeSlice ::
+{-# INLINE getSliceUnsafe #-}
+getSliceUnsafe ::
        forall a. Storable a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-unsafeSlice start len (Array fp _) =
+getSliceUnsafe index len (Array fp e) =
     let size = sizeOf (undefined :: a)
-        fp1 = fp `plusForeignPtr` (start * size)
+        fp1 = fp `plusForeignPtr` (index * size)
         end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
-     in Array fp1 end
+     in assert (end <= e) (Array fp1 end)
 
 -------------------------------------------------------------------------------
 -- Random reads and writes

@@ -234,7 +234,7 @@ concatArrayW8 =
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
     let lst = take n $ drop i $ list
-        arr = A.toList $ A.unsafeSlice i n $ A.fromList list
+        arr = A.toList $ A.getSliceUnsafe i n $ A.fromList list
      in arr == lst
 
 #endif
