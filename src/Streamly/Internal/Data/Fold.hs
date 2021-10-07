@@ -256,7 +256,6 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Prelude
 
 import Prelude hiding
@@ -275,7 +274,9 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, foldMany)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 
 ------------------------------------------------------------------------------
@@ -1694,12 +1695,12 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- > toStream = foldr K.cons K.nil
+-- >>> toStream = fmap SerialT Fold.toStreamK
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
-toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = fmap SerialT $ foldr K.cons K.nil
+toStream :: Monad m => Fold m a (SerialT n a)
+toStream = fmap SerialT toStreamK
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -1707,7 +1708,7 @@ toStream = fmap SerialT $ foldr K.cons K.nil
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- > toStreamRev = foldl' (flip K.cons) K.nil
+-- >>> toStreamRev = fmap SerialT Fold.toStreamKRev
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
@@ -1716,5 +1717,5 @@ toStream = fmap SerialT $ foldr K.cons K.nil
 
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
-toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = fmap SerialT $ foldl' (flip K.cons) K.nil
+toStreamRev :: Monad m => Fold m a (SerialT n a)
+toStreamRev = fmap SerialT toStreamKRev

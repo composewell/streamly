@@ -10,6 +10,7 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
+import Data.Functor.Identity (Identity)
 import Data.Map.Strict (Map)
 import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
@@ -352,8 +353,12 @@ o_n_heap_serial value =
             [
               benchIOSink value "toList" (S.fold FL.toList)
             , benchIOSink value "toListRev" (S.fold FL.toListRev)
-            , benchIOSink value "toStream" (S.fold FL.toStream)
-            , benchIOSink value "toStreamRev" (S.fold FL.toStreamRev)
+            , benchIOSink value "toStream"
+                (S.fold FL.toStream
+                    :: SerialT IO a -> IO (SerialT Identity a))
+            , benchIOSink value "toStreamRev"
+                (S.fold FL.toStreamRev
+                    :: SerialT IO a -> IO (SerialT Identity a))
             ]
     ]
 

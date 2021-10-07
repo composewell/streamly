@@ -211,6 +211,8 @@ module Streamly.Internal.Data.Fold.Type
     , fromEffect
     , drain
     , toList
+    , toStreamK
+    , toStreamKRev
 
     -- * Combinators
 
@@ -270,15 +272,23 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+
 import Prelude hiding (concatMap, filter, foldr, map, take)
 
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
+-- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Prelude hiding (concatMap, filter, map)
+-- >>> import Streamly.Prelude (SerialT)
+-- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
 ------------------------------------------------------------------------------
 -- Step of a fold
@@ -602,6 +612,31 @@ drain = foldl' (\_ _ -> ()) ()
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
 toList = foldr (:) []
+
+-- | Buffers the input stream to a pure stream in the reverse order of the
+-- input.
+--
+-- >>> toStreamKRev = Foldable.foldl' (flip StreamK.cons) StreamK.nil
+--
+-- This is more efficient than 'toStreamK'. toStreamK has exactly the same
+-- performance as reversing the stream after toStreamKRev.
+--
+-- /Pre-release/
+
+--  xn : ... : x2 : x1 : []
+{-# INLINABLE toStreamKRev #-}
+toStreamKRev :: Monad m => Fold m a (K.Stream n a)
+toStreamKRev = foldl' (flip K.cons) K.nil
+
+-- | A fold that buffers its input to a pure stream.
+--
+-- >>> toStreamK = foldr StreamK.cons StreamK.nil
+-- >>> toStreamK = fmap StreamK.reverse Fold.toStreamKRev
+--
+-- /Internal/
+{-# INLINE toStreamK #-}
+toStreamK :: Monad m => Fold m a (K.Stream n a)
+toStreamK = foldr K.cons K.nil
 
 ------------------------------------------------------------------------------
 -- Instances
