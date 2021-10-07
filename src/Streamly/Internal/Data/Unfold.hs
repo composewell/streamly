@@ -516,6 +516,9 @@ consM action unf = Unfold step inject
             Skip s -> Skip (Right (Stream step1 s))
             Stop -> Stop) <$> step1 defState st
 
+-- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use
+-- rewrite rules to rewrite list enumerations to unfold enumerations.
+--
 -- | Convert a list of pure values to a 'Stream'
 --
 -- /Since: 0.8.0/
