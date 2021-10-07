@@ -1093,25 +1093,20 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 
     where
 
-    initial = do
-        res <- finitial
+    {-# INLINE next #-}
+    next i res =
         case res of
-            Partial s ->
-                if n > 0
-                then return $ Partial $ Tuple'Fused 0 s
+            Partial s -> do
+                let i1 = i + 1
+                    s1 = Tuple'Fused i1 s
+                if i1 < n
+                then return $ Partial s1
                 else Done <$> fextract s
             Done b -> return $ Done b
 
-    step (Tuple'Fused i r) a = do
-        res <- fstep r a
-        case res of
-            Partial sres -> do
-                let i1 = i + 1
-                    s1 = Tuple'Fused i1 sres
-                if i1 < n
-                then return $ Partial s1
-                else Done <$> fextract sres
-            Done bres -> return $ Done bres
+    initial = finitial >>= next (-1)
+
+    step (Tuple'Fused i r) a = fstep r a >>= next i
 
     extract (Tuple'Fused _ r) = fextract r
 
