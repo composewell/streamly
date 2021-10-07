@@ -222,10 +222,17 @@ module Streamly.Internal.Data.Fold
     , concatSequence
     , concatMap
 
-    -- * Running Partially
+    -- * Running A Fold
+    -- | Normally you would run a fold to completion by supplying it a stream,
+    -- e.g. using 'Stream.fold'. However, you could also run a fold partially
+    -- by using 'duplicate' on it and then running it with a stream.
+    -- Alternatively, 'initialize', 'snoc' and 'finish' can be used to run a
+    -- fold incrementally, however, that may not be the most efficient way to
+    -- run a fold.
     , initialize
-    , runStep
+    , snoc
     , duplicate
+    , finish
 
     -- * Fold2
     , drainBy2

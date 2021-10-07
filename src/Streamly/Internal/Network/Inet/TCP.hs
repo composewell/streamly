@@ -359,7 +359,7 @@ writeChunks addr port = Fold step initial extract
                     `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' fld skt)
     step (Tuple' fld skt) x = do
-        r <- FL.runStep fld x `MC.onException` liftIO (Net.close skt)
+        r <- FL.snoc fld x `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' r skt)
     extract (Tuple' (Fold _ initial1 extract1) skt) = do
         liftIO $ Net.close skt

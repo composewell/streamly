@@ -232,7 +232,7 @@ module Streamly.Internal.Data.Fold.Type
     , take
 
     -- ** Serial Append
-    , serialWith
+    , serialWith -- rename to "append"
     , serial_
 
     -- ** Parallel Distribution
@@ -253,10 +253,11 @@ module Streamly.Internal.Data.Fold.Type
     -- ** Nesting
     , concatMap
 
-    -- * Running Partially
-    , duplicate
+    -- * Running A Fold
     , initialize
-    , runStep
+    , snoc
+    , duplicate
+    , finish
 
     -- * Fold2
     , Fold2 (..)
@@ -1149,19 +1150,28 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- Nesting
 ------------------------------------------------------------------------------
 
--- | Modify the fold such that it returns a new 'Fold' instead of the output.
--- If the fold was already done the returned fold would always yield the
--- result. If the fold was partial, the returned fold starts from where we left
--- i.e. it uses the last accumulator value as the initial value of the
--- accumulator. Thus we can resume the fold later and feed it more input.
+-- | 'duplicate' provides the ability to run a fold in parts.  The duplicated
+-- fold consumes the input and returns the same fold as output instead of
+-- returning the final result, the returned fold can be run later to consume
+-- more input.
+--
+-- We can append a stream to a fold as follows:
+--
+-- >>> :{
+-- foldAppend :: Monad m => Fold m a b -> SerialT m a -> m (Fold m a b)
+-- foldAppend f = Stream.fold (Fold.duplicate f)
+-- :}
 --
 -- >>> :{
 -- do
---  more <- Stream.fold (Fold.duplicate Fold.sum) (Stream.enumerateFromTo 1 10)
---  evenMore <- Stream.fold (Fold.duplicate more) (Stream.enumerateFromTo 11 20)
---  Stream.fold evenMore (Stream.enumerateFromTo 21 30)
+--  sum1 <- foldAppend Fold.sum (Stream.enumerateFromTo 1 10)
+--  sum2 <- foldAppend sum1 (Stream.enumerateFromTo 11 20)
+--  Stream.fold sum2 (Stream.enumerateFromTo 21 30)
 -- :}
 -- 465
+--
+-- 'duplicate' essentially appends a stream to the fold without finishing the
+-- fold.  Compare with 'snoc' which appends a singleton value to the fold.
 --
 -- /Pre-release/
 {-# INLINABLE duplicate #-}
@@ -1185,18 +1195,37 @@ initialize (Fold step initial extract) = do
     i <- initial
     return $ Fold step (return i) extract
 
--- | Run one step of a fold and store the accumulator as an initial value in
--- the returned fold.
+-- | Append a singleton value to the fold.
+--
+-- >>> import qualified Data.Foldable as Foldable
+-- >>> Foldable.foldlM Fold.snoc Fold.toList [1..3] >>= Fold.finish
+-- [1,2,3]
+--
+-- Compare with 'duplicate' which allows appending a stream to the fold.
 --
 -- /Pre-release/
-{-# INLINE runStep #-}
-runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
-runStep (Fold step initial extract) a = do
+{-# INLINE snoc #-}
+snoc :: Monad m => Fold m a b -> a -> m (Fold m a b)
+snoc (Fold step initial extract) a = do
     res <- initial
     r <- case res of
           Partial fs -> step fs a
-          b@(Done _) -> return b
+          Done _ -> return res
     return $ Fold step (return r) extract
+
+-- | Finish the fold to extract the current value of the fold.
+--
+-- >>> Fold.finish Fold.toList
+-- []
+--
+-- /Pre-release/
+{-# INLINE finish #-}
+finish :: Monad m => Fold m a b -> m b
+finish (Fold _ initial extract) = do
+    res <- initial
+    case res of
+          Partial fs -> extract fs
+          Done b -> return b
 
 ------------------------------------------------------------------------------
 -- Parsing
