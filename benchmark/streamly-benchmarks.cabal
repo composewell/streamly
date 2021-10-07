@@ -476,6 +476,8 @@ benchmark Data.Array.Foreign
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   cpp-options: -DMEMORY_ARRAY
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
 
 -------------------------------------------------------------------------------
 -- Array Stream Benchmarks
