@@ -175,21 +175,21 @@ takeBetween :: Property
 takeBetween =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (min_value, max_value)) $ \n ->
-                forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                let
-                    list_length = Prelude.length ls
-                in
-                    case S.parse (P.takeBetween m n FL.toList)
-                            (S.fromList ls) of
-                        Right parsed_list ->
-                            if m <= list_length && n >= list_length
-                            then
-                                let lpl = Prelude.length parsed_list
-                                in checkListEqual parsed_list
-                                    $ Prelude.take lpl ls
-                            else property False
-                        Left _ -> property (m > n || list_length < m)
+            forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+                go m n ls
 
+    where
+
+    go m n ls =
+        let inputLen = Prelude.length ls
+         in case S.parse (P.takeBetween m n FL.toList) (S.fromList ls) of
+                Right xs ->
+                    let parsedLen = Prelude.length xs
+                     in if inputLen >= m && parsedLen >= m && parsedLen <= n
+                        then checkListEqual xs $ Prelude.take parsedLen ls
+                        else property False
+                Left _ ->
+                    property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
 
 takeEQPass :: Property
 takeEQPass =
