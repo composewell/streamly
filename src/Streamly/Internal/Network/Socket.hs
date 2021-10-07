@@ -87,7 +87,7 @@ import qualified Network.Socket as Net
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
@@ -259,7 +259,7 @@ readArrayUptoWith f size h = do
     unsafeWithForeignPtr ptr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
-                $ mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
+                $ fromForeignPtrUnsafe ptr (p `plusPtr` n) (p `plusPtr` size)
 
         -- XXX shrink only if the diff is significant
         -- A.shrinkToFit v
