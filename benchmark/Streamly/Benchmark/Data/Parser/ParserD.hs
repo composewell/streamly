@@ -216,6 +216,13 @@ parseManyGroupsRolling :: MonadThrow m => Bool -> SerialT m Int -> m ()
 parseManyGroupsRolling b =
     IP.drain . IP.parseManyD (PR.groupByRolling (\_ _ -> b) FL.drain)
 
+{-# INLINE parseManyGroupsRollingEither #-}
+parseManyGroupsRollingEither :: (MonadThrow m, MonadCatch m) =>
+    Bool -> SerialT m Int -> m ()
+parseManyGroupsRollingEither b =
+    IP.drain .
+    IP.parseManyD (PR.groupByRollingEither (\_ _ -> b) FL.drain FL.drain)
+
 -------------------------------------------------------------------------------
 -- Parsing with unfolds
 -------------------------------------------------------------------------------
@@ -333,6 +340,10 @@ o_1_space_serial_nested value =
     , benchIOSink value "parseMany groupBy (1 group)" $ (parseManyGroups True)
     , benchIOSink value "parseMany groupRollingBy (1 group)"
           $ (parseManyGroupsRolling True)
+    , benchIOSink value "parseMany groupRollingByEither (1 group)"
+          $ (parseManyGroupsRollingEither True)
+    , benchIOSink value "parseMany groupRollingByEither (bound groups)"
+          $ (parseManyGroupsRollingEither False)
     ]
 
 o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
