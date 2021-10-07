@@ -112,6 +112,7 @@ module Streamly.Internal.Data.Fold
     , lmap
     --, lsequence
     , lmapM
+    , scan
     , indexed
 
     -- ** Filtering
@@ -374,6 +375,16 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
             go acc r
 
     extract (Tuple' _ fs) = fextract fs
+
+-- See StreamD/Transform.scanOnce for implementing this.
+--
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'.
+--
+-- /Unimplemented/
+{-# INLINE scan #-}
+scan :: Fold m a b -> Fold m b c -> Fold m a c
+scan = undefined
 
 ------------------------------------------------------------------------------
 -- Left folds
