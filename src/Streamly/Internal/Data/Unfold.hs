@@ -110,11 +110,6 @@ module Streamly.Internal.Data.Unfold
       Step(..)
     , Unfold
 
-    -- * Folding
-    , fold
-    , foldMany
-    -- pipe
-
     -- * Unfolds
     -- One to one correspondence with
     -- "Streamly.Internal.Data.Stream.IsStream.Generate"
@@ -190,15 +185,20 @@ module Streamly.Internal.Data.Unfold
     , discardFirst
     , discardSecond
     , swap
-    , lscanlM'
     -- coapply
     -- comonad
+
+    -- * Folding
+    , fold
 
     -- ** Mapping on Output
     , map
     , mapM
     , mapMWithInput
     , scanlM'
+    , scan
+    , foldMany
+    -- pipe
 
     -- ** Either Wrapped Input
     , either
@@ -320,16 +320,6 @@ discardSecond = lmap fst
 swap :: Unfold m (a, c) b -> Unfold m (c, a) b
 swap = lmap Tuple.swap
 
--- See StreamD.scanlM' for implementing this.
---
--- | Scan the input of an 'Unfold' to change it in a stateful manner.
---
--- /Unimplemented/
-{-# INLINE_NORMAL lscanlM' #-}
-lscanlM' :: -- Monad m =>
-    (b -> a -> m b) -> m b -> Unfold m b c -> Unfold m a c
-lscanlM' = undefined
-
 -------------------------------------------------------------------------------
 -- Output operations
 -------------------------------------------------------------------------------
@@ -433,15 +423,21 @@ either (Unfold step1 inject1) = Unfold step inject
             Skip s -> Skip (s, f)
             Stop -> Stop) <$> step1 st
 
--- See StreamD.scanlM' for implementing this.
+-- See StreamD.scanOnce for implementing this.
 --
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
 -- /Unimplemented/
+{-# INLINE_NORMAL scan #-}
+scan :: Fold m b c -> Unfold m a b -> Unfold m a c
+scan = undefined
+
+-- | Scan the output of an 'Unfold' to change it in a stateful manner.
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL scanlM' #-}
-scanlM' :: -- Monad m =>
-    (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-scanlM' = undefined
+scanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
+scanlM' f z = scan (FL.foldlM' f z)
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
