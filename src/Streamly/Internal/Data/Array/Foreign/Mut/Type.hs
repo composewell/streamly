@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
       Array (..)
 
     -- * Construction
-    , mutableArray
+    , fromForeignPtrUnsafe
     , unsafeWithNewArray
     , newArray
     , newArrayAligned
@@ -226,13 +226,24 @@ data Array a =
     , aBound :: {-# UNPACK #-} !(Ptr a)        -- ^ first address beyond allocated memory
     }
 
-{-# INLINE mutableArray #-}
-mutableArray ::
+-- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
+-- at the memory pointed by the @foreignPtr@, @end@ is the first unused
+-- address, and @bound@ is the first address beyond the allocated memory.
+--
+-- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
+-- integral multiple of the element size.
+--
+-- /Pre-release/
+--
+{-# INLINE fromForeignPtrUnsafe #-}
+fromForeignPtrUnsafe ::
 #ifdef DEVBUILD
     Storable a =>
 #endif
     ForeignPtr a -> Ptr a -> Ptr a -> Array a
-mutableArray = Array
+fromForeignPtrUnsafe fp end bound =
+    assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
+           (Array fp end bound)
 
 -------------------------------------------------------------------------------
 -- Construction

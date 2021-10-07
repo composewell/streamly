@@ -115,7 +115,7 @@ import Streamly.Internal.Data.Fold.Type (Fold2(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (mutableArray)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
@@ -177,7 +177,7 @@ getChunk size h = liftIO $ do
         -- XXX shrink only if the diff is significant
         return $
             unsafeFreezeWithShrink $
-            mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
+            fromForeignPtrUnsafe ptr (p `plusPtr` n) (p `plusPtr` size)
 
 -- This could be useful in implementing the "reverse" read APIs or if you want
 -- to read arrays of exact size instead of compacting them later. Compacting
