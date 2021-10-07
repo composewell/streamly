@@ -166,6 +166,7 @@ module Streamly.Internal.Data.Parser.ParserD
 where
 
 import Control.Exception (assert, Exception)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -352,6 +353,10 @@ either parser = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 
+-- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
+{-# ANN type Tuple'Fused Fuse #-}
+data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
+
 -- | See 'Streamly.Internal.Data.Parser.takeBetween'.
 --
 -- /Pre-release/
@@ -360,61 +365,69 @@ either parser = Parser step initial extract
 takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
 takeBetween low high (Fold fstep finitial fextract) =
 
-    Parser step initial extract
+    Parser step initial (extract streamErr)
 
     where
 
-    initial = do
-        res <- finitial
-        return $ case res of
-            FL.Partial s -> IPartial $ Tuple' 0 s
+    streamErr i =
+           "takeBetween: Expecting alteast " ++ show low
+        ++ " elements, got " ++ show i
+
+    invalidRange =
+        "takeBetween: lower bound - " ++ show low
+            ++ " is greater than higher bound - " ++ show high
+
+    foldErr :: Int -> String
+    foldErr i =
+        "takeBetween: the collecting fold terminated after"
+            ++ " consuming" ++ show i ++ " elements"
+            ++ " minimum" ++ show low ++ " elements needed"
+
+    -- Exactly the same as snext except different constructors, we can possibly
+    -- deduplicate the two.
+    {-# INLINE inext #-}
+    inext i res =
+        let i1 = i + 1
+        in case res of
+            FL.Partial s -> do
+                let s1 = Tuple'Fused i1 s
+                if i1 < high
+                -- XXX ideally this should be a Continue instead
+                then return $ IPartial s1
+                else IDone <$> extract foldErr s1
             FL.Done b ->
-                if low <= 0
-                then IDone b
-                else IError
-                         $ "takeBetween: the collecting fold terminated without"
-                             ++ " consuming any elements"
-                             ++ " minimum" ++ show low ++ " elements needed"
+                return
+                    $ if i1 >= low
+                      then IDone b
+                      else IError (foldErr i1)
 
-    step (Tuple' i s) a
-        | low > high =
-            throwM
-                $ ParseError
-                $ "takeBetween: lower bound - " ++ show low
-                    ++ " is greater than higher bound - " ++ show high
-        | high <= 0 = Done 1 <$> fextract s
-        | i1 < low = do
-            res <- fstep s a
-            return
-                $ case res of
-                    FL.Partial s1 -> Continue 0 $ Tuple' i1 s1
-                    FL.Done _ ->
-                        Error
-                            $ "takeBetween: the collecting fold terminated after"
-                                ++ " consuming" ++ show i1 ++ " elements"
-                                ++ " minimum" ++ show low ++ " elements needed"
-        | otherwise = do
-            res <- fstep s a
-            case res of
-                FL.Partial s1 ->
-                    if i1 >= high
-                    then Done 0 <$> fextract s1
-                    else return $ Partial 0 $ Tuple' i1 s1
-                FL.Done b -> return $ Done 0 b
+    initial = do
+        when (low >= 0 && high >= 0 && low > high)
+            $ throwM $ ParseError invalidRange
 
-        where
+        finitial >>= inext (-1)
 
-        i1 = i + 1
+    -- Keep the impl same as inext
+    {-# INLINE snext #-}
+    snext i res =
+        let i1 = i + 1
+        in case res of
+            FL.Partial s -> do
+                let s1 = Tuple'Fused i1 s
+                if i1 < high
+                then return $ Continue 0 s1
+                else Done 0 <$> extract foldErr s1
+            FL.Done b ->
+                return
+                    $ if i1 >= low
+                      then Done 0 b
+                      else Error (foldErr i1)
 
-    extract (Tuple' i s)
+    step (Tuple'Fused i s) a = fstep s a >>= snext i
+
+    extract f (Tuple'Fused i s)
         | i >= low && i <= high = fextract s
-        | otherwise = throwM $ ParseError err
-
-        where
-
-        err =
-               "takeBetween: Expecting alteast " ++ show low
-            ++ " elements, got " ++ show i
+        | otherwise = throwM $ ParseError (f i)
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --

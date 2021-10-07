@@ -157,6 +157,19 @@ import Prelude hiding (concatMap)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
+-- XXX The only differences between Initial and Step types are:
+--
+-- * There are no backtracking counts in Initial
+-- * Continue and Partial are the same. Ideally Partial should mean that an
+-- empty result is valid and can be extracted; and Continue should mean that
+-- empty would result in an error on extraction. We can possibly distinguish
+-- the two cases.
+--
+-- If we ignore the backtracking counts we can represent the Initial type using
+-- Step itself. That will also simplify the implementation of various parsers
+-- where the processing in intiial is just a sepcial case of step, see
+-- takeBetween for example.
+--
 -- | The type of a 'Parser''s initial action.
 --
 -- /Internal/
@@ -198,6 +211,18 @@ instance Bifunctor Initial where
 instance Functor (Initial s) where
     {-# INLINE fmap #-}
     fmap = second
+
+-- We can simplify the Step type as follows:
+--
+-- Partial Int (Either s (s, b)) -- Left continue, right partial result
+-- Done Int (Either String b)
+--
+-- In this case Error may also have a "leftover" return. This means that after
+-- serveral successful partial results the last segment parsing failed and we
+-- are returning the leftover of that. The driver may choose to restart from
+-- the last segment where this parser failed or from the beginning.
+--
+-- Folds can only return the right values. Parsers can also return lefts.
 
 -- | The return type of a 'Parser' step.
 --
