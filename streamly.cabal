@@ -385,6 +385,7 @@ library
                      , Streamly.Internal.Data.SVar.Pull
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Fold.Step
                      , Streamly.Internal.Data.Consumer.Type
                      , Streamly.Internal.Data.Fold.Type
                      , Streamly.Internal.Data.Stream.StreamD.Step
