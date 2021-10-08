@@ -209,6 +209,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Folds
     , fromPure
     , fromEffect
+    , fromConsumer
     , drain
     , toList
     , toStreamK
@@ -248,6 +249,8 @@ module Streamly.Internal.Data.Fold.Type
     , ManyState
     , many
     , manyPost
+    , consumeMany
+    , consumeMany1
     , chunksOf
 
     -- ** Nesting
@@ -258,10 +261,6 @@ module Streamly.Internal.Data.Fold.Type
     , snoc
     , duplicate
     , finish
-
-    -- * Consumer
-    , simplify
-    , chunksOf2
     )
 where
 
@@ -271,7 +270,7 @@ import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Consumer.Type (Consumer(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -505,18 +504,18 @@ mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
 mkFoldM_ step initial = mkFoldM step initial return
 
 ------------------------------------------------------------------------------
--- Fold2
+-- Consumer
 ------------------------------------------------------------------------------
 
 -- This is similar to how we run an Unfold to generate a Stream. A Fold is like
 -- a Stream and a Fold2 is like an Unfold.
 --
--- | Convert more general type 'Fold2' into a simpler type 'Fold'
+-- | Make a fold from a consumer.
 --
 -- /Internal/
-simplify :: Functor m => Consumer m c a b -> c -> Fold m a b
-simplify (Consumer step inject extract) c =
-    Fold (\x a -> Partial <$> step x a) (Partial <$> inject c) extract
+fromConsumer :: Consumer m c a b -> c -> Fold m a b
+fromConsumer (Consumer step inject extract) c =
+    Fold step (inject c) extract
 
 ------------------------------------------------------------------------------
 -- Basic Folds
@@ -1312,32 +1311,102 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksOf n split = many (take n split)
 
--- |
+-- | Like 'many' but uses a 'Consumer' for collecting.
 --
--- /Internal/
-{-# INLINE chunksOf2 #-}
-chunksOf2 :: Monad m =>
-    Int -> Fold m a b -> Consumer m x b c -> Consumer m x a c
-chunksOf2 n (Fold step1 initial1 extract1) (Consumer step2 inject2 extract2) =
-    Consumer step' inject' extract'
+{-# INLINE consumeMany #-}
+consumeMany :: Monad m => Fold m a b -> Consumer m x b c -> Consumer m x a c
+consumeMany (Fold sstep sinitial sextract) (Consumer cstep cinject cextract) =
+    Consumer step inject extract
 
     where
 
-    loopUntilPartial s = do
-        res <- initial1
-        case res of
-            Partial fs -> return $ Tuple3' 0 fs s
-            Done _ -> loopUntilPartial s
+    -- cs = collect state
+    -- ss = split state
+    -- cres = collect state result
+    -- sres = split state result
+    -- cb = collect done
+    -- sb = split done
 
-    inject' x = inject2 x >>= loopUntilPartial
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
 
-    step' (Tuple3' i r1 r2) a =
-        if i < n
-        then do
-            res <- step1 r1 a
-            case res of
-                Partial s -> return $ Tuple3' (i + 1) s r2
-                Done b -> step2 r2 b >>= loopUntilPartial
-        else extract1 r1 >>= step2 r2 >>= loopUntilPartial
+    {-# INLINE split #-}
+    split cs f sres =
+        case sres of
+            Partial ss -> return $ Partial $ Tuple' cs (f ss)
+            Done sb -> cstep cs sb >>= collect
 
-    extract' (Tuple3' _ r1 r2) = extract1 r1 >>= step2 r2 >>= extract2
+    {-# INLINE collect #-}
+    collect cres =
+        case cres of
+            Partial cs -> sinitial >>= split cs Left
+            Done cb -> return $ Done cb
+
+    inject x = cinject x >>= collect
+
+    {-# INLINE step_ #-}
+    step_ ss cs a = sstep ss a >>= split cs Right
+
+    {-# INLINE step #-}
+    step (Tuple' cs (Left ss)) a = step_ ss cs a
+    step (Tuple' cs (Right ss)) a = step_ ss cs a
+
+    -- Do not extract the split fold if no item was consumed.
+    extract (Tuple' cs (Left _)) = cextract cs
+    extract (Tuple' cs (Right ss )) = do
+        cres <- sextract ss >>= cstep cs
+        case cres of
+            Partial s -> cextract s
+            Done b -> return b
+
+{-# ANN type ConsumeManyState Fuse #-}
+data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
+
+-- | Like 'many' but uses a 'Consumer' for splitting.
+--
+-- /Internal/
+{-# INLINE consumeMany1 #-}
+consumeMany1 :: Monad m => Consumer m x a b -> Fold m b c -> Consumer m x a c
+consumeMany1 (Consumer sstep sinject sextract) (Fold cstep cinitial cextract) =
+    Consumer step inject extract
+
+    where
+
+    -- cs = collect state
+    -- ss = split state
+    -- cres = collect state result
+    -- sres = split state result
+    -- cb = collect done
+    -- sb = split done
+
+    -- Caution! There is mutual recursion here, inlining the right functions is
+    -- important.
+
+    {-# INLINE split #-}
+    split x cs f sres =
+        case sres of
+            Partial ss -> return $ Partial $ ConsumeMany x cs (f ss)
+            Done sb -> cstep cs sb >>= collect x
+
+    {-# INLINE collect #-}
+    collect x cres =
+        case cres of
+            Partial cs -> sinject x >>= split x cs Left
+            Done cb -> return $ Done cb
+
+    inject x = cinitial >>= collect x
+
+    {-# INLINE step_ #-}
+    step_ x ss cs a = sstep ss a >>= split x cs Right
+
+    {-# INLINE step #-}
+    step (ConsumeMany x cs (Left ss)) a = step_ x ss cs a
+    step (ConsumeMany x cs (Right ss)) a = step_ x ss cs a
+
+    -- Do not extract the split fold if no item was consumed.
+    extract (ConsumeMany _ cs (Left _)) = cextract cs
+    extract (ConsumeMany _ cs (Right ss )) = do
+        cres <- sextract ss >>= cstep cs
+        case cres of
+            Partial s -> cextract s
+            Done b -> return b

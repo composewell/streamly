@@ -83,13 +83,12 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , FoldManyPost (..)
     , foldMany
     , foldManyPost
-    , groupsOf2
+    , consumeMany
     , chunksOf
     )
 where
 
 import Control.Applicative (liftA2)
-import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (lift, MonadTrans)
 import Data.Functor (($>))
@@ -922,55 +921,51 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
 chunksOf n f = foldMany (FL.take n f)
 
-data GroupState2 s fs
-    = GroupStart2 s
-    | GroupBuffer2 s fs Int
-    | GroupYield2 fs (GroupState2 s fs)
-    | GroupFinish2
-
-{-# INLINE_NORMAL groupsOf2 #-}
-groupsOf2
-    :: Monad m
-    => Int
-    -> m c
-    -> Consumer m c a b
-    -> Stream m a
-    -> Stream m b
-groupsOf2 n input (Consumer fstep inject extract) (Stream step state) =
-    n `seq` Stream step' (GroupStart2 state)
+-- Keep the argument order consistent with consumeIterateM
+--
+-- | Like 'foldMany' but for the 'Consumer' type.
+--
+-- /Internal/
+{-# INLINE_NORMAL consumeMany #-}
+consumeMany :: Monad m => Consumer m x a b -> m x -> Stream m a -> Stream m b
+consumeMany (Consumer fstep inject extract) action (Stream step state) =
+    Stream step' (FoldManyStart state)
 
     where
 
-    {-# INLINE_LATE step' #-}
-    step' _ (GroupStart2 st) = do
-        -- XXX shall we use the Natural type instead? Need to check performance
-        -- implications.
-        when (n <= 0) $
-            -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
-                 ++ "groups [" ++ show n ++ "] must be a natural number"
-        -- fs = fold state
-        fs <- input >>= inject
-        return $ Skip (GroupBuffer2 st fs 0)
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> FoldManyYield b (FoldManyStart s)
+                  FL.Partial ps -> FoldManyLoop s ps
 
-    step' gst (GroupBuffer2 st fs i) = do
+    {-# INLINE_LATE step' #-}
+    step' _ (FoldManyStart st) = do
+        r <- action >>= inject
+        return
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs -> FoldManyFirst fs st
+    step' gst (FoldManyFirst fs st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> do
-                !fs' <- fstep fs x
-                let i' = i + 1
-                return $
-                    if i' >= n
-                    then Skip (GroupYield2 fs' (GroupStart2 s))
-                    else Skip (GroupBuffer2 s fs' i')
-            Skip s -> return $ Skip (GroupBuffer2 s fs i)
-            Stop -> return $ Skip (GroupYield2 fs GroupFinish2)
-
-    step' _ (GroupYield2 fs next) = do
-        r <- extract fs
-        return $ Yield r next
-
-    step' _ GroupFinish2 = return Stop
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyFirst fs s)
+            Stop -> return Stop
+    step' gst (FoldManyLoop st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyLoop s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (FoldManyYield b FoldManyDone)
+    step' _ (FoldManyYield b next) = return $ Yield b next
+    step' _ FoldManyDone = return Stop
 
 ------------------------------------------------------------------------------
 -- Other instances

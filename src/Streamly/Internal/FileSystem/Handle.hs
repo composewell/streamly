@@ -45,7 +45,7 @@ module Streamly.Internal.FileSystem.Handle
     -- * Byte Stream Write
     -- Byte stream write (Folds)
     , write
-    , write2
+    , consumer
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
@@ -125,6 +125,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Consumer.Type as Consumer
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -456,12 +457,12 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
 
-{-# INLINE writeChunks2 #-}
-writeChunks2 :: (MonadIO m, Storable a) => Consumer m Handle (Array a) ()
-writeChunks2 =
-    Consumer (\h arr -> liftIO $ putChunk h arr >> return h)
-          return
-          (\_ -> return ())
+-- | Like writeChunks but uses the experimental 'Consumer' API.
+--
+-- /Internal/
+{-# INLINE consumeChunks #-}
+consumeChunks :: (MonadIO m, Storable a) => Consumer m Handle (Array a) ()
+consumeChunks = Consumer.drainBy putChunk
 
 -- XXX lpackArraysChunksOf should be written idiomatically
 --
@@ -498,9 +499,13 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
-{-# INLINE writeWithBufferOf2 #-}
-writeWithBufferOf2 :: MonadIO m => Int -> Consumer m Handle Word8 ()
-writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
+-- | Like 'writeWithBufferOf'  but uses the experimental 'Consumer' API.
+--
+-- /Internal/
+{-# INLINE consumerWithBufferOf #-}
+consumerWithBufferOf :: MonadIO m => Int -> Consumer m Handle Word8 ()
+consumerWithBufferOf n =
+    FL.consumeMany (FL.take n $ writeNUnsafe n) consumeChunks
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing
@@ -513,9 +518,12 @@ writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
-{-# INLINE write2 #-}
-write2 :: MonadIO m => Consumer m Handle Word8 ()
-write2 = writeWithBufferOf2 defaultChunkSize
+-- | Like 'write'  but uses the experimental 'Consumer' API.
+--
+-- /Internal/
+{-# INLINE consumer #-}
+consumer :: MonadIO m => Consumer m Handle Word8 ()
+consumer = consumerWithBufferOf defaultChunkSize
 
 {-
 {-# INLINE write #-}

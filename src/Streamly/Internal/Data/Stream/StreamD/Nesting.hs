@@ -113,6 +113,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Apply folds on a stream.
     , foldMany
     , foldIterateM
+    , consumeMany
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
@@ -126,7 +127,6 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
     , chunksOf
-    , groupsOf2
     , groupsBy
     , groupsRollingBy
 

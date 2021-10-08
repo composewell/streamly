@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     -- | Apply folds on a stream.
     , foldMany
     , foldManyPost
+    , consumeMany
     , foldSequence
     , foldIterateM
 
@@ -138,9 +139,6 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     -- * Nested splitting
     , splitInnerBy
     , splitInnerBySuffix
-
-     -- * Fold2
-    , chunksOf2
     )
 where
 
@@ -295,6 +293,14 @@ foldMany
     -> t m a
     -> t m b
 foldMany f m = fromStreamD $ D.foldMany f (toStreamD m)
+
+-- | Like 'foldMany' but using the 'Consumer' type instead of 'Fold'.
+--
+-- /Pre-release/
+{-# INLINE consumeMany #-}
+consumeMany :: (IsStream t, Monad m) =>
+    Consumer m c a b -> m c -> t m a -> t m b
+consumeMany f action = fromStreamD . D.consumeMany f action . toStreamD
 
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
@@ -991,15 +997,6 @@ chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f = fromStreamD . D.chunksOf n f . toStreamD
-
--- |
---
--- /Pre-release/
-{-# INLINE chunksOf2 #-}
-chunksOf2
-    :: (IsStream t, Monad m)
-    => Int -> m c -> Consumer m c a b -> t m a -> t m b
-chunksOf2 n action f m = fromStreamD $ D.groupsOf2 n action f (toStreamD m)
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
