@@ -111,7 +111,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Fold.Type (Fold2(..))
+import Streamly.Internal.Data.Consumer.Type (Consumer(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
@@ -457,9 +457,9 @@ writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
 
 {-# INLINE writeChunks2 #-}
-writeChunks2 :: (MonadIO m, Storable a) => Fold2 m Handle (Array a) ()
+writeChunks2 :: (MonadIO m, Storable a) => Consumer m Handle (Array a) ()
 writeChunks2 =
-    Fold2 (\h arr -> liftIO $ putChunk h arr >> return h)
+    Consumer (\h arr -> liftIO $ putChunk h arr >> return h)
           return
           (\_ -> return ())
 
@@ -499,7 +499,7 @@ writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
 {-# INLINE writeWithBufferOf2 #-}
-writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
+writeWithBufferOf2 :: MonadIO m => Int -> Consumer m Handle Word8 ()
 writeWithBufferOf2 n = FL.chunksOf2 n (writeNUnsafe n) writeChunks2
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
@@ -514,7 +514,7 @@ write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
 {-# INLINE write2 #-}
-write2 :: MonadIO m => Fold2 m Handle Word8 ()
+write2 :: MonadIO m => Consumer m Handle Word8 ()
 write2 = writeWithBufferOf2 defaultChunkSize
 
 {-

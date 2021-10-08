@@ -259,8 +259,7 @@ module Streamly.Internal.Data.Fold.Type
     , duplicate
     , finish
 
-    -- * Fold2
-    , Fold2 (..)
+    -- * Consumer
     , simplify
     , chunksOf2
     )
@@ -272,7 +271,7 @@ import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Consumer.Type (Fold2(..))
+import Streamly.Internal.Data.Consumer.Type (Consumer(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -577,8 +576,8 @@ mkFoldM_ step initial = mkFoldM step initial return
 -- | Convert more general type 'Fold2' into a simpler type 'Fold'
 --
 -- /Internal/
-simplify :: Functor m => Fold2 m c a b -> c -> Fold m a b
-simplify (Fold2 step inject extract) c =
+simplify :: Functor m => Consumer m c a b -> c -> Fold m a b
+simplify (Consumer step inject extract) c =
     Fold (\x a -> Partial <$> step x a) (Partial <$> inject c) extract
 
 ------------------------------------------------------------------------------
@@ -1379,9 +1378,10 @@ chunksOf n split = many (take n split)
 --
 -- /Internal/
 {-# INLINE chunksOf2 #-}
-chunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
-chunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
-    Fold2 step' inject' extract'
+chunksOf2 :: Monad m =>
+    Int -> Fold m a b -> Consumer m x b c -> Consumer m x a c
+chunksOf2 n (Fold step1 initial1 extract1) (Consumer step2 inject2 extract2) =
+    Consumer step' inject' extract'
 
     where
 

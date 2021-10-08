@@ -99,7 +99,8 @@ import GHC.Base (build)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
-import Streamly.Internal.Data.Fold.Type (Fold(..), Fold2(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Consumer.Type (Consumer(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -932,10 +933,10 @@ groupsOf2
     :: Monad m
     => Int
     -> m c
-    -> Fold2 m c a b
+    -> Consumer m c a b
     -> Stream m a
     -> Stream m b
-groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
+groupsOf2 n input (Consumer fstep inject extract) (Stream step state) =
     n `seq` Stream step' (GroupStart2 state)
 
     where

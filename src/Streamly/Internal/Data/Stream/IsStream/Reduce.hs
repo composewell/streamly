@@ -155,7 +155,8 @@ import Data.Kind (Type)
 import Data.Maybe (isNothing)
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Fold.Type (Fold (..), Fold2 (..))
+import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Consumer.Type (Consumer (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
@@ -997,7 +998,7 @@ chunksOf n f = fromStreamD . D.chunksOf n f . toStreamD
 {-# INLINE chunksOf2 #-}
 chunksOf2
     :: (IsStream t, Monad m)
-    => Int -> m c -> Fold2 m c a b -> t m a -> t m b
+    => Int -> m c -> Consumer m c a b -> t m a -> t m b
 chunksOf2 n action f m = fromStreamD $ D.groupsOf2 n action f (toStreamD m)
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of

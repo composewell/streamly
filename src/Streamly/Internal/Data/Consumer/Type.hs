@@ -11,9 +11,14 @@
 module Streamly.Internal.Data.Consumer.Type
     (
     -- * Types
-      Fold2 (..)
+      Consumer (..)
+
+    -- Consumers
+    , drainBy
     )
 where
+
+import Control.Monad (void)
 
 -- All folds in the Fold module should be implemented as Refolds.
 --
@@ -23,6 +28,13 @@ where
 -- monadic action. This is a generalized version of 'Fold'.
 --
 -- /Internal/
-data Fold2 m c a b =
+data Consumer m c a b =
   -- | @Fold @ @ step @ @ inject @ @ extract@
-  forall s. Fold2 (s -> a -> m s) (c -> m s) (s -> m b)
+  forall s. Consumer (s -> a -> m s) (c -> m s) (s -> m b)
+
+-- |
+--
+-- /Internal/
+{-# INLINABLE drainBy #-}
+drainBy ::  Monad m => (a -> m b) -> Consumer m c a ()
+drainBy f = Consumer (const (void . f)) (\_ -> return ()) return

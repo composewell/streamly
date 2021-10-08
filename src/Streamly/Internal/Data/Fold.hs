@@ -234,16 +234,12 @@ module Streamly.Internal.Data.Fold
     , duplicate
     , finish
 
-    -- * Fold2
-    , drainBy2
-
     -- * Deprecated
     , sequence
     , mapM
     )
 where
 
-import Control.Monad (void)
 import Data.Bifunctor (first)
 import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
@@ -415,13 +411,6 @@ scan = undefined
 {-# INLINABLE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = lmapM f drain
-
--- |
---
--- /Internal/
-{-# INLINABLE drainBy2 #-}
-drainBy2 ::  Monad m => (a -> m b) -> Fold2 m c a ()
-drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --
