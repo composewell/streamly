@@ -272,6 +272,7 @@ import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Consumer.Type (Fold2(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -570,16 +571,9 @@ mkFoldM_ step initial = mkFoldM step initial return
 -- Fold2
 ------------------------------------------------------------------------------
 
--- | Experimental type to provide a side input to the fold for generating the
--- initial state. For example, if we have to fold chunks of a stream and write
--- each chunk to a different file, then we can generate the file name using a
--- monadic action. This is a generalized version of 'Fold'.
+-- This is similar to how we run an Unfold to generate a Stream. A Fold is like
+-- a Stream and a Fold2 is like an Unfold.
 --
--- /Internal/
-data Fold2 m c a b =
-  -- | @Fold @ @ step @ @ inject @ @ extract@
-  forall s. Fold2 (s -> a -> m s) (c -> m s) (s -> m b)
-
 -- | Convert more general type 'Fold2' into a simpler type 'Fold'
 --
 -- /Internal/
