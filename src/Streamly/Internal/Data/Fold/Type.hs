@@ -1202,38 +1202,38 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     -- Caution! There is mutual recursion here, inlining the right functions is
     -- important.
 
-    {-# INLINE handleSplitStep #-}
-    handleSplitStep branch cs sres =
+    {-# INLINE split #-}
+    split f cs sres =
         case sres of
-            Partial ss1 -> return $ Partial $ branch ss1 cs
-            Done sb -> runCollector ManyFirst cs sb
+            Partial ss -> return $ Partial $ f ss cs
+            Done sb -> cstep cs sb >>= collect
 
-    {-# INLINE handleCollectStep #-}
-    handleCollectStep branch cres =
+    {-# INLINE collect #-}
+    collect cres =
         case cres of
-            Partial cs -> do
-                sres <- sinitial
-                handleSplitStep branch cs sres
+            Partial cs -> sinitial >>= split ManyFirst cs
             Done cb -> return $ Done cb
 
-    -- Do not inline this
-    runCollector branch cs sb = cstep cs sb >>= handleCollectStep branch
-
-    initial = cinitial >>= handleCollectStep ManyFirst
+    -- A fold may terminate even without accepting a single input.  So we run
+    -- the split fold's initial action even if no input is received.  However,
+    -- this means that if no input was ever received by "step" we discard the
+    -- fold's initial result which could have generated an effect. However,
+    -- note that if "sinitial" results in Done we do collect its output even
+    -- though the fold may not have received any input. XXX Is this
+    -- inconsistent?
+    initial = cinitial >>= collect
 
     {-# INLINE step_ #-}
-    step_ ss cs a = do
-        sres <- sstep ss a
-        handleSplitStep ManyLoop cs sres
+    step_ ss cs a = sstep ss a >>= split ManyLoop cs
 
     {-# INLINE step #-}
     step (ManyFirst ss cs) a = step_ ss cs a
     step (ManyLoop ss cs) a = step_ ss cs a
 
+    -- Do not extract the split fold if no item was consumed.
     extract (ManyFirst _ cs) = cextract cs
     extract (ManyLoop ss cs) = do
-        sb <- sextract ss
-        cres <- cstep cs sb
+        cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
             Done b -> return b
@@ -1262,33 +1262,25 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     -- Caution! There is mutual recursion here, inlining the right functions is
     -- important.
 
-    {-# INLINE handleSplitStep #-}
-    handleSplitStep cs sres =
+    {-# INLINE split #-}
+    split cs sres =
         case sres of
             Partial ss1 -> return $ Partial $ Tuple' ss1 cs
-            Done sb -> runCollector cs sb
+            Done sb -> cstep cs sb >>= collect
 
-    {-# INLINE handleCollectStep #-}
-    handleCollectStep cres =
+    {-# INLINE collect #-}
+    collect cres =
         case cres of
-            Partial cs -> do
-                sres <- sinitial
-                handleSplitStep cs sres
+            Partial cs -> sinitial >>= split cs
             Done cb -> return $ Done cb
 
-    -- Do not inline this
-    runCollector cs sb = cstep cs sb >>= handleCollectStep
-
-    initial = cinitial >>= handleCollectStep
+    initial = cinitial >>= collect
 
     {-# INLINE step #-}
-    step (Tuple' ss cs) a = do
-        sres <- sstep ss a
-        handleSplitStep cs sres
+    step (Tuple' ss cs) a = sstep ss a >>= split cs
 
     extract (Tuple' ss cs) = do
-        sb <- sextract ss
-        cres <- cstep cs sb
+        cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
             Done b -> return b
