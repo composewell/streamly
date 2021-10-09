@@ -20,6 +20,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 
+import qualified Streamly.Internal.Data.Consumer.Type as Consumer
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Prelude  as S
@@ -149,6 +150,15 @@ foldIterateM =
             (return . FL.take 2 . FL.sconcat) (return (Sum 0))
         . S.map Sum
 
+{-# INLINE consumeIterateM #-}
+consumeIterateM :: Monad m => SerialT m Int -> m ()
+consumeIterateM =
+    S.drain
+        . S.map getSum
+        . Internal.consumeIterateM
+            (Consumer.take 2 Consumer.sconcat) (return (Sum 0))
+        . S.map Sum
+
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
@@ -160,6 +170,7 @@ o_1_space_grouping value =
         , benchIOSink value "groupsByRollingEq" groupsByRollingEq
         , benchIOSink value "foldMany" foldMany
         , benchIOSink value "foldIterateM" foldIterateM
+        , benchIOSink value "consumeIterateM" consumeIterateM
         ]
     ]
 
