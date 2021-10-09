@@ -188,7 +188,7 @@ benchmark Prelude.Serial
       , Serial.Elimination
       , Serial.Transformation1
       , Serial.Transformation2
-      , Serial.Transformation3
+      , Serial.Lift
       , Serial.Nested
       , Serial.Exceptions
       , Serial.Split

@@ -20,7 +20,7 @@ import qualified Serial.Nested as Nested
 import qualified Serial.Split as Split
 import qualified Serial.Transformation1 as Transformation1
 import qualified Serial.Transformation2 as Transformation2
-import qualified Serial.Transformation3 as Transformation3
+import qualified Serial.Lift as Lift
 
 import Streamly.Benchmark.Common
 
@@ -48,6 +48,6 @@ main = do
         , Split.benchmarks moduleName env
         , Transformation1.benchmarks moduleName size
         , Transformation2.benchmarks moduleName size
-        , Transformation3.benchmarks moduleName size
+        , Lift.benchmarks moduleName size
         , Nested.benchmarks moduleName size
         ]

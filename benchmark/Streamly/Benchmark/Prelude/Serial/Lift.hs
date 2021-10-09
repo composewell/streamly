@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Transformation3
+-- Module      : Serial.Lift
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Serial.Transformation3 (benchmarks) where
+module Serial.Lift (benchmarks) where
 
 import Control.Monad.State.Strict (StateT, get, put, MonadState)
 import qualified Control.Monad.State.Strict as State
