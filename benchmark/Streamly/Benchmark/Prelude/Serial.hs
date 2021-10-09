@@ -16,7 +16,7 @@ import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 import qualified Serial.Elimination as Elimination
 import qualified Serial.Exceptions as Exceptions
 import qualified Serial.Generation as Generation
-import qualified Serial.Nested as Nested
+import qualified Serial.NestedStream as NestedStream
 import qualified Serial.Split as Split
 import qualified Serial.Transformation1 as Transformation1
 import qualified Serial.Transformation2 as Transformation2
@@ -49,5 +49,5 @@ main = do
         , Transformation1.benchmarks moduleName size
         , Transformation2.benchmarks moduleName size
         , Lift.benchmarks moduleName size
-        , Nested.benchmarks moduleName size
+        , NestedStream.benchmarks moduleName size
         ]

@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Nested
+-- Module      : Serial.NestedStream
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Nested (benchmarks) where
+module Serial.NestedStream (benchmarks) where
 
 import Control.Monad.Trans.Class (lift)
 

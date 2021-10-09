@@ -38,7 +38,7 @@ cradle:
               component: "bench:Prelude.Serial"
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Generation.hs"
               component: "bench:Prelude.Serial"
-            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Nested.hs"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/NestedStream.hs"
               component: "bench:Prelude.Serial"
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Split.hs"
               component: "bench:Prelude.Serial"

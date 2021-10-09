@@ -189,7 +189,7 @@ benchmark Prelude.Serial
       , Serial.Transformation1
       , Serial.Transformation2
       , Serial.Lift
-      , Serial.Nested
+      , Serial.NestedStream
       , Serial.Exceptions
       , Serial.Split
   if impl(ghcjs)
