@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     , consumeMany
     , foldSequence
     , foldIterateM
+    , consumeIterateM
 
     -- ** Chunking
     -- | Element unaware grouping.
@@ -337,6 +338,15 @@ foldSequence _f _m = undefined
 foldIterateM ::
        (IsStream t, Monad m) => (b -> m (Fold m a b)) -> m b -> t m a -> t m b
 foldIterateM f i m = fromStreamD $ D.foldIterateM f i (toStreamD m)
+
+-- | Like 'foldIterateM' but using the 'Consumer' type instead. This could be
+-- much more efficient due to stream fusion.
+--
+-- /Internal/
+{-# INLINE consumeIterateM #-}
+consumeIterateM :: (IsStream t, Monad m) =>
+    Consumer m b a b -> m b -> t m a -> t m b
+consumeIterateM c i m = fromStreamD $ D.consumeIterateM c i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Parsing

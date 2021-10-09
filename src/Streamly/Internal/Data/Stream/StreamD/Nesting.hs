@@ -112,8 +112,9 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- ** Folding
     -- | Apply folds on a stream.
     , foldMany
-    , foldIterateM
     , consumeMany
+    , foldIterateM
+    , consumeIterateM
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
@@ -158,6 +159,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Consumer.Type (Consumer(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
@@ -1022,6 +1024,48 @@ foldIterateM func seed0 (Stream step state) =
                 return $ Skip $ FIterYield b FIterStop
     stepOuter _ (FIterYield a next) = return $ Yield a next
     stepOuter _ FIterStop = return Stop
+
+{-# ANN type CIterState Fuse #-}
+data CIterState s f fs b
+    = CIterInit s f
+    | CIterConsume s fs
+    | CIterYield b (CIterState s f fs b)
+    | CIterStop
+
+-- | Like 'foldIterateM' but using the 'Consumer' type instead. This could be
+-- much more efficient due to stream fusion.
+--
+-- /Internal/
+{-# INLINE_NORMAL consumeIterateM #-}
+consumeIterateM ::
+       Monad m => Consumer m b a b -> m b -> Stream m a -> Stream m b
+consumeIterateM (Consumer fstep finject fextract) initial (Stream step state) =
+    Stream stepOuter (CIterInit state initial)
+
+    where
+
+    {-# INLINE iterStep #-}
+    iterStep st action = do
+        res <- action
+        return
+            $ Skip
+            $ case res of
+                  FL.Partial fs -> CIterConsume st fs
+                  FL.Done fb -> CIterYield fb $ CIterInit st (return fb)
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ (CIterInit st action) = do
+        iterStep st (action >>= finject)
+    stepOuter gst (CIterConsume st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> iterStep s (fstep fs x)
+            Skip s -> return $ Skip $ CIterConsume s fs
+            Stop -> do
+                b <- fextract fs
+                return $ Skip $ CIterYield b CIterStop
+    stepOuter _ (CIterYield a next) = return $ Yield a next
+    stepOuter _ CIterStop = return Stop
 
 ------------------------------------------------------------------------------
 -- Parsing
