@@ -23,21 +23,35 @@ module Streamly.Internal.Data.Consumer.Type
     -- * Types
       Consumer (..)
 
-    -- Combinators
+    -- * Constructors
+    , foldl'
+
+    -- * Consumers
+    -- ** Accumulators
+    , sconcat
+    , drainBy
+
+    -- * Combinators
     , lmapM
     , rmapM
-
-    -- Consumers
-    , drainBy
     , take
     )
 where
 
 import Control.Monad ((>=>))
+#if __GLASGOW_HASKELL__ < 804
+import Data.Semigroup (Semigroup((<>)))
+#endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
 import Prelude hiding (take)
+
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Internal.Data.Consumer.Type as Consumer
+-- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 
 -- All folds in the Fold module should be implemented using Consumers.
 --
@@ -50,6 +64,27 @@ import Prelude hiding (take)
 data Consumer m c a b =
   -- | @Fold @ @ step @ @ inject @ @ extract@
   forall s. Consumer (s -> a -> m (Step s b)) (c -> m (Step s b)) (s -> m b)
+
+------------------------------------------------------------------------------
+-- Left fold constructors
+------------------------------------------------------------------------------
+
+-- | Make a consumer from a left fold style pure step function.
+--
+-- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
+-- can use @foldl'*@ constructors.
+--
+-- See also: @Streamly.Prelude.foldl'@
+--
+-- /Internal/
+--
+{-# INLINE foldl' #-}
+foldl' :: Monad m => (b -> a -> b) -> Consumer m b a b
+foldl' step =
+    Consumer
+        (\s a -> return $ Partial $ step s a)
+        (return . Partial)
+        return
 
 ------------------------------------------------------------------------------
 -- Mapping on input
@@ -100,6 +135,27 @@ drainBy f = Consumer step inject extract
     step c a = f c a >> return (Partial c)
 
     extract _ = return ()
+
+------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Append the elements of an input stream to a provided starting value.
+--
+-- >>> stream = Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
+-- >>> Stream.fold (Fold.fromConsumer Consumer.sconcat 10) stream
+-- Sum {getSum = 65}
+--
+-- >>> sconcat = Consumer.foldl' (<>)
+--
+-- /Internal/
+{-# INLINE sconcat #-}
+sconcat :: (Monad m, Semigroup a) => Consumer m a a a
+sconcat = foldl' (<>)
+
+------------------------------------------------------------------------------
+-- Transformation
+------------------------------------------------------------------------------
 
 -- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
 {-# ANN type Tuple'Fused Fuse #-}
