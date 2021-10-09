@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Consumer.Type
 
     -- Combinators
     , lmapM
+    , rmapM
 
     -- Consumers
     , drainBy
@@ -32,8 +33,9 @@ module Streamly.Internal.Data.Consumer.Type
     )
 where
 
+import Control.Monad ((>=>))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Step (Step(..))
+import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
 import Prelude hiding (take)
 
@@ -63,6 +65,22 @@ lmapM f (Consumer step inject extract) = Consumer step1 inject extract
     where
 
     step1 x a = f a >>= step x
+
+------------------------------------------------------------------------------
+-- Mapping on the output
+------------------------------------------------------------------------------
+
+-- | Map a monadic function on the output of a fold.
+--
+-- /Internal/
+{-# INLINE rmapM #-}
+rmapM :: Monad m => (b -> m c) -> Consumer m x a b -> Consumer m x a c
+rmapM f (Consumer step inject extract) = Consumer step1 inject1 (extract >=> f)
+
+    where
+
+    inject1 x = inject x >>= mapMStep f
+    step1 s a = step s a >>= mapMStep f
 
 ------------------------------------------------------------------------------
 -- Consumers
