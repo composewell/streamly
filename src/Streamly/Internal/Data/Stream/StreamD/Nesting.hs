@@ -992,7 +992,7 @@ data FIterState s f m a b
 
 {-# INLINE_NORMAL foldIterateM #-}
 foldIterateM ::
-       Monad m => (b -> m (FL.Fold m a b)) -> b -> Stream m a -> Stream m b
+       Monad m => (b -> m (FL.Fold m a b)) -> m b -> Stream m a -> Stream m b
 foldIterateM func seed0 (Stream step state) =
     Stream stepOuter (FIterInit state seed0)
 
@@ -1005,11 +1005,11 @@ foldIterateM func seed0 (Stream step state) =
             $ Skip
             $ case res of
                   FL.Partial fs -> FIterStream st fstep fs extract
-                  FL.Done fb -> FIterYield fb $ FIterInit st fb
+                  FL.Done fb -> FIterYield fb $ FIterInit st (return fb)
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ (FIterInit st seed) = do
-        (FL.Fold fstep initial extract) <- func seed
+        (FL.Fold fstep initial extract) <- seed >>= func
         iterStep initial st fstep extract
     stepOuter gst (FIterStream st fstep fs extract) = do
         r <- step (adaptState gst) st

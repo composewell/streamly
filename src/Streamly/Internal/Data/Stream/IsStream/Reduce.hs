@@ -316,7 +316,7 @@ foldSequence _f _m = undefined
 -- >>> import Data.Monoid (Sum(..))
 -- >>> f x = return (Fold.take 2 (Fold.sconcat x))
 -- >>> s = Stream.map Sum $ Stream.fromList [1..10]
--- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterateM f 0 s
+-- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterateM f (pure 0) s
 -- [3,10,21,36,55,55]
 --
 -- @
@@ -328,7 +328,7 @@ foldSequence _f _m = undefined
 --
 {-# INLINE foldIterateM #-}
 foldIterateM ::
-       (IsStream t, Monad m) => (b -> m (Fold m a b)) -> b -> t m a -> t m b
+       (IsStream t, Monad m) => (b -> m (Fold m a b)) -> m b -> t m a -> t m b
 foldIterateM f i m = fromStreamD $ D.foldIterateM f i (toStreamD m)
 
 ------------------------------------------------------------------------------

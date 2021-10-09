@@ -496,7 +496,7 @@ foldIterateM =
                 $ S.map getSum
                 $ IS.foldIterateM
                       (return . FL.take 1 . FL.sconcat)
-                      (Sum 0)
+                      (return (Sum 0))
                 $ S.map Sum strm
         case ms2 of
             Nothing -> assert $ s1 == 0
