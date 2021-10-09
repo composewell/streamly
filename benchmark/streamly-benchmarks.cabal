@@ -187,11 +187,11 @@ benchmark Prelude.Serial
         Serial.Generation
       , Serial.Elimination
       , Serial.Transformation1
-      , Serial.Transformation2
-      , Serial.Lift
       , Serial.NestedStream
-      , Serial.Exceptions
+      , Serial.NestedFold
       , Serial.Split
+      , Serial.Exceptions
+      , Serial.Lift
   if impl(ghcjs)
     buildable: False
   else

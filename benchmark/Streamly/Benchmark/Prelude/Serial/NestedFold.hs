@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Transformation2
+-- Module      : Serial.NestedFold
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -12,7 +12,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
-module Serial.Transformation2 (benchmarks) where
+module Serial.NestedFold (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
