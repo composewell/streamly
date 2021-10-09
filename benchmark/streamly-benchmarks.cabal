@@ -186,7 +186,7 @@ benchmark Prelude.Serial
   other-modules:
         Serial.Generation
       , Serial.Elimination
-      , Serial.Transformation1
+      , Serial.Transformation
       , Serial.NestedStream
       , Serial.NestedFold
       , Serial.Split

@@ -18,7 +18,7 @@ import qualified Serial.Exceptions as Exceptions
 import qualified Serial.Generation as Generation
 import qualified Serial.NestedStream as NestedStream
 import qualified Serial.Split as Split
-import qualified Serial.Transformation1 as Transformation1
+import qualified Serial.Transformation as Transformation
 import qualified Serial.NestedFold as NestedFold
 import qualified Serial.Lift as Lift
 
@@ -46,7 +46,7 @@ main = do
         , Elimination.benchmarks moduleName size
         , Exceptions.benchmarks moduleName env size
         , Split.benchmarks moduleName env
-        , Transformation1.benchmarks moduleName size
+        , Transformation.benchmarks moduleName size
         , NestedFold.benchmarks moduleName size
         , Lift.benchmarks moduleName size
         , NestedStream.benchmarks moduleName size

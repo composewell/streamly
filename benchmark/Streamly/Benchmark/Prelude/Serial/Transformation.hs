@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Transformation1
+-- Module      : Serial.Transformation
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Transformation1 (benchmarks) where
+module Serial.Transformation (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))

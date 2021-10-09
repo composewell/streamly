@@ -10,6 +10,8 @@
 - suggest: {name: "Unused LANGUAGE pragma"}
 - suggest: {name: "Eta reduce"}
 - suggest: {name: "Reduce duplication"}
+
+# Warnings currently ignored
 - ignore: {name: "Use list literal pattern"}
 - ignore: {name: "Use tuple-section"} # requires GHC extension
 - ignore: {name: "Use fromMaybe"} # may want to use this suggestion, but it didn't match the common idiom of the library
@@ -23,6 +25,13 @@
 - ignore: {name: "Redundant $!"}
 - ignore: {name: "Use fmap"}
 
+# Warnings ignored in specific places
+- ignore: {name: "Use ++", within: Serial.Transformation}
+- ignore: {name: "Use mapM", within: Serial.Transformation}
+- ignore: {name: "Use traverse", within: Serial.Transformation}
+
+- ignore: {name: "Redundant <*", within: Serial.NestedStream}
+- ignore: {name: "Use ++", within: Serial.NestedStream}
 
 # Specify additional command line arguments
 #
@@ -56,7 +65,7 @@
 # Turn on hints that are off by default
 #
 # Ban "module X(module X) where", to require a real export list
-# - warn: {name: Use explicit module export list}
+- warn: {name: Use explicit module export list}
 #
 # Replace a $ b $ c with a . b $ c
 # - group: {name: dollar, enabled: true}

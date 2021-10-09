@@ -42,7 +42,7 @@ cradle:
               component: "bench:Prelude.Serial"
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Split.hs"
               component: "bench:Prelude.Serial"
-            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Transformation1.hs"
+            - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/Transformation.hs"
               component: "bench:Prelude.Serial"
             - path: "./benchmark/Streamly/Benchmark/Prelude/Serial/NestedFold.hs"
               component: "bench:Prelude.Serial"
