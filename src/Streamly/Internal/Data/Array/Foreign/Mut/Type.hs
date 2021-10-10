@@ -455,7 +455,10 @@ byteLength Array{..} =
 -- @since 0.7.0
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
-length arr = byteLength arr `div` sizeOf (undefined :: a)
+length arr =
+    let elemSize = sizeOf (undefined :: a)
+        blen = byteLength arr
+     in assert (blen `mod` elemSize == 0) (blen `div` elemSize)
 
 -- | Get the total capacity of an array. An array may have space reserved
 -- beyond the current used length of the array.
