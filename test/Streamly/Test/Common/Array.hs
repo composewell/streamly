@@ -195,8 +195,8 @@ foldManyWith f =
 unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
 unsafeWriteIndex xs i x = do
     arr <- MA.fromList xs
-    MA.unsafeWriteIndex arr i x
-    x1 <- MA.unsafeIndex arr i
+    MA.putIndexUnsafe arr i x
+    x1 <- MA.getIndexUnsafe arr i
     return $ x1 == x
 
 lastN :: Int -> [a] -> [a]
