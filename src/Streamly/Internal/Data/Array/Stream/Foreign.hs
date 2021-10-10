@@ -473,7 +473,7 @@ spliceArraysRealloced s = do
     let idst = liftIO $ MA.newArray (bytesToElemCount (undefined :: a)
                                   (mkChunkSizeKB 4))
 
-    arr <- S.foldlM' MA.spliceWithDoubling idst (S.map A.unsafeThaw s)
+    arr <- S.foldlM' MA.spliceExp idst (S.map A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.shrinkToFit arr
 
 -- XXX This should just be "fold A.write"

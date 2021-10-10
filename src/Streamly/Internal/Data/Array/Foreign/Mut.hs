@@ -65,8 +65,8 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     , toList
 
     -- * Combining
-    , spliceWith
-    , spliceWithDoubling
+    , splice
+    , spliceExp
     , spliceTwo
 
     -- * Splitting
