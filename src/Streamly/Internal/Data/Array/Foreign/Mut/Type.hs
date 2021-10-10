@@ -92,7 +92,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Stream of arrays
     , arraysOf
-    , bufferChunks
     , writeChunks
 
     -- * Utilities
@@ -527,10 +526,10 @@ arraysOf n (D.Stream step state) =
 
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
-{-# INLINE bufferChunks #-}
-bufferChunks :: (MonadIO m, Storable a) =>
+{-# INLINE arrayStreamKFromStreamD #-}
+arrayStreamKFromStreamD :: (MonadIO m, Storable a) =>
     D.Stream m a -> m (K.Stream m (Array a))
-bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
+arrayStreamKFromStreamD m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Flattening
@@ -898,17 +897,19 @@ writeNUnsafe = writeNUnsafeWith newArray
 --
 -- | Buffer a stream into a stream of arrays.
 --
--- @writeChunks = Fold.many Fold.toStream (Array.writeN n)@
+-- >>> writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- Breaking an array into an array stream  can be useful to consume a large
 -- array sequentially such that memory of the array is released incrementatlly.
 --
+-- See also: 'arrayStreamKFromStreamD'.
+--
 -- /Unimplemented/
 --
 {-# INLINE_NORMAL writeChunks #-}
-writeChunks :: -- (MonadIO m, Storable a) =>
-    Int -> Fold m a (D.Stream m (Array a))
-writeChunks = undefined -- Fold.many Fold.toStream (Array.writeN n)
+writeChunks :: (MonadIO m, Storable a) =>
+    Int -> Fold m a (K.Stream n (Array a))
+writeChunks n = FL.many (writeN n) FL.toStreamK
 
 -- XXX Compare toArrayMinChunk with fromStreamD which uses an array of streams
 -- implementation. We can write this using writeChunks above if that is faster.
@@ -1018,6 +1019,20 @@ fromListN n xs = fromStreamDN n $ D.fromList xs
 -- convert stream to a single array
 -------------------------------------------------------------------------------
 
+{-# INLINE arrayStreamKLength #-}
+arrayStreamKLength :: (Monad m, Storable a) => K.Stream m (Array a) -> m Int
+arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
+
+-- | Convert an array stream to an array. Note that this requires peak memory
+-- that is double the size of the array stream.
+--
+{-# INLINE fromArrayStreamK #-}
+fromArrayStreamK :: (Storable a, MonadIO m) =>
+    K.Stream m (Array a) -> m (Array a)
+fromArrayStreamK as = do
+    len <- arrayStreamKLength as
+    fromStreamDN len $ D.unfoldMany read $ D.fromStreamK as
+
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
 -- all the arrays.
@@ -1035,10 +1050,7 @@ fromListN n xs = fromStreamDN n $ D.fromList xs
 --
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Storable a) => D.Stream m a -> m (Array a)
-fromStreamD m = do
-    buffered <- bufferChunks m
-    len <- K.foldl' (+) 0 (K.map length buffered)
-    fromStreamDN len $ D.unfoldMany read $ D.fromStreamK buffered
+fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
