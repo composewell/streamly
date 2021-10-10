@@ -701,12 +701,14 @@ toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
         --
         -- This should be safe as the array contents are guaranteed to be
         -- evaluated/written to before we peek at them.
+        -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
                     return r
         in c x (go (p `plusPtr` sizeOf (undefined :: a)))
 
+-- XXX Should be monadic
 -- | Convert an 'Array' into a list.
 --
 -- @since 0.7.0
@@ -736,6 +738,9 @@ toStreamD Array{..} =
         --
         -- This should be safe as the array contents are guaranteed to be
         -- evaluated/written to before we peek at them.
+        --
+        -- XXX This may not be safe for mutable arrays.
+        --
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -753,6 +758,7 @@ toStreamK Array{..} =
     go p | assert (p <= aEnd) (p == aEnd) = K.nil
          | otherwise =
         -- See Note in toStreamD.
+        -- XXX May not be safe for mutable arrays.
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -776,6 +782,7 @@ toStreamDRev Array{..} =
     step _ p | p < unsafeForeignPtrToPtr aStart = return D.Stop
     step _ p = do
         -- See comments in toStreamD for why we use unsafeInlineIO
+        -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -792,6 +799,7 @@ toStreamKRev Array {..} =
 
     go p | p < unsafeForeignPtrToPtr aStart = K.nil
          | otherwise =
+         -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -802,13 +810,18 @@ toStreamKRev Array {..} =
 -- Folding
 -------------------------------------------------------------------------------
 
+-- XXX Need something like "Array m a" enforcing monadic action to avoid the
+-- possibility of such APIs.
+--
 -- | Strict left fold of an array.
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
+-- XXX Should be monadic
 foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 
 -- | Right fold of an array.
 {-# INLINE_NORMAL foldr #-}
+-- XXX Should be monadic
 foldr :: Storable a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
