@@ -317,13 +317,19 @@ unsafeWithNewArray count f = do
 -- Mutation
 -------------------------------------------------------------------------------
 
+-- | Write the given element to the given index of the array. Does not check if
+-- the index is out of bounds of the array.
+--
+-- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> a -> m ()
-putIndexUnsafe Array {..} i x =
-    unsafeWithForeignPtrM aStart
-        $ \begin -> do
-              liftIO $ poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
+putIndexUnsafe Array{..} i x =
+    unsafeWithForeignPtrM aStart $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = ptr `plusPtr` (elemSize * i)
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
+        liftIO $ poke elemPtr x
 
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
@@ -421,12 +427,11 @@ shrinkToFit arr@Array{..} = do
 {-# INLINE_NORMAL getIndexUnsafe #-}
 getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndexUnsafe Array {..} i =
-        unsafeWithForeignPtrM aStart $ \p -> do
+    unsafeWithForeignPtrM aStart $ \ptr -> do
         let elemSize = sizeOf (undefined :: a)
-            elemOff = p `plusPtr` (elemSize * i)
-        assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
-               (return ())
-        liftIO $ peek elemOff
+            elemPtr = ptr `plusPtr` (elemSize * i)
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
+        liftIO $ peek elemPtr
 
 -------------------------------------------------------------------------------
 -- Size
