@@ -15,6 +15,43 @@ Beginners are encouraged to pick up issues that are marked `help wanted`. It is
 a good idea to update the issue expressing your intent so that others do not
 duplicate the effort and people with a background on the issue can help.
 
+## Build and test
+
+Some common commands:
+
+```
+$ cabal repl
+$ cabal build
+$ cabal build --disable-optimization --flags -opt
+$ bin/test.sh --quick
+$ bin/bench.sh --quick # For nix use "--use-nix"
+$ bin/run-ci --targets help # Only supported with nix
+$ cabal haddock
+$ cabal-docspec --timeout 60 --check-properties --property-variables xs
+```
+
+The `bin/test.sh` and `bin/bench.sh` are custom scripts to perform test
+and benchmarking tasks conveniently. They support running a group of
+tests or benchmarks, coverage, using correct optimization flags for
+benchmarking, benchmark comparison reports etc. Use the `--help` option
+to see how to use these.  See [benchmark/README.md](benchmark/README.md)
+and [test/README.md](test/README.md) for more details.
+
+You can also run tests or benchmarks directly for example:
+
+```
+$ cabal test --disable-optimization --flags -opt --test-show-details=streaming --test-option=--color streamly-tests
+```
+
+To view haddock docs open the link printed at the end of the haddock
+command, in your browser.
+
+Nix users: There is a `default.nix` available which can be used to start
+a nix-shell and then use the above commands as usual. nix-shell started
+by `default.nix` creates a `.cabal.nix` for cabal configuration and sets
+`CABAL_DIR` environment variable to point to that. Therefore, `~/.cabal`
+would not be used.
+
 ## Contributing A Change
 
 If the feature makes significant changes to design, we encourage you to open an
@@ -107,8 +144,9 @@ BRANCH.
 
 ### Testing
 
-It is a good idea to include tests for the changes where applicable. See the
-existing tests [here](test).
+It is a good idea to include tests for the changes where applicable. See
+the existing tests in the [test](test) directory.  Also see the
+[test/README](test/README) for more details on how to run the tests.
 
 ### Documentation
 
@@ -182,16 +220,9 @@ copying does not have an associated license please do not use it.
 
 ## Developer documentation
 
-To build haddock documentation:
-
-```
-$ cabal haddock
-```
-
-Open the link printed at the end of the output of this command, in
-your browser.
-
-For general library developer documentation see the `dev` directory.
+* Use https://streamly.composewell.com/ for searching in reference docs
+* Build haddock docs for latest reference docs
+* See [the dev directory](dev) for design guidelines and dev documents.
 
 ## Coding Guidelines
 
@@ -239,27 +270,3 @@ mapM f (Stream step1 state1) = Stream step state
 In general, the rule is - the shorter the scope of a variable the shorter its
 name can be. For example, `s` has the shortest scope in the above code, `st`
 has a bigger scope and `state` has the biggest scope.
-
-## Design guides
-
-See [the design directory](design) for design guidelines and documents.
-
-### Tricky Parts
-
-The state-passing through each API is currently fragile. Every time we run a
-stream we need to be careful about the state we are passing to it. In case of
-folds where there is no incoming state, we start with the initial state
-`defState`. When we have an incoming state passed to us there are two cases:
-
-1. When we are building a concurrent stream that needs to share the same `SVar`
-   we pass the incoming state as is.
-2. In all other cases we must not share the SVar and every time we pass on the
-   state to run a stream we must use `adaptState` to reset the `SVar` in the
-   state.
-
-When in doubt just use `adaptState` on the state before passing it on, we will at
-most lose concurrency but the behavior will be correct.
-
-There is no type level enforcement about this as of now, and therefore we need
-to be careful when coding. There are specific tests to detect and report any
-problems due to this, all transform operations must be added to those tests.
