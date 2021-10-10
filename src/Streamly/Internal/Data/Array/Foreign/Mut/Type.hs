@@ -44,6 +44,12 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , unsafeSnoc
     , snoc
 
+    -- * Casting
+    , cast
+    , castUnsafe
+    , asBytes
+    , asPtrUnsafe
+
     -- * Folding
     , foldl'
     , foldr
@@ -108,7 +114,7 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (touchForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr, castForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
@@ -1158,6 +1164,56 @@ splitAt i arr@Array{..} =
                   , aBound = aBound
                   }
                 )
+
+-------------------------------------------------------------------------------
+-- Casting
+-------------------------------------------------------------------------------
+
+-- | Cast an array having elements of type @a@ into an array having elements of
+-- type @b@. The array size must be a multiple of the size of type @b@
+-- otherwise accessing the last element of the array may result into a crash or
+-- a random value.
+--
+-- /Pre-release/
+--
+castUnsafe ::
+#ifdef DEVBUILD
+    Storable b =>
+#endif
+    Array a -> Array b
+castUnsafe (Array start end bound) =
+    Array (castForeignPtr start) (castPtr end) (castPtr bound)
+
+-- | Cast an @Array a@ into an @Array Word8@.
+--
+-- /Pre-release/
+--
+asBytes :: Array a -> Array Word8
+asBytes = castUnsafe
+
+-- | Cast an array having elements of type @a@ into an array having elements of
+-- type @b@. The length of the array should be a multiple of the size of the
+-- target element otherwise 'Nothing' is returned.
+--
+-- /Pre-release/
+--
+cast :: forall a b. Storable b => Array a -> Maybe (Array b)
+cast arr =
+    let len = byteLength arr
+        r = len `mod` sizeOf (undefined :: b)
+     in if r /= 0
+        then Nothing
+        else Just $ castUnsafe arr
+
+-- | Use an @Array a@ as @Ptr b@.
+--
+-- /Unsafe/
+--
+-- /Pre-release/
+--
+asPtrUnsafe :: Array a -> (Ptr b -> IO c) -> IO c
+asPtrUnsafe Array{..} act = do
+    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Instances
