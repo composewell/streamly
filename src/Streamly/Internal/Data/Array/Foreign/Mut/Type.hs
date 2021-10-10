@@ -37,10 +37,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , byteCapacity
 
     -- * Random access
-    , unsafeIndex
+    , getIndexUnsafe
 
     -- * Mutation
-    , unsafeWriteIndex
+    , putIndexUnsafe
     , snocUnsafe
     , snoc
 
@@ -317,10 +317,10 @@ unsafeWithNewArray count f = do
 -- Mutation
 -------------------------------------------------------------------------------
 
-{-# INLINE unsafeWriteIndex #-}
-unsafeWriteIndex :: forall m a. (MonadIO m, Storable a)
+{-# INLINE putIndexUnsafe #-}
+putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> a -> m ()
-unsafeWriteIndex Array {..} i x =
+putIndexUnsafe Array {..} i x =
     unsafeWithForeignPtrM aStart
         $ \begin -> do
               liftIO $ poke (begin `plusPtr` (i * sizeOf (undefined :: a))) x
@@ -418,9 +418,9 @@ shrinkToFit arr@Array{..} = do
 -- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
-{-# INLINE_NORMAL unsafeIndex #-}
-unsafeIndex :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
-unsafeIndex Array {..} i =
+{-# INLINE_NORMAL getIndexUnsafe #-}
+getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
+getIndexUnsafe Array {..} i =
         unsafeWithForeignPtrM aStart $ \p -> do
         let elemSize = sizeOf (undefined :: a)
             elemOff = p `plusPtr` (elemSize * i)

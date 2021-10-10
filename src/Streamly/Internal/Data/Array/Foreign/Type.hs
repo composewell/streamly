@@ -407,7 +407,7 @@ breakOn sep arr = do
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndexIO #-}
 unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
-unsafeIndexIO arr = MA.unsafeIndex (unsafeThaw arr)
+unsafeIndexIO arr = MA.getIndexUnsafe (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
