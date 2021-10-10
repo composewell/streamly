@@ -456,7 +456,8 @@ runPipe :: (MonadIO m, Storable a, Storable b)
 runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -}
 
--- XXX Use byteLength instead of length.
+-- XXX For transformations that cannot change the number of elements e.g. "map"
+-- we can use a predetermined array length.
 --
 -- | Transform an array into another array using a stream transformation
 -- operation.
@@ -466,7 +467,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
 streamTransform f arr =
-    P.fold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
+    P.fold (A.writeWith (alignment (undefined :: a)) (length arr))
         $ getSerialT $ f (A.toStream arr)
 
 -------------------------------------------------------------------------------
