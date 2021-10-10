@@ -56,7 +56,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , cmp
 
     -- * Composable Folds
-    , toArrayMinChunk
+    , writeWith
     , writeNAllocWith
     , writeN
     , writeNUnsafe
@@ -927,9 +927,9 @@ writeChunks :: (MonadIO m, Storable a) =>
     Int -> Fold m a (K.Stream n (Array a))
 writeChunks n = FL.many (writeN n) FL.toStreamK
 
--- XXX Compare toArrayMinChunk with fromStreamD which uses an array of streams
+-- XXX Compare writeWith with fromStreamD which uses an array of streams
 -- implementation. We can write this using writeChunks above if that is faster.
--- If toArrayMinChunk is faster then we should use that to implement
+-- If writeWith is faster then we should use that to implement
 -- fromStreamD.
 --
 -- XXX The realloc based implementation needs to make one extra copy if we use
@@ -944,11 +944,11 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 -- XXX check if GHC's memory allocator is efficient enough. We can try the C
 -- malloc to compare against.
 
-{-# INLINE_NORMAL toArrayMinChunk #-}
-toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
+{-# INLINE_NORMAL writeWith #-}
+writeWith :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
-toArrayMinChunk alignSize elemCount =
+-- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
+writeWith alignSize elemCount =
     FL.rmapM extract $ FL.foldlM' step initial
 
     where
@@ -958,7 +958,7 @@ toArrayMinChunk alignSize elemCount =
         return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
 
     initial = do
-        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
+        when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newArrayAligned alignSize elemCount
     step arr@(Array start end bound) x
         | end `plusPtr` sizeOf (undefined :: a) > bound = do
@@ -980,7 +980,7 @@ toArrayMinChunk alignSize elemCount =
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = toArrayMinChunk (alignment (undefined :: a))
+write = writeWith (alignment (undefined :: a))
                         (bytesToElemCount (undefined :: a)
                         (mkChunkSize 1024))
 
@@ -995,7 +995,7 @@ write = toArrayMinChunk (alignment (undefined :: a))
 writeAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
 writeAligned alignSize =
-    toArrayMinChunk alignSize
+    writeWith alignSize
                     (bytesToElemCount (undefined :: a)
                     (mkChunkSize 1024))
 

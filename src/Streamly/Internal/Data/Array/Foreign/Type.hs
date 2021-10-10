@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , toList
 
     -- * Folds
-    , toArrayMinChunk
+    , writeWith
     , writeN
     , writeNUnsafe
     , MA.ArrayUnsafe (..)
@@ -550,24 +550,12 @@ writeNUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
 writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
 
--- XXX The realloc based implementation needs to make one extra copy if we use
--- shrinkToFit.  On the other hand, the stream of arrays implementation may
--- buffer the array chunk pointers in memory but it does not have to shrink as
--- we know the exact size in the end. However, memory copying does not seems to
--- be as expensive as the allocations. Therefore, we need to reduce the number
--- of allocations instead. Also, the size of allocations matters, right sizing
--- an allocation even at the cost of copying sems to help.  Should be measured
--- on a big stream with heavy calls to toArray to see the effect.
---
--- XXX check if GHC's memory allocator is efficient enough. We can try the C
--- malloc to compare against.
-
-{-# INLINE_NORMAL toArrayMinChunk #-}
-toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
+{-# INLINE_NORMAL writeWith #-}
+writeWith :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.rmapM spliceArrays $ toArraysOf n
-toArrayMinChunk alignSize elemCount =
-    unsafeFreeze <$> MA.toArrayMinChunk alignSize elemCount
+-- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
+writeWith alignSize elemCount =
+    unsafeFreeze <$> MA.writeWith alignSize elemCount
 
 -- | Fold the whole input to a single array.
 --
