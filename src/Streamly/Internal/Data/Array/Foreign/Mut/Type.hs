@@ -53,6 +53,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Folding
     , foldl'
     , foldr
+    , cmp
 
     -- * Composable Folds
     , toArrayMinChunk
@@ -1105,7 +1106,7 @@ spliceWithDoubling dst@(Array start end bound) src  = do
                 newSize = max (oldSize * 2) (oldSize + srcLen)
             when (newSize < oldSize + srcLen)
                 $ error
-                    $ "spliceWithDoubling: newSize is less than the total size "
+                    $ "spliceWith: newSize is less than the total size "
                     ++ "of arrays being appended. Please check the "
                     ++ "newSize function passed."
             liftIO $ realloc newSize dst
@@ -1216,37 +1217,31 @@ asPtrUnsafe Array{..} act = do
     unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
--- Instances
+-- Equality
 -------------------------------------------------------------------------------
 
-instance (Show a, Storable a) => Show (Array a) where
-    {-# INLINE showsPrec #-}
-    showsPrec _ = shows . toList
+-- | Compare if two arrays are equal.
+--
+-- /Pre-release/
+{-# INLINE cmp #-}
+cmp :: MonadIO m => Array a -> Array a -> m Bool
+cmp arr1 arr2 =
+    liftIO $ do
+        let ptr1 = unsafeForeignPtrToPtr $ aStart arr1
+        let ptr2 = unsafeForeignPtrToPtr $ aStart arr2
+        let len1 = aEnd arr1 `minusPtr` ptr1
+        let len2 = aEnd arr2 `minusPtr` ptr2
 
-{-# INLINE arrcmp #-}
-arrcmp :: Array a -> Array a -> Bool
-arrcmp arr1 arr2 =
-    let !res = unsafeInlineIO $ do
-            let ptr1 = unsafeForeignPtrToPtr $ aStart arr1
-            let ptr2 = unsafeForeignPtrToPtr $ aStart arr2
-            let len1 = aEnd arr1 `minusPtr` ptr1
-            let len2 = aEnd arr2 `minusPtr` ptr2
-
-            if len1 == len2
-            then do
+        if len1 == len2
+        then
+            if ptr1 == ptr2
+            then return True
+            else do
                 r <- memcmp (castPtr ptr1) (castPtr ptr2) len1
                 touchForeignPtr $ aStart arr1
                 touchForeignPtr $ aStart arr2
                 return r
-            else return False
-    in res
-
--- XXX we are assuming that Storable equality means element equality. This may
--- or may not be correct? arrcmp is 40% faster compared to stream equality.
-instance (Storable a, Eq a) => Eq (Array a) where
-    {-# INLINE (==) #-}
-    (==) = arrcmp
-    -- arr1 == arr2 = runIdentity $ D.eqBy (==) (toStreamD arr1) (toStreamD arr2)
+        else return False
 
 -------------------------------------------------------------------------------
 -- NFData
