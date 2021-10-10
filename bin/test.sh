@@ -13,25 +13,32 @@ source $SCRIPT_DIR/targets.sh
 print_help () {
   echo "Usage: $0 "
   echo "       [--targets <"target1 target2 ..." | help>]"
+  echo
+  echo "       [--quick]"
   echo "       [--with-compiler <compiler exe name>]"
   echo "       [--cabal-build-options <option>]"
   echo "       [--dev-build]"
+  echo
   echo "       [--coverage]"
   echo "       [--hpc-report-options <option>]"
   echo "       [--no-measure]"
   echo "       [--raw]"
+  echo
   echo "       [--rtsopts <option>]"
   echo "       -- <hspec options or test names>"
   echo
   echo "--targets: targets to run, use 'help' for list of targets"
+  echo
+  echo "--quick: disable optimizations to build quickly"
   echo "--cabal-build-options: Pass any cabal build options to be used for build"
   echo "--dev-build: runs some additional tests"
+  echo
   echo "--coverage: enable coverage and report coverage info"
   echo "--hpc-report-options: option for 'hpc report'"
   echo "--no-measure: with --coverage, do not run tests, only show coverage info"
   echo "--raw: with --coverage, do not run hpc"
-  echo "--rtsopts: pass GHC RTS options to the test executable"
   echo
+  echo "--rtsopts: pass GHC RTS options to the test executable"
   echo "Any arguments after a '--' are passed directly to hspec"
   exit
 }
@@ -65,7 +72,7 @@ do
     # flags
     --raw) RAW=1; shift ;;
     #--slow) SLOW=1; shift ;; # not implemented
-    #--quick) QUICK_MODE=1; shift ;; # not implemented
+    --quick) TEST_QUICK_MODE=1; shift ;;
     --dev-build) RUNNING_DEVBUILD=1 CABAL_BUILD_OPTIONS+=" --flag dev"; shift ;;
     --coverage) COVERAGE=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
@@ -77,6 +84,11 @@ done
 TARGET_EXE_ARGS=$*
 
 set_derived_vars
+
+if test "$TEST_QUICK_MODE" -eq 1
+then
+  CABAL_BUILD_OPTIONS+=" --disable-optimization --flags -opt"
+fi
 
 #-----------------------------------------------------------------------------
 # Determine targets
@@ -174,6 +186,7 @@ run_target () {
   local extra_args=$4
 
   local target_prog
+
   target_prog=$(cabal_target_prog $package_name $component $target_name) || \
     die "Cannot find executable for target $target_name"
 

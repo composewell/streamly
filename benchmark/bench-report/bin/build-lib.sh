@@ -119,7 +119,14 @@ set_targets() {
 # $3: component ("" (lib), t (test), b (benchmark), x (executable))
 # $4: command to find
 cabal_which_builddir() {
-  local path=$(echo $1/build/*/ghc-${GHC_VERSION}/${2}/$3/$4/build/$4/$4)
+  local noopt=""
+  if test "$TEST_QUICK_MODE" -eq 1
+  then
+    noopt="/noopt"
+  fi
+
+  local path=$(echo $1/build/*/ghc-${GHC_VERSION}/${2}/$3/$4$noopt/build/$4/$4)
+  echo "[cabal_which $path]" 1>&2
   test -f "$path" && echo $path
 }
 
