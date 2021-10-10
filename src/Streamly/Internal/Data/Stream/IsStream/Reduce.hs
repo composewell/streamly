@@ -298,7 +298,7 @@ foldMany f m = fromStreamD $ D.foldMany f (toStreamD m)
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
 --
--- /Pre-release/
+-- /Unimplemented/
 --
 {-# INLINE foldSequence #-}
 foldSequence
