@@ -269,7 +269,8 @@ getIndexRev arr i =
 
 -- |
 --
--- >>> last arr = getIndexRev arr 0
+-- >>> import qualified Streamly.Internal.Data.Array.Foreign as Array
+-- >>> last arr = Array.getIndexRev arr 0
 --
 -- /Pre-release/
 {-# INLINE last #-}
