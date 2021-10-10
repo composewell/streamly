@@ -314,7 +314,7 @@ unsafeWithNewArray count f = do
     unsafeWithForeignPtrM (aStart arr) $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
--- Mutation
+-- Random writes
 -------------------------------------------------------------------------------
 
 -- | Write the given element to the given index of the array. Does not check if
@@ -331,16 +331,31 @@ putIndexUnsafe Array{..} i x =
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         liftIO $ poke elemPtr x
 
--- Internal routine for when the array is being created. Appends one item at
--- the end of the array. Useful when sequentially writing a stream to the
--- array.
-{-# INLINE snocUnsafe #-}
-snocUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
-snocUnsafe arr@Array {..} x = liftIO $ do
-    when (aEnd == aBound) $ error "BUG: snocUnsafe: writing beyond array bounds"
+-------------------------------------------------------------------------------
+-- Snoc
+-------------------------------------------------------------------------------
+
+-- | Snoc using a 'Ptr'. Low level reusable function.
+--
+-- /Internal/
+{-# INLINE snocNewEnd #-}
+snocNewEnd :: (MonadIO m, Storable a) => Ptr a -> Array a -> a -> m (Array a)
+snocNewEnd newEnd arr@Array{..} x = liftIO $ do
+    assert (newEnd <= aBound) (return ())
     poke aEnd x
     touchForeignPtr aStart
-    return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
+    return $ arr {aEnd = newEnd}
+
+-- | Really really unsafe, appends the element into the first array, may
+-- cause silent data corruption or if you are lucky a segfault if the first
+-- array does not have enough space to append the element.
+--
+-- /Internal/
+{-# INLINE snocUnsafe #-}
+snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
+    Array a -> a -> m (Array a)
+snocUnsafe arr@Array{..} =
+    snocNewEnd (aEnd `plusPtr` sizeOf (undefined :: a)) arr
 
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
