@@ -41,7 +41,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Mutation
     , unsafeWriteIndex
-    , unsafeSnoc
+    , snocUnsafe
     , snoc
 
     -- * Casting
@@ -328,10 +328,10 @@ unsafeWriteIndex Array {..} i x =
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
 -- array.
-{-# INLINE unsafeSnoc #-}
-unsafeSnoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
-unsafeSnoc arr@Array {..} x = liftIO $ do
-    when (aEnd == aBound) $ error "BUG: unsafeSnoc: writing beyond array bounds"
+{-# INLINE snocUnsafe #-}
+snocUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
+snocUnsafe arr@Array {..} x = liftIO $ do
+    when (aEnd == aBound) $ error "BUG: snocUnsafe: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
     return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}

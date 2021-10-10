@@ -77,7 +77,7 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
                 let p = unsafeForeignPtrToPtr (aStart arr)
                     len = MArray.byteLength arr
                 iov <- liftIO $ MArray.newArray maxIOVLen
-                iov' <- liftIO $ MArray.unsafeSnoc iov (IOVec (castPtr p)
+                iov' <- liftIO $ MArray.snocUnsafe iov (IOVec (castPtr p)
                                                 (fromIntegral len))
                 if len >= n
                 then return $ D.Skip (GatherYielding iov' (GatherInitial s))
@@ -95,12 +95,12 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
                 if len' > n || length iov >= maxIOVLen
                 then do
                     iov' <- liftIO $ MArray.newArray maxIOVLen
-                    iov'' <- liftIO $ MArray.unsafeSnoc iov' (IOVec (castPtr p)
+                    iov'' <- liftIO $ MArray.snocUnsafe iov' (IOVec (castPtr p)
                                                       (fromIntegral alen))
                     return $ D.Skip (GatherYielding iov
                                         (GatherBuffering s iov'' alen))
                 else do
-                    iov' <- liftIO $ MArray.unsafeSnoc iov (IOVec (castPtr p)
+                    iov' <- liftIO $ MArray.snocUnsafe iov (IOVec (castPtr p)
                                                     (fromIntegral alen))
                     return $ D.Skip (GatherBuffering s iov' len')
             D.Skip s -> return $ D.Skip (GatherBuffering s iov len)

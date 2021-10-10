@@ -305,7 +305,8 @@ writeLastN n
         arr <- liftIO $ MA.newArray n
         foldFunc i rh snoc' arr rb
 
-    snoc' b a = liftIO $ MA.unsafeSnoc b a
+    -- XXX We should write a read unfold for ring.
+    snoc' b a = liftIO $ MA.snocUnsafe b a
 
     foldFunc i
         | i < n = RB.unsafeFoldRingM
