@@ -114,7 +114,7 @@ packArraysChunksOf n (D.Stream step state) =
                     buf' <- if MArray.byteCapacity buf < n
                             then liftIO $ MArray.realloc n buf
                             else return buf
-                    buf'' <- MArray.spliceWith buf' arr
+                    buf'' <- MArray.splice buf' arr
                     return $ D.Skip (SpliceBuffering s buf'')
             D.Skip s -> return $ D.Skip (SpliceBuffering s buf)
             D.Stop -> return $ D.Skip (SpliceYielding buf SpliceFinish)
@@ -168,7 +168,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             buf' <- if MArray.byteCapacity buf < len
                     then liftIO $ MArray.realloc (max n len) buf
                     else return buf
-            buf'' <- MArray.spliceWith buf' arr
+            buf'' <- MArray.splice buf' arr
 
             -- XXX this is common in both the equations of step
             if len >= n

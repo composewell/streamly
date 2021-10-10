@@ -82,8 +82,8 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , toList
 
     -- * Combining
-    , spliceWith
-    , spliceWithDoubling
+    , splice
+    , spliceExp
     , spliceTwo
 
     -- * Splitting
@@ -1103,14 +1103,14 @@ spliceTwo arr1 arr2 = do
 -- | Splice an array into a pre-reserved mutable array.  The user must ensure
 -- that there is enough space in the mutable array, otherwise the splicing
 -- fails.
-{-# INLINE spliceWith #-}
-spliceWith :: (MonadIO m) => Array a -> Array a -> m (Array a)
-spliceWith dst@(Array _ end bound) src =
+{-# INLINE splice #-}
+splice :: (MonadIO m) => Array a -> Array a -> m (Array a)
+splice dst@(Array _ end bound) src =
     liftIO $ do
         let srcLen = byteLength src
         if end `plusPtr` srcLen > bound
         then error
-                 "Bug: spliceWith: Not enough space in the target array"
+                 "Bug: splice: Not enough space in the target array"
         else unsafeWithForeignPtr (aStart dst) $ \_ ->
                 unsafeWithForeignPtr (aStart src) $ \psrc -> do
                      let pdst = aEnd dst
@@ -1119,10 +1119,10 @@ spliceWith dst@(Array _ end bound) src =
 
 -- | Splice a new array into a preallocated mutable array, doubling the space
 -- if there is no space in the target array.
-{-# INLINE spliceWithDoubling #-}
-spliceWithDoubling :: (MonadIO m, Storable a)
+{-# INLINE spliceExp #-}
+spliceExp :: (MonadIO m, Storable a)
     => Array a -> Array a -> m (Array a)
-spliceWithDoubling dst@(Array start end bound) src  = do
+spliceExp dst@(Array start end bound) src  = do
     assert (end <= bound) (return ())
     let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
 
@@ -1134,12 +1134,12 @@ spliceWithDoubling dst@(Array start end bound) src  = do
                 newSize = max (oldSize * 2) (oldSize + srcLen)
             when (newSize < oldSize + srcLen)
                 $ error
-                    $ "spliceWith: newSize is less than the total size "
+                    $ "splice: newSize is less than the total size "
                     ++ "of arrays being appended. Please check the "
                     ++ "newSize function passed."
             liftIO $ realloc newSize dst
         else return dst
-    spliceWith dst1 src
+    splice dst1 src
 
 -------------------------------------------------------------------------------
 -- Splitting
