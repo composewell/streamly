@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , putIndexUnsafe
     , snocUnsafe
     , snoc
+    , snocLinear
 
     -- * Casting
     , cast
@@ -108,6 +109,7 @@ import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bits ((.&.))
 import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -332,6 +334,49 @@ putIndexUnsafe Array{..} i x =
         liftIO $ poke elemPtr x
 
 -------------------------------------------------------------------------------
+-- Rounding
+-------------------------------------------------------------------------------
+
+-- XXX Should we use bitshifts in calculations or it gets optimized by the
+-- compiler/processor itself?
+--
+-- | The page or block size used by the GHC allocator. Allocator allocates at
+-- least a block and then allocates smaller allocations from within a block.
+blockSize :: Int
+blockSize = 4 * 1024
+
+-- | Allocations larger than 'largeObjectThreshold' are in multiples of block
+-- size and are always pinned. The space beyond the end of a large object up to
+-- the end of the block is unused.
+largeObjectThreshold :: Int
+largeObjectThreshold = (blockSize * 8) `div` 10
+
+-- | Round up an array larger than 'largeObjectThreshold' to use the whole
+-- block.
+{-# INLINE roundUpLargeArray #-}
+roundUpLargeArray :: Int -> Int
+roundUpLargeArray size =
+    if size >= largeObjectThreshold
+    then
+        assert
+            (blockSize /= 0 && ((blockSize .&. (blockSize - 1)) == 0))
+            ((size + blockSize - 1) .&. negate blockSize)
+    else size
+
+{-
+roundUpToPower2 :: Int -> Int
+roundUpToPower2 = undefined
+-}
+
+-- XXX remove mkChunkSize, it is not required.
+-- | The default chunk size by which the array creation routines increase the
+-- size of the array when the array is grown linearly.
+--
+{-# INLINE arrayChunkSize #-}
+arrayChunkSize :: Int
+arrayChunkSize = mkChunkSize 1024
+
+-------------------------------------------------------------------------------
 -- Snoc
 -------------------------------------------------------------------------------
 
@@ -357,32 +402,102 @@ snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
 snocUnsafe arr@Array{..} =
     snocNewEnd (aEnd `plusPtr` sizeOf (undefined :: a)) arr
 
+reallocWith :: forall m a. (MonadIO m , Storable a) =>
+       String
+    -> (Int -> Int)
+    -> Int
+    -> Array a
+    -> m (Array a)
+reallocWith label allocSize reqSize arr = do
+    let oldSize = aEnd arr `minusPtr` unsafeForeignPtrToPtr (aStart arr)
+        newSize = allocSize oldSize
+        safeSize = max newSize (oldSize + reqSize)
+        rounded = roundUpLargeArray safeSize
+    assert (newSize >= oldSize + reqSize || error badSize) (return ())
+    assert (rounded >= safeSize) (return ())
+    realloc rounded arr
+
+    where
+
+    badSize = concat
+        [ label
+        , ": new array size is less than required size "
+        , show reqSize
+        , ". Please check the sizing function passed."
+        ]
+
+-- NOINLINE to move it out of the way and not pollute the instruction cache.
+{-# NOINLINE snocWithRealloc #-}
+snocWithRealloc :: forall m a. (MonadIO m, Storable a) =>
+       (Int -> Int)
+    -> Array a
+    -> a
+    -> m (Array a)
+snocWithRealloc allocSize arr x = do
+    let elemSize = sizeOf (undefined :: a)
+    arr1 <- liftIO $ reallocWith "snocWith" allocSize elemSize arr
+    snocUnsafe arr1 x
+
+-- | @snocWith newSize arr elem@ mutates @arr@ to append @elem@, the length of
+-- the array increases by 1.
+--
+-- If there is no reserved space available in @arr@ it is reallocated to a size
+-- in bytes determined by the @newSize oldSize@ function, where @oldSize@ is
+-- the original size of the array in bytes.
+--
+-- If the new array size is more than 'largeObjectThreshold' we automatically
+-- round it up to 'blockSize'.
+--
+-- Note that the returned array may be a mutated version of the original array.
+--
+-- /Pre-release/
+{-# INLINE snocWith #-}
+snocWith :: forall m a. (MonadIO m, Storable a) =>
+       (Int -> Int)
+    -> Array a
+    -> a
+    -> m (Array a)
+snocWith allocSize arr x = liftIO $ do
+    let newEnd = aEnd arr `plusPtr` sizeOf (undefined :: a)
+    if newEnd <= aBound arr
+    then snocNewEnd newEnd arr x
+    else snocWithRealloc allocSize arr x
+
+-- | The array is mutated to append an additional element to it. If there
+-- is no reserved space available in the array then it is reallocated to grow
+-- it by 'arrayChunkSize' rounded up to 'blockSize' when the size becomes more
+-- than 'largeObjectThreshold'.
+--
+-- Note that the returned array may be a mutated version of the original array.
+--
+-- >>> snocLinear = snocWith (+ arrayChunkSize)
+--
+-- Performs O(n^2) copies to grow but is thrifty on memory.
+--
+-- /Pre-release/
+{-# INLINE snocLinear #-}
+snocLinear :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
+snocLinear = snocWith (+ arrayChunkSize)
+
+-- XXX round it to next power of 2.
+--
+-- | The array is mutated to append an additional element to it. If there is no
+-- reserved space available in the array then it is reallocated to double the
+-- original size.
+--
+-- This is useful to reduce allocations when appending unknown number of
+-- elements.
+--
+-- Note that the returned array may be a mutated version of the original array.
+--
+-- >>> snoc = snocWith (* 2)
+--
+-- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
+--
+-- /Pre-release/
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
-snoc arr@Array {..} x =
-    if aEnd == aBound
-    then do
-        let oldStart = unsafeForeignPtrToPtr aStart
-            size = aEnd `minusPtr` oldStart
-            newSize = size + sizeOf (undefined :: a)
-        newPtr <- liftIO $
-            Malloc.mallocForeignPtrAlignedBytes
-                newSize
-                (alignment (undefined :: a))
-        unsafeWithForeignPtrM newPtr $ \pNew -> liftIO $ do
-            memcpy (castPtr pNew) (castPtr oldStart) size
-            poke (pNew `plusPtr` size) x
-            touchForeignPtr aStart
-            return $
-                Array
-                    { aStart = newPtr
-                    , aEnd = pNew `plusPtr` (size + sizeOf (undefined :: a))
-                    , aBound = pNew `plusPtr` newSize
-                    }
-    else liftIO $ do
-        poke aEnd x
-        touchForeignPtr aStart
-        return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
+snoc = snocWith (* 2)
 
 -------------------------------------------------------------------------------
 -- Resizing
