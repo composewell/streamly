@@ -474,7 +474,7 @@ spliceArraysRealloced s = do
                                   (mkChunkSizeKB 4))
 
     arr <- S.foldlM' MA.spliceExp idst (S.map A.unsafeThaw s)
-    liftIO $ A.unsafeFreeze <$> MA.shrinkToFit arr
+    liftIO $ A.unsafeFreeze <$> MA.rightSize arr
 
 -- XXX This should just be "fold A.write"
 --

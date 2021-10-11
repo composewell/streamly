@@ -29,7 +29,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Resizing
     , realloc
-    , shrinkToFit
+    , rightSize
 
     -- * Size
     , length
@@ -533,18 +533,28 @@ realloc i arr =
         $ reallocAligned
             (sizeOf (undefined :: a)) (alignment (undefined :: a)) i arr
 
--- | Remove the free space from an Array.
-{-# INLINE shrinkToFit #-}
-shrinkToFit :: (MonadIO m, Storable a) => Array a -> m (Array a)
-shrinkToFit arr@Array{..} = do
+-- | Drop any reserved free space at the end of the array and reallocate it to
+-- reduce wastage.
+--
+-- Up to 25% wastage is allowed to avoid reallocations.  If the capacity is
+-- more than 'largeObjectThreshold' then free space up to the 'blockSize' is
+-- retained.
+--
+-- /Pre-release/
+{-# INLINE rightSize #-}
+rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
+rightSize arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
     let start = unsafeForeignPtrToPtr aStart
-    let used = aEnd `minusPtr` start
+        len = aEnd `minusPtr` start
+        capacity = aBound `minusPtr` start
+        target = roundUpLargeArray len
         waste = aBound `minusPtr` aEnd
-    -- if used == waste == 0 then do not realloc
-    -- if the wastage is more than 25% of the array then realloc
-    if used < 3 * waste
-    then realloc used arr
+    assert (target >= len) (return ())
+    assert (len `mod` sizeOf (undefined :: a) == 0) (return ())
+    -- We trade off some wastage (25%) to avoid reallocations and copying.
+    if target < capacity && len < 3 * waste
+    then realloc target arr
     else return arr
 
 -------------------------------------------------------------------------------
@@ -1106,7 +1116,7 @@ writeWith alignSize elemCount =
                     (sizeOf (undefined :: a)) alignSize newSize arr
         insertElem arr1 x
     step arr x = insertElem arr x
-    extract = liftIO . shrinkToFit
+    extract = liftIO . rightSize
 
 -- | Fold the whole input to a single array.
 --

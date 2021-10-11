@@ -170,12 +170,12 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 unsafeFreeze :: MA.Array a -> Array a
 unsafeFreeze (MA.Array as ae _) = Array as ae
 
--- | Similar to 'unsafeFreeze' but uses 'MA.shrinkToFit' on the mutable array
+-- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
 unsafeFreezeWithShrink :: Storable a => MA.Array a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
-  MA.Array as ae _ <- MA.shrinkToFit arr
+  MA.Array as ae _ <- MA.rightSize arr
   return $ Array as ae
 
 -- | Makes a mutable array using the underlying memory of the immutable array.
