@@ -83,6 +83,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , toList
 
     -- * Combining
+    , spliceWith
     , splice
     , spliceExp
     , spliceTwo
@@ -155,6 +156,7 @@ plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
 
 -- $setup
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
+-- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as Array
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -469,8 +471,6 @@ snocWith allocSize arr x = liftIO $ do
 -- than 'largeObjectThreshold'.
 --
 -- Note that the returned array may be a mutated version of the original array.
---
--- >>> snocLinear = snocWith (+ arrayChunkSize)
 --
 -- Performs O(n^2) copies to grow but is thrifty on memory.
 --
@@ -1235,29 +1235,32 @@ spliceTwo arr1 arr2 = do
         touchForeignPtr (aStart arr2)
     return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
--- | Splice an array into a pre-reserved mutable array.  The user must ensure
--- that there is enough space in the mutable array, otherwise the splicing
--- fails.
-{-# INLINE splice #-}
-splice :: (MonadIO m) => Array a -> Array a -> m (Array a)
-splice dst@(Array _ end bound) src =
+-- | Really really unsafe, appends the second array into the first array. If
+-- the first array does not have enough space it may cause silent data
+-- corruption or if you are lucky a segfault.
+{-# INLINE spliceUnsafe #-}
+spliceUnsafe :: MonadIO m => Array a -> (Array a, Int) -> m (Array a)
+spliceUnsafe dst (src, srcLen) =
     liftIO $ do
-        let srcLen = byteLength src
-        if end `plusPtr` srcLen > bound
-        then error
-                 "Bug: splice: Not enough space in the target array"
-        else unsafeWithForeignPtr (aStart dst) $ \_ ->
-                unsafeWithForeignPtr (aStart src) $ \psrc -> do
-                     let pdst = aEnd dst
-                     memcpy (castPtr pdst) (castPtr psrc) srcLen
-                     return $ dst {aEnd = pdst `plusPtr` srcLen}
+        unsafeWithForeignPtr (aStart dst) $ \_ ->
+            unsafeWithForeignPtr (aStart src) $ \psrc -> do
+                 let pdst = aEnd dst
+                 assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
+                 memcpy (castPtr pdst) (castPtr psrc) srcLen
+                 return $ dst {aEnd = pdst `plusPtr` srcLen}
 
--- | Splice a new array into a preallocated mutable array, doubling the space
--- if there is no space in the target array.
-{-# INLINE spliceExp #-}
-spliceExp :: (MonadIO m, Storable a)
-    => Array a -> Array a -> m (Array a)
-spliceExp dst@(Array start end bound) src  = do
+-- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
+-- reserved space available in the @dst@ it is reallocated to a size determined
+-- by @sizer dstSize srcSize@ function, where @dstSize@ is the number of bytes
+-- in the first array and @srcSize@ is the number of bytes in the second array.
+--
+-- Note that the returned array may be a mutated version of first array.
+--
+-- /Pre-release/
+{-# INLINE spliceWith #-}
+spliceWith :: forall m a. (MonadIO m, Storable a) =>
+    (Int -> Int -> Int) -> Array a -> Array a -> m (Array a)
+spliceWith allocSize dst@(Array start end bound) src = do
     assert (end <= bound) (return ())
     let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
 
@@ -1266,7 +1269,7 @@ spliceExp dst@(Array start end bound) src  = do
         then do
             let oldStart = unsafeForeignPtrToPtr start
                 oldSize = end `minusPtr` oldStart
-                newSize = max (oldSize * 2) (oldSize + srcLen)
+                newSize = allocSize oldSize srcLen
             when (newSize < oldSize + srcLen)
                 $ error
                     $ "splice: newSize is less than the total size "
@@ -1274,7 +1277,34 @@ spliceExp dst@(Array start end bound) src  = do
                     ++ "newSize function passed."
             liftIO $ realloc newSize dst
         else return dst
-    splice dst1 src
+    spliceUnsafe dst1 (src, srcLen)
+
+-- | The first array is mutated to append the second array. If there is no
+-- reserved space available in the first array a new allocation of exact
+-- required size is done.
+--
+-- Note that the returned array may be a mutated version of first array.
+--
+-- >>> splice = Array.spliceWith (+)
+--
+-- /Pre-release/
+{-# INLINE splice #-}
+splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+splice = spliceWith (+)
+
+-- | Like 'append' but the growth of the array is exponential. Whenever a new
+-- allocation is required the previous array size is at least doubled.
+--
+-- This is useful to reduce allocations when folding many arrays together.
+--
+-- Note that the returned array may be a mutated version of first array.
+--
+-- >>> spliceExp = Array.spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
+--
+-- /Pre-release/
+{-# INLINE spliceExp #-}
+spliceExp :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 
 -------------------------------------------------------------------------------
 -- Splitting
