@@ -57,6 +57,7 @@ MEASURE=1
 HPC_REPORT_OPTIONS=
 RAW=0
 CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+TEST_QUICK_MODE=0
 
 # XXX add a bisect option
 while test -n "$1"
