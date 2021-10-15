@@ -22,6 +22,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , relTimesWith
 
     -- * Elimination
+    , foldOn
     , fold
     , fold_
 
@@ -104,6 +105,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
@@ -265,6 +267,19 @@ relTimesWith = fmap snd . timesWith
 ------------------------------------------------------------------------------
 -- Elimination - Running a Fold
 ------------------------------------------------------------------------------
+
+-- | We can create higher order folds using 'foldOn'. We can fold a number of
+-- streams to a given fold efficiently with full stream fusion. For example, to
+-- fold a list of streams on the same sum fold:
+--
+-- >>> concatFold = Prelude.foldl Stream.foldOn Fold.sum
+--
+-- >>> fold f = Fold.finish . Stream.foldOn f
+--
+-- /Internal/
+{-# INLINE foldOn #-}
+foldOn :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
+foldOn f s = D.foldOn f $ IsStream.toStreamD s
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A
