@@ -249,9 +249,10 @@ module Streamly.Internal.Data.Fold.Type
     , ManyState
     , many
     , manyPost
+    , chunksOf
     , consumeMany
     , consumeMany1
-    , chunksOf
+    , appendConsumer
 
     -- ** Nesting
     , concatMap
@@ -1303,6 +1304,10 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksOf n split = many (take n split)
 
+------------------------------------------------------------------------------
+-- Consumer and Fold Combinators
+------------------------------------------------------------------------------
+
 -- | Like 'many' but uses a 'Consumer' for collecting.
 --
 {-# INLINE consumeMany #-}
@@ -1402,3 +1407,11 @@ consumeMany1 (Consumer sstep sinject sextract) (Fold cstep cinitial cextract) =
         case cres of
             Partial s -> cextract s
             Done b -> return b
+
+-- | Extend a fold by appending a Consumer.
+--
+-- /Internal/
+{-# INLINE appendConsumer #-}
+appendConsumer :: Monad m => Fold m a b -> Consumer m b a b -> Fold m a b
+appendConsumer f (Consumer step inject extract) =
+    Fold step (finish f >>= inject) extract
