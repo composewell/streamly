@@ -470,6 +470,8 @@ fromStreamK = Unfold step pure
 
 -- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
 -- case) than using fromStream even if it is implemented using fromStreamD.
+-- Check if StreamK to StreamD rewrite rules are working correctly when
+-- implementing fromStream using fromStreamD.
 --
 -- | Convert a stream into an 'Unfold'. Note that a stream converted to an
 -- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
