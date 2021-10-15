@@ -106,6 +106,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Stream of arrays
     , arraysOf
     , writeChunks
+    , fromArrayStreamK
 
     -- * Utilities
     , bytesToElemCount
@@ -1239,35 +1240,15 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- /Caution! Do not use this on infinite streams./
 --
+-- >>> f n = Array.appendWith (* 2) (Array.newArray n)
+-- >>> writeWith n = Fold.rmapM Array.rightSize (f n)
+-- >>> writeWith n = Fold.rmapM Array.fromArrayStreamK (Array.writeChunks n)
+--
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Storable a)
-    => Int -> Int -> Fold m a (Array a)
--- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
-writeWith alignSize elemCount =
-    FL.rmapM extract $ FL.foldlM' step initial
-
-    where
-
-    insertElem (Array start end bound) x = do
-        liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-
-    initial = do
-        when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newArrayAligned alignSize elemCount
-    step arr@(Array start end bound) x
-        | end `plusPtr` sizeOf (undefined :: a) > bound = do
-        let p = unsafeForeignPtrToPtr start
-            oldSize = end `minusPtr` p
-            newSize = max (oldSize * 2) 1
-        arr1 <-
-            liftIO
-                $ reallocAligned
-                    (sizeOf (undefined :: a)) alignSize newSize arr
-        insertElem arr1 x
-    step arr x = insertElem arr x
-    extract = liftIO . rightSize
+    => Int -> Fold m a (Array a)
+writeWith n = FL.rmapM rightSize $ appendWith (* 2) (newArray n)
 
 -- | Fold the whole input to a single array.
 --
@@ -1279,9 +1260,7 @@ writeWith alignSize elemCount =
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = writeWith (alignment (undefined :: a))
-                        (bytesToElemCount (undefined :: a)
-                        (mkChunkSize 1024))
+write = writeWith (bytesToElemCount (undefined :: a) arrayChunkSize)
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size
