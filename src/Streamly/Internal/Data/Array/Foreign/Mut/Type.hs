@@ -106,6 +106,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Stream of arrays
     , arraysOf
     , writeChunks
+    , fromArrayStreamK
 
     -- * Utilities
     , bytesToElemCount
@@ -1244,12 +1245,16 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- /Caution! Do not use this on infinite streams./
 --
+-- >>> f n = Array.appendWith (* 2) (Array.newArray n)
+-- >>> writeWith n = Fold.rmapM Array.rightSize (f n)
+-- >>> writeWith n = Fold.rmapM Array.fromArrayStreamK (Array.writeChunks n)
+--
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Storable a)
-    => Int -> Int -> Fold m a (Array a)
--- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
-writeWith alignSize elemCount =
+    => Int -> Fold m a (Array a)
+-- writeWith n = FL.rmapM rightSize $ appendWith (* 2) (newArray n)
+writeWith elemCount =
     FL.rmapM extract $ FL.foldlM' step initial
 
     where
@@ -1260,7 +1265,7 @@ writeWith alignSize elemCount =
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newArrayAligned alignSize elemCount
+        liftIO $ newArrayAligned (alignment (undefined :: a)) elemCount
     step arr@(Array start end bound) x
         | end `plusPtr` sizeOf (undefined :: a) > bound = do
         let p = unsafeForeignPtrToPtr start
@@ -1269,7 +1274,10 @@ writeWith alignSize elemCount =
         arr1 <-
             liftIO
                 $ reallocAligned
-                    (sizeOf (undefined :: a)) alignSize newSize arr
+                    (sizeOf (undefined :: a))
+                    (alignment (undefined :: a))
+                    newSize
+                    arr
         insertElem arr1 x
     step arr x = insertElem arr x
     extract = liftIO . rightSize
@@ -1284,9 +1292,7 @@ writeWith alignSize elemCount =
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = writeWith (alignment (undefined :: a))
-                        (bytesToElemCount (undefined :: a)
-                        (mkChunkSize 1024))
+write = writeWith (bytesToElemCount (undefined :: a) arrayChunkSize)
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size
@@ -1402,9 +1408,9 @@ spliceUnsafe dst (src, srcLen) =
                  return $ dst {aEnd = pdst `plusPtr` srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
--- reserved space available in the @dst@ it is reallocated to a size determined
--- by @sizer dstSize srcSize@ function, where @dstSize@ is the number of bytes
--- in the first array and @srcSize@ is the number of bytes in the second array.
+-- reserved space available in @dst@ it is reallocated to a size determined by
+-- the @sizer dstBytesn srcBytes@ function, where @dstBytes@ is the size of the
+-- first array and @srcBytes@ is the size of the second array, in bytes.
 --
 -- Note that the returned array may be a mutated version of first array.
 --
@@ -1412,7 +1418,11 @@ spliceUnsafe dst (src, srcLen) =
 {-# INLINE spliceWith #-}
 spliceWith :: forall m a. (MonadIO m, Storable a) =>
     (Int -> Int -> Int) -> Array a -> Array a -> m (Array a)
-spliceWith allocSize dst@(Array start end bound) src = do
+spliceWith sizer dst@(Array start end bound) src = do
+{-
+    let f = appendWith (`sizer` byteLength src) (return dst)
+     in D.fold f (toStreamD src)
+-}
     assert (end <= bound) (return ())
     let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
 
@@ -1421,7 +1431,7 @@ spliceWith allocSize dst@(Array start end bound) src = do
         then do
             let oldStart = unsafeForeignPtrToPtr start
                 oldSize = end `minusPtr` oldStart
-                newSize = allocSize oldSize srcLen
+                newSize = sizer oldSize srcLen
             when (newSize < oldSize + srcLen)
                 $ error
                     $ "splice: newSize is less than the total size "

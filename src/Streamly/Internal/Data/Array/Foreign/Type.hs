@@ -551,10 +551,9 @@ writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
 
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Storable a)
-    => Int -> Int -> Fold m a (Array a)
+    => Int -> Fold m a (Array a)
 -- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
-writeWith alignSize elemCount =
-    unsafeFreeze <$> MA.writeWith alignSize elemCount
+writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
 
 -- | Fold the whole input to a single array.
 --
