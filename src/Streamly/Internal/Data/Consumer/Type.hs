@@ -10,6 +10,9 @@
 -- 'Monoid' whereas the 'Consumer' type has to be supplied with an initial
 -- value, therefore, it is more like a 'Semigroup' operation.
 --
+-- Consumers can be appended to each other or to a fold to build the fold
+-- incrementally. This is useful in incremental builder like use cases.
+--
 -- See the file splitting example in the @streamly-examples@ repository for an
 -- application of the 'Consumer' type. The 'Fold' type does not perform as well
 -- in this situation.
@@ -30,10 +33,12 @@ module Streamly.Internal.Data.Consumer.Type
     -- ** Accumulators
     , sconcat
     , drainBy
+    , iterate
 
     -- * Combinators
     , lmapM
     , rmapM
+    , append
     , take
     )
 where
@@ -45,7 +50,7 @@ import Data.Semigroup (Semigroup((<>)))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
-import Prelude hiding (take)
+import Prelude hiding (take, iterate)
 
 -- $setup
 -- >>> :m
@@ -152,6 +157,61 @@ drainBy f = Consumer step inject extract
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => Consumer m a a a
 sconcat = foldl' (<>)
+
+------------------------------------------------------------------------------
+-- append
+------------------------------------------------------------------------------
+
+-- | Supply the output of the first consumer as input to the second consumer.
+--
+-- /Internal/
+{-# INLINE append #-}
+append :: Monad m => Consumer m x a b -> Consumer m b a b -> Consumer m x a b
+append (Consumer step1 inject1 extract1) (Consumer step2 inject2 extract2) =
+    Consumer step inject extract
+
+    where
+
+    goLeft r = do
+        case r of
+            Partial s -> return $ Partial $ Left s
+            Done b -> do
+                r1 <- inject2 b
+                return $ case r1 of
+                    Partial s -> Partial $ Right s
+                    Done b1 -> Done b1
+
+    inject x = inject1 x >>= goLeft
+
+    step (Left s) a = step1 s a >>= goLeft
+
+    step (Right s) a = do
+        r <- step2 s a
+        case r of
+            Partial s1 -> return $ Partial (Right s1)
+            Done b -> return $ Done b
+
+    extract (Left s) = extract1 s
+    extract (Right s) = extract2 s
+
+-- | Keep running the same consumer over and over again on the input, feeding
+-- the output of the previous run to the next.
+--
+-- /Internal/
+iterate :: Monad m => Consumer m b a b -> Consumer m b a b
+iterate (Consumer step1 inject1 extract1) =
+    Consumer step inject extract1
+
+    where
+
+    go r =
+        case r of
+            Partial s -> return $ Partial s
+            Done b -> inject b
+
+    inject x = inject1 x >>= go
+
+    step s a = step1 s a >>= go
 
 ------------------------------------------------------------------------------
 -- Transformation
