@@ -6,6 +6,10 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Mutable arrays and file system files are quite similar, they can grow and
+-- their content is mutable. Therefore, both have similar APIs as well. We
+-- strive to keep the API consistent for both. Ideally, you should be able to
+-- replace one with another with little changes to the code.
 
 module Streamly.Internal.Data.Array.Foreign.Mut.Type
     (
@@ -15,11 +19,11 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Construction
     , fromForeignPtrUnsafe
-    , unsafeWithNewArray
+    , withNewArrayUnsafe
     , newArray
     , newArrayAligned
     , newArrayAlignedUnmanaged
-    , newArrayAlignedAllocWith
+    , newArrayWith
 
     -- * From containers
     , fromList
@@ -65,14 +69,14 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , append
 
     , writeWith
-    , writeNAllocWith
+    , writeNWithUnsafe
+    , writeNWith
     , writeN
     , writeNUnsafe
     , ArrayUnsafe (..)
     , writeNAligned
     , writeNAlignedUnmanaged
     , write
-    , writeAligned
 
     -- * Unfolds
     , ReadUState
@@ -278,12 +282,27 @@ fromForeignPtrUnsafe fp end bound =
 -- Construction
 -------------------------------------------------------------------------------
 
--- | allocate a new empty array using the provided allocator function.
-{-# INLINE newArrayAlignedAllocWith #-}
-newArrayAlignedAllocWith :: forall m a. (MonadIO m, Storable a)
+-- XXX Change the names to use "new" instead of "newArray". That way we can use
+-- the same names for managed file system objects as well. For unmanaged ones
+-- we can use open/create etc as usual.
+
+-- GHC always guarantees word-aligned memory, alignment is important only when
+-- we need more than that.  See stg_newAlignedPinnedByteArrayzh and
+-- allocatePinned in GHC source.
+
+-- | @newArrayWith allocator alignment count@ allocates a new array of zero
+-- length and with a capacity to hold @count@ elements, using @allocator
+-- size alignment@ as the memory allocator function.
+--
+-- Alignment must be greater than or equal to machine word size and a power of
+-- 2.
+--
+-- /Pre-release/
+{-# INLINE newArrayWith #-}
+newArrayWith :: forall m a. (MonadIO m, Storable a)
     => (Int -> Int -> m (ForeignPtr a)) -> Int -> Int -> m (Array a)
-newArrayAlignedAllocWith alloc alignSize count = do
-    let size = count * sizeOf (undefined :: a)
+newArrayWith alloc alignSize count = do
+    let size = max (count * sizeOf (undefined :: a)) 0
     fptr <- alloc size alignSize
     let p = unsafeForeignPtrToPtr fptr
     return $ Array
@@ -292,23 +311,29 @@ newArrayAlignedAllocWith alloc alignSize count = do
         , aBound = p `plusPtr` size
         }
 
--- | Allocate a new empty array using the specified alignment and using
--- unmanaged pinned memory. The memory will not be automatically freed by GHC.
--- This could be useful in allocate-once global data structures. Use carefully
--- as incorrect use can lead to memory leak.
+-- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
+-- memory. The memory will never be freed by GHC.  This could be useful in
+-- allocate-once global data structures. Use carefully as incorrect use can
+-- lead to memory leak.
+--
+-- /Internal/
 {-# INLINE newArrayAlignedUnmanaged #-}
-newArrayAlignedUnmanaged :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
-newArrayAlignedUnmanaged =
-    newArrayAlignedAllocWith mallocForeignPtrAlignedUnmanagedBytes
+newArrayAlignedUnmanaged :: (MonadIO m, Storable a) =>
+    Int -> Int -> m (Array a)
+newArrayAlignedUnmanaged = newArrayWith mallocForeignPtrAlignedUnmanagedBytes
 
     where
 
     mallocForeignPtrAlignedUnmanagedBytes size alignSize =
         liftIO $ Malloc.mallocForeignPtrAlignedUnmanagedBytes size alignSize
 
+-- | Like 'newArrayWith' but using an allocator that aligns the memory to the
+-- alignment dictated by the 'Storable' instance of the type.
+--
+-- /Internal/
 {-# INLINE newArrayAligned #-}
 newArrayAligned :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
-newArrayAligned = newArrayAlignedAllocWith mallocForeignPtrAlignedBytes
+newArrayAligned = newArrayWith mallocForeignPtrAlignedBytes
 
     where
 
@@ -317,19 +342,23 @@ newArrayAligned = newArrayAlignedAllocWith mallocForeignPtrAlignedBytes
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
--- | Allocate an empty array that can hold 'count' items.  The memory of the
--- array is uninitialized.
+-- | Allocates an empty array that can hold 'count' items.  The memory of the
+-- array is uninitialized and the allocation is aligned as per the 'Storable'
+-- instance of the type.
 --
+-- /Pre-release/
 {-# INLINE newArray #-}
 newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
-{-# INLINE unsafeWithNewArray #-}
-unsafeWithNewArray ::
+--
+-- /Internal/
+{-# INLINE withNewArrayUnsafe #-}
+withNewArrayUnsafe ::
        (MonadIO m, Storable a) => Int -> (Ptr a -> m ()) -> m (Array a)
-unsafeWithNewArray count f = do
+withNewArrayUnsafe count f = do
     arr <- newArray count
     unsafeWithForeignPtrM (aStart arr) $ \p -> f p >> return arr
 
@@ -1079,55 +1108,72 @@ append :: forall m a. (MonadIO m, Storable a) =>
     m (Array a) -> Fold m a (Array a)
 append = appendWith (* 2)
 
-{-# INLINE_NORMAL writeNAllocWith #-}
-writeNAllocWith :: forall m a. (MonadIO m, Storable a)
+-- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
+-- allocated using the @alloc@ function.
+--
+-- >>> writeNWith alloc n = Fold.take n (Array.writeNWithUnsafe alloc n)
+-- >>> writeNWith alloc n = Array.appendN (alloc n) n
+--
+{-# INLINE_NORMAL writeNWith #-}
+writeNWith :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNAllocWith alloc n = FL.take n (writeNUnsafeWith alloc n)
+writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
+-- >>> writeN = Array.writeNWith Array.newArray
 -- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
 -- >>> writeN n = Array.appendN (Array.newArray n) n
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
-writeN = writeNAllocWith newArray
+writeN = writeNWith newArray
 
--- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
+-- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
+--
+-- >>> writeNAligned align = Array.writeNWith (Array.newArrayAligned align)
+-- >>> writeNAligned align n = Array.appendN (Array.newArrayAligned align n) n
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
 writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
-writeNAligned alignSize = writeNAllocWith (newArrayAligned alignSize)
+writeNAligned align = writeNWith (newArrayAligned align)
 
--- | @writeNAlignedUnmanaged n@ folds a maximum of @n@ elements from the input
--- stream to an 'Array' aligned to the given size and using unmanaged memory.
--- This could be useful to allocate memory that we need to allocate only once
--- in the lifetime of the program.
+-- | @writeNAlignedUnmanaged align n@ folds a maximum of @n@ elements from the
+-- input stream to an 'Array' whose starting address is aligned to @align@
+-- bytes and is allocated using unmanaged memory (never freed).  This could be
+-- useful to allocate memory that we need to allocate only once in the lifetime
+-- of the program.
+--
+-- >>> f = Array.newArrayAlignedUnmanaged
+-- >>> writeNAlignedUnmanaged a = Array.writeNWith (f a)
+-- >>> writeNAlignedUnmanaged a n = Array.appendN (f a n) n
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAlignedUnmanaged #-}
 writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
-writeNAlignedUnmanaged alignSize =
-    writeNAllocWith (newArrayAlignedUnmanaged alignSize)
+writeNAlignedUnmanaged align = writeNWith (newArrayAlignedUnmanaged align)
 
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
 --
--- | This API is only useful when we do not want to use the remaining space in
--- the array to append anything else later as that space is lost.
+-- | Like 'writeNUnsafe' but takes a new array allocator @alloc size@ function
+-- as argument.
 --
-{-# INLINE_NORMAL writeNUnsafeWith #-}
-writeNUnsafeWith :: forall m a. (MonadIO m, Storable a)
+-- >>> writeNWithUnsafe alloc n = Array.appendNUnsafe (alloc n) n
+--
+-- /Pre-release/
+{-# INLINE_NORMAL writeNWithUnsafe #-}
+writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNUnsafeWith alloc n = Fold step initial extract
+writeNWithUnsafe alloc n = Fold step initial extract
 
     where
 
@@ -1149,11 +1195,13 @@ writeNUnsafeWith alloc n = Fold step initial extract
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
+-- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newArray
+--
 -- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
-writeNUnsafe = writeNUnsafeWith newArray
+writeNUnsafe = writeNWithUnsafe newArray
 
 -- XXX Buffer to a list instead?
 --
@@ -1190,6 +1238,13 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 -- XXX check if GHC's memory allocator is efficient enough. We can try the C
 -- malloc to compare against.
 
+-- | @writeWith minCount@ folds the whole input to a single array. The array
+-- starts at a size big enough to hold minCount elements, the size is doubled
+-- every time the array needs to be grown.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
@@ -1221,6 +1276,9 @@ writeWith alignSize elemCount =
 
 -- | Fold the whole input to a single array.
 --
+-- Same as 'writeWith' using an initial array size of 'arrayChunkSize' bytes
+-- rounded up to the element size.
+--
 -- /Caution! Do not use this on infinite streams./
 --
 -- @since 0.7.0
@@ -1229,21 +1287,6 @@ write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
 write = writeWith (alignment (undefined :: a))
                         (bytesToElemCount (undefined :: a)
                         (mkChunkSize 1024))
-
--- | Like 'write' but the array memory is aligned according to the specified
--- alignment size. This could be useful when we have specific alignment, for
--- example, cache aligned arrays for lookup table etc.
---
--- /Caution! Do not use this on infinite streams./
---
--- @since 0.7.0
-{-# INLINE writeAligned #-}
-writeAligned :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
-writeAligned alignSize =
-    writeWith alignSize
-                    (bytesToElemCount (undefined :: a)
-                    (mkChunkSize 1024))
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size

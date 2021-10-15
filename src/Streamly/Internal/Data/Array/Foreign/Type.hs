@@ -64,7 +64,6 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , writeNAligned
     , writeNAlignedUnmanaged
     , write
-    , writeAligned
 
     -- * Streams of arrays
     , arraysOf
@@ -567,18 +566,6 @@ writeWith alignSize elemCount =
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write
-
--- | Like 'write' but the array memory is aligned according to the specified
--- alignment size. This could be useful when we have specific alignment, for
--- example, cache aligned arrays for lookup table etc.
---
--- /Caution! Do not use this on infinite streams./
---
--- @since 0.7.0
-{-# INLINE writeAligned #-}
-writeAligned :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
-writeAligned = fmap unsafeFreeze . MA.writeAligned
 
 -------------------------------------------------------------------------------
 -- Instances
