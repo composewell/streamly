@@ -597,7 +597,7 @@ instance Storable a => IsList (Array a) where
 -- or may not be correct? arrcmp is 40% faster compared to stream equality.
 instance (Storable a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
-    arr1 == arr2 = runIdentity $ D.eqBy (==) (toStreamD arr1) (toStreamD arr2)
+    arr1 == arr2 = unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
 
 -- Since this is a Storable array we cannot have unevaluated data in it so
 -- this is just a no op.
