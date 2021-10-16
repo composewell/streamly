@@ -265,7 +265,7 @@ _splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
         case r of
             D.Yield arr s -> do
                 (arr1, marr2) <- A.breakOn byte arr
-                buf' <- A.spliceTwo buf arr1
+                buf' <- A.splice buf arr1
                 return $ case marr2 of
                     Nothing -> D.Skip (Buffering s buf')
                     Just x -> D.Skip (Yielding buf' (Splitting s x))
@@ -295,7 +295,7 @@ splitOn
     -> t m (Array Word8)
     -> t m (Array Word8)
 splitOn byte s =
-    fromStreamD $ D.splitInnerBy (A.breakOn byte) A.spliceTwo $ toStreamD s
+    fromStreamD $ D.splitInnerBy (A.breakOn byte) A.splice $ toStreamD s
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -305,7 +305,7 @@ splitOnSuffix
     -> t m (Array Word8)
 -- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
 splitOnSuffix byte s =
-    fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.spliceTwo $ toStreamD s
+    fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.splice $ toStreamD s
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds

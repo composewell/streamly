@@ -22,7 +22,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , unsafeThaw
 
     -- * Construction
-    , spliceTwo
+    , splice
 
     , fromPtr
     , fromAddr#
@@ -194,10 +194,10 @@ unsafeThaw (Array as ae) = MA.Array as ae ae
 -------------------------------------------------------------------------------
 
 -- Splice two immutable arrays creating a new array.
-{-# INLINE spliceTwo #-}
-spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
-spliceTwo arr1 arr2 =
-    unsafeFreeze <$> MA.spliceTwo (unsafeThaw arr1) (unsafeThaw arr2)
+{-# INLINE splice #-}
+splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+splice arr1 arr2 =
+    unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
 
 -- | Create an 'Array' of the given number of elements of type @a@ from a read
 -- only pointer @Ptr a@.  The pointer is not freed when the array is garbage
@@ -671,7 +671,7 @@ instance Foldable Array where
 -------------------------------------------------------------------------------
 
 instance Storable a => Semigroup (Array a) where
-    arr1 <> arr2 = unsafePerformIO $ spliceTwo arr1 arr2
+    arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 
 nullForeignPtr :: ForeignPtr a
 nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")

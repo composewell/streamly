@@ -97,7 +97,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , spliceWith
     , splice
     , spliceExp
-    , spliceTwo
+    , spliceCopy
 
     -- * Splitting
     , breakOn
@@ -1367,9 +1367,9 @@ fromList xs = fromStreamD $ D.fromList xs
 -------------------------------------------------------------------------------
 
 -- | Copy two arrays into a newly allocated array.
-{-# INLINE spliceTwo #-}
-spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
-spliceTwo arr1 arr2 = do
+{-# INLINE spliceCopy #-}
+spliceCopy :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceCopy arr1 arr2 = do
     let src1 = unsafeForeignPtrToPtr (aStart arr1)
         src2 = unsafeForeignPtrToPtr (aStart arr2)
         len1 = aEnd arr1 `minusPtr` src1
