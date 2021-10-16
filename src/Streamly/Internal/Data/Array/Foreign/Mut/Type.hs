@@ -450,9 +450,9 @@ reallocWith :: forall m a. (MonadIO m , Storable a) =>
     -> Int
     -> Array a
     -> m (Array a)
-reallocWith label allocSize reqSize arr = do
+reallocWith label sizer reqSize arr = do
     let oldSize = aEnd arr `minusPtr` unsafeForeignPtrToPtr (aStart arr)
-        newSize = allocSize oldSize
+        newSize = sizer oldSize
         safeSize = max newSize (oldSize + reqSize)
         rounded = roundUpLargeArray safeSize
     assert (newSize >= oldSize + reqSize || error badSize) (return ())
@@ -475,17 +475,17 @@ snocWithRealloc :: forall m a. (MonadIO m, Storable a) =>
     -> Array a
     -> a
     -> m (Array a)
-snocWithRealloc allocSize arr x = do
+snocWithRealloc sizer arr x = do
     let elemSize = sizeOf (undefined :: a)
-    arr1 <- liftIO $ reallocWith "snocWith" allocSize elemSize arr
+    arr1 <- liftIO $ reallocWith "snocWith" sizer elemSize arr
     snocUnsafe arr1 x
 
--- | @snocWith newSize arr elem@ mutates @arr@ to append @elem@, the length of
+-- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
 -- the array increases by 1.
 --
 -- If there is no reserved space available in @arr@ it is reallocated to a size
--- in bytes determined by the @newSize oldSize@ function, where @oldSize@ is
--- the original size of the array in bytes.
+-- in bytes determined by the @sizer oldSizeBytes@ function, where
+-- @oldSizeBytes@ is the original size of the array in bytes.
 --
 -- If the new array size is more than 'largeObjectThreshold' we automatically
 -- round it up to 'blockSize'.
