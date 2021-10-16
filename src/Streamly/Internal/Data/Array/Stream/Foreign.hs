@@ -75,8 +75,8 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (memcpy, bytesToElemCount)
-import Streamly.Internal.System.IO (mkChunkSizeKB)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
+    (memcpy, allocBytesToElemCount)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign as Array
@@ -470,8 +470,8 @@ _spliceArraysBuffered s = do
 spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    let idst = liftIO $ MA.newArray (bytesToElemCount (undefined :: a)
-                                  (mkChunkSizeKB 4))
+    let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
+        idst = liftIO $ MA.newArray n
 
     arr <- S.foldlM' MA.spliceExp idst (S.map A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.rightSize arr

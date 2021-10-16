@@ -119,7 +119,8 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Memory Management
     , blockSize
-    , arrayChunkSize
+    , arrayChunkBytes
+    , allocBytesToElemCount
     , realloc
     , resize
     , resizeExp
@@ -187,7 +188,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- , appendSliceFrom
 
     -- * Utilities
-    , bytesToElemCount
     , memcpy
     , memcmp
     , c_memchr
@@ -227,7 +227,7 @@ import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import Streamly.Internal.System.IO
-    (defaultChunkSize, mkChunkSize, unsafeInlineIO)
+    (defaultChunkSize, arrayPayloadSize, unsafeInlineIO)
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -272,13 +272,13 @@ foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
 
 -- | Given a 'Storable' type (unused first arg) and a number of bytes, return
--- how many elements of that type will fit in after rounding the bytes up to
--- the element size.
+-- how many elements of that type will completely fit in those bytes.
+--
 {-# INLINE bytesToElemCount #-}
 bytesToElemCount :: Storable a => a -> Int -> Int
 bytesToElemCount x n =
     let elemSize = sizeOf x
-    in n + elemSize - 1 `div` elemSize
+    in n `div` elemSize
 
 -- XXX we are converting Int to CSize
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
@@ -588,13 +588,30 @@ roundUpToPower2 :: Int -> Int
 roundUpToPower2 = undefined
 -}
 
--- XXX remove mkChunkSize, it is not required.
+-- | @allocBytesToBytes elem allocatedBytes@ returns the array size in bytes
+-- such that the real allocation is less than or equal to @allocatedBytes@,
+-- unless @allocatedBytes@ is less than the size of one array element in which
+-- case it returns one element's size.
+--
+{-# INLINE allocBytesToBytes #-}
+allocBytesToBytes :: forall a. Storable a => a -> Int -> Int
+allocBytesToBytes _ n =
+    max (arrayPayloadSize n) (sizeOf (undefined :: a))
+
+-- | Given a 'Storable' type (unused first arg) and real allocation size
+-- (including overhead), return how many elements of that type will completely
+-- fit in it, returns at least 1.
+--
+{-# INLINE allocBytesToElemCount #-}
+allocBytesToElemCount :: Storable a => a -> Int -> Int
+allocBytesToElemCount x bytes =
+    let n = bytesToElemCount x (allocBytesToBytes x bytes)
+     in assert (n >= 1) n
+
 -- | The default chunk size by which the array creation routines increase the
 -- size of the array when the array is grown linearly.
---
-{-# INLINE arrayChunkSize #-}
-arrayChunkSize :: Int
-arrayChunkSize = mkChunkSize 1024
+arrayChunkBytes :: Int
+arrayChunkBytes = 1024
 
 -------------------------------------------------------------------------------
 -- Snoc
@@ -708,7 +725,7 @@ snocWith allocSize arr x = liftIO $ do
 
 -- | The array is mutated to append an additional element to it. If there
 -- is no reserved space available in the array then it is reallocated to grow
--- it by 'arrayChunkSize' rounded up to 'blockSize' when the size becomes more
+-- it by 'arrayChunkBytes' rounded up to 'blockSize' when the size becomes more
 -- than 'largeObjectThreshold'.
 --
 -- Note that the returned array may be a mutated version of the original array.
@@ -718,7 +735,7 @@ snocWith allocSize arr x = liftIO $ do
 -- /Pre-release/
 {-# INLINE snocLinear #-}
 snocLinear :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
-snocLinear = snocWith (+ arrayChunkSize)
+snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 
 -- XXX round it to next power of 2.
 --
@@ -1162,9 +1179,11 @@ arraysOf n (D.Stream step state) =
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamD #-}
-arrayStreamKFromStreamD :: (MonadIO m, Storable a) =>
+arrayStreamKFromStreamD :: forall m a. (MonadIO m, Storable a) =>
     D.Stream m a -> m (K.Stream m (Array a))
-arrayStreamKFromStreamD m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
+arrayStreamKFromStreamD =
+    let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
+     in D.foldr K.cons K.nil . arraysOf n
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Flattening
@@ -1725,7 +1744,7 @@ writeWith elemCount =
 
 -- | Fold the whole input to a single array.
 --
--- Same as 'writeWith' using an initial array size of 'arrayChunkSize' bytes
+-- Same as 'writeWith' using an initial array size of 'arrayChunkBytes' bytes
 -- rounded up to the element size.
 --
 -- /Caution! Do not use this on infinite streams./
@@ -1733,7 +1752,7 @@ writeWith elemCount =
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = writeWith (bytesToElemCount (undefined :: a) arrayChunkSize)
+write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size

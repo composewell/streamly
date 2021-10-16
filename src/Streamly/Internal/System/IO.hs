@@ -11,8 +11,7 @@
 
 module Streamly.Internal.System.IO
     ( defaultChunkSize
-    , mkChunkSize
-    , mkChunkSizeKB
+    , arrayPayloadSize
     , unsafeInlineIO
     )
 
@@ -34,19 +33,24 @@ import GHC.IO (IO(IO))
 unsafeInlineIO :: IO a -> a
 unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
 
--- | GHC memory management allocation header overhead
-allocOverhead :: Int
-allocOverhead = 2 * sizeOf (undefined :: Int)
+-- | Returns the heap allocation overhead for allocating a byte array. Each
+-- heap object contains a one word header. Byte arrays contain the size of the
+-- array after the header.
+--
+-- See https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/storage/heap-objects#arrays
+--
+byteArrayOverhead :: Int
+byteArrayOverhead = 2 * sizeOf (undefined :: Word)
 
-mkChunkSize :: Int -> Int
-mkChunkSize n = let size = n - allocOverhead in max size 0
-
-mkChunkSizeKB :: Int -> Int
-mkChunkSizeKB n = mkChunkSize (n * k)
-   where k = 1024
+-- | When we allocate a byte array of size @k@ the allocator actually allocates
+-- memory of size @k + byteArrayOverhead@. @arrayPayloadSize n@ returns the
+-- size of the array in bytes that would result in an allocation of @n@ bytes.
+--
+arrayPayloadSize :: Int -> Int
+arrayPayloadSize n = let size = n - byteArrayOverhead in max size 0
 
 -- | Default maximum buffer size in bytes, for reading from and writing to IO
 -- devices, the value is 32KB minus GHC allocation overhead, which is a few
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
-defaultChunkSize = mkChunkSizeKB 32
+defaultChunkSize = arrayPayloadSize (32 * 1024)
