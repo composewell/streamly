@@ -42,9 +42,15 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Random access
     , getIndexUnsafe
+    , getIndex
+    , getIndexRev
+    , getIndices
 
     -- * Mutation
     , putIndexUnsafe
+    , putIndex
+    , modifyIndexUnsafe
+    , modifyIndex
     , snocUnsafe
     , snocWith
     , snoc
@@ -55,6 +61,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , castUnsafe
     , asBytes
     , asPtrUnsafe
+
+    -- * Subarrays
+    , getSliceUnsafe
+    , getSlice
 
     -- * Folding
     , foldl'
@@ -381,6 +391,63 @@ putIndexUnsafe Array{..} i x =
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         liftIO $ poke elemPtr x
 
+invalidIndex :: String -> Int -> a
+invalidIndex label i =
+    error $ label ++ ": invalid array index " ++ show i
+
+{-# INLINE putIndexPtr #-}
+putIndexPtr :: forall m a. (MonadIO m, Storable a) =>
+    Ptr a -> Ptr a -> Int -> a -> m ()
+putIndexPtr ptr end i x = do
+    let elemSize = sizeOf (undefined :: a)
+        elemPtr = ptr `plusPtr` (elemSize * i)
+    if i >= 0 && elemPtr `plusPtr` elemSize <= end
+    then liftIO $ poke elemPtr x
+    else invalidIndex "putIndexPtr" i
+
+-- | /O(1)/ Write the given element at the given index in the array.
+-- Performs in-place mutation of the array.
+--
+-- >>> putIndex arr ix val = Array.modifyIndex arr ix (const (val, ()))
+--
+-- /Pre-release/
+{-# INLINE putIndex #-}
+putIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
+putIndex arr i x =
+    unsafeWithForeignPtrM (aStart arr) $ \p -> putIndexPtr p (aEnd arr) i x
+
+-- | Modify a given index of an array using a modifier function.
+--
+-- /Pre-release/
+modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
+    Array a -> Int -> (a -> (a, b)) -> m b
+modifyIndexUnsafe Array{..} i f = do
+    liftIO $ unsafeWithForeignPtr aStart $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = ptr `plusPtr` (elemSize * i)
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
+        r <- peek elemPtr
+        let (x, res) = f r
+        poke elemPtr x
+        return res
+
+-- | Modify a given index of an array using a modifier function.
+--
+-- /Pre-release/
+modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
+    Array a -> Int -> (a -> (a, b)) -> m b
+modifyIndex Array{..} i f = do
+    liftIO $ unsafeWithForeignPtr aStart $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = ptr `plusPtr` (elemSize * i)
+        if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd
+        then do
+            r <- peek elemPtr
+            let (x, res) = f r
+            poke elemPtr x
+            return res
+        else invalidIndex "modifyIndex" i
+
 -------------------------------------------------------------------------------
 -- Rounding
 -------------------------------------------------------------------------------
@@ -618,6 +685,116 @@ getIndexUnsafe Array {..} i =
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         liftIO $ peek elemPtr
+
+{-# INLINE getIndexPtr #-}
+getIndexPtr :: forall m a. (MonadIO m, Storable a) =>
+    Ptr a -> Ptr a -> Int -> m a
+getIndexPtr ptr end i = do
+    let elemSize = sizeOf (undefined :: a)
+        elemPtr = ptr `plusPtr` (elemSize * i)
+    if i >= 0 && elemPtr `plusPtr` elemSize <= end
+    then liftIO $ peek elemPtr
+    else invalidIndex "getIndexPtr" i
+
+-- | /O(1)/ Lookup the element at the given index. Index starts from 0.
+--
+{-# INLINE getIndex #-}
+getIndex :: (MonadIO m, Storable a) => Array a -> Int -> m a
+getIndex arr i =
+    unsafeWithForeignPtrM (aStart arr) $ \p -> getIndexPtr p (aEnd arr) i
+
+{-# INLINE getIndexPtrRev #-}
+getIndexPtrRev :: forall m a. (MonadIO m, Storable a) =>
+    Ptr a -> Ptr a -> Int -> m a
+getIndexPtrRev ptr end i = do
+    let elemSize = sizeOf (undefined :: a)
+        elemPtr = end `plusPtr` negate (elemSize * (i + 1))
+    if i >= 0 && elemPtr >= ptr
+    then liftIO $ peek elemPtr
+    else invalidIndex "getIndexPtrRev" i
+
+-- | /O(1)/ Lookup the element at the given index from the end of the array.
+-- Index starts from 0.
+--
+-- Slightly faster than computing the forward index and using getIndex.
+--
+{-# INLINE getIndexRev #-}
+getIndexRev :: (MonadIO m, Storable a) => Array a -> Int -> m a
+getIndexRev arr i =
+    unsafeWithForeignPtrM (aStart arr) $ \p -> getIndexPtrRev p (aEnd arr) i
+
+data GetIndicesState fp end st = GetIndicesState fp end st
+
+-- | Given an unfold that generates array indices, read the elements on those
+-- indices from the supplied Array. An error is thrown if an index is out of
+-- bounds.
+--
+-- /Pre-release/
+{-# INLINE getIndices #-}
+getIndices :: (MonadIO m, Storable a) =>
+    Unfold m (Array a) Int -> Unfold m (Array a) a
+getIndices (Unfold stepi injecti) = Unfold step inject
+
+    where
+
+    inject arr@(Array fp@(ForeignPtr _ _) (Ptr end) _) = do
+        st <- injecti arr
+        return $ GetIndicesState fp (Ptr end) st
+
+    {-# INLINE_LATE step #-}
+    step (GetIndicesState fp@(ForeignPtr start _) end st) = do
+        r <- stepi st
+        case r of
+            D.Yield i s -> do
+                x <- liftIO $ getIndexPtr (Ptr start) end i
+                return $ D.Yield x (GetIndicesState fp end s)
+            D.Skip s -> return $ D.Skip (GetIndicesState fp end s)
+            D.Stop -> do
+                liftIO $ touchForeignPtr fp
+                return D.Stop
+
+-------------------------------------------------------------------------------
+-- Subarrays
+-------------------------------------------------------------------------------
+
+-- | /O(1)/ Slice an array in constant time.
+--
+-- Unsafe: The bounds of the slice are not checked.
+--
+-- /Unsafe/
+--
+-- /Pre-release/
+{-# INLINE getSliceUnsafe #-}
+getSliceUnsafe :: forall a. Storable a
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Array a
+    -> Array a
+getSliceUnsafe index len (Array fp e _) =
+    let size = sizeOf (undefined :: a)
+        fp1 = fp `plusForeignPtr` (index * size)
+        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
+     in assert (index >= 0 && len >= 0 && end <= e) (Array fp1 end end)
+
+-- | /O(1)/ Slice an array in constant time. Throws an error if the slice
+-- extends out of the array bounds.
+--
+-- /Pre-release/
+{-# INLINE getSlice #-}
+getSlice :: forall a. Storable a =>
+       Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Array a
+    -> Array a
+getSlice index len (Array fp e _) =
+    let size = sizeOf (undefined :: a)
+        fp1 = fp `plusForeignPtr` (index * size)
+        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
+     in if index >= 0 && len >= 0 && end <= e
+        then Array fp1 end end
+        else error
+                $ "getSlice: invalid slice, index "
+                ++ show index ++ " length " ++ show len
 
 -------------------------------------------------------------------------------
 -- Size
