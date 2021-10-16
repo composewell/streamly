@@ -1361,24 +1361,10 @@ spliceCopy arr1 arr2 = do
         touchForeignPtr (aStart arr2)
     return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
--- | Really really unsafe, appends the second array into the first array. If
--- the first array does not have enough space it may cause silent data
--- corruption or if you are lucky a segfault.
-{-# INLINE spliceUnsafe #-}
-spliceUnsafe :: MonadIO m => Array a -> (Array a, Int) -> m (Array a)
-spliceUnsafe dst (src, srcLen) =
-    liftIO $ do
-        unsafeWithForeignPtr (aStart dst) $ \_ ->
-            unsafeWithForeignPtr (aStart src) $ \psrc -> do
-                 let pdst = aEnd dst
-                 assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
-                 memcpy (castPtr pdst) (castPtr psrc) srcLen
-                 return $ dst {aEnd = pdst `plusPtr` srcLen}
-
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
--- reserved space available in the @dst@ it is reallocated to a size determined
--- by @sizer dstSize srcSize@ function, where @dstSize@ is the number of bytes
--- in the first array and @srcSize@ is the number of bytes in the second array.
+-- reserved space available in @dst@ it is reallocated to a size determined by
+-- the @sizer dstBytesn srcBytes@ function, where @dstBytes@ is the size of the
+-- first array and @srcBytes@ is the size of the second array, in bytes.
 --
 -- Note that the returned array may be a mutated version of first array.
 --
@@ -1386,24 +1372,9 @@ spliceUnsafe dst (src, srcLen) =
 {-# INLINE spliceWith #-}
 spliceWith :: forall m a. (MonadIO m, Storable a) =>
     (Int -> Int -> Int) -> Array a -> Array a -> m (Array a)
-spliceWith allocSize dst@(Array start end bound) src = do
-    assert (end <= bound) (return ())
-    let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
-
-    dst1 <-
-        if end `plusPtr` srcLen >= bound
-        then do
-            let oldStart = unsafeForeignPtrToPtr start
-                oldSize = end `minusPtr` oldStart
-                newSize = allocSize oldSize srcLen
-            when (newSize < oldSize + srcLen)
-                $ error
-                    $ "splice: newSize is less than the total size "
-                    ++ "of arrays being appended. Please check the "
-                    ++ "newSize function passed."
-            liftIO $ realloc newSize dst
-        else return dst
-    spliceUnsafe dst1 (src, srcLen)
+spliceWith sizer dst src =
+    let f = appendWith (`sizer` byteLength src) (return dst)
+     in D.fold f (toStreamD src)
 
 -- | The first array is mutated to append the second array. If there is no
 -- reserved space available in the first array a new allocation of exact
