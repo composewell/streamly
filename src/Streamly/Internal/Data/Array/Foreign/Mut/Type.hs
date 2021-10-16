@@ -17,46 +17,128 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- $arrayNotes
       Array (..)
 
-    -- * Construction
-    , fromForeignPtrUnsafe
-    , withNewArrayUnsafe
+    -- * Constructing and Writing
+    -- ** Construction
+    -- , nil
+
+    -- *** Uninitialized Arrays
     , newArray
     , newArrayAligned
     , newArrayAlignedUnmanaged
     , newArrayWith
 
-    -- * From containers
-    , fromList
+    -- *** Initialized Arrays
+    , withNewArrayUnsafe
+
+    -- *** From streams
+    , ArrayUnsafe (..)
+    , writeNWithUnsafe
+    , writeNWith
+    , writeNUnsafe
+    , writeN
+    , writeNAligned
+    , writeNAlignedUnmanaged
+
+    , writeWith
+    , write
+
+    -- , writeRevN
+    -- , writeRev
+
+    -- ** From containers
+    , fromForeignPtrUnsafe
     , fromListN
+    , fromList
     , fromStreamDN
     , fromStreamD
 
-    -- * Resizing
+    -- * Random writes
+    , putIndex
+    , putIndexUnsafe
+    , putIndices
+    -- , putFromThenTo
+    -- , putFrom -- start writing at the given position
+    -- , putUpto -- write from beginning up to the given position
+    -- , putFromTo
+    -- , putFromRev
+    -- , putUptoRev
+    , modifyIndexUnsafe
+    , modifyIndex
+    , modifyIndices
+    , modify
+    , swapIndices
+
+    -- * Growing and Shrinking
+    -- Arrays grow only at the end, though it is possible to grow on both sides
+    -- and therefore have a cons as well as snoc. But that will require two
+    -- bounds in the array representation.
+
+    -- ** Appending elements
+    , snocWith
+    , snoc
+    , snocLinear
+    , snocMay
+    , snocUnsafe
+
+    -- ** Appending streams
+    , appendNUnsafe
+    , appendN
+    , appendWith
+    , append
+
+    -- ** Truncation
+    -- These are not the same as slicing the array at the beginning, they may
+    -- reduce the length as well as the capacity of the array.
+    , truncateWith
+    , truncate
+    , truncateExp
+
+    -- * Eliminating and Reading
+
+    -- ** To streams
+    , ReadUState
+    , read
+    , readRev
+
+    -- ** To containers
+    , toStreamD
+    , toStreamDRev
+    , toStreamK
+    , toStreamKRev
+    , toList
+
+    -- experimental
+    , producer
+
+    -- ** Random reads
+    , getIndex
+    , getIndexUnsafe
+    , getIndices
+    -- , getFromThenTo
+    , getIndexRev
+
+    -- * Memory Management
+    , blockSize
+    , arrayChunkSize
     , realloc
+    , resize
+    , resizeExp
     , rightSize
 
     -- * Size
     , length
     , byteLength
+    -- , capacity
     , byteCapacity
     , bytesFree
 
-    -- * Random access
-    , getIndexUnsafe
-    , getIndex
-    , getIndexRev
-    , getIndices
-
-    -- * Mutation
-    , putIndexUnsafe
-    , putIndex
-    , modifyIndexUnsafe
-    , modifyIndex
-    , snocUnsafe
-    , snocWith
-    , snoc
-    , snocLinear
-    , snocMay
+    -- * In-place Mutation Algorithms
+    , reverse
+    , permute
+    , partitionBy
+    , shuffleBy
+    , divideBy
+    , mergeBy
 
     -- * Casting
     , cast
@@ -64,61 +146,45 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , asBytes
     , asPtrUnsafe
 
-    -- * Subarrays
-    , getSliceUnsafe
-    , getSlice
-
     -- * Folding
     , foldl'
     , foldr
     , cmp
 
-    -- * Composable Folds
-    -- XXX These should be Refolds
-    , appendNUnsafe
-    , appendN
-    , appendWith
-    , append
+    -- * Arrays of arrays
+    --  We can add dimensionality parameter to the array type to get
+    --  multidimensional arrays. Multidimensional arrays would just be a
+    --  convenience wrapper on top of single dimensional arrays.
 
-    , writeWith
-    , writeNWithUnsafe
-    , writeNWith
-    , writeN
-    , writeNUnsafe
-    , ArrayUnsafe (..)
-    , writeNAligned
-    , writeNAlignedUnmanaged
-    , write
+    -- | Operations dealing with multiple arrays, streams of arrays or
+    -- multidimensional array representations.
 
-    -- * Unfolds
-    , ReadUState
-    , read
-    , readRev
-    , producer
+    -- ** Construct from streams
+    , arraysOf
+    , arrayStreamKFromStreamD
+    , writeChunks
+
+    -- ** Eliminate to streams
     , flattenArrays
     , flattenArraysRev
+    , fromArrayStreamK
 
-    -- * To containers
-    , toStreamD
-    , toStreamDRev
-    , toStreamK
-    , toStreamKRev
-    , toList
+    -- ** Construct from arrays
+    -- get chunks without copying
+    , getSliceUnsafe
+    , getSlice
+    -- , getSlicesFromLenN
+    , splitAt -- XXX should be able to express using getSlice
+    , breakOn
 
-    -- * Combining
+    -- ** Appending arrays
+    , spliceCopy
     , spliceWith
     , splice
     , spliceExp
-    , spliceCopy
-
-    -- * Splitting
-    , breakOn
-    , splitAt
-
-    -- * Stream of arrays
-    , arraysOf
-    , writeChunks
-    , fromArrayStreamK
+    -- , putSlice
+    -- , appendSlice
+    -- , appendSliceFrom
 
     -- * Utilities
     , bytesToElemCount
@@ -135,7 +201,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits ((.&.))
-import Data.Functor.Identity (runIdentity)
+import Data.Functor.Identity (Identity(runIdentity))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -172,7 +238,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
-import Prelude hiding (length, foldr, read, unlines, splitAt)
+import Prelude hiding
+    (length, foldr, read, unlines, splitAt, reverse, truncate)
 
 #if MIN_VERSION_base(4,10,0)
 import Foreign.ForeignPtr (plusForeignPtr)
@@ -205,7 +272,8 @@ foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
 
 -- | Given a 'Storable' type (unused first arg) and a number of bytes, return
--- how many elements of that type are required to hold those bytes.
+-- how many elements of that type will fit in after rounding the bytes up to
+-- the element size.
 {-# INLINE bytesToElemCount #-}
 bytesToElemCount :: Storable a => a -> Int -> Int
 bytesToElemCount x n =
@@ -298,6 +366,10 @@ fromForeignPtrUnsafe fp end bound =
 -- XXX Change the names to use "new" instead of "newArray". That way we can use
 -- the same names for managed file system objects as well. For unmanaged ones
 -- we can use open/create etc as usual.
+--
+-- A new array is similar to "touch" creating a zero length file. An mmapped
+-- array would be similar to a sparse file with holes. TBD: support mmapped
+-- files and arrays.
 
 -- GHC always guarantees word-aligned memory, alignment is important only when
 -- we need more than that.  See stg_newAlignedPinnedByteArrayzh and
@@ -379,6 +451,14 @@ withNewArrayUnsafe count f = do
 -- Random writes
 -------------------------------------------------------------------------------
 
+-- | Write an input stream of (index, value) pairs to an array. Throws an
+-- error if any index is out of bounds.
+--
+-- /Unimplemented/
+{-# INLINE putIndices #-}
+putIndices :: Array a -> Fold m (Int, a) ()
+putIndices = undefined
+
 -- | Write the given element to the given index of the array. Does not check if
 -- the index is out of bounds of the array.
 --
@@ -411,6 +491,8 @@ putIndexPtr ptr end i x = do
 -- Performs in-place mutation of the array.
 --
 -- >>> putIndex arr ix val = Array.modifyIndex arr ix (const (val, ()))
+-- >>> f = Array.putIndices
+-- >>> putIndex arr ix val = Stream.fold (f arr) (Stream.fromPure (ix, val))
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
@@ -449,6 +531,27 @@ modifyIndex Array{..} i f = do
             poke elemPtr x
             return res
         else invalidIndex "modifyIndex" i
+
+-- | Modify the array indices generated by the supplied unfold.
+--
+-- /Pre-release/
+modifyIndices :: -- forall m a b. (MonadIO m, Storable a) =>
+    Unfold m (Array a) Int -> Array a -> (a -> a) -> m ()
+modifyIndices = undefined
+
+-- | Modify each element of an array using the supplied modifier function.
+--
+-- /Unimplemented/
+modify :: -- forall m a b. (MonadIO m, Storable a) =>
+    Array a -> (a -> a) -> m ()
+modify = undefined
+
+-- | Swap the elements at two indices.
+--
+-- /Pre-release/
+swapIndices :: -- (MonadIO m, Storable a) =>
+    Array a -> Int -> Int -> m ()
+swapIndices = undefined
 
 -------------------------------------------------------------------------------
 -- Rounding
@@ -496,6 +599,16 @@ arrayChunkSize = mkChunkSize 1024
 -------------------------------------------------------------------------------
 -- Snoc
 -------------------------------------------------------------------------------
+
+-- XXX We can possibly use a smallMutableByteArray to hold the start, end,
+-- bound pointers. Or we can use the first 16 bytes of the allocation to store
+-- the end, bound pointers. Using fully mutable handle will ensure that we do
+-- not have multiple references to the same array of different lengths lying
+-- around and potentially misused. In that case "snoc" need not return a new
+-- array (snoc :: Array a -> a -> m ()), it will just modify the old reference.
+-- The array length will be mutable.  This means the length function would also
+-- be monadic.  Mutable arrays would behave more like files that grow in that
+-- case.
 
 -- | Snoc using a 'Ptr'. Low level reusable function.
 --
@@ -653,7 +766,6 @@ reallocAligned elemSize alignSize newSize Array{..} = do
             , aBound = pNew `plusPtr` newSize
             }
 
--- XXX can unaligned allocation be more efficient when alignment is not needed?
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
 realloc i arr =
@@ -661,8 +773,30 @@ realloc i arr =
         $ reallocAligned
             (sizeOf (undefined :: a)) (alignment (undefined :: a)) i arr
 
--- | Drop any reserved free space at the end of the array and reallocate it to
--- reduce wastage.
+-- | Change the reserved memory of the array so that it is enough to hold the
+-- specified number of elements.  Nothing is done if the specified capacity is
+-- less than the length of the array.
+--
+-- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
+-- the block size (4K).
+--
+-- /Unimplemented/
+{-# INLINE resize #-}
+resize :: -- (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+resize = undefined
+
+-- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
+-- it is rounded up to the closest power of 2.
+--
+-- /Unimplemented/
+{-# INLINE resizeExp #-}
+resizeExp :: -- (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+resizeExp = undefined
+
+-- | Resize the allocated memory to drop any reserved free space at the end of
+-- the array and reallocate it to reduce wastage.
 --
 -- Up to 25% wastage is allowed to avoid reallocations.  If the capacity is
 -- more than 'largeObjectThreshold' then free space up to the 'blockSize' is
@@ -686,7 +820,39 @@ rightSize arr@Array{..} = do
     else return arr
 
 -------------------------------------------------------------------------------
+-- Reducing the length
+-------------------------------------------------------------------------------
+
+-- | Drop the last n elements of the array to reduce the length by n. The
+-- capacity is reallocated using the user supplied function.
 --
+-- /Unimplemented/
+{-# INLINE truncateWith #-}
+truncateWith :: -- (MonadIO m, Storable a) =>
+    Int -> (Int -> Int) -> Array a -> m (Array a)
+truncateWith = undefined
+
+-- | Drop the last n elements of the array to reduce the length by n.
+--
+-- The capacity is rounded to 1K or 4K if the length is more than the GHC large
+-- block threshold.
+--
+-- /Unimplemented/
+{-# INLINE truncate #-}
+truncate :: -- (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+truncate = undefined
+
+-- | Like 'truncate' but the capacity is rounded to the closest power of 2.
+--
+-- /Unimplemented/
+{-# INLINE truncateExp #-}
+truncateExp :: -- (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+truncateExp = undefined
+
+-------------------------------------------------------------------------------
+-- Random reads
 -------------------------------------------------------------------------------
 
 -- | Return the element at the specified index without checking the bounds.
@@ -772,6 +938,8 @@ getIndices (Unfold stepi injecti) = Unfold step inject
 -- Subarrays
 -------------------------------------------------------------------------------
 
+-- XXX We can also get immutable slices.
+
 -- | /O(1)/ Slice an array in constant time.
 --
 -- Unsafe: The bounds of the slice are not checked.
@@ -810,6 +978,77 @@ getSlice index len (Array fp e _) =
         else error
                 $ "getSlice: invalid slice, index "
                 ++ show index ++ " length " ++ show len
+
+-------------------------------------------------------------------------------
+-- In-place mutation algorithms
+-------------------------------------------------------------------------------
+
+-- XXX consider the bulk update/accumulation/permutation APIs from vector.
+
+-- | You may not need to reverse an array because you can consume it in reverse
+-- using 'readRev'. To reverse large arrays you can read in reverse and write
+-- to another array. However, in-place reverse can be useful to take adavantage
+-- of cache locality and when you do not want to allocate additional memory.
+--
+-- /Unimplemented/
+{-# INLINE reverse #-}
+reverse :: Array a -> m Bool
+reverse = undefined
+
+-- | Generate the next permutation of the sequence, returns False if this is
+-- the last permutation.
+--
+-- /Unimplemented/
+{-# INLINE permute #-}
+permute :: Array a -> m Bool
+permute = undefined
+
+-- | Partition an array into two halves using a partitioning predicate. The
+-- first half retains values where the predicate is 'False' and the second half
+-- retains values where the predicate is 'True'.
+--
+-- /Unimplemented/
+{-# INLINE partitionBy #-}
+partitionBy :: (a -> Bool) -> Array a -> m (Array a, Array a)
+partitionBy = undefined
+
+-- | Shuffle corresponding elements from two arrays using a shuffle function.
+-- If the shuffle function returns 'False' then do nothing otherwise swap the
+-- elements. This can be used in a bottom up fold to shuffle or reorder the
+-- elements.
+--
+-- /Unimplemented/
+{-# INLINE shuffleBy #-}
+shuffleBy :: (a -> a -> m Bool) -> Array a -> Array a -> m (Array a)
+shuffleBy = undefined
+
+-- XXX we can also make the folds partial by stopping at a certain level.
+--
+-- | @divideBy level partition array@  performs a top down hierarchical
+-- recursive partitioning fold of items in the container using the given
+-- function as the partition function.  Level indicates the level in the tree
+-- where the fold would stop.
+--
+-- This performs a quick sort if the partition function is
+-- 'partitionBy (< pivot)'.
+--
+-- /Unimplemented/
+{-# INLINABLE divideBy #-}
+divideBy ::
+    Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+divideBy = undefined
+
+-- | @mergeBy level merge array@ performs a pairwise bottom up fold recursively
+-- merging the pairs using the supplied merge function. Level indicates the
+-- level in the tree where the fold would stop.
+--
+-- This performs a random shuffle if the shuffle function is random.  If we
+-- stop at level 0 and repeatedly apply the function then we can do a bubble
+-- sort.
+--
+-- /Unimplemented/
+mergeBy :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+mergeBy = undefined
 
 -------------------------------------------------------------------------------
 -- Size
