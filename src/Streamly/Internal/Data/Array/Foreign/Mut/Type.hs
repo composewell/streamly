@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , length
     , byteLength
     , byteCapacity
+    , bytesFree
 
     -- * Random access
     , getIndexUnsafe
@@ -55,6 +56,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , snocWith
     , snoc
     , snocLinear
+    , snocMay
 
     -- * Casting
     , cast
@@ -517,6 +519,19 @@ snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
 snocUnsafe arr@Array{..} =
     snocNewEnd (aEnd `plusPtr` sizeOf (undefined :: a)) arr
 
+-- | Like 'snoc' but does not reallocate when pre-allocated array capacity
+-- becomes full.
+--
+-- /Internal/
+{-# INLINE snocMay #-}
+snocMay :: forall m a. (MonadIO m, Storable a) =>
+    Array a -> a -> m (Maybe (Array a))
+snocMay arr@Array{..} x = liftIO $ do
+    let newEnd = aEnd `plusPtr` sizeOf (undefined :: a)
+    if newEnd <= aBound
+    then Just <$> snocNewEnd newEnd arr x
+    else return Nothing
+
 reallocWith :: forall m a. (MonadIO m , Storable a) =>
        String
     -> (Int -> Int)
@@ -838,6 +853,16 @@ byteCapacity Array{..} =
     let p = unsafeForeignPtrToPtr aStart
         len = aBound `minusPtr` p
     in assert (len >= 0) len
+
+-- | The remaining capacity in the array for appending more elements without
+-- reallocation.
+--
+-- /Pre-release/
+{-# INLINE bytesFree #-}
+bytesFree :: Array a -> Int
+bytesFree Array{..} =
+    let n = aBound `minusPtr` aEnd
+    in assert (n >= 0) n
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Creation
