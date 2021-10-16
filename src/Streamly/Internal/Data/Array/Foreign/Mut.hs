@@ -67,7 +67,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     -- * Combining
     , splice
     , spliceExp
-    , spliceTwo
+    , spliceCopy
 
     -- * Splitting
     , breakOn
