@@ -209,7 +209,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Folds
     , fromPure
     , fromEffect
-    , fromConsumer
+    , fromRefold
     , drain
     , toList
     , toStreamK
@@ -250,9 +250,9 @@ module Streamly.Internal.Data.Fold.Type
     , many
     , manyPost
     , chunksOf
-    , consumeMany
-    , consumeMany1
-    , appendConsumer
+    , refoldMany
+    , refoldMany1
+    , refold
 
     -- ** Nesting
     , concatMap
@@ -272,7 +272,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Consumer.Type (Consumer(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -505,7 +505,7 @@ mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
 mkFoldM_ step initial = mkFoldM step initial return
 
 ------------------------------------------------------------------------------
--- Consumer
+-- Refold
 ------------------------------------------------------------------------------
 
 -- This is similar to how we run an Unfold to generate a Stream. A Fold is like
@@ -514,8 +514,8 @@ mkFoldM_ step initial = mkFoldM step initial return
 -- | Make a fold from a consumer.
 --
 -- /Internal/
-fromConsumer :: Consumer m c a b -> c -> Fold m a b
-fromConsumer (Consumer step inject extract) c =
+fromRefold :: Refold m c a b -> c -> Fold m a b
+fromRefold (Refold step inject extract) c =
     Fold step (inject c) extract
 
 ------------------------------------------------------------------------------
@@ -1305,15 +1305,15 @@ chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 chunksOf n split = many (take n split)
 
 ------------------------------------------------------------------------------
--- Consumer and Fold Combinators
+-- Refold and Fold Combinators
 ------------------------------------------------------------------------------
 
--- | Like 'many' but uses a 'Consumer' for collecting.
+-- | Like 'many' but uses a 'Refold' for collecting.
 --
-{-# INLINE consumeMany #-}
-consumeMany :: Monad m => Fold m a b -> Consumer m x b c -> Consumer m x a c
-consumeMany (Fold sstep sinitial sextract) (Consumer cstep cinject cextract) =
-    Consumer step inject extract
+{-# INLINE refoldMany #-}
+refoldMany :: Monad m => Fold m a b -> Refold m x b c -> Refold m x a c
+refoldMany (Fold sstep sinitial sextract) (Refold cstep cinject cextract) =
+    Refold step inject extract
 
     where
 
@@ -1359,13 +1359,13 @@ consumeMany (Fold sstep sinitial sextract) (Consumer cstep cinject cextract) =
 {-# ANN type ConsumeManyState Fuse #-}
 data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
 
--- | Like 'many' but uses a 'Consumer' for splitting.
+-- | Like 'many' but uses a 'Refold' for splitting.
 --
 -- /Internal/
-{-# INLINE consumeMany1 #-}
-consumeMany1 :: Monad m => Consumer m x a b -> Fold m b c -> Consumer m x a c
-consumeMany1 (Consumer sstep sinject sextract) (Fold cstep cinitial cextract) =
-    Consumer step inject extract
+{-# INLINE refoldMany1 #-}
+refoldMany1 :: Monad m => Refold m x a b -> Fold m b c -> Refold m x a c
+refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
+    Refold step inject extract
 
     where
 
@@ -1408,10 +1408,9 @@ consumeMany1 (Consumer sstep sinject sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- | Extend a fold by appending a Consumer.
+-- | Extract the output of a fold and refold is using a 'Refold'.
 --
 -- /Internal/
-{-# INLINE appendConsumer #-}
-appendConsumer :: Monad m => Fold m a b -> Consumer m b a b -> Fold m a b
-appendConsumer f (Consumer step inject extract) =
-    Fold step (finish f >>= inject) extract
+{-# INLINE refold #-}
+refold :: Monad m => Fold m a b -> Refold m b a b -> Fold m a b
+refold f (Refold step inject extract) = Fold step (finish f >>= inject) extract

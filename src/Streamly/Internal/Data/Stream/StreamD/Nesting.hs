@@ -112,9 +112,9 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- ** Folding
     -- | Apply folds on a stream.
     , foldMany
-    , consumeMany
+    , refoldMany
     , foldIterateM
-    , consumeIterateM
+    , refoldIterateM
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
@@ -159,7 +159,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
-import Streamly.Internal.Data.Consumer.Type (Consumer(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
@@ -1032,14 +1032,14 @@ data CIterState s f fs b
     | CIterYield b (CIterState s f fs b)
     | CIterStop
 
--- | Like 'foldIterateM' but using the 'Consumer' type instead. This could be
+-- | Like 'foldIterateM' but using the 'Refold' type instead. This could be
 -- much more efficient due to stream fusion.
 --
 -- /Internal/
-{-# INLINE_NORMAL consumeIterateM #-}
-consumeIterateM ::
-       Monad m => Consumer m b a b -> m b -> Stream m a -> Stream m b
-consumeIterateM (Consumer fstep finject fextract) initial (Stream step state) =
+{-# INLINE_NORMAL refoldIterateM #-}
+refoldIterateM ::
+       Monad m => Refold m b a b -> m b -> Stream m a -> Stream m b
+refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
     Stream stepOuter (CIterInit state initial)
 
     where

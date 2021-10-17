@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Consumer.Type
+-- Module      : Streamly.Internal.Data.Refold.Type
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,29 +7,29 @@
 -- Portability : GHC
 --
 -- The 'Fold' type embeds a default initial value, therefore, it is like a
--- 'Monoid' whereas the 'Consumer' type has to be supplied with an initial
+-- 'Monoid' whereas the 'Refold' type has to be supplied with an initial
 -- value, therefore, it is more like a 'Semigroup' operation.
 --
--- Consumers can be appended to each other or to a fold to build the fold
+-- Refolds can be appended to each other or to a fold to build the fold
 -- incrementally. This is useful in incremental builder like use cases.
 --
 -- See the file splitting example in the @streamly-examples@ repository for an
--- application of the 'Consumer' type. The 'Fold' type does not perform as well
+-- application of the 'Refold' type. The 'Fold' type does not perform as well
 -- in this situation.
 --
--- 'Consumer' type is to 'Fold' as 'Unfold' type is to 'Stream'. Like 'Unfold'
--- provides better optimizaiton than stream in nested operations similarly
--- 'Consumer' provides better optimization than 'Fold'.
+-- 'Refold' type is to 'Fold' as 'Unfold' type is to 'Stream'. 'Unfold'
+-- provides better optimizaiton than stream in nested operations, similarly,
+-- 'Refold' provides better optimization than 'Fold'.
 --
-module Streamly.Internal.Data.Consumer.Type
+module Streamly.Internal.Data.Refold.Type
     (
     -- * Types
-      Consumer (..)
+      Refold (..)
 
     -- * Constructors
     , foldl'
 
-    -- * Consumers
+    -- * Refolds
     -- ** Accumulators
     , sconcat
     , drainBy
@@ -54,11 +54,11 @@ import Prelude hiding (take, iterate)
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.Consumer.Type as Consumer
+-- >>> import qualified Streamly.Internal.Data.Refold.Type as Refold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 
--- All folds in the Fold module should be implemented using Consumers.
+-- All folds in the Fold module should be implemented using Refolds.
 --
 -- | Like 'Fold' except that the initial state of the accmulator can be
 -- generated using a dynamically supplied input. This affords better stream
@@ -66,9 +66,9 @@ import Prelude hiding (take, iterate)
 -- is determined based on a dynamic value.
 --
 -- /Internal/
-data Consumer m c a b =
+data Refold m c a b =
   -- | @Fold @ @ step @ @ inject @ @ extract@
-  forall s. Consumer (s -> a -> m (Step s b)) (c -> m (Step s b)) (s -> m b)
+  forall s. Refold (s -> a -> m (Step s b)) (c -> m (Step s b)) (s -> m b)
 
 ------------------------------------------------------------------------------
 -- Left fold constructors
@@ -84,9 +84,9 @@ data Consumer m c a b =
 -- /Internal/
 --
 {-# INLINE foldl' #-}
-foldl' :: Monad m => (b -> a -> b) -> Consumer m b a b
+foldl' :: Monad m => (b -> a -> b) -> Refold m b a b
 foldl' step =
-    Consumer
+    Refold
         (\s a -> return $ Partial $ step s a)
         (return . Partial)
         return
@@ -99,8 +99,8 @@ foldl' step =
 --
 -- /Internal/
 {-# INLINE lmapM #-}
-lmapM :: Monad m => (a -> m b) -> Consumer m c b r -> Consumer m c a r
-lmapM f (Consumer step inject extract) = Consumer step1 inject extract
+lmapM :: Monad m => (a -> m b) -> Refold m c b r -> Refold m c a r
+lmapM f (Refold step inject extract) = Refold step1 inject extract
 
     where
 
@@ -114,8 +114,8 @@ lmapM f (Consumer step inject extract) = Consumer step1 inject extract
 --
 -- /Internal/
 {-# INLINE rmapM #-}
-rmapM :: Monad m => (b -> m c) -> Consumer m x a b -> Consumer m x a c
-rmapM f (Consumer step inject extract) = Consumer step1 inject1 (extract >=> f)
+rmapM :: Monad m => (b -> m c) -> Refold m x a b -> Refold m x a c
+rmapM f (Refold step inject extract) = Refold step1 inject1 (extract >=> f)
 
     where
 
@@ -123,15 +123,15 @@ rmapM f (Consumer step inject extract) = Consumer step1 inject1 (extract >=> f)
     step1 s a = step s a >>= mapMStep f
 
 ------------------------------------------------------------------------------
--- Consumers
+-- Refolds
 ------------------------------------------------------------------------------
 
 -- |
 --
 -- /Internal/
 {-# INLINE drainBy #-}
-drainBy ::  Monad m => (c -> a -> m b) -> Consumer m c a ()
-drainBy f = Consumer step inject extract
+drainBy ::  Monad m => (c -> a -> m b) -> Refold m c a ()
+drainBy f = Refold step inject extract
 
     where
 
@@ -148,14 +148,14 @@ drainBy f = Consumer step inject extract
 -- | Append the elements of an input stream to a provided starting value.
 --
 -- >>> stream = Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
--- >>> Stream.fold (Fold.fromConsumer Consumer.sconcat 10) stream
+-- >>> Stream.fold (Fold.fromRefold Refold.sconcat 10) stream
 -- Sum {getSum = 65}
 --
--- >>> sconcat = Consumer.foldl' (<>)
+-- >>> sconcat = Refold.foldl' (<>)
 --
 -- /Internal/
 {-# INLINE sconcat #-}
-sconcat :: (Monad m, Semigroup a) => Consumer m a a a
+sconcat :: (Monad m, Semigroup a) => Refold m a a a
 sconcat = foldl' (<>)
 
 ------------------------------------------------------------------------------
@@ -166,9 +166,9 @@ sconcat = foldl' (<>)
 --
 -- /Internal/
 {-# INLINE append #-}
-append :: Monad m => Consumer m x a b -> Consumer m b a b -> Consumer m x a b
-append (Consumer step1 inject1 extract1) (Consumer step2 inject2 extract2) =
-    Consumer step inject extract
+append :: Monad m => Refold m x a b -> Refold m b a b -> Refold m x a b
+append (Refold step1 inject1 extract1) (Refold step2 inject2 extract2) =
+    Refold step inject extract
 
     where
 
@@ -198,9 +198,9 @@ append (Consumer step1 inject1 extract1) (Consumer step2 inject2 extract2) =
 -- the output of the previous run to the next.
 --
 -- /Internal/
-iterate :: Monad m => Consumer m b a b -> Consumer m b a b
-iterate (Consumer step1 inject1 extract1) =
-    Consumer step inject extract1
+iterate :: Monad m => Refold m b a b -> Refold m b a b
+iterate (Refold step1 inject1 extract1) =
+    Refold step inject extract1
 
     where
 
@@ -226,8 +226,8 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 --
 -- /Internal/
 {-# INLINE take #-}
-take :: Monad m => Int -> Consumer m x a b -> Consumer m x a b
-take n (Consumer fstep finject fextract) = Consumer step inject extract
+take :: Monad m => Int -> Refold m x a b -> Refold m x a b
+take n (Refold fstep finject fextract) = Refold step inject extract
 
     where
 

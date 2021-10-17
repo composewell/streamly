@@ -29,10 +29,10 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     -- | Apply folds on a stream.
     , foldMany
     , foldManyPost
-    , consumeMany
+    , refoldMany
     , foldSequence
     , foldIterateM
-    , consumeIterateM
+    , refoldIterateM
 
     -- ** Chunking
     -- | Element unaware grouping.
@@ -155,7 +155,7 @@ import Data.Maybe (isNothing)
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Consumer.Type (Consumer (..))
+import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
@@ -295,13 +295,13 @@ foldMany
     -> t m b
 foldMany f m = fromStreamD $ D.foldMany f (toStreamD m)
 
--- | Like 'foldMany' but using the 'Consumer' type instead of 'Fold'.
+-- | Like 'foldMany' but using the 'Refold' type instead of 'Fold'.
 --
 -- /Pre-release/
-{-# INLINE consumeMany #-}
-consumeMany :: (IsStream t, Monad m) =>
-    Consumer m c a b -> m c -> t m a -> t m b
-consumeMany f action = fromStreamD . D.consumeMany f action . toStreamD
+{-# INLINE refoldMany #-}
+refoldMany :: (IsStream t, Monad m) =>
+    Refold m c a b -> m c -> t m a -> t m b
+refoldMany f action = fromStreamD . D.refoldMany f action . toStreamD
 
 -- | Apply a stream of folds to an input stream and emit the results in the
 -- output stream.
@@ -339,14 +339,14 @@ foldIterateM ::
        (IsStream t, Monad m) => (b -> m (Fold m a b)) -> m b -> t m a -> t m b
 foldIterateM f i m = fromStreamD $ D.foldIterateM f i (toStreamD m)
 
--- | Like 'foldIterateM' but using the 'Consumer' type instead. This could be
+-- | Like 'foldIterateM' but using the 'Refold' type instead. This could be
 -- much more efficient due to stream fusion.
 --
 -- /Internal/
-{-# INLINE consumeIterateM #-}
-consumeIterateM :: (IsStream t, Monad m) =>
-    Consumer m b a b -> m b -> t m a -> t m b
-consumeIterateM c i m = fromStreamD $ D.consumeIterateM c i (toStreamD m)
+{-# INLINE refoldIterateM #-}
+refoldIterateM :: (IsStream t, Monad m) =>
+    Refold m b a b -> m b -> t m a -> t m b
+refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Parsing

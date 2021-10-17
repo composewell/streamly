@@ -111,7 +111,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Consumer.Type (Consumer(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
@@ -125,7 +125,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Consumer.Type as Consumer
+import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -457,12 +457,12 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
 
--- | Like writeChunks but uses the experimental 'Consumer' API.
+-- | Like writeChunks but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE consumeChunks #-}
-consumeChunks :: (MonadIO m, Storable a) => Consumer m Handle (Array a) ()
-consumeChunks = Consumer.drainBy putChunk
+consumeChunks :: (MonadIO m, Storable a) => Refold m Handle (Array a) ()
+consumeChunks = Refold.drainBy putChunk
 
 -- XXX lpackArraysChunksOf should be written idiomatically
 --
@@ -499,13 +499,13 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
--- | Like 'writeWithBufferOf'  but uses the experimental 'Consumer' API.
+-- | Like 'writeWithBufferOf'  but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE consumerWithBufferOf #-}
-consumerWithBufferOf :: MonadIO m => Int -> Consumer m Handle Word8 ()
+consumerWithBufferOf :: MonadIO m => Int -> Refold m Handle Word8 ()
 consumerWithBufferOf n =
-    FL.consumeMany (FL.take n $ writeNUnsafe n) consumeChunks
+    FL.refoldMany (FL.take n $ writeNUnsafe n) consumeChunks
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing
@@ -518,11 +518,11 @@ consumerWithBufferOf n =
 write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
--- | Like 'write'  but uses the experimental 'Consumer' API.
+-- | Like 'write'  but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE consumer #-}
-consumer :: MonadIO m => Consumer m Handle Word8 ()
+consumer :: MonadIO m => Refold m Handle Word8 ()
 consumer = consumerWithBufferOf defaultChunkSize
 
 {-

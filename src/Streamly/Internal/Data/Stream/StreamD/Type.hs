@@ -84,7 +84,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , FoldManyPost (..)
     , foldMany
     , foldManyPost
-    , consumeMany
+    , refoldMany
     , chunksOf
     )
 where
@@ -100,7 +100,7 @@ import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Consumer.Type (Consumer(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -949,12 +949,12 @@ chunksOf n f = foldMany (FL.take n f)
 
 -- Keep the argument order consistent with consumeIterateM
 --
--- | Like 'foldMany' but for the 'Consumer' type.
+-- | Like 'foldMany' but for the 'Refold' type.
 --
 -- /Internal/
-{-# INLINE_NORMAL consumeMany #-}
-consumeMany :: Monad m => Consumer m x a b -> m x -> Stream m a -> Stream m b
-consumeMany (Consumer fstep inject extract) action (Stream step state) =
+{-# INLINE_NORMAL refoldMany #-}
+refoldMany :: Monad m => Refold m x a b -> m x -> Stream m a -> Stream m b
+refoldMany (Refold fstep inject extract) action (Stream step state) =
     Stream step' (FoldManyStart state)
 
     where
