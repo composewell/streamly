@@ -40,13 +40,14 @@ import Streamly.Internal.Data.Stream.IsStream.Type (SerialT)
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Control.Monad.IO.Class (MonadIO(..))
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
 --
 -- /Pre-release/
 {-# INLINE splitOn #-}
-splitOn :: (Monad m, Storable a) =>
+splitOn :: (MonadIO m, Storable a) =>
     (a -> Bool) -> Array a -> SerialT m (Array a)
 splitOn predicate arr =
     IsStream.fromStreamD
