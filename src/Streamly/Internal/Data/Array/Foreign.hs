@@ -1,5 +1,3 @@
-{-# LANGUAGE UnboxedTuples #-}
-
 #include "inline.hs"
 
 -- |
@@ -132,13 +130,12 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
-import GHC.Prim (touch#)
-import GHC.IO (IO(..))
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (arrayToFptrContents)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
+    (ReadUState(..), arrayToFptrContents, touch, fptrToArrayContents)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Producer.Type (Producer)
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -148,10 +145,11 @@ import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Mut as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Ring.Foreign as RB
 
 -------------------------------------------------------------------------------
@@ -187,6 +185,32 @@ fromStream (SerialT m) = P.fold A.write m
 -- Elimination
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL producer #-}
+producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer = Producer step inject extract
+    where
+
+    {-# INLINE inject #-}
+    inject (Array contents start end) = return $ ReadUState contents end start
+
+    {-# INLINE_LATE step #-}
+    step (ReadUState contents end cur)
+        | assert (cur <= end) (cur == end) =
+            let x = unsafeInlineIO $ touch contents
+            in x `seq` return D.Stop
+    step (ReadUState contents end cur) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = unsafeInlineIO $ peek cur
+                cur1 = cur `plusPtr` sizeOf (undefined :: a)
+            return $ D.Yield x (ReadUState contents end cur1)
+
+    extract (ReadUState contents end cur) = return $ Array contents cur end
+
 -- | Unfold an array into a stream.
 --
 -- /Since 0.7.0 (Streamly.Memory.Array)/
@@ -194,11 +218,7 @@ fromStream (SerialT m) = P.fold A.write m
 -- @since 0.8.0
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-read = Unfold.lmap A.unsafeThaw MA.read
-
-{-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
-producer = Producer.translate A.unsafeThaw A.unsafeFreeze MA.producer
+read = Producer.simplify producer
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
@@ -229,12 +249,10 @@ unsafeRead = Unfold step inject
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ do
                         r <- peek (Ptr p)
-                        touch contents
+                        touch (fptrToArrayContents contents)
                         return r
             let !(Ptr p1) = Ptr p `plusPtr` sizeOf (undefined :: a)
             return $ D.Yield x (ForeignPtr p1 contents)
-
-    touch r = IO $ \s -> case touch# r s of s' -> (# s', () #)
 
 -- |
 --
@@ -379,7 +397,9 @@ getSliceUnsafe index len (Array contents start e) =
 splitOn :: (Monad m, Storable a) =>
     (a -> Bool) -> Array a -> SerialT m (Array a)
 splitOn predicate arr =
-    fmap A.unsafeFreeze $ MA.splitOn predicate (A.unsafeThaw arr)
+    IsStream.fromStreamD
+        $ fmap (\(i, len) -> getSliceUnsafe i len arr)
+        $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
 {-# INLINE genSlicesFromLen #-}
 genSlicesFromLen :: forall m a. (Monad m, Storable a)

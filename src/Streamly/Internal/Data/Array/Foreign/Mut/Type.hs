@@ -103,7 +103,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Eliminating and Reading
 
     -- ** To streams
-    , ReadUState
+    , ReadUState(..)
     , read
     , readRev
 
@@ -212,7 +212,6 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits ((.&.))
-import Data.Functor.Identity (Identity(runIdentity))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -225,7 +224,7 @@ import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base
-    ( build, touch#, IO(..), byteArrayContents#
+    ( touch#, IO(..), byteArrayContents#
     , Int(..), newAlignedPinnedByteArray#
     )
 #ifndef USE_FOREIGN_PTR
@@ -248,8 +247,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.System.IO
-    (defaultChunkSize, arrayPayloadSize, unsafeInlineIO)
+import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 import System.IO.Unsafe (unsafePerformIO)
 
 #ifdef DEVBUILD
@@ -1371,24 +1369,18 @@ toReadUState (Array contents start end _) = ReadUState contents end start
 -- | Resumable unfold of an array.
 --
 {-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer :: forall m a. (MonadIO m, Storable a) => Producer m (Array a) a
 producer = Producer step (return . toReadUState) extract
     where
 
     {-# INLINE_LATE step #-}
     step (ReadUState contents end cur)
-        | assert (cur <= end) (cur == end) =
-            let x = unsafeInlineIO $ touch contents
-            in x `seq` return D.Stop
+        | assert (cur <= end) (cur == end) = do
+            liftIO $ touch contents
+            return D.Stop
     step (ReadUState contents end cur) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek cur
-                cur1 = cur `plusPtr` sizeOf (undefined :: a)
+            !x <- liftIO $ peek cur
+            let cur1 = cur `plusPtr` sizeOf (undefined :: a)
             return $ D.Yield x (ReadUState contents end cur1)
 
     extract (ReadUState contents end cur) = return $ Array contents cur end end
@@ -1397,14 +1389,14 @@ producer = Producer step (return . toReadUState) extract
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL read #-}
-read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+read :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
 read = Producer.simplify producer
 
 -- | Unfold an array into a stream in reverse order.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
 readRev = Unfold step inject
     where
 
@@ -1413,17 +1405,11 @@ readRev = Unfold step inject
          in return $ ReadUState contents start p
 
     {-# INLINE_LATE step #-}
-    step (ReadUState contents start p) | p < start =
-        let x = unsafeInlineIO $ touch contents
-        in x `seq` return D.Stop
+    step (ReadUState contents start p) | p < start = do
+        liftIO $ touch contents
+        return D.Stop
     step (ReadUState contents start p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
+            x <- liftIO $ peek p
             let cur = p `plusPtr` negate (sizeOf (undefined :: a))
             return $ D.Yield x (ReadUState contents start cur)
 
@@ -1431,6 +1417,7 @@ readRev = Unfold step inject
 -- to Lists and streams
 -------------------------------------------------------------------------------
 
+{-
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
 {-# INLINE_LATE toListFB #-}
@@ -1452,14 +1439,23 @@ toListFB c n Array{..} = go arrStart
                     touch arrContents
                     return r
         in c x (go (p `plusPtr` sizeOf (undefined :: a)))
+-}
 
--- XXX Should be monadic
+-- XXX Monadic foldr/build fusion?
+-- Reference: https://www.researchgate.net/publication/220676509_Monadic_augment_and_generalised_short_cut_fusion
 -- | Convert an 'Array' into a list.
 --
 -- @since 0.7.0
 {-# INLINE toList #-}
-toList :: Storable a => Array a -> [a]
-toList s = build (\c n -> toListFB c n s)
+toList :: forall m a. (MonadIO m, Storable a) => Array a -> m [a]
+toList Array{..} = liftIO $ go arrStart
+    where
+
+    go p | assert (p <= aEnd) (p == aEnd) = return []
+    go p = do
+        x <- peek p
+        touch arrContents
+        (:) x <$> go (p `plusPtr` sizeOf (undefined :: a))
 
 -- | Use the 'read' unfold instead.
 --
@@ -1467,48 +1463,31 @@ toList s = build (\c n -> toListFB c n s)
 --
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
-toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
-toStreamD Array{..} =
-    let p = arrStart
-    in D.Stream step p
+toStreamD :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
+toStreamD Array{..} = D.Stream step arrStart
 
     where
 
     {-# INLINE_LATE step #-}
     step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
-    step _ p = do
-        -- unsafeInlineIO allows us to run this in Identity monad for pure
-        -- toList/foldr case which makes them much faster due to not
-        -- accumulating the list and fusing better with the pure consumers.
-        --
-        -- This should be safe as the array contents are guaranteed to be
-        -- evaluated/written to before we peek at them.
-        --
-        -- XXX This may not be safe for mutable arrays.
-        --
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        return $ D.Yield x (p `plusPtr` sizeOf (undefined :: a))
+    step _ p = liftIO $ do
+        r <- peek p
+        touch arrContents
+        return $ D.Yield r (p `plusPtr` sizeOf (undefined :: a))
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
-toStreamK Array{..} =
-    let p = arrStart
-    in go p
+toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
+toStreamK Array{..} = go arrStart
 
     where
 
     go p | assert (p <= aEnd) (p == aEnd) = K.nil
          | otherwise =
-        -- See Note in toStreamD.
-        -- XXX May not be safe for mutable arrays.
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        in x `K.cons` go (p `plusPtr` sizeOf (undefined :: a))
+        let elemM = do
+              r <- peek p
+              touch arrContents
+              return r
+        in liftIO elemM `K.consM` go (p `plusPtr` sizeOf (undefined :: a))
 
 -- | Use the 'readRev' unfold instead.
 --
@@ -1516,7 +1495,7 @@ toStreamK Array{..} =
 --
 -- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
+toStreamDRev :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
 toStreamDRev Array{..} =
     let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
     in D.Stream step p
@@ -1525,17 +1504,13 @@ toStreamDRev Array{..} =
 
     {-# INLINE_LATE step #-}
     step _ p | p < arrStart = return D.Stop
-    step _ p = do
-        -- See comments in toStreamD for why we use unsafeInlineIO
-        -- XXX
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
+    step _ p = liftIO $ do
+        r <- peek p
+        touch arrContents
+        return $ D.Yield r (p `plusPtr` negate (sizeOf (undefined :: a)))
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. Storable a => Array a -> K.Stream m a
+toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
 toStreamKRev Array {..} =
     let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
     in go p
@@ -1544,12 +1519,11 @@ toStreamKRev Array {..} =
 
     go p | p < arrStart = K.nil
          | otherwise =
-         -- XXX
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        in x `K.cons` go (p `plusPtr` negate (sizeOf (undefined :: a)))
+        let elemM = do
+              r <- peek p
+              touch arrContents
+              return r
+        in liftIO elemM `K.consM` go (p `plusPtr` negate (sizeOf (undefined :: a)))
 
 -------------------------------------------------------------------------------
 -- Folding
@@ -1560,15 +1534,13 @@ toStreamKRev Array {..} =
 --
 -- | Strict left fold of an array.
 {-# INLINE_NORMAL foldl' #-}
-foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
--- XXX Should be monadic
-foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
+foldl' :: (MonadIO m, Storable a) => (b -> a -> b) -> b -> Array a -> m b
+foldl' f z arr = D.foldl' f z $ toStreamD arr
 
 -- | Right fold of an array.
 {-# INLINE_NORMAL foldr #-}
--- XXX Should be monadic
-foldr :: Storable a => (a -> b -> b) -> b -> Array a -> b
-foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
+foldr :: (MonadIO m, Storable a) => (a -> b -> b) -> b -> Array a -> m b
+foldr f z arr = D.foldr f z $ toStreamD arr
 
 -------------------------------------------------------------------------------
 -- Folds
