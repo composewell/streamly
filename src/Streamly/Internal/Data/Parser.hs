@@ -66,6 +66,7 @@ module Streamly.Internal.Data.Parser
     , peek
     , eof
     , satisfy
+    , next
     , maybe
     , either
 
@@ -341,6 +342,15 @@ eof = K.toParserK D.eof
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = K.toParserK . D.satisfy
+
+-- | Return the next element of the input. Returns 'Nothing'
+-- on end of input. Also known as 'head'.
+--
+-- /Pre-release/
+--
+{-# INLINE next #-}
+next :: MonadCatch m => Parser m a (Maybe a)
+next = K.toParserK D.next
 
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
