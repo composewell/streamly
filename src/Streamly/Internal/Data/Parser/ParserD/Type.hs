@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 #include "inline.hs"
 
 -- |
@@ -139,6 +140,9 @@ where
 import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..), (>=>))
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader.Class (MonadReader, ask, local)
+import Control.Monad.State.Class (MonadState, get, put)
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -1121,3 +1125,25 @@ instance MonadCatch m => MonadPlus (Parser m a) where
 
     {-# INLINE mplus #-}
     mplus = alt
+
+instance (MonadThrow m, MonadReader r m, MonadCatch m) => MonadReader r (Parser m a) where
+    {-# INLINE ask #-}
+    ask = fromEffect ask
+    {-# INLINE local #-}
+    local f (Parser step init' extract) =
+      Parser ((local f .) . step)
+             (local f init')
+             (local f . extract)
+
+
+instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
+    {-# INLINE get #-}
+    get = fromEffect get
+    {-# INLINE put #-}
+    put = fromEffect . put
+
+
+instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
+    {-# INLINE liftIO #-}
+    liftIO = fromEffect . liftIO
+
