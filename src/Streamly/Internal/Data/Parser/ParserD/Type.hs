@@ -315,7 +315,8 @@ mapMStep f res =
 -- results into a new state and a command to the driver represented by 'Step'
 -- type. The driver keeps invoking the step function until it stops or fails.
 -- At any point of time the driver can call @extract@ to inspect the result of
--- the fold. It may result in an error or an output value.
+-- the fold. If the parser hits the end of input 'extract' is called.
+-- It may result in an error or an output value.
 --
 -- /Pre-release/
 --
