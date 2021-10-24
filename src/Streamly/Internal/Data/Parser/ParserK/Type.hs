@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 #include "inline.hs"
 
 -- |
@@ -35,6 +36,9 @@ import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..), ap)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..), try)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader.Class (MonadReader, ask, local)
+import Control.Monad.State.Class (MonadState, get, put)
 #if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
 #endif
@@ -410,6 +414,25 @@ instance Monad m => Fail.MonadFail (Parser m a) where
     {-# INLINE fail #-}
     fail = die
 #endif
+
+instance (MonadThrow m, MonadReader r m, MonadCatch m) => MonadReader r (Parser m a) where
+    {-# INLINE ask #-}
+    ask = fromEffect ask
+    {-# INLINE local #-}
+    local f (fromParserK -> dp) =
+      toParserK $ local f dp
+
+
+instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
+    {-# INLINE get #-}
+    get = fromEffect get
+    {-# INLINE put #-}
+    put = fromEffect . put
+
+
+instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
+    {-# INLINE liftIO #-}
+    liftIO = fromEffect . liftIO
 
 -------------------------------------------------------------------------------
 -- Alternative
