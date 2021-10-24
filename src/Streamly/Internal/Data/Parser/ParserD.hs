@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , peek
     , eof
     , satisfy
+    , next
     , maybe
     , either
 
@@ -310,6 +311,18 @@ satisfy predicate = Parser step initial extract
         else Error "satisfy: predicate failed"
 
     extract _ = throwM $ ParseError "satisfy: end of input"
+
+-- | See 'Streamly.Internal.Data.Parser.satisfy'.
+--
+-- /Pre-release/
+--
+{-# INLINE next #-}
+next :: MonadCatch m => Parser m a (Maybe a)
+next = Parser step initial extract
+  where
+  initial = pure $ IPartial ()
+  step _ a = pure $ Done 0 (Just a)
+  extract _ = pure Nothing
 
 -- | See 'Streamly.Internal.Data.Parser.maybe'.
 --
