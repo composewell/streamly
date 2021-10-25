@@ -15,9 +15,11 @@ import Control.Applicative (Alternative(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
+import Data.Scientific (Scientific)
 import Streamly.Internal.Data.Parser (Parser)
 
 import qualified Data.Char as Char
+import qualified Data.Scientific as Scientific
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Fold as Fold
 
@@ -136,6 +138,36 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 signed :: (Num a, MonadCatch m) => Parser m Char a -> Parser m Char a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
+-- XXX Use Tuple'?
+-- A strict pair
+data SP =
+    SP !Integer {-# UNPACK #-}!Int
+
+{-# INLINE scientifically #-}
+scientifically :: MonadCatch m => (Scientific -> a) -> Parser m Char a
+scientifically h = do
+    !positive <-
+        ((== '+') <$> Parser.satisfy (\c -> c == '-' || c == '+')) <|> pure True
+    n <- decimal
+    let fracFold =
+            Fold.teeWith
+                (\a b -> SP a (negate b))
+                (Fold.foldl' step n)
+                (Fold.length)
+        step a c = a * 10 + fromIntegral (ord c - 48)
+    SP c e <-
+        (Parser.satisfy (== '.') *> (Parser.takeWhile Char.isDigit fracFold))
+            <|> pure (SP n 0)
+    let !signedCoeff
+            | positive = c
+            | otherwise = -c
+    (Parser.satisfy (\w -> w == 'e' || w == 'E')
+         *> fmap
+               (h . Scientific.scientific signedCoeff . (e +))
+               (signed decimal))
+        <|> return (h $ Scientific.scientific signedCoeff e)
+
+
 -- | Parse a 'Double'.
 --
 -- This parser accepts an optional leading sign character, followed by
@@ -167,5 +199,25 @@ signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 --
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
-double :: Parser m Char Double
-double = undefined
+double :: MonadCatch m => Parser m Char Double
+double = scientifically Scientific.toRealFloat
+
+-- | Parse a rational number.
+--
+-- The syntax accepted by this parser is the same as for 'double'.
+--
+-- /Note/: this parser is not safe for use with inputs from untrusted
+-- sources.  An input with a suitably large exponent such as
+-- @"1e1000000000"@ will cause a huge 'Integer' to be allocated,
+-- resulting in what is effectively a denial-of-service attack.
+--
+-- In most cases, it is better to use 'double' or 'scientific'
+-- instead.
+rational :: (MonadCatch m, Fractional f) => Parser m Char f
+rational = scientifically realToFrac
+
+-- | Parse a scientific number.
+--
+-- The syntax accepted by this parser is the same as for 'double'.
+scientific :: MonadCatch m => Parser m Char Scientific
+scientific = scientifically id

@@ -538,6 +538,7 @@ library
 
                      , fusion-plugin-types >= 0.1 && < 0.2
                      , unicode-data      >= 0.1   && < 0.2
+                     , scientific        >= 0.3.6 && < 0.3.8
 
                     -- Network
                      , network           >= 2.6   && < 4
