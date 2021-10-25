@@ -312,7 +312,7 @@ satisfy predicate = Parser step initial extract
 
     extract _ = throwM $ ParseError "satisfy: end of input"
 
--- | See 'Streamly.Internal.Data.Parser.satisfy'.
+-- | See 'Streamly.Internal.Data.Parser.next'.
 --
 -- /Pre-release/
 --
