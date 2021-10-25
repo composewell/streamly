@@ -317,7 +317,7 @@ satisfy predicate = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE next #-}
-next :: MonadCatch m => Parser m a (Maybe a)
+next :: Monad m => Parser m a (Maybe a)
 next = Parser step initial extract
   where
   initial = pure $ IPartial ()
