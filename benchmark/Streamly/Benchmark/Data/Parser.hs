@@ -74,6 +74,16 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
+{-# INLINE next #-}
+next :: MonadCatch m => Int -> SerialT m Int -> m (Maybe Int)
+next value = IP.parse p
+ where
+  p = do
+    m <- PR.next
+    case m of
+      Just i -> if i >= value then pure m else p
+      Nothing -> pure Nothing
+
 {-# INLINE takeBetween #-}
 takeBetween :: MonadCatch m => Int -> SerialT m a -> m ()
 takeBetween value =  IP.parse (PR.takeBetween 0 value FL.drain)
@@ -334,7 +344,8 @@ moduleName = "Data.Parser"
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "takeBetween" $ takeBetween value
+    [ benchIOSink value "next" $ next value
+    , benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeP" $ takeP value
