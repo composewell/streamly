@@ -380,15 +380,50 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     extract (Tuple' _ fs) = fextract fs
 
--- See StreamD/Transform.scanOnce for implementing this.
---
 -- | Scan the input of a 'Fold' to change it in a stateful manner using another
 -- 'Fold'.
---
--- /Unimplemented/
+-- XXX if any Fold is done assuming finish the resulting Fold?
+-- /Pre-release/
 {-# INLINE scan #-}
-scan :: Fold m a b -> Fold m b c -> Fold m a c
-scan = undefined
+scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+
+    initial = do
+        r1 <- initialL
+        r2 <- initialR
+        case r1 of
+            Done b1 -> return $ case r2 of
+                Done b2 -> Done b2
+                Partial fs2 -> Partial (Nothing, Just fs2, b1)
+            Partial fs -> return $ case r2 of
+                Done b2 -> Done b2
+                Partial fs2 -> Partial (Just fs, Just fs2, undefined)
+
+    step (Just s1, s2, _) x = do
+        r1 <- stepL s1 x
+        case r1 of
+            Done b -> do
+                r2 <- stepR (fromJust s2) b
+                case r2 of
+                    Partial fs2 -> Done <$> extractR fs2
+                    Done b2 -> return $ Done b2
+            Partial fs -> do
+                !b <- extractL fs
+                r2 <- stepR (fromJust s2) b
+                return $ case r2 of
+                    Partial fs2 -> Partial (Just fs, Just fs2, undefined)
+                    Done b2 -> Done b2
+
+    step (Nothing, s2, b1) _ = do
+            r2 <- stepR (fromJust s2) b1
+            case r2 of
+                    Partial fs2 -> Done <$> extractR fs2
+                    Done b2 -> return $ Done b2
+
+    extract (_, s2, _) = extractR (fromJust s2)
 
 ------------------------------------------------------------------------------
 -- Left folds
