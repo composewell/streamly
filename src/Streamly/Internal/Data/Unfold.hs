@@ -427,10 +427,37 @@ either (Unfold step1 inject1) = Unfold step inject
 --
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE_NORMAL scan #-}
-scan :: Fold m b c -> Unfold m a b -> Unfold m a c
-scan = undefined
+scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+scan (Fold stepF initial extract) (Unfold stepU injectU) =
+    Unfold step inject
+
+    where
+
+    inject a =  do
+        fs <- initial
+        case fs of
+            FL.Partial fs1 -> do
+                us <- injectU a
+                return (fs1, Just us)
+            FL.Done _ -> return (undefined, Nothing)
+
+    {-# INLINE_LATE step #-}
+    step (fs, Just us) = do          
+        ru <- stepU us
+        case ru of
+            Yield x s -> do
+                rf <- stepF fs x
+                case rf of
+                    FL.Done v -> return $ Yield v (fs, Nothing)
+                    FL.Partial fs1 -> do
+                        v <- extract fs1
+                        return $ Yield v (fs1, Just s)
+            Skip s -> return $ Skip (fs, Just s)
+            Stop -> return Stop
+       
+    step (_, Nothing) = return Stop    
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
