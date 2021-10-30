@@ -40,7 +40,7 @@ env: &env
       CABAL_CHECK_RELAX: "y"
       CABAL_NO_SANDBOX: "y"
       CABAL_HACKAGE_MIRROR: "hackage.haskell.org:http://hackage.fpcomplete.com"
-      CABAL_BUILD_OPTIONS: "--flag limit-build-mem"
+      CABAL_BUILD_OPTIONS: "-j1 --flag limit-build-mem"
 
       # ------------------------------------------------------------------------
       # Where to find the required tools
