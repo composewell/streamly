@@ -524,7 +524,7 @@ benchmark Unicode.Char
   main-is: Char.hs
   -- Takes too much memory for ghcjs
   if impl(ghcjs)
-    buildable: false
+    buildable: False
 
 benchmark Unicode.Utf8
   import: bench-options
