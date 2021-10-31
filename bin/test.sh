@@ -86,7 +86,7 @@ TARGET_EXE_ARGS=$*
 
 set_derived_vars
 
-if test "$TEST_QUICK_MODE" -eq 1
+if test $TEST_QUICK_MODE -eq 1
 then
   CABAL_BUILD_OPTIONS+=" --disable-optimization --flags -opt"
 fi

@@ -120,7 +120,7 @@ set_targets() {
 # $4: command to find
 cabal_which_builddir() {
   local noopt=""
-  if test "$TEST_QUICK_MODE" -eq 1
+  if test "$TEST_QUICK_MODE" = "1"
   then
     noopt="/noopt"
   fi
