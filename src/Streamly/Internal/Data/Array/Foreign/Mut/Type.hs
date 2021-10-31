@@ -1,3 +1,4 @@
+{-# LANGUAGE UnboxedTuples #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Foreign.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -16,6 +17,12 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Type
     -- $arrayNotes
       Array (..)
+    , ArrayContents
+    , arrayToFptrContents
+    , fptrToArrayContents
+    , unsafeWithArrayContents
+    , nilArrayContents
+    , touch
 
     -- * Constructing and Writing
     -- ** Construction
@@ -196,6 +203,10 @@ where
 
 #include "inline.hs"
 
+#ifdef USE_C_MALLOC
+#define USE_FOREIGN_PTR
+#endif
+
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
@@ -207,17 +218,29 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (touchForeignPtr, castForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+#ifndef USE_FOREIGN_PTR
+import Foreign.Marshal.Alloc (mallocBytes)
+#endif
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (build)
+import GHC.Base
+    ( build, touch#, IO(..), byteArrayContents#
+    , Int(..), newAlignedPinnedByteArray#
+    )
+#ifndef USE_FOREIGN_PTR
+import GHC.Base (RealWorld, MutableByteArray#)
+#endif
 #if __GLASGOW_HASKELL__ < 802
 #define noinline
 #else
 import GHC.Base (noinline)
 #endif
-import GHC.ForeignPtr (ForeignPtr(..))
+import GHC.Exts (unsafeCoerce#)
+import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
+#ifdef USE_C_MALLOC
+import GHC.ForeignPtr (mallocForeignPtrAlignedBytes)
+#endif
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.BaseCompat
@@ -225,9 +248,9 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-
 import Streamly.Internal.System.IO
     (defaultChunkSize, arrayPayloadSize, unsafeInlineIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -236,19 +259,12 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+#ifdef USE_FOREIGN_PTR
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
+#endif
 
 import Prelude hiding
     (length, foldr, read, unlines, splitAt, reverse, truncate)
-
-#if MIN_VERSION_base(4,10,0)
-import Foreign.ForeignPtr (plusForeignPtr)
-#else
-import GHC.Base (Int(..), plusAddr#)
-import GHC.ForeignPtr (ForeignPtr(..))
-plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
-plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
-#endif
 
 -- $setup
 -- >>> :m
@@ -292,12 +308,44 @@ memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
 
--- | Same as unsafeWithForeignPtr but lifted to any MonadIO monad.
-{-# INLINE unsafeWithForeignPtrM #-}
-unsafeWithForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
-unsafeWithForeignPtrM fo f = do
-  r <- f (unsafeForeignPtrToPtr fo)
-  liftIO $ touchForeignPtr fo
+-------------------------------------------------------------------------------
+-- Array Contents
+-------------------------------------------------------------------------------
+
+-- We support using ForeignPtrContents or MutableByteArray.
+
+#ifdef USE_FOREIGN_PTR
+newtype ArrayContents = ArrayContents ForeignPtrContents
+#define UNPACKIF
+#else
+-- XXX can use UnliftedNewtypes
+data ArrayContents = ArrayContents !(MutableByteArray# RealWorld)
+#define UNPACKIF {-# UNPACK #-}
+#endif
+
+{-# INLINE touch #-}
+touch :: ArrayContents -> IO ()
+touch (ArrayContents contents) =
+    IO $ \s -> case touch# contents s of s' -> (# s', () #)
+
+fptrToArrayContents :: ForeignPtrContents -> ArrayContents
+arrayToFptrContents :: ArrayContents -> ForeignPtrContents
+#ifdef USE_FOREIGN_PTR
+fptrToArrayContents = ArrayContents
+arrayToFptrContents (ArrayContents contents) = contents
+#else
+fptrToArrayContents (PlainPtr mbarr) = ArrayContents mbarr
+fptrToArrayContents _ = error "Unsupported foreign ptr"
+arrayToFptrContents (ArrayContents contents) = PlainPtr contents
+#endif
+
+-- | Similar to unsafeWithForeignPtr.
+{-# INLINE unsafeWithArrayContents #-}
+unsafeWithArrayContents :: MonadIO m =>
+    ArrayContents -> Ptr a -> (Ptr a -> m b) -> m b
+unsafeWithArrayContents contents ptr f = do
+  r <- f ptr
+  liftIO $ touch contents
   return r
 
 -------------------------------------------------------------------------------
@@ -335,7 +383,8 @@ data Array a =
     Storable a =>
 #endif
     Array
-    { aStart :: {-# UNPACK #-} !(ForeignPtr a) -- ^ first address
+    { arrContents :: UNPACKIF !ArrayContents
+    , arrStart :: {-# UNPACK #-} !(Ptr a)      -- ^ first address
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- ^ first unused address
     , aBound :: {-# UNPACK #-} !(Ptr a)        -- ^ first address beyond allocated memory
     }
@@ -345,7 +394,8 @@ data Array a =
 -- address, and @bound@ is the first address beyond the allocated memory.
 --
 -- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
--- integral multiple of the element size.
+-- integral multiple of the element size. Only PlainPtr type ForeignPtr is
+-- supported.
 --
 -- /Pre-release/
 --
@@ -355,9 +405,9 @@ fromForeignPtrUnsafe ::
     Storable a =>
 #endif
     ForeignPtr a -> Ptr a -> Ptr a -> Array a
-fromForeignPtrUnsafe fp end bound =
+fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
     assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
-           (Array fp end bound)
+           (Array (fptrToArrayContents contents) (Ptr start) end bound)
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -385,16 +435,41 @@ fromForeignPtrUnsafe fp end bound =
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Storable a)
-    => (Int -> Int -> m (ForeignPtr a)) -> Int -> Int -> m (Array a)
+    => (Int -> Int -> m (ArrayContents, Ptr a)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * sizeOf (undefined :: a)) 0
-    fptr <- alloc size alignSize
-    let p = unsafeForeignPtrToPtr fptr
+    (contents, p) <- alloc size alignSize
     return $ Array
-        { aStart = fptr
+        { arrContents = contents
+        , arrStart = p
         , aEnd   = p
         , aBound = p `plusPtr` size
         }
+
+newAlignedArrayContents :: Int -> Int -> IO (ArrayContents, Ptr a)
+#ifdef USE_C_MALLOC
+newAlignedArrayContents size align = do
+    ForeignPtr addr contents = mallocForeignPtrAlignedBytes size align
+    return (ArrayContents contents, Ptr addr)
+#else
+newAlignedArrayContents size _align | size < 0 =
+  errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
+newAlignedArrayContents (I# size) (I# align) = IO $ \s ->
+    case newAlignedPinnedByteArray# size align s of
+        (# s', mbarr# #) ->
+           let p = Ptr (byteArrayContents# (unsafeCoerce# mbarr#))
+#ifdef USE_FOREIGN_PTR
+               c = ArrayContents (PlainPtr mbarr#)
+#else
+               c = ArrayContents mbarr#
+#endif
+            in (# s', (c, p) #)
+#endif
+
+{-# NOINLINE nilArrayContents #-}
+nilArrayContents :: ArrayContents
+nilArrayContents =
+    fst $ unsafePerformIO $ newAlignedArrayContents 0 0
 
 -- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
 -- memory. The memory will never be freed by GHC.  This could be useful in
@@ -403,14 +478,29 @@ newArrayWith alloc alignSize count = do
 --
 -- /Internal/
 {-# INLINE newArrayAlignedUnmanaged #-}
-newArrayAlignedUnmanaged :: (MonadIO m, Storable a) =>
+newArrayAlignedUnmanaged :: forall m a. (MonadIO m, Storable a) =>
     Int -> Int -> m (Array a)
-newArrayAlignedUnmanaged = newArrayWith mallocForeignPtrAlignedUnmanagedBytes
+#ifdef USE_FOREIGN_PTR
+newArrayAlignedUnmanaged = do
+    newArrayWith mallocForeignPtrAlignedUnmanagedBytes
 
     where
 
-    mallocForeignPtrAlignedUnmanagedBytes size alignSize =
-        liftIO $ Malloc.mallocForeignPtrAlignedUnmanagedBytes size alignSize
+    mallocForeignPtrAlignedUnmanagedBytes size align = do
+        ForeignPtr addr contents <-
+            liftIO $ Malloc.mallocForeignPtrAlignedUnmanagedBytes size align
+        return (ArrayContents contents, Ptr addr)
+#else
+newArrayAlignedUnmanaged _align count = do
+    let size = max (count * sizeOf (undefined :: a)) 0
+    p <- liftIO $ mallocBytes size
+    return $ Array
+        { arrContents = nilArrayContents
+        , arrStart = p
+        , aEnd = p
+        , aBound = p `plusPtr` size
+        }
+#endif
 
 -- | Like 'newArrayWith' but using an allocator that aligns the memory to the
 -- alignment dictated by the 'Storable' instance of the type.
@@ -418,12 +508,7 @@ newArrayAlignedUnmanaged = newArrayWith mallocForeignPtrAlignedUnmanagedBytes
 -- /Internal/
 {-# INLINE newArrayAligned #-}
 newArrayAligned :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
-newArrayAligned = newArrayWith mallocForeignPtrAlignedBytes
-
-    where
-
-    mallocForeignPtrAlignedBytes size alignSize =
-        liftIO $ Malloc.mallocForeignPtrAlignedBytes size alignSize
+newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
@@ -445,7 +530,8 @@ withNewArrayUnsafe ::
        (MonadIO m, Storable a) => Int -> (Ptr a -> m ()) -> m (Array a)
 withNewArrayUnsafe count f = do
     arr <- newArray count
-    unsafeWithForeignPtrM (aStart arr) $ \p -> f p >> return arr
+    unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
 -- Random writes
@@ -467,7 +553,7 @@ putIndices = undefined
 putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> a -> m ()
 putIndexUnsafe Array{..} i x =
-    unsafeWithForeignPtrM aStart $ \ptr -> do
+    unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemSize = sizeOf (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
@@ -498,7 +584,8 @@ putIndexPtr ptr end i x = do
 {-# INLINE putIndex #-}
 putIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
 putIndex arr i x =
-    unsafeWithForeignPtrM (aStart arr) $ \p -> putIndexPtr p (aEnd arr) i x
+    unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ \p -> putIndexPtr p (aEnd arr) i x
 
 -- | Modify a given index of an array using a modifier function.
 --
@@ -506,7 +593,7 @@ putIndex arr i x =
 modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
     Array a -> Int -> (a -> (a, b)) -> m b
 modifyIndexUnsafe Array{..} i f = do
-    liftIO $ unsafeWithForeignPtr aStart $ \ptr -> do
+    liftIO $ unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemSize = sizeOf (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
@@ -521,7 +608,7 @@ modifyIndexUnsafe Array{..} i f = do
 modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
     Array a -> Int -> (a -> (a, b)) -> m b
 modifyIndex Array{..} i f = do
-    liftIO $ unsafeWithForeignPtr aStart $ \ptr -> do
+    liftIO $ unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemSize = sizeOf (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd
@@ -635,7 +722,7 @@ snocNewEnd :: (MonadIO m, Storable a) => Ptr a -> Array a -> a -> m (Array a)
 snocNewEnd newEnd arr@Array{..} x = liftIO $ do
     assert (newEnd <= aBound) (return ())
     poke aEnd x
-    touchForeignPtr aStart
+    touch arrContents
     return $ arr {aEnd = newEnd}
 
 -- | Really really unsafe, appends the element into the first array, may
@@ -669,7 +756,7 @@ reallocWith :: forall m a. (MonadIO m , Storable a) =>
     -> Array a
     -> m (Array a)
 reallocWith label sizer reqSize arr = do
-    let oldSize = aEnd arr `minusPtr` unsafeForeignPtrToPtr (aStart arr)
+    let oldSize = aEnd arr `minusPtr` arrStart arr
         newSize = sizer oldSize
         safeSize = max newSize (oldSize + reqSize)
         rounded = roundUpLargeArray safeSize
@@ -767,21 +854,21 @@ snoc = snocWith (* 2)
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
 reallocAligned elemSize alignSize newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
-    let oldStart = unsafeForeignPtrToPtr aStart
+    let oldStart = arrStart
         oldSize = aEnd `minusPtr` oldStart
     assert (oldSize `mod` elemSize == 0) (return ())
-    newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
-    unsafeWithForeignPtr newPtr $ \pNew -> do
-        let size = min oldSize newSize
-        assert (size >= 0) (return ())
-        assert (size `mod` elemSize == 0) (return ())
-        memcpy (castPtr pNew) (castPtr oldStart) size
-        touchForeignPtr aStart
-        return $ Array
-            { aStart = newPtr
-            , aEnd   = pNew `plusPtr` (size - (size `mod` elemSize))
-            , aBound = pNew `plusPtr` newSize
-            }
+    (contents, pNew) <- newAlignedArrayContents newSize alignSize
+    let size = min oldSize newSize
+    assert (size >= 0) (return ())
+    assert (size `mod` elemSize == 0) (return ())
+    memcpy (castPtr pNew) (castPtr oldStart) size
+    touch arrContents
+    return $ Array
+        { arrStart = pNew
+        , arrContents = contents
+        , aEnd   = pNew `plusPtr` (size - (size `mod` elemSize))
+        , aBound = pNew `plusPtr` newSize
+        }
 
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
@@ -824,7 +911,7 @@ resizeExp = undefined
 rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
 rightSize arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
-    let start = unsafeForeignPtrToPtr aStart
+    let start = arrStart
         len = aEnd `minusPtr` start
         capacity = aBound `minusPtr` start
         target = roundUpLargeArray len
@@ -878,7 +965,7 @@ truncateExp = undefined
 {-# INLINE_NORMAL getIndexUnsafe #-}
 getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndexUnsafe Array {..} i =
-    unsafeWithForeignPtrM aStart $ \ptr -> do
+    unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemSize = sizeOf (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
@@ -899,7 +986,8 @@ getIndexPtr ptr end i = do
 {-# INLINE getIndex #-}
 getIndex :: (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndex arr i =
-    unsafeWithForeignPtrM (aStart arr) $ \p -> getIndexPtr p (aEnd arr) i
+    unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ \p -> getIndexPtr p (aEnd arr) i
 
 {-# INLINE getIndexPtrRev #-}
 getIndexPtrRev :: forall m a. (MonadIO m, Storable a) =>
@@ -919,9 +1007,11 @@ getIndexPtrRev ptr end i = do
 {-# INLINE getIndexRev #-}
 getIndexRev :: (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndexRev arr i =
-    unsafeWithForeignPtrM (aStart arr) $ \p -> getIndexPtrRev p (aEnd arr) i
+    unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ \p -> getIndexPtrRev p (aEnd arr) i
 
-data GetIndicesState fp end st = GetIndicesState fp end st
+data GetIndicesState contents start end st =
+    GetIndicesState contents start end st
 
 -- | Given an unfold that generates array indices, read the elements on those
 -- indices from the supplied Array. An error is thrown if an index is out of
@@ -935,20 +1025,20 @@ getIndices (Unfold stepi injecti) = Unfold step inject
 
     where
 
-    inject arr@(Array fp@(ForeignPtr _ _) (Ptr end) _) = do
+    inject arr@(Array contents start (Ptr end) _) = do
         st <- injecti arr
-        return $ GetIndicesState fp (Ptr end) st
+        return $ GetIndicesState contents start (Ptr end) st
 
     {-# INLINE_LATE step #-}
-    step (GetIndicesState fp@(ForeignPtr start _) end st) = do
+    step (GetIndicesState contents start end st) = do
         r <- stepi st
         case r of
             D.Yield i s -> do
-                x <- liftIO $ getIndexPtr (Ptr start) end i
-                return $ D.Yield x (GetIndicesState fp end s)
-            D.Skip s -> return $ D.Skip (GetIndicesState fp end s)
+                x <- liftIO $ getIndexPtr start end i
+                return $ D.Yield x (GetIndicesState contents start end s)
+            D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> do
-                liftIO $ touchForeignPtr fp
+                liftIO $ touch contents
                 return D.Stop
 
 -------------------------------------------------------------------------------
@@ -970,11 +1060,13 @@ getSliceUnsafe :: forall a. Storable a
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSliceUnsafe index len (Array fp e _) =
+getSliceUnsafe index len (Array contents start e _) =
     let size = sizeOf (undefined :: a)
-        fp1 = fp `plusForeignPtr` (index * size)
-        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
-     in assert (index >= 0 && len >= 0 && end <= e) (Array fp1 end end)
+        fp1 = start `plusPtr` (index * size)
+        end = fp1 `plusPtr` (len * size)
+     in assert
+            (index >= 0 && len >= 0 && end <= e)
+            (Array contents fp1 end end)
 
 -- | /O(1)/ Slice an array in constant time. Throws an error if the slice
 -- extends out of the array bounds.
@@ -986,12 +1078,12 @@ getSlice :: forall a. Storable a =>
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSlice index len (Array fp e _) =
+getSlice index len (Array contents start e _) =
     let size = sizeOf (undefined :: a)
-        fp1 = fp `plusForeignPtr` (index * size)
-        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
+        fp1 = start `plusPtr` (index * size)
+        end = fp1 `plusPtr` (len * size)
      in if index >= 0 && len >= 0 && end <= e
-        then Array fp1 end end
+        then Array contents fp1 end end
         else error
                 $ "getSlice: invalid slice, index "
                 ++ show index ++ " length " ++ show len
@@ -1077,8 +1169,7 @@ mergeBy = undefined
 {-# INLINE byteLength #-}
 byteLength :: Array a -> Int
 byteLength Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-        len = aEnd `minusPtr` p
+    let len = aEnd `minusPtr` arrStart
     in assert (len >= 0) len
 
 -- Note: try to avoid the use of length in performance sensitive internal
@@ -1106,8 +1197,7 @@ length arr =
 {-# INLINE byteCapacity #-}
 byteCapacity :: Array a -> Int
 byteCapacity Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-        len = aBound `minusPtr` p
+    let len = aBound `minusPtr` arrStart
     in assert (len >= 0) len
 
 -- | The remaining capacity in the array for appending more elements without
@@ -1124,10 +1214,11 @@ bytesFree Array{..} =
 -- Streams of arrays - Creation
 -------------------------------------------------------------------------------
 
-data GroupState s start end bound
+data GroupState s contents start end bound
     = GroupStart s
-    | GroupBuffer s start end bound
-    | GroupYield start end bound (GroupState s start end bound)
+    | GroupBuffer s contents start end bound
+    | GroupYield
+        contents start end bound (GroupState s contents start end bound)
     | GroupFinish
 
 -- | @arraysOf n stream@ groups the input stream into a stream of
@@ -1155,10 +1246,10 @@ arraysOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.arraysOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        Array start end bound <- liftIO $ newArray n
-        return $ D.Skip (GroupBuffer st start end bound)
+        Array contents start end bound <- liftIO $ newArray n
+        return $ D.Skip (GroupBuffer st contents start end bound)
 
-    step' gst (GroupBuffer st start end bound) = do
+    step' gst (GroupBuffer st contents start end bound) = do
         r <- step (adaptState gst) st
         case r of
             D.Yield x s -> do
@@ -1166,13 +1257,18 @@ arraysOf n (D.Stream step state) =
                 let end' = end `plusPtr` sizeOf (undefined :: a)
                 return $
                     if end' >= bound
-                    then D.Skip (GroupYield start end' bound (GroupStart s))
-                    else D.Skip (GroupBuffer s start end' bound)
-            D.Skip s -> return $ D.Skip (GroupBuffer s start end bound)
-            D.Stop -> return $ D.Skip (GroupYield start end bound GroupFinish)
+                    then D.Skip
+                            (GroupYield
+                                contents start end' bound (GroupStart s))
+                    else D.Skip (GroupBuffer s contents start end' bound)
+            D.Skip s ->
+                return $ D.Skip (GroupBuffer s contents start end bound)
+            D.Stop ->
+                return
+                    $ D.Skip (GroupYield contents start end bound GroupFinish)
 
-    step' _ (GroupYield start end bound next) =
-        return $ D.Yield (Array start end bound) next
+    step' _ (GroupYield contents start end bound next) =
+        return $ D.Yield (Array contents start end bound) next
 
     step' _ GroupFinish = return D.Stop
 
@@ -1189,9 +1285,9 @@ arrayStreamKFromStreamD =
 -- Streams of arrays - Flattening
 -------------------------------------------------------------------------------
 
-data FlattenState s a =
+data FlattenState s contents a =
       OuterLoop s
-    | InnerLoop s !(ForeignPtr a) !(Ptr a) !(Ptr a)
+    | InnerLoop s contents !(Ptr a) !(Ptr a)
 
 -- | Use the "read" unfold instead.
 --
@@ -1211,20 +1307,19 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                let p = unsafeForeignPtrToPtr aStart
-                in D.Skip (InnerLoop s aStart p aEnd)
+                D.Skip (InnerLoop s arrContents arrStart aEnd)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
     step' _ (InnerLoop st _ p end) | assert (p <= end) (p == end) =
         return $ D.Skip $ OuterLoop st
 
-    step' _ (InnerLoop st startf p end) = do
+    step' _ (InnerLoop st contents p end) = do
         x <- liftIO $ do
                     r <- peek p
-                    touchForeignPtr startf
+                    touch contents
                     return r
-        return $ D.Yield x (InnerLoop st startf
+        return $ D.Yield x (InnerLoop st contents
                             (p `plusPtr` sizeOf (undefined :: a)) end)
 
 -- | Use the "readRev" unfold instead.
@@ -1246,58 +1341,57 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ case r of
             D.Yield Array{..} s ->
                 let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
-                -- XXX we do not need aEnd
-                in D.Skip (InnerLoop s aStart p aEnd)
+                 in D.Skip (InnerLoop s arrContents p arrStart)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
-    step' _ (InnerLoop st start p _) | p < unsafeForeignPtrToPtr start =
+    step' _ (InnerLoop st _ p start) | p < start =
         return $ D.Skip $ OuterLoop st
 
-    step' _ (InnerLoop st startf p end) = do
+    step' _ (InnerLoop st contents p start) = do
         x <- liftIO $ do
                     r <- peek p
-                    touchForeignPtr startf
+                    touch contents
                     return r
-        return $ D.Yield x (InnerLoop st startf
-                            (p `plusPtr` negate (sizeOf (undefined :: a))) end)
+        let cur = p `plusPtr` negate (sizeOf (undefined :: a))
+        return $ D.Yield x (InnerLoop st contents cur start)
 
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
 
 data ReadUState a = ReadUState
-    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
-    {-# UNPACK #-} !(Ptr a)         -- current pointer
+    UNPACKIF !ArrayContents  -- contents
+    !(Ptr a)           -- end address
+    !(Ptr a)           -- current address
+
+toReadUState :: Array a -> ReadUState a
+toReadUState (Array contents start end _) = ReadUState contents end start
 
 -- | Resumable unfold of an array.
 --
 {-# INLINE_NORMAL producer #-}
 producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
-producer = Producer step inject extract
+producer = Producer step (return . toReadUState) extract
     where
 
-    inject (Array (ForeignPtr start contents) (Ptr end) _) =
-        return $ ReadUState (ForeignPtr end contents) (Ptr start)
-
     {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p)
-        | assert (p <= Ptr end) (p == Ptr end) =
-            let x = unsafeInlineIO $ touchForeignPtr fp
+    step (ReadUState contents end cur)
+        | assert (cur <= end) (cur == end) =
+            let x = unsafeInlineIO $ touch contents
             in x `seq` return D.Stop
-    step (ReadUState fp p) = do
+    step (ReadUState contents end cur) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
             -- accumulating the list and fusing better with the pure consumers.
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
+            let !x = unsafeInlineIO $ peek cur
+                cur1 = cur `plusPtr` sizeOf (undefined :: a)
+            return $ D.Yield x (ReadUState contents end cur1)
 
-    extract (ReadUState (ForeignPtr end contents) (Ptr p)) =
-        return $ Array (ForeignPtr p contents) (Ptr end) (Ptr end)
+    extract (ReadUState contents end cur) = return $ Array contents cur end end
 
 -- | Unfold an array into a stream.
 --
@@ -1314,15 +1408,15 @@ readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 readRev = Unfold step inject
     where
 
-    inject (Array fp end _) =
+    inject (Array contents start end _) =
         let p = end `plusPtr` negate (sizeOf (undefined :: a))
-         in return $ ReadUState fp p
+         in return $ ReadUState contents start p
 
     {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr start _) p) | p < Ptr start =
-        let x = unsafeInlineIO $ touchForeignPtr fp
+    step (ReadUState contents start p) | p < start =
+        let x = unsafeInlineIO $ touch contents
         in x `seq` return D.Stop
-    step (ReadUState fp p) = do
+    step (ReadUState contents start p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
             -- accumulating the list and fusing better with the pure consumers.
@@ -1330,8 +1424,8 @@ readRev = Unfold step inject
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` negate (sizeOf (undefined :: a))))
+            let cur = p `plusPtr` negate (sizeOf (undefined :: a))
+            return $ D.Yield x (ReadUState contents start cur)
 
 -------------------------------------------------------------------------------
 -- to Lists and streams
@@ -1341,7 +1435,7 @@ readRev = Unfold step inject
 -- This can be useful when using the IsList instance
 {-# INLINE_LATE toListFB #-}
 toListFB :: forall a b. Storable a => (a -> b -> b) -> b -> Array a -> b
-toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
+toListFB c n Array{..} = go arrStart
     where
 
     go p | assert (p <= aEnd) (p == aEnd) = n
@@ -1355,7 +1449,7 @@ toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
         -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
-                    touchForeignPtr aStart
+                    touch arrContents
                     return r
         in c x (go (p `plusPtr` sizeOf (undefined :: a)))
 
@@ -1375,7 +1469,7 @@ toList s = build (\c n -> toListFB c n s)
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamD Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
+    let p = arrStart
     in D.Stream step p
 
     where
@@ -1394,14 +1488,14 @@ toStreamD Array{..} =
         --
         let !x = unsafeInlineIO $ do
                     r <- peek p
-                    touchForeignPtr aStart
+                    touch arrContents
                     return r
         return $ D.Yield x (p `plusPtr` sizeOf (undefined :: a))
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamK Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
+    let p = arrStart
     in go p
 
     where
@@ -1412,7 +1506,7 @@ toStreamK Array{..} =
         -- XXX May not be safe for mutable arrays.
         let !x = unsafeInlineIO $ do
                     r <- peek p
-                    touchForeignPtr aStart
+                    touch arrContents
                     return r
         in x `K.cons` go (p `plusPtr` sizeOf (undefined :: a))
 
@@ -1430,13 +1524,13 @@ toStreamDRev Array{..} =
     where
 
     {-# INLINE_LATE step #-}
-    step _ p | p < unsafeForeignPtrToPtr aStart = return D.Stop
+    step _ p | p < arrStart = return D.Stop
     step _ p = do
         -- See comments in toStreamD for why we use unsafeInlineIO
         -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
-                    touchForeignPtr aStart
+                    touch arrContents
                     return r
         return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
 
@@ -1448,12 +1542,12 @@ toStreamKRev Array {..} =
 
     where
 
-    go p | p < unsafeForeignPtrToPtr aStart = K.nil
+    go p | p < arrStart = K.nil
          | otherwise =
          -- XXX
         let !x = unsafeInlineIO $ do
                     r <- peek p
-                    touchForeignPtr aStart
+                    touch arrContents
                     return r
         in x `K.cons` go (p `plusPtr` negate (sizeOf (undefined :: a)))
 
@@ -1481,8 +1575,17 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -------------------------------------------------------------------------------
 
 data ArrayUnsafe a = ArrayUnsafe
-    {-# UNPACK #-} !(ForeignPtr a) -- first address
-    {-# UNPACK #-} !(Ptr a)        -- first unused address
+    UNPACKIF !ArrayContents  -- contents
+    {-# UNPACK #-} !(Ptr a)  -- start address
+    {-# UNPACK #-} !(Ptr a)  -- first unused address
+
+toArrayUnsafe :: Array a -> ArrayUnsafe a
+toArrayUnsafe (Array contents start end _) =
+    ArrayUnsafe contents start end
+
+fromArrayUnsafe :: ArrayUnsafe a -> Array a
+fromArrayUnsafe (ArrayUnsafe contents start end) =
+         Array contents start end end
 
 -- Note: Arrays may be allocated with a specific alignment at the beginning of
 -- the array. If you need to maintain that alignment on reallocations then you
@@ -1505,29 +1608,28 @@ appendNUnsafe :: forall m a. (MonadIO m, Storable a) =>
     -> Int
     -> Fold m a (Array a)
 appendNUnsafe action n =
-    fmap extract $ FL.foldlM' step initial
+    fmap fromArrayUnsafe $ FL.foldlM' step initial
 
     where
 
     initial = do
         assert (n >= 0) (return ())
-        arr@(Array _ end bound) <- action
+        arr@(Array _ _ end bound) <- action
         let free = bound `minusPtr` end
             elemSize = sizeOf (undefined :: a)
             needed = n * elemSize
         -- XXX We can also reallocate if the array has too much free space,
         -- otherwise we lose that space.
-        (Array start1 end1 _) <-
+        arr1 <-
             if free < needed
             then noinline reallocWith "appendNUnsafeWith" (+ needed) needed arr
             else return arr
-        return $ ArrayUnsafe start1 end1
+        return $ toArrayUnsafe arr1
 
-    step (ArrayUnsafe start end) x = do
-        liftIO $ poke end x >> touchForeignPtr start
-        return $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
-
-    extract (ArrayUnsafe start end) = Array start end end
+    step (ArrayUnsafe contents start end) x = do
+        liftIO $ poke end x >> touch contents
+        let end1 = end `plusPtr` sizeOf (undefined :: a)
+        return $ ArrayUnsafe contents start end1
 
 -- | Append @n@ elements to an existing array. Any free space left in the array
 -- after appending @n@ elements is lost.
@@ -1634,27 +1736,17 @@ writeNAlignedUnmanaged align = writeNWith (newArrayAlignedUnmanaged align)
 {-# INLINE_NORMAL writeNWithUnsafe #-}
 writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNWithUnsafe alloc n = Fold step initial extract
+writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
 
     where
 
-    initial = do
-        (Array start end _) <- alloc (max n 0)
-        return $ FL.Partial $ ArrayUnsafe start end
+    initial = FL.Partial . toArrayUnsafe <$> alloc (max n 0)
 
-    -- This condition is always true, but compiler does not know that.
-    step (ArrayUnsafe start end) x | end /= nullPtr = do
-        liftIO $ poke end x
+    step (ArrayUnsafe contents start end) x = do
+        liftIO $ poke end x >> touch contents
         return
           $ FL.Partial
-          $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
-    -- This condition is never met, just a hack to insert a touchForeignPtr.
-    -- This condition increases the cputime by around 50% in several benchmarks
-    -- but there seem to be no better way. XXX An unconditional touch increases
-    -- the allocations and time by a very large amount, need to investigate.
-    step (ArrayUnsafe start _) _ = liftIO $ touchForeignPtr start >> undefined
-
-    extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
+          $ ArrayUnsafe contents start (end `plusPtr` sizeOf (undefined :: a))
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -1725,17 +1817,17 @@ writeWith elemCount =
 
     where
 
-    insertElem (Array start end bound) x = do
+    insertElem (Array contents start end bound) x = do
         liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+        let end1 = end `plusPtr` sizeOf (undefined :: a)
+        return $ Array contents start end1 bound
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newArrayAligned (alignment (undefined :: a)) elemCount
-    step arr@(Array start end bound) x
+    step arr@(Array _ start end bound) x
         | end `plusPtr` sizeOf (undefined :: a) > bound = do
-        let p = unsafeForeignPtrToPtr start
-            oldSize = end `minusPtr` p
+        let oldSize = end `minusPtr` start
             newSize = max (oldSize * 2) 1
         arr1 <-
             liftIO
@@ -1842,21 +1934,21 @@ fromList xs = fromStreamD $ D.fromList xs
 {-# INLINE spliceCopy #-}
 spliceCopy :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 spliceCopy arr1 arr2 = do
-    let src1 = unsafeForeignPtrToPtr (aStart arr1)
-        src2 = unsafeForeignPtrToPtr (aStart arr2)
+    let src1 = arrStart arr1
+        src2 = arrStart arr2
         len1 = aEnd arr1 `minusPtr` src1
         len2 = aEnd arr2 `minusPtr` src2
 
     arr <- liftIO $ newArray (len1 + len2)
-    let dst = unsafeForeignPtrToPtr (aStart arr)
+    let dst = arrStart arr
 
     -- XXX Should we use copyMutableByteArray# instead? Is there an overhead to
     -- ccall?
     liftIO $ do
         memcpy (castPtr dst) (castPtr src1) len1
-        touchForeignPtr (aStart arr1)
+        touch (arrContents arr1)
         memcpy (castPtr (dst `plusPtr` len1)) (castPtr src2) len2
-        touchForeignPtr (aStart arr2)
+        touch (arrContents arr2)
     return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
 -- | Really really unsafe, appends the second array into the first array. If
@@ -1866,12 +1958,13 @@ spliceCopy arr1 arr2 = do
 spliceUnsafe :: MonadIO m => Array a -> (Array a, Int) -> m (Array a)
 spliceUnsafe dst (src, srcLen) =
     liftIO $ do
-        unsafeWithForeignPtr (aStart dst) $ \_ ->
-            unsafeWithForeignPtr (aStart src) $ \psrc -> do
-                 let pdst = aEnd dst
-                 assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
-                 memcpy (castPtr pdst) (castPtr psrc) srcLen
-                 return $ dst {aEnd = pdst `plusPtr` srcLen}
+         let psrc = arrStart src
+         let pdst = aEnd dst
+         assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
+         memcpy (castPtr pdst) (castPtr psrc) srcLen
+         touch (arrContents src)
+         touch (arrContents dst)
+         return $ dst {aEnd = pdst `plusPtr` srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
@@ -1884,19 +1977,18 @@ spliceUnsafe dst (src, srcLen) =
 {-# INLINE spliceWith #-}
 spliceWith :: forall m a. (MonadIO m, Storable a) =>
     (Int -> Int -> Int) -> Array a -> Array a -> m (Array a)
-spliceWith sizer dst@(Array start end bound) src = do
+spliceWith sizer dst@(Array _ start end bound) src = do
 {-
     let f = appendWith (`sizer` byteLength src) (return dst)
      in D.fold f (toStreamD src)
 -}
     assert (end <= bound) (return ())
-    let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
+    let srcLen = aEnd src `minusPtr` arrStart src
 
     dst1 <-
         if end `plusPtr` srcLen >= bound
         then do
-            let oldStart = unsafeForeignPtrToPtr start
-                oldSize = end `minusPtr` oldStart
+            let oldSize = end `minusPtr` start
                 newSize = sizer oldSize srcLen
             when (newSize < oldSize + srcLen)
                 $ error
@@ -1943,19 +2035,21 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 breakOn :: MonadIO m
     => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
 breakOn sep arr@Array{..} = liftIO $ do
-    let p = unsafeForeignPtrToPtr aStart
+    let p = arrStart
     loc <- c_memchr p sep (fromIntegral $ aEnd `minusPtr` p)
     return $
         if loc == nullPtr
         then (arr, Nothing)
         else
             ( Array
-                { aStart = aStart
+                { arrContents = arrContents
+                , arrStart = arrStart
                 , aEnd = loc
                 , aBound = loc
                 }
             , Just $ Array
-                    { aStart = aStart `plusForeignPtr` (loc `minusPtr` p + 1)
+                    { arrContents = arrContents
+                    , arrStart = arrStart `plusPtr` (loc `minusPtr` p + 1)
                     , aEnd = aEnd
                     , aBound = aBound
                     }
@@ -1974,14 +2068,16 @@ splitAt i arr@Array{..} =
              then error $ "sliceAt: specified array index " ++ show i
                         ++ " is beyond the maximum index " ++ show maxIndex
              else let off = i * sizeOf (undefined :: a)
-                      p = unsafeForeignPtrToPtr aStart `plusPtr` off
+                      p = arrStart `plusPtr` off
                 in ( Array
-                  { aStart = aStart
+                  { arrContents = arrContents
+                  , arrStart = arrStart
                   , aEnd = p
                   , aBound = p
                   }
                 , Array
-                  { aStart = aStart `plusForeignPtr` off
+                  { arrContents = arrContents
+                  , arrStart = arrStart `plusPtr` off
                   , aEnd = aEnd
                   , aBound = aBound
                   }
@@ -2003,8 +2099,8 @@ castUnsafe ::
     Storable b =>
 #endif
     Array a -> Array b
-castUnsafe (Array start end bound) =
-    Array (castForeignPtr start) (castPtr end) (castPtr bound)
+castUnsafe (Array contents start end bound) =
+    Array contents (castPtr start) (castPtr end) (castPtr bound)
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
@@ -2035,7 +2131,7 @@ cast arr =
 --
 asPtrUnsafe :: Array a -> (Ptr b -> IO c) -> IO c
 asPtrUnsafe Array{..} act = do
-    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
+    unsafeWithArrayContents arrContents arrStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Equality
@@ -2048,8 +2144,8 @@ asPtrUnsafe Array{..} act = do
 cmp :: MonadIO m => Array a -> Array a -> m Bool
 cmp arr1 arr2 =
     liftIO $ do
-        let ptr1 = unsafeForeignPtrToPtr $ aStart arr1
-        let ptr2 = unsafeForeignPtrToPtr $ aStart arr2
+        let ptr1 = arrStart arr1
+        let ptr2 = arrStart arr2
         let len1 = aEnd arr1 `minusPtr` ptr1
         let len2 = aEnd arr2 `minusPtr` ptr2
 
@@ -2059,8 +2155,8 @@ cmp arr1 arr2 =
             then return True
             else do
                 r <- memcmp (castPtr ptr1) (castPtr ptr2) len1
-                touchForeignPtr $ aStart arr1
-                touchForeignPtr $ aStart arr2
+                touch (arrContents arr1)
+                touch (arrContents arr2)
                 return r
         else return False
 

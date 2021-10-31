@@ -55,12 +55,10 @@ import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (ForeignPtr(..))
-import GHC.Ptr (Ptr(..))
 import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Parser.ParserD (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -108,14 +106,14 @@ fromFold (Fold.Fold fstep finitial fextract) =
                   Fold.Partial s1 -> IPartial s1
                   Fold.Done b -> IDone b
 
-    step s (Array fp@(ForeignPtr start _) end) = do
-        goArray SPEC (Ptr start) s
+    step s (Array contents start end) = do
+        goArray SPEC start s
 
         where
 
         goArray !_ !cur !fs | cur >= end = do
             assert (cur == end) (return ())
-            liftIO $ touchForeignPtr fp
+            liftIO $ touch contents
             return $ Partial 0 fs
         goArray !_ !cur !fs = do
             x <- liftIO $ peek cur
@@ -140,23 +138,23 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
 
     where
 
-    step s (Array fp@(ForeignPtr start _) end) = do
-        if Ptr start >= end
+    step s (Array contents start end) = do
+        if start >= end
         then return $ Continue 0 s
-        else goArray SPEC (Ptr start) s
+        else goArray SPEC start s
 
         where
 
         {-# INLINE partial #-}
         partial arrRem cur next elemSize st n fs1 = do
             let next1 = next `plusPtr` negate (n * elemSize)
-            if next1 >= Ptr start && cur < end
+            if next1 >= start && cur < end
             then goArray SPEC next1 fs1
             else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
             x <- liftIO $ peek cur
-            liftIO $ touchForeignPtr fp
+            liftIO $ touch contents
             res <- step1 fs x
             let elemSize = sizeOf (undefined :: a)
                 next = cur `plusPtr` elemSize
@@ -321,10 +319,10 @@ take n (Fold (ParserD.Parser step1 initial1 extract1)) =
                 Done j b -> return $ Done j b
                 Error err -> return $ Error err
         else do
-            let !(Array (ForeignPtr start contents) _) = arr
+            let !(Array contents start _) = arr
                 sz = sizeOf (undefined :: a)
-                end = Ptr start `plusPtr` (i * sz)
-                arr1 = Array (ForeignPtr start contents) end
+                end = start `plusPtr` (i * sz)
+                arr1 = Array contents start end
                 remaining = negate i1
             res <- step1 r arr1
             case res of

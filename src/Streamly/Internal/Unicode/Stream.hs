@@ -81,16 +81,14 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (chr, ord)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (assert, unsafeChr)
-import GHC.ForeignPtr (ForeignPtr (..))
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Foreign (Array)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents, touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD, adapt)
@@ -258,9 +256,8 @@ decode0 table byte =
     where
 
     utf8table =
-        let !(Ptr addr) = table
-            end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end :: A.Array Word8
+        let end = table `plusPtr` 364
+        in A.Array undefined table end :: A.Array Word8
     showByte = "Streamly: decode0: byte: " ++ show byte
     showTable = " table: " ++ show utf8table
 
@@ -285,9 +282,8 @@ decode1 table state codep byte =
     where
 
     utf8table =
-        let !(Ptr addr) = table
-            end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end :: A.Array Word8
+        let end = table `plusPtr` 364
+        in A.Array undefined table end :: A.Array Word8
     showByte = "Streamly: decode1: byte: " ++ show byte
     showState st cp =
         " state: " ++ show st ++
@@ -318,8 +314,8 @@ resumeDecodeUtf8EitherD
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let A.Array p _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
+    let A.Array _ p _ = utf8d
+        !ptr = p
         stt =
             if dst == 0
             then UTF8DecodeInit state
@@ -437,8 +433,7 @@ replacementChar = '\xFFFD'
 decodeUtf8WithD :: Monad m
     => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
-    let A.Array p _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
+    let A.Array _ ptr _ = utf8d
     in Stream (step' ptr) (UTF8DecodeInit state)
 
     where
@@ -576,9 +571,9 @@ decodeUtf8Lax = decodeUtf8
 #endif
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
-    | InnerLoopDecodeInit s (ForeignPtr a) !(Ptr a) !(Ptr a)
-    | InnerLoopDecodeFirst s (ForeignPtr a) !(Ptr a) !(Ptr a) Word8
-    | InnerLoopDecoding s (ForeignPtr a) !(Ptr a) !(Ptr a)
+    | InnerLoopDecodeInit s ArrayContents !(Ptr a) !(Ptr a)
+    | InnerLoopDecodeFirst s ArrayContents !(Ptr a) !(Ptr a) Word8
+    | InnerLoopDecoding s ArrayContents !(Ptr a) !(Ptr a)
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the UTF8DecodeState
@@ -599,8 +594,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
-    let A.Array p _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
+    let A.Array _ ptr _ = utf8d
     in Stream (step' ptr) (OuterLoop state Nothing)
   where
     {-# INLINE transliterateOrError #-}
@@ -624,8 +618,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         return $
             case r of
                 Yield A.Array {..} s ->
-                    let p = unsafeForeignPtrToPtr aStart
-                     in Skip (InnerLoopDecodeInit s aStart p aEnd)
+                     Skip (InnerLoopDecodeInit s arrContents arrStart aEnd)
                 Skip s -> Skip (OuterLoop s Nothing)
                 Stop -> Skip D
     step' _ gst (OuterLoop st dst@(Just (ds, cp))) = do
@@ -633,13 +626,12 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         return $
             case r of
                 Yield A.Array {..} s ->
-                    let p = unsafeForeignPtrToPtr aStart
-                     in Skip (InnerLoopDecoding s aStart p aEnd ds cp)
+                     Skip (InnerLoopDecoding s arrContents arrStart aEnd ds cp)
                 Skip s -> Skip (OuterLoop s dst)
                 Stop -> Skip inputUnderflow
     step' _ _ (InnerLoopDecodeInit st startf p end)
         | p == end = do
-            liftIO $ touchForeignPtr startf
+            liftIO $ touch startf
             return $ Skip $ OuterLoop st Nothing
     step' _ _ (InnerLoopDecodeInit st startf p end) = do
         x <- liftIO $ peek p
@@ -675,7 +667,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                 _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
     step' _ _ (InnerLoopDecoding st startf p end sv cp)
         | p == end = do
-            liftIO $ touchForeignPtr startf
+            liftIO $ touch startf
             return $ Skip $ OuterLoop st (Just (sv, cp))
     step' table _ (InnerLoopDecoding st startf p end statePtr codepointPtr) = do
         x <- liftIO $ peek p

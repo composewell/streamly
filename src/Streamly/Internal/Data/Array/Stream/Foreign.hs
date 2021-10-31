@@ -57,7 +57,6 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.ForeignPtr (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -67,7 +66,8 @@ import GHC.Ptr (Ptr(..))
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
-import Streamly.Internal.BaseCompat
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
+    (arrayToFptrContents, fptrToArrayContents, touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -165,7 +165,7 @@ interposeSuffix x = S.interposeSuffix x A.read
 
 data FlattenState s a =
       OuterLoop s
-    | InnerLoop s !(ForeignPtr a) !(Ptr a) !(Ptr a)
+    | InnerLoop s !MA.ArrayContents !(Ptr a) !(Ptr a)
 
 {-# INLINE_NORMAL unlines #-}
 unlines :: forall m a. (MonadIO m, Storable a)
@@ -177,20 +177,19 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                let p = unsafeForeignPtrToPtr aStart
-                in D.Skip (InnerLoop s aStart p aEnd)
+                D.Skip (InnerLoop s arrContents arrStart aEnd)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
     step' _ (InnerLoop st _ p end) | p == end =
         return $ D.Yield sep $ OuterLoop st
 
-    step' _ (InnerLoop st startf p end) = do
+    step' _ (InnerLoop st contents p end) = do
         x <- liftIO $ do
                     r <- peek p
-                    touchForeignPtr startf
+                    touch contents
                     return r
-        return $ D.Yield x (InnerLoop st startf
+        return $ D.Yield x (InnerLoop st contents
                             (p `plusPtr` sizeOf (undefined :: a)) end)
 
 -------------------------------------------------------------------------------
@@ -329,8 +328,9 @@ foldD (Fold fstep initial extract) stream@(D.Stream step state) = do
     go !_ st !fs = do
         r <- step defState st
         case r of
-            D.Yield (Array (ForeignPtr start contents) (Ptr end)) s ->
-                goArray SPEC s (ForeignPtr end contents) (Ptr start) fs
+            D.Yield (Array contents start (Ptr end)) s ->
+                let fp = ForeignPtr end (arrayToFptrContents contents)
+                 in goArray SPEC s fp start fs
             D.Skip s -> go SPEC s fs
             D.Stop -> do
                 b <- extract fs
@@ -347,8 +347,7 @@ foldD (Fold fstep initial extract) stream@(D.Stream step state) = do
             next = cur `plusPtr` elemSize
         case res of
             FL.Done b -> do
-                let !(Ptr curAddr) = next
-                    arr = Array (ForeignPtr curAddr contents) (Ptr end)
+                let arr = Array (fptrToArrayContents contents) next (Ptr end)
                 return $! (b, D.cons arr (D.Stream step st))
             FL.Partial fs1 -> goArray SPEC st fp next fs1
 
@@ -384,10 +383,10 @@ takeArrayListRev = go
            then x : go (n - len) xs
            else if n == len
            then [x]
-           else let !(Array (ForeignPtr _ contents) end) = x
+           else let !(Array contents _ end) = x
                     sz = sizeOf (undefined :: a)
-                    !(Ptr start) = end `plusPtr` negate (n * sz)
-                 in [Array (ForeignPtr start contents) end]
+                    !start = end `plusPtr` negate (n * sz)
+                 in [Array contents start end]
 
 -- When we have to take an array partially, take the last part of the array in
 -- the first split.
@@ -407,12 +406,11 @@ splitAtArrayListRev n ls
                 then (x:xs', xs'')
                 else if m == len
                 then ([x],xs)
-                else let !(Array (ForeignPtr start contents) end) = x
+                else let !(Array contents start end) = x
                          sz = sizeOf (undefined :: a)
                          end1 = end `plusPtr` negate (m * sz)
-                         arr2 = Array (ForeignPtr start contents) end1
-                         !(Ptr addrEnd1) = end1
-                         arr1 = Array (ForeignPtr addrEnd1 contents) end
+                         arr2 = Array contents start end1
+                         arr1 = Array contents end1 end
                       in ([arr1], arr2:xs)
 
 -------------------------------------------------------------------------------
@@ -434,11 +432,12 @@ spliceArraysLenUnsafe len buffered = do
 
     where
 
-    writeArr dst (MA.Array as ae _) =
-        liftIO $ unsafeWithForeignPtr as $ \src -> do
-                        let count = ae `minusPtr` src
-                        memcpy (castPtr dst) (castPtr src) count
-                        return $ dst `plusPtr` count
+    writeArr dst (MA.Array ac src ae _) =
+        liftIO $ do
+            let count = ae `minusPtr` src
+            memcpy (castPtr dst) (castPtr src) count
+            touch ac
+            return $ dst `plusPtr` count
 
 {-# INLINE _spliceArrays #-}
 _spliceArrays :: (MonadIO m, Storable a)
@@ -452,11 +451,12 @@ _spliceArrays s = do
 
     where
 
-    writeArr dst (Array as ae) =
-        liftIO $ unsafeWithForeignPtr as $ \src -> do
-                        let count = ae `minusPtr` src
-                        memcpy (castPtr dst) (castPtr src) count
-                        return $ dst `plusPtr` count
+    writeArr dst (Array ac src ae) =
+        liftIO $ do
+            let count = ae `minusPtr` src
+            memcpy (castPtr dst) (castPtr src) count
+            touch ac
+            return $ dst `plusPtr` count
 
 {-# INLINE _spliceArraysBuffered #-}
 _spliceArraysBuffered :: (MonadIO m, Storable a)
@@ -546,8 +546,9 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
     go !_ st backBuf !pst = do
         r <- step defState st
         case r of
-            D.Yield (Array (ForeignPtr start contents) (Ptr end)) s ->
-                gobuf SPEC s backBuf (ForeignPtr end contents) (Ptr start) pst
+            D.Yield (Array contents start (Ptr end)) s ->
+                gobuf SPEC s backBuf
+                    (ForeignPtr end (arrayToFptrContents contents)) start pst
             D.Skip s -> go SPEC s backBuf pst
             D.Stop -> do
                 b <- extract pst
@@ -570,33 +571,31 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
                 assert (n <= Prelude.length (x:getList backBuf)) (return ())
                 let src0 = Prelude.take n (x:getList backBuf)
                     arr0 = A.fromListN n (Prelude.reverse src0)
-                    !(Ptr curAddr) = next
-                    arr1 = Array (ForeignPtr curAddr contents) (Ptr end)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
                     src = arr0 <> arr1
-                let !(Array (ForeignPtr start cont1) (Ptr end1)) = src
-                gobuf SPEC s (List []) (ForeignPtr end1 cont1) (Ptr start) pst1
+                let !(Array cont1 start (Ptr end1)) = src
+                    fp1 = ForeignPtr end1 (arrayToFptrContents cont1)
+                gobuf SPEC s (List []) fp1 start pst1
             PR.Continue 0 pst1 ->
                 gobuf SPEC s (List (x:getList backBuf)) fp next pst1
             PR.Continue n pst1 -> do
                 assert (n <= Prelude.length (x:getList backBuf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList backBuf)
                     arr0 = A.fromListN n (Prelude.reverse src0)
-                    !(Ptr curAddr) = next
-                    arr1 = Array (ForeignPtr curAddr contents) (Ptr end)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
                     src = arr0 <> arr1
-                let !(Array (ForeignPtr start cont1) (Ptr end1)) = src
-                gobuf SPEC s (List buf1) (ForeignPtr end1 cont1) (Ptr start) pst1
+                let !(Array cont1 start (Ptr end1)) = src
+                    fp1 = ForeignPtr end1 (arrayToFptrContents cont1)
+                gobuf SPEC s (List buf1) fp1 start pst1
             PR.Done 0 b -> do
-                let !(Ptr curAddr) = next
-                    arr = Array (ForeignPtr curAddr contents) (Ptr end)
+                let arr = Array (fptrToArrayContents contents) next (Ptr end)
                 return (b, D.cons arr (D.Stream step s))
             PR.Done n b -> do
                 assert (n <= Prelude.length (x:getList backBuf)) (return ())
                 let src0 = Prelude.take n (x:getList backBuf)
                     -- XXX create the array in reverse instead
                     arr0 = A.fromListN n (Prelude.reverse src0)
-                    !(Ptr curAddr) = next
-                    arr1 = Array (ForeignPtr curAddr contents) (Ptr end)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
                     -- XXX Use StreamK to avoid adding arbitrary layers of
                     -- constructors every time.
                     str = D.cons arr0 (D.cons arr1 (D.Stream step s))

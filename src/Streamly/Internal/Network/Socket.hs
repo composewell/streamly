@@ -68,7 +68,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Word (Word8)
 
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
@@ -87,7 +86,8 @@ import qualified Network.Socket as Net
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
+    (fromForeignPtrUnsafe, touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
@@ -305,12 +305,12 @@ writeArrayWith :: Storable a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h Array{..} = unsafeWithForeignPtr aStart $ \p ->
-    f h (castPtr p) aLen
+writeArrayWith f h Array{..} =
+    f h (castPtr arrStart) aLen >> touch arrContents
+
     where
-    aLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
+
+    aLen = aEnd `minusPtr` arrStart
 
 -- | Write an Array to a file handle.
 --

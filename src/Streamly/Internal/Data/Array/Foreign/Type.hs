@@ -83,12 +83,13 @@ import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (Addr#, nullAddr#)
 import GHC.Exts (IsList, IsString(..))
-import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
+
 #ifdef DEVBUILD
 import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 #endif
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -137,7 +138,12 @@ data Array a =
     Storable a =>
 #endif
     Array
-    { aStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
+    { arrContents ::
+#ifndef USE_FOREIGN_PTR
+        {-# UNPACK #-}
+#endif
+            !ArrayContents -- ^ first address
+    , arrStart :: {-# UNPACK #-} !(Ptr a) -- start address
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused addres
     }
 
@@ -167,15 +173,15 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 -- /Pre-release/
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: MA.Array a -> Array a
-unsafeFreeze (MA.Array as ae _) = Array as ae
+unsafeFreeze (MA.Array ac as ae _) = Array ac as ae
 
 -- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
 unsafeFreezeWithShrink :: Storable a => MA.Array a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
-  MA.Array as ae _ <- MA.rightSize arr
-  return $ Array as ae
+  MA.Array ac as ae _ <- MA.rightSize arr
+  return $ Array ac as ae
 
 -- | Makes a mutable array using the underlying memory of the immutable array.
 --
@@ -187,7 +193,7 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 -- /Pre-release/
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MA.Array a
-unsafeThaw (Array as ae) = MA.Array as ae ae
+unsafeThaw (Array ac as ae) = MA.Array ac as ae ae
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -220,11 +226,11 @@ fromPtr ::
 #endif
     Int -> Ptr a -> Array a
 fromPtr n ptr = unsafeInlineIO $ do
-    fptr <- newForeignPtr_ ptr
     let end = ptr `plusPtr` n
     return $ Array
-        { aStart = fptr
-        , aEnd   = end
+        { arrContents = MA.nilArrayContents
+        , arrStart = ptr
+        , aEnd = end
         }
 
 -- XXX when converting an array of Word8 from a literal string we can simply
@@ -672,15 +678,12 @@ instance Foldable Array where
 instance Storable a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 
-nullForeignPtr :: ForeignPtr a
-nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
-
 nil ::
 #ifdef DEVBUILD
     Storable a =>
 #endif
     Array a
-nil = Array nullForeignPtr (Ptr nullAddr#)
+nil = Array MA.nilArrayContents (Ptr nullAddr#) (Ptr nullAddr#)
 
 instance Storable a => Monoid (Array a) where
     mempty = nil

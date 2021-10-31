@@ -26,7 +26,6 @@ where
 #if !defined(mingw32_HOST_OS)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (length)
 import Streamly.Internal.Data.SVar (adaptState)
@@ -74,7 +73,7 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield arr s -> do
-                let p = unsafeForeignPtrToPtr (aStart arr)
+                let p = arrStart arr
                     len = MArray.byteLength arr
                 iov <- liftIO $ MArray.newArray maxIOVLen
                 iov' <- liftIO $ MArray.snocUnsafe iov (IOVec (castPtr p)
@@ -89,7 +88,7 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield arr s -> do
-                let p = unsafeForeignPtrToPtr (aStart arr)
+                let p = arrStart arr
                     alen = MArray.byteLength arr
                     len' = len + alen
                 if len' > n || length iov >= maxIOVLen

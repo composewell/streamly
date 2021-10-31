@@ -127,7 +127,7 @@ unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh A.Array{..} n =
     let !res = unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
-                as = unsafeForeignPtrToPtr aStart
+                as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs) (return ())
             let len = ringBound `minusPtr` rh
             r1 <- memcmp (castPtr rh) (castPtr as) (min len n)
@@ -153,7 +153,7 @@ unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh A.Array{..} =
     let !res = unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
-            let as = unsafeForeignPtrToPtr aStart
+            let as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs)
                    (return ())
             let len = ringBound `minusPtr` rh

@@ -126,8 +126,6 @@ import Data.Semigroup ((<>))
 #endif
 import Data.Word (Word8)
 import Foreign.C.String (CString)
-import Foreign.ForeignPtr (castForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -137,7 +135,7 @@ import GHC.Ptr (Ptr(..))
 import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
-import Streamly.Internal.BaseCompat
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (arrayToFptrContents)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer)
@@ -155,15 +153,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Ring.Foreign as RB
-
-#if MIN_VERSION_base(4,10,0)
-import Foreign.ForeignPtr (plusForeignPtr)
-#else
-import GHC.Base (Int(..), plusAddr#)
-import GHC.ForeignPtr (ForeignPtr(..))
-plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
-plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
-#endif
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -227,7 +216,8 @@ unsafeRead :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 unsafeRead = Unfold step inject
     where
 
-    inject (Array fp _) = return fp
+    inject (Array contents (Ptr start) _) =
+        return (ForeignPtr start (arrayToFptrContents contents))
 
     {-# INLINE_LATE step #-}
     step (ForeignPtr p contents) = do
@@ -262,13 +252,14 @@ null arr = A.byteLength arr == 0
 {-# INLINE getIndexRev #-}
 getIndexRev :: forall a. Storable a => Array a -> Int -> Maybe a
 getIndexRev arr i =
-    unsafeInlineIO $
-        unsafeWithForeignPtr (aStart arr) $ \ptr -> do
-            let elemSize = sizeOf (undefined :: a)
-                elemPtr = aEnd arr `plusPtr` negate (elemSize * (i + 1))
-            if i >= 0 && elemPtr >= ptr
-            then Just <$> peek elemPtr
-            else return Nothing
+    unsafeInlineIO
+        $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
+            $ \ptr -> do
+                let elemSize = sizeOf (undefined :: a)
+                    elemPtr = aEnd arr `plusPtr` negate (elemSize * (i + 1))
+                if i >= 0 && elemPtr >= ptr
+                then Just <$> peek elemPtr
+                else return Nothing
 
 -- |
 --
@@ -374,11 +365,11 @@ getSliceUnsafe ::
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSliceUnsafe index len (Array fp e) =
+getSliceUnsafe index len (Array contents start e) =
     let size = sizeOf (undefined :: a)
-        fp1 = fp `plusForeignPtr` (index * size)
-        end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
-     in assert (end <= e) (Array fp1 end)
+        fp1 = start `plusPtr` (index * size)
+        end = fp1 `plusPtr` (len * size)
+     in assert (end <= e) (Array contents fp1 end)
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
@@ -425,13 +416,14 @@ getSlicesFromLen from len =
 {-# INLINE getIndex #-}
 getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
 getIndex arr i =
-    unsafeInlineIO $
-        unsafeWithForeignPtr (aStart arr) $ \ptr -> do
-            let elemSize = sizeOf (undefined :: a)
-                elemPtr = ptr `plusPtr` (elemSize * i)
-            if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd arr
-            then Just <$> peek elemPtr
-            else return Nothing
+    unsafeInlineIO
+        $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
+            $ \ptr -> do
+                let elemSize = sizeOf (undefined :: a)
+                    elemPtr = ptr `plusPtr` (elemSize * i)
+                if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd arr
+                then Just <$> peek elemPtr
+                else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from
 -- the supplied Array. An exception is thrown if an index is out of bounds.
@@ -520,7 +512,8 @@ unsafeCast ::
     Storable b =>
 #endif
     Array a -> Array b
-unsafeCast (Array start end) = Array (castForeignPtr start) (castPtr end)
+unsafeCast (Array contents start end) =
+    Array contents (castPtr start) (castPtr end)
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
@@ -551,7 +544,7 @@ cast arr =
 --
 unsafeAsPtr :: Array a -> (Ptr b -> IO c) -> IO c
 unsafeAsPtr Array{..} act = do
-    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
+    MA.unsafeWithArrayContents arrContents arrStart $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --
@@ -564,7 +557,7 @@ unsafeAsPtr Array{..} act = do
 unsafeAsCString :: Array a -> (CString -> IO b) -> IO b
 unsafeAsCString arr act = do
     let Array{..} = asBytes arr <> A.fromList [0]
-    unsafeWithForeignPtr aStart $ \ptr -> act (castPtr ptr)
+    MA.unsafeWithArrayContents arrContents arrStart $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds

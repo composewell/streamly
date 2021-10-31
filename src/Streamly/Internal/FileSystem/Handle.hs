@@ -101,7 +101,6 @@ where
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
@@ -109,7 +108,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
-import Streamly.Internal.BaseCompat
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -380,13 +379,11 @@ toBytes = AS.concat . toChunks
 putChunk :: (MonadIO m, Storable a) => Handle -> Array a -> m ()
 putChunk _ arr | A.length arr == 0 = return ()
 putChunk h Array{..} =
-    liftIO $ unsafeWithForeignPtr aStart $ \p -> hPutBuf h p aLen
+    liftIO $ hPutBuf h arrStart aLen >> touch arrContents
 
     where
 
-    aLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
+    aLen = aEnd `minusPtr` arrStart
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
