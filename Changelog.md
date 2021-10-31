@@ -16,6 +16,7 @@
 * Fix a bug in classifySessionsBy, see PR #1311. The bug could cause
   premature ejection of a session when nput events with the same key are
   split into multiple sessions.
+* Fix array: missing pointer touch could potentially cause use of freed memory.
 * Fix array: unnecessary additional allocation due to a bug
 
 ## 0.8.0 (Jun 2021)

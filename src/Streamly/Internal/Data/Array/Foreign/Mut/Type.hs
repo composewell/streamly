@@ -1524,7 +1524,7 @@ appendNUnsafe action n =
         return $ ArrayUnsafe start1 end1
 
     step (ArrayUnsafe start end) x = do
-        liftIO $ poke end x
+        liftIO $ poke end x >> touchForeignPtr start
         return $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
 
     extract (ArrayUnsafe start end) = Array start end end
@@ -1642,11 +1642,17 @@ writeNWithUnsafe alloc n = Fold step initial extract
         (Array start end _) <- alloc (max n 0)
         return $ FL.Partial $ ArrayUnsafe start end
 
-    step (ArrayUnsafe start end) x = do
+    -- This condition is always true, but compiler does not know that.
+    step (ArrayUnsafe start end) x | end /= nullPtr = do
         liftIO $ poke end x
         return
           $ FL.Partial
           $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+    -- This condition is never met, just a hack to insert a touchForeignPtr.
+    -- This condition increases the cputime by around 50% in several benchmarks
+    -- but there seem to be no better way. XXX An unconditional touch increases
+    -- the allocations and time by a very large amount, need to investigate.
+    step (ArrayUnsafe start _) _ = liftIO $ touchForeignPtr start >> undefined
 
     extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
 
