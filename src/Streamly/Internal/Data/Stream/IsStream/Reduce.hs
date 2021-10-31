@@ -174,7 +174,6 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
@@ -1173,6 +1172,8 @@ data SessionState t m k a b = SessionState
     , sessionOutputStream :: t (m :: Type -> Type) (k, b) -- ^ Completed sessions
     }
 
+data SessionEntry a b = LiveSession !a !b | ZombieSession
+
 -- | @classifySessionsBy tick keepalive predicate timeout fold stream@
 -- classifies an input event @stream@ consisting of  @(timestamp, (key,
 -- value))@ into sessions based on the @key@, folding all the values
@@ -1252,14 +1253,33 @@ classifySessionsBy tick reset ejectPred tmout
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
         --
-        -- To detect session inactivity we keep a timestamp of the latest event
-        -- in the Map along with the fold result.  When we purge the session
-        -- from the heap we match the timestamp in the heap with the timestamp
-        -- in the Map, if the latest timestamp is newer and has not expired we
-        -- reinsert the key in the heap.
-        --
         -- XXX if the key is an Int, we can also use an IntMap for slightly
         -- better performance.
+        --
+        -- When we insert a key in the Map we insert an entry into the heap as
+        -- well with the session expiry as the sort key.  The Map entry
+        -- consists of the fold result, and the expiry time of the session. If
+        -- "reset" is True the expiry time is readjusted whenever a new event
+        -- is processed. If the fold terminates and a new session is started
+        -- for the same key the expiry time is set to the first timestamp of
+        -- the new session.
+        --
+        -- The heap must have at most one entry for any given key. The heap is
+        -- processed periodically to remove the expired entries.  We pick up an
+        -- expired entry from the top of the heap and if the session has
+        -- expired based on the expiry time in the Map entry then we remove the
+        -- session from the Map and yield its fold output. Otherwise, we
+        -- reinsert the entry into the heap based on the current expiry in the
+        -- Map entry.
+        --
+        -- If an entry is removed from the Map and not removed from the heap
+        -- and in the meantime it is inserted again in the Map (using the same
+        -- key) then how do we avoid inserting multiple entries in the heap?
+        -- For this reason we maintain the invariant that the Map entry is
+        -- removed only when the heap entry is removed. Even if the fold has
+        -- finished we still keep a dummy Map entry (ZombieSession) until the
+        -- heap entry is removed. That way if we have a Map entry we do not
+        -- insert a heap entry because we know it is already there.
         --
         let curTime = max sessionEventTime timestamp
             mOld = Map.lookup key sessionKeyValueMap
@@ -1271,9 +1291,11 @@ classifySessionsBy tick reset ejectPred tmout
                 -- should not be expensive.
                 --
                 let (mp, cnt) = case mOld of
-                        Nothing -> (sessionKeyValueMap, sessionCount)
-                        Just _ -> (Map.delete key sessionKeyValueMap
-                                  , sessionCount - 1)
+                        Just (LiveSession _ _) ->
+                            ( Map.insert key ZombieSession sessionKeyValueMap
+                            , sessionCount - 1
+                            )
+                        _ -> (sessionKeyValueMap, sessionCount)
                 return $ session
                     { sessionCurTime = curTime
                     , sessionEventTime = curTime
@@ -1282,14 +1304,14 @@ classifySessionsBy tick reset ejectPred tmout
                     , sessionOutputStream = fromPure (key, fb)
                     }
             partial fs1 = do
-                let acc = Tuple' timestamp fs1
+                let expiry = addToAbsTime timestamp timeoutMs
                 (hp1, mp1, out1, cnt1) <- do
                         let vars = (sessionTimerHeap, sessionKeyValueMap,
                                            IsStream.nil, sessionCount)
                         case mOld of
                             -- inserting new entry
                             Nothing -> do
-                                -- Eject a session from heap and map is needed
+                                -- Eject a session from heap and map if needed
                                 eject <- ejectPred sessionCount
                                 (hp, mp, out, cnt) <-
                                     if eject
@@ -1297,13 +1319,13 @@ classifySessionsBy tick reset ejectPred tmout
                                     else return vars
 
                                 -- Insert the new session in heap
-                                let expiry = addToAbsTime timestamp timeoutMs
-                                    hp' = H.insert (Entry expiry key) hp
+                                let hp' = H.insert (Entry expiry key) hp
                                  in return (hp', mp, out, cnt + 1)
                             -- updating old entry
                             Just _ -> return vars
 
-                let mp2 = Map.insert key acc mp1
+                let acc = LiveSession expiry fs1
+                    mp2 = Map.insert key acc mp1
                 return $ SessionState
                     { sessionCurTime = curTime
                     , sessionEventTime = curTime
@@ -1314,10 +1336,12 @@ classifySessionsBy tick reset ejectPred tmout
                     }
         res0 <- do
             case mOld of
-                Nothing -> initial
-                Just (Tuple' _ acc) -> return $ FL.Partial acc
+                Just (LiveSession _ acc) -> return $ FL.Partial acc
+                _ -> initial
         case res0 of
-            FL.Done fb -> done fb
+            FL.Done _ ->
+                error $ "classifySessionsBy: "
+                    ++ "The supplied fold must consume at least one input"
             FL.Partial fs -> do
                 res <- step fs value
                 case res of
@@ -1357,7 +1381,10 @@ classifySessionsBy tick reset ejectPred tmout
             Just (Entry _ key, hp1) -> do
                 r <- case Map.lookup key mp of
                     Nothing -> return (hp1, mp, out, cnt)
-                    Just (Tuple' _ acc) -> ejectEntry hp1 mp out cnt acc key
+                    Just ZombieSession ->
+                        return (hp1, Map.delete key mp, out, cnt)
+                    Just (LiveSession _ acc) ->
+                        ejectEntry hp1 mp out cnt acc key
                 ejectAll r
             Nothing -> do
                 assert (Map.null mp) (return ())
@@ -1369,8 +1396,9 @@ classifySessionsBy tick reset ejectPred tmout
             Just (Entry expiry key, hp1) ->
                 case Map.lookup key mp of
                     Nothing -> ejectOne (hp1, mp, out, cnt)
-                    Just (Tuple' latestTS acc) -> do
-                        let expiry1 = addToAbsTime latestTS timeoutMs
+                    Just ZombieSession ->
+                        ejectOne (hp1, Map.delete key mp, out, cnt)
+                    Just (LiveSession expiry1 acc) -> do
                         if not reset || expiry1 <= expiry
                         then ejectEntry hp1 mp out cnt acc key
                         else
@@ -1409,8 +1437,9 @@ classifySessionsBy tick reset ejectPred tmout
                     then
                         case Map.lookup key mp of
                             Nothing -> ejectLoop hp1 mp out cnt
-                            Just (Tuple' latestTS acc) -> do
-                                let expiry1 = addToAbsTime latestTS timeoutMs
+                            Just ZombieSession ->
+                                ejectLoop hp1 (Map.delete key mp) out cnt
+                            Just (LiveSession expiry1 acc) -> do
                                 if expiry1 <= curTime || not reset || force
                                 then do
                                     (hp2,mp1,out1,cnt1) <-
