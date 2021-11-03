@@ -1408,7 +1408,7 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- | Extract the output of a fold and refold is using a 'Refold'.
+-- | Extract the output of a fold and refold it using a 'Refold'.
 --
 -- /Internal/
 {-# INLINE refold #-}

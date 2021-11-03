@@ -947,9 +947,10 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
 chunksOf n f = foldMany (FL.take n f)
 
--- Keep the argument order consistent with consumeIterateM
+-- Keep the argument order consistent with consumeIterateM.
 --
--- | Like 'foldMany' but for the 'Refold' type.
+-- | Like 'foldMany' but for the 'Refold' type.  The supplied action is used as
+-- the initial value for each refold.
 --
 -- /Internal/
 {-# INLINE_NORMAL refoldMany #-}
