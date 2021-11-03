@@ -107,6 +107,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
 
     -- * Searching
     , findIndices
+    , slicesBy
 
     -- * Rolling map
     -- | Map using the previous element.
@@ -1173,6 +1174,25 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i)
           Stop   -> Stop
+
+{-# INLINE_NORMAL slicesBy #-}
+slicesBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+slicesBy p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Just (st, i, len)) = i `seq` len `seq` do
+      r <- step1 (adaptState gst) st
+      return
+        $ case r of
+              Yield x s ->
+                if p x
+                then Yield (i, len + 1) (Just (s, i + len + 1, 0))
+                else Skip (Just (s, i, len + 1))
+              Skip s -> Skip (Just (s, i, len))
+              Stop -> if len == 0 then Stop else Yield (i, len) Nothing
+    step _ Nothing = return Stop
 
 ------------------------------------------------------------------------------
 -- Rolling map

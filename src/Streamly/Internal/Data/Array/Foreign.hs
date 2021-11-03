@@ -104,7 +104,9 @@ module Streamly.Internal.Data.Array.Foreign
     -- * Subarrays
     , getSliceUnsafe
     -- , getSlice
-    -- , getSlicesFromLenN
+    , genSlicesFromLen
+    , getSlicesFromLen
+    , splitOn
 
     -- * Streaming Operations
     , streamTransform
@@ -145,6 +147,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Mut as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
@@ -376,6 +379,38 @@ getSliceUnsafe index len (Array fp e) =
         fp1 = fp `plusForeignPtr` (index * size)
         end = unsafeForeignPtrToPtr fp1 `plusPtr` (len * size)
      in assert (end <= e) (Array fp1 end)
+
+-- | Split the array into a stream of slices using a predicate. The element
+-- matching the predicate is dropped.
+--
+-- /Pre-release/
+{-# INLINE splitOn #-}
+splitOn :: (Monad m, Storable a) =>
+    (a -> Bool) -> Array a -> SerialT m (Array a)
+splitOn predicate arr =
+    fmap A.unsafeFreeze $ MA.splitOn predicate (A.unsafeThaw arr)
+
+{-# INLINE genSlicesFromLen #-}
+genSlicesFromLen :: forall m a. (Monad m, Storable a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (Array a) (Int, Int)
+genSlicesFromLen from len =
+    Unfold.lmap A.unsafeThaw (MA.genSlicesFromLen from len)
+
+-- | Generate a stream of slices of specified length from an array, starting
+-- from the supplied array index. The last slice may be shorter than the
+-- requested length.
+--
+-- /Pre-release//
+{-# INLINE getSlicesFromLen #-}
+getSlicesFromLen :: forall m a. (Monad m, Storable a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (Array a) (Array a)
+getSlicesFromLen from len =
+    fmap A.unsafeFreeze
+        $ Unfold.lmap A.unsafeThaw (MA.getSlicesFromLen from len)
 
 -------------------------------------------------------------------------------
 -- Random reads and writes

@@ -136,6 +136,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     , wordsBy
     , splitOnSeq
     , splitOnSuffixSeq
+    , sliceOnSuffix
 
     -- * Transform (Nested Containers)
     -- | Opposite to compact in ArrayStream
@@ -159,14 +160,16 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
-import Streamly.Internal.Data.Refold.Type (Refold(..))
+import Streamly.Internal.Data.Fold.Step (Step(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Ring.Foreign as RB
@@ -1066,6 +1069,35 @@ refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
                 return $ Skip $ CIterYield b CIterStop
     stepOuter _ (CIterYield a next) = return $ Yield a next
     stepOuter _ CIterStop = return Stop
+
+-- "n" elements at the end are dropped by the fold.
+{-# INLINE sliceBy #-}
+sliceBy :: Monad m => Fold m a Int -> Int -> Refold m (Int, Int) a (Int, Int)
+sliceBy (Fold step1 initial1 extract1) n = Refold step inject extract
+
+    where
+
+    inject (i, len) = do
+        r <- initial1
+        return $ case r of
+            Partial s -> Partial $ Tuple' (i + len + n) s
+            Done l -> Done (i, l)
+
+    step (Tuple' i s) x = do
+        r <- step1 s x
+        return $ case r of
+            Partial s1 -> Partial $ Tuple' i s1
+            Done len -> Done (i, len)
+
+    extract (Tuple' i s) = (i,) <$> extract1 s
+
+{-# INLINE sliceOnSuffix #-}
+sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+sliceOnSuffix predicate =
+    -- Scan the stream with the given refold
+    refoldIterateM
+        (sliceBy (FL.takeEndBy_ predicate FL.length) 1)
+        (return (-1, 0))
 
 ------------------------------------------------------------------------------
 -- Parsing
