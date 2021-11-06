@@ -1,14 +1,16 @@
-{-# LANGUAGE CPP #-}
-
 -- |
 -- Module      : Streamly.Internal.Unicode.Char.Parser
 -- Copyright   : (c) 2021 Composewell Technologies
---
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- To parse a text input, use the decode routines from
+-- "Streamly.Unicode.Stream" module to convert an input byte stream to a
+-- Unicode Char stream and then use these parsers on the Char stream.
+
+-- XXX Add explicit export list.
 module Streamly.Internal.Unicode.Char.Parser where
 
 import Control.Applicative (Alternative(..))
@@ -25,8 +27,16 @@ import qualified Streamly.Internal.Data.Fold as Fold
 -- Character classification
 --------------------------------------------------------------------------------
 
+-- XXX It may be possible to implement faster predicates for ASCII byte stream.
+-- We can measure if there is a signficant difference and if so we can add such
+-- predicates to Streamly.Unicode.Char.Parser.Latin1.
+--
 #define CHAR_PARSER_SIG(NAME)         NAME :: MonadCatch m => Parser m Char Char
+-- XXX Need to use the predicates from Unicode.Char module/unicode-data package
 #define CHAR_PARSER(NAME, PREDICATE)  NAME = Parser.satisfy Char.PREDICATE
+
+-- XXX Add haddock documentation
+-- XXX Add INLINE pragmas
 
 CHAR_PARSER_SIG(space)
 CHAR_PARSER(space,isSpace)
@@ -90,6 +100,7 @@ CHAR_PARSER(asciiLower,isAsciiLower)
 --------------------------------------------------------------------------------
 
 -- | Match a specific character.
+{-# INLINE char #-}
 char :: MonadCatch m => Char -> Parser m Char Char
 char c = Parser.satisfy (== c)
 
@@ -97,7 +108,9 @@ char c = Parser.satisfy (== c)
 -- Numeric parsers
 --------------------------------------------------------------------------------
 
--- | Parse and decode an unsigned decimal number.
+-- XXX It should fail if the number is larger than the size of the type.
+--
+-- | Parse and decode an unsigned integral decimal number.
 {-# INLINE decimal #-}
 decimal :: (MonadCatch m, Integral a) => Parser m Char a
 decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
@@ -106,11 +119,10 @@ decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
 
     step a c = a * 10 + fromIntegral (ord c - 48)
 
-
--- | Parse and decode an unsigned hexadecimal number.  The hex digits
+-- | Parse and decode an unsigned integral hexadecimal number.  The hex digits
 -- @\'a\'@ through @\'f\'@ may be upper or lower case.
 --
--- This parser does not accept a leading @\"0x\"@ string.
+-- Note: This parser does not accept a leading @\"0x\"@ string.
 {-# INLINE hexadecimal #-}
 hexadecimal :: (MonadCatch m, Integral a, Bits a) => Parser m Char a
 hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
@@ -118,20 +130,24 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
     where
 
     isHexDigit c =
-        (c >= '0' && c <= '9')
-            || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+           (c >= '0' && c <= '9')
+        || (c >= 'a' && c <= 'f')
+        || (c >= 'A' && c <= 'F')
 
     step a c
-        | w >= 48 && w <= 57 = (a `shiftL` 4) .|. fromIntegral (w - 48)
-        | w >= 97 = (a `shiftL` 4) .|. fromIntegral (w - 87)
-        | otherwise = (a `shiftL` 4) .|. fromIntegral (w - 55)
+        | w >= 48 && w <= 57 =
+            (a `shiftL` 4) .|. fromIntegral (w - 48)
+        | w >= 97 =
+            (a `shiftL` 4) .|. fromIntegral (w - 87)
+        | otherwise =
+            (a `shiftL` 4) .|. fromIntegral (w - 55)
 
         where
 
         w = ord c
 
--- | Parse a number with an optional leading @\'+\'@ or @\'-\'@ sign
--- character.
+-- | Allow an optional leading @\'+\'@ or @\'-\'@ sign character before any
+-- parser.
 {-# INLINE signed #-}
 signed :: (Num a, MonadCatch m) => Parser m Char a -> Parser m Char a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
@@ -144,8 +160,6 @@ signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 -- consumed.
 --
 -- === Examples
---
--- These examples use this helper:
 --
 -- Examples with behaviour identical to 'read', if you feed an empty
 -- continuation to the first result:
@@ -167,5 +181,7 @@ signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 --
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
+--
+-- /Unimplemented/
 double :: Parser m Char Double
 double = undefined

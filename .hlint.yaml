@@ -32,6 +32,7 @@
 
 - ignore: {name: "Redundant <*", within: Serial.NestedStream}
 - ignore: {name: "Use ++", within: Serial.NestedStream}
+- ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Char.Parser}
 
 # Specify additional command line arguments
 #
