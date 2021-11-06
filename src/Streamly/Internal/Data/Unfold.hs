@@ -423,8 +423,6 @@ either (Unfold step1 inject1) = Unfold step inject
             Skip s -> Skip (s, f)
             Stop -> Stop) <$> step1 st
 
--- See StreamD.scanOnce for implementing this.
---
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
 -- /Pre-release/
@@ -436,28 +434,26 @@ scan (Fold stepF initial extract) (Unfold stepU injectU) =
     where
 
     inject a =  do
-        fs <- initial
-        case fs of
-            FL.Partial fs1 -> do
-                us <- injectU a
-                return (fs1, Just us)
-            FL.Done _ -> return (undefined, Nothing)
+        r <- initial
+        case r of
+            FL.Partial fs -> Just . (fs,) <$> injectU a
+            FL.Done _ -> return Nothing
 
     {-# INLINE_LATE step #-}
-    step (fs, Just us) = do          
+    step (Just (fs, us)) = do
         ru <- stepU us
         case ru of
             Yield x s -> do
                 rf <- stepF fs x
                 case rf of
-                    FL.Done v -> return $ Yield v (fs, Nothing)
+                    FL.Done v -> return $ Yield v Nothing
                     FL.Partial fs1 -> do
                         v <- extract fs1
-                        return $ Yield v (fs1, Just s)
-            Skip s -> return $ Skip (fs, Just s)
+                        return $ Yield v (Just (fs1, s))
+            Skip s -> return $ Skip (Just (fs, s))
             Stop -> return Stop
-       
-    step (_, Nothing) = return Stop    
+
+    step Nothing = return Stop
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
