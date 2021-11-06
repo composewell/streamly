@@ -661,6 +661,7 @@ main = hspec
                 (S.mergeBy compare)
                 (reverse input)
                 [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+        prop "sortBy" sortBy
 
     describe "Stream group and split operations" $ do
         groupSplitOps "serially"
@@ -699,4 +700,3 @@ main = hspec
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
-        prop "sortBy" sortBy
