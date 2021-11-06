@@ -60,6 +60,17 @@ benchIOSink
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
 
+-- Make the input unsorted.
+{-# INLINE benchIOSinkRandom #-}
+benchIOSinkRandom
+    :: (IsStream t, NFData b)
+    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIOSinkRandom value name f =
+    bench name $ nfIO $ randomRIO (1,1)
+        >>= f
+        . S.map (\x -> if even x then x + 2 else x)
+        . sourceUnfoldrM value
+
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
@@ -218,10 +229,10 @@ parseManyGroupsRolling b =
 
 {-# INLINE parseManyGroupsRollingEither #-}
 parseManyGroupsRollingEither :: (MonadThrow m, MonadCatch m) =>
-    Bool -> SerialT m Int -> m ()
-parseManyGroupsRollingEither b =
-    IP.drain .
-    IP.parseManyD (PR.groupByRollingEither (\_ _ -> b) FL.drain FL.drain)
+    (Int -> Int -> Bool) -> SerialT m Int -> m ()
+parseManyGroupsRollingEither cmp =
+       IP.drain
+    .  IP.parseManyD (PR.groupByRollingEither cmp FL.drain FL.drain)
 
 -------------------------------------------------------------------------------
 -- Parsing with unfolds
@@ -334,16 +345,18 @@ o_1_space_serial_nested :: Int -> [Benchmark]
 o_1_space_serial_nested value =
     [ benchIOSink value "parseMany" $ parseMany value
     , benchIOSink value "parseMany groupBy (bound groups)"
-          $ (parseManyGroups False)
+          $ parseManyGroups False
     , benchIOSink value "parseMany groupRollingBy (bound groups)"
-          $ (parseManyGroupsRolling False)
-    , benchIOSink value "parseMany groupBy (1 group)" $ (parseManyGroups True)
+          $ parseManyGroupsRolling False
+    , benchIOSink value "parseMany groupBy (1 group)" $ parseManyGroups True
     , benchIOSink value "parseMany groupRollingBy (1 group)"
-          $ (parseManyGroupsRolling True)
-    , benchIOSink value "parseMany groupRollingByEither (1 group)"
-          $ (parseManyGroupsRollingEither True)
-    , benchIOSink value "parseMany groupRollingByEither (bound groups)"
-          $ (parseManyGroupsRollingEither False)
+          $ parseManyGroupsRolling True
+    , benchIOSink value "parseMany groupRollingByEither (Left)"
+          $ parseManyGroupsRollingEither (<)
+    , benchIOSink value "parseMany groupRollingByEither (Right)"
+          $ parseManyGroupsRollingEither (>)
+    , benchIOSinkRandom value "parseMany groupRollingByEither (Alternating)"
+          $ parseManyGroupsRollingEither (>)
     ]
 
 o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]

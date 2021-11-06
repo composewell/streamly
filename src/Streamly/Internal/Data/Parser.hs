@@ -722,7 +722,7 @@ groupByRolling eq = K.toParserK . D.groupByRolling eq
 -- /Unimplemented/
 {-# INLINABLE groupByRollingEither #-}
 groupByRollingEither :: MonadCatch m =>
-    (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a (Either b b)
+    (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = K.toParserK . D.groupByRollingEither eq f1
 
 -- | Match the given sequence of elements using the given comparison function.

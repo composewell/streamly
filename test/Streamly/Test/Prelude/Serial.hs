@@ -505,7 +505,7 @@ foldIterateM =
 sortBy :: Property
 sortBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
         let s1 = sort lst
-        s2 <- S.toList $ IS.sortBy compare $ S.fromList lst
+        s2 <- run $ S.toList $ IS.sortBy compare $ S.fromList lst
         assert $ s1 == s2
 
 moduleName :: String

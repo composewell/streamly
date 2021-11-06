@@ -50,6 +50,7 @@ where
 
 #include "inline.hs"
 
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict (get, put)
@@ -69,6 +70,7 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 import qualified Data.List as List
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
@@ -181,9 +183,6 @@ sampleBurstStart gap =
 -- input stream is almost sorted (ascending/descending) or random. We could
 -- serialize the stream to an array and use quicksort.
 --
--- Use 'groupByRollingEither (\x -> (< GT) . f x) Fold.toList Fold.toListRev'
--- to generate sorted segments before merging. Compare the perf.
---
 -- | Sort the input stream using a supplied comparison function.
 --
 -- /O(n) space/
@@ -193,8 +192,16 @@ sampleBurstStart gap =
 -- /Pre-release/
 --
 {-# INLINE sortBy #-}
-sortBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a
-sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
+sortBy :: MonadCatch m => (a -> a -> Ordering) -> SerialT m a -> SerialT m a
+-- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
+sortBy cmp =
+    let p =
+            Parser.groupByRollingEither
+                (\x -> (< GT) . cmp x)
+                Fold.toStreamRev
+                Fold.toStream
+     in   Stream.concatPairsWith (Stream.mergeBy cmp) id
+        . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins

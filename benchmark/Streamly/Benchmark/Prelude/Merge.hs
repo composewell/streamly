@@ -21,6 +21,7 @@
 #endif
 
 import Streamly.Internal.Data.Stream.IsStream (SerialT)
+import qualified Data.List as List
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -194,6 +195,7 @@ inspect $ hasNoTypeClasses 'unfoldManyMergeBy
 sortBy :: (Int -> Int -> Ordering) -> SerialT IO Int -> IO ()
 sortBy cmp = Stream.drain . Stream.sortBy cmp
 
+{-
 -- For fair comparison with concatPairs, removed sorted segmentation
 {-# INLINE listSortBy #-}
 listSortBy :: (a -> a -> Ordering) -> [a] -> [a]
@@ -213,6 +215,7 @@ listSortBy cmp = mergeAll . sequences
       | otherwise       = a:merge as' bs
     merge [] bs         = bs
     merge as []         = as
+-}
 
 o_n_heap_concat :: Int -> [Benchmark]
 o_n_heap_concat value =
@@ -246,10 +249,28 @@ o_n_heap_concat value =
     , bgroup "sorting"
         [ benchIOSink value "sortBy compare" (sortBy compare)
         , benchIOSink value "sortBy (flip compare)" (sortBy (flip compare))
+        , benchIOSink value "sortBy compare randomized"
+            (sortBy compare . Stream.map (\x -> if even x then x + 2 else x))
+        {-
         , bench "sortByLists compare"
             $ nf (\x -> listSortBy compare [1..x]) value
         , bench "sortByLists (flip compare)"
             $ nf (\x -> listSortBy (flip compare) [1..x]) value
+        , bench "sortByLists compare randomized"
+            $ nf (\x -> listSortBy compare
+                    (map (\n -> if even n then n + 2 else n) [1..x])
+                 )
+                 value
+        -}
+        , bench "sortByLists compare"
+            $ nf (\x -> List.sortBy compare [1..x]) value
+        , bench "sortByLists (flip compare)"
+            $ nf (\x -> List.sortBy (flip compare) [1..x]) value
+        , bench "sortByLists compare randomized"
+            $ nf (\x -> List.sortBy compare
+                    (map (\n -> if even n then n + 2 else n) [1..x])
+                 )
+                 value
         ]
     ]
 

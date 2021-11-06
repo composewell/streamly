@@ -734,13 +734,6 @@ data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
 
-{-# ANN type GroupByStatePair Fuse #-}
-data GroupByStatePair a s1 s2
-    = GroupByInitPair !s1 !s2
-    | GroupByGroupingPair !a !s1 !s2
-    | GroupByGroupingPairL !a !s1 !s2
-    | GroupByGroupingPairR !a !s1 !s2
-
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
 {-# INLINE groupBy #-}
@@ -805,9 +798,16 @@ groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
     extract (GroupByInit s) = fextract s
     extract (GroupByGrouping _ s) = fextract s
 
+{-# ANN type GroupByStatePair Fuse #-}
+data GroupByStatePair a s1 s2
+    = GroupByInitPair !s1 !s2
+    | GroupByGroupingPair !a !s1 !s2
+    | GroupByGroupingPairL !a !s1 !s2
+    | GroupByGroupingPairR !a !s1 !s2
+
 {-# INLINABLE groupByRollingEither #-}
 groupByRollingEither :: MonadCatch m =>
-    (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser m a (Either b b)
+    (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither
     eq
     (Fold fstep1 finitial1 fextract1)
@@ -857,7 +857,7 @@ groupByRollingEither
                 FL.Partial s1 ->
                     case res2 of
                         FL.Partial s2 -> IPartial $ GroupByInitPair s1 s2
-                        FL.Done b -> IDone (Left b)
+                        FL.Done b -> IDone (Right b)
                 FL.Done b -> IDone (Left b)
 
     step (GroupByInitPair s1 s2) a = grouper s1 s2 a
