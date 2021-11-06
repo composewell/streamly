@@ -13,6 +13,9 @@
 * Fix array potentially writing beyond allocated memory when writing the last
   element. Likely cause of 
   [#944](https://github.com/composewell/streamly/issues/944).
+* Fix a bug in classifySessionsBy, see PR #1311. The bug could cause
+  premature ejection of a session when nput events with the same key are
+  split into multiple sessions.
 
 ## 0.8.0 (Jun 2021)
 
