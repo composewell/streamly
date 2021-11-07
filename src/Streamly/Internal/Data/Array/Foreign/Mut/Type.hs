@@ -1253,7 +1253,7 @@ arraysOf n (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield x s -> do
-                liftIO $ poke end x
+                liftIO $ poke end x >> touch contents
                 let end' = end `plusPtr` sizeOf (undefined :: a)
                 return $
                     if end' >= bound
