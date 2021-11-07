@@ -88,7 +88,6 @@ where
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.Storable (Storable(..))
 import System.IO (Handle, openFile, IOMode(..), hClose)
 import Prelude hiding (read)
 
@@ -198,14 +197,14 @@ usingFile3 = UF.bracket before after
 --
 -- @since 0.7.0
 {-# INLINABLE putChunk #-}
-putChunk :: Storable a => FilePath -> Array a -> IO ()
+putChunk :: FilePath -> Array a -> IO ()
 putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
 {-# INLINABLE appendArray #-}
-appendArray :: Storable a => FilePath -> Array a -> IO ()
+appendArray :: FilePath -> Array a -> IO ()
 appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
@@ -322,7 +321,7 @@ readShared = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE fromChunksMode #-}
-fromChunksMode :: (MonadAsync m, MonadCatch m, Storable a)
+fromChunksMode :: (MonadAsync m, MonadCatch m)
     => IOMode -> FilePath -> SerialT m (Array a) -> m ()
 fromChunksMode mode file xs = S.drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
@@ -331,7 +330,7 @@ fromChunksMode mode file xs = S.drain $
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadAsync m, MonadCatch m, Storable a)
+fromChunks :: (MonadAsync m, MonadCatch m)
     => FilePath -> SerialT m (Array a) -> m ()
 fromChunks = fromChunksMode WriteMode
 
@@ -376,7 +375,7 @@ write = toHandleWith A.defaultChunkSize
 --
 -- /Pre-release/
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, MonadCatch m, Storable a)
+writeChunks :: (MonadIO m, MonadCatch m)
     => FilePath -> Fold m (Array a) ()
 writeChunks path = Fold step initial extract
     where
@@ -422,7 +421,7 @@ write = writeWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE appendChunks #-}
-appendChunks :: (MonadAsync m, MonadCatch m, Storable a)
+appendChunks :: (MonadAsync m, MonadCatch m)
     => FilePath -> SerialT m (Array a) -> m ()
 appendChunks = fromChunksMode AppendMode
 

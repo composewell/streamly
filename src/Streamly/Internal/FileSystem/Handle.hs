@@ -396,8 +396,8 @@ toBytes = AS.concat . toChunks
 --
 -- @since 0.8.1
 {-# INLINABLE putChunk #-}
-putChunk :: (MonadIO m, Storable a) => Handle -> Array a -> m ()
-putChunk _ arr | A.length arr == 0 = return ()
+putChunk :: MonadIO m => Handle -> Array a -> m ()
+putChunk _ arr | byteLength arr == 0 = return ()
 putChunk h Array{..} =
     liftIO $ hPutBuf h arrStart aLen >> touch arrContents
 
@@ -420,8 +420,7 @@ putChunk h Array{..} =
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}
-putChunks :: (MonadIO m, Storable a)
-    => Handle -> SerialT m (Array a) -> m ()
+putChunks :: MonadIO m => Handle -> SerialT m (Array a) -> m ()
 putChunks h = S.mapM_ (putChunk h)
 
 -- XXX AS.compact can be written idiomatically in terms of foldMany, just like
@@ -471,14 +470,14 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
+writeChunks :: MonadIO m => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
 
 -- | Like writeChunks but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE consumeChunks #-}
-consumeChunks :: (MonadIO m, Storable a) => Refold m Handle (Array a) ()
+consumeChunks :: MonadIO m => Refold m Handle (Array a) ()
 consumeChunks = Refold.drainBy putChunk
 
 -- XXX lpackArraysChunksOf should be written idiomatically
