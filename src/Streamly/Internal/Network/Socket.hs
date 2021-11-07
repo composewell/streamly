@@ -47,6 +47,7 @@ module Streamly.Internal.Network.Socket
     -- , writeUtf8ByLines
     -- , writeByFrames
     , writeWithBufferOf
+    , writeMaybesWithBufferOf
 
     , putChunks
     , putBytesWithBufferOf
@@ -66,8 +67,8 @@ import Control.Exception (onException)
 import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
+import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
@@ -496,6 +497,19 @@ putBytesWithBufferOf n h m = putChunks h $ AS.arraysOf n m
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
+
+-- | Write a stream of 'Maybe' values. Keep buffering the 'Just' values in an
+-- array. Write the array to the 'Handle' as soon as a 'Nothing' is encountered
+-- or the buffer size exceeds the specified limit.
+--
+-- /Pre-release/
+{-# INLINE writeMaybesWithBufferOf #-}
+writeMaybesWithBufferOf :: (MonadIO m )
+    => Int -> Socket -> Fold m (Maybe Word8) ()
+writeMaybesWithBufferOf n h =
+    let writeNJusts = FL.lmap fromJust $ A.writeN n
+        writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
+    in FL.many writeOnNothing (writeChunks h)
 
 -- > write = 'writeWithBufferOf' defaultChunkSize
 --
