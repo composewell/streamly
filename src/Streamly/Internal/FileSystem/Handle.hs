@@ -100,6 +100,7 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Function ((&))
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -220,6 +221,11 @@ _toChunksWithBufferOf size h = go
 {-# INLINE_NORMAL toChunksWithBufferOf #-}
 toChunksWithBufferOf :: (IsStream t, MonadIO m) =>
     Int -> Handle -> t m (Array Word8)
+{-
+toChunksWithBufferOf size h =
+     S.repeatM (getChunk size h)
+   & S.takeWhile ((/= 0) . byteLength)
+-}
 toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
@@ -238,6 +244,10 @@ toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
 -- @since 0.7.0
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
+readChunksWithBufferOf =
+     UF.lmap (uncurry getChunk) UF.repeatM
+   & UF.takeWhile ((/= 0) . byteLength)
+{-
 readChunksWithBufferOf = Unfold step return
 
     where
@@ -249,6 +259,7 @@ readChunksWithBufferOf = Unfold step return
             case byteLength arr of
                 0 -> D.Stop
                 _ -> D.Yield arr (size, h)
+-}
 
 -- There are two ways to implement this.
 --
