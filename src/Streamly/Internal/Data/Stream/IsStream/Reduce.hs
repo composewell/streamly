@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     , chunksOf
     , arraysOf
     , intervalsOf
+    , chunksOfTimeout
 
     -- ** Splitting
     -- | Streams can be sliced into segments in space or in time. We use the
@@ -183,6 +184,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 
 import Prelude hiding (concatMap, map)
 
@@ -1037,6 +1039,27 @@ intervalsOf
 intervalsOf n f xs =
     splitWithSuffix isNothing (FL.catMaybes f)
         (interjectSuffix n (return Nothing) (map Just xs))
+
+-- XXX This can be implemented more efficiently by sharing a Clock.Timer across
+-- parallel threads and resetting it whenever a span is emitted.
+--
+-- | Like 'chunksOf' but if the chunk is not completed within the specified
+-- time interval then emit whatever we have collected till now. The chunk
+-- timeout is reset whenever a chunk is emitted.
+--
+-- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
+-- >>> f = Stream.mapM_ print $ Stream.chunksOfTimeout 5 1 Fold.toList s
+--
+-- /Pre-release/
+{-# INLINE chunksOfTimeout #-}
+chunksOfTimeout :: (IsStream t, MonadAsync m, Functor (t m))
+    => Int -> Double -> FL.Fold m a b -> t m a -> t m b
+chunksOfTimeout n timeout f =
+      map snd
+    . classifySessionsBy
+        timeout False (const (return False)) timeout (FL.take n f)
+    . Transform.timestamped
+    . map ((),)
 
 ------------------------------------------------------------------------------
 -- Windowed classification
