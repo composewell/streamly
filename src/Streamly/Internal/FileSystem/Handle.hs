@@ -113,7 +113,7 @@ import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
-       (Array(..), writeNUnsafe, unsafeFreezeWithShrink)
+       (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -206,7 +206,7 @@ _toChunksWithBufferOf size h = go
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
         arr <- getChunk size h
-        if A.length arr == 0
+        if byteLength arr == 0
         then stp
         else yld arr go
 
@@ -226,7 +226,7 @@ toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
     step _ _ = do
         arr <- getChunk size h
         return $
-            case A.length arr of
+            case byteLength arr of
                 0 -> D.Stop
                 _ -> D.Yield arr ()
 
@@ -239,12 +239,14 @@ toChunksWithBufferOf size h = fromStreamD (D.Stream step ())
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
 readChunksWithBufferOf = Unfold step return
+
     where
+
     {-# INLINE_LATE step #-}
     step (size, h) = do
         arr <- getChunk size h
         return $
-            case A.length arr of
+            case byteLength arr of
                 0 -> D.Stop
                 _ -> D.Yield arr (size, h)
 
@@ -279,7 +281,7 @@ readChunksFromToWith = Unfold step inject
         else do
             arr <- getChunk (min bufSize remaining) h
             return $
-                case A.length arr of
+                case byteLength arr of
                     0 -> D.Stop
                     len ->
                         assert (len <= remaining)
