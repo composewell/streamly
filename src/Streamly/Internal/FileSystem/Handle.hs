@@ -13,6 +13,11 @@
 -- fundamental stream IO APIs built on top of those are
 -- 'readChunksWithBufferOf' and 'writeChunks'. Rest of this module is just
 -- combinatorial programming using these.
+--
+-- We can achieve line buffering by folding lines in the input stream into a
+-- stream of arrays using Stream.splitOn or Fold.takeEndBy_ and similar
+-- operations. One can wrap the input stream in 'Maybe' type and then use
+-- 'writeMaybesWithBufferOf' to achieve user controlled buffering.
 
 -- TODO: Need a separate module for pread/pwrite based reading writing for
 -- seekable devices.  Stateless read/write can be helpful in multithreaded
@@ -51,6 +56,7 @@ module Streamly.Internal.FileSystem.Handle
     -- , writeByFrames
     -- , writeLines
     , writeWithBufferOf
+    , writeMaybesWithBufferOf
 
     , putBytes
     , putBytesWithBufferOf
@@ -101,6 +107,7 @@ where
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
+import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -508,6 +515,19 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
+
+-- | Write a stream of 'Maybe' values. Keep buffering the just values in an
+-- array until a 'Nothing' is encountered or the buffer size exceeds the
+-- specified limit, at that point flush the buffer to the handle.
+--
+-- /Pre-release/
+{-# INLINE writeMaybesWithBufferOf #-}
+writeMaybesWithBufferOf :: (MonadIO m )
+    => Int -> Handle -> Fold m (Maybe Word8) ()
+writeMaybesWithBufferOf n h =
+    let writeNJusts = FL.lmap fromJust $ A.writeN n
+        writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
+    in FL.many writeOnNothing (writeChunks h)
 
 -- | Like 'writeWithBufferOf'  but uses the experimental 'Refold' API.
 --
