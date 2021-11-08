@@ -374,24 +374,7 @@ jobs:
             no_output_timeout: 25m
         - *save
   hlint-src:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            name: Hlint src
-            environment:
-              BUILD: cabal-v2
-              #HLINT_OPTIONS: lint --cpp-include=src --cpp-include=test
-              HLINT_TARGETS: src test benchmark
-            command: |
-              bash -c "$PACKCHECK $BUILD" || exit 1
-              count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
-              exit $count
-        - *save
+     
 
 workflows:
   version: 2
