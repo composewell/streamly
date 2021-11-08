@@ -374,8 +374,14 @@ jobs:
             no_output_timeout: 25m
         - *save
   hlint-src:
-     
-
+      <<: *env
+      executor: amd64-executor
+      steps:
+        - *preinstall
+        - checkout
+        - *project-preinstall
+        - *restore
+        
 workflows:
   version: 2
   build:
