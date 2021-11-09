@@ -278,6 +278,10 @@ test-suite FileSystem.Event
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Event.hs
+  if os(linux)
+    other-modules: Streamly.Test.FileSystem.Event.Linux
+  if os(windows)
+    other-modules: Streamly.Test.FileSystem.Event.Windows
   if os(darwin)
     buildable: False
 
@@ -285,6 +289,8 @@ test-suite FileSystem.Event.Linux
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Event/LinuxTest.hs
+  if os(linux)
+    other-modules: Streamly.Test.FileSystem.Event.Linux
   if os(windows)
     buildable: False
   if os(darwin)
@@ -294,6 +300,8 @@ test-suite FileSystem.Event.Windows
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Event/WindowsTest.hs
+  if os(windows)
+    other-modules: Streamly.Test.FileSystem.Event.Windows
   if os(linux)
     buildable: False
   if os(darwin)
