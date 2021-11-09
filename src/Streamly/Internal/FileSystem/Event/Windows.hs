@@ -206,7 +206,7 @@ setModifiedSize = setFlag fILE_NOTIFY_CHANGE_SIZE
 setModifiedLastWrite :: Toggle -> Config -> Config
 setModifiedLastWrite = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 
--- | Report when a file Security attributes is changed.
+-- | Report when a file Security attribute changes.
 --
 -- /default: On/
 --
@@ -215,23 +215,36 @@ setModifiedLastWrite = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 setModifiedSecurity :: Toggle -> Config -> Config
 setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
 
--- | Set all events 'On' or 'Off'.
+-- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
 --
--- /default: On/
+-- * setModifiedFileName
+-- * setRootMoved
+-- * setModifiedAttribute
+-- * setModifiedSize
+-- * setModifiedLastWrite
+-- * setModifiedSecurity
 --
 -- /Pre-release/
 --
 setAllEvents :: Toggle -> Config -> Config
 setAllEvents s =
-     setModifiedFileName s
+      setModifiedFileName s
     . setRootMoved s
     . setModifiedAttribute s
     . setModifiedSize s
     . setModifiedLastWrite s
     . setModifiedSecurity s
 
+-- | The tunable events that are enabled by default are:
+--
+-- * setModifiedFileName On
+--
+-- /Pre-release/
+--
 defaultConfig :: Config
-defaultConfig = setAllEvents On $ Config {watchRec = True, createFlags = 0}
+defaultConfig =
+      setModifiedFileName On
+    $ Config {watchRec = True, createFlags = 0}
 
 getConfigFlag :: Config -> DWORD
 getConfigFlag Config{..} = createFlags
@@ -411,7 +424,7 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- path is a directory, only the files and directories directly under the
 -- watched directory are monitored, contents of subdirectories are not
 -- monitored.  Monitoring starts from the current time onwards. The paths are
--- specified as encoded 'Array' of 'Word8'.
+-- specified as UTF-8 encoded 'Array' of 'Word8'.
 --
 -- @
 -- watchWith
@@ -469,60 +482,23 @@ getRoot :: Event -> Array Word8
 getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 
 getAbsPath :: Event -> Array Word8
-getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> (getRelPath ev)
+getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> getRelPath ev
 
 -- XXX need to document the exact semantics of these.
 --
--- | File/directory created in watched directory.
--- ** In non-recursive mode
--- @
--- When a file or directory is created, Created and Modified events are
--- generated for corresponding file or directory. Parent directory will not
--- generate any events.
---
--- When a nested directory is created following events are generated:
--- Created event for the directory created.
--- Modified event for the directory created.
--- Modified event for each entry inside it.
--- If a nested directory contains 5 entries on top level then we will get
--- one Created and six Modified events for the created top directory path.
--- @
---
--- ** In recursive mode
--- @
--- When a file is created we get following events:
--- Created event for the file got created.
--- Modified event for the file got created.
--- Modified event for the parent directory.
--- @
---
--- @
--- When an empty directory is created we get following events:
--- Created event for the directory got created.
--- Modified event for the parent directory.
--- @
---
--- @
--- When a nested directory is created we get
--- following events:
--- Created and Modified events for all the files and subdirectories
--- recursively inside the given directory.
--- Modified event for the parent directory.
--- @
+-- | This event is generated when a file or directory is created in a watched
+-- directory or directory tree when in recursive watch mode.  Creating a hard
+-- link also generates this event.
 --
 -- /Pre-release/
 --
 isCreated :: Event -> Bool
 isCreated = getFlag fILE_ACTION_ADDED
 
--- | File/directory deleted from watched directory.
--- ** In non-recursive mode:
--- Deleted event is generated for object deleted from watched directory.
--- No events are generated for nested objects.
+-- | This event is generated when a file or directory is deleted from the
+-- watched directory or directory tree when in recursive mode. This event is
+-- generated even when a hard link is deleted.
 --
--- ** In recursive mode:
--- If a nested directory is deleted Modified events are received for nested
--- sub-directories recursively. No events are generated for nested files.
 -- /Pre-release/
 --
 isDeleted :: Event -> Bool
@@ -530,7 +506,6 @@ isDeleted = getFlag fILE_ACTION_REMOVED
 
 -- | Generated for the original path when an object is moved from under a
 -- monitored directory.
--- In recursive mode Modified events is generated for parent directory.
 --
 -- /Pre-release/
 --
@@ -539,7 +514,6 @@ isMovedFrom = getFlag fILE_ACTION_RENAMED_OLD_NAME
 
 -- | Generated for the new path when an object is moved under a monitored
 -- directory.
--- In recursive mode Modified events is generated for parent directory.
 --
 -- /Pre-release/
 --
@@ -561,10 +535,11 @@ isMoved ev = isMovedFrom ev || isMovedTo ev
 -- XXX This event is generated only for files and not directories?
 --
 -- | Determine whether the event indicates modification of an object within the
--- monitored path.
--- In non-recursive mode Modified event is not generated for a directory.
--- In recursive mode Modified event is generated for parent directory if a file
--- or directory is created or renamed.
+-- monitored path. This event is generated when a file or directory contents
+-- are modified.  In non-recursive mode this event is not generated for
+-- directories.  In recursive mode this event is generated for the parent
+-- directory if a file or directory inside it is created or renamed.
+--
 -- /Pre-release/
 --
 isModified :: Event -> Bool

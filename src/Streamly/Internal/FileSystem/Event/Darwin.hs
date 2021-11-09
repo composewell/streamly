@@ -106,6 +106,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
     , setFullHistory
 #endif
+    , setAllEvents
 
     -- ** Watch APIs
     , watch
@@ -268,6 +269,9 @@ foreign import ccall safe
 -- 'setRootPathEvents' is 'On', an 'isRootPathEvent' event is generated with an
 -- eventId 0 if the watch root is deleted, renamed or created.
 --
+-- Note: We have observed that an 'isDeleted' event occurs for the root path
+-- (when it is a regular dir and not symlink) even when this option is off.
+--
 -- /default: Off/
 --
 -- /macOS 10.5+/
@@ -334,6 +338,18 @@ foreign import ccall safe
 setFullHistory :: Toggle -> Config -> Config
 setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 #endif
+
+-- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
+--
+-- * setRootPathEvents
+-- * setFileEvents
+--
+-- /Pre-release/
+--
+setAllEvents :: Toggle -> Config -> Config
+setAllEvents s =
+      setRootPathEvents s
+    . setFileEvents s
 
 -------------------------------------------------------------------------------
 -- Default config
