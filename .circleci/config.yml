@@ -385,7 +385,7 @@ jobs:
             name: Hlint src
             environment:
               BUILD: cabal-v2
-              HLINT_OPTIONS: lint --cpp-include=src --cpp-include=test
+              HLINT_OPTIONS: lint
               HLINT_TARGETS: src test benchmark
             command: |
               bash -c "$PACKCHECK $BUILD" || exit 1
