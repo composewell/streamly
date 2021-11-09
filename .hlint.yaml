@@ -36,7 +36,7 @@
 
 # Specify additional command line arguments
 #
-# - arguments: [--color, --cpp-simple, -XQuasiQuotes]
+- arguments: [--cpp-include=src, --cpp-include=test, --cpp-define=CABAL_OS_LINUX]
 
 
 # Control which extensions/flags/modules/functions can be used
