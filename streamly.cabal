@@ -93,10 +93,10 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Stream/Foreign.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
+    test/Streamly/Test/FileSystem/Event/Common.hs
+    test/Streamly/Test/FileSystem/Event/Darwin.hs
     test/Streamly/Test/FileSystem/Event/Windows.hs
     test/Streamly/Test/FileSystem/Event/Linux.hs
-    test/Streamly/Test/FileSystem/Event/WindowsTest.hs
-    test/Streamly/Test/FileSystem/Event/LinuxTest.hs
     test/Streamly/Test/FileSystem/Handle.hs
     test/Streamly/Test/Network/Socket.hs
     test/Streamly/Test/Network/Inet/TCP.hs

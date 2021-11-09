@@ -55,12 +55,13 @@ module Streamly.Internal.FileSystem.Event.Windows
     , setRecursiveMode
 
     -- ** Events of Interest
-    , setRootMoved
-    , setModifiedFileName
-    , setModifiedAttribute
-    , setModifiedSize
-    , setModifiedLastWrite
-    , setModifiedSecurity
+    , setFileNameEvents
+    , setDirNameEvents
+    , setAttrsModified
+    , setSecurityModified
+    , setSizeModified
+    , setLastWriteTimeModified
+    , setAllEvents
 
     -- ** Watch APIs
     , watch
@@ -142,7 +143,7 @@ data Config = Config
 --
 -- /Pre-release/
 --
-data Toggle = On | Off
+data Toggle = On | Off deriving (Show, Eq)
 
 setFlag :: DWORD -> Toggle -> Config -> Config
 setFlag mask status cfg@Config{..} =
@@ -154,97 +155,127 @@ setFlag mask status cfg@Config{..} =
 
 -- | Set watch event on directory recursively.
 --
--- /default: On/
+-- /default: Off/
 --
 -- /Pre-release/
 --
-setRecursiveMode :: BOOL -> Config -> Config
-setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
+setRecursiveMode :: Toggle -> Config -> Config
+setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
 
--- | Report when a file name is modified.
+-- | Generate notify events on file create, rename or delete.
+--
+-- From Windows API documentation: Any file name change in the watched
+-- directory or subtree causes a change notification wait operation to return.
+-- Changes include renaming, creating, or deleting a file.
 --
 -- /default: On/
 --
 -- /Pre-release/
 --
-setModifiedFileName :: Toggle -> Config -> Config
-setModifiedFileName = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
+setFileNameEvents :: Toggle -> Config -> Config
+setFileNameEvents = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 
--- | Report when a directory name is modified.
+-- | Generate notify events on directory create, rename or delete.
+--
+-- From Windows API documentaiton: Any directory-name change in the watched
+-- directory or subtree causes a change notification wait operation to return.
+-- Changes include creating or deleting a directory.
 --
 -- /default: On/
 --
 -- /Pre-release/
 --
-setRootMoved :: Toggle -> Config -> Config
-setRootMoved = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
+setDirNameEvents :: Toggle -> Config -> Config
+setDirNameEvents = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 
--- | Report when a file attribute is modified.
+-- | Generate an 'isModified' event on any attribute change in the watched
+-- directory or subtree.
 --
--- /default: On/
+-- /default: Off/
 --
 -- /Pre-release/
 --
-setModifiedAttribute :: Toggle -> Config -> Config
-setModifiedAttribute = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
+setAttrsModified :: Toggle -> Config -> Config
+setAttrsModified = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 
--- | Report when a file size is changed.
+-- | Generate an 'isModified' event when the file size is changed.
 --
--- /default: On/
+-- From Windows API documentation: Any file-size change in the watched
+-- directory or subtree causes a change notification wait operation to return.
+-- The operating system detects a change in file size only when the file is
+-- written to the disk. For operating systems that use extensive caching,
+-- detection occurs only when the cache is sufficiently flushed.
+--
+-- /default: Off/
 --
 -- /Pre-release/
 --
-setModifiedSize :: Toggle -> Config -> Config
-setModifiedSize = setFlag fILE_NOTIFY_CHANGE_SIZE
+setSizeModified :: Toggle -> Config -> Config
+setSizeModified = setFlag fILE_NOTIFY_CHANGE_SIZE
 
--- | Report when a file last write time is changed.
+-- | Generate an 'isModified' event when the last write timestamp of the file
+-- inode is changed.
 --
--- /default: On/
+-- From Windows API documentation: Any change to the last write-time of files
+-- in the watched directory or subtree causes a change notification wait
+-- operation to return. The operating system detects a change to the last
+-- write-time only when the file is written to the disk. For operating systems
+-- that use extensive caching, detection occurs only when the cache is
+-- sufficiently flushed.
+--
+-- /default: Off/
 --
 -- /Pre-release/
 --
-setModifiedLastWrite :: Toggle -> Config -> Config
-setModifiedLastWrite = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
+setLastWriteTimeModified :: Toggle -> Config -> Config
+setLastWriteTimeModified = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 
--- | Report when a file Security attribute changes.
+-- | Generate an 'isModified' event when any security-descriptor change occurs
+-- in the watched directory or subtree.
 --
--- /default: On/
+-- /default: Off/
 --
 -- /Pre-release/
 --
-setModifiedSecurity :: Toggle -> Config -> Config
-setModifiedSecurity = setFlag fILE_NOTIFY_CHANGE_SECURITY
+setSecurityModified :: Toggle -> Config -> Config
+setSecurityModified = setFlag fILE_NOTIFY_CHANGE_SECURITY
 
 -- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
 --
--- * setModifiedFileName
--- * setRootMoved
--- * setModifiedAttribute
--- * setModifiedSize
--- * setModifiedLastWrite
--- * setModifiedSecurity
+-- * setFileNameEvents
+-- * setDirNameEvents
+-- * setAttrsModified
+-- * setSizeModified
+-- * setLastWriteTimeModified
+-- * setSecurityModified
 --
 -- /Pre-release/
 --
 setAllEvents :: Toggle -> Config -> Config
 setAllEvents s =
-      setModifiedFileName s
-    . setRootMoved s
-    . setModifiedAttribute s
-    . setModifiedSize s
-    . setModifiedLastWrite s
-    . setModifiedSecurity s
+      setFileNameEvents s
+    . setDirNameEvents s
+    . setAttrsModified s
+    . setSizeModified s
+    . setLastWriteTimeModified s
+    . setSecurityModified s
 
 -- | The tunable events that are enabled by default are:
 --
--- * setModifiedFileName On
+-- * setFileNameEvents On
+-- * setDirNameEvents On
+-- * setSizeModified On
+-- * setLastWriteTimeModified On
 --
 -- /Pre-release/
 --
 defaultConfig :: Config
 defaultConfig =
-      setModifiedFileName On
-    $ Config {watchRec = True, createFlags = 0}
+      setFileNameEvents On
+    $ setDirNameEvents On
+    $ setSizeModified On
+    $ setLastWriteTimeModified On
+    $ Config {watchRec = False, createFlags = 0}
 
 getConfigFlag :: Config -> DWORD
 getConfigFlag Config{..} = createFlags
@@ -361,6 +392,7 @@ readDirectoryChanges root h wst mask = do
             bytesRet <- peekByteOff bret 0
             readChangeEvents buffer root bytesRet
 
+-- XXX Try to get these from windows header files
 type FileAction = DWORD
 
 fILE_ACTION_ADDED             :: FileAction
@@ -426,9 +458,14 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- monitored.  Monitoring starts from the current time onwards. The paths are
 -- specified as UTF-8 encoded 'Array' of 'Word8'.
 --
+-- /Symbolic Links:/ If the pathname to be watched is a symbolic link then
+-- watch the target of the symbolic link instead of the symbolic link itself.
+-- Note that the path location in the events is through the original symbolic
+-- link path rather than the resolved path.
+--
 -- @
 -- watchWith
---  ('setModifiedAttribute' On . 'setModifiedLastWrite' Off)
+--  ('setAttrsModified' On . 'setLastWriteTimeModified' Off)
 --  [Array.fromCString\# "dir"#]
 -- @
 --
@@ -445,19 +482,21 @@ watchWith f paths =
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- >>> watchRecursive = watchWith id
+-- >>> watchRecursive = watchWith (setRecursiveMode On)
 --
 -- /Pre-release/
 --
 watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
-watchRecursive = watchWith id
+watchRecursive = watchWith (setRecursiveMode On)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
+--
+-- >>> watch = watchWith id
 --
 -- /Pre-release/
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
-watch = watchWith (setRecursiveMode False)
+watch = watchWith id
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
@@ -481,6 +520,13 @@ getRelPath Event{..} = (UTF8.toArray . UTF8.pack) eventRelPath
 getRoot :: Event -> Array Word8
 getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 
+-- | Get the absolute file system object path for which the event is generated.
+--
+-- When the watch root is a symlink, the absolute path returned is via the
+-- original symlink and not through the resolved path.
+--
+-- /Pre-release/
+--
 getAbsPath :: Event -> Array Word8
 getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> getRelPath ev
 
@@ -489,6 +535,8 @@ getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> getRelPath ev
 -- | This event is generated when a file or directory is created in a watched
 -- directory or directory tree when in recursive watch mode.  Creating a hard
 -- link also generates this event.
+--
+-- /Occurs when either 'setFileNameEvents' or 'setDirNameEvents' is enabled/
 --
 -- /Pre-release/
 --
@@ -499,6 +547,8 @@ isCreated = getFlag fILE_ACTION_ADDED
 -- watched directory or directory tree when in recursive mode. This event is
 -- generated even when a hard link is deleted.
 --
+-- /Occurs when either 'setFileNameEvents' or 'setDirNameEvents' is enabled/
+--
 -- /Pre-release/
 --
 isDeleted :: Event -> Bool
@@ -507,6 +557,8 @@ isDeleted = getFlag fILE_ACTION_REMOVED
 -- | Generated for the original path when an object is moved from under a
 -- monitored directory.
 --
+-- /Occurs when either 'setFileNameEvents' or 'setDirNameEvents' is enabled/
+--
 -- /Pre-release/
 --
 isMovedFrom :: Event -> Bool
@@ -514,6 +566,8 @@ isMovedFrom = getFlag fILE_ACTION_RENAMED_OLD_NAME
 
 -- | Generated for the new path when an object is moved under a monitored
 -- directory.
+--
+-- /Occurs when either 'setFileNameEvents' or 'setDirNameEvents' is enabled/
 --
 -- /Pre-release/
 --
@@ -525,6 +579,7 @@ isMovedTo = getFlag fILE_ACTION_RENAMED_NEW_NAME
 --
 -- >>> isMoved ev = isMovedFrom ev || isMovedTo ev
 --
+-- /Occurs when either 'setFileNameEvents' or 'setDirNameEvents' is enabled/
 -- /Occurs only for an object inside the watched directory/
 --
 -- /Pre-release/
@@ -534,20 +589,26 @@ isMoved ev = isMovedFrom ev || isMovedTo ev
 
 -- XXX This event is generated only for files and not directories?
 --
--- | Determine whether the event indicates modification of an object within the
--- monitored path. This event is generated when a file or directory contents
--- are modified.  In non-recursive mode this event is not generated for
--- directories.  In recursive mode this event is generated for the parent
--- directory if a file or directory inside it is created or renamed.
+-- | This event occurs when a file or directory contents, timestamps or
+-- attributes are modified.  Since it can occur on multiple changes, you may
+-- have to check the attributes to know what exactly changed when multiple type
+-- of modified events are enabled.
+--
+-- In non-recursive mode this event does not occur for directories.  In
+-- recursive mode this event occurs for the parent directory if a file or
+-- directory inside it is created or renamed.
+--
+-- /Occurs when one of the @set*Modified@ events is enabled/
 --
 -- /Pre-release/
 --
 isModified :: Event -> Bool
 isModified = getFlag fILE_ACTION_MODIFIED
 
--- |  If the buffer overflows, entire contents of the buffer are discarded,
--- therefore, events are lost.  The user application must scan everything under
--- the watched paths to know the current state.
+-- | If the kernel event buffer overflows, entire contents of the buffer are
+-- discarded, therefore, events are lost.  The user application must scan
+-- everything under the watched paths to know the current state of the file
+-- system tree.
 --
 -- /Pre-release/
 --

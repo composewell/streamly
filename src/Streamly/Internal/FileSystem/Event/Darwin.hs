@@ -114,23 +114,23 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , watchWith
 
     -- * Handling Events
-    , Event(..)
+    , Event
     , getEventId
     , getAbsPath
 
     -- ** Root Level Events
     -- | Events that belong to the root path as a whole and not to specific
-    -- itmes contained in it.
-    , isMount -- XXX change to isRootMounted
-    , isUnmount  -- XXX change to isRootUnmounted
+    -- items contained in it.
+    , isMounted
+    , isUnmounted
     , isHistoryDone
     , isRootPathEvent
 
     -- ** Item Level Metadata change
-    , isOwnerGroupModeChanged
-    , isInodeAttrsChanged
-    , isFinderInfoChanged
-    , isXAttrsChanged
+    , isAttrsModified
+    , isSecurityModified
+    , isXAttrsModified
+    , isFinderInfoModified
 
     -- ** Item Level CRUD events
     , isCreated
@@ -212,6 +212,7 @@ foreign import ccall safe
     "FileSystem/Event/Darwin.h FSEventStreamCreateFlagNoDefer"
     kFSEventStreamCreateFlagNoDefer :: Word32
 
+-- | Determines how multiple events are batched or throttled.
 data BatchInfo =
       Throttle Double -- ^ Deliver an event immediately but suppress the
                       -- following events upto the specified time.
@@ -527,24 +528,24 @@ watchToStream (Watch handle _ _) =
 -- From the observed behavior it seems macOS watches the paths, whatever they
 -- are pointing to at any given point of time:
 --
--- * If the object pointing to the watched path is deleted and then recreated,
+-- /Watch root deletion:/ If the the watch root is deleted and then recreated,
 -- the newly created file or directory is automatically watched.
 --
--- * If the watched path is moved to a new path, the object will no longer be
--- watched unless the new path is also being watched and was pointing to an
--- existing file at the time of starting the watch (see notes about
--- non-existing paths below).
+-- /Watch root moved:/ If the watch root is moved to a new path, the object
+-- will no longer be watched unless the new path is also being watched and was
+-- pointing to an existing file at the time of starting the watch (see notes
+-- about non-existing paths below).
 --
--- /Symbolic Links:/ If the path name to be watched is a symbolic link then the
--- target of the link is watched instead of the symbolic link itself. It is
--- equivalent to as if the target of the symbolic link itself was directly
--- added to the watch API. That is, the symbolic link is resolved at the time
--- of adding the watch.
+-- /Symbolic link watch root:/ If the path name to be watched is a symbolic
+-- link then the target of the link is watched instead of the symbolic link
+-- itself. It is equivalent to as if the target of the symbolic link itself was
+-- directly added to the watch API. That is, the symbolic link is resolved at
+-- the time of adding the watch.
 --
--- Note that if a watched path is deleted and recreated as a symbolic link to
--- another path then the symbolic link file itself is watched, it won't be
--- resolved. The symbolic link resolution happens only at the time of adding
--- the watch.
+-- Note that if a watched path is deleted and recreated as a symbolic link
+-- pointing to another path then the symbolic link file itself is watched, it
+-- won't be resolved. The symbolic link resolution happens only at the time of
+-- adding the watch.
 --
 -- /Non-existing Paths:/ If a watch is started on a non-existing path then the
 -- path is not watched even if it is created later.  The macOS API does not
@@ -617,6 +618,9 @@ isEventIdWrapped = getFlag kFSEventStreamEventFlagEventIdsWrapped
 
 -- | Get the absolute path of the file system object for which the event is
 -- generated. The path is a UTF-8 encoded array of bytes.
+--
+-- When the watch root is a symlink, the absolute path returned is via the real
+-- path of the root after resolving the symlink.
 --
 -- /Pre-release/
 --
@@ -741,8 +745,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isMount :: Event -> Bool
-isMount = getFlag kFSEventStreamEventFlagMount
+isMounted :: Event -> Bool
+isMounted = getFlag kFSEventStreamEventFlagMount
 
 foreign import ccall safe
     "FSEventStreamEventFlagUnmount"
@@ -755,8 +759,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isUnmount :: Event -> Bool
-isUnmount = getFlag kFSEventStreamEventFlagUnmount
+isUnmounted :: Event -> Bool
+isUnmounted = getFlag kFSEventStreamEventFlagUnmount
 
 -------------------------------------------------------------------------------
 -- Metadata change Events (applicable only when 'setFileEvents' is 'On')
@@ -780,8 +784,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isOwnerGroupModeChanged :: Event -> Bool
-isOwnerGroupModeChanged = getFlag kFSEventStreamEventFlagItemChangeOwner
+isSecurityModified :: Event -> Bool
+isSecurityModified = getFlag kFSEventStreamEventFlagItemChangeOwner
 
 foreign import ccall safe
     "FSEventStreamEventFlagItemInodeMetaMod"
@@ -801,8 +805,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isInodeAttrsChanged :: Event -> Bool
-isInodeAttrsChanged = getFlag kFSEventStreamEventFlagItemInodeMetaMod
+isAttrsModified :: Event -> Bool
+isAttrsModified = getFlag kFSEventStreamEventFlagItemInodeMetaMod
 
 foreign import ccall safe
     "FSEventStreamEventFlagItemFinderInfoMod"
@@ -817,8 +821,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isFinderInfoChanged :: Event -> Bool
-isFinderInfoChanged = getFlag kFSEventStreamEventFlagItemFinderInfoMod
+isFinderInfoModified :: Event -> Bool
+isFinderInfoModified = getFlag kFSEventStreamEventFlagItemFinderInfoMod
 
 foreign import ccall safe
     "FSEventStreamEventFlagItemXattrMod"
@@ -835,8 +839,8 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-isXAttrsChanged :: Event -> Bool
-isXAttrsChanged = getFlag kFSEventStreamEventFlagItemXattrMod
+isXAttrsModified :: Event -> Bool
+isXAttrsModified = getFlag kFSEventStreamEventFlagItemXattrMod
 
 -------------------------------------------------------------------------------
 -- CRUD Events (applicable only when 'setFileEvents' is 'On')
@@ -848,7 +852,7 @@ foreign import ccall safe
 
 -- | Determine whether the event indicates creation of an object within the
 -- monitored path. This event is generated when any file system object other
--- than a hard link is created.  On hard linking only an 'isInodeAttrsChanged'
+-- than a hard link is created.  On hard linking only an 'isAttrsModified'
 -- event on the directory is generated, it is not a create event. However, when
 -- a hard link is deleted 'isDeleted' and 'isHardLink' both are true.
 --
@@ -858,7 +862,7 @@ foreign import ccall safe
 -- generated, the path is not watched.
 --
 -- BUGS: On 10.15.1 when we use a "touch x" to create a file for the first time
--- only an 'isInodeAttrsChanged' event occurs and there is no 'isCreated'
+-- only an 'isAttrsModified' event occurs and there is no 'isCreated'
 -- event. However, this seems to have been fixed on 10.15.6.
 --
 -- /Applicable only when 'setFileEvents' is 'On'/
@@ -1050,14 +1054,14 @@ showEvent ev@Event{..} =
         ++ showev isUserDropped "UserDropped"
 
         ++ showev isRootPathEvent "RootPathEvent"
-        ++ showev isMount "Mount"
-        ++ showev isUnmount "Unmount"
+        ++ showev isMounted "Mounted"
+        ++ showev isUnmounted "Unmounted"
         ++ showev isHistoryDone "HistoryDone"
 
-        ++ showev isOwnerGroupModeChanged "OwnerGroupModeChanged"
-        ++ showev isInodeAttrsChanged "InodeAttrsChanged"
-        ++ showev isFinderInfoChanged "FinderInfoChanged"
-        ++ showev isXAttrsChanged "XAttrsChanged"
+        ++ showev isSecurityModified "SecurityModified"
+        ++ showev isAttrsModified "AttrsModified"
+        ++ showev isFinderInfoModified "FinderInfoChanged"
+        ++ showev isXAttrsModified "XAttrsModified"
 
         ++ showev isCreated "Created"
         ++ showev isDeleted "Deleted"

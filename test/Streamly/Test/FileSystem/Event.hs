@@ -1,23 +1,28 @@
 -- |
 -- Module      : Streamly.Test.FileSystem.Event
--- Copyright   : (c) 2020 Composewell Technologies
+-- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
 
-module Main (main) where
+module Streamly.Test.FileSystem.Event (main) where
 
-import System.IO (BufferMode(..), hSetBuffering, stdout)
-#if defined(CABAL_OS_LINUX)
-import qualified Streamly.Test.FileSystem.Event.Linux as Event
-#elif defined(CABAL_OS_WINDOWS)
-import qualified Streamly.Test.FileSystem.Event.Windows as Event
-#endif
+import qualified Streamly.Internal.FileSystem.Event as Event
+import Streamly.Test.FileSystem.Event.Common
+
+moduleName :: String
+moduleName = "FileSystem.Event"
 
 main :: IO ()
 main = do
-    hSetBuffering stdout NoBuffering
-    Event.testCommonEvents
-    
+    let run = runTests moduleName "non-recursive" Event.watch
+    run DirType commonTests
+    run
+#if defined(CABAL_OS_DARWIN)
+        SymLinkResolvedPath
+#else
+        SymLinkOrigPath
+#endif
+        commonTests

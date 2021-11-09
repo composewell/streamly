@@ -9,7 +9,12 @@
 -- File system event notification API portable across Linux, macOS and Windows
 -- platforms.
 --
--- For platform specific API please see the following modules:
+-- Note that recursive directory tree watch does not work reliably on Linux
+-- (see notes in the Linux module), therefore, recursive watch API is not
+-- provided in this module. However, you can use it from the platform specific
+-- modules.
+--
+-- For platform specific APIs please see the following modules:
 --
 -- * "Streamly.Internal.FileSystem.Event.Darwin"
 -- * "Streamly.Internal.FileSystem.Event.Linux"
@@ -20,7 +25,7 @@ module Streamly.Internal.FileSystem.Event
     -- * Creating a Watch
 
       watch
-    , watchRecursive
+    -- , watchRecursive
 
     -- * Handling Events
     , Event
@@ -100,12 +105,20 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -- generated.  No events are generated if the watch root itself is renamed or
 -- deleted.
 --
--- Note: not yet implemented on macOS, use watchRecursive instead.
+-- This API watches for changes in the watch root directory only, any changes
+-- in the subdirectories of the watch root are not watched. However, on macOS
+-- the watch is always recursive, but do not rely on that behavior, it may
+-- change without notice in future. If you want to use recursive watch please
+-- use platform specific modules.
 --
 -- /Pre-release/
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
+#if defined(CABAL_OS_DARWIN)
+watch = Event.watchRecursive
+#else
 watch = Event.watch
+#endif
 
 -- | Like 'watch' except that if a watched path is a directory the whole
 -- directory tree under it is watched recursively.
@@ -114,15 +127,33 @@ watch = Event.watch
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
-watchRecursive = Event.watchRecursive
+_watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+_watchRecursive = Event.watchRecursive
 
 -------------------------------------------------------------------------------
 -- Handling Events
 -------------------------------------------------------------------------------
 
+-- XXX Ensure that on all paltforms the path has same conventions. That is do
+-- not have a trailing path separator on one platfrom and not on another.
+--
+-- XXX We should use getRelPath instead so that the behavior when the root is a
+-- symlink becomes platform independent.
+--
 -- | Get the absolute path of the file system object for which the event is
 -- generated. The path is a UTF-8 encoded array of bytes.
+--
+-- When the watch root is a symlink the behavior is different on different
+-- platforms:
+--
+-- * On Linux and Windows, the absolute path returned is via the original
+-- symlink.
+--
+-- * On macOS the absolute path returned is via the real path of the root after
+-- resolving the symlink.
+--
+-- This API is subject to removal in future, to be replaced by a platform
+-- independent @getRelPath@.
 --
 -- /Pre-release/
 --
@@ -135,8 +166,8 @@ getAbsPath = Event.getAbsPath
 --
 -- For hard links the behavior is different on different operating systems. On
 -- macOS hard linking does not generate a create event, it generates an
--- 'isInodeAttrsChanged' event on the directory instead. On Linux and Windows
--- hard linking generates a create event.
+-- 'isInodeAttrsChanged' event on the directory instead (see the Darwin
+-- module). On Linux and Windows hard linking generates a create event.
 --
 -- /Pre-release/
 --

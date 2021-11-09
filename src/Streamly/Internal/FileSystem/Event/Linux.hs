@@ -83,7 +83,7 @@ module Streamly.Internal.FileSystem.Event.Linux
     , setRootPathEvents
 
     -- *** Item Level Metadata change
-    , setMetadataChanged
+    , setAttrsModified
 
     -- *** Item Level Access
     , setAccessed
@@ -124,7 +124,7 @@ module Streamly.Internal.FileSystem.Event.Linux
     , isRootUnmounted
 
     -- ** Item Level Metadata change
-    , isMetadataChanged
+    , isAttrsModified
 
     -- ** Item Level Access
     , isAccessed
@@ -174,7 +174,7 @@ import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..), byteLength)
 import System.IO (Handle, hClose, IOMode(ReadMode))
 #if !MIN_VERSION_base(4,10,0)
 import Control.Concurrent.MVar (readMVar)
@@ -253,6 +253,9 @@ foreign import capi
 
 -- | If the pathname to be watched is a symbolic link then watch the target of
 -- the symbolic link instead of the symbolic link itself.
+--
+-- Note that the path location in the events is through the original symbolic
+-- link path rather than the resolved path.
 --
 -- /default: On/
 --
@@ -382,8 +385,8 @@ foreign import capi
 --
 -- /Pre-release/
 --
-setMetadataChanged :: Toggle -> Config -> Config
-setMetadataChanged = setFlag iN_ATTRIB
+setAttrsModified :: Toggle -> Config -> Config
+setAttrsModified = setFlag iN_ATTRIB
 
 foreign import capi
     "sys/inotify.h value IN_ACCESS" iN_ACCESS :: Word32
@@ -497,7 +500,7 @@ setModified = setFlag iN_MODIFY
 --
 -- * setRootDeleted
 -- * setRootMoved
--- * setMetadataChanged
+-- * setAttrsModified
 -- * setAccessed
 -- * setOpened
 -- * setWriteClosed
@@ -511,10 +514,10 @@ setModified = setFlag iN_MODIFY
 -- /Pre-release/
 --
 setAllEvents :: Toggle -> Config -> Config
-setAllEvents s cfg =
-    ( setRootDeleted s
+setAllEvents s =
+      setRootDeleted s
     . setRootMoved s
-    . setMetadataChanged s
+    . setAttrsModified s
     . setAccessed s
     . setOpened s
     . setWriteClosed s
@@ -524,7 +527,6 @@ setAllEvents s cfg =
     . setMovedFrom s
     . setMovedTo s
     . setModified s
-    ) cfg
 
 -------------------------------------------------------------------------------
 -- Default config
@@ -655,14 +657,28 @@ handleToFd h = case h of
 --
 ensureTrailingSlash :: Array Word8 -> Array Word8
 ensureTrailingSlash path =
-    if A.length path /= 0
+    if byteLength path /= 0
     then
-        let mx = A.getIndex path (A.length path - 1)
+        let mx = A.getIndex path (byteLength path - 1)
          in case mx of
             Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
             Just x ->
                 if x /= fromIntegral (ord '/')
                 then path <> A.fromCString# "/"#
+                else path
+    else path
+
+removeTrailingSlash :: Array Word8 -> Array Word8
+removeTrailingSlash path =
+    if byteLength path /= 0
+    then
+        let n = byteLength path - 1
+            mx = A.getIndex path n
+         in case mx of
+            Nothing -> error "removeTrailingSlash: Bug: Invalid index"
+            Just x ->
+                if x == fromIntegral (ord '/')
+                then A.getSliceUnsafe 0 n path
                 else path
     else path
 
@@ -746,7 +762,7 @@ removeFromWatch (Watch handle wdMap) path = do
     where
 
     step fd newMap (wd, v) = do
-        if (fst v) == path
+        if fst v == path
         then do
             let err = "removeFromWatch: " ++ show (utf8ToString path)
                 rm = c_inotify_rm_watch (fdFD fd) (fromIntegral wd)
@@ -808,7 +824,7 @@ data Event = Event
 --
 readOneEvent :: Config -> Watch -> Parser IO Word8 Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
-    let headerLen = (sizeOf (undefined :: CInt)) + 12
+    let headerLen = sizeOf (undefined :: CInt) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)
     (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.unsafeAsPtr arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
@@ -824,7 +840,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
                 PR.fromFold
                     $ FL.takeEndBy_ (== 0)
                     $ FL.take pathLen (A.writeN pathLen)
-            let remaining = pathLen - A.length pth - 1
+            let remaining = pathLen - byteLength pth - 1
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
             return pth
         else return $ A.fromList []
@@ -847,7 +863,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
     -- What if a large dir tree gets moved in to our hierarchy? Do we get a
     -- single event for the top level dir in this case?
     return $ Event
-        { eventWd = (fromIntegral ewd)
+        { eventWd = fromIntegral ewd
         , eventFlags = eflags
         , eventCookie = cookie
         , eventRelPath = sub1
@@ -888,18 +904,21 @@ watchToStream cfg wt@(Watch handle _) = do
 -- recursively. Monitoring starts from the current time onwards.  The paths are
 -- specified as UTF-8 encoded 'Array' of 'Word8'.
 --
--- Note that recrusive watch on a large directory tree could be expensive. When
--- starting a watch, the whole tree must be read and watches are started on
--- each directory in the tree. The initial time to start the watch as well as
--- the memory required is proportional to the number of directories in the
--- tree.
+-- /Non-existing Paths:/ the API fails if a watch is started on a non-exsting
+-- path.
 --
--- When new directories are created under the tree they are added to the watch
--- on receiving the directory create event. However, the creation of a dir and
--- adding a watch for it is not atomic.  The implementation takes care of this
--- and makes sure that watches are added for all directories.  However, In the
--- mean time, the directory may have received more events which may get lost.
--- Handling of any such lost events is yet to be implemented.
+-- /Performance:/ Note that recursive watch on a large directory tree could be
+-- expensive. When starting a watch, the whole tree must be read and watches
+-- are started on each directory in the tree. The initial time to start the
+-- watch as well as the memory required is proportional to the number of
+-- directories in the tree.
+--
+-- /Bugs:/ When new directories are created under the tree they are added to
+-- the watch on receiving the directory create event. However, the creation of
+-- a dir and adding a watch for it is not atomic.  The implementation takes
+-- care of this and makes sure that watches are added for all directories.
+-- However, In the mean time, the directory may have received more events which
+-- may get lost.  Handling of any such lost events is yet to be implemented.
 --
 -- See the Linux __inotify__ man page for more details.
 --
@@ -923,6 +942,8 @@ watchWith f paths = S.bracket before after (watchToStream cfg)
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
 -- >>> watchRecursive = watchWith id
+--
+-- See 'watchWith' for pitfalls and bugs when using recursive watch on Linux.
 --
 -- /Pre-release/
 --
@@ -953,7 +974,7 @@ watch = watchWith (setRecursiveMode False)
 --
 getRoot :: Event -> Array Word8
 getRoot Event{..} =
-    if (eventWd >= 1)
+    if eventWd >= 1
     then
         case Map.lookup (fromIntegral eventWd) eventMap of
             Just path -> fst path
@@ -973,10 +994,18 @@ getRelPath Event{..} = eventRelPath
 
 -- | Get the absolute file system object path for which the event is generated.
 --
+-- When the watch root is a symlink, the absolute path returned is via the
+-- original symlink and not through the resolved path.
+--
 -- /Pre-release/
 --
 getAbsPath :: Event -> Array Word8
-getAbsPath ev = ensureTrailingSlash (getRoot ev) <> getRelPath ev
+getAbsPath ev =
+    let relpath = getRelPath ev
+        root = getRoot ev
+    in  if byteLength relpath /= 0
+        then ensureTrailingSlash root <> relpath
+        else removeTrailingSlash root
 
 -- XXX should we use a Maybe?
 -- | Cookie is set when a rename occurs. The cookie value can be used to
@@ -1100,8 +1129,8 @@ isRootPathEvent = getFlag (iN_DELETE_SELF .|. iN_MOVE_SELF .|. iN_UNMOUNT)
 --
 -- /Pre-release/
 --
-isMetadataChanged :: Event -> Bool
-isMetadataChanged = getFlag iN_ATTRIB
+isAttrsModified :: Event -> Bool
+isAttrsModified = getFlag iN_ATTRIB
 
 -------------------------------------------------------------------------------
 -- Access
@@ -1251,7 +1280,7 @@ showEvent ev@Event{..} =
     ++ showev isRootMoved "RootMoved"
     ++ showev isRootUnmounted "RootUnmounted"
 
-    ++ showev isMetadataChanged "MetadataChanged"
+    ++ showev isAttrsModified "AttrsModified"
 
     ++ showev isAccessed "Accessed"
     ++ showev isOpened "Opened"

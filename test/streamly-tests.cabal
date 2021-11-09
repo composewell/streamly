@@ -277,35 +277,39 @@ test-suite Data.Unfold
 test-suite FileSystem.Event
   import: test-options
   type: exitcode-stdio-1.0
+  ghc-options: -main-is Streamly.Test.FileSystem.Event
   main-is: Streamly/Test/FileSystem/Event.hs
-  if os(linux)
-    other-modules: Streamly.Test.FileSystem.Event.Linux
-  if os(windows)
-    other-modules: Streamly.Test.FileSystem.Event.Windows
-  if os(darwin)
+  other-modules: Streamly.Test.FileSystem.Event.Common
+
+test-suite FileSystem.Event.Darwin
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/Event/Darwin.hs
+  other-modules: Streamly.Test.FileSystem.Event.Common
+  cpp-options: -DFILESYSTEM_EVENT_DARWIN
+  ghc-options: -main-is Streamly.Test.FileSystem.Event.Darwin
+  if !os(darwin)
     buildable: False
 
 test-suite FileSystem.Event.Linux
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/FileSystem/Event/LinuxTest.hs
-  if os(linux)
-    other-modules: Streamly.Test.FileSystem.Event.Linux
-  if os(windows)
+  main-is: Streamly/Test/FileSystem/Event/Linux.hs
+  other-modules: Streamly.Test.FileSystem.Event.Common
+  cpp-options: -DFILESYSTEM_EVENT_LINUX
+  ghc-options: -main-is Streamly.Test.FileSystem.Event.Linux
+  if !os(linux)
     buildable: False
-  if os(darwin)
-    buildable: False  
 
 test-suite FileSystem.Event.Windows
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/FileSystem/Event/WindowsTest.hs
-  if os(windows)
-    other-modules: Streamly.Test.FileSystem.Event.Windows
-  if os(linux)
+  main-is: Streamly/Test/FileSystem/Event/Windows.hs
+  other-modules: Streamly.Test.FileSystem.Event.Common
+  cpp-options: -DFILESYSTEM_EVENT_WINDOWS
+  ghc-options: -main-is Streamly.Test.FileSystem.Event.Windows
+  if !os(windows)
     buildable: False
-  if os(darwin)
-    buildable: False      
 
 test-suite FileSystem.Handle
   import: test-options
