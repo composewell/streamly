@@ -114,7 +114,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
     , watchWith
 
     -- * Handling Events
-    , Event
+    , Event(..)
     , getEventId
     , getAbsPath
 
@@ -404,7 +404,7 @@ foreign import ccall safe "FileSystem/Event/Darwin.h createWatch" createWatch
     -> Word32
     -> Word64
     -> CDouble
-    -> Ptr (CInt)
+    -> Ptr CInt
     -> Ptr (Ptr CWatch)
     -> IO CInt
 
@@ -442,7 +442,7 @@ openWatch Config{..} paths = do
         alloca $ \fdPtr -> do
         alloca $ \watchPPtr -> do
             let nArrays = fromIntegral (NonEmpty.length paths)
-                seconds = (realToFrac latency)
+                seconds = realToFrac latency
             r <- createWatch
                     arraysPtr nArrays createFlags 0 seconds fdPtr watchPPtr
             when (r /= 0) $
@@ -571,7 +571,7 @@ watchWith f paths = S.bracket before after watchToStream
     where
 
     before = liftIO $ openWatch (f defaultConfig) paths
-    after = (liftIO . closeWatch)
+    after = liftIO . closeWatch
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
