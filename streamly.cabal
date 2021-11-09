@@ -418,6 +418,7 @@ library
                      , Streamly.Internal.Data.Array.Prim.Type
                      , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
                      , Streamly.Internal.Data.Array.Prim.Pinned.Type
+                     , Streamly.Internal.Data.Array.Mut.Type
                      , Streamly.Internal.Data.SmallArray.Type
 
                      -- streamly-base-streams
