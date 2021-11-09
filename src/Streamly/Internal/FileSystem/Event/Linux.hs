@@ -66,9 +66,9 @@ module Streamly.Internal.FileSystem.Event.Linux
       Config (..)
     , Toggle (..)
     , defaultConfig
-    , setRecursiveMode
 
     -- ** Watch Behavior
+    , setRecursiveMode
     , setFollowSymLinks
     , setUnwatchMoved
     , setOneShot
@@ -80,7 +80,6 @@ module Streamly.Internal.FileSystem.Event.Linux
     -- *** Root Path Events
     , setRootDeleted
     , setRootMoved
-    -- XXX make a setRootPathEvents to include all root events
     , setRootPathEvents
 
     -- *** Item Level Metadata change
@@ -105,8 +104,6 @@ module Streamly.Internal.FileSystem.Event.Linux
     , watch
     , watchRecursive
     , watchWith
-    , watchWithFlags
-    , watchRecursiveWithFlags
 
     -- Low level watch APIs
     , addToWatch
@@ -120,7 +117,6 @@ module Streamly.Internal.FileSystem.Event.Linux
     , getCookie
 
     -- ** Root Level Events
-    -- XXX create a isRootPathEvent similar to macOS.
     , isRootPathEvent
     , isRootUnwatched
     , isRootDeleted
@@ -218,6 +214,8 @@ data Config = Config
 -- Boolean settings
 -------------------------------------------------------------------------------
 
+-- XXX Change Toggle to "OnOff" or "Switch". The name Toggle may be confusing.
+--
 -- | Whether a setting is 'On' or 'Off'.
 --
 -- /Pre-release/
@@ -495,9 +493,20 @@ foreign import capi
 setModified :: Toggle -> Config -> Config
 setModified = setFlag iN_MODIFY
 
--- | Set all events 'On' or 'Off'.
+-- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
 --
--- /default: On/
+-- * setRootDeleted
+-- * setRootMoved
+-- * setMetadataChanged
+-- * setAccessed
+-- * setOpened
+-- * setWriteClosed
+-- * setNonWriteClosed
+-- * setCreated
+-- * setDeleted
+-- * setMovedFrom
+-- * setMovedTo
+-- * setModified
 --
 -- /Pre-release/
 --
@@ -517,17 +526,6 @@ setAllEvents s cfg =
     . setModified s
     ) cfg
 
-setCommonEvents :: Toggle -> Config -> Config
-setCommonEvents s cfg =
-    ( setRootDeleted s
-    . setRootMoved s
-    . setMetadataChanged s    
-    . setCreated s
-    . setDeleted s
-    . setMovedFrom s
-    . setMovedTo s
-    . setModified s
-    ) cfg
 -------------------------------------------------------------------------------
 -- Default config
 -------------------------------------------------------------------------------
@@ -535,21 +533,32 @@ setCommonEvents s cfg =
 -- The defaults are set in such a way that the behavior on macOS and Linux is
 -- as much compatible as possible.
 --
--- | The default is:
+-- | The default configuration settings are:
 --
 -- * 'setFollowSymLinks' 'On'
 -- * 'setUnwatchMoved' 'On'
 -- * 'setOneShot' 'Off'
 -- * 'setOnlyDir' 'Off'
 -- * 'setWhenExists' 'AddIfExists'
--- * 'setAllEvents' 'On'
+--
+-- The tunable events enabled by default are:
+--
+-- * setCreated On
+-- * setDeleted On
+-- * setMovedFrom On
+-- * setMovedTo On
+-- * setModified On
 --
 -- /Pre-release/
 --
 defaultConfig :: Config
 defaultConfig =
       setWhenExists AddIfExists
-    $ setCommonEvents On
+    $ setCreated On
+    $ setDeleted On
+    $ setMovedFrom On
+    $ setMovedTo On
+    $ setModified On
     $ Config
         { watchRec = True
         , createFlags = 0
@@ -928,31 +937,6 @@ watchRecursive = watchWith id
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
 watch = watchWith (setRecursiveMode False)
-
--- | In recursive mode when a nested directory is created,
--- 'Created' event is generated only for the top directory.
--- No recursive Created events are generated for nested contents.
--- When a nested directory is deleted 'Deleted' events are generated
--- for the nested content recursively.
--- The nested directories are added into watch list for future events.
--- [flags] are used to filter the events with specific event flag.
---
--- /Pre-release/
---
-watchRecursiveWithFlags ::
-    [Word32] -> NonEmpty (Array Word8) -> SerialT IO Event
-watchRecursiveWithFlags flags =
-    S.filter (\ev -> any (flip getFlag ev) flags) . watchRecursive
-
--- | When a nested directory is created,
--- Created event is generated only for the top directory.
--- [flags] are used to filter the events with specific event flag.
---
--- /Pre-release/
---
-watchWithFlags :: [Word32] -> NonEmpty (Array Word8) -> SerialT IO Event
-watchWithFlags flags =
-    S.filter (\ev -> any (flip getFlag ev) flags) . watch
 
 -------------------------------------------------------------------------------
 -- Examine event stream

@@ -129,57 +129,58 @@ watchRecursive = Event.watchRecursive
 getAbsPath :: Event -> Array Word8
 getAbsPath = Event.getAbsPath
 
--- XXX Test and document the hard linking behavior on each platform.
---
 -- | Determine whether the event indicates creation of an object within the
--- monitored path. This event is generated when any file system object other
--- than a hard link is created.
--- Hard link behaviours:
--- On Linux and Windows hard lnik creation generates 'Created' event.
+-- monitored path. This event is generated when any file system object is
+-- created.
+--
+-- For hard links the behavior is different on different operating systems. On
+-- macOS hard linking does not generate a create event, it generates an
+-- 'isInodeAttrsChanged' event on the directory instead. On Linux and Windows
+-- hard linking generates a create event.
+--
 -- /Pre-release/
 --
 isCreated :: Event -> Bool
 isCreated = Event.isCreated
 
--- XXX Test and document the hard link deletion on each platform.
+-- XXX To make the behavior consistent, can we block the event on watch root on
+-- macOS?
 --
 -- | Determine whether the event indicates deletion of an object within the
--- monitored path. This is true when a file or a hardlink is deleted.--
--- Hard link behaviours:
--- On Linux and Windows hard lnik deletion generates 'Deleted' event
--- @
--- Deletion of Root path:
+-- monitored path. On Linux and Windows hard link deletion generates a delete
+-- event.
 --
--- In 'Linux' the deletion of root path only generates 'RootDeleted' event for
--- the root path, whereas the nested directory inside the root path gets
--- 'Deleted' and 'RootDeleted' events.
+-- On Linux and Windows, this event does not occur when the watch root itself
+-- is deleted. On macOS it occurs on deleting the watch root when it is not a
+-- symbolic link.
 --
--- In Windows from GUI the deletion of root path is not allowed , from CLI the
--- content inside the root path is deleted and 'Deleted' event is generated
--- for each nested paths.There is no event generated for root path itself.
--- @
+-- See also 'isRootDeleted' event for Linux.
+--
 -- /Pre-release/
 --
 isDeleted :: Event -> Bool
 isDeleted = Event.isDeleted
 
--- XXX Test and document the hard link move on each platform.
---
 -- | Determine whether the event indicates rename of an object within the
 -- monitored path. This event is generated when an object is renamed within the
 -- watched directory or if it is moved out of or in the watched directory.
+-- Moving hard links is no different than other types of objects.
 --
--- Hard link behaviours:
--- On Linux and Windows hard lnik move generates 'MovedFrom' and ' MovedTo' events
 -- /Pre-release/
 --
 isMoved :: Event -> Bool
 isMoved = Event.isMoved
 
+-- XXX Make the Windows behavior consistent with other platforms by removing
+-- the event from directories.
+--
 -- | Determine whether the event indicates modification of an object within the
--- monitored path. This event is generated only for files and not directories.
--- Unlike Linux in Windows in recursive mode when a file is created or deleted the Modified
--- event is generated for the parent directory as well.
+-- monitored path. This event is generated on file modification on all
+-- platforms.
+--
+-- On Linux and macOS this event is never generated for directories.  On
+-- Windows (in recursive watch mode) this event is generated for directories as
+-- well when an object is created in or deleted from the directory.
 --
 -- /Pre-release/
 --
