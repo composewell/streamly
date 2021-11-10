@@ -128,11 +128,9 @@ import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ReadUState(..), arrayToFptrContents, touch, fptrToArrayContents)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
@@ -236,11 +234,11 @@ unsafeRead :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 unsafeRead = Unfold step inject
     where
 
-    inject (Array contents (Ptr start) _) =
-        return (ForeignPtr start (arrayToFptrContents contents))
+    inject (Array contents start end) =
+        return (ReadUState contents end start)
 
     {-# INLINE_LATE step #-}
-    step (ForeignPtr p contents) = do
+    step (ReadUState contents end p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
             -- accumulating the list and fusing better with the pure consumers.
@@ -248,11 +246,11 @@ unsafeRead = Unfold step inject
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ do
-                        r <- peek (Ptr p)
-                        touch (fptrToArrayContents contents)
+                        r <- peek p
+                        touch contents
                         return r
-            let !(Ptr p1) = Ptr p `plusPtr` sizeOf (undefined :: a)
-            return $ D.Yield x (ForeignPtr p1 contents)
+            let !p1 = p `plusPtr` sizeOf (undefined :: a)
+            return $ D.Yield x (ReadUState contents end p1)
 
 -- |
 --
