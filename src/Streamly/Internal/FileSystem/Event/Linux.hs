@@ -220,7 +220,7 @@ data Config = Config
 --
 -- /Pre-release/
 --
-data Toggle = On | Off
+data Toggle = On | Off deriving (Show, Eq)
 
 toggle :: Toggle -> Toggle
 toggle On = Off
@@ -245,8 +245,8 @@ setFlag mask status cfg@Config{..} =
 --
 -- /Pre-release/
 --
-setRecursiveMode :: Bool -> Config -> Config
-setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec}
+setRecursiveMode :: Toggle -> Config -> Config
+setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
 
 foreign import capi
     "sys/inotify.h value IN_DONT_FOLLOW" iN_DONT_FOLLOW :: Word32
@@ -562,7 +562,7 @@ defaultConfig =
     $ setMovedTo On
     $ setModified On
     $ Config
-        { watchRec = True
+        { watchRec = False
         , createFlags = 0
         }
 
@@ -682,6 +682,12 @@ removeTrailingSlash path =
                 else path
     else path
 
+appendPaths :: Array Word8 -> Array Word8 -> Array Word8
+appendPaths a b
+  | byteLength a == 0 = b
+  | byteLength b == 0 = a
+  | otherwise = ensureTrailingSlash a <> b
+
 -- | @addToWatch cfg watch root subpath@ adds @subpath@ to the list of paths
 -- being monitored under @root@ via the watch handle @watch@.  @root@ must be
 -- an absolute path and @subpath@ must be relative to @root@.
@@ -708,9 +714,11 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- handle it. For example, if it is a dir create the application can read
     -- the dir to scan the files in it.
     --
-    let root = ensureTrailingSlash root0
-        path = ensureTrailingSlash path0
-        absPath = root <> path
+    let root = removeTrailingSlash root0
+        path = removeTrailingSlash path0
+        absPath = appendPaths root path
+    putStrLn $ "root = " ++ utf8ToString root ++ " path = " ++ utf8ToString path ++ " absPath = " ++ utf8ToString absPath
+
     fd <- handleToFd handle
 
     -- XXX we need to tolerate an error where we are adding a watch for a
@@ -733,12 +741,12 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- parent, this will make sure they are added too.
     --
     -- XXX Ensure that we generate events that we may have missed while we were
-    -- adding the dirs.
+    -- adding the dirs. That may generate spurious events though.
     --
     -- XXX toDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
     when watchRec $ do
-        S.mapM_ (\p -> addToWatch cfg watch0 root (path <> p))
+        S.mapM_ (\p -> addToWatch cfg watch0 root (appendPaths path p))
             $ S.mapM toUtf8
             $ Dir.toDirs $ utf8ToString absPath
 
@@ -779,7 +787,9 @@ removeFromWatch (Watch handle wdMap) path = do
 openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
 openWatch cfg paths = do
     w <- createWatch
-    mapM_ (\p -> addToWatch cfg w p (A.fromList [])) $ NonEmpty.toList paths
+    mapM_
+        (\root -> addToWatch cfg w root (A.fromList []))
+        $ NonEmpty.toList paths
     return w
 
 -- | Close a 'Watch' handle.
@@ -852,8 +862,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
                         error $ "readOneEvent: "
                                   <> "Unknown watch descriptor: "
                                   <> show ewd
-    let -- "sub" is guaranteed to have a trailing "/"
-        sub1 = sub <> path
+    let sub1 = appendPaths sub path
         -- Check for "ISDIR" first because it is less likely
         isDirCreate = eflags .&. iN_ISDIR /= 0 && eflags .&. iN_CREATE /= 0
     when (watchRec cfg && isDirCreate)
@@ -941,23 +950,23 @@ watchWith f paths = S.bracket before after (watchToStream cfg)
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- >>> watchRecursive = watchWith id
+-- >>> watchRecursive = watchWith (setRecursiveMode On)
 --
 -- See 'watchWith' for pitfalls and bugs when using recursive watch on Linux.
 --
 -- /Pre-release/
 --
 watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
-watchRecursive = watchWith id
+watchRecursive = watchWith (setRecursiveMode On)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
 --
--- >>> watch = watchWith (setRecursiveMode False)
+-- >>> watch = watchWith id
 --
 -- /Pre-release/
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
-watch = watchWith (setRecursiveMode False)
+watch = watchWith id
 
 -------------------------------------------------------------------------------
 -- Examine event stream
@@ -1057,6 +1066,9 @@ foreign import capi
 -- | A path was removed from the watch explicitly using 'removeFromWatch' or
 -- automatically (file was deleted, or filesystem was unmounted).
 --
+-- Note that in recursive watch mode all the subdirectories are watch roots,
+-- therefore, they will all generate this event.
+--
 -- /Occurs only for a watched path/
 --
 -- /Pre-release/
@@ -1070,6 +1082,9 @@ isRootUnwatched = getFlag iN_IGNORED
 -- In addition, an 'isRootUnwatched' event will subsequently be generated
 -- for the watch descriptor.
 --
+-- Note that in recursive watch mode all the subdirectories are watch roots,
+-- therefore, they will all generate this event.
+--
 -- /Occurs only for a watched path/
 --
 -- /Pre-release/
@@ -1078,6 +1093,9 @@ isRootDeleted :: Event -> Bool
 isRootDeleted = getFlag iN_DELETE_SELF
 
 -- | Watched file/directory was itself moved within the file system.
+--
+-- Note that in recursive watch mode all the subdirectories are watch roots,
+-- therefore, they will all generate this event.
 --
 -- /Occurs only for a watched path/
 --
