@@ -329,7 +329,7 @@ enumerateFromThenToFractional from next to =
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL times #-}
-times :: MonadAsync m => Double -> Stream m (AbsTime, RelTime64)
+times :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
 times g = Stream step Nothing
 
     where
