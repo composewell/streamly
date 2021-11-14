@@ -149,4 +149,17 @@ import Prelude hiding
     ( concat, map, mapM, takeWhile, take, filter, const, drop, dropWhile
     , zipWith
     )
-import Streamly.Internal.Data.Unfold
+import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
+import Streamly.Internal.Data.Unfold hiding (fromStream)
+
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
+import qualified Streamly.Internal.Data.Unfold as Unfold
+
+-- | Convert a stream into an 'Unfold'. Note that a stream converted to an
+-- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
+--
+-- /Since: 0.8.0/
+--
+{-# INLINE_NORMAL fromStream #-}
+fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
+fromStream = lmap IsStream.adapt Unfold.fromStream

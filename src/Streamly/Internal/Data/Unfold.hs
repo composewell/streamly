@@ -256,14 +256,13 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -502,8 +501,8 @@ fromStreamK = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
-fromStream = lmap IsStream.toStream fromStreamK
+fromStream :: Monad m => Unfold m (SerialT m a) a
+fromStream = lmap getSerialT fromStreamK
 
 -------------------------------------------------------------------------------
 -- Unfolds
