@@ -35,8 +35,6 @@ import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
@@ -53,9 +51,10 @@ import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, MonadIO m, Storable a)
-    => Int -> t m a -> t m (Array a)
-arraysOf n = fromStreamD . MArray.arraysOf n . toStreamD
+arraysOf :: (MonadIO m, Storable a)
+    => Int -> SerialT m a -> SerialT m (Array a)
+arraysOf n (SerialT xs) =
+    SerialT $ D.toStreamK $ MArray.arraysOf n $ D.fromStreamK xs
 
 -------------------------------------------------------------------------------
 -- Compact
