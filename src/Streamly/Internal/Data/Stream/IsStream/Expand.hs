@@ -180,7 +180,7 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Zip as Zip
+import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)
 
@@ -665,7 +665,7 @@ parallelMin m1 m2 = fromStream $ Par.parallelMinK (toStream m1) (toStream m2)
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 =
-    fromStream $ Zip.zipAsyncWithMK f (toStream m1) (toStream m2)
+    fromStream $ ZipAsync.zipAsyncWithMK f (toStream m1) (toStream m2)
 
 -- XXX Should we rename this to zipParWith or zipParallelWith? This can happen
 -- along with the change of behvaior to end the stream concurrently.

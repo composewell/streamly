@@ -471,6 +471,7 @@ library
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.ZipAsync
                      , Streamly.Internal.Data.List
 
                      , Streamly.Internal.Data.Stream.IsStream.Type

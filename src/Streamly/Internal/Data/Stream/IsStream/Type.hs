@@ -117,8 +117,8 @@ import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
 import Streamly.Internal.Data.Stream.Ahead (AheadT(..), Ahead)
 import Streamly.Internal.Data.Stream.Parallel (ParallelT(..), Parallel)
-import Streamly.Internal.Data.Stream.Zip
-    (ZipSerialM(..), ZipSerial, ZipAsyncM(..), ZipAsync)
+import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..), ZipSerial)
+import Streamly.Internal.Data.Stream.ZipAsync (ZipAsyncM(..), ZipAsync)
 import Streamly.Internal.Data.SVar.Type (State, adaptState)
 
 import qualified Prelude
@@ -135,6 +135,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
 #endif
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
+import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (foldr, repeat)
 
@@ -539,12 +540,12 @@ instance IsStream ZipAsyncM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     consM :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    consM = Zip.consMZipAsync
+    consM = ZipAsync.consMZipAsync
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     (|:) :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    (|:) = Zip.consMZipAsync
+    (|:) = ZipAsync.consMZipAsync
 
 -------------------------------------------------------------------------------
 -- Construction
