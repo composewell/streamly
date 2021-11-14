@@ -28,7 +28,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (castPtr)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (length)
-import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
