@@ -592,7 +592,7 @@ The following authors/libraries have influenced or inspired this library in a
 significant way:
 
   * Roman Leshchinskiy ([vector](http://hackage.haskell.org/package/vector))
-  * Gabriel Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
+  * Gabriella Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
 Please see the [`credits`](./credits/README.md) directory for a full
