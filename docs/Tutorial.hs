@@ -111,18 +111,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- and merging of streams. It can be considered as a concurrent list
 -- transformer.
 --
--- The basic stream type is 'Serial', it represents a sequence of IO actions,
--- and is a 'Monad'.  The 'Serial' monad is almost a drop in replacement for
--- the 'IO' monad, IO monad is a special case of the 'Serial' monad; IO monad
--- represents a single IO action whereas the 'Serial' monad represents a series
--- of IO actions.  The only change you need to make to go from 'IO' to 'Serial'
--- is to use 'drain' to run the monad and to prefix the IO actions with
--- either 'fromEffect' or 'liftIO'.  If you use liftIO you can switch from 'Serial'
--- to IO monad by simply removing the 'drain' function; no other changes
--- are needed unless you have used some stream specific composition or
--- combinators.
---
--- Similarly, the 'Serial' type is almost a drop in replacement for pure lists,
+-- The 'Serial' type is almost a drop in replacement for pure lists,
 -- pure lists are a special case of monadic streams. If you use 'nil' in place
 -- of '[]' and '|:' in place ':' you can replace a list with a 'Serial' stream.
 -- The only difference is that the elements must be monadic type and to operate
