@@ -127,6 +127,7 @@ extra-doc-files:
     dev/*.png
     dev/*.rst
     docs/*.md
+    docs/*.link
     docs/*.rst
     docs/*.svg
     docs/API-changelog.txt
