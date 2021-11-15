@@ -110,7 +110,7 @@ to the list monad. It provides the functionality provided by `list-t` or
 `logict` packages for free.  Here is an example of nested looping using
 the serial stream monad:
 
-``` haskell
+```haskell
 import qualified Streamly.Prelude as S
 
 loops = do
