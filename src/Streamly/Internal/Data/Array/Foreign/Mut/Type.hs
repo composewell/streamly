@@ -447,7 +447,7 @@ newArrayWith alloc alignSize count = do
 newAlignedArrayContents :: Int -> Int -> IO (ArrayContents, Ptr a)
 #ifdef USE_C_MALLOC
 newAlignedArrayContents size align = do
-    ForeignPtr addr contents = mallocForeignPtrAlignedBytes size align
+    (ForeignPtr addr contents) <- mallocForeignPtrAlignedBytes size align
     return (ArrayContents contents, Ptr addr)
 #else
 newAlignedArrayContents size _align | size < 0 =
