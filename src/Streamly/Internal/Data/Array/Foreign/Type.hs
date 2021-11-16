@@ -85,9 +85,6 @@ import Foreign.Storable (Storable(..))
 import GHC.Base (Addr#, nullAddr#, build)
 import GHC.Exts (IsList, IsString(..))
 
-#ifdef DEVBUILD
-import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
-#endif
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
@@ -742,24 +739,25 @@ instance (Storable a, Ord a) => Ord (Array a) where
 --
 {-# INLINE_NORMAL toStreamD_ #-}
 toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
-toStreamD_ size Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-    in D.Stream step p
+toStreamD_ size Array{..} = D.Stream step arrStart
 
     where
 
     {-# INLINE_LATE step #-}
     step _ p | p == aEnd = return D.Stop
-    step _ p = do
-        x <- liftIO $ do
-                    r <- peek p
-                    touchForeignPtr aStart
-                    return r
+    step _ p = liftIO $ do
+        x <- peek p
+        touch arrContents
         return $ D.Yield x (p `plusPtr` size)
+
+{-
+
+XXX Why isn't Storable implicit? This does not compile unless I use the Storable
+contraint.
 
 {-# INLINE_NORMAL _foldr #-}
 _foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
-_foldr f z arr@Array {..} =
+_foldr f z arr =
     let !n = sizeOf (undefined :: a)
     in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
 
@@ -767,6 +765,8 @@ _foldr f z arr@Array {..} =
 -- operations.
 instance Foldable Array where
   foldr = _foldr
+
+-}
 #endif
 
 -------------------------------------------------------------------------------
