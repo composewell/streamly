@@ -709,8 +709,7 @@ zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 --
 -- @since 0.6.0
 {-# INLINE mergeBy #-}
-mergeBy ::
-       (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a -> t m a
 mergeBy f m1 m2 = fromStream $ K.mergeBy f (toStream m1) (toStream m2)
 
 -- | Like 'mergeBy' but with a monadic comparison function.
