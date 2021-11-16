@@ -26,7 +26,9 @@ import qualified Streamly.Prelude as S
 
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
+{-
 import qualified Data.Foldable as F
+-}
 #endif
 #endif
 
@@ -210,6 +212,7 @@ readInstance str =
         _ -> P.error "readInstance: no parse"
 
 #ifdef DEVBUILD
+{-
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Stream Int -> Int
 foldableFoldl' = F.foldl' (+) 0
@@ -217,6 +220,7 @@ foldableFoldl' = F.foldl' (+) 0
 {-# INLINE foldableSum #-}
 foldableSum :: Stream Int -> Int
 foldableSum = P.sum
+-}
 #endif
 #endif
 

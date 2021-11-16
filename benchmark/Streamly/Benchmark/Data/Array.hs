@@ -128,8 +128,10 @@ o_1_space_elimination value =
             (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
+{-
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink value "foldable/sum" Ops.foldableSum
+-}
 #endif
 #endif
         ]

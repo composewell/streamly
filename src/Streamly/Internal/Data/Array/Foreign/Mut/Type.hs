@@ -1555,7 +1555,11 @@ toArrayUnsafe :: Array a -> ArrayUnsafe a
 toArrayUnsafe (Array contents start end _) =
     ArrayUnsafe contents start end
 
-fromArrayUnsafe :: ArrayUnsafe a -> Array a
+fromArrayUnsafe ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    ArrayUnsafe a -> Array a
 fromArrayUnsafe (ArrayUnsafe contents start end) =
          Array contents start end end
 
