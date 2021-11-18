@@ -53,10 +53,10 @@ jobs:
         name:
           - 9.2.1
           - 9.0.1
-          - 8.10.4+stack
-          - 8.10.4+macOS
-          - 8.10.4+linux+coverage+cabal
-          - 8.10.4+docspec
+          - 8.10.7+stack
+          - 8.10.7+macOS
+          - 8.10.7+linux+coverage+cabal
+          - 8.10.7+docspec
           - 8.8.4
           - 8.8.4+inspection+fusion-plugin+Werror
           - 8.6.5+fusion-plugin
@@ -77,22 +77,22 @@ jobs:
             disable_sdist_build: "y"
             runner: ubuntu-latest
             cabal_version: 3.4
-          - name: 8.10.4+stack
+          - name: 8.10.7+stack
             build: stack
-            resolver: lts-18.0
+            resolver: lts-18.18
             stack_yaml: stack.yaml
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             runner: ubuntu-latest
             cabal_version: 3.4
-          - name: 8.10.4+macOS
-            ghc_version: 8.10.4
+          - name: 8.10.7+macOS
+            ghc_version: 8.10.7
             build: cabal-v2
             disable_sdist_build: "y"
             runner: macos-latest
             cabal_version: 3.4
-          - name: 8.10.4+linux+coverage+cabal
-            ghc_version: 8.10.4
+          - name: 8.10.7+linux+coverage+cabal
+            ghc_version: 8.10.7
             coverage: "y"
             runner: ubuntu-latest
             cabal_version: 3.4
@@ -133,8 +133,8 @@ jobs:
             cabal_build_options: "--flag debug --flag -opt"
             runner: ubuntu-latest
             cabal_version: 3.4
-          - name: 8.10.4+docspec
-            ghc_version: 8.10.4
+          - name: 8.10.7+docspec
+            ghc_version: 8.10.7
             doctest: "y"
             runner: ubuntu-latest
             cabal_version: 3.4
