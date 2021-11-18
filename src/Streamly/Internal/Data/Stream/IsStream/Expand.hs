@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Expand
 -- Copyright   : (c) 2017 Composewell Technologies
