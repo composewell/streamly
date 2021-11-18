@@ -703,13 +703,12 @@ arrayChunkBytes = 1024
 -------------------------------------------------------------------------------
 
 -- XXX We can possibly use a smallMutableByteArray to hold the start, end,
--- bound pointers. Or we can use the first 16 bytes of the allocation to store
--- the end, bound pointers. Using fully mutable handle will ensure that we do
--- not have multiple references to the same array of different lengths lying
--- around and potentially misused. In that case "snoc" need not return a new
--- array (snoc :: Array a -> a -> m ()), it will just modify the old reference.
--- The array length will be mutable.  This means the length function would also
--- be monadic.  Mutable arrays would behave more like files that grow in that
+-- bound pointers.  Using fully mutable handle will ensure that we do not have
+-- multiple references to the same array of different lengths lying around and
+-- potentially misused. In that case "snoc" need not return a new array (snoc
+-- :: Array a -> a -> m ()), it will just modify the old reference.  The array
+-- length will be mutable.  This means the length function would also be
+-- monadic.  Mutable arrays would behave more like files that grow in that
 -- case.
 
 -- | Snoc using a 'Ptr'. Low level reusable function.
@@ -846,6 +845,9 @@ snoc = snocWith (* 2)
 -- Resizing
 -------------------------------------------------------------------------------
 
+-- XXX See if resizing can be implemented by reading the old array as a stream
+-- and then using writeN to the new array.
+--
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
 {-# NOINLINE reallocAligned #-}
@@ -925,6 +927,8 @@ rightSize arr@Array{..} = do
 -- Reducing the length
 -------------------------------------------------------------------------------
 
+-- XXX Either slice the array or stream it and write it out to a new array?
+--
 -- | Drop the last n elements of the array to reduce the length by n. The
 -- capacity is reallocated using the user supplied function.
 --
