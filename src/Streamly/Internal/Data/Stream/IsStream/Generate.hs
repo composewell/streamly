@@ -223,7 +223,7 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 --
 -- /Since: 0.1.0/
 {-# INLINE_EARLY unfoldrM #-}
-unfoldrM :: forall t m b a. (IsStream t, MonadAsync m) =>
+unfoldrM :: forall t m a b. (IsStream t, MonadAsync m) =>
     (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = fromStream . K.unfoldrMWith (IsStream.toConsK (consM @t)) step
 
