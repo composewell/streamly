@@ -186,13 +186,22 @@ o_1_space_concat value =
         , benchIOSrc1
             "concatMapWithWSerial (sqrtVal of sqrtVal)"
             (concatStreamsWith wSerial sqrtVal sqrtVal)
+        ]
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+o_n_space_concat :: Int -> [Benchmark]
+o_n_space_concat value =
+    [ bgroup "concatMapWith"
+        [
         -- concatMapWith using StreamD versions of interleave operations are
         -- all quadratic, we just measure the sqrtVal benchmark for comparison.
-        {-
-        , benchIOSrc1
+          benchIOSrc1
             "concatMapWithInterleave (n of 1)"
             (concatStreamsWith Internal.interleave value 1)
-        -}
         , benchIOSrc1
             "concatMapWithInterleave (sqrtVal of sqrtVal)"
             (concatStreamsWith Internal.interleave sqrtVal sqrtVal)
@@ -353,5 +362,6 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
             , o_1_space_outerProduct size
             ]
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_concat size)
-        , bgroup (o_n_space_prefix moduleName) (o_n_space_outerProduct size)
+        , bgroup (o_n_space_prefix moduleName) $
+            o_n_space_outerProduct size ++ o_n_space_concat size
         ]
