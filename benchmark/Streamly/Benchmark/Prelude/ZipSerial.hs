@@ -104,8 +104,6 @@ o_1_space_joining value =
         , benchIOSrc1 "concatMapWithZip (+) (2 of n/2)"
             (concatMapWithZip 2 (value `div` 2))
         -}
-        , benchIOSrc1 "concatPairsWithZip (+) (2 of n/2)"
-            (concatPairsWithZip 2 (value `div` 2))
         ]
     ]
 
@@ -138,6 +136,8 @@ o_n_heap_concat value =
             (concatPairsWithZip value 1)
         , benchIOSrc1 "concatPairsWithZip (sqrtVal of sqrtVal)"
             (concatPairsWithZip sqrtVal sqrtVal)
+        , benchIOSrc1 "concatPairsWithZip (+) (2 of n/2)"
+            (concatPairsWithZip 2 (value `div` 2))
         ]
     ]
 
@@ -176,8 +176,10 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_joining size
             , o_1_space_mapping size
-            , o_n_heap_concat size
             -- XXX need to fix, timing in ns
             -- , o_1_space_outerProduct size
+            ]
+        , bgroup (o_n_heap_prefix moduleName) $ concat
+            [ o_n_heap_concat size
             ]
         ]
