@@ -303,11 +303,22 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapRepl sqrtVal sqrtVal)
         , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
             (unfoldManyRepl sqrtVal sqrtVal)
+        ]
+    ]
 
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+o_n_space_concat :: Int -> [Benchmark]
+o_n_space_concat value = sqrtVal `seq`
+    [ bgroup "concat"
+        [
         -------------------concatPairsWith-----------------
 
         -- Use large number of streams to check scalability
-        , benchIOSrc1 "concatPairWithSerial (n of 1)"
+
+          benchIOSrc1 "concatPairWithSerial (n of 1)"
             (concatPairWithSerial value 1)
         , benchIOSrc1 "concatPairWithSerial (sqrtVal of sqrtVal)"
             (concatPairWithSerial sqrtVal sqrtVal)
@@ -427,5 +438,6 @@ benchmarks moduleName size =
             -- multi-stream
               o_n_space_applicative size
             , o_n_space_monad size
+            , o_n_space_concat size
             ]
         ]
