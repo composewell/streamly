@@ -7,12 +7,6 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
--- 'TimeSpec' can store upto a duration of ~292 billion years at nanosecond
--- precision.  An 'Int64' data type is much faster to manipulate but has a
--- smaller maximum limit (~292 years) at nanosecond precision.  An 'Integer'
--- type can possibly be used for unbounded fixed precision time. 'Double' can
--- be used for floating precision time.
 
 module Streamly.Internal.Data.Time.TimeSpec
     (
@@ -24,7 +18,7 @@ where
 #include "config.h"
 #endif
 
-#include "Streamly/Internal/Data/Time/config-clock.h"
+#include "Streamly/Internal/Data/Time/Clock/config-clock.h"
 
 #include "MachDeps.h"
 
@@ -50,24 +44,20 @@ tenPower9 = 1000000000
 -- TimeSpec
 -------------------------------------------------------------------------------
 
--- XXX Should we use "SystemTime" from the "time" package instead?
+-- | 'TimeSpec' can hold time values up to ~292 billion years at nanosecond
+-- precision.
 --
--- | 'TimeSpec' can hold up to ~292 billion years at nanosecond precision.
---
--- In addition to using the 'TimeSpec' constructor you can also use
--- 'fromInteger' from the 'Num' type class to create a 'TimeSpec' from
--- nanoseconds.  Like any 'Num', 'TimeSpec' can be negative.  
+-- Use 'fromInteger' from the Num instance to create 'TimeSpec' from
+-- nanoseconds.  Use 'Eq' and 'Ord' instances for comparisons. Use the 'Num'
+-- instance to perform arithmetic operations.
 --
 -- Note, we assume that 'nsec' is always less than 10^9. Also, when 'TimeSpec'
 -- is negative then both 'sec' and 'nsec' must be negative.
--- TODO: Use smart constructors to enforce the assumptions.
---
--- Use 'Eq' and 'Ord' instances for comparisons and the 'Num' instance to
--- perform arithmetic operations on 'TimeSpec'.
---
+
+-- XXX Use smart constructors to enforce these assumptions.
 data TimeSpec = TimeSpec
   { sec  :: {-# UNPACK #-} !Int64 -- ^ seconds
-  -- XXX this could be Int32 instead
+  -- This could be Int32 instead but Int64 is as good.
   , nsec :: {-# UNPACK #-} !Int64 -- ^ nanoseconds
   } deriving (Eq, Read, Show)
 
@@ -101,6 +91,7 @@ adjustSign t@(TimeSpec s ns)
 timeSpecToInteger :: TimeSpec -> Integer
 timeSpecToInteger (TimeSpec s ns) = toInteger $ s * tenPower9 + ns
 
+-- XXX Error on overflow?
 -- | Note that the arithmetic operations may overflow silently.
 instance Num TimeSpec where
     {-# INLINE (+) #-}
