@@ -1,4 +1,4 @@
-resolver: lts-18.0
+resolver: lts-18.18
 packages:
 - '.'
 - './benchmark'
@@ -9,3 +9,8 @@ extra-deps:
 
 #allow-newer: true
 rebuild-ghc-options: true
+
+# Look at https://stackoverflow.com/questions/70045586/could-not-find-module-system-console-mintty-win32-when-compiling-test-framework
+flags:
+  mintty:
+    Win32-2-13-1: false
