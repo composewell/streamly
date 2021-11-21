@@ -49,3 +49,4 @@ benchmark/Streamly/Benchmark/Prelude/Serial/Nested.hs
 benchmark/Streamly/Benchmark/Prelude/Serial/Split.hs
 benchmark/Streamly/Benchmark/Prelude/WAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipAsync.hs
+benchmark/Streamly/Benchmark/Prelude/ZipSerial.hs
