@@ -64,8 +64,8 @@ let haskellPackages =
                     unicode-data =
                       super.callHackageDirect
                         { pkg = "unicode-data";
-                          ver = "0.1.0.1";
-                          sha256 = "0zwglwfpfbavsp3sjq3kb5dqj0wj1asf3zgj23silfarkr8mmyav";
+                          ver = "0.2.0";
+                          sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
                         } {};
 
                     #tasty-bench =

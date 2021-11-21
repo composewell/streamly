@@ -5,7 +5,7 @@ packages:
 - './test'
 
 extra-deps:
-  - unicode-data-0.1.0.1
+  - unicode-data-0.2.0
 
 #allow-newer: true
 rebuild-ghc-options: true
