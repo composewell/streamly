@@ -23,6 +23,8 @@
 
 * `tapAsync` from `Streamly.Internal.Data.Stream.Parallel` has been moved to
   `Streamly.Internal.Data.Stream.IsStream` and renamed to `tapAsyncK`.
+* `Fold2` has now been renamed to `Refold` and the corresponding `Fold2`
+  combinators have been either renamed or removed.
 
 ## 0.8.0 (Jun 2021)
 
