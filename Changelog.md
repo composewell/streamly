@@ -19,6 +19,11 @@
 * Fix array: missing pointer touch could potentially cause use of freed memory.
 * Fix array: unnecessary additional allocation due to a bug
 
+### Notable Internal API Changes
+
+* `tapAsync` from `Streamly.Internal.Data.Stream.Parallel` has been moved to
+  `Streamly.Internal.Data.Stream.IsStream` and renamed to `tapAsyncK`.
+
 ## 0.8.0 (Jun 2021)
 
 See [API Changelog](docs/API-changelog.txt) for a complete list of signature
