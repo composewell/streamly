@@ -193,11 +193,11 @@ The level-1 triaging of the issue determines the current disposition
 of the issue. If no change is required the issue must have one of the
 following labels:
 
-* invalid
-* question
-* discussion
-* duplicate
-* wontfix
+* disposition:invalid
+* disposition:question
+* disposition:discussion
+* disposition:duplicate
+* disposition:wontfix
 
 If a change is required we need to do level-2 triage of the issue, see the
 sections below.
@@ -207,12 +207,13 @@ sections below.
 When a change is required we need to put one of the __change type__
 labels as part of level-2 triaging:
 
-* performance: User visible impact on performance.
-* usability: It is not convenient to use the library.
-* documentation: documentation is not correct or sufficient.
-* bug: A functionality issue, not working as expected.
-* enhancement: A new feature or enhancement of the product.
-* maintenance: A refactor or any other change with no user visible impact.
+* type:performance: User visible impact on performance.
+* type:testing: Improves testing or related to testing.
+* type:usability: It is not convenient to use the library.
+* type:documentation: documentation is not correct or sufficient.
+* type:bug: A functionality issue, not working as expected.
+* type:enhancement: includes a new feature or enhancement
+* type:maintenance: A refactor or any other change with no user visible impact.
 
 ### Aspect
 
@@ -229,13 +230,13 @@ default the severity is normal, if it is high we put a label:
 
 * severity:high
 
-### Change impact
+### API impact
 
 For a user visible issue whether it has a release/changelog impact:
 
-* enhancement: includes a new feature or enhancement
-* breaking: has a breaking impact on existing deployments
-* deprecating: deprecates an existing functionality
+* api:new: includes a new feature or enhancement
+* api:breaking: has a breaking impact on existing deployments
+* api:deprecating: deprecates an existing functionality
 
 __RULE__: Any commit that may affect the end user in some way MUST have
 either a changelog entry OR MUST have an issue marked with one of the
@@ -253,9 +254,13 @@ issues:
 If the issue is assigned to someone then it is considered scheduled. Otherwise
 it is unscheduled.  Unassigned issues may have the following labels:
 
-* deferred: blocked on any other fix or a decision to be made, or deliberately
-  deferred for some reason.
+* sched:deferred: deliberately deferred for some reason.
+* sched:blocked: blocked on any other fix or a decision to be mad
+
+### For Contributors
+
 * help-wanted: anyone can take the issue and contribute
+* good-first-issue: good for new contributors
 
 ## Correlating Changes, Issues and Releases
 
