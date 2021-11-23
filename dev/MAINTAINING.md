@@ -104,11 +104,11 @@
 * _Copyrights and Contibutors_
 
     * Make sure contributors to the release are listed in
-      `credits/CONTRIBUTORS.md`.
-    * Bump the release version in `credits/CONTRIBUTORS.md`.
+      `docs/CONTRIBUTORS.md`.
+    * Bump the release version in `docs/CONTRIBUTORS.md`.
     * Make sure any third party code included in the release has been listed in
-      `credits/COPYRIGHTS.md` and the license is added to the repo.
-    * Bump the release version in `credits/COPYRIGHTS.md`.
+      `docs/Credits.md` and the license is added to the repo.
+    * Bump the release version in `docs/Credits.md`.
 
 * _Update changelog & Version_:
 
