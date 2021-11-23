@@ -1,7 +1,7 @@
 # Build files/directories
-/.stack-work/
-/dist/
-/dist-newstyle*/
+.stack-work/
+dist/
+dist-newstyle*/
 
 # Local GHC and Cabal related files
 .ghc.environment*
