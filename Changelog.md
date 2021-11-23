@@ -2,7 +2,7 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
-## Unreleased
+## 0.8.1 (Nov 2021)
 
 ### Bug Fixes
 
