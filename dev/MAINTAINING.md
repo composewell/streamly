@@ -112,7 +112,7 @@
 
 * _Update changelog & Version_:
 
-    * Find API changes using `cabal-diff streamly 0.8.0 .` and record
+    * Find API changes using `cabal-diff streamly 0.8.1 .` and record
       them in docs/API-changelog.txt.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
@@ -122,7 +122,7 @@
       release version number and the month/year of publishing.
     * Bump the package version in cabal file or package.yaml
     * Bump the package version in any docs/links, use something like
-      `rg '0\.7\.'|grep -v -i since` to find any remaining occurrences of the
+      `rg '0\.8\.'|grep -v -i since` to find any remaining occurrences of the
       old release.  Check `rg -i unreleased` for any remaining todos.
 
 * _Upload_:
