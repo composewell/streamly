@@ -239,7 +239,9 @@ then
     fi
   done
 
-  hpc sum --output=$ALLTIX $TIXFILES
+  #echo "Combining tix files:"
+  #echo $TIXFILES | tr ' ' '\n'
+  hpc sum --union --output=$ALLTIX $TIXFILES
   run_verbose hpc markup $ALLTIX --hpcdir $MIX_DIR
   run_verbose hpc report $ALLTIX $HPC_REPORT_OPTIONS --hpcdir $MIX_DIR
 fi
