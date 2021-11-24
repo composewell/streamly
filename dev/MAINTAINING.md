@@ -81,7 +81,6 @@
       [streamly-examples](https://github.com/composewell/streamly-examples)
       to make sure it runs with the latest release.
     * Check the performance of examples where applicable
-    * Update streamly-bytestring
     * Update:
       * streamly-bytestring
       * streamly-process
