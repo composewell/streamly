@@ -8,4 +8,43 @@
 
 module Streamly.Test.Data.Array where
 
-#include "Streamly/Test/Common/Array.hs"
+#include "Streamly/Test/Data/Array/CommonImports.hs"
+
+import qualified Streamly.Internal.Data.Array as A
+type Array = A.Array
+
+moduleName :: String
+moduleName = "Data.Array"
+
+#include "Streamly/Test/Data/Array/Common.hs"
+
+testFromStreamToStream :: Property
+testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
+
+testFoldUnfold :: Property
+testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
+
+testFromList :: Property
+testFromList =
+    forAll (choose (0, maxArrLen)) $ \len ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromList list
+                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    assert (xs == list)
+
+testLengthFromStream :: Property
+testLengthFromStream = genericTestFrom (const A.fromStream)
+
+main :: IO ()
+main =
+    hspec $
+    H.parallel $
+    modifyMaxSuccess (const maxTestCount) $ do
+      describe moduleName $ do
+        commonMain
+        describe "Construction" $ do
+            prop "length . fromStream === n" testLengthFromStream
+            prop "toStream . fromStream === id" testFromStreamToStream
+            prop "read . write === id" testFoldUnfold
+            prop "fromList" testFromList
