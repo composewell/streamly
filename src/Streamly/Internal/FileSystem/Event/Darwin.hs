@@ -92,7 +92,7 @@ module Streamly.Internal.FileSystem.Event.Darwin
 
     -- ** Default configuration
       Config (..)
-    , Toggle (..)
+    , Switch (..)
     , defaultConfig
 
     -- ** Watch Behavior
@@ -247,9 +247,9 @@ setEventBatching batchInfo cfg =
 --
 -- /Pre-release/
 --
-data Toggle = On | Off
+data Switch = On | Off
 
-setFlag :: Word32 -> Toggle -> Config -> Config
+setFlag :: Word32 -> Switch -> Config -> Config
 setFlag mask status cfg@Config{..} =
     let flags =
             case status of
@@ -279,7 +279,7 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setRootPathEvents :: Toggle -> Config -> Config
+setRootPathEvents :: Switch -> Config -> Config
 setRootPathEvents = setFlag kFSEventStreamCreateFlagWatchRoot
 
 foreign import ccall safe
@@ -304,7 +304,7 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setFileEvents :: Toggle -> Config -> Config
+setFileEvents :: Switch -> Config -> Config
 setFileEvents = setFlag kFSEventStreamCreateFlagFileEvents
 
 foreign import ccall safe
@@ -320,7 +320,7 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setIgnoreSelf :: Toggle -> Config -> Config
+setIgnoreSelf :: Switch -> Config -> Config
 setIgnoreSelf = setFlag kFSEventStreamCreateFlagIgnoreSelf
 
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFULLHISTORY
@@ -336,7 +336,7 @@ foreign import ccall safe
 --
 -- /Pre-release/
 --
-setFullHistory :: Toggle -> Config -> Config
+setFullHistory :: Switch -> Config -> Config
 setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 #endif
 
@@ -347,7 +347,7 @@ setFullHistory = setFlag kFSEventStreamCreateFlagFullHistory
 --
 -- /Pre-release/
 --
-setAllEvents :: Toggle -> Config -> Config
+setAllEvents :: Switch -> Config -> Config
 setAllEvents s =
       setRootPathEvents s
     . setFileEvents s

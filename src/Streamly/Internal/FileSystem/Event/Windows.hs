@@ -48,7 +48,7 @@ module Streamly.Internal.FileSystem.Event.Windows
 
     -- ** Default configuration
       Config
-    , Toggle (..)
+    , Switch (..)
     , defaultConfig
 
     -- ** Watch Behavior
@@ -143,9 +143,9 @@ data Config = Config
 --
 -- /Pre-release/
 --
-data Toggle = On | Off deriving (Show, Eq)
+data Switch = On | Off deriving (Show, Eq)
 
-setFlag :: DWORD -> Toggle -> Config -> Config
+setFlag :: DWORD -> Switch -> Config -> Config
 setFlag mask status cfg@Config{..} =
     let flags =
             case status of
@@ -159,7 +159,7 @@ setFlag mask status cfg@Config{..} =
 --
 -- /Pre-release/
 --
-setRecursiveMode :: Toggle -> Config -> Config
+setRecursiveMode :: Switch -> Config -> Config
 setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
 
 -- | Generate notify events on file create, rename or delete.
@@ -172,7 +172,7 @@ setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
 --
 -- /Pre-release/
 --
-setFileNameEvents :: Toggle -> Config -> Config
+setFileNameEvents :: Switch -> Config -> Config
 setFileNameEvents = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 
 -- | Generate notify events on directory create, rename or delete.
@@ -185,7 +185,7 @@ setFileNameEvents = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 --
 -- /Pre-release/
 --
-setDirNameEvents :: Toggle -> Config -> Config
+setDirNameEvents :: Switch -> Config -> Config
 setDirNameEvents = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 
 -- | Generate an 'isModified' event on any attribute change in the watched
@@ -195,7 +195,7 @@ setDirNameEvents = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 --
 -- /Pre-release/
 --
-setAttrsModified :: Toggle -> Config -> Config
+setAttrsModified :: Switch -> Config -> Config
 setAttrsModified = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 
 -- | Generate an 'isModified' event when the file size is changed.
@@ -210,7 +210,7 @@ setAttrsModified = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 --
 -- /Pre-release/
 --
-setSizeModified :: Toggle -> Config -> Config
+setSizeModified :: Switch -> Config -> Config
 setSizeModified = setFlag fILE_NOTIFY_CHANGE_SIZE
 
 -- | Generate an 'isModified' event when the last write timestamp of the file
@@ -227,7 +227,7 @@ setSizeModified = setFlag fILE_NOTIFY_CHANGE_SIZE
 --
 -- /Pre-release/
 --
-setLastWriteTimeModified :: Toggle -> Config -> Config
+setLastWriteTimeModified :: Switch -> Config -> Config
 setLastWriteTimeModified = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 
 -- | Generate an 'isModified' event when any security-descriptor change occurs
@@ -237,7 +237,7 @@ setLastWriteTimeModified = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 --
 -- /Pre-release/
 --
-setSecurityModified :: Toggle -> Config -> Config
+setSecurityModified :: Switch -> Config -> Config
 setSecurityModified = setFlag fILE_NOTIFY_CHANGE_SECURITY
 
 -- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
@@ -251,7 +251,7 @@ setSecurityModified = setFlag fILE_NOTIFY_CHANGE_SECURITY
 --
 -- /Pre-release/
 --
-setAllEvents :: Toggle -> Config -> Config
+setAllEvents :: Switch -> Config -> Config
 setAllEvents s =
       setFileNameEvents s
     . setDirNameEvents s
