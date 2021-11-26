@@ -167,6 +167,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -1671,7 +1672,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
 
     patLen = A.length patArr
     maxIndex = patLen - 1
-    elemBits = sizeOf (undefined :: a) * 8
+    elemBits = sizeOfElem (undefined :: a) * 8
 
     -- For word pattern case
     wordMask :: Word
@@ -1985,7 +1986,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     patLen = A.length patArr
     maxIndex = patLen - 1
-    elemBits = sizeOf (undefined :: a) * 8
+    elemBits = sizeOfElem (undefined :: a) * 8
 
     -- For word pattern case
     wordMask :: Word

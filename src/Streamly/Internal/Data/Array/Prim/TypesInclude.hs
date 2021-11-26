@@ -128,10 +128,13 @@ defaultChunkSize = mkChunkSizeKB 32
 -- Length
 -------------------------------------------------------------------------------
 
+sizeOfPrimElem :: forall a . (Prim a) => a -> Int
+sizeOfPrimElem _ = max 1 $ sizeOf (undefined :: a)
+
 -- XXX rename to byteCount?
 {-# INLINE byteLength #-}
 byteLength :: forall a. Prim a => Array a -> Int
-byteLength (Array _ _ len) = len * sizeOf (undefined :: a)
+byteLength (Array _ _ len) = len * sizeOfPrimElem (undefined :: a)
 
 -- XXX Also, rename to elemCount
 -- XXX I would prefer length to keep the API consistent
@@ -546,7 +549,7 @@ packArraysChunksOf n (D.Stream step state) =
 
     where
 
-    nElem = n `quot` sizeOf (undefined :: a)
+    nElem = n `quot` sizeOfPrimElem (undefined :: a)
 
     {-# INLINE_LATE step' #-}
     step' gst (SpliceInitial st) = do
@@ -597,7 +600,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 
     where
 
-    nElem = n `quot` sizeOf (undefined :: a)
+    nElem = n `quot` sizeOfPrimElem (undefined :: a)
 
     initial = do
         when (n <= 0) $

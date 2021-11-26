@@ -200,6 +200,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
+    , sizeOfElem
     )
 where
 
@@ -276,6 +277,14 @@ import Prelude hiding
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 
 -------------------------------------------------------------------------------
+-- Utilities
+-------------------------------------------------------------------------------
+
+{-# INLINE sizeOfElem #-}
+sizeOfElem :: forall a . (Storable a) => a -> Int
+sizeOfElem _ = max 1 $ sizeOf (undefined :: a)
+
+-------------------------------------------------------------------------------
 -- Foreign helpers
 -------------------------------------------------------------------------------
 
@@ -294,7 +303,7 @@ foreign import ccall unsafe "string.h memcmp" c_memcmp
 {-# INLINE bytesToElemCount #-}
 bytesToElemCount :: Storable a => a -> Int -> Int
 bytesToElemCount x n =
-    let elemSize = sizeOf x
+    let elemSize = sizeOfElem x
     in n `div` elemSize
 
 -- XXX we are converting Int to CSize
@@ -447,7 +456,7 @@ fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
 newArrayWith :: forall m a. (MonadIO m, Storable a)
     => (Int -> Int -> m (ArrayContents, Ptr a)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
-    let size = max (count * sizeOf (undefined :: a)) 0
+    let size = max (count * sizeOfElem (undefined :: a)) 0
     (contents, p) <- alloc size alignSize
     return $ Array
         { arrContents = contents
@@ -502,7 +511,7 @@ newArrayAlignedUnmanaged = do
         return (ArrayContents contents, Ptr addr)
 #else
 newArrayAlignedUnmanaged _align count = do
-    let size = max (count * sizeOf (undefined :: a)) 0
+    let size = max (count * sizeOfElem (undefined :: a)) 0
     p <- liftIO $ mallocBytes size
     return $ Array
         { arrContents = nilArrayContents
@@ -556,7 +565,7 @@ putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> a -> m ()
 putIndexUnsafe Array{..} i x =
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         liftIO $ poke elemPtr x
@@ -569,7 +578,7 @@ invalidIndex label i =
 putIndexPtr :: forall m a. (MonadIO m, Storable a) =>
     Ptr a -> Ptr a -> Int -> a -> m ()
 putIndexPtr start end i x = do
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
         elemPtr = start `plusPtr` (elemSize * i)
     if i >= 0 && elemPtr `plusPtr` elemSize <= end
     then liftIO $ poke elemPtr x
@@ -613,7 +622,7 @@ modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
     Array a -> Int -> (a -> (a, b)) -> m b
 modifyIndexUnsafe Array{..} i f = do
     liftIO $ unsafeWithArrayContents arrContents arrStart $ \ptr -> do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         r <- peek elemPtr
@@ -769,7 +778,7 @@ roundUpToPower2 x =
 {-# INLINE allocBytesToBytes #-}
 allocBytesToBytes :: forall a. Storable a => a -> Int -> Int
 allocBytesToBytes _ n =
-    max (arrayPayloadSize n) (sizeOf (undefined :: a))
+    max (arrayPayloadSize n) (sizeOfElem (undefined :: a))
 
 -- | Given a 'Storable' type (unused first arg) and real allocation size
 -- (including overhead), return how many elements of that type will completely
@@ -819,7 +828,7 @@ snocNewEnd newEnd arr@Array{..} x = liftIO $ do
 snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
     Array a -> a -> m (Array a)
 snocUnsafe arr@Array{..} =
-    snocNewEnd (aEnd `plusPtr` sizeOf (undefined :: a)) arr
+    snocNewEnd (aEnd `plusPtr` sizeOfElem (undefined :: a)) arr
 
 -- | Like 'snoc' but does not reallocate when pre-allocated array capacity
 -- becomes full.
@@ -829,7 +838,7 @@ snocUnsafe arr@Array{..} =
 snocMay :: forall m a. (MonadIO m, Storable a) =>
     Array a -> a -> m (Maybe (Array a))
 snocMay arr@Array{..} x = liftIO $ do
-    let newEnd = aEnd `plusPtr` sizeOf (undefined :: a)
+    let newEnd = aEnd `plusPtr` sizeOfElem (undefined :: a)
     if newEnd <= aBound
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
@@ -866,7 +875,7 @@ snocWithRealloc :: forall m a. (MonadIO m, Storable a) =>
     -> a
     -> m (Array a)
 snocWithRealloc sizer arr x = do
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
     arr1 <- liftIO $ reallocWith "snocWith" sizer elemSize arr
     snocUnsafe arr1 x
 
@@ -890,7 +899,7 @@ snocWith :: forall m a. (MonadIO m, Storable a) =>
     -> a
     -> m (Array a)
 snocWith allocSize arr x = liftIO $ do
-    let newEnd = aEnd arr `plusPtr` sizeOf (undefined :: a)
+    let newEnd = aEnd arr `plusPtr` sizeOfElem (undefined :: a)
     if newEnd <= aBound arr
     then snocNewEnd newEnd arr x
     else snocWithRealloc allocSize arr x
@@ -963,7 +972,7 @@ realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
 realloc i arr =
     liftIO
         $ reallocAligned
-            (sizeOf (undefined :: a)) (alignment (undefined :: a)) i arr
+            (sizeOfElem (undefined :: a)) (alignment (undefined :: a)) i arr
 
 -- | Change the reserved memory of the array so that it is enough to hold the
 -- specified number of elements.  Nothing is done if the specified capacity is
@@ -1005,7 +1014,7 @@ rightSize arr@Array{..} = do
         target = roundUpLargeArray len
         waste = aBound `minusPtr` aEnd
     assert (target >= len) (return ())
-    assert (len `mod` sizeOf (undefined :: a) == 0) (return ())
+    assert (len `mod` sizeOfElem (undefined :: a) == 0) (return ())
     -- We trade off some wastage (25%) to avoid reallocations and copying.
     if target < capacity && len < 3 * waste
     then realloc target arr
@@ -1056,7 +1065,7 @@ truncateExp = undefined
 getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndexUnsafe Array {..} i =
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
             elemPtr = ptr `plusPtr` (elemSize * i)
         assert (i >= 0 && elemPtr `plusPtr` elemSize <= aEnd) (return ())
         liftIO $ peek elemPtr
@@ -1065,7 +1074,7 @@ getIndexUnsafe Array {..} i =
 getIndexPtr :: forall m a. (MonadIO m, Storable a) =>
     Ptr a -> Ptr a -> Int -> m a
 getIndexPtr ptr end i = do
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
         elemPtr = ptr `plusPtr` (elemSize * i)
     if i >= 0 && elemPtr `plusPtr` elemSize <= end
     then liftIO $ peek elemPtr
@@ -1083,7 +1092,7 @@ getIndex arr i =
 getIndexPtrRev :: forall m a. (MonadIO m, Storable a) =>
     Ptr a -> Ptr a -> Int -> m a
 getIndexPtrRev ptr end i = do
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
         elemPtr = end `plusPtr` negate (elemSize * (i + 1))
     if i >= 0 && elemPtr >= ptr
     then liftIO $ peek elemPtr
@@ -1151,7 +1160,7 @@ getSliceUnsafe :: forall a. Storable a
     -> Array a
     -> Array a
 getSliceUnsafe index len (Array contents start e _) =
-    let size = sizeOf (undefined :: a)
+    let size = sizeOfElem (undefined :: a)
         fp1 = start `plusPtr` (index * size)
         end = fp1 `plusPtr` (len * size)
      in assert
@@ -1169,7 +1178,7 @@ getSlice :: forall a. Storable a =>
     -> Array a
     -> Array a
 getSlice index len (Array contents start e _) =
-    let size = sizeOf (undefined :: a)
+    let size = sizeOfElem (undefined :: a)
         fp1 = start `plusPtr` (index * size)
         end = fp1 `plusPtr` (len * size)
      in if index >= 0 && len >= 0 && end <= e
@@ -1288,7 +1297,7 @@ byteLength Array{..} =
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
 length arr =
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
         blen = byteLength arr
      in assert (blen `mod` elemSize == 0) (blen `div` elemSize)
 
@@ -1356,7 +1365,7 @@ arraysOf n (D.Stream step state) =
         case r of
             D.Yield x s -> do
                 liftIO $ poke end x >> touch contents
-                let end' = end `plusPtr` sizeOf (undefined :: a)
+                let end' = end `plusPtr` sizeOfElem (undefined :: a)
                 return $
                     if end' >= bound
                     then D.Skip
@@ -1422,7 +1431,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
                     touch contents
                     return r
         return $ D.Yield x (InnerLoop st contents
-                            (p `plusPtr` sizeOf (undefined :: a)) end)
+                            (p `plusPtr` sizeOfElem (undefined :: a)) end)
 
 -- | Use the "readRev" unfold instead.
 --
@@ -1442,7 +1451,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+                let p = aEnd `plusPtr` negate (sizeOfElem (undefined :: a))
                  in D.Skip (InnerLoop s arrContents p arrStart)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
@@ -1455,7 +1464,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
                     r <- peek p
                     touch contents
                     return r
-        let cur = p `plusPtr` negate (sizeOf (undefined :: a))
+        let cur = p `plusPtr` negate (sizeOfElem (undefined :: a))
         return $ D.Yield x (InnerLoop st contents cur start)
 
 -------------------------------------------------------------------------------
@@ -1484,7 +1493,7 @@ producer = Producer step (return . toReadUState) extract
             return D.Stop
     step (ReadUState contents end cur) = do
             !x <- liftIO $ peek cur
-            let cur1 = cur `plusPtr` sizeOf (undefined :: a)
+            let cur1 = cur `plusPtr` sizeOfElem (undefined :: a)
             return $ D.Yield x (ReadUState contents end cur1)
 
     extract (ReadUState contents end cur) = return $ Array contents cur end end
@@ -1505,7 +1514,7 @@ readRev = Unfold step inject
     where
 
     inject (Array contents start end _) =
-        let p = end `plusPtr` negate (sizeOf (undefined :: a))
+        let p = end `plusPtr` negate (sizeOfElem (undefined :: a))
          in return $ ReadUState contents start p
 
     {-# INLINE_LATE step #-}
@@ -1514,7 +1523,7 @@ readRev = Unfold step inject
         return D.Stop
     step (ReadUState contents start p) = do
             x <- liftIO $ peek p
-            let cur = p `plusPtr` negate (sizeOf (undefined :: a))
+            let cur = p `plusPtr` negate (sizeOfElem (undefined :: a))
             return $ D.Yield x (ReadUState contents start cur)
 
 -------------------------------------------------------------------------------
@@ -1542,7 +1551,7 @@ toListFB c n Array{..} = go arrStart
                     r <- peek p
                     touch arrContents
                     return r
-        in c x (go (p `plusPtr` sizeOf (undefined :: a)))
+        in c x (go (p `plusPtr` sizeOfElem (undefined :: a)))
 -}
 
 -- XXX Monadic foldr/build fusion?
@@ -1559,7 +1568,7 @@ toList Array{..} = liftIO $ go arrStart
     go p = do
         x <- peek p
         touch arrContents
-        (:) x <$> go (p `plusPtr` sizeOf (undefined :: a))
+        (:) x <$> go (p `plusPtr` sizeOfElem (undefined :: a))
 
 -- | Use the 'read' unfold instead.
 --
@@ -1577,7 +1586,7 @@ toStreamD Array{..} = D.Stream step arrStart
     step _ p = liftIO $ do
         r <- peek p
         touch arrContents
-        return $ D.Yield r (p `plusPtr` sizeOf (undefined :: a))
+        return $ D.Yield r (p `plusPtr` sizeOfElem (undefined :: a))
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
@@ -1591,7 +1600,7 @@ toStreamK Array{..} = go arrStart
               r <- peek p
               touch arrContents
               return r
-        in liftIO elemM `K.consM` go (p `plusPtr` sizeOf (undefined :: a))
+        in liftIO elemM `K.consM` go (p `plusPtr` sizeOfElem (undefined :: a))
 
 -- | Use the 'readRev' unfold instead.
 --
@@ -1601,7 +1610,7 @@ toStreamK Array{..} = go arrStart
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
 toStreamDRev Array{..} =
-    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    let p = aEnd `plusPtr` negate (sizeOfElem (undefined :: a))
     in D.Stream step p
 
     where
@@ -1611,12 +1620,12 @@ toStreamDRev Array{..} =
     step _ p = liftIO $ do
         r <- peek p
         touch arrContents
-        return $ D.Yield r (p `plusPtr` negate (sizeOf (undefined :: a)))
+        return $ D.Yield r (p `plusPtr` negate (sizeOfElem (undefined :: a)))
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
 toStreamKRev Array {..} =
-    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    let p = aEnd `plusPtr` negate (sizeOfElem (undefined :: a))
     in go p
 
     where
@@ -1627,7 +1636,7 @@ toStreamKRev Array {..} =
               r <- peek p
               touch arrContents
               return r
-        in liftIO elemM `K.consM` go (p `plusPtr` negate (sizeOf (undefined :: a)))
+        in liftIO elemM `K.consM` go (p `plusPtr` negate (sizeOfElem (undefined :: a)))
 
 -------------------------------------------------------------------------------
 -- Folding
@@ -1696,7 +1705,7 @@ appendNUnsafe action n =
         assert (n >= 0) (return ())
         arr@(Array _ _ end bound) <- action
         let free = bound `minusPtr` end
-            elemSize = sizeOf (undefined :: a)
+            elemSize = sizeOfElem (undefined :: a)
             needed = n * elemSize
         -- XXX We can also reallocate if the array has too much free space,
         -- otherwise we lose that space.
@@ -1708,7 +1717,7 @@ appendNUnsafe action n =
 
     step (ArrayUnsafe contents start end) x = do
         liftIO $ poke end x >> touch contents
-        let end1 = end `plusPtr` sizeOf (undefined :: a)
+        let end1 = end `plusPtr` sizeOfElem (undefined :: a)
         return $ ArrayUnsafe contents start end1
 
 -- | Append @n@ elements to an existing array. Any free space left in the array
@@ -1826,7 +1835,7 @@ writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
         liftIO $ poke end x >> touch contents
         return
           $ FL.Partial
-          $ ArrayUnsafe contents start (end `plusPtr` sizeOf (undefined :: a))
+          $ ArrayUnsafe contents start (end `plusPtr` sizeOfElem (undefined :: a))
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -1899,20 +1908,20 @@ writeWith elemCount =
 
     insertElem (Array contents start end bound) x = do
         liftIO $ poke end x
-        let end1 = end `plusPtr` sizeOf (undefined :: a)
+        let end1 = end `plusPtr` sizeOfElem (undefined :: a)
         return $ Array contents start end1 bound
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newArrayAligned (alignment (undefined :: a)) elemCount
     step arr@(Array _ start end bound) x
-        | end `plusPtr` sizeOf (undefined :: a) > bound = do
+        | end `plusPtr` sizeOfElem (undefined :: a) > bound = do
         let oldSize = end `minusPtr` start
             newSize = max (oldSize * 2) 1
         arr1 <-
             liftIO
                 $ reallocAligned
-                    (sizeOf (undefined :: a))
+                    (sizeOfElem (undefined :: a))
                     (alignment (undefined :: a))
                     newSize
                     arr
@@ -1953,7 +1962,7 @@ fromStreamDN limit str = do
 
     fwrite ptr x = do
         liftIO $ poke ptr x
-        return $ ptr `plusPtr` sizeOf (undefined :: a)
+        return $ ptr `plusPtr` sizeOfElem (undefined :: a)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -2147,7 +2156,7 @@ splitAt i arr@Array{..} =
         else if i > maxIndex
              then error $ "sliceAt: specified array index " ++ show i
                         ++ " is beyond the maximum index " ++ show maxIndex
-             else let off = i * sizeOf (undefined :: a)
+             else let off = i * sizeOfElem (undefined :: a)
                       p = arrStart `plusPtr` off
                 in ( Array
                   { arrContents = arrContents
@@ -2198,7 +2207,7 @@ asBytes = castUnsafe
 cast :: forall a b. Storable b => Array a -> Maybe (Array b)
 cast arr =
     let len = byteLength arr
-        r = len `mod` sizeOf (undefined :: b)
+        r = len `mod` sizeOfElem (undefined :: b)
      in if r /= 0
         then Nothing
         else Just $ castUnsafe arr

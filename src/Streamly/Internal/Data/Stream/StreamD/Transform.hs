@@ -1109,12 +1109,13 @@ reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, plusPtr)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem)
 reverse' m = Stream step Nothing
     where
     {-# INLINE_LATE step #-}
     step _ Nothing = do
         arr <- A.fromStreamD m
-        let p = A.aEnd arr `plusPtr` negate (sizeOf (undefined :: a))
+        let p = A.aEnd arr `plusPtr` negate (sizeOfElem (undefined :: a))
         return $ Skip $ Just (A.aStart arr, p)
 
     step _ (Just (start, p)) | p < unsafeForeignPtrToPtr start = return Stop
@@ -1124,7 +1125,7 @@ reverse' m = Stream step Nothing
                     r <- peek p
                     touchForeignPtr start
                     return r
-            next = p `plusPtr` negate (sizeOf (undefined :: a))
+            next = p `plusPtr` negate (sizeOfElem (undefined :: a))
         return $ Yield x (Just (start, next))
 -}
 

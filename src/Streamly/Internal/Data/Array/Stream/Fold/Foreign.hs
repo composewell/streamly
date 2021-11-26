@@ -58,7 +58,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem, touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Parser.ParserD (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -118,7 +118,7 @@ fromFold (Fold.Fold fstep finitial fextract) =
         goArray !_ !cur !fs = do
             x <- liftIO $ peek cur
             res <- fstep fs x
-            let elemSize = sizeOf (undefined :: a)
+            let elemSize = sizeOfElem (undefined :: a)
                 next = cur `plusPtr` elemSize
             case res of
                 Fold.Done b ->
@@ -156,7 +156,7 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
             x <- liftIO $ peek cur
             liftIO $ touch contents
             res <- step1 fs x
-            let elemSize = sizeOf (undefined :: a)
+            let elemSize = sizeOfElem (undefined :: a)
                 next = cur `plusPtr` elemSize
                 arrRem = (end `minusPtr` next) `div` elemSize
             case res of
@@ -320,7 +320,7 @@ take n (Fold (ParserD.Parser step1 initial1 extract1)) =
                 Error err -> return $ Error err
         else do
             let !(Array contents start _) = arr
-                sz = sizeOf (undefined :: a)
+                sz = sizeOfElem (undefined :: a)
                 end = start `plusPtr` (i * sz)
                 arr1 = Array contents start end
                 remaining = negate i1

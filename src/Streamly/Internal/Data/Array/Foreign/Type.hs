@@ -90,7 +90,7 @@ import GHC.ForeignPtr (ForeignPtr)
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ArrayContents, ReadUState(..), touch)
+    (ArrayContents, ReadUState(..), sizeOfElem, touch)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -466,7 +466,7 @@ readRev = Unfold step inject
     where
 
     inject (Array contents start end) =
-        let p = end `plusPtr` negate (sizeOf (undefined :: a))
+        let p = end `plusPtr` negate (sizeOfElem (undefined :: a))
          in return $ ReadUState contents start p
 
     {-# INLINE_LATE step #-}
@@ -481,7 +481,7 @@ readRev = Unfold step inject
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ peek p
-            let cur = p `plusPtr` negate (sizeOf (undefined :: a))
+            let cur = p `plusPtr` negate (sizeOfElem (undefined :: a))
             return $ D.Yield x (ReadUState contents start cur)
 
 
@@ -505,7 +505,7 @@ toStreamD Array{..} = D.Stream step arrStart
                     r <- peek p
                     touch arrContents
                     return r
-        return $ D.Yield x (p `plusPtr` sizeOf (undefined :: a))
+        return $ D.Yield x (p `plusPtr` sizeOfElem (undefined :: a))
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
@@ -520,12 +520,12 @@ toStreamK Array{..} = go arrStart
                     r <- peek p
                     touch arrContents
                     return r
-        in x `K.cons` go (p `plusPtr` sizeOf (undefined :: a))
+        in x `K.cons` go (p `plusPtr` sizeOfElem (undefined :: a))
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamDRev Array{..} =
-    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    let p = aEnd `plusPtr` negate (sizeOfElem (undefined :: a))
     in D.Stream step p
 
     where
@@ -538,12 +538,12 @@ toStreamDRev Array{..} =
                     r <- peek p
                     touch arrContents
                     return r
-        return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
+        return $ D.Yield x (p `plusPtr` negate (sizeOfElem (undefined :: a)))
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. Storable a => Array a -> K.Stream m a
 toStreamKRev Array {..} =
-    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    let p = aEnd `plusPtr` negate (sizeOfElem (undefined :: a))
     in go p
 
     where
@@ -554,7 +554,7 @@ toStreamKRev Array {..} =
                     r <- peek p
                     touch arrContents
                     return r
-        in x `K.cons` go (p `plusPtr` negate (sizeOf (undefined :: a)))
+        in x `K.cons` go (p `plusPtr` negate (sizeOfElem (undefined :: a)))
 
 -- | Convert an 'Array' into a stream.
 --
@@ -613,7 +613,7 @@ toListFB c n Array{..} = go arrStart
                     r <- peek p
                     touch arrContents
                     return r
-        in c x (go (p `plusPtr` sizeOf (undefined :: a)))
+        in c x (go (p `plusPtr` sizeOfElem (undefined :: a)))
 
 -- | Convert an 'Array' into a list.
 --
@@ -781,7 +781,7 @@ contraint.
 {-# INLINE_NORMAL _foldr #-}
 _foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
 _foldr f z arr =
-    let !n = sizeOf (undefined :: a)
+    let !n = sizeOfElem (undefined :: a)
     in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
 
 -- | Note that the 'Foldable' instance is 7x slower than the direct

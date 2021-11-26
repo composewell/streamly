@@ -83,7 +83,7 @@ length ::
 length arr =
     liftIO $ do
         blen <- byteLength arr
-        return $ blen `quot` (sizeOf (undefined :: a))
+        return $ blen `quot` (max 1 $ sizeOf (undefined :: a))
 
 -------------------------------------------------------------------------------
 -- Random Access
