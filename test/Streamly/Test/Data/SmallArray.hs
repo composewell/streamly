@@ -8,5 +8,20 @@
 
 module Streamly.Test.Data.SmallArray where
 
-#define TEST_SMALL_ARRAY
-#include "Streamly/Test/Common/Array.hs"
+#include "Streamly/Test/Data/Array/CommonImports.hs"
+
+import qualified Streamly.Internal.Data.SmallArray as A
+type Array = A.SmallArray
+
+moduleName :: String
+moduleName = "Data.SmallArray"
+
+#include "Streamly/Test/Data/Array/Common.hs"
+
+main :: IO ()
+main =
+    hspec $
+    H.parallel $
+    modifyMaxSuccess (const maxTestCount) $ do
+      describe moduleName $ do
+        commonMain
