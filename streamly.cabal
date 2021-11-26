@@ -86,7 +86,6 @@ extra-source-files:
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
-    test/Streamly/Test/Common/Array.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
