@@ -68,12 +68,12 @@ let haskellPackages =
                           sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
                         } {};
 
-                    #tasty-bench =
-                    #  super.callHackageDirect
-                    #    { pkg = "tasty-bench";
-                    #      ver = "0.2.5";
-                    #      sha256 = "052vd87dcik77x6nfbivdibyxyd3byqy4akchr1mrz0hd5ll8apg";
-                    #    } {};
+                    tasty-bench =
+                      super.callHackageDirect
+                        { pkg = "tasty-bench";
+                          ver = "0.3.1";
+                          sha256 = "0ixdxa7qwl4kck12gwvxg9kydhckjsi5drxcypr33jcdj771j7a4";
+                        } {};
 
                     #tasty =
                     #  super.callHackageDirect
