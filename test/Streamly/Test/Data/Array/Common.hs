@@ -32,7 +32,7 @@ genericTestFrom arrFold =
                 assert (A.length arr == len)
 
 testLength :: Property
-testLength = genericTestFrom (\n -> S.fold (A.writeN n))
+testLength = genericTestFrom (S.fold . A.writeN)
 
 testLengthFromStreamN :: Property
 testLengthFromStreamN = genericTestFrom A.fromStreamN
@@ -53,16 +53,16 @@ genericTestFromTo arrFold arrUnfold listEq =
 
 testFoldNUnfold :: Property
 testFoldNUnfold =
-    genericTestFromTo (\n -> S.fold (A.writeN n)) (S.unfold A.read) (==)
+    genericTestFromTo (S.fold . A.writeN) (S.unfold A.read) (==)
 
 testFoldNToStream :: Property
 testFoldNToStream =
-    genericTestFromTo (\n -> S.fold (A.writeN n)) A.toStream (==)
+    genericTestFromTo (S.fold . A.writeN) A.toStream (==)
 
 testFoldNToStreamRev :: Property
 testFoldNToStreamRev =
     genericTestFromTo
-        (\n -> S.fold (A.writeN n))
+        (S.fold . A.writeN)
         A.toStreamRev
         (\xs list -> xs == reverse list)
 
@@ -79,7 +79,7 @@ testFromListN =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromListN n list
-                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    xs <- run $ S.toList $ S.unfold A.read arr
                     listEquals (==) xs (take n list)
 
 foldManyWith :: (Int -> Fold IO Int (Array Int)) -> Property
