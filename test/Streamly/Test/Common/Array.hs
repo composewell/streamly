@@ -56,9 +56,6 @@ type Array = A.Array
 import qualified Streamly.Internal.Data.Array.Prim as A
 import qualified Streamly.Internal.Data.Array.Prim.Type as A
 type Array = A.Array
-#else
-import qualified Streamly.Internal.Data.Array as A
-type Array = A.Array
 #endif
 
 moduleName :: String
@@ -70,8 +67,6 @@ moduleName = "Data.Array.Foreign"
 moduleName = "Data.Array.Prim.Pinned"
 #elif defined(DATA_ARRAY_PRIM)
 moduleName = "Data.Array.Prim"
-#else
-moduleName = "Data.Array"
 #endif
 
 -- Coverage build takes too long with default number of tests

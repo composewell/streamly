@@ -88,6 +88,8 @@ extra-source-files:
     src/inline.hs
     test/Streamly/Test/Common/Array.hs
     test/Streamly/Test/Data/*.hs
+    test/Streamly/Test/Data/Array/CommonImports.hs
+    test/Streamly/Test/Data/Array/Common.hs
     test/Streamly/Test/Data/Array/Prim.hs
     test/Streamly/Test/Data/Array/Prim/Pinned.hs
     test/Streamly/Test/Data/Array/Foreign.hs
