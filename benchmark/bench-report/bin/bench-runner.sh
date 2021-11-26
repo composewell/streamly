@@ -324,7 +324,7 @@ invoke_tasty_bench () {
           MATCH="-p /$escaped_name/"
         fi
     fi
-    echo "Name,cpuTime,2*Stdev (ps),Allocated,bytesCopied" >> $output_file
+    echo "Name,cpuTime,2*Stdev (ps),Allocated,bytesCopied,maxrss" >> $output_file
     $target_prog -l $MATCH \
       | grep "^All" \
       | while read -r name; \
