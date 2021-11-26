@@ -123,8 +123,8 @@ common bench-depends
   if flag(use-gauge)
     build-depends:  gauge >= 0.2.4 && < 0.3
   else
-    build-depends:    tasty-bench >= 0.2.5 && < 0.4
-                    , tasty     >= 1.4.1
+    build-depends:    tasty-bench >= 0.3 && < 0.4
+                    , tasty     >= 1.4.1 && < 1.5
     mixins: tasty-bench
       (Test.Tasty.Bench as Gauge
       , Test.Tasty.Bench as Gauge.Main
