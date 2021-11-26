@@ -31,8 +31,7 @@ import Streamly.Test.Common (listEquals)
 
 import qualified Streamly.Prelude as S
 
-#if defined(DATA_ARRAY_PRIM) ||\
-    defined(DATA_ARRAY_PRIM_PINNED)
+#if defined(DATA_ARRAY_PRIM_PINNED)
 import qualified Streamly.Internal.Data.Fold as Fold
 #endif
 
@@ -43,10 +42,6 @@ type Array = A.SmallArray
 import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
 import qualified Streamly.Internal.Data.Array.Prim.Pinned.Type as A
 type Array = A.Array
-#elif defined(DATA_ARRAY_PRIM)
-import qualified Streamly.Internal.Data.Array.Prim as A
-import qualified Streamly.Internal.Data.Array.Prim.Type as A
-type Array = A.Array
 #endif
 
 moduleName :: String
@@ -54,8 +49,6 @@ moduleName :: String
 moduleName = "Data.SmallArray"
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 moduleName = "Data.Array.Prim.Pinned"
-#elif defined(DATA_ARRAY_PRIM)
-moduleName = "Data.Array.Prim"
 #endif
 
 -- Coverage build takes too long with default number of tests
@@ -197,8 +190,7 @@ main =
             prop "fromList" testFromList
 #endif
 
-#if defined(DATA_ARRAY_PRIM) ||\
-    defined(DATA_ARRAY_PRIM_PINNED)
+#if defined(DATA_ARRAY_PRIM_PINNED)
             prop "foldMany with writeNUnsafe concats to original"
                 (foldManyWith (\n -> Fold.take n (A.writeNUnsafe n)))
 #endif
