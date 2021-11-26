@@ -12,7 +12,6 @@ src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
 src/Streamly/Internal/Data/Array/Prim/Pinned/Mut/Type.hs
 src/Streamly/Internal/Data/Array/Prim/Pinned/Type.hs
 src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
-test/Streamly/Test/Common/Array.hs
 test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Array/Prim.hs
 test/Streamly/Test/Data/Array/Prim/Pinned.hs
