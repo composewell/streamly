@@ -485,7 +485,7 @@ library
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
                     -- Memory storage
-                     , Streamly.Internal.Ring.Foreign
+                     , Streamly.Internal.Data.Ring.Foreign
                      , Streamly.Internal.Data.Ring
 
                      -- IOVec (depends on arrays/streams)

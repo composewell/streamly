@@ -148,7 +148,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Ring.Foreign as RB
+import qualified Streamly.Internal.Data.Ring.Foreign as RB
 
 -------------------------------------------------------------------------------
 -- Construction
