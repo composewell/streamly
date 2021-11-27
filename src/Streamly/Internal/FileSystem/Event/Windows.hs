@@ -12,13 +12,13 @@
 --
 -- =Overview
 --
--- Use 'watchTrees'or 'watchPaths' with a list of file system paths you want to
--- watch as argument. It returns a stream of 'Event' representing the file
--- system events occurring under the watched paths.
+-- Use 'watchRecursive'or 'watch' with a list of file system dir paths you
+-- want to watch as argument. It returns a stream of 'Event' representing the
+-- file system events occurring under the watched paths.
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchTrees' [Array.fromCString\# "path"#]
+-- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromCString\# "path"#]
 -- @
 --
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)

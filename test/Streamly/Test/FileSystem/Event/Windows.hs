@@ -38,6 +38,7 @@ main = do
     -- TODO create/modify/delete/move with root path as a regular file, copy
     -- from macOS tests
     -- run FileType fileRootTests
+    -- Windows watch events only supports dir path as root.
 
     let recTests =
             [ dirCreateWithParent "subdir\\dir"

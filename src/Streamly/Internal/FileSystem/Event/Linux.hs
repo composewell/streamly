@@ -193,6 +193,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
+import qualified System.Directory as Dir
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Unicode.Stream as U
 
@@ -745,7 +746,8 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX toDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    when watchRec $ do
+    pathIsDir <- Dir.doesDirectoryExist $ utf8ToString absPath
+    when (watchRec && pathIsDir) $ do
         S.mapM_ (\p -> addToWatch cfg watch0 root (appendPaths path p))
             $ S.mapM toUtf8
             $ Dir.toDirs $ utf8ToString absPath
