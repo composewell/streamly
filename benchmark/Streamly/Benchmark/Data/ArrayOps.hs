@@ -31,12 +31,7 @@ import qualified Data.Foldable as F
 #endif
 #endif
 
-#if defined(MEMORY_ARRAY)
-import qualified GHC.Exts as GHC
-import qualified Streamly.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign as A
-type Stream = A.Array
-#elif defined(DATA_ARRAY_PRIM)
+#if defined(DATA_ARRAY_PRIM)
 import qualified Streamly.Internal.Data.Array.Prim as A
 type Stream = A.Array
 #elif defined(DATA_ARRAY_PRIM_PINNED)
@@ -57,7 +52,6 @@ type Stream = A.Array
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
--- MEMORY_ARRAY
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
@@ -87,7 +81,6 @@ sourceIntFromToFromList value n = P.return $ A.fromList $ [n..n + value]
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
--- MEMORY_ARRAY
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
@@ -99,28 +92,11 @@ sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
 
 -------------------------------------------------------------------------------
--- CPP Common to:
--- MEMORY_ARRAY
--------------------------------------------------------------------------------
-
--- CPP:
-#ifdef MEMORY_ARRAY
-{-# INLINE sourceIsList #-}
-sourceIsList :: Int -> Int -> Stream Int
-sourceIsList value n = GHC.fromList [n..n+value]
-
-{-# INLINE sourceIsString #-}
-sourceIsString :: Int -> Int -> Stream P.Char
-sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
-#endif
-
--------------------------------------------------------------------------------
 -- Transformation
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
--- MEMORY_ARRAY
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
@@ -183,7 +159,6 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
--- MEMORY_ARRAY
 -- DATA_ARRAY
 -------------------------------------------------------------------------------
 
@@ -216,7 +191,6 @@ foldableSum = P.sum
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
--- MEMORY_ARRAY
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
