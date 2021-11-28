@@ -10,9 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- CPP:
--- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_ARRAY_PRIM_PINNED
 
 module Streamly.Benchmark.Data.ArrayOps where
 
@@ -22,18 +20,13 @@ import Prelude (Bool, Int, Maybe(..), ($), (+), (.), (==), (>), undefined)
 import qualified Prelude as P
 import qualified Streamly.Prelude as S
 
-#if !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
 {-
 import qualified Data.Foldable as F
 -}
 #endif
-#endif
 
-#if defined(DATA_ARRAY_PRIM_PINNED)
-import qualified Streamly.Internal.Data.Array.Prim.Pinned as A
-type Stream = A.Array
-#elif defined(DATA_ARRAY)
+#if defined(DATA_ARRAY)
 import qualified Streamly.Internal.Data.Array as A
 type Stream = A.Array
 #endif
@@ -49,7 +42,6 @@ type Stream = A.Array
 -------------------------------------------------------------------------------
 -- CPP Common to:
 -- DATA_ARRAY
--- DATA_ARRAY_PRIM_PINNED
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceUnfoldr #-}
@@ -77,7 +69,6 @@ sourceIntFromToFromList value n = P.return $ A.fromList $ [n..n + value]
 -------------------------------------------------------------------------------
 -- CPP Common to:
 -- DATA_ARRAY
--- DATA_ARRAY_PRIM_PINNED
 -------------------------------------------------------------------------------
 
 -- CPP:
@@ -92,7 +83,6 @@ sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + va
 -------------------------------------------------------------------------------
 -- CPP Common to:
 -- DATA_ARRAY
--- DATA_ARRAY_PRIM_PINNED
 -------------------------------------------------------------------------------
 
 {-# INLINE composeN #-}
@@ -156,7 +146,6 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 -------------------------------------------------------------------------------
 
 -- CPP:
-#if !defined(DATA_ARRAY_PRIM_PINNED)
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -176,7 +165,6 @@ foldableSum :: Stream Int -> Int
 foldableSum = P.sum
 -}
 #endif
-#endif
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -185,7 +173,6 @@ foldableSum = P.sum
 -------------------------------------------------------------------------------
 -- CPP Common to:
 -- DATA_ARRAY
--- DATA_ARRAY_PRIM_PINNED
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldReadDrain #-}
