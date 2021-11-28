@@ -21,18 +21,12 @@ import qualified Streamly.Data.Array.Foreign as A
 
 #ifdef DATA_ARRAY
 import qualified Streamly.Internal.Data.Array as IA
-#else
-import qualified Streamly.Internal.Data.Array.Foreign as IA
 #endif
 import qualified Streamly.Prelude  as S
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 import qualified Streamly.Benchmark.Prelude as P
-
-#ifdef MEMORY_ARRAY
-import qualified GHC.Exts as GHC
-#endif
 
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 import Control.DeepSeq (deepseq)
@@ -41,13 +35,6 @@ import Control.DeepSeq (deepseq)
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
-
-#ifdef MEMORY_ARRAY
--- Drain a source that generates a pure array
-{-# INLINE benchPureSrc #-}
-benchPureSrc :: String -> (Int -> Ops.Stream a) -> Benchmark
-benchPureSrc name src = benchPure name src id
-#endif
 
 {-# INLINE benchIO #-}
 benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
@@ -58,8 +45,7 @@ benchIO name src f = bench name $ nfIO $
 {-# INLINE benchIOSrc #-}
 benchIOSrc ::
 #if !defined(DATA_ARRAY_PRIM) \
-    && !defined(DATA_ARRAY_PRIM_PINNED) \
-    && !defined(MEMORY_ARRAY)
+    && !defined(DATA_ARRAY_PRIM_PINNED)
        NFData a =>
 #endif
        String -> (Int -> IO (Ops.Stream a)) -> Benchmark
@@ -91,12 +77,6 @@ o_1_space_generation value =
               (Ops.sourceIntFromToFromList value)
         , benchIOSrc "writeN . unfoldr" (Ops.sourceUnfoldr value)
         , benchIOSrc "writeN . fromList" (Ops.sourceFromList value)
-#ifdef MEMORY_ARRAY
-        , benchPureSrc "writeN . IsList.fromList" (Ops.sourceIsList value)
-        , benchPureSrc
-              "writeN . IsString.fromString"
-              (Ops.sourceIsString value)
-#endif
 #if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DATA_SMALLARRAY
         , let testStr =
@@ -120,10 +100,6 @@ o_1_space_elimination value =
         , benchPureSink value "/=" Ops.eqInstanceNotEq
         , benchPureSink value "<" Ops.ordInstance
         , benchPureSink value "min" Ops.ordInstanceMin
-#ifdef MEMORY_ARRAY
-        -- length is used to check for foldr/build fusion
-        , benchPureSink value "length . IsList.toList" (length . GHC.toList)
-#endif
         , benchIOSink value "foldl'" Ops.pureFoldl'
         , benchIOSink value "read" Ops.unfoldReadDrain
         , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
@@ -173,9 +149,7 @@ o_1_space_transformationX4 value =
       ]
 
 moduleName :: String
-#if defined(MEMORY_ARRAY)
-moduleName = "Data.Array.Foreign"
-#elif defined(DATA_ARRAY_PRIM)
+#if defined(DATA_ARRAY_PRIM)
 moduleName = "Data.Array.Prim"
 #elif defined(DATA_ARRAY_PRIM_PINNED)
 moduleName = "Data.Array.Prim.Pinned"
