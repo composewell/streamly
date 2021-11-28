@@ -44,8 +44,7 @@ benchIO name src f = bench name $ nfIO $
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
 benchIOSrc ::
-#if !defined(DATA_ARRAY_PRIM) \
-    && !defined(DATA_ARRAY_PRIM_PINNED)
+#if !defined(DATA_ARRAY_PRIM_PINNED)
        NFData a =>
 #endif
        String -> (Int -> IO (Ops.Stream a)) -> Benchmark
@@ -77,7 +76,7 @@ o_1_space_generation value =
               (Ops.sourceIntFromToFromList value)
         , benchIOSrc "writeN . unfoldr" (Ops.sourceUnfoldr value)
         , benchIOSrc "writeN . fromList" (Ops.sourceFromList value)
-#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
+#if !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DATA_SMALLARRAY
         , let testStr =
                   "fromListN " ++
@@ -149,9 +148,7 @@ o_1_space_transformationX4 value =
       ]
 
 moduleName :: String
-#if defined(DATA_ARRAY_PRIM)
-moduleName = "Data.Array.Prim"
-#elif defined(DATA_ARRAY_PRIM_PINNED)
+#if defined(DATA_ARRAY_PRIM_PINNED)
 moduleName = "Data.Array.Prim.Pinned"
 #else
 moduleName = "Data.Array"
