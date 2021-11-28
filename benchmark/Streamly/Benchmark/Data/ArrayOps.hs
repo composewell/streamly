@@ -14,7 +14,6 @@
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
--- DATA_SMALLARRAY
 
 module Streamly.Benchmark.Data.ArrayOps where
 
@@ -32,10 +31,7 @@ import qualified Data.Foldable as F
 #endif
 #endif
 
-#ifdef DATA_SMALLARRAY
-import qualified Streamly.Internal.Data.SmallArray as A
-type Stream = A.SmallArray
-#elif defined(MEMORY_ARRAY)
+#if defined(MEMORY_ARRAY)
 import qualified GHC.Exts as GHC
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign as A
@@ -65,7 +61,6 @@ type Stream = A.Array
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
--- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceUnfoldr #-}
@@ -85,15 +80,10 @@ sourceIntFromTo value n = S.fold (A.writeN value) $ S.enumerateFromTo n (n + val
 sourceFromList :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceFromList value n = S.fold (A.writeN value) $ S.fromList [n..n+value]
 
--- Different defination of sourceIntFromToFromList for DATA_SMALLARRAY
 -- CPP:
 {-# INLINE sourceIntFromToFromList #-}
 sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-#ifndef DATA_SMALLARRAY
 sourceIntFromToFromList value n = P.return $ A.fromList $ [n..n + value]
-#else
-sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
-#endif
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
@@ -104,11 +94,9 @@ sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
 -------------------------------------------------------------------------------
 
 -- CPP:
-#ifndef DATA_SMALLARRAY
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
-#endif
 
 -------------------------------------------------------------------------------
 -- CPP Common to:
@@ -136,7 +124,6 @@ sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
--- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
 {-# INLINE composeN #-}
@@ -198,7 +185,6 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 -- CPP Common to:
 -- MEMORY_ARRAY
 -- DATA_ARRAY
--- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
 -- CPP:
@@ -234,7 +220,6 @@ foldableSum = P.sum
 -- DATA_ARRAY
 -- DATA_ARRAY_PRIM
 -- DATA_ARRAY_PRIM_PINNED
--- DATA_SMALLARRAY
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldReadDrain #-}
