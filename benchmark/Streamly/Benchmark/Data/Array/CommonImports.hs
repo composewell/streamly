@@ -13,3 +13,5 @@ import qualified Streamly.Benchmark.Prelude as P
 import Control.Monad.IO.Class (MonadIO)
 
 import Prelude as P hiding (map)
+
+import Data.Functor ((<&>))

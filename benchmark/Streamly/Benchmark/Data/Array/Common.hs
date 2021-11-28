@@ -7,11 +7,11 @@
 {-# INLINE benchIO #-}
 benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
 benchIO name src f = bench name $ nfIO $
-    randomRIO (1,1) >>= src >>= return . f
+    (randomRIO (1,1) >>= src) <&> f
 
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b => Int -> String -> (Stream Int -> b) -> Benchmark
-benchPureSink value name f = benchIO name (sourceIntFromTo value) f
+benchPureSink value name = benchIO name (sourceIntFromTo value)
 
 {-# INLINE benchIO' #-}
 benchIO' :: NFData b => String -> (Int -> IO a) -> (a -> IO b) -> Benchmark
@@ -20,7 +20,7 @@ benchIO' name src f = bench name $ nfIO $
 
 {-# INLINE benchIOSink #-}
 benchIOSink :: NFData b => Int -> String -> (Stream Int -> IO b) -> Benchmark
-benchIOSink value name f = benchIO' name (sourceIntFromTo value) f
+benchIOSink value name = benchIO' name (sourceIntFromTo value)
 
 -------------------------------------------------------------------------------
 -- Bench Ops
@@ -33,7 +33,7 @@ sourceUnfoldr value n = S.fold (A.writeN value) $ S.unfoldr step n
     step cnt =
         if cnt > n + value
         then Nothing
-        else (Just (cnt, cnt + 1))
+        else Just (cnt, cnt + 1)
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: MonadIO m => Int -> Int -> m (Stream Int)
@@ -71,7 +71,7 @@ onArray
     :: MonadIO m => Int -> (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray value f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
+onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.read arr
 
 scanl'  value n = composeN n $ onArray value $ S.scanl' (+) 0
 scanl1' value n = composeN n $ onArray value $ S.scanl1' (+)
@@ -96,7 +96,7 @@ ordInstanceMin src = P.min src src
 
 {-# INLINE showInstance #-}
 showInstance :: Stream Int -> P.String
-showInstance src = P.show src
+showInstance = P.show
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int

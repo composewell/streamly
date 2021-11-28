@@ -22,7 +22,7 @@ benchIOSrc name src = benchIO name src id
 
 {-# INLINE sourceIntFromToFromList #-}
 sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
+sourceIntFromToFromList value n = P.return $ A.fromListN value [n..n + value]
 
 -- CPP:
 {-# INLINE sourceIntFromToFromStream #-}
@@ -53,6 +53,5 @@ main = runWithCLIOpts defStreamSize allBenchmarks
     where
 
     allBenchmarks size =
-        [ bgroup (o_1_space_prefix moduleName) $
-             o_1_space_generation size
-        ] ++ commonBenchmarks size
+        bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
+            : commonBenchmarks size

@@ -24,7 +24,7 @@ benchIOSrc name src = benchIO name src id
 
 {-# INLINE sourceIntFromToFromList #-}
 sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
+sourceIntFromToFromList value n = P.return $ A.fromListN value [n..n + value]
 
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
@@ -58,7 +58,7 @@ o_1_space_generation value =
                   "fromListN " ++
                   show (value + 1) ++
                   "[1" ++ concat (replicate value ",1") ++ "]"
-           in testStr `deepseq` (bench "read" $ nf readInstance testStr)
+           in testStr `deepseq` bench "read" (nf readInstance testStr)
         ]
     ]
 
@@ -89,6 +89,5 @@ main = runWithCLIOpts defStreamSize allBenchmarks
     where
 
     allBenchmarks size =
-        [ bgroup (o_1_space_prefix moduleName) $
-             o_1_space_generation size
-        ] ++ commonBenchmarks size
+        bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
+            : commonBenchmarks size
