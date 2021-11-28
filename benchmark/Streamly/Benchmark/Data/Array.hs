@@ -28,9 +28,7 @@ import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 import qualified Streamly.Benchmark.Prelude as P
 
-#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 import Control.DeepSeq (deepseq)
-#endif
 
 -------------------------------------------------------------------------------
 --
@@ -43,11 +41,7 @@ benchIO name src f = bench name $ nfIO $
 
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
-benchIOSrc ::
-#if !defined(DATA_ARRAY_PRIM_PINNED)
-       NFData a =>
-#endif
-       String -> (Int -> IO (Ops.Stream a)) -> Benchmark
+benchIOSrc :: NFData a => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
 
 {-# INLINE benchPureSink #-}
@@ -76,17 +70,8 @@ o_1_space_generation value =
               (Ops.sourceIntFromToFromList value)
         , benchIOSrc "writeN . unfoldr" (Ops.sourceUnfoldr value)
         , benchIOSrc "writeN . fromList" (Ops.sourceFromList value)
-#if !defined(DATA_ARRAY_PRIM_PINNED)
-#ifdef DATA_SMALLARRAY
-        , let testStr =
-                  "fromListN " ++
-                  show (value + 1) ++
-                  "[1" ++ concat (replicate value ",1") ++ "]"
-#else
         , let testStr = mkListString value
-#endif
            in testStr `deepseq` (bench "read" $ nf Ops.readInstance testStr)
-#endif
         , benchPureSink value "show" Ops.showInstance
         ]
     ]
@@ -106,13 +91,11 @@ o_1_space_elimination value =
             (S.fold (IA.writeLastN 1)) (P.sourceUnfoldrM value)
         , benchFold "writeLastN.10"
             (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
-#if !defined(DATA_ARRAY_PRIM) && !defined(DATA_ARRAY_PRIM_PINNED)
 #ifdef DEVBUILD
 {-
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink value "foldable/sum" Ops.foldableSum
 -}
-#endif
 #endif
         ]
       ]
@@ -148,11 +131,7 @@ o_1_space_transformationX4 value =
       ]
 
 moduleName :: String
-#if defined(DATA_ARRAY_PRIM_PINNED)
-moduleName = "Data.Array.Prim.Pinned"
-#else
 moduleName = "Data.Array"
-#endif
 
 defStreamSize :: Int
 defStreamSize = defaultStreamSize
