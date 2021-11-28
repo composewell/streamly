@@ -1,100 +1,82 @@
--- |
--- Module      : Main
--- Copyright   : (c) 2020 Composewell Technologies
---
--- License     : BSD-3-Clause
--- Maintainer  : streamly@composewell.com
-
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
 
-import Control.DeepSeq (NFData(..))
-import System.Random (randomRIO)
-
-import qualified Streamly.Benchmark.Data.ArrayOps as Ops
-
-#ifdef DATA_ARRAY
-import qualified Streamly.Internal.Data.Array as A
-#else
-import qualified Streamly.Data.Array.Foreign as A
-#endif
-
-#ifdef DATA_ARRAY
-import qualified Streamly.Internal.Data.Array as IA
-#endif
-import qualified Streamly.Prelude  as S
-
-import Gauge
-import Streamly.Benchmark.Common hiding (benchPureSrc)
-import qualified Streamly.Benchmark.Prelude as P
+#include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
 import Control.DeepSeq (deepseq)
 
--------------------------------------------------------------------------------
---
--------------------------------------------------------------------------------
+import qualified Streamly.Internal.Data.Array as IA
+import qualified Streamly.Internal.Data.Array as A
+type Stream = A.Array
 
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
-benchIO name src f = bench name $ nfIO $
-    randomRIO (1,1) >>= src >>= return . f
+#include "Streamly/Benchmark/Data/Array/Common.hs"
+
+-------------------------------------------------------------------------------
+-- Benchmark helpers
+-------------------------------------------------------------------------------
 
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
-benchIOSrc :: NFData a => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
+benchIOSrc :: NFData a => String -> (Int -> IO (Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
 
-{-# INLINE benchPureSink #-}
-benchPureSink :: NFData b => Int -> String -> (Ops.Stream Int -> b) -> Benchmark
-benchPureSink value name f = benchIO name (Ops.sourceIntFromTo value) f
+-------------------------------------------------------------------------------
+-- Bench Ops
+-------------------------------------------------------------------------------
 
-{-# INLINE benchIO' #-}
-benchIO' :: NFData b => String -> (Int -> IO a) -> (a -> IO b) -> Benchmark
-benchIO' name src f = bench name $ nfIO $
-    randomRIO (1,1) >>= src >>= f
+{-# INLINE sourceIntFromToFromList #-}
+sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceIntFromToFromList value n = P.return $ A.fromListN value $ [n..n + value]
 
-{-# INLINE benchIOSink #-}
-benchIOSink :: NFData b => Int -> String -> (Ops.Stream Int -> IO b) -> Benchmark
-benchIOSink value name f = benchIO' name (Ops.sourceIntFromTo value) f
+
+{-# INLINE readInstance #-}
+readInstance :: P.String -> Stream Int
+readInstance str =
+    let r = P.reads str
+    in case r of
+        [(x,"")] -> x
+        _ -> P.error "readInstance: no parse"
+
+#ifdef DEVBUILD
+{-
+{-# INLINE foldableFoldl' #-}
+foldableFoldl' :: Stream Int -> Int
+foldableFoldl' = F.foldl' (+) 0
+
+{-# INLINE foldableSum #-}
+foldableSum :: Stream Int -> Int
+foldableSum = P.sum
+-}
+#endif
+
+{-# INLINE sourceIntFromToFromStream #-}
+sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
+sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
+
+-------------------------------------------------------------------------------
+-- Bench groups
+-------------------------------------------------------------------------------
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup
         "generation"
-        [ benchIOSrc "writeN . intFromTo" (Ops.sourceIntFromTo value)
-#ifndef DATA_SMALLARRAY
-        , benchIOSrc "write . intFromTo" (Ops.sourceIntFromToFromStream value)
-#endif
-        , benchIOSrc
-              "fromList . intFromTo"
-              (Ops.sourceIntFromToFromList value)
-        , benchIOSrc "writeN . unfoldr" (Ops.sourceUnfoldr value)
-        , benchIOSrc "writeN . fromList" (Ops.sourceFromList value)
+        [ benchIOSrc "write . intFromTo" (sourceIntFromToFromStream value)
         , let testStr = mkListString value
-           in testStr `deepseq` (bench "read" $ nf Ops.readInstance testStr)
-        , benchPureSink value "show" Ops.showInstance
+           in testStr `deepseq` (bench "read" $ nf readInstance testStr)
         ]
     ]
 
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
     [ bgroup "elimination"
-        [ benchPureSink value "id" id
-        , benchPureSink value "==" Ops.eqInstance
-        , benchPureSink value "/=" Ops.eqInstanceNotEq
-        , benchPureSink value "<" Ops.ordInstance
-        , benchPureSink value "min" Ops.ordInstanceMin
-        , benchIOSink value "foldl'" Ops.pureFoldl'
-        , benchIOSink value "read" Ops.unfoldReadDrain
-        , benchIOSink value "toStreamRev" Ops.toStreamRevDrain
-        , benchFold "writeLastN.1"
+        [ benchFold "writeLastN.1"
             (S.fold (IA.writeLastN 1)) (P.sourceUnfoldrM value)
         , benchFold "writeLastN.10"
             (S.fold (IA.writeLastN 10)) (P.sourceUnfoldrM value)
 #ifdef DEVBUILD
 {-
-        , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
-        , benchPureSink value "foldable/sum" Ops.foldableSum
+          benchPureSink value "foldable/foldl'" foldableFoldl'
+        , benchPureSink value "foldable/sum" foldableSum
 -}
 #endif
         ]
@@ -107,28 +89,8 @@ o_n_heap_serial value =
         -- Converting the stream to an array
             benchFold "writeLastN.Max" (S.fold (IA.writeLastN (value + 1)))
                 (P.sourceUnfoldrM value)
-            , benchFold "writeN" (S.fold (A.writeN value))
-                (P.sourceUnfoldrM value)
          ]
     ]
-
-o_1_space_transformation :: Int -> [Benchmark]
-o_1_space_transformation value =
-   [ bgroup "transformation"
-        [ benchIOSink value "scanl'" (Ops.scanl' value 1)
-        , benchIOSink value "scanl1'" (Ops.scanl1' value 1)
-        , benchIOSink value "map" (Ops.map value 1)
-        ]
-   ]
-
-o_1_space_transformationX4 :: Int -> [Benchmark]
-o_1_space_transformationX4 value =
-    [ bgroup "transformationX4"
-        [ benchIOSink value "scanl'" (Ops.scanl' value 4)
-        , benchIOSink value "scanl1'" (Ops.scanl1' value 4)
-        , benchIOSink value "map" (Ops.map value 4)
-        ]
-      ]
 
 moduleName :: String
 moduleName = "Data.Array"
@@ -142,12 +104,10 @@ main = runWithCLIOpts defStreamSize allBenchmarks
     where
 
     allBenchmarks size =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_generation size
-            , o_1_space_elimination size
-            , o_1_space_transformation size
-            , o_1_space_transformationX4 size
-            ]
+        [ bgroup (o_1_space_prefix moduleName) $ concat $
+             [ o_1_space_generation size
+             , o_1_space_elimination size
+             ]
         , bgroup (o_n_space_prefix moduleName) $
              o_n_heap_serial size
-        ]
+        ] ++ commonBenchmarks size
