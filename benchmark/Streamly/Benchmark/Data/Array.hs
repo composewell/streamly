@@ -173,9 +173,7 @@ o_1_space_transformationX4 value =
       ]
 
 moduleName :: String
-#ifdef DATA_SMALLARRAY
-moduleName = "Data.SmallArray"
-#elif defined(MEMORY_ARRAY)
+#if defined(MEMORY_ARRAY)
 moduleName = "Data.Array.Foreign"
 #elif defined(DATA_ARRAY_PRIM)
 moduleName = "Data.Array.Prim"
@@ -185,13 +183,8 @@ moduleName = "Data.Array.Prim.Pinned"
 moduleName = "Data.Array"
 #endif
 
-#ifdef DATA_SMALLARRAY
-defStreamSize :: Int
-defStreamSize = 128
-#else
 defStreamSize :: Int
 defStreamSize = defaultStreamSize
-#endif
 
 main :: IO ()
 main = runWithCLIOpts defStreamSize allBenchmarks
