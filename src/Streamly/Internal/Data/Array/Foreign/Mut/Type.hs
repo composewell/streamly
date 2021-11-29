@@ -716,10 +716,12 @@ roundUpLargeArray size =
             ((size + blockSize - 1) .&. negate blockSize)
     else size
 
-{-
+
+
+
 roundUpToPower2 :: Int -> Int
-roundUpToPower2 = undefined
--}
+roundUpToPower2 x = 2 ^ ceiling (logBase 2 (fromIntegral x))
+
 
 -- | @allocBytesToBytes elem allocatedBytes@ returns the array size in bytes
 -- such that the real allocation is less than or equal to @allocatedBytes@,
@@ -932,20 +934,48 @@ realloc i arr =
 -- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
 -- the block size (4K).
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE resize #-}
-resize :: -- (MonadIO m, Storable a) =>
+resize :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resize = undefined
+resize i arr@ Array{..} = do
+    let req = sizeOf (undefined :: a) * i
+        len = length arr
+        size2 = if req > largeObjectThreshold
+                then roundUpLargeArray req
+                else roundUpToPower2 req
+        capacity = aBound `minusPtr` arrStart
+        size3 = if capacity > largeObjectThreshold
+                then roundUpLargeArray capacity
+                else capacity
+        fsize = if req > capacity
+                then size2
+                else size3
+    if i < len
+    then return arr
+    else realloc fsize arr
 
 -- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
 -- it is rounded up to the closest power of 2.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE resizeExp #-}
-resizeExp :: -- (MonadIO m, Storable a) =>
+resizeExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resizeExp = undefined
+resizeExp i arr@ Array{..} = do
+    let req = sizeOf (undefined :: a) * i
+        len = length arr
+        size2 = roundUpToPower2 req
+        capacity = aBound `minusPtr` arrStart
+        size3 = if capacity > largeObjectThreshold
+                then roundUpToPower2 capacity
+                else capacity
+        fsize = if req > capacity
+                then size2
+                else size3
+    if i < len
+    then return arr
+    else realloc fsize arr
 
 -- | Resize the allocated memory to drop any reserved free space at the end of
 -- the array and reallocate it to reduce wastage.
@@ -975,35 +1005,63 @@ rightSize arr@Array{..} = do
 -- Reducing the length
 -------------------------------------------------------------------------------
 
--- XXX Either slice the array or stream it and write it out to a new array?
---
+{-# NOINLINE reallocAlignedN #-}
+reallocAlignedN :: Int -> Int -> Int -> Int -> Array a -> IO (Array a)
+reallocAlignedN elemSize alignSize elemCount newSize Array{..} = do
+    assert (aEnd <= aBound) (return ())
+    let oldStart = arrStart
+    (contents, pNew) <- newAlignedArrayContents newSize alignSize
+    let size = elemCount * elemSize
+    assert (size >= 0) (return ())
+    assert (size `mod` elemSize == 0) (return ())
+    memcpy (castPtr pNew) (castPtr oldStart) size
+    touch arrContents
+    return $ Array
+        { arrStart = pNew
+        , arrContents = contents
+        , aEnd   = pNew `plusPtr` (size - (size `mod` elemSize))
+        , aBound = pNew `plusPtr` newSize
+        }
+
 -- | Drop the last n elements of the array to reduce the length by n. The
 -- capacity is reallocated using the user supplied function.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE truncateWith #-}
-truncateWith :: -- (MonadIO m, Storable a) =>
+truncateWith :: forall m a. (MonadIO m, Storable a) =>
     Int -> (Int -> Int) -> Array a -> m (Array a)
-truncateWith = undefined
+truncateWith n f arr@ Array{..} = liftIO $ do
+    let fLen = length arr - n
+        capacity = aBound `minusPtr` arrStart
+        newCap = f capacity
+        elemSize = sizeOf (undefined :: a)
+        alignSize = alignment (undefined :: a)
+    reallocAlignedN elemSize alignSize fLen newCap arr
+
 
 -- | Drop the last n elements of the array to reduce the length by n.
 --
 -- The capacity is rounded to 1K or 4K if the length is more than the GHC large
 -- block threshold.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE truncate #-}
-truncate :: -- (MonadIO m, Storable a) =>
+truncate :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-truncate = undefined
+truncate n = truncateWith n id
 
 -- | Like 'truncate' but the capacity is rounded to the closest power of 2.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE truncateExp #-}
-truncateExp :: -- (MonadIO m, Storable a) =>
+truncateExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-truncateExp = undefined
+truncateExp n arr = liftIO $ do
+    let fLen = length arr - n
+        elemSize = sizeOf (undefined :: a)
+        newCap = roundUpToPower2 (fLen * elemSize)
+        alignSize = alignment (undefined :: a)
+    reallocAlignedN elemSize alignSize fLen newCap arr
 
 -------------------------------------------------------------------------------
 -- Random reads
