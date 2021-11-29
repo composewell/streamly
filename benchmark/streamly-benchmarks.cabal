@@ -197,7 +197,10 @@ benchmark Prelude.Serial
   else
     buildable: True
   if flag(limit-build-mem)
-    ghc-options: +RTS -M2000M -RTS
+    if flag(dev)
+      ghc-options: +RTS -M3500M -RTS
+    else
+      ghc-options: +RTS -M2000M -RTS
 
 
 benchmark Prelude.WSerial
@@ -317,7 +320,10 @@ benchmark Data.Parser.ParserD
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
   if flag(limit-build-mem)
-    ghc-options: +RTS -M750M -RTS
+    if flag(dev)
+      ghc-options: +RTS -M3000M -RTS
+    else
+      ghc-options: +RTS -M750M -RTS
 
 benchmark Data.Parser.ParserK
   import: bench-options
@@ -357,7 +363,10 @@ benchmark Data.Parser
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
   if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
+    if flag(dev)
+      ghc-options: +RTS -M3000M -RTS
+    else
+      ghc-options: +RTS -M1000M -RTS
 
 -------------------------------------------------------------------------------
 -- Raw Streams
