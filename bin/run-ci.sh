@@ -24,14 +24,16 @@ GHC_PRIME_VER="8.10"
 JOBS=1
 
 # Without cabal project file, it will not run any tests
+# XXX Added DISABLE_SDIST_BUILD because of a cabal issue
 ghc_prime_dist () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$GHC_PRIME_VER \
-      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS=\"$CABAL_BUILD_OPTIONS --jobs=$JOBS\" \
       CABAL_DISABLE_DEPS=y \
+      DISABLE_SDIST_BUILD=y \
       CABAL_CHECK_RELAX=y"
 }
 
@@ -42,7 +44,7 @@ ghc_prime_dist_tests () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$GHC_PRIME_VER \
-      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS=\"$CABAL_BUILD_OPTIONS --jobs=$JOBS\" \
       CABAL_PROJECT=cabal.project \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y"
@@ -55,7 +57,7 @@ ghc_prime_dist_tests_stack () {
     --run "\
       packcheck.sh stack \
       GHCVER=$GHC_PRIME_VER \
-      STACK_BUILD_OPTIONS="--jobs $JOBS --system-ghc" \
+      STACK_BUILD_OPTIONS=\"--jobs $JOBS --system-ghc\" \
       STACK_YAML=stack.yaml"
 }
 
