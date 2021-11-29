@@ -39,6 +39,11 @@ flag dev
   manual: True
   default: False
 
+flag include-strict-utf8
+  description: Include strict utf8 input benchmarks
+  manual: True
+  default: False
+
 flag has-llvm
   description: Use llvm backend for better performance
   manual: True
@@ -63,6 +68,9 @@ common compile-options
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
+
+    if flag(include-strict-utf8)
+      cpp-options:    -DINCLUDE_STRICT_UTF8
 
     if flag(inspection)
       cpp-options:    -DINSPECTION

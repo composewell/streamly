@@ -276,7 +276,7 @@ o_1_space_decode_encode_read env =
             copyStreamLatin1' inh outh
         , mkBench "encodeLatin1 . decodeLatin1" env $ \inh outh ->
             copyStreamLatin1 inh outh
-#ifdef DEVBUILD
+#ifdef INCLUDE_STRICT_UTF8
         -- Requires valid unicode input
         , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
             _copyStreamUtf8' inh outh
