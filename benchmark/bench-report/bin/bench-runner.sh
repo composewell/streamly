@@ -34,7 +34,7 @@ print_help () {
   echo "       [--with-compiler <compiler exe name>]"
   echo "       [--cabal-build-options <options>]"
   echo "       [--rtsopts <opts>]"
-  echo "       [--commit-compare] [--base <commit>] [--candidate <commit>]"
+  #echo "       [--commit-compare] [--base <commit>] [--candidate <commit>]"
   #echo "       -- <gauge options or benchmarks>"
   echo
   echo "--benchmarks: benchmarks to run, use 'help' for list of benchmarks"
@@ -56,10 +56,10 @@ print_help () {
   echo "bench.sh --benchmarks Data.Parser -- Data.Parser/o-1-space "
   echo "restricts Heap/Stack space for O(1) characterstics"
   echo
-  echo "When using --commit-compare, by default comparative chart of HEAD^ vs HEAD"
-  echo "commit is generated, in the 'charts' directory."
-  echo "Use --base and --candidate to select the commits to compare."
-  echo
+  #echo "When using --commit-compare, by default comparative chart of HEAD^ vs HEAD"
+  #echo "commit is generated, in the 'charts' directory."
+  #echo "Use --base and --candidate to select the commits to compare."
+  #echo
   #echo "Any arguments after a '--' are passed directly to gauge"
   exit
 }
@@ -383,16 +383,20 @@ run_benches_comparing() {
     fi
     echo "Comparing baseline commit [$BASE] with candidate [$CANDIDATE]"
     echo "Checking out base commit [$BASE] for benchmarking"
+    # XXX git checkout will overwrite this script itself and the scripts
+    # imported/used by this script.
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
-    $BUILD_BENCH || die "build failed"
+    # $BUILD_BENCH || die "build failed"
+    run_build "$BUILD_BENCH" $BENCHMARK_PACKAGE_NAME bench "$TARGETS"
     run_bench_targets $BENCHMARK_PACKAGE_NAME b "$bench_list" target_exe_extra_args
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
-    $BUILD_BENCH || die "build failed"
+    # $BUILD_BENCH || die "build failed"
+    run_build "$BUILD_BENCH" $BENCHMARK_PACKAGE_NAME bench "$TARGETS"
     run_bench_targets $BENCHMARK_PACKAGE_NAME b "$bench_list" target_exe_extra_args
     # XXX reset back to the original commit
 }
@@ -417,6 +421,7 @@ run_measurements() {
 
   if test "$COMMIT_COMPARE" = "0"
   then
+    run_build "$BUILD_BENCH" $BENCHMARK_PACKAGE_NAME bench "$TARGETS"
     run_bench_targets $BENCHMARK_PACKAGE_NAME b "$bench_list" target_exe_extra_args
   else
     run_benches_comparing "$bench_list"
@@ -613,7 +618,6 @@ fi
 BUILD_BENCH="$CABAL_EXECUTABLE v2-build $BUILD_FLAGS $CABAL_BUILD_OPTIONS --enable-benchmarks"
 if test "$MEASURE" = "1"
 then
-  run_build "$BUILD_BENCH" $BENCHMARK_PACKAGE_NAME bench "$TARGETS"
   run_measurements "$TARGETS"
 fi
 
