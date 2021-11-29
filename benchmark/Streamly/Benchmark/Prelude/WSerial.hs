@@ -200,8 +200,8 @@ o_n_space_concat value =
         -- concatMapWith using StreamD versions of interleave operations are
         -- all quadratic, we just measure the sqrtVal benchmark for comparison.
           benchIOSrc1
-            "concatMapWithInterleave (n of 1)"
-            (concatStreamsWith Internal.interleave value 1)
+            "concatMapWithInterleave (sqrtVal of 1)"
+            (concatStreamsWith Internal.interleave sqrtVal 1)
         , benchIOSrc1
             "concatMapWithInterleave (sqrtVal of sqrtVal)"
             (concatStreamsWith Internal.interleave sqrtVal sqrtVal)
