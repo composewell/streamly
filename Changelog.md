@@ -8,18 +8,20 @@ See docs/API-changelog.txt for new APIs introduced.
 
 ### Bug Fixes
 
-* Fix array writeN fold eating away one element when applied multiple times
-  [#1258](https://github.com/composewell/streamly/issues/1258).
-* Fix array potentially writing beyond allocated memory when shrinking. Likely
-  cause of [#944](https://github.com/composewell/streamly/issues/944).
-* Fix array potentially writing beyond allocated memory when writing the last
-  element. Likely cause of 
-  [#944](https://github.com/composewell/streamly/issues/944).
-* Fix a bug in classifySessionsBy, see PR #1311. The bug could cause
-  premature ejection of a session when nput events with the same key are
-  split into multiple sessions.
-* Fix array: missing pointer touch could potentially cause use of freed memory.
-* Fix array: unnecessary additional allocation due to a bug
+* Several bug fixes in the Array module:
+    * Fix writeN fold eating away one element when applied multiple times
+      [#1258](https://github.com/composewell/streamly/issues/1258).
+    * Fix potentially writing beyond allocated memory when shrinking. Likely
+      cause of [#944](https://github.com/composewell/streamly/issues/944).
+    * Fix potentially writing beyond allocated memory when writing the last
+      element. Likely cause of 
+      [#944](https://github.com/composewell/streamly/issues/944).
+    * Fix missing pointer touch could potentially cause use of freed memory.
+    * Fix unnecessary additional allocation due to a bug
+* Fix a bug in classifySessionsBy, see 
+  [PR #1311](https://github.com/composewell/streamly/pull/1311). The bug
+  could cause premature ejection of a session when input events with the
+  same key are split into multiple sessions.
 
 ### Notable Internal API Changes
 
