@@ -506,6 +506,8 @@ do
     --sort-by-name) SORT_BY_NAME=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
+    # This is used in build-lib.sh to enable dev_build function which is used
+    # in targets.sh to enable or disable some targets.
     --dev-build) RUNNING_DEVBUILD=1; shift ;;
     --use-nix) USE_NIX=1; shift ;;
     --use-gauge) USE_GAUGE=1; shift ;;
