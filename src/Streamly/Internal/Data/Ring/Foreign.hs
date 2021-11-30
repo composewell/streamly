@@ -79,7 +79,6 @@ import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.System.IO (unsafeInlineIO)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
     (ArrayContents, touch, fptrToArrayContents)
 
@@ -381,9 +380,8 @@ cast arr =
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
-unsafeEqArrayN Ring{..} rh A.Array{..} n =
-    let !res = unsafeInlineIO $ do
+unsafeEqArrayN :: MonadIO m => Ring a -> Ptr a -> A.Array a -> Int -> m Bool
+unsafeEqArrayN Ring{..} rh A.Array{..} n = liftIO $ do
             let rs = ringStart
                 as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs) (return ())
@@ -397,7 +395,6 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
             -- touchForeignPtr ringStart
             -- touchForeignPtr aStart
             return (r1 && r2)
-    in res
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ringHead pointer.  Returns true if the Array and
@@ -407,9 +404,8 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
-unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
-unsafeEqArray Ring{..} rh A.Array{..} =
-    let !res = unsafeInlineIO $ do
+unsafeEqArray :: MonadIO m => Ring a -> Ptr a -> A.Array a -> m Bool
+unsafeEqArray Ring{..} rh A.Array{..} = liftIO $ do
             let rs = ringStart
             let as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs)
@@ -422,7 +418,6 @@ unsafeEqArray Ring{..} rh A.Array{..} =
             -- touchForeignPtr ringStart
             -- touchForeignPtr aStart
             return (r1 && r2)
-    in res
 
 -------------------------------------------------------------------------------
 -- Folding
@@ -437,18 +432,16 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 --
 -- Unsafe because the supplied Ptr is not checked to be in range.
 {-# INLINE unsafeFoldRing #-}
-unsafeFoldRing :: forall a b. Storable a
-    => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRing ptr f z Ring{..} =
-    let !res = unsafeInlineIO $ go z ringStart ptr
+unsafeFoldRing :: forall m a b. (MonadIO m, Storable a)
+    => Ptr a -> (b -> a -> b) -> b -> Ring a -> m b
+unsafeFoldRing ptr f z Ring{..} = liftIO $ go z ringStart ptr
 
-    in res
     where
       go !acc !p !q
         | p == q = return acc
         | otherwise = do
             x <- peek p
-            liftIO $ touch ringContents
+            touch ringContents
             go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
 
 -- | Like unsafeFoldRing but with a monadic step function.
@@ -461,7 +454,7 @@ unsafeFoldRingM ptr f z Ring {..} =
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
-            let !x = unsafeInlineIO $ peek start
+            x <- liftIO $ peek start
             liftIO $ touch ringContents
             acc' <- f acc x
             go acc' (start `plusPtr` sizeOf (undefined :: a)) end
@@ -480,7 +473,7 @@ unsafeFoldRingFullM rh f z rb@Ring {..} =
     go z rh
   where
     go !acc !start = do
-        let !x = unsafeInlineIO $ peek start
+        x <- liftIO $ peek start
         liftIO $ touch ringContents
         acc' <- f acc x
         let ptr = advance rb start
@@ -503,7 +496,7 @@ unsafeFoldRingNM count rh f z rb@Ring {..} =
 
     go 0 acc _ = return acc
     go !n !acc !start = do
-        let !x = unsafeInlineIO $ peek start
+        x <- liftIO $ peek start
         liftIO $ touch ringContents
         acc' <- f acc x
         let ptr = advance rb start

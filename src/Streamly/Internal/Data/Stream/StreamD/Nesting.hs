@@ -1860,7 +1860,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 if idx == maxIndex
                 then do
                     let fld = RB.unsafeFoldRing (RB.ringBound rb)
-                    let !ringHash = fld addCksum 0 rb
+                    ringHash <- fld addCksum 0 rb
                     if ringHash == patHash
                     then skip $ SplitOnSeqKRCheck fs s rb rh1
                     else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
@@ -1925,7 +1925,8 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     -}
 
     stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
-        if RB.unsafeEqArray rb rh patArr
+        eqRes <- RB.unsafeEqArray rb rh patArr
+        if eqRes
         then do
             r <- done fs
             let rst = RB.startOf rb
@@ -2233,10 +2234,11 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                         FL.Partial fs1 ->
                             if idx /= maxIndex
                             then go SPEC (idx + 1) rh1 s fs1
-                            else skip $
+                            else do
                                 let fld = RB.unsafeFoldRing (RB.ringBound rb)
-                                    !ringHash = fld addCksum 0 rb
-                                 in if ringHash == patHash
+                                ringHash <- fld addCksum 0 rb
+                                skip $
+                                    if ringHash == patHash
                                     then SplitOnSuffixSeqKRCheck fs1 s rb rh1
                                     else SplitOnSuffixSeqKRLoop
                                             fs1 s rb rh1 ringHash
@@ -2247,7 +2249,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                 Skip s -> go SPEC idx rh s fs
                 Stop -> do
                     -- do not issue a blank segment when we end at pattern
-                    if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
+                    eqRes <- RB.unsafeEqArray rb rh patArr
+                    if (idx == maxIndex) && eqRes
                     then return Stop
                     else if withSep
                     then do
@@ -2278,8 +2281,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                                 jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
-                Stop ->
-                    if RB.unsafeEqArray rb rh patArr
+                Stop -> do
+                    eqRes <- RB.unsafeEqArray rb rh patArr
+                    if eqRes
                     then return Stop
                     else if withSep
                     then do
@@ -2288,7 +2292,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                     else skip $ SplitOnSuffixSeqKRDone patLen fs rb rh
 
     stepOuter _ (SplitOnSuffixSeqKRCheck fs st rb rh) = do
-        if RB.unsafeEqArray rb rh patArr
+        eqRes <- RB.unsafeEqArray rb rh patArr
+        if eqRes
         then do
             r <- done fs
             let rst = RB.startOf rb
