@@ -71,17 +71,17 @@ module Streamly.Internal.Data.Ring.Foreign
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
+import GHC.ForeignPtr (ForeignPtr(..), mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
+    (ArrayContents, touch, fptrToArrayContents)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 
@@ -104,8 +104,13 @@ import Prelude hiding (length, concat, read)
 -- structure. We should not leak out references to it for immutable use.
 --
 data Ring a = Ring
-    { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
-    , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
+    { ringContents ::
+#ifndef USE_FOREIGN_PTR
+        {-# UNPACK #-}
+#endif
+          !ArrayContents
+    , ringStart :: {-# UNPACK #-} !(Ptr a) -- first address
+    , ringBound :: {-# UNPACK #-} !(Ptr a) -- first address beyond allocated memory
     }
 
 -------------------------------------------------------------------------------
@@ -114,7 +119,7 @@ data Ring a = Ring
 
 -- | Get the first address of the ring as a pointer.
 startOf :: Ring a -> Ptr a
-startOf = unsafeForeignPtrToPtr . ringStart
+startOf = ringStart
 
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
@@ -122,10 +127,12 @@ startOf = unsafeForeignPtrToPtr . ringStart
 new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
 new count = do
     let size = count * sizeOf (undefined :: a)
-    fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
-    let p = unsafeForeignPtrToPtr fptr
+    ForeignPtr addr# fconts <-
+        mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
+    let p = Ptr addr#
     return (Ring
-        { ringStart = fptr
+        { ringContents = fptrToArrayContents fconts
+        , ringStart = p
         , ringBound = p `plusPtr` size
         }, p)
 
@@ -148,7 +155,7 @@ advance Ring{..} ringHead =
     let ptr = ringHead `plusPtr` sizeOf (undefined :: a)
     in if ptr <  ringBound
        then ptr
-       else unsafeForeignPtrToPtr ringStart
+       else ringStart
 
 -- | Move the ringHead by n items. The direction depends on the sign on whether
 -- n is positive or negative. Wrap around if we hit the beginning or end of the
@@ -160,7 +167,7 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
     where
 
     elemSize = sizeOf (undefined :: a)
-    ringStartPtr = unsafeForeignPtrToPtr ringStart
+    ringStartPtr = ringStart
     lenInBytes = ringBound `minusPtr` ringStartPtr
     offInBytes = ringHead `minusPtr` ringStartPtr
     len = assert (lenInBytes `mod` elemSize == 0) $ lenInBytes `div` elemSize
@@ -377,7 +384,7 @@ cast arr =
 unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh A.Array{..} n =
     let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
+            let rs = ringStart
                 as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs) (return ())
             let len = ringBound `minusPtr` rh
@@ -403,7 +410,7 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
 unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh A.Array{..} =
     let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
+            let rs = ringStart
             let as = arrStart
             assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs)
                    (return ())
@@ -433,34 +440,29 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 unsafeFoldRing :: forall a b. Storable a
     => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
 unsafeFoldRing ptr f z Ring{..} =
-    let !res = unsafeInlineIO $ withForeignPtr ringStart $ \p ->
-                    go z p ptr
+    let !res = unsafeInlineIO $ go z ringStart ptr
+
     in res
     where
       go !acc !p !q
         | p == q = return acc
         | otherwise = do
             x <- peek p
+            liftIO $ touch ringContents
             go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
-
--- XXX Can we remove MonadIO here?
-withForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtrM fp fn = do
-    r <- fn $ unsafeForeignPtrToPtr fp
-    liftIO $ touchForeignPtr fp
-    return r
 
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
 unsafeFoldRingM :: forall m a b. (MonadIO m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
 unsafeFoldRingM ptr f z Ring {..} =
-    withForeignPtrM ringStart $ \x -> go z x ptr
+    go z ringStart ptr
   where
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
             let !x = unsafeInlineIO $ peek start
+            liftIO $ touch ringContents
             acc' <- f acc x
             go acc' (start `plusPtr` sizeOf (undefined :: a)) end
 
@@ -475,10 +477,11 @@ unsafeFoldRingM ptr f z Ring {..} =
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
 unsafeFoldRingFullM rh f z rb@Ring {..} =
-    withForeignPtrM ringStart $ \_ -> go z rh
+    go z rh
   where
     go !acc !start = do
         let !x = unsafeInlineIO $ peek start
+        liftIO $ touch ringContents
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh
@@ -494,13 +497,14 @@ unsafeFoldRingFullM rh f z rb@Ring {..} =
 unsafeFoldRingNM :: forall m a b. (MonadIO m, Storable a)
     => Int -> Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
 unsafeFoldRingNM count rh f z rb@Ring {..} =
-    withForeignPtrM ringStart $ \_ -> go count z rh
+    go count z rh
 
     where
 
     go 0 acc _ = return acc
     go !n !acc !start = do
         let !x = unsafeInlineIO $ peek start
+        liftIO $ touch ringContents
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh || n == 0
