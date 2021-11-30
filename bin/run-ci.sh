@@ -134,12 +134,18 @@ ghc_prime_coverage () {
 # Flags
 #------------------------------------------------------------------------------
 
-ghc_prime_dev_perf () {
+ghc_prime_dev_test () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "\
       bin/test.sh --cabal-build-options \
-        \"--jobs=$JOBS --flag dev\";\
+        \"--jobs=$JOBS --flag dev\""
+}
+
+ghc_prime_dev_perf () {
+  nix-shell \
+    --argstr compiler "$GHC_PRIME_NIX" \
+    --run "\
       bin/bench.sh --cabal-build-options \
         \"--jobs=$JOBS --flag dev $PERF_FLAGS\" --quick --raw"
 }
@@ -225,6 +231,7 @@ ghcjs () {
 RELEASE_CI_TARGETS="\
 ghc_prime_dist \
 ghc_prime_dist_tests \
+ghc_prime_dev_test \
 ghc_prime_perf \
 ghc_prime_O0 \
 ghc_prime_Werror \
@@ -238,8 +245,7 @@ ghc884 \
 ghcjs \
 lint"
 
-# XXX We should include dev as well but it has some test and benchmark
-# failures to be fixed.
+# XXX Include flaky tests flag in manual tests
 ALL_TARGETS="\
 $RELEASE_CI_TARGETS \
 ghc_prime_dist_tests_stack \
