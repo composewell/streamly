@@ -94,14 +94,16 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 -- setFollowSymLinks on Linux.
 
 -- XXX Verify all the cases mentioned below using test cases.
+-- XXX Make it fail if the watch root is a file. It works on macOS and Linux
+-- but does not work on Windows.
 
--- | Start monitoring a list of file system paths for file system events.  The
--- paths could be files or directories.  Monitoring starts from the current
--- time onwards. The paths are specified as UTF-8 encoded 'Array' of 'Word8'.
+-- | Start monitoring a list of directories or symbolic links to directories
+-- for file system events.  Monitoring starts from the current time onwards.
+-- The paths are specified as UTF-8 encoded 'Array' of 'Word8'.
 --
 -- If a watch root is a symbolic link then the target of the link is watched.
 -- Fails if the watched path does not exist. If the user does not have
--- permissions (specific permissions?) on the watch root then no events are
+-- permissions (read and execute?) on the watch root then no events are
 -- generated.  No events are generated if the watch root itself is renamed or
 -- deleted.
 --

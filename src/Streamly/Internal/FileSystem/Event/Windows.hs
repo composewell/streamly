@@ -447,16 +447,15 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- based on the configured code page?
 -- https://docs.microsoft.com/en-us/windows/uwp/design/globalizing/use-utf8-code-page
 --
--- | Start monitoring a list of file system paths for file system events with
--- the supplied configuration modifier operation over the' defaultConfig'. The
--- paths could be files or directories.
+-- | Start monitoring a list of directory paths for file system events with the
+-- supplied configuration modifier operation over the' defaultConfig'. The
+-- paths could be directories or symbolic links to directories.
 --
--- When recursive mode is True and the path is a directory, the whole directory
--- tree under it is watched recursively.  When recursive mode is False and the
--- path is a directory, only the files and directories directly under the
--- watched directory are monitored, contents of subdirectories are not
--- monitored.  Monitoring starts from the current time onwards. The paths are
--- specified as UTF-8 encoded 'Array' of 'Word8'.
+-- When recursive mode is True, the whole directory tree under the path is
+-- watched recursively.  When recursive mode is False, only the files and
+-- directories directly under the watched directory are monitored, contents of
+-- subdirectories are not monitored.  Monitoring starts from the current time
+-- onwards. The paths are specified as UTF-8 encoded 'Array' of 'Word8'.
 --
 -- /Symbolic Links:/ If the pathname to be watched is a symbolic link then
 -- watch the target of the symbolic link instead of the symbolic link itself.

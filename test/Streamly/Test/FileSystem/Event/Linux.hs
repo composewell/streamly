@@ -147,6 +147,4 @@ main = do
 
     runRec DirType recRegTests
     runRec SymLinkOrigPath recSymTests
-    -- XXX This fails with exceptions, ideally it should work the same as in
-    -- non-recursive mode
     runRec FileType fileRootTests
