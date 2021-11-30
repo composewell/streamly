@@ -4,6 +4,8 @@
 
 ## 0.8.1 (Nov 2021)
 
+See docs/API-changelog.txt for new APIs introduced.
+
 ### Bug Fixes
 
 * Fix array writeN fold eating away one element when applied multiple times
