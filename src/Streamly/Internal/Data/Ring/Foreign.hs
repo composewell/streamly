@@ -18,9 +18,12 @@ module Streamly.Internal.Data.Ring.Foreign
     -- * Construction
     , new
     , newRing
+
+    , writeNUnsafe
     , writeN
 
     , advance
+    , retreat
     , moveBy
     , startOf
 
@@ -28,7 +31,9 @@ module Streamly.Internal.Data.Ring.Foreign
     , unsafeInsert
     , slide
     , putIndex
+    , putIndexUnsafe
     , modifyIndex
+    , modifyIndexUnsafe
 
     -- * Unfolds
     , read
@@ -38,6 +43,7 @@ module Streamly.Internal.Data.Ring.Foreign
     , getIndex
     , getIndexUnsafe
     , getIndexRev
+    , getIndexRevUnsafe
 
     -- * Size
     , length
@@ -75,14 +81,20 @@ import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (ForeignPtr(..), mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (memcmp)
+import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
     (ArrayContents, touch, fptrToArrayContents)
 
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 import Prelude hiding (length, concat, read)
 
@@ -146,7 +158,7 @@ new count = do
 newRing :: Int -> m (Ring a)
 newRing = undefined
 
--- | Advance the ringHead by 1 item, wrap around if we hit the end of the
+-- | Advance the ringHead by 1 item, wrap around if we hit the end of the ring
 -- array.
 {-# INLINE advance #-}
 advance :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
@@ -155,6 +167,16 @@ advance Ring{..} ringHead =
     in if ptr <  ringBound
        then ptr
        else ringStart
+
+-- | Retreat the ringHead by 1 item, wrap around backwards if we hit the start
+-- of the ring array.
+{-# INLINE retreat #-}
+retreat :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
+retreat Ring{..} ringHead =
+    let ptr = ringHead `plusPtr` negate (sizeOf (undefined :: a))
+    in if ptr > ringStart
+       then ptr
+       else ringBound
 
 -- | Move the ringHead by n items. The direction depends on the sign on whether
 -- n is positive or negative. Wrap around if we hit the beginning or end of the
@@ -173,6 +195,21 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
     off = assert (offInBytes `mod` elemSize == 0) $ offInBytes `div` elemSize
     advanceFromHead = (off + by `mod` len) * elemSize
 
+-- | @writeNUnsafe n@ is a rolling fold that keeps the last n elements of the
+-- stream in a ring array.
+--
+-- /Unimplemented/
+{-# INLINE writeNUnsafe #-}
+writeNUnsafe :: (Storable a, MonadIO m) => Int -> Fold m a (Ring a, Ptr a)
+writeNUnsafe n = Fold step (FL.Partial <$> liftIO (new n)) return
+
+    where
+
+    step (rb, p) a = liftIO $ do
+        p1 <- unsafeInsert rb p a
+        touch $ ringContents rb
+        return $ FL.Partial (rb, p1)
+
 -- XXX Move the writeLastN from array module here.
 --
 -- | @writeN n@ is a rolling fold that keeps the last n elements of the stream
@@ -189,8 +226,9 @@ writeN = undefined
 -------------------------------------------------------------------------------
 
 -- | Cast a mutable array to a ring array.
-fromArray :: Array a -> Ring a
-fromArray = undefined
+fromArray :: MA.Array a -> Ring a
+fromArray MA.Array {..} =
+    Ring {ringContents = arrContents, ringStart = arrStart, ringBound = aEnd}
 
 -------------------------------------------------------------------------------
 -- Conversion to/from array
@@ -199,9 +237,39 @@ fromArray = undefined
 -- | Modify a given index of a ring array using a modifier function.
 --
 -- /Unimplemented/
+modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
+    Ring a -> Ptr a -> Int -> (a -> (a, b)) -> m b
+modifyIndexUnsafe rb@(Ring {..}) ringHead i f =
+    MA.unsafeWithArrayContents ringContents ringHead $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = moveBy i rb ptr
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= ringBound) (return ())
+        r <- liftIO $ peek elemPtr
+        let (x, res) = f r
+        liftIO $ poke elemPtr x
+        return res
+
+-- XXX Determine the start index?
+-- | Modify a given index of a ring array using a modifier function.
+--
+-- /Unimplemented/
 modifyIndex :: -- forall m a b. (MonadIO m, Storable a) =>
     Ring a -> Int -> (a -> (a, b)) -> m b
 modifyIndex = undefined
+
+-- | Write the given element to the given index of the ring array. Does not
+-- check if the index is out of bounds of the ring array.
+--
+-- /Pre-release/
+{-# INLINE putIndexUnsafe #-}
+putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
+    => Ring a -> Ptr a -> Int -> a -> m ()
+putIndexUnsafe rb@(Ring {..}) ringHead i x =
+    MA.unsafeWithArrayContents ringContents ringHead $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = moveBy i rb ptr
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= ringBound) (return ())
+        liftIO $ poke elemPtr x
 
 -- | /O(1)/ Write the given element at the given index in the ring array.
 -- Performs in-place mutation of the array.
@@ -229,9 +297,12 @@ unsafeInsert rb ringHead newVal = do
 -- replaces the oldest item in the ring with the new item.
 --
 -- /Unimplemented/
-slide :: -- forall m a. (MonadIO m, Storable a) =>
-    Ring a -> a -> m (Ring a)
-slide = undefined
+slide :: forall m a. (MonadIO m, Storable a) =>
+    Ring a -> Ptr a -> a -> m (Ptr a)
+slide rb ringHead newVal = liftIO $ do
+    let p = retreat rb ringHead
+    poke p newVal
+    return p
 
 -------------------------------------------------------------------------------
 -- Random reads
@@ -239,11 +310,17 @@ slide = undefined
 
 -- | Return the element at the specified index without checking the bounds.
 --
--- Unsafe because it does not check the bounds of the ring array.
+-- Unsafe because the supplied Ptr is not checked to be in range.
 {-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: -- forall m a. (MonadIO m, Storable a) =>
-    Ring a -> Int -> m a
-getIndexUnsafe = undefined
+getIndexUnsafe ::
+       forall m a. (MonadIO m, Storable a)
+    => Ring a -> Ptr a -> Int -> m a
+getIndexUnsafe rb@(Ring {..}) ringHead i =
+    MA.unsafeWithArrayContents ringContents ringHead $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = moveBy i rb ptr
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= ringBound) (return ())
+        liftIO $ peek elemPtr
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
@@ -251,6 +328,20 @@ getIndexUnsafe = undefined
 getIndex :: -- (MonadIO m, Storable a) =>
     Ring a -> Int -> m a
 getIndex = undefined
+
+-- | Return the element at the specified index without checking the bounds.
+--
+-- Unsafe because the supplied Ptr is not checked to be in range.
+{-# INLINE_NORMAL getIndexRevUnsafe #-}
+getIndexRevUnsafe ::
+       forall m a. (MonadIO m, Storable a)
+    => Ring a -> Ptr a -> Int -> m a
+getIndexRevUnsafe rb@(Ring {..}) ringHead i =
+    MA.unsafeWithArrayContents ringContents ringHead $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemPtr = moveBy (negate i) rb ptr
+        assert (i >= 0 && elemPtr `plusPtr` elemSize <= ringBound) (return ())
+        liftIO $ peek elemPtr
 
 -- | /O(1)/ Lookup the element at the given index from the end of the array.
 -- Index starts from 0.
@@ -271,7 +362,9 @@ getIndexRev = undefined
 -- /Unimplemented/
 {-# INLINE byteLength #-}
 byteLength :: Ring a -> Int
-byteLength = undefined
+byteLength Ring {..} =
+    let len = ringBound `minusPtr` ringStart
+     in assert (len >= 0) len
 
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
@@ -281,10 +374,14 @@ byteLength = undefined
 --
 -- /Unimplemented/
 {-# INLINE length #-}
-length :: -- forall a. Storable a =>
-    Ring a -> Int
-length = undefined
+length :: forall a. Storable a => Ring a -> Int
+length rb =
+    let elemSize = sizeOf (undefined :: a)
+        blen = byteLength rb
+     in assert (blen `mod` elemSize == 0) (blen `div` elemSize)
 
+-- XXX There isn't a byteCapacity for a ring. Maybe we should have a
+-- byteCapacity for a ring.
 -- | Get the total capacity of an array. An array may have space reserved
 -- beyond the current used length of the array.
 --
@@ -305,21 +402,68 @@ bytesFree = undefined
 -- Unfolds
 -------------------------------------------------------------------------------
 
+-- XXX Will the loop fuse?
+-- XXX Design this better?
+-- | Resumable unfold of a ring array.
+--
+{-# INLINE_NORMAL producer #-}
+producer ::
+       forall m a. (MonadIO m, Storable a)
+    => Producer m (Ring a, Ptr a, Ptr a) a
+producer = Producer step inject extract
+
+    where
+
+    inject (rb, rh, cur) = return (rb, rh, cur, False)
+
+    {-# INLINE step_ #-}
+    step_ rb rh cur = do
+        x <- liftIO $ peek cur
+        let cur1 = advance rb cur
+        return $ D.Yield x (rb, rh, cur1, True)
+
+    {-# INLINE_LATE step #-}
+    step (rb, rh, cur, False) = step_ rb rh cur
+    step (rb, rh, cur, True)
+        | assert (cur <= ringStart rb) (cur == rh) = do
+            liftIO $ touch $ ringContents rb
+            return D.Stop
+    step (rb, rh, cur, True) = step_ rb rh cur
+
+    extract (rb, rh, cur, _) = return (rb, rh, cur)
+
+-- XXX Design the API better
 -- | Unfold a ring array into a stream.
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL read #-}
-read :: -- forall m a. (MonadIO m, Storable a) =>
-    Unfold m (Ring a) a
-read = undefined
+read ::  forall m a. (MonadIO m, Storable a) => Unfold m (Ring a, Ptr a) a
+read = Unfold.lmap (\(rb, rh) -> (rb, rh, rh)) $ Producer.simplify producer
 
 -- | Unfold a ring array into a stream in reverse order.
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL readRev #-}
-readRev :: -- forall m a. (MonadIO m, Storable a) =>
-    Unfold m (Array a) a
-readRev = undefined
+readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Ring a, Ptr a) a
+readRev = Unfold step inject
+
+    where
+
+    inject (rb, rh) = return (rb, rh, rh, False)
+
+    {-# INLINE step_ #-}
+    step_ rb rh cur = do
+        x <- liftIO $ peek cur
+        let cur1 = retreat rb cur
+        return $ D.Yield x (rb, rh, cur1, True)
+
+    {-# INLINE_LATE step #-}
+    step (rb, rh, cur, False) = step_ rb rh cur
+    step (rb, rh, cur, True)
+        | assert (cur <= ringStart rb) (cur == rh) = do
+            liftIO $ touch $ ringContents rb
+            return D.Stop
+    step (rb, rh, cur, True) = step_ rb rh cur
 
 -------------------------------------------------------------------------------
 -- Stream of arrays
@@ -334,20 +478,22 @@ readRev = undefined
 -- /Unimplemented/
 {-# INLINE_NORMAL ringsOf #-}
 ringsOf :: -- forall m a. (MonadIO m, Storable a) =>
-    Int -> SerialT m a -> SerialT m (Array a)
+    Int -> SerialT m a -> SerialT m (MA.Array a)
 ringsOf = undefined -- Stream.scan (writeN n)
 
 -------------------------------------------------------------------------------
 -- Casting
 -------------------------------------------------------------------------------
 
--- | Cast an array having elements of type @a@ into an array having elements of
--- type @b@. The array size must be a multiple of the size of type @b@.
+-- | Cast a ring array having elements of type @a@ into a ring array having
+-- elements of type @b@. The ring array size must be a multiple of the size of
+-- type @b@.
 --
 -- /Unimplemented/
 --
 castUnsafe :: Ring a -> Ring b
-castUnsafe = undefined
+castUnsafe (Ring contents start end) =
+    Ring contents (castPtr start) (castPtr end)
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
