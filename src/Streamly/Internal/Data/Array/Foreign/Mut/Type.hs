@@ -1093,7 +1093,7 @@ getIndexPtr ptr end i = do
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: (MonadIO m, Storable a, Ord a) => Array a -> Int -> m a
+getIndex :: (MonadIO m, Storable a) => Array a -> Int -> m a
 getIndex arr i =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> getIndexPtr p (aEnd arr) i
@@ -1239,7 +1239,7 @@ permute = undefined
 --
 -- /Pre-release/
 {-# INLINE partitionBy #-}
-partitionBy :: forall m a. (MonadIO m, Storable a, Ord a)
+partitionBy :: forall m a. (MonadIO m, Storable a)
     => (a -> Bool) -> Array a -> m (Array a, Array a)
 partitionBy f arr = do
     let low = 0
