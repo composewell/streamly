@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , splice
 
     , fromPtr
+    , fromForeignPtrUnsafe
     , fromAddr#
     , fromCString#
     , fromList
@@ -84,6 +85,7 @@ import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (Addr#, nullAddr#, build)
 import GHC.Exts (IsList, IsString(..))
+import GHC.ForeignPtr (ForeignPtr)
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
@@ -230,6 +232,24 @@ fromPtr n ptr = unsafeInlineIO $ do
         , arrStart = ptr
         , aEnd = end
         }
+
+-- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
+-- at the memory pointed by the @foreignPtr@, @end@ is the first unused
+-- address.
+--
+-- Unsafe: Make sure that foreignPtr <= end and (end - start) is an
+-- integral multiple of the element size. Only PlainPtr type ForeignPtr is
+-- supported.
+--
+-- /Pre-release/
+--
+{-# INLINE fromForeignPtrUnsafe #-}
+fromForeignPtrUnsafe ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    ForeignPtr a -> Ptr a -> Array a
+fromForeignPtrUnsafe fp end = unsafeFreeze $ MA.fromForeignPtrUnsafe fp end end
 
 -- XXX when converting an array of Word8 from a literal string we can simply
 -- refer to the literal string. Is it possible to write rules such that
