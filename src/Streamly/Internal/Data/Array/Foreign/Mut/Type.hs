@@ -410,6 +410,8 @@ fromForeignPtrUnsafe ::
     Storable a =>
 #endif
     ForeignPtr a -> Ptr a -> Ptr a -> Array a
+fromForeignPtrUnsafe (ForeignPtr start _) _ _
+    | Ptr start == nullPtr = nil
 fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
     assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
            (Array (fptrToArrayContents contents) (Ptr start) end bound)
