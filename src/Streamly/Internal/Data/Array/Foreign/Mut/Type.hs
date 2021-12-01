@@ -963,7 +963,7 @@ resize i arr@Array{..} = do
 {-# INLINE resizeExp #-}
 resizeExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resizeExp i arr@ Array{..} = do
+resizeExp i arr@Array{..} = do
     let req = sizeOf (undefined :: a) * i
         len = length arr
         size2 = roundUpToPower2 req
@@ -1031,7 +1031,7 @@ reallocAlignedN elemSize alignSize elemCount newSize Array{..} = do
 {-# INLINE truncateWith #-}
 truncateWith :: forall m a. (MonadIO m, Storable a) =>
     Int -> (Int -> Int) -> Array a -> m (Array a)
-truncateWith n f arr@ Array{..} = liftIO $ do
+truncateWith n f arr@Array{..} = liftIO $ do
     let fLen = length arr - n
         capacity = aBound `minusPtr` arrStart
         newCap = f capacity
