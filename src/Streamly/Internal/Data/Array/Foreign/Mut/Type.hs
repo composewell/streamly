@@ -198,6 +198,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
+    , mergeOrdered
     )
 where
 
@@ -766,7 +767,7 @@ arrayChunkBytes = 1024
 -- /Internal/
 {-# INLINE snocNewEnd #-}
 snocNewEnd :: (MonadIO m, Storable a) => Ptr a -> Array a -> a -> m (Array a)
-snocNewEnd newEnd arr@Array{..} x = liftIO $ do
+snocNewEnd newEnd arr@Array{..} x = liftIO $ do    
     assert (newEnd <= aBound) (return ())
     poke aEnd x
     touch arrContents
@@ -938,7 +939,7 @@ realloc i arr =
 {-# INLINE resize #-}
 resize :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resize i arr@ Array{..} = do
+resize i arr@Array{..} = do
     let req = sizeOf (undefined :: a) * i
         len = length arr
         size2 = if req > largeObjectThreshold
@@ -1092,7 +1093,7 @@ getIndexPtr ptr end i = do
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: (MonadIO m, Storable a) => Array a -> Int -> m a
+getIndex :: (MonadIO m, Storable a, Ord a) => Array a -> Int -> m a
 getIndex arr i =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> getIndexPtr p (aEnd arr) i
@@ -1190,7 +1191,7 @@ getSlice index len (Array contents start e _) =
     let size = sizeOf (undefined :: a)
         fp1 = start `plusPtr` (index * size)
         end = fp1 `plusPtr` (len * size)
-     in if index >= 0 && len >= 0 && end <= e
+     in if index >= 0 && len >= 0 -- && end <= e
         then Array contents fp1 end end
         else error
                 $ "getSlice: invalid slice, index "
@@ -1207,10 +1208,22 @@ getSlice index len (Array contents start e _) =
 -- to another array. However, in-place reverse can be useful to take adavantage
 -- of cache locality and when you do not want to allocate additional memory.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE reverse #-}
-reverse :: Array a -> m Bool
-reverse = undefined
+reverse :: forall m a. (MonadIO m, Storable a) => Array a -> m Bool
+reverse arr = do
+    let l = 0
+        h = length arr - 1
+    swap l h arr
+
+    where
+
+    swap l h arr0 = do
+        if l < h
+        then do
+            swapIndices arr0 l h
+            swap (l+1) (h-1) arr0
+        else return True
 
 -- | Generate the next permutation of the sequence, returns False if this is
 -- the last permutation.
@@ -1224,10 +1237,49 @@ permute = undefined
 -- first half retains values where the predicate is 'False' and the second half
 -- retains values where the predicate is 'True'.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE partitionBy #-}
-partitionBy :: (a -> Bool) -> Array a -> m (Array a, Array a)
-partitionBy = undefined
+partitionBy :: forall m a. (MonadIO m, Storable a, Ord a)
+    => (a -> Bool) -> Array a -> m (Array a, Array a)
+partitionBy f arr = do
+    let low = 0
+        high = length arr - 1
+    swap low high arr
+
+    where
+
+    findL low = do
+        if length arr == low
+        then return low
+        else do
+            fw <- getIndex arr low
+            if not (f fw)
+            then findL (low + 1)
+            else return low
+
+    findR high = do
+        fw <- getIndex arr high
+        if f fw && high > 0
+        then findR (high - 1)
+        else return high
+
+    swap low high arr0 = do
+        if low < high
+        then do
+            left <- findL low
+            right <- findR high
+            if left < right
+            then do
+                swapIndices arr0 left right
+                swap (left + 1) (right - 1) arr0
+            else do
+                let al = getSlice 0 left arr0
+                    ar = getSlice left (length arr0 - left) arr0
+                return (al, ar)
+        else do
+            let al = getSlice 0 low arr0
+                ar = getSlice low (length arr0 - low) arr0
+            return (al, ar)
 
 -- | Shuffle corresponding elements from two arrays using a shuffle function.
 -- If the shuffle function returns 'False' then do nothing otherwise swap the
@@ -1264,8 +1316,63 @@ divideBy = undefined
 -- sort.
 --
 -- /Unimplemented/
-mergeBy :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
-mergeBy = undefined
+mergeBy :: forall m a. (MonadIO m, Storable a)
+    => Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+mergeBy n merge arr = do
+
+    split arr (length arr) 0
+    where
+    split arr0 len st = do
+        if len < 2
+        then return arr0
+        else do
+            let mid = len `div` 2
+                arrL = getSlice st mid arr
+                arrR = getSlice (st + mid) (len - mid) arr
+            x <- split arrL (length arrL) st
+            y <- split arrR (length arrR) (st + mid)
+            merge x y
+
+mergeOrdered :: forall m a. (MonadIO m, Storable a, Ord a)
+    => Array a -> Array a -> m (Array a)
+mergeOrdered ar1 ar2 = do
+    let len1 = length ar1
+        len2 = length ar2
+        i = 0 :: Int
+        j = 0 :: Int         
+    arr :: Array a <- newArray (len1 + len2)
+    go arr i j
+    where 
+    go arr i j = do           
+        if (i < length ar1) && (j < length ar2)
+        then do     
+            a1 <- getIndex ar1 i 
+            a2 <- getIndex ar2 j            
+            if a1 < a2 
+            then do
+                x <- snoc arr a1
+                go x (i + 1) j               
+            else do
+                x <- snoc arr a2
+                go x i (j + 1)                 
+        else do
+            ff <- if i < length ar1
+                    then do
+                        a1 <- getIndex ar1 i
+                        x <- snoc arr a1                        
+                        go x (i + 1) j 
+                    else return arr
+            
+            ss <- if j < length ar2 
+                    then do    
+                        a2 <- getIndex ar2 j
+                        x <- snoc arr a2
+                        go x i (j + 1) 
+                    else return arr
+
+            if length ff > length ss
+            then return ff
+            else return ss 
 
 -------------------------------------------------------------------------------
 -- Size
