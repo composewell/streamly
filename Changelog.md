@@ -2,6 +2,10 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## 0.8.1.1 (Dec 2021)
+
+* Disable building FileSystem.Events where FS Events isn't supported.
+
 ## 0.8.1 (Nov 2021)
 
 See docs/API-changelog.txt for new APIs introduced.
