@@ -26,7 +26,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- * Constructing and Writing
     -- ** Construction
-    -- , nil
+    , nil
 
     -- *** Uninitialized Arrays
     , newArray
@@ -273,7 +273,7 @@ import Prelude hiding
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 
 -------------------------------------------------------------------------------
--- Array Data Type
+-- Foreign helpers
 -------------------------------------------------------------------------------
 
 foreign import ccall unsafe "string.h memcpy" c_memcpy
@@ -386,6 +386,13 @@ data Array a =
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- ^ first unused address
     , aBound :: {-# UNPACK #-} !(Ptr a)        -- ^ first address beyond allocated memory
     }
+
+nil ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    Array a
+nil = Array nilArrayContents nullPtr nullPtr nullPtr
 
 -- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
 -- at the memory pointed by the @foreignPtr@, @end@ is the first unused
