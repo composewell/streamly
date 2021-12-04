@@ -57,8 +57,9 @@ main = do
             -- The watch root create event always seems to come even though the
             -- root is created before the watch is started. That may be because
             -- of batching?
-            -- XXX Need to create watch root after adding the watch
-            : dirCreate "" (\dir -> [(dir, dirEvent Event.isCreated)])
+            -- XXX Need to create watch root after adding the watch, otherwise
+            -- it fails intermittently.
+            -- : dirCreate "" (\dir -> [(dir, dirEvent Event.isCreated)])
             : rootDirMove "moved" (\src ->
                 [ (src, Event.isRootPathEvent)
                 , (src, Event.isMoved)
