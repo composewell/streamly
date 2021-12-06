@@ -318,7 +318,6 @@ library
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
       exposed-modules: Streamly.Internal.FileSystem.Event.Windows
-                     , Streamly.Internal.FileSystem.Event
       build-depends: Win32 >= 2.6 && < 2.13
 
     if os(darwin)
@@ -328,11 +327,12 @@ library
                    , src/Streamly/Internal/FileSystem/Event/Darwin.m
       exposed-modules:
                      Streamly.Internal.FileSystem.Event.Darwin
-                   , Streamly.Internal.FileSystem.Event
 
     if os(linux)
       exposed-modules: Streamly.Internal.FileSystem.Event.Linux
-                     , Streamly.Internal.FileSystem.Event
+
+    if os(linux) || os(darwin) || os(windows)
+      exposed-modules: Streamly.Internal.FileSystem.Event
 
     hs-source-dirs:    src
     other-modules:
