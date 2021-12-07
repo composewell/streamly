@@ -54,14 +54,17 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Prelude as P
     (cmpBy, eqBy, foldl', foldr, fromList, toList)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
+import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 
 import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
+import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"
 
@@ -96,9 +99,10 @@ zipWithK f = zipWithMK (\a b -> return (f a b))
 {-# INLINE zipAsyncWithMK #-}
 zipAsyncWithMK :: MonadAsync m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipAsyncWithMK f m1 m2 = D.toStreamK $
-    D.zipWithM f (Par.mkParallelD $ D.fromStreamK m1)
-                 (Par.mkParallelD $ D.fromStreamK m2)
+zipAsyncWithMK f m1 m2 = K.mkStream $ \st yld sng stp -> do
+    sv <- newParallelVar StopNone (adaptState st)
+    SVar.toSVarParallel (adaptState st) sv $ D.fromStreamK m2
+    K.foldStream st yld sng stp $ K.zipWithM f m1 (getSerialT (SVar.fromSVar sv))
 
 -- XXX Should we rename this to zipParWith or zipParallelWith? This can happen
 -- along with the change of behvaior to end the stream concurrently.
