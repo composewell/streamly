@@ -97,6 +97,7 @@ newtype Parser m a b = MkParser
 -- Functor
 -------------------------------------------------------------------------------
 
+-- XXX rewrite this using ParserD, expose rmapM from ParserD.
 -- | Maps a function over the output of the parser.
 --
 instance Functor m => Functor (Parser m a) where
