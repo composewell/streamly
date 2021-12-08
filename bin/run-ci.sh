@@ -24,7 +24,7 @@ GHC_PRIME_VER="8.10"
 JOBS=1
 
 # Without cabal project file, it will not run any tests
-# XXX Added DISABLE_SDIST_BUILD because of a cabal issue
+# XXX Added DISABLE_SDIST_BUILD because of a cabal issue, need to remove it
 ghc_prime_dist () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
@@ -38,6 +38,7 @@ ghc_prime_dist () {
 }
 
 # With cabal.project file, it will run the tests
+# XXX Added DISABLE_SDIST_BUILD because of a cabal issue, need to remove it
 ghc_prime_dist_tests () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
@@ -47,6 +48,7 @@ ghc_prime_dist_tests () {
       CABAL_BUILD_OPTIONS=\"$CABAL_BUILD_OPTIONS --jobs=$JOBS\" \
       CABAL_PROJECT=cabal.project \
       CABAL_DISABLE_DEPS=y \
+      DISABLE_SDIST_BUILD=y \
       CABAL_CHECK_RELAX=y"
 }
 
@@ -113,8 +115,7 @@ ghc_prime_Werror () {
 ghc_prime_doctests () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.doctest all"
-  cabal-docspec --timeout 60
+    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.doctest all && cabal-docspec --timeout 60"
 }
 
 #------------------------------------------------------------------------------
@@ -181,7 +182,7 @@ ghc () {
     --run "\
       packcheck.sh cabal-v2 \
       GHCVER=$2 \
-      CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
+      CABAL_BUILD_OPTIONS=\"$CABAL_BUILD_OPTIONS --jobs=$JOBS\" \
       CABAL_DISABLE_DEPS=y \
       CABAL_CHECK_RELAX=y \
       DISABLE_SDIST_BUILD=y \
