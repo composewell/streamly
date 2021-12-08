@@ -723,19 +723,20 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'fromZipAsync' type combinator can be used to switch to parallel applicative
 -- zip composition:
 --
--- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
--- are produced concurrently, and 2 and 4 are produced concurrently:
---
 -- >>> d n = delay n >> return n
--- >>> s1 = Stream.fromSerial $ d 1 <> d 2
--- >>> s2 = Stream.fromSerial $ d 3 <> d 4
+-- >>> s1 = Stream.fromSerial $ d 2 <> d 4
+-- >>> s2 = Stream.fromSerial $ d 3 <> d 1
 -- >>> (Stream.toList $ Stream.fromZipAsync $ (,) <$> s1 <*> s2) >>= print
--- ThreadId ...: Delay 1
 -- ThreadId ...: Delay 2
 -- ThreadId ...: Delay 3
+-- ThreadId ...: Delay 1
 -- ThreadId ...: Delay 4
--- [(1,3),(2,4)]
+-- [(2,3),(4,1)]
 --
+-- The actions within each stream are executed serially, however, the two
+-- streams are run concurrently with respect to each other. Therefore, it takes
+-- 6 seconds to zip the two streams, which is the maximum of the time to
+-- evaluate stream s1 (2 + 4 = 6 seconds) and stream s2 (3 + 1 = 4 seconds).
 
 -- $concurrent
 --
