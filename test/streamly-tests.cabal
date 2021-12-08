@@ -401,6 +401,8 @@ test-suite Prelude.ZipAsync
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/ZipAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
 
 test-suite Prelude.ZipSerial
   import: test-options
