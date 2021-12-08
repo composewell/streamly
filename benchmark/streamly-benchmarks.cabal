@@ -116,7 +116,7 @@ common bench-depends
     -- the GHC versions we support
       base                >= 4.9   && < 5
     , deepseq             >= 1.4.1 && < 1.5
-    , mtl                 >= 2.2   && < 3
+    , mtl                 >= 2.2   && < 2.3
 
     -- other libraries
     , streamly            >= 0.7.0
