@@ -41,6 +41,12 @@ zipAsyncAp count n =
     S.fromZipAsync $
         (,) <$> sourceUnfoldrM count n <*> sourceUnfoldrM count (n + 1)
 
+fromZipAsyncTraverse :: String -> Int -> Benchmark
+fromZipAsyncTraverse name count =
+    bench name
+        $ nfIO
+        $ S.drain $ S.fromZipAsync $ traverse S.fromPure [0 :: Int .. count]
+
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
@@ -50,6 +56,7 @@ o_1_space_joining value =
                                                        (value `div` 2))
         , benchIOSrc fromSerial "zipAsyncAp (2,x/2)" (zipAsyncAp (value `div` 2))
         , benchIOSink value "fmap zipAsyncly" $ fmapN S.fromZipAsync 1
+        , fromZipAsyncTraverse "ZipAsync Applicative (x/100)" (value `div` 100)
         ]
     ]
 
