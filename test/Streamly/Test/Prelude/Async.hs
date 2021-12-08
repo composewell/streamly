@@ -9,6 +9,7 @@
 
 module Streamly.Test.Prelude.Async where
 
+import Control.Concurrent (threadDelay)
 import Data.List (sort)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
@@ -19,10 +20,22 @@ import Test.Hspec as H
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
+import Data.IORef
 import Streamly.Test.Prelude.Common
 
 moduleName :: String
-moduleName = "Prelude.Ahead"
+moduleName = "Prelude.Async"
+
+concurrentApplicative :: IO ()
+concurrentApplicative = do
+    ref <- newIORef []
+    let action i = modifyIORef ref (++ [i]) >> return (i :: Int)
+        s1 = S.fromEffect (threadDelay 2000000 >> action 1)
+        s2 = S.fromEffect (threadDelay 1000000 >> action 2)
+    res <- S.toList $ S.fromZipAsync $ (,) <$> s1 <*> s2
+    refVal <- readIORef ref
+    res `shouldBe` [(1, 2)]
+    refVal `shouldBe` [2, 1]
 
 main :: IO ()
 main = hspec
@@ -75,6 +88,7 @@ main = hspec
         asyncOps    $ prop "zip applicative asyncly folded" . zipAsyncApplicative folded (==)
         asyncOps    $ prop "zip monadic asyncly" . zipAsyncMonadic S.fromFoldable (==)
         asyncOps    $ prop "zip monadic asyncly folded" . zipAsyncMonadic folded (==)
+        it "zip monadic asyncly order" concurrentApplicative
 
     -- XXX add merge tests like zip tests
     -- for mergeBy, we can split a list randomly into two lists and
