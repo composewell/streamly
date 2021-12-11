@@ -90,6 +90,9 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
+-- XXX Since these are immutable arrays MonadIO constraint can be removed from
+-- most places.
+
 -------------------------------------------------------------------------------
 -- Generation
 -------------------------------------------------------------------------------
@@ -115,13 +118,13 @@ arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
--- Same as the following but more efficient:
+-- Same as the following:
 --
 -- > concat = Stream.unfoldMany Array.read
 --
 -- @since 0.7.0
 {-# INLINE concat #-}
-concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
+concat :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
 -- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
 -- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
 concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
@@ -133,8 +136,9 @@ concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}
-concatRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
-concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
+concatRev :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+-- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
+concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 
 -------------------------------------------------------------------------------
 -- Intersperse and append
@@ -145,11 +149,11 @@ concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
 --
 -- /Pre-release/
 {-# INLINE interpose #-}
-interpose :: (MonadIO m, IsStream t, Storable a) => a -> t m (Array a) -> t m a
+interpose :: (Monad m, IsStream t, Storable a) => a -> t m (Array a) -> t m a
 interpose x = S.interpose x A.read
 
 {-# INLINE intercalateSuffix #-}
-intercalateSuffix :: (MonadIO m, IsStream t, Storable a)
+intercalateSuffix :: (Monad m, IsStream t, Storable a)
     => Array a -> t m (Array a) -> t m a
 intercalateSuffix = S.intercalateSuffix A.read
 
@@ -158,7 +162,7 @@ intercalateSuffix = S.intercalateSuffix A.read
 --
 -- @since 0.7.0
 {-# INLINE interposeSuffix #-}
-interposeSuffix :: (MonadIO m, IsStream t, Storable a)
+interposeSuffix :: (Monad m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
 interposeSuffix x = S.interposeSuffix x A.read
@@ -167,6 +171,7 @@ data FlattenState s a =
       OuterLoop s
     | InnerLoop s !MA.ArrayContents !(Ptr a) !(Ptr a)
 
+-- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}
 unlines :: forall m a. (MonadIO m, Storable a)
     => a -> D.Stream m (Array a) -> D.Stream m a
@@ -283,6 +288,7 @@ _splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
     step' _ (Yielding arr next) = return $ D.Yield arr next
     step' _ Finishing = return D.Stop
 
+-- XXX Remove MonadIO constraint.
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
 --

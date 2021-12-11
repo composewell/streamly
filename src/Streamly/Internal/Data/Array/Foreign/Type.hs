@@ -120,6 +120,9 @@ import qualified Data.Foldable as F
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
 -- >>> import Streamly.Internal.Data.Array.Foreign as Array
 
+-- XXX Since these are immutable arrays MonadIO constraint can be removed from
+-- most places.
+
 -------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
