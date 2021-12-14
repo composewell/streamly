@@ -28,7 +28,9 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified Streamly.Internal.FileSystem.Handle as IFH
+import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Prelude as S
 
@@ -40,7 +42,6 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
@@ -147,7 +148,6 @@ _readChunksWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     fld = FH.write devNull
     unf = IUF.many FH.readChunksWithBufferOf A.read
 
-
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =
     [ bgroup "copy/putBytes"
@@ -194,6 +194,44 @@ inspect $ 'writeRead `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'writeRead `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
 #endif
 
+-- | Send the chunk content to /dev/null
+{-# NOINLINE writeReadChunksWithBufferOf #-}
+writeReadChunksWithBufferOf :: Handle -> Handle -> IO ()
+writeReadChunksWithBufferOf inh devNull =
+    IUF.fold fld unf (defaultChunkSize, inh)
+
+    where
+
+    fld = IFH.writeChunksWithBufferOf defaultChunkSize devNull
+    unf = FH.readChunksWithBufferOf
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOf
+inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Step
+inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Maybe
+inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Tuple
+#endif
+
+-- | Send the chunk content to /dev/null
+{-# NOINLINE writeReadChunksWithBufferOfStream #-}
+writeReadChunksWithBufferOfStream :: Handle -> Handle -> IO ()
+writeReadChunksWithBufferOfStream inh devNull =
+    S.drain
+        $ S.mapM (FH.putChunk devNull . IA.unsafeFreeze)
+        $ MAS.compactLE defaultChunkSize
+        $ S.map IA.unsafeThaw $ S.unfold unf (defaultChunkSize, inh)
+
+    where
+
+    unf = FH.readChunksWithBufferOf
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Step
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Maybe
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Tuple
+#endif
+
 o_1_space_copy :: BenchEnv -> [Benchmark]
 o_1_space_copy env =
     [ bgroup "copy"
@@ -201,6 +239,10 @@ o_1_space_copy env =
             writeRead inh (nullH env)
         , mkBench "FH.writeWithBufferOf . FH.readWithBufferOf" env $ \inh _ ->
             writeReadWithBufferOf inh (nullH env)
+        , mkBench "FH.writeChunksWithBufferOf . FH.readChunksWithBufferOf" env
+              $ \inh _ -> writeReadChunksWithBufferOf inh (nullH env)
+        , mkBench "compactLE . FH.readChunksWithBufferOf" env
+              $ \inh _ -> writeReadChunksWithBufferOfStream inh (nullH env)
         ]
     ]
 
