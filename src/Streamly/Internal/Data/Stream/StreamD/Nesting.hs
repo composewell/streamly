@@ -1723,7 +1723,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                                <= sizeOf (undefined :: Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
-                              (rb, rhead) <- liftIO $ RB.new patLen
+                              (rb, rhead) <- liftIO $ RB.unsafeNew patLen
                               skip $ SplitOnSeqKRInit 0 acc state rb rhead
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
@@ -2057,7 +2057,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                                <= sizeOf (undefined :: Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do
-                              (rb, rhead) <- liftIO $ RB.new patLen
+                              (rb, rhead) <- liftIO $ RB.unsafeNew patLen
                               skip $ SplitOnSuffixSeqKRInit 0 fs state rb rhead
             FL.Done fb -> skip $ SplitOnSuffixSeqYield fb SplitOnSuffixSeqInit
 

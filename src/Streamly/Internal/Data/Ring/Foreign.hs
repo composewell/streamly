@@ -15,8 +15,14 @@
 module Streamly.Internal.Data.Ring.Foreign
     ( Ring(..)
 
+    -- * Incomplete ring
+    , IncompleteRing(..)
+    , unsafeFromIncompleteRing
+    , fromIncompleteRing
+
     -- * Construction
     , new
+    , unsafeNew
     , newRing
 
     , writeNUnsafe
@@ -87,7 +93,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ArrayContents, touch, fptrToArrayContents)
+    (ArrayContents, fptrToArrayContents, touch)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -124,6 +130,30 @@ data Ring a = Ring
     , ringBound :: {-# UNPACK #-} !(Ptr a) -- first address beyond allocated memory
     }
 
+data IncompleteRing a =
+    IncompleteRing (MA.Array a)
+
+-- aEnd should be equal to aBound
+unsafeFromIncompleteRing :: IncompleteRing a -> Ring a
+unsafeFromIncompleteRing (IncompleteRing arr) =
+    Ring
+        { ringContents = MA.arrContents arr
+        , ringStart = MA.arrStart arr
+        , ringBound = MA.aEnd arr
+        }
+
+-- aEnd should be equal to aBound
+fromIncompleteRing :: IncompleteRing a -> Maybe (Ring a)
+fromIncompleteRing (IncompleteRing arr) =
+    if MA.aEnd arr == MA.aBound arr
+    then Just
+             $ Ring
+                   { ringContents = MA.arrContents arr
+                   , ringStart = MA.arrStart arr
+                   , ringBound = MA.aEnd arr
+                   }
+    else Nothing
+
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -132,11 +162,22 @@ data Ring a = Ring
 startOf :: Ring a -> Ptr a
 startOf = ringStart
 
+-- | Create a new incomplete ring array and return the ring array and the
+-- ringHead. Returns the incomplete ring and the ringHead, the ringHead is same
+-- as ringStart.
+{-# INLINE new #-}
+new :: forall a. Storable a => Int -> IO (IncompleteRing a, Ptr a)
+new count = do
+    arr <- MA.newArray count
+    return (IncompleteRing arr, MA.arrStart arr)
+
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
-{-# INLINE new #-}
-new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
-new count = do
+--
+-- Unsafe because of the uninitialized data
+{-# INLINE unsafeNew #-}
+unsafeNew :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
+unsafeNew count = do
     let size = count * sizeOf (undefined :: a)
     ForeignPtr addr# fconts <-
         mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
@@ -201,9 +242,14 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
 -- /Unimplemented/
 {-# INLINE writeNUnsafe #-}
 writeNUnsafe :: (Storable a, MonadIO m) => Int -> Fold m a (Ring a, Ptr a)
-writeNUnsafe n = Fold step (FL.Partial <$> liftIO (new n)) return
+writeNUnsafe n =
+    Fold step initial return
 
     where
+
+    initial = liftIO $ do
+        (irb, p) <- new n
+        return $ FL.Partial (unsafeFromIncompleteRing irb, p)
 
     step (rb, p) a = liftIO $ do
         p1 <- unsafeInsert rb p a
@@ -217,9 +263,27 @@ writeNUnsafe n = Fold step (FL.Partial <$> liftIO (new n)) return
 --
 -- /Unimplemented/
 {-# INLINE writeN #-}
-writeN :: -- (Storable a, MonadIO m) =>
-    Int -> Fold m a (Ring a)
-writeN = undefined
+writeN ::
+       forall m a. (Storable a, MonadIO m)
+    => Int -> Fold m a (IncompleteRing a, Ptr a)
+writeN n = Fold step initial extract
+
+    where
+
+    initial = FL.Partial <$> liftIO (new n)
+
+    step (IncompleteRing arr, p) a = liftIO $ do
+        poke p a
+        let p1 = p `plusPtr` sizeOf (undefined :: a)
+        touch $ MA.arrContents arr
+        return
+            $ FL.Partial
+            $ if p1 < MA.aBound arr
+              then (IncompleteRing (arr {MA.aBound = p1}), p1)
+              else (IncompleteRing arr, MA.arrStart arr)
+
+    extract (IncompleteRing arr, p) =
+        return (IncompleteRing (arr {MA.aEnd = MA.aBound arr}), p)
 
 -------------------------------------------------------------------------------
 -- Conversions
