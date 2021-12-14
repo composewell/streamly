@@ -305,6 +305,7 @@ compactLE ::
 compactLE n (SerialT xs) =
     SerialT $ D.toStreamK $ D.parseMany (compactLEParserD n) (D.fromStreamK xs)
 
+-- XXX This isn't possible unless we mutate the array of the incoming stream.
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
 --
