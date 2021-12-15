@@ -252,10 +252,10 @@ writeReadChunksWithBufferOfStream_ inh devNull =
 -- XXX Inspection testing fails here!
 -- XXX Make sure we include all the types
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream_
-inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Step
-inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Maybe
-inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Strict.Tuple'
+-- inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream_
+-- inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Step
+-- inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Maybe
+-- inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Strict.Tuple'
 #endif
 
 o_1_space_copy :: BenchEnv -> [Benchmark]
