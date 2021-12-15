@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
 
     -- * Compaction
     , packArraysChunksOf
+    , packArraysChunksOfSerial
     , SpliceState (..)
     , lpackArraysChunksOf
     , compactLEParserD
@@ -126,6 +127,15 @@ packArraysChunksOf n (D.Stream step state) =
     step' _ SpliceFinish = return D.Stop
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
+
+-- XXX This should be the real packArraysChunksOf
+-- XXX Added specifically for benchmarking
+-- | "packArraysChunksOf" buy wrapped as a SerialT stream
+{-# INLINE_NORMAL packArraysChunksOfSerial #-}
+packArraysChunksOfSerial :: (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+packArraysChunksOfSerial n (SerialT xs) =
+    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
 
 -- XXX Remove this once compactLEFold is implemented
 -- lpackArraysChunksOf = Fold.many compactLEFold
