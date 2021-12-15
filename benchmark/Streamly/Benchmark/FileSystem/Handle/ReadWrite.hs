@@ -205,17 +205,41 @@ writeReadChunksWithBufferOf inh devNull =
     fld = IFH.writeChunksWithBufferOf defaultChunkSize devNull
     unf = FH.readChunksWithBufferOf
 
+-- XXX Make sure we include all the types
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOf
 inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Step
 inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Maybe
-inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Tuple
+inspect $ 'writeReadChunksWithBufferOf `hasNoType` ''Strict.Tuple'
 #endif
 
 -- | Send the chunk content to /dev/null
 {-# NOINLINE writeReadChunksWithBufferOfStream #-}
 writeReadChunksWithBufferOfStream :: Handle -> Handle -> IO ()
 writeReadChunksWithBufferOfStream inh devNull =
+    S.drain
+        $ S.mapM (FH.putChunk devNull . IA.unsafeFreeze)
+        $ MAS.packArraysChunksOfSerial defaultChunkSize
+        $ S.map IA.unsafeThaw $ S.unfold unf (defaultChunkSize, inh)
+
+    where
+
+    unf = FH.readChunksWithBufferOf
+
+-- XXX Inspection testing fails here!
+-- XXX Make sure we include all the types
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Step
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Maybe
+inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Strict.Tuple'
+#endif
+
+
+-- | Send the chunk content to /dev/null
+{-# NOINLINE writeReadChunksWithBufferOfStream_ #-}
+writeReadChunksWithBufferOfStream_ :: Handle -> Handle -> IO ()
+writeReadChunksWithBufferOfStream_ inh devNull =
     S.drain
         $ S.mapM (FH.putChunk devNull . IA.unsafeFreeze)
         $ MAS.compactLE defaultChunkSize
@@ -225,11 +249,13 @@ writeReadChunksWithBufferOfStream inh devNull =
 
     unf = FH.readChunksWithBufferOf
 
+-- XXX Inspection testing fails here!
+-- XXX Make sure we include all the types
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream
-inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Step
-inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Maybe
-inspect $ 'writeReadChunksWithBufferOfStream `hasNoType` ''Tuple
+inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream_
+inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Step
+inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Maybe
+inspect $ 'writeReadChunksWithBufferOfStream_ `hasNoType` ''Strict.Tuple'
 #endif
 
 o_1_space_copy :: BenchEnv -> [Benchmark]
@@ -242,6 +268,8 @@ o_1_space_copy env =
         , mkBench "FH.writeChunksWithBufferOf . FH.readChunksWithBufferOf" env
               $ \inh _ -> writeReadChunksWithBufferOf inh (nullH env)
         , mkBench "compactLE . FH.readChunksWithBufferOf" env
+              $ \inh _ -> writeReadChunksWithBufferOfStream_ inh (nullH env)
+        , mkBench "packArraysChunksOfSerial . FH.readChunksWithBufferOf" env
               $ \inh _ -> writeReadChunksWithBufferOfStream inh (nullH env)
         ]
     ]
