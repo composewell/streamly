@@ -1138,6 +1138,8 @@ getSliceUnsafe index len (Array contents start e _) =
         end = fp1 `plusPtr` (len * SIZE_OF(a))
      in assert
             (index >= 0 && len >= 0 && end <= e)
+            -- Note: In a slice we always use bound = end so that the slice
+            -- user cannot overwrite elements beyond the end of the slice.
             (Array contents fp1 end end)
 
 -- | /O(1)/ Slice an array in constant time. Throws an error if the slice
@@ -1154,6 +1156,8 @@ getSlice index len (Array contents start e _) =
     let fp1 = PTR_INDEX(start,index,a)
         end = fp1 `plusPtr` (len * SIZE_OF(a))
      in if index >= 0 && len >= 0 && end <= e
+        -- Note: In a slice we always use bound = end so that the slice user
+        -- cannot overwrite elements beyond the end of the slice.
         then Array contents fp1 end end
         else error
                 $ "getSlice: invalid slice, index "
