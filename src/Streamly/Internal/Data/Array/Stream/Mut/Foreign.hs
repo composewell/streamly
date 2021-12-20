@@ -249,9 +249,7 @@ compactLEParserD n = ParserD.Parser step initial extract
                 buf2 <- MArray.splice buf1 arr
                 return $ ParserD.Partial 0 (Just buf2)
 
-    extract Nothing =
-        throwM
-            $ ParserD.ParseError $ functionPath ++ ": The slice buffer is empty"
+    extract Nothing = return MArray.nil
     extract (Just buf) = return buf
 
     functionPath =
