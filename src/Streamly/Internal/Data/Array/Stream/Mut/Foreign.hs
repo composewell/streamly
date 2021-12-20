@@ -19,6 +19,7 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
     , SpliceState (..)
     , lpackArraysChunksOf
     , compactLEParserD
+    , compactEQArrFold
     , compactGEFold
     , compact
     , compactLE
@@ -31,7 +32,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
-import Control.Monad.Catch (throwM, MonadThrow)
+import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
@@ -42,6 +43,10 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as AStream
+-- XXX Causes cyclic dependency
+-- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AStream
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
@@ -302,6 +307,55 @@ compactGEFold n = Fold step initial extract
     functionPath =
         "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactGEFold"
 
+-- XXX Use a mutable version of AStream.Fold
+compactEQArrFold ::
+       forall m a. (MonadThrow m, MonadIO m, Storable a)
+    => Int -> AStream.Fold m a (Array a)
+compactEQArrFold n = AStream.Fold $ ParserD.Parser step initial extract
+
+    where
+
+    initial =
+        return
+            $ if n <= 0
+              then error
+                       $ functionPath
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else ParserD.IPartial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = Array.length arr
+                  marr = Array.unsafeThaw arr
+               in if len == n
+                  then ParserD.Done 0 marr
+                  else if len < n
+                       then ParserD.Partial 0 (Just marr)
+                       else ParserD.Done
+                                (len - n)
+                                (MArray.getSliceUnsafe 0 n marr)
+    step (Just buf) arr = do
+        let len = MArray.length buf + Array.length arr
+            requiredBytes = n * sizeOf (undefined :: a)
+        buf1 <-
+            if MArray.byteCapacity buf < requiredBytes
+            then liftIO $ MArray.realloc requiredBytes buf
+            else return buf
+        buf2 <- MArray.splice buf1 (Array.unsafeThaw arr)
+        return
+            $ if len == n
+              then ParserD.Done 0 buf2
+              else if len < n
+                   then ParserD.Partial 0 (Just buf2)
+                   else ParserD.Done (len - n) (MArray.getSliceUnsafe 0 n buf2)
+
+    extract Nothing = return MArray.nil
+    extract (Just buf) = return buf
+
+    functionPath =
+        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactEQArrFold"
+
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
 --
@@ -312,7 +366,6 @@ compactLE ::
 compactLE n (SerialT xs) =
     SerialT $ D.toStreamK $ D.parseMany (compactLEParserD n) (D.fromStreamK xs)
 
--- XXX This isn't possible unless we mutate the array of the incoming stream.
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
 --
@@ -320,8 +373,13 @@ compactLE n (SerialT xs) =
 {-# INLINE compactEQ #-}
 compactEQ :: -- (MonadIO m, Storable a) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactEQ _n _xs = undefined
-    -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
+compactEQ = undefined
+{-
+compactEQ n (SerialT xs) =
+    SerialT
+        $ D.toStreamK
+        $ AStream.foldArrManyD (compactEQArrFold n) (D.fromStreamK xs)
+-}
 
 -- | Like 'compactLE' but generates arrays of size greater than or equal to the
 -- specified except for the last array in the stream which could be shorter.
