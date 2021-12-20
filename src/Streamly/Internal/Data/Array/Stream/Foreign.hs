@@ -196,6 +196,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- Compact
 -------------------------------------------------------------------------------
 
+-- XXX This should ideally be renamed to packArraysChunksOfD
 -- XXX These would not be needed once we implement compactLEFold, see
 -- module Streamly.Internal.Data.Array.Stream.Mut.Foreign
 --
@@ -203,7 +204,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 packArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
 packArraysChunksOf n str =
-    D.map A.unsafeFreeze $ AS.packArraysChunksOf n $ D.map A.unsafeThaw str
+    D.map A.unsafeFreeze $ AS.packArraysChunksOfD n $ D.map A.unsafeThaw str
 
 -- XXX instead of writing two different versions of this operation, we should
 -- write it as a pipe.

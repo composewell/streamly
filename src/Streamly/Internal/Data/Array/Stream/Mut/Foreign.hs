@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
       arraysOf
 
     -- * Compaction
-    , packArraysChunksOf
+    , packArraysChunksOfD
     , packArraysChunksOfSerial
     , SpliceState (..)
     , lpackArraysChunksOf
@@ -82,11 +82,11 @@ data SpliceState s arr
 -- if the size would exceed the specified size we do not coalesce therefore the
 -- actual array size may be less than the specified chunk size.
 --
--- @since 0.7.0
-{-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Storable a)
+-- /Internal/
+{-# INLINE_NORMAL packArraysChunksOfD #-}
+packArraysChunksOfD :: (MonadIO m, Storable a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
-packArraysChunksOf n (D.Stream step state) =
+packArraysChunksOfD n (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
 
     where
@@ -135,7 +135,7 @@ packArraysChunksOf n (D.Stream step state) =
 packArraysChunksOfSerial :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
 packArraysChunksOfSerial n (SerialT xs) =
-    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
+    SerialT $ D.toStreamK $ packArraysChunksOfD n (D.fromStreamK xs)
 
 -- XXX Remove this once compactLEFold is implemented
 -- lpackArraysChunksOf = Fold.many compactLEFold
@@ -206,7 +206,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
 compact n (SerialT xs) =
-    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
+    SerialT $ D.toStreamK $ packArraysChunksOfD n (D.fromStreamK xs)
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
