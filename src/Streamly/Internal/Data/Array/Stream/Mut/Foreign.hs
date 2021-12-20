@@ -15,7 +15,7 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
 
     -- * Compaction
     , packArraysChunksOfD
-    , packArraysChunksOfSerial
+    , packArraysChunksOf
     , SpliceState (..)
     , lpackArraysChunksOf
     , compactLEParserD
@@ -69,6 +69,7 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
+-- XXX We need to check the performance and remove accordingly
 -- XXX This can be removed once compactLEFold/compactLE are implemented.
 --
 -- | This mutates the first array (if it has space) to append values from the
@@ -128,13 +129,11 @@ packArraysChunksOfD n (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
--- XXX This should be the real packArraysChunksOf
--- XXX Added specifically for benchmarking
 -- | "packArraysChunksOf" buy wrapped as a SerialT stream
-{-# INLINE_NORMAL packArraysChunksOfSerial #-}
-packArraysChunksOfSerial :: (MonadIO m, Storable a)
+{-# INLINE_NORMAL packArraysChunksOf #-}
+packArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
-packArraysChunksOfSerial n (SerialT xs) =
+packArraysChunksOf n (SerialT xs) =
     SerialT $ D.toStreamK $ packArraysChunksOfD n (D.fromStreamK xs)
 
 -- XXX Remove this once compactLEFold is implemented

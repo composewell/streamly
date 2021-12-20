@@ -219,14 +219,13 @@ writeReadChunksWithBufferOfStream :: Handle -> Handle -> IO ()
 writeReadChunksWithBufferOfStream inh devNull =
     S.drain
         $ S.mapM (FH.putChunk devNull . IA.unsafeFreeze)
-        $ MAS.packArraysChunksOfSerial defaultChunkSize
+        $ MAS.packArraysChunksOf defaultChunkSize
         $ S.map IA.unsafeThaw $ S.unfold unf (defaultChunkSize, inh)
 
     where
 
     unf = FH.readChunksWithBufferOf
 
--- XXX Inspection testing fails here!
 -- XXX Make sure we include all the types
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadChunksWithBufferOfStream
@@ -269,7 +268,7 @@ o_1_space_copy env =
               $ \inh _ -> writeReadChunksWithBufferOf inh (nullH env)
         , mkBench "compactLE . FH.readChunksWithBufferOf" env
               $ \inh _ -> writeReadChunksWithBufferOfStream_ inh (nullH env)
-        , mkBench "packArraysChunksOfSerial . FH.readChunksWithBufferOf" env
+        , mkBench "packArraysChunksOf . FH.readChunksWithBufferOf" env
               $ \inh _ -> writeReadChunksWithBufferOfStream inh (nullH env)
         ]
     ]
