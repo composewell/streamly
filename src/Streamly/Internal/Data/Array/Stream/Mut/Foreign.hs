@@ -74,6 +74,7 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
+-- XXX We need to use length instead of byteLength
 -- XXX We need to check the performance and remove accordingly
 -- XXX This can be removed once compactLEFold/compactLE are implemented.
 --
