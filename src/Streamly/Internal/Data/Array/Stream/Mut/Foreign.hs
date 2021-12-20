@@ -296,7 +296,7 @@ compactGEFold n = Fold step initial extract
         then return $ FL.Done buf2
         else return $ FL.Partial (Just buf2)
 
-    extract Nothing = error $ functionPath ++ ": The slice buffer is empty"
+    extract Nothing = return MArray.nil
     extract (Just buf) = return buf
 
     functionPath =
