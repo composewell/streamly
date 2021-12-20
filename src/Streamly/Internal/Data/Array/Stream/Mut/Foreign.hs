@@ -281,12 +281,12 @@ compactGEFold n = Fold step initial extract
 
     step Nothing arr =
         return
-            $ let len = MArray.byteLength arr
+            $ let len = MArray.length arr
                in if len >= n
                   then FL.Done arr
                   else FL.Partial (Just arr)
     step (Just buf) arr = do
-        let len = MArray.byteLength buf + MArray.byteLength arr
+        let len = MArray.length buf + MArray.length arr
         buf1 <-
             if MArray.byteCapacity buf < len
             then liftIO $ MArray.realloc len buf
