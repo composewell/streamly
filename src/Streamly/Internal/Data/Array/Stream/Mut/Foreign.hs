@@ -233,12 +233,12 @@ compactLEParserD n = ParserD.Parser step initial extract
 
     step Nothing arr =
         return
-            $ let len = MArray.byteLength arr
+            $ let len = MArray.length arr
                in if len >= n
                   then ParserD.Done 0 arr
                   else ParserD.Partial 0 (Just arr)
     step (Just buf) arr =
-        let len = MArray.byteLength buf + MArray.byteLength arr
+        let len = MArray.length buf + MArray.length arr
          in if len > n
             then return $ ParserD.Done 1 buf
             else do
