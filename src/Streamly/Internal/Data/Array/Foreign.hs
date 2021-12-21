@@ -309,7 +309,7 @@ writeLastN n
 
     initial =
         let f (a, b) = FL.Partial $ Tuple3' a b (0 :: Int)
-         in fmap f $ liftIO $ RB.new n
+         in fmap f $ liftIO $ RB.unsafeNew n
 
     done (Tuple3' rb rh i) = do
         arr <- liftIO $ MA.newArray n
