@@ -21,6 +21,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , unsafeThaw
 
     -- * Construction
+    , nil
     , splice
 
     , fromPtr

@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Array.Foreign
       Array
 
     -- * Construction
+    , A.nil
 
     -- Pure, From Static Memory (Unsafe)
     -- We can use fromPtrM#, fromCStringM# and fromAddrM# to create arrays from
