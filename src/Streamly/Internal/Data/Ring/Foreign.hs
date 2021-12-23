@@ -64,6 +64,8 @@ module Streamly.Internal.Data.Ring.Foreign
     -- * Fast Byte Comparisons
     , unsafeEqArray
     , unsafeEqArrayN
+
+    , slidingWindow
     ) where
 
 #include "inline.hs"
@@ -78,7 +80,7 @@ import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -506,3 +508,48 @@ unsafeFoldRingNM count rh f z rb@Ring {..} =
         if ptr == rh || n == 0
             then return acc'
             else go (n - 1) acc' ptr
+
+data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+
+-- | @slidingWindow collector@ is an incremental sliding window
+-- fold that does not require all the intermediate elements in a computation.
+-- This maintains n elements in the window, when a new element comes it slides
+-- out the oldest element and the new element along with the old element are
+-- supplied to the collector fold.
+--
+-- The Maybe is for the case when initially the window is filling and
+-- there is no old element.
+--
+{-# INLINE slidingWindow #-}
+slidingWindow :: forall m a b. (MonadIO m, Storable a)
+    => Int -> Fold m (a, Maybe a) b -> Fold m a b
+slidingWindow n (Fold step1 initial1 extract1)= Fold step initial extract
+
+    where
+
+    initial = do
+        r <- initial1
+        (rb, rh) <- liftIO $ new n
+        return $
+            case r of
+                Partial s -> Partial $ Tuple4' rb rh (0 :: Int) s
+                Done b -> Done b
+
+    step (Tuple4' rb rh i st) a
+        | i < n = do
+            rh1 <- liftIO $ unsafeInsert rb rh a
+            r <- step1 st (a, Nothing)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+        | otherwise = do
+            old <- liftIO $ peek rh
+            rh1 <- liftIO $ unsafeInsert rb rh a
+            r <- step1 st (a, Just old)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+
+    extract (Tuple4' _ _ _ st) = extract1 st
