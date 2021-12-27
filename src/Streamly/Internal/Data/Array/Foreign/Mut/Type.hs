@@ -547,14 +547,6 @@ withNewArrayUnsafe count f = do
 -- Random writes
 -------------------------------------------------------------------------------
 
--- | Write an input stream of (index, value) pairs to an array. Throws an
--- error if any index is out of bounds.
---
--- /Unimplemented/
-{-# INLINE putIndices #-}
-putIndices :: Array a -> Fold m (Int, a) ()
-putIndices = undefined
-
 -- | Write the given element to the given index of the array. Does not check if
 -- the index is out of bounds of the array.
 --
@@ -596,6 +588,23 @@ putIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
 putIndex arr i x =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> putIndexPtr p (aEnd arr) i x
+
+-- | Write an input stream of (index, value) pairs to an array. Throws an
+-- error if any index is out of bounds.
+--
+-- /Pre-release/
+{-# INLINE putIndices #-}
+putIndices :: forall m a. (MonadIO m, Storable a)
+    => Array a -> Fold m (Int, a) ()
+putIndices Array{..} = FL.mkFoldM step initial extract
+
+    where
+
+    initial = return $ FL.Partial ()
+
+    step () (i, x) = FL.Partial <$> liftIO (putIndexPtr arrStart aEnd i x)
+
+    extract () = liftIO $ touch arrContents
 
 -- | Modify a given index of an array using a modifier function.
 --
