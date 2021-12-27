@@ -147,6 +147,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , shuffleBy
     , divideBy
     , mergeBy
+    , mergeOrdered
 
     -- * Casting
     , cast
@@ -1169,6 +1170,50 @@ divideBy = undefined
 -- /Unimplemented/
 mergeBy :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
 mergeBy = undefined
+
+-- | Merge two ordered Array
+--
+-- /Pre-release/
+mergeOrdered :: forall m a. (MonadIO m, Storable a, Ord a)
+    => Array a -> Array a -> m (Array a)
+mergeOrdered ar1 ar2 = do
+    let len1 = length ar1
+        len2 = length ar2
+        i = 0 :: Int
+        j = 0 :: Int
+    arr :: Array a <- newArray (len1 + len2)
+    go arr i j
+    where
+    go arr i j = do
+        if (i < length ar1) && (j < length ar2)
+        then do
+            a1 <- getIndex ar1 i
+            a2 <- getIndex ar2 j
+            if a1 < a2
+            then do
+                x <- snoc arr a1
+                go x (i + 1) j
+            else do
+                x <- snoc arr a2
+                go x i (j + 1)
+        else do
+            ff <- if i < length ar1
+                    then do
+                        a1 <- getIndex ar1 i
+                        x <- snoc arr a1
+                        go x (i + 1) j
+                    else return arr
+
+            ss <- if j < length ar2
+                    then do
+                        a2 <- getIndex ar2 j
+                        x <- snoc arr a2
+                        go x i (j + 1)
+                    else return arr
+
+            if length ff > length ss
+            then return ff
+            else return ss
 
 -------------------------------------------------------------------------------
 -- Size
