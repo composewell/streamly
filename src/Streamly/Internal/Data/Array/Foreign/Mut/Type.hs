@@ -195,6 +195,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- , appendSliceFrom
 
     -- * Utilities
+    , roundUpToPower2
     , memcpy
     , memcmp
     , c_memchr
@@ -202,6 +203,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 where
 
 #include "inline.hs"
+#include "MachDeps.h"
 
 #ifdef USE_C_MALLOC
 #define USE_FOREIGN_PTR
@@ -211,7 +213,7 @@ import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Bits ((.&.))
+import Data.Bits (shiftR, (.|.), (.&.))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -687,10 +689,21 @@ roundUpLargeArray size =
             ((size + blockSize - 1) .&. negate blockSize)
     else size
 
-{-
 roundUpToPower2 :: Int -> Int
-roundUpToPower2 = undefined
--}
+roundUpToPower2 x =
+#if WORD_SIZE_IN_BITS == 64
+    1 + z6
+#else
+    1 + z5
+#endif
+    where
+    z = x - 1
+    z1 = z .|. z `shiftR` 1
+    z2 = z1 .|. z1 `shiftR` 2
+    z3 = z2 .|. z2 `shiftR` 4
+    z4 = z3 .|. z3 `shiftR` 8
+    z5 = z4 .|. z4 `shiftR` 16
+    z6 = z5 .|. z5 `shiftR` 32
 
 -- | @allocBytesToBytes elem allocatedBytes@ returns the array size in bytes
 -- such that the real allocation is less than or equal to @allocatedBytes@,
