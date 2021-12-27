@@ -1163,10 +1163,22 @@ getSlice index len (Array contents start e _) =
 -- to another array. However, in-place reverse can be useful to take adavantage
 -- of cache locality and when you do not want to allocate additional memory.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE reverse #-}
-reverse :: Array a -> m Bool
-reverse = undefined
+reverse :: forall m a. (MonadIO m, Storable a) => Array a -> m ()
+reverse Array{..} = liftIO $ do
+    let l = arrStart
+        h = aEnd `plusPtr` (- elemSize)
+     in swap l h
+
+    where
+
+    elemSize = sizeOf (undefined :: a)
+
+    swap l h = do
+        when (l < h) $ do
+            swapPtrs l h
+            swap (l `plusPtr` elemSize) (h `plusPtr` (- elemSize))
 
 -- | Generate the next permutation of the sequence, returns False if this is
 -- the last permutation.
