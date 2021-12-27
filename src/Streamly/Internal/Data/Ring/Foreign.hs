@@ -538,6 +538,7 @@ slidingWindow n (Fold step1 initial1 extract1)= Fold step initial extract
     step (Tuple4' rb rh i st) a
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
+            liftIO $ touchForeignPtr (ringStart rb)
             r <- step1 st (a, Nothing)
             return $
                 case r of
@@ -546,6 +547,7 @@ slidingWindow n (Fold step1 initial1 extract1)= Fold step initial extract
         | otherwise = do
             old <- liftIO $ peek rh
             rh1 <- liftIO $ unsafeInsert rb rh a
+            liftIO $ touchForeignPtr (ringStart rb)
             r <- step1 st (a, Just old)
             return $
                 case r of
