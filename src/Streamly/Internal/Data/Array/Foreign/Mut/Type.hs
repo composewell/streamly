@@ -94,13 +94,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , appendWith
     , append
 
-    -- ** Truncation
-    -- These are not the same as slicing the array at the beginning, they may
-    -- reduce the length as well as the capacity of the array.
-    , truncateWith
-    , truncate
-    , truncateExp
-
     -- * Eliminating and Reading
 
     -- ** To streams
@@ -826,27 +819,29 @@ snocMay arr@Array{..} x = liftIO $ do
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
 
+-- | @reallocWith label capSizer minIncrement array@. The label is used
+-- in error messages and the capSizer is used to determine the capacity of the
+-- new array in bytes given the current byte length of the array.
 reallocWith :: forall m a. (MonadIO m , Storable a) =>
        String
     -> (Int -> Int)
     -> Int
     -> Array a
     -> m (Array a)
-reallocWith label sizer reqSize arr = do
+reallocWith label capSizer minIncr arr = do
     let oldSize = aEnd arr `minusPtr` arrStart arr
-        newSize = sizer oldSize
-        safeSize = max newSize (oldSize + reqSize)
-        rounded = roundUpLargeArray safeSize
-    assert (newSize >= oldSize + reqSize || error badSize) (return ())
-    assert (rounded >= safeSize) (return ())
-    realloc rounded arr
+        newCap = capSizer oldSize
+        newSize = oldSize + minIncr
+        safeCap = max newCap newSize
+    assert (newCap >= newSize || error (badSize newSize)) (return ())
+    realloc safeCap arr
 
     where
 
-    badSize = concat
+    badSize newSize = concat
         [ label
         , ": new array size is less than required size "
-        , show reqSize
+        , show newSize
         , ". Please check the sizing function passed."
         ]
 
@@ -924,57 +919,88 @@ snoc = snocWith (* 2)
 -- Resizing
 -------------------------------------------------------------------------------
 
+-- | Round the second argument down to multiples of the first argument.
+roundDownTo :: Int -> Int -> Int
+roundDownTo elemSize size = size - (size `mod` elemSize)
+
 -- XXX See if resizing can be implemented by reading the old array as a stream
 -- and then using writeN to the new array.
 --
--- | Reallocate the array to the specified size in bytes. If the size is less
--- than the original array the array gets truncated.
 {-# NOINLINE reallocAligned #-}
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
-reallocAligned elemSize alignSize newSize Array{..} = do
+reallocAligned elemSize alignSize newCapacity Array{..} = do
     assert (aEnd <= aBound) (return ())
+
+    -- Allocate new array
+    let newCapMax = roundUpLargeArray newCapacity
+    (contents, pNew) <- newAlignedArrayContents newCapMax alignSize
+
+    -- Copy old data
     let oldStart = arrStart
         oldSize = aEnd `minusPtr` oldStart
+        newCap = roundDownTo elemSize newCapMax
+        newLen = min oldSize newCap
     assert (oldSize `mod` elemSize == 0) (return ())
-    (contents, pNew) <- newAlignedArrayContents newSize alignSize
-    let size = min oldSize newSize
-    assert (size >= 0) (return ())
-    assert (size `mod` elemSize == 0) (return ())
-    memcpy (castPtr pNew) (castPtr oldStart) size
+    assert (newLen >= 0) (return ())
+    assert (newLen `mod` elemSize == 0) (return ())
+    memcpy (castPtr pNew) (castPtr oldStart) newLen
     touch arrContents
+
     return $ Array
         { arrStart = pNew
         , arrContents = contents
-        , aEnd   = pNew `plusPtr` (size - (size `mod` elemSize))
-        , aBound = pNew `plusPtr` newSize
+        , aEnd   = pNew `plusPtr` newLen
+        , aBound = pNew `plusPtr` newCap
         }
 
+-- | @realloc newCapacity array@ reallocates the array to the specified
+-- capacity in bytes.
+--
+-- If the new size is less than the original array the array gets truncated.
+-- If the new size is not a multiple of array element size then it is rounded
+-- down to multiples of array size.  If the new size is more than
+-- 'largeObjectThreshold' then it is rounded up to the block size (4K).
+--
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
-realloc i arr =
-    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) i arr
+realloc n arr =
+    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) n arr
 
--- | Change the reserved memory of the array so that it is enough to hold the
--- specified number of elements.  Nothing is done if the specified capacity is
--- less than the length of the array.
+-- | @resize newCapacity array@ changes the total capacity of the array so that
+-- it is enough to hold the specified number of elements.  Nothing is done if
+-- the specified capacity is less than the length of the array.
 --
 -- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
 -- the block size (4K).
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE resize #-}
-resize :: -- (MonadIO m, Storable a) =>
+resize :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resize = undefined
+resize n arr@Array{..} = do
+    let req = SIZE_OF(a) * n
+        len = aEnd `minusPtr` arrStart
+    if req < len
+    then return arr
+    else realloc req arr
 
 -- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
 -- it is rounded up to the closest power of 2.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE resizeExp #-}
-resizeExp :: -- (MonadIO m, Storable a) =>
+resizeExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resizeExp = undefined
+resizeExp n arr@Array{..} = do
+    let req = roundUpLargeArray (SIZE_OF(a) * n)
+        req1 =
+            if req > largeObjectThreshold
+            then roundUpToPower2 req
+            else req
+        len = aEnd `minusPtr` arrStart
+    if req1 < len
+    then return arr
+    else realloc req1 arr
 
 -- | Resize the allocated memory to drop any reserved free space at the end of
 -- the array and reallocate it to reduce wastage.
@@ -999,40 +1025,6 @@ rightSize arr@Array{..} = do
     if target < capacity && len < 3 * waste
     then realloc target arr
     else return arr
-
--------------------------------------------------------------------------------
--- Reducing the length
--------------------------------------------------------------------------------
-
--- XXX Either slice the array or stream it and write it out to a new array?
---
--- | Drop the last n elements of the array to reduce the length by n. The
--- capacity is reallocated using the user supplied function.
---
--- /Unimplemented/
-{-# INLINE truncateWith #-}
-truncateWith :: -- (MonadIO m, Storable a) =>
-    Int -> (Int -> Int) -> Array a -> m (Array a)
-truncateWith = undefined
-
--- | Drop the last n elements of the array to reduce the length by n.
---
--- The capacity is rounded to 1K or 4K if the length is more than the GHC large
--- block threshold.
---
--- /Unimplemented/
-{-# INLINE truncate #-}
-truncate :: -- (MonadIO m, Storable a) =>
-    Int -> Array a -> m (Array a)
-truncate = undefined
-
--- | Like 'truncate' but the capacity is rounded to the closest power of 2.
---
--- /Unimplemented/
-{-# INLINE truncateExp #-}
-truncateExp :: -- (MonadIO m, Storable a) =>
-    Int -> Array a -> m (Array a)
-truncateExp = undefined
 
 -------------------------------------------------------------------------------
 -- Random reads
