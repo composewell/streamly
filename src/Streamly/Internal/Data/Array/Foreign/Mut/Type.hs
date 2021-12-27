@@ -74,6 +74,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , modifyIndices
     , modify
     , swapIndices
+    , unsafeSwapIndices
 
     -- * Growing and Shrinking
     -- Arrays grow only at the end, though it is possible to grow on both sides
@@ -652,12 +653,41 @@ modify Array{..} f = liftIO $
             poke ptr (f r)
             go (ptr `plusPtr` elemSize)
 
+{-# INLINE swapPtrs #-}
+swapPtrs :: Storable a => Ptr a -> Ptr a -> IO ()
+swapPtrs ptr1 ptr2 = do
+    r1 <- peek ptr1
+    r2 <- peek ptr2
+    poke ptr1 r2
+    poke ptr2 r1
+
+-- | Swap the elements at two indices without validating the indices.
+--
+-- /Unsafe/: This could result in memory corruption if indices are not valid.
+--
+-- /Pre-release/
+{-# INLINE unsafeSwapIndices #-}
+unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
+    => Array a -> Int -> Int -> m ()
+unsafeSwapIndices Array{..} i1 i2 = liftIO $ do
+    unsafeWithArrayContents arrContents arrStart $ \ptr -> do
+        let elemSize = sizeOf (undefined :: a)
+            ptr1 = ptr `plusPtr` (elemSize * i1)
+            ptr2 = ptr `plusPtr` (elemSize * i2)
+        swapPtrs ptr1 (ptr2 :: Ptr a)
+
 -- | Swap the elements at two indices.
 --
 -- /Pre-release/
-swapIndices :: -- (MonadIO m, Storable a) =>
-    Array a -> Int -> Int -> m ()
-swapIndices = undefined
+swapIndices :: forall m a. (MonadIO m, Storable a)
+    => Array a -> Int -> Int -> m ()
+swapIndices Array{..} i1 i2 = liftIO $ do
+        let elemSize = sizeOf (undefined :: a)
+            ptr1 = arrStart `plusPtr` (elemSize * i1)
+            ptr2 = arrStart `plusPtr` (elemSize * i2)
+        when (i1 < 0 || ptr1 >= aEnd ) $ invalidIndex "swapIndices" i1
+        when (i2 < 0 || ptr2 >= aEnd ) $ invalidIndex "swapIndices" i2
+        swapPtrs ptr1 (ptr2 :: Ptr a)
 
 -------------------------------------------------------------------------------
 -- Rounding
