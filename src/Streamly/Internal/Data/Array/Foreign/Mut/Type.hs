@@ -635,10 +635,20 @@ modifyIndices = undefined
 
 -- | Modify each element of an array using the supplied modifier function.
 --
--- /Unimplemented/
-modify :: -- forall m a b. (MonadIO m, Storable a) =>
-    Array a -> (a -> a) -> m ()
-modify = undefined
+-- /Pre-release/
+modify :: forall m a. (MonadIO m, Storable a)
+    => Array a -> (a -> a) -> m ()
+modify Array{..} f = liftIO $
+    unsafeWithArrayContents arrContents arrStart go
+
+    where
+
+    go ptr = do
+        let elemSize = sizeOf (undefined :: a)
+        when (ptr `plusPtr` elemSize <= aEnd) $ do
+            r <- peek ptr
+            poke ptr (f r)
+            go (ptr `plusPtr` elemSize)
 
 -- | Swap the elements at two indices.
 --
