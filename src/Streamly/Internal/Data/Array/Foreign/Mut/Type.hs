@@ -1206,10 +1206,49 @@ permute = undefined
 -- first half retains values where the predicate is 'False' and the second half
 -- retains values where the predicate is 'True'.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE partitionBy #-}
-partitionBy :: (a -> Bool) -> Array a -> m (Array a, Array a)
-partitionBy = undefined
+partitionBy :: forall m a. (MonadIO m, Storable a)
+    => (a -> Bool) -> Array a -> m (Array a, Array a)
+partitionBy f arr = do
+    let low = 0
+        high = length arr - 1
+    swap low high arr
+
+    where
+
+    findL low = do
+        if length arr == low
+        then return low
+        else do
+            fw <- getIndex arr low
+            if not (f fw)
+            then findL (low + 1)
+            else return low
+
+    findR high = do
+        fw <- getIndex arr high
+        if f fw && high > 0
+        then findR (high - 1)
+        else return high
+
+    swap low high arr0 = do
+        if low < high
+        then do
+            left <- findL low
+            right <- findR high
+            if left < right
+            then do
+                unsafeSwapIndices arr0 left right
+                swap (left + 1) (right - 1) arr0
+            else do
+                let al = getSlice 0 left arr0
+                    ar = getSlice left (length arr0 - left) arr0
+                return (al, ar)
+        else do
+            let al = getSlice 0 low arr0
+                ar = getSlice low (length arr0 - low) arr0
+            return (al, ar)
 
 -- | Shuffle corresponding elements from two arrays using a shuffle function.
 -- If the shuffle function returns 'False' then do nothing otherwise swap the
