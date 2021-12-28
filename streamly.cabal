@@ -507,6 +507,8 @@ library
 
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.Utf8.Type
+                     , Streamly.Internal.Unicode.Utf8.Transform
                      , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Unicode.Char.Parser
