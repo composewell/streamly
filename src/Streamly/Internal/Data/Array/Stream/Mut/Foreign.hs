@@ -247,6 +247,55 @@ compactLEParserD n = ParserD.Parser step initial extract
         "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactLEParserD"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- minimum specified size. Note that if all the arrays in the stream together
+-- are smaller than the specified size the resulting array will be smaller than
+-- the specified size. When we coalesce multiple arrays if the size would exceed
+-- the specified size we stop coalescing further.
+--
+-- /Internal/
+{-# INLINE_NORMAL compactGEFold #-}
+compactGEFold ::
+       forall m a. (MonadIO m, Storable a)
+    => Int -> FL.Fold m (Array a) (Array a)
+compactGEFold n = Fold step initial extract
+
+    where
+
+    nBytes = n * sizeOf (undefined :: a)
+
+    initial =
+        return
+            $ if n < 0
+              then error
+                       $ functionPath
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else FL.Partial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = MArray.byteLength arr
+               in if len >= nBytes
+                  then FL.Done arr
+                  else FL.Partial (Just arr)
+    step (Just buf) arr = do
+        let len = MArray.byteLength buf + MArray.byteLength arr
+        buf1 <-
+            if MArray.byteCapacity buf < len
+            then liftIO $ MArray.realloc (max len nBytes) buf
+            else return buf
+        buf2 <- MArray.splice buf1 arr
+        if len >= n
+        then return $ FL.Done buf2
+        else return $ FL.Partial (Just buf2)
+
+    extract Nothing = return MArray.nil
+    extract (Just buf) = return buf
+
+    functionPath =
+        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactGEFold"
+
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
 --
 -- /Internal/
@@ -268,9 +317,10 @@ compactEQ _n _xs = undefined
 -- | Like 'compactLE' but generates arrays of size greater than or equal to the
 -- specified except for the last array in the stream which could be shorter.
 --
--- /Unimplemented/
+-- /Internal/
 {-# INLINE compactGE #-}
-compactGE :: -- (MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactGE _n _xs = undefined
-    -- IsStream.fromStreamD $ D.foldMany (compactGEFold n) (IsStream.toStreamD xs)
+compactGE ::
+       (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+compactGE n (SerialT xs) =
+     SerialT $ D.toStreamK $ D.foldMany (compactGEFold n) (D.fromStreamK xs)
