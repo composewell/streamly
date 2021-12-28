@@ -14,9 +14,13 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
       arraysOf
 
     -- * Compaction
+    , packArraysChunksOfD
     , packArraysChunksOf
     , SpliceState (..)
     , lpackArraysChunksOf
+    , compactLEParserD
+    , compactEQArrFold
+    , compactGEFold
     , compact
     , compactLE
     , compactEQ
@@ -28,6 +32,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
+import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
@@ -38,8 +43,13 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as AStream
+-- XXX Causes cyclic dependency
+-- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AStream
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -64,6 +74,8 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
+-- XXX We need to use length instead of byteLength
+-- XXX We need to check the performance and remove accordingly
 -- XXX This can be removed once compactLEFold/compactLE are implemented.
 --
 -- | This mutates the first array (if it has space) to append values from the
@@ -77,11 +89,11 @@ data SpliceState s arr
 -- if the size would exceed the specified size we do not coalesce therefore the
 -- actual array size may be less than the specified chunk size.
 --
--- @since 0.7.0
-{-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Storable a)
+-- /Internal/
+{-# INLINE_NORMAL packArraysChunksOfD #-}
+packArraysChunksOfD :: (MonadIO m, Storable a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
-packArraysChunksOf n (D.Stream step state) =
+packArraysChunksOfD n (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
 
     where
@@ -122,6 +134,13 @@ packArraysChunksOf n (D.Stream step state) =
     step' _ SpliceFinish = return D.Stop
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
+
+-- | "packArraysChunksOf" buy wrapped as a SerialT stream
+{-# INLINE_NORMAL packArraysChunksOf #-}
+packArraysChunksOf :: (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+packArraysChunksOf n (SerialT xs) =
+    SerialT $ D.toStreamK $ packArraysChunksOfD n (D.fromStreamK xs)
 
 -- XXX Remove this once compactLEFold is implemented
 -- lpackArraysChunksOf = Fold.many compactLEFold
@@ -192,10 +211,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
 compact n (SerialT xs) =
-    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
+    SerialT $ D.toStreamK $ packArraysChunksOfD n (D.fromStreamK xs)
 
--- See lpackArraysChunksOf/packArraysChunksOf to implement this.
---
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
 -- specified size we do not split it to fit. When we coalesce multiple arrays
@@ -203,19 +220,152 @@ compact n (SerialT xs) =
 -- actual array size may be less than the specified chunk size.
 --
 -- /Unimplemented/
-{-# INLINE_NORMAL compactLEFold #-}
-compactLEFold :: -- (MonadIO m, Storable a) =>
-    Int -> Fold m (Array a) (Array a)
-compactLEFold = undefined
+{-# INLINE_NORMAL compactLEParserD #-}
+compactLEParserD ::
+       (MonadThrow m, MonadIO m, Storable a)
+    => Int -> ParserD.Parser m (Array a) (Array a)
+compactLEParserD n = ParserD.Parser step initial extract
+
+    where
+
+    initial =
+        return
+            $ if n <= 0
+              then error
+                       $ functionPath
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else ParserD.IPartial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = MArray.length arr
+               in if len >= n
+                  then ParserD.Done 0 arr
+                  else ParserD.Partial 0 (Just arr)
+    step (Just buf) arr =
+        let len = MArray.length buf + MArray.length arr
+         in if len > n
+            then return $ ParserD.Done 1 buf
+            else do
+                buf1 <-
+                    if MArray.byteCapacity buf < n
+                    then liftIO $ MArray.realloc n buf
+                    else return buf
+                buf2 <- MArray.splice buf1 arr
+                return $ ParserD.Partial 0 (Just buf2)
+
+    extract Nothing = return MArray.nil
+    extract (Just buf) = return buf
+
+    functionPath =
+        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactLEParserD"
+
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size. When we coalesce multiple arrays if the size would
+-- exceed the specified size we stop the fold. It might be possible to get an
+-- array that is smaller than the specified size if all the arrays together in
+-- the incoming stream are smaller than the specified size.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL compactGEFold #-}
+compactGEFold ::
+       (MonadIO m, Storable a)
+    => Int -> FL.Fold m (Array a) (Array a)
+compactGEFold n = Fold step initial extract
+
+    where
+
+    initial =
+        return
+            $ if n <= 0
+              then error
+                       $ functionPath
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else FL.Partial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = MArray.length arr
+               in if len >= n
+                  then FL.Done arr
+                  else FL.Partial (Just arr)
+    step (Just buf) arr = do
+        let len = MArray.length buf + MArray.length arr
+        buf1 <-
+            if MArray.byteCapacity buf < len
+            then liftIO $ MArray.realloc len buf
+            else return buf
+        buf2 <- MArray.splice buf1 arr
+        if len >= n
+        then return $ FL.Done buf2
+        else return $ FL.Partial (Just buf2)
+
+    extract Nothing = return MArray.nil
+    extract (Just buf) = return buf
+
+    functionPath =
+        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactGEFold"
+
+-- XXX Use a mutable version of AStream.Fold
+compactEQArrFold ::
+       forall m a. (MonadThrow m, MonadIO m, Storable a)
+    => Int -> AStream.Fold m a (Array a)
+compactEQArrFold n = AStream.Fold $ ParserD.Parser step initial extract
+
+    where
+
+    initial =
+        return
+            $ if n <= 0
+              then error
+                       $ functionPath
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else ParserD.IPartial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = Array.length arr
+                  marr = Array.unsafeThaw arr
+               in if len == n
+                  then ParserD.Done 0 marr
+                  else if len < n
+                       then ParserD.Partial 0 (Just marr)
+                       else ParserD.Done
+                                (len - n)
+                                (MArray.getSliceUnsafe 0 n marr)
+    step (Just buf) arr = do
+        let len = MArray.length buf + Array.length arr
+            requiredBytes = n * sizeOf (undefined :: a)
+        buf1 <-
+            if MArray.byteCapacity buf < requiredBytes
+            then liftIO $ MArray.realloc requiredBytes buf
+            else return buf
+        buf2 <- MArray.splice buf1 (Array.unsafeThaw arr)
+        return
+            $ if len == n
+              then ParserD.Done 0 buf2
+              else if len < n
+                   then ParserD.Partial 0 (Just buf2)
+                   else ParserD.Done (len - n) (MArray.getSliceUnsafe 0 n buf2)
+
+    extract Nothing = return MArray.nil
+    extract (Just buf) = return buf
+
+    functionPath =
+        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactEQArrFold"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
 --
 -- /Internal/
-compactLE :: (MonadIO m {-, Storable a-}) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
+compactLE ::
+       (MonadIO m, MonadThrow m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
 compactLE n (SerialT xs) =
-    SerialT $ D.toStreamK $ D.foldMany (compactLEFold n) (D.fromStreamK xs)
+    SerialT $ D.toStreamK $ D.parseMany (compactLEParserD n) (D.fromStreamK xs)
 
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
@@ -224,15 +374,21 @@ compactLE n (SerialT xs) =
 {-# INLINE compactEQ #-}
 compactEQ :: -- (MonadIO m, Storable a) =>
     Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactEQ _n _xs = undefined
-    -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
+compactEQ = undefined
+{-
+compactEQ n (SerialT xs) =
+    SerialT
+        $ D.toStreamK
+        $ AStream.foldArrManyD (compactEQArrFold n) (D.fromStreamK xs)
+-}
 
 -- | Like 'compactLE' but generates arrays of size greater than or equal to the
 -- specified except for the last array in the stream which could be shorter.
 --
 -- /Unimplemented/
 {-# INLINE compactGE #-}
-compactGE :: -- (MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactGE _n _xs = undefined
-    -- IsStream.fromStreamD $ D.foldMany (compactGEFold n) (IsStream.toStreamD xs)
+compactGE ::
+       (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+compactGE n (SerialT xs) =
+     SerialT $ D.toStreamK $ D.foldMany (compactGEFold n) (D.fromStreamK xs)
