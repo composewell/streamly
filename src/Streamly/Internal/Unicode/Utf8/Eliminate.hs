@@ -26,7 +26,8 @@ module Streamly.Internal.Unicode.Utf8.Eliminate
     -- * Predicates
     , isPrefixOf
     , isSuffixOf
-    , isInfixOf
+    -- XXX isInfixOf takes too much memory to compile
+    -- , isInfixOf
 
     -- ** View patterns
     , stripPrefix
@@ -272,15 +273,17 @@ isPrefixOf a b =
 isSuffixOf :: Utf8 -> Utf8 -> Bool
 isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
 
+-- XXX This specific API uses a lot of memory to compile
+-- XXX Use domain specific knowledge to implement it efficiently!
 -- | /O(n+m)/ The 'isInfixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is contained, wholly and intact, anywhere
 -- within the second.
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
-{-# INLINE_NORMAL isInfixOf #-}
-isInfixOf :: Utf8 -> Utf8 -> Bool
-isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
+{-# INLINE_NORMAL _isInfixOf #-}
+_isInfixOf :: Utf8 -> Utf8 -> Bool
+_isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 
 --------------------------------------------------------------------------------
 -- View patterns
