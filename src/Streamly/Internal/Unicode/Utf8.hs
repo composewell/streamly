@@ -8,121 +8,20 @@
 --
 module Streamly.Internal.Unicode.Utf8
     (
-    -- * Type
-      Utf8
-    , toArray
 
-    -- * Creation and elimination
-    , empty
-    , singleton
-    , stream
-    , unstream
-    , pack
-    , unpack
-
-    -- * Basic interface
-    , cons
-    , snoc
-    , append
-    , uncons
-    , unsnoc
-    , head
-    , last
-    , tail
-    , init
-    , null
-
-    , isSingleton
-    , length
-    , compareLength
-
-    -- * Transformations
-    , map
-    , intercalate
-    , intersperse
-    , transpose
-    , reverse
-    , replace
-
-    -- ** Case conversion
-    -- $case
-    , toCaseFold
-    , toLower
-    , toTitle
-    , toUpper
-
-    -- ** Justification
-    , justifyLeft
-    , justifyRight
-    , center
+      module Streamly.Internal.Unicode.Utf8.Type
+    , module Streamly.Internal.Unicode.Utf8.Transform
+    , module Streamly.Internal.Unicode.Utf8.Eliminate
+    , module Streamly.Internal.Unicode.Utf8.Generate
+    , module Streamly.Internal.Unicode.Utf8.Reduce
 
     -- * Folds
-    , fold
-    , foldl
-    , foldl'
-    , foldl1
-    , foldl1'
-    , foldr
-    , foldr1
 
     -- ** Special folds
     , concat
     , concatMap
-    , any
-    , all
-    , maximum
-    , minimum
-
-    -- * Construction
-
-    -- ** Scans
-    , scanl
-    , scanl1
-    , scanl'
-    , scanl1'
-    , scanr
-    , scanr1
-
-    -- ** Accumulating maps
-    , mapAccumL
-    , mapAccumR
-
-    -- ** Generation and unfolding
-    , replicateChar
-    , replicate
-    , unfoldr
-    , unfoldrN
 
     -- * Substrings
-
-    -- ** Breaking strings
-    , take
-    , takeEnd
-    , drop
-    , dropEnd
-    , takeWhile
-    , takeWhileEnd
-    , dropWhile
-    , dropWhileEnd
-    , dropAround
-    , strip
-    , stripStart
-    , stripEnd
-    , splitAt
-    , breakOn
-    , breakOnEnd
-    , break
-    , span
-    , group
-    , groupBy
-    , inits
-    , tails
-
-    -- ** Breaking into many substrings
-    -- $split
-    , splitOn
-    , split
-    , chunksOf
 
     -- ** Breaking into lines and words
     , lines
@@ -131,41 +30,9 @@ module Streamly.Internal.Unicode.Utf8
     , unlines
     , unwords
 
-    -- * Predicates
-    , isPrefixOf
-    , isSuffixOf
-    , isInfixOf
-
-    -- ** View patterns
-    , stripPrefix
-    , stripSuffix
-    , commonPrefixes
-
-    -- * Searching
-    , filter
-    , breakOnAll
-    , find
-    , elem
-    , partition
-
-    -- , findSubstring
-
-    -- * Indexing
-    -- $index
-    , index
-    , findIndex
-    , countChar
-    , count
-
     -- * Zipping
     , zip
     , zipWith
-
-    -- * Folds
-    , write
-
-    -- * Unfolds
-    , read
 
     -- -* Ordered
     -- , sort
@@ -174,8 +41,6 @@ module Streamly.Internal.Unicode.Utf8
     -- , copy
     -- , unpackCString#
 
-    -- , module Streamly.Internal.Unicode.Utf8.Transform
-    -- , module Streamly.Internal.Unicode.Utf8.Transform.Type
     )
 where
 
