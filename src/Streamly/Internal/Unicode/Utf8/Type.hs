@@ -52,6 +52,7 @@ where
 --------------------------------------------------------------------------------
 
 import Control.DeepSeq (NFData)
+import Data.String (IsString(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold (Fold)
@@ -124,6 +125,14 @@ empty = Utf8 Array.nil
 
 singleton :: Char -> Utf8
 singleton x = pack [x]
+
+instance IsString Utf8 where
+    {-# INLINE fromString #-}
+    fromString = pack
+
+instance Show Utf8 where
+    {-# INLINE showsPrec #-}
+    showsPrec p ps r = showsPrec p (unpack ps) r
 
 --------------------------------------------------------------------------------
 -- Helpers

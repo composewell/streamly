@@ -128,7 +128,7 @@ import Prelude hiding
 --
 -- Example:
 --
--- >>> let message = pack "I am not angry. Not at all."
+-- >>> let message = Utf8.pack "I am not angry. Not at all."
 -- >>> Utf8.map (\c -> if c == '.' then '!' else c) message
 -- "I am not angry! Not at all!"
 --
