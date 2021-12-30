@@ -1230,7 +1230,7 @@ partitionBy = undefined
 --
 -- /Unimplemented/
 {-# INLINE shuffleBy #-}
-shuffleBy :: (a -> a -> m Bool) -> Array a -> Array a -> m (Array a)
+shuffleBy :: (a -> a -> m Bool) -> Array a -> Array a -> m ()
 shuffleBy = undefined
 
 -- XXX we can also make the folds partial by stopping at a certain level.
@@ -1246,19 +1246,19 @@ shuffleBy = undefined
 -- /Unimplemented/
 {-# INLINABLE divideBy #-}
 divideBy ::
-    Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+    Int -> (Array a -> m (Array a, Array a)) -> Array a -> m ()
 divideBy = undefined
 
 -- | @mergeBy level merge array@ performs a pairwise bottom up fold recursively
 -- merging the pairs using the supplied merge function. Level indicates the
 -- level in the tree where the fold would stop.
 --
--- This performs a random shuffle if the shuffle function is random.  If we
+-- This performs a random shuffle if the merge function is random.  If we
 -- stop at level 0 and repeatedly apply the function then we can do a bubble
 -- sort.
 --
 -- /Unimplemented/
-mergeBy :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+mergeBy :: Int -> (Array a -> Array a -> m ()) -> Array a -> m ()
 mergeBy = undefined
 
 -------------------------------------------------------------------------------
