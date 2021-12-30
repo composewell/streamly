@@ -316,6 +316,7 @@ stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
 stripPrefix p t =
     fmap unstream $ unsafePerformIO $ Stream.stripPrefix (stream p) (stream t)
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ Find the longest non-empty common prefix of two strings
 -- and return it, along with the suffixes of each string at which they
 -- no longer match.
@@ -325,13 +326,13 @@ stripPrefix p t =
 --
 -- Examples:
 --
--- >>> commonPrefixes "foobar" "fooquux"
+-- >> commonPrefixes "foobar" "fooquux"
 -- Just ("foo","bar","quux")
 --
--- >>> commonPrefixes "veeble" "fetzer"
+-- >> commonPrefixes "veeble" "fetzer"
 -- Nothing
 --
--- >>> commonPrefixes "" "baz"
+-- >> commonPrefixes "" "baz"
 -- Nothing
 commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8,Utf8,Utf8)
 commonPrefixes = undefined

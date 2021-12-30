@@ -107,7 +107,7 @@ splitAt = undefined
 -- of @t@ of elements that satisfy @p@, and whose second is the
 -- remainder of the list.
 --
--- >>> Utf8.span (=='0') "000AB"
+-- >> Utf8.span (=='0') "000AB"
 -- ("000","AB")
 {-# INLINE span #-}
 span :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
@@ -116,7 +116,7 @@ span = undefined
 -- | /O(n)/ 'break' is like 'span', but the prefix returned is
 -- over elements that fail the predicate @p@.
 --
--- >>> Utf8.break (=='c') "180cm"
+-- >> Utf8.break (=='c') "180cm"
 -- ("180","cm")
 {-# INLINE break #-}
 break :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
@@ -163,13 +163,13 @@ tails = undefined
 --
 -- Examples:
 --
--- >>> splitOn "\r\n" "a\r\nb\r\nd\r\ne"
+-- >> splitOn "\r\n" "a\r\nb\r\nd\r\ne"
 -- ["a","b","d","e"]
 --
--- >>> splitOn "aaa"  "aaaXaaaXaaaXaaa"
+-- >> splitOn "aaa"  "aaaXaaaXaaaXaaa"
 -- ["","X","X","X",""]
 --
--- >>> splitOn "x"    "x"
+-- >> splitOn "x"    "x"
 -- ["",""]
 --
 -- and
@@ -231,10 +231,10 @@ chunksOf k t =
 --
 -- Examples:
 --
--- >>> breakOn "::" "a::b::c"
+-- >> breakOn "::" "a::b::c"
 -- ("a","::b::c")
 --
--- >>> breakOn "/" "foobar"
+-- >> breakOn "/" "foobar"
 -- ("foobar","")
 --
 -- Laws:
@@ -252,6 +252,7 @@ chunksOf k t =
 breakOn :: Utf8 -> Utf8 -> (Utf8, Utf8)
 breakOn = undefined
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n+m)/ Similar to 'breakOn', but searches from the end of the
 -- string.
 --
@@ -259,7 +260,7 @@ breakOn = undefined
 -- up to and including the last match of @needle@.  The second is the
 -- remainder of @haystack@, following the match.
 --
--- >>> breakOnEnd "::" "a::b::c"
+-- >> breakOnEnd "::" "a::b::c"
 -- ("a::b::","c")
 {-# INLINE breakOnEnd #-}
 breakOnEnd :: Utf8 -> Utf8 -> (Utf8, Utf8)
@@ -278,6 +279,7 @@ breakOnEnd = undefined
 partition :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
 partition p t = (filter p t, filter (not . p) t)
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n+m)/ Find all non-overlapping instances of @needle@ in
 -- @haystack@.  Each element of the returned list consists of a pair:
 --
@@ -287,10 +289,10 @@ partition p t = (filter p t, filter (not . p) t)
 --
 -- Examples:
 --
--- >>> breakOnAll "::" ""
+-- >> breakOnAll "::" ""
 -- []
 --
--- >>> breakOnAll "/" "a/b/c/"
+-- >> breakOnAll "/" "a/b/c/"
 -- [("a","/b/c/"),("a/b","/c/"),("a/b/c","/")]
 --
 -- In (unlikely) bad cases, this function's time complexity degrades

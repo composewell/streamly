@@ -137,24 +137,26 @@ import Prelude hiding
 map :: (Char -> Char) -> Utf8 -> Utf8
 map f = unstream . Stream.map f . stream
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ The 'intercalate' function takes a 'Utf8' and a list of
 -- 'Utf8's and concatenates the list after interspersing the first
 -- argument between each element of the list.
 --
 -- Example:
 --
--- >>> Utf8.intercalate "NI!" ["We", "seek", "the", "Holy", "Grail"]
+-- >> Utf8.intercalate "NI!" ["We", "seek", "the", "Holy", "Grail"]
 -- "WeNI!seekNI!theNI!HolyNI!Grail"
 {-# INLINE intercalate #-}
 intercalate :: Utf8 -> [Utf8] -> Utf8
 intercalate = undefined
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ The 'intersperse' function takes a character and places it
 -- between the characters of a 'Utf8'.
 --
 -- Example:
 --
--- >>> Utf8.intersperse '.' "SHIELD"
+-- >> Utf8.intersperse '.' "SHIELD"
 -- "S.H.I.E.L.D"
 --
 -- Performs replacement on invalid scalar values.
@@ -162,17 +164,19 @@ intercalate = undefined
 intersperse :: Char -> Utf8 -> Utf8
 intersperse = undefined
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ Reverse the characters of a string.
 --
 -- Example:
 --
--- >>> Utf8.reverse "desrever"
+-- >> Utf8.reverse "desrever"
 -- "reversed"
 --
 {-# INLINE reverse #-}
 reverse :: Utf8 -> Utf8
 reverse = unstream . Stream.reverse . stream
 
+-- XXX Change >> to >>> after implementation
 -- | /O(m+n)/ Replace every non-overlapping occurrence of @needle@ in
 -- @haystack@ with @replacement@.
 --
@@ -187,13 +191,13 @@ reverse = unstream . Stream.reverse . stream
 -- @needle@ occurs in @replacement@, that occurrence will /not/ itself
 -- be replaced recursively:
 --
--- >>> replace "oo" "foo" "oo"
+-- >> replace "oo" "foo" "oo"
 -- "foo"
 --
 -- In cases where several instances of @needle@ overlap, only the
 -- first one will be replaced:
 --
--- >>> replace "ofo" "bar" "ofofo"
+-- >> replace "ofo" "bar" "ofofo"
 -- "barfo"
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
@@ -276,16 +280,17 @@ toUpper = undefined
 toTitle :: Utf8 -> Utf8
 toTitle = undefined
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ Left-justify a string to the given length, using the
 -- specified fill character on the right.
 -- Performs replacement on invalid scalar values.
 --
 -- Examples:
 --
--- >>> justifyLeft 7 'x' "foo"
+-- >> justifyLeft 7 'x' "foo"
 -- "fooxxxx"
 --
--- >>> justifyLeft 3 'x' "foobar"
+-- >> justifyLeft 3 'x' "foobar"
 -- "foobar"
 {-# INLINE justifyLeft #-}
 justifyLeft :: Int -> Char -> Utf8 -> Utf8
@@ -297,22 +302,23 @@ justifyLeft = undefined
 --
 -- Examples:
 --
--- >>> justifyRight 7 'x' "bar"
+-- >> justifyRight 7 'x' "bar"
 -- "xxxxbar"
 --
--- >>> justifyRight 3 'x' "foobar"
+-- >> justifyRight 3 'x' "foobar"
 -- "foobar"
 {-# INLINE justifyRight #-}
 justifyRight :: Int -> Char -> Utf8 -> Utf8
 justifyRight = undefined
 
+-- XXX Change >> to >>> after implementation
 -- | /O(n)/ Center a string to the given length, using the specified
 -- fill character on either side.  Performs replacement on invalid
 -- scalar values.
 --
 -- Examples:
 --
--- >>> center 8 'x' "HS"
+-- >> center 8 'x' "HS"
 -- "xxxHSxxx"
 {-# INLINE center #-}
 center :: Int -> Char -> Utf8 -> Utf8
@@ -421,7 +427,7 @@ take n t = unstream (Stream.take n (stream t))
 --
 -- Examples:
 --
--- >>> takeEnd 3 "foobar"
+-- >> takeEnd 3 "foobar"
 -- "bar"
 --
 {-# INLINE_NORMAL takeEnd #-}
@@ -440,7 +446,7 @@ drop n t = unstream (Stream.drop n (stream t))
 --
 -- Examples:
 --
--- >>> dropEnd 3 "foobar"
+-- >> dropEnd 3 "foobar"
 -- "foo"
 --
 {-# INLINE_NORMAL dropEnd #-}
@@ -459,7 +465,7 @@ takeWhile p t = unstream (Stream.takeWhile p (stream t))
 -- satisfy @p@.
 -- Examples:
 --
--- >>> takeWhileEnd (=='o') "foo"
+-- >> takeWhileEnd (=='o') "foo"
 -- "oo"
 --
 {-# INLINE_NORMAL takeWhileEnd #-}
@@ -478,7 +484,7 @@ dropWhile p t = unstream (Stream.dropWhile p (stream t))
 --
 -- Examples:
 --
--- >>> dropWhileEnd (=='.') "foo..."
+-- >> dropWhileEnd (=='.') "foo..."
 -- "foo"
 {-# INLINE_NORMAL dropWhileEnd #-}
 dropWhileEnd :: (Char -> Bool) -> Utf8 -> Utf8
