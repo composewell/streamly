@@ -52,8 +52,13 @@ where
 --------------------------------------------------------------------------------
 
 import Control.DeepSeq (NFData)
+import Control.Monad.IO.Class (MonadIO)
+import Data.Bits (shiftR, (.&.))
+import Data.Char (ord)
 import Data.String (IsString(..))
 import Data.Word (Word8)
+import GHC.Base (assert)
+import GHC.IO.Encoding.Failure (isSurrogate)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream (SerialT)
@@ -62,6 +67,8 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -182,9 +189,105 @@ unpack = unsafePerformIO . Stream.toList . stream
 -- Streamly style APIs
 --------------------------------------------------------------------------------
 
+-- XXX From the review:
+--
+-- This should be implemented as an Unfold m Char Word8 composed with the input
+-- of Array.write. For that we would need to implement unfoldMany for folds:
+--
+-- > unfoldMany :: Unfold m a b -> Fold m b c -> Fold m a c
+--
+-- If we assume the argument fold to be a non-terminating then it should be easy
+-- to implement. That is do not handle the done case, just error out in the done
+-- case.
+--
+-- Once we have that then we can use:
+--
+-- > writeGeneric = Fold.unfoldMany readCharUtf8 A.write
+--
+-- For readCharUtf8 see https://github.com/composewell/streamly/pull/1055/files
 {-# INLINE write #-}
-write :: Fold m Char Utf8
-write = undefined
+write :: forall m. MonadIO m => Fold m Char Utf8
+write = Fold.Fold step initial (return . Utf8 . Array.unsafeFreeze)
+
+    where
+
+    -- XXX Start of with some specific size?
+    initial = return $ Fold.Partial MArray.nil
+
+    -- XXX snocExp over snoc?
+    step arr c =
+        case ord c of
+            x
+                | x <= 0x7F -> do
+                    arr1 <- arr `MArray.snoc` fromIntegral x
+                    return $ Fold.Partial arr1
+                | x <= 0x7FF -> do
+                    arr1 <- arr `snoc2` c
+                    return $ Fold.Partial arr1
+                | x <= 0xFFFF ->
+                    if isSurrogate c
+                    then Fold.Partial <$> snoc3_ arr 239 191 189
+                    else do
+                        arr1 <- arr `snoc3` c
+                        return $ Fold.Partial arr1
+                | otherwise -> do
+                    arr1 <- arr `snoc4` c
+                    return $ Fold.Partial arr1
+
+    {-# INLINE snoc2 #-}
+    snoc2 :: MArray.Array Word8 -> Char -> m (MArray.Array Word8)
+    snoc2 arr c =
+        assert (n >= 0x80 && n <= 0x07ff)
+            $ do
+                arr1 <- arr `MArray.snoc` x1
+                arr1 `MArray.snoc` x2
+
+        where
+
+        n = ord c
+        x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
+        x2 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+    {-# INLINE snoc3_ #-}
+    snoc3_ ::
+           MArray.Array Word8
+        -> Word8
+        -> Word8
+        -> Word8
+        -> m (MArray.Array Word8)
+    snoc3_ arr x1 x2 x3 = do
+        arr1 <- arr `MArray.snoc` x1
+        arr2 <- arr1 `MArray.snoc` x2
+        arr2 `MArray.snoc` x3
+
+    {-# INLINE snoc3 #-}
+    snoc3 :: MArray.Array Word8 -> Char -> m (MArray.Array Word8)
+    snoc3 arr c = assert (n >= 0x80 && n <= 0x07ff) (snoc3_ arr x1 x2 x3)
+
+        where
+
+        n = ord c
+        x1 = fromIntegral $ (n `shiftR` 12) + 0xE0
+        x2 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+        x3 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+    {-# INLINE snoc4 #-}
+    snoc4 :: MArray.Array Word8 -> Char -> m (MArray.Array Word8)
+    snoc4 arr c =
+        assert (n >= 0x80 && n <= 0x07ff)
+            $ do
+                arr1 <- arr `MArray.snoc` x1
+                arr2 <- arr1 `MArray.snoc` x2
+                arr3 <- arr2 `MArray.snoc` x3
+                arr3 `MArray.snoc` x4
+
+        where
+
+        n = ord c
+        x1 = fromIntegral $ (n `shiftR` 18) + 0xF0
+        x2 = fromIntegral $ ((n `shiftR` 12) .&. 0x3F) + 0x80
+        x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+        x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE read #-}
 read :: Unfold m Utf8 Char
