@@ -24,14 +24,18 @@ module Streamly.Internal.Unicode.Utf8.Eliminate
     , minimum
 
     -- * Predicates
-    , isPrefixOf
-    , isSuffixOf
+
+    -- XXX Comment our further stuff to help with the GHCJS compilation
+    -- , isPrefixOf
+    -- , isSuffixOf
     -- XXX isInfixOf takes too much memory to compile
     -- , isInfixOf
 
     -- ** View patterns
-    , stripPrefix
-    , stripSuffix
+
+    -- XXX Comment our further stuff to help with the GHCJS compilation
+    -- , stripPrefix
+    -- , stripSuffix
     , commonPrefixes
 
     -- * Searching
@@ -261,17 +265,17 @@ find p t = unsafePerformIO $ Stream.find p (stream t)
 
 -- | /O(n)/ The 'isPrefixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a prefix of the second.
-{-# INLINE_NORMAL isPrefixOf #-}
-isPrefixOf :: Utf8 -> Utf8 -> Bool
-isPrefixOf a b =
+{-# INLINE_NORMAL _isPrefixOf #-}
+_isPrefixOf :: Utf8 -> Utf8 -> Bool
+_isPrefixOf a b =
     Array.byteLength (toArray a) <= Array.byteLength (toArray b)
         && unsafePerformIO (Stream.isPrefixOf (stream a) (stream b))
 
 -- | /O(n)/ The 'isSuffixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a suffix of the second.
-{-# INLINE isSuffixOf #-}
-isSuffixOf :: Utf8 -> Utf8 -> Bool
-isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
+{-# INLINE _isSuffixOf #-}
+_isSuffixOf :: Utf8 -> Utf8 -> Bool
+_isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
 
 -- XXX This specific API uses a lot of memory to compile
 -- XXX Use domain specific knowledge to implement it efficiently!
@@ -294,13 +298,13 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 --
 -- Examples:
 --
--- >>> stripPrefix "foo" "foobar"
+-- >> stripPrefix "foo" "foobar"
 -- Just "bar"
 --
--- >>> stripPrefix ""    "baz"
+-- >> stripPrefix ""    "baz"
 -- Just "baz"
 --
--- >>> stripPrefix "foo" "quux"
+-- >> stripPrefix "foo" "quux"
 -- Nothing
 --
 -- This is particularly useful with the @ViewPatterns@ extension to
@@ -312,8 +316,8 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 -- > fnordLength :: Utf8 -> Int
 -- > fnordLength (stripPrefix "fnord" -> Just suf) = Utf8.length suf
 -- > fnordLength _                                 = -1
-stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
-stripPrefix p t =
+_stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
+_stripPrefix p t =
     fmap unstream $ unsafePerformIO $ Stream.stripPrefix (stream p) (stream t)
 
 -- XXX Change >> to >>> after implementation
@@ -342,13 +346,13 @@ commonPrefixes = undefined
 --
 -- Examples:
 --
--- >>> stripSuffix "bar" "foobar"
+-- >> stripSuffix "bar" "foobar"
 -- Just "foo"
 --
--- >>> stripSuffix ""    "baz"
+-- >> stripSuffix ""    "baz"
 -- Just "baz"
 --
--- >>> stripSuffix "foo" "quux"
+-- >> stripSuffix "foo" "quux"
 -- Nothing
 --
 -- This is particularly useful with the @ViewPatterns@ extension to
@@ -360,6 +364,6 @@ commonPrefixes = undefined
 -- > quuxLength :: Utf8 -> Int
 -- > quuxLength (stripSuffix "quux" -> Just pre) = Utf8.length pre
 -- > quuxLength _                                = -1
-stripSuffix :: Utf8 -> Utf8 -> Maybe Utf8
-stripSuffix p t =
+_stripSuffix :: Utf8 -> Utf8 -> Maybe Utf8
+_stripSuffix p t =
     fmap unstream $ unsafePerformIO $ Stream.stripSuffix (stream p) (stream t)
