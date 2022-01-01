@@ -5,7 +5,7 @@
 
 {
   nixpkgs ?
-    import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/refs/tags/21.05.tar.gz)
+    import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/refs/tags/21.11.tar.gz)
         {}
 , compiler ? "default"
 , c2nix ? "" # cabal2nix CLI options
@@ -54,12 +54,12 @@ let haskellPackages =
                         mkPackage super "streamly-docs"
                             ./docs flags inShell;
 
-                    fusion-plugin =
-                      super.callHackageDirect
-                        { pkg = "fusion-plugin";
-                          ver = "0.2.3";
-                          sha256 = "073wbhdxj1sh5160blaihbzkkhabs8s71pqhag16lvmgbb7a3hla";
-                        } {};
+                    #fusion-plugin =
+                    #  super.callHackageDirect
+                    #    { pkg = "fusion-plugin";
+                    #      ver = "0.2.3";
+                    #      sha256 = "073wbhdxj1sh5160blaihbzkkhabs8s71pqhag16lvmgbb7a3hla";
+                    #    } {};
 
                     unicode-data =
                       super.callHackageDirect
@@ -68,12 +68,14 @@ let haskellPackages =
                           sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
                         } {};
 
-                    tasty-bench =
-                      super.callHackageDirect
-                        { pkg = "tasty-bench";
-                          ver = "0.3.1";
-                          sha256 = "0ixdxa7qwl4kck12gwvxg9kydhckjsi5drxcypr33jcdj771j7a4";
-                        } {};
+                    tasty-bench = super.tasty-bench_0_3_1;
+
+                    #tasty-bench =
+                    #  super.callHackageDirect
+                    #    { pkg = "tasty-bench";
+                    #      ver = "0.3.1";
+                    #      sha256 = "0ixdxa7qwl4kck12gwvxg9kydhckjsi5drxcypr33jcdj771j7a4";
+                    #    } {};
 
                     #tasty =
                     #  super.callHackageDirect
