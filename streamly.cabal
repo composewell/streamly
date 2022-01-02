@@ -550,7 +550,7 @@ library
                      , transformers-base >= 0.4   && < 0.5
 
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , unicode-data      >= 0.1   && < 0.3
+                     , unicode-data      >= 0.1   && < 0.4
 
                     -- Network
                      , network           >= 2.6   && < 3.2
