@@ -153,6 +153,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Kind (Type)
 import Data.Maybe (isNothing)
+import Data.Primitive.Types (Prim(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
@@ -875,7 +876,7 @@ splitOnAny subseq f m = undefined
 -- /Pre-release/
 {-# INLINE splitBySeq #-}
 splitBySeq
-    :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadAsync m, Prim a, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
     intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m

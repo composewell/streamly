@@ -154,6 +154,7 @@ import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 #if __GLASGOW_HASKELL__ >= 801
 import Data.Functor.Identity ( Identity )
 #endif
+import Data.Primitive.Types (Prim(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -1637,29 +1638,24 @@ data SplitOptions = SplitOptions
 -- because we can use the constructor directly without having to create "jump"
 -- functions.
 {-# ANN type SplitOnSeqState Fuse #-}
-data SplitOnSeqState rb rh ck w fs s b x =
-      SplitOnSeqInit
-    | SplitOnSeqYield b (SplitOnSeqState rb rh ck w fs s b x)
+data SplitOnSeqState rb ck w fs s b x
+    = SplitOnSeqInit
+    | SplitOnSeqYield b (SplitOnSeqState rb ck w fs s b x)
     | SplitOnSeqDone
-
     | SplitOnSeqEmpty !fs s
-
     | SplitOnSeqSingle !fs s x
-
     | SplitOnSeqWordInit !fs s
     | SplitOnSeqWordLoop !w s !fs
     | SplitOnSeqWordDone Int !fs !w
-
-    | SplitOnSeqKRInit Int !fs s rb !rh
-    | SplitOnSeqKRLoop fs s rb !rh !ck
-    | SplitOnSeqKRCheck fs s rb !rh
-    | SplitOnSeqKRDone Int !fs rb !rh
-
-    | SplitOnSeqReinit (fs -> SplitOnSeqState rb rh ck w fs s b x)
+    | SplitOnSeqKRInit Int !fs s rb
+    | SplitOnSeqKRLoop fs s rb !ck
+    | SplitOnSeqKRCheck fs s rb
+    | SplitOnSeqKRDone Int !fs rb Int
+    | SplitOnSeqReinit (fs -> SplitOnSeqState rb ck w fs s b x)
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
-    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Prim a, Storable a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -1723,8 +1719,8 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                                <= sizeOf (undefined :: Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
-                              (rb, rhead) <- liftIO $ RB.new patLen
-                              skip $ SplitOnSeqKRInit 0 acc state rb rhead
+                              rb <- liftIO $ RB.new patLen
+                              skip $ SplitOnSeqKRInit 0 acc state rb
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
     stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
@@ -1852,51 +1848,51 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
     -- General Pattern - Karp Rabin
     -------------------------------
 
-    stepOuter gst (SplitOnSeqKRInit idx fs st rb rh) = do
+    stepOuter gst (SplitOnSeqKRInit idx fs st rb) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                rh1 <- liftIO $ RB.unsafeInsert rb rh x
+                rb1 <- liftIO $ RB.unsafeInsert rb x
                 if idx == maxIndex
                 then do
-                    let fld = RB.unsafeFoldRing (RB.ringBound rb)
-                    let !ringHash = fld addCksum 0 rb
+                    let fld = RB.unsafeFoldRingPartial
+                    let !ringHash = fld addCksum 0 rb1
                     if ringHash == patHash
-                    then skip $ SplitOnSeqKRCheck fs s rb rh1
-                    else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
-                else skip $ SplitOnSeqKRInit (idx + 1) fs s rb rh1
-            Skip s -> skip $ SplitOnSeqKRInit idx fs s rb rh
+                    then skip $ SplitOnSeqKRCheck fs s rb1
+                    else skip $ SplitOnSeqKRLoop fs s rb1 ringHash
+                else skip $ SplitOnSeqKRInit (idx + 1) fs s rb1
+            Skip s -> skip $ SplitOnSeqKRInit idx fs s rb
             Stop -> do
-                skip $ SplitOnSeqKRDone idx fs rb (RB.startOf rb)
+                skip $ SplitOnSeqKRDone idx fs rb 0
 
     -- XXX The recursive "go" is more efficient than the state based recursion
     -- code commented out below. Perhaps its more efficient because of
     -- factoring out "rb" outside the loop.
     --
-    stepOuter gst (SplitOnSeqKRLoop fs0 st0 rb rh0 cksum0) =
-        go SPEC fs0 st0 rh0 cksum0
+    stepOuter gst (SplitOnSeqKRLoop fs0 st0 rb0 cksum0) =
+        go SPEC fs0 st0 rb0 cksum0
 
         where
 
-        go !_ !fs !st !rh !cksum = do
+        go !_ !fs !st !rb !cksum = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    old <- liftIO $ peek rh
+                    old <- liftIO $ RB.unsafePeek rb
                     let cksum1 = deltaCksum cksum old x
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
-                            rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                            rb1 <- liftIO (RB.unsafeInsert rb x)
                             if cksum1 == patHash
-                            then skip $ SplitOnSeqKRCheck fs1 s rb rh1
-                            else go SPEC fs1 s rh1 cksum1
+                            then skip $ SplitOnSeqKRCheck fs1 s rb1
+                            else go SPEC fs1 s rb1 cksum1
                         FL.Done b -> do
-                            let rst = RB.startOf rb
-                                jump c = SplitOnSeqKRInit 0 c s rb rst
+                            let rb1 = RB.reset rb
+                                jump c = SplitOnSeqKRInit 0 c s rb1
                             yieldProceed jump b
-                Skip s -> go SPEC fs s rh cksum
-                Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
+                Skip s -> go SPEC fs s rb cksum
+                Stop -> skip $ SplitOnSeqKRDone patLen fs rb (RB.ringNext rb)
 
     -- XXX The following code is 5 times slower compared to the recursive loop
     -- based code above. Need to investigate why. One possibility is that the
@@ -1924,26 +1920,26 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
     -}
 
-    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
-        if RB.unsafeEqArray rb rh patArr
+    stepOuter _ (SplitOnSeqKRCheck fs st rb) = do
+        if RB.unsafeEqArrayFull rb patArr
         then do
             r <- done fs
-            let rst = RB.startOf rb
-                jump c = SplitOnSeqKRInit 0 c st rb rst
+            let rb1 = RB.reset rb
+                jump c = SplitOnSeqKRInit 0 c st rb1
             yieldProceed jump r
-        else skip $ SplitOnSeqKRLoop fs st rb rh patHash
+        else skip $ SplitOnSeqKRLoop fs st rb patHash
 
     stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
         r <- done fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
-    stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
-        old <- liftIO $ peek rh
-        let rh1 = RB.advance rb rh
+    stepOuter _ (SplitOnSeqKRDone n fs rb i) = do
+        old <- liftIO $ RB.unsafeIndexInnerArray rb i
+        let i1 = RB.unsafeAdvanceInnerArray rb i
         r <- fstep fs old
         case r of
-            FL.Partial fs1 -> skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
+            FL.Partial fs1 -> skip $ SplitOnSeqKRDone (n - 1) fs1 rb i1
             FL.Done b -> do
-                 let jump c = SplitOnSeqKRDone (n - 1) c rb rh1
+                 let jump c = SplitOnSeqKRDone (n - 1) c rb i1
                  yieldProceed jump b
 
 {-# ANN type SplitOnSuffixSeqState Fuse #-}
@@ -1979,6 +1975,8 @@ splitOnSuffixSeq
     -> Stream m a
     -> Stream m b
 splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
+    undefined
+{-
     Stream stepOuter SplitOnSuffixSeqInit
 
     where
@@ -2308,6 +2306,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
             FL.Done b -> do
                 let jump c = SplitOnSuffixSeqKRDone (n - 1) c rb rh1
                 yieldProceed jump b
+-}
 
 ------------------------------------------------------------------------------
 -- Nested Container Transformation

@@ -1,3 +1,7 @@
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE MagicHash #-}
+
+
 -- |
 -- Module      : Streamly.Internal.Data.Ring.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -14,7 +18,20 @@
 
 module Streamly.Internal.Data.Ring.Foreign
     ( Ring(..)
+    , new
+    , reset
+    , unsafeInsert
+    , unsafeFoldRing
+    , unsafeFoldRingPartial
+    , unsafeFoldRingFull
+    , unsafeFoldRingPartialM
+    , unsafeFoldRingFullM
+    , unsafeEqArrayFull
+    , unsafePeek
+    , unsafeIndexInnerArray
+    , unsafeAdvanceInnerArray
 
+{-
     -- * Construction
     , new
     , newRing
@@ -66,6 +83,7 @@ module Streamly.Internal.Data.Ring.Foreign
     , unsafeEqArrayN
 
     , slidingWindow
+-}
     ) where
 
 #include "inline.hs"
@@ -84,10 +102,15 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
+import Data.Primitive.Types (Prim(..))
+import GHC.Int (Int(..))
+import GHC.IO (IO(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 
 import Prelude hiding (length, concat, read)
+
+import GHC.Prim
 
 -- $setup
 -- >>> :m
@@ -106,9 +129,174 @@ import Prelude hiding (length, concat, read)
 -- structure. We should not leak out references to it for immutable use.
 --
 data Ring a = Ring
-    { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
-    , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
+    { ringContents# :: MutableByteArray# RealWorld
+    , ringNext   :: {-# UNPACK #-} !Int -- The index pointing to the oldest
+                                        -- element.
+    , ringLength :: {-# UNPACK #-} !Int -- The true length of the ring.
+    , ringFull   :: !Bool               -- An indicator to check if the ring is
+                                        -- filled.
     }
+
+{-# INLINE reset #-}
+reset :: Prim a => Ring a -> Ring a
+reset rb = rb {ringNext = 0, ringFull = False}
+
+-- Only for complete rings
+{-# INLINE unsafeAdvanceInnerArray #-}
+unsafeAdvanceInnerArray :: Ring a -> Int -> Int
+unsafeAdvanceInnerArray rb i =
+    if i + 1 == ringLength rb
+    then 0
+    else i + 1
+
+-- Only for complete rings
+{-# INLINE unsafeAdvance #-}
+unsafeAdvance :: Ring a -> Ring a
+unsafeAdvance rb@(Ring {..}) =
+    if ringNext + 1 == ringLength
+    then rb {ringNext = 0}
+    else rb {ringNext = ringNext + 1}
+
+{-# INLINE unsafePeek #-}
+unsafePeek :: Prim a => Ring a -> IO a
+unsafePeek rb@(Ring {..}) = IO $ \s# -> readByteArray# ringContents# p# s#
+
+    where
+
+    !(I# p#) = ringNext
+
+{-# INLINE unsafeIndexInnerArray #-}
+unsafeIndexInnerArray :: Prim a => Ring a -> Int -> IO a
+unsafeIndexInnerArray (Ring {..}) (I# p#) =
+    IO $ \s# -> readByteArray# ringContents# p# s#
+
+
+{-# INLINE unsafeInsert #-}
+unsafeInsert :: Prim a => Ring a -> a -> IO (Ring a)
+unsafeInsert rb@(Ring {..}) newVal =
+    IO
+        $ \s# ->
+              let s1# = writeByteArray# ringContents# ringNext# newVal s#
+               in (# s1#, newRing #)
+
+    where
+
+    !(I# ringNext#) = ringNext
+    newRing =
+        if ringNext + 1 == ringLength
+        then rb {ringNext = 0, ringFull = True}
+        else rb {ringNext = ringNext + 1, ringFull = True}
+
+{-# INLINE new #-}
+new :: forall a. Prim a => Int -> IO (Ring a)
+new count =
+    let !size@(I# size#) = count * I# (sizeOf# (undefined :: a))
+     in IO
+            $ \s# ->
+                  case newByteArray# size# s# of
+                      (# s1#, mb #) -> (# s1#, Ring mb 0 count False #)
+
+{-# INLINE unsafeFoldRingFull #-}
+unsafeFoldRingFull :: forall a b. Prim a
+    => (b -> a -> b) -> b -> Ring a -> b
+unsafeFoldRingFull f z Ring {..} =
+    let !res = unsafeInlineIO go_
+     in res
+
+    where
+
+    go_ = do
+        acc1 <- go z ringNext ringLength
+        go acc1 0 ringNext
+
+    go !acc !p@(I# p#) !q
+        | p == q = return acc
+        | otherwise = do
+            x <- IO $ \s# -> readByteArray# ringContents# p# s#
+            go (f acc x) (p + 1) q
+
+{-# INLINE unsafeFoldRingPartial #-}
+unsafeFoldRingPartial :: forall a b. Prim a
+    => (b -> a -> b) -> b -> Ring a -> b
+unsafeFoldRingPartial f z Ring {..} =
+    let !res = unsafeInlineIO $ go z 0 ringNext
+     in res
+
+    where
+
+    go !acc !p@(I# p#) !q
+        | p == q = return acc
+        | otherwise = do
+            x <- IO $ \s# -> readByteArray# ringContents# p# s#
+            go (f acc x) (p + 1) q
+
+{-# INLINE unsafeFoldRingFullM #-}
+unsafeFoldRingFullM :: forall m a b. (MonadIO m, Prim a)
+    => (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingFullM f z Ring {..} = go_
+
+    where
+
+    go_ = do
+        acc1 <- go z ringNext ringLength
+        go acc1 0 ringNext
+
+    go !acc !p@(I# p#) !q
+        | p == q = return acc
+        | otherwise = do
+            x <- liftIO $ IO $ \s# -> readByteArray# ringContents# p# s#
+            acc1 <- f acc x
+            go acc1 (p + 1) q
+
+{-# INLINE unsafeFoldRingPartialM #-}
+unsafeFoldRingPartialM :: forall m a b. (MonadIO m, Prim a)
+    => (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingPartialM f z Ring {..} = go z 0 ringNext
+
+    where
+
+    go !acc !p@(I# p#) !q
+        | p == q = return acc
+        | otherwise = do
+            x <- liftIO $ IO $ \s# -> readByteArray# ringContents# p# s#
+            acc1 <- f acc x
+            go acc1 (p + 1) q
+
+{-# INLINE unsafeFoldRing #-}
+unsafeFoldRing :: forall a b. Prim a
+    => (b -> a -> b) -> b -> Ring a -> b
+unsafeFoldRing f z rb =
+    if ringFull rb
+    then unsafeFoldRingFull f z rb
+    else unsafeFoldRingPartial f z rb
+
+{-# INLINE unsafeEqArrayFull #-}
+unsafeEqArrayFull ::
+       forall a. (Eq a, Storable a, Prim a)
+    => Ring a -> A.Array a -> Bool
+unsafeEqArrayFull Ring {..} A.Array {..} =
+    let !res = unsafeInlineIO go_
+     in res
+
+    where
+
+    elemSize = sizeOf (undefined :: a)
+    go_ = do
+        eq1 <- go arrStart ringNext ringLength
+        eq2 <-
+            go (arrStart `plusPtr` (ringLength - ringNext) :: Ptr a) 0 ringNext
+        return $ eq1 && eq2
+
+    go !ptr !p@(I# p#) !q
+        | p == q = return True
+        | otherwise = do
+            r <- IO $ \s# -> readByteArray# ringContents# p# s#
+            a <- peek ptr
+            if r == a
+            then go (ptr `plusPtr` elemSize) (p + 1) q
+            else return False
+
+{-
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -555,3 +743,5 @@ slidingWindow n (Fold step1 initial1 extract1)= Fold step initial extract
                     Done b -> Done b
 
     extract (Tuple4' _ _ _ st) = extract1 st
+
+-}
