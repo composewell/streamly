@@ -114,7 +114,7 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 5
+      base                >= 4.9   && < 4.17
     , deepseq             >= 1.4.1 && < 1.5
     , mtl                 >= 2.2   && < 2.3
 
