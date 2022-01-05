@@ -138,8 +138,12 @@
           `extra-source-files`, these wild-cards may match additional
           files lying around in the workspace and unintentionally ship
           them as well.
-          * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
-          * `stack upload .`
+          * Upload and verify the candidate
+            * `cabal v2-sdist; cabal upload <tarpath>`
+            * `cabal v2-haddock --haddock-for-hackage --enable-doc; cabal upload -d <tarpath>`
+          * Publish the package
+            * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
+        * `stack upload .`
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
         * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
             * Update release contributors on github release page
