@@ -12,7 +12,12 @@ import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
+
+#ifdef DATA_ARRAY
+import qualified Streamly.Internal.Data.Array as A
+#else
 import qualified Streamly.Data.Array.Foreign as A
+#endif
 
 #ifdef DATA_ARRAY
 import qualified Streamly.Internal.Data.Array as IA
