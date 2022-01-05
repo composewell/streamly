@@ -1,6 +1,7 @@
 module Main (main) where
 
-import Data.List (nub, sort)
+import Data.List (elem, nub, sort)
+import Data.Maybe (isNothing)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -68,6 +69,49 @@ joinInnerMap =
                           ]
                 assert (sort v1 == sort v2)
 
+-- XXX A bug need to be fixed in joinOuter function
+joinOuter :: Property
+joinOuter =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action ls0 ls1
+            where
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinOuter eq (S.fromList ls0) (S.fromList ls1)
+                let v2 = [ (Just i, Just j) | i <- ls0, j <- ls1, i == j ]
+                assert (v1 == v2)
+
+
+joinOuterMap :: Property
+joinOuterMap =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $
+                action (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) (nub ls1))
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinOuterMap (S.fromList ls0) (S.fromList ls1)
+                let v2 = do
+                        i <- ls0
+                        if (elem i ls1)
+                        then return (fst i, Just (fst i), Just (fst i))
+                        else return (fst i, Just (fst i), Nothing)
+                    v3 = do
+                        j <- ls1
+                        if (elem j ls0)
+                        then return (fst j, Just (fst j), Just (fst j))
+                        else return (fst j, Nothing, Just (fst j))
+                    v4 = filter (\(_, a2, _) -> isNothing a2)  v3
+                assert (v1 == v2 ++ v4)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -82,3 +126,5 @@ main = hspec $ do
 
         prop "joinInner" Main.joinInner
         prop "joinInnerMap" Main.joinInnerMap
+        prop "joinOuter" Main.joinOuter
+        prop "joinOuterMap" Main.joinOuterMap

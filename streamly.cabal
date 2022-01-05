@@ -102,6 +102,7 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Foreign.hs
     test/Streamly/Test/Data/Array/Stream/Foreign.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
+    test/Streamly/Test/Data/Stream/Top.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Event/Common.hs
     test/Streamly/Test/FileSystem/Event/Darwin.hs

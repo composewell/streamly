@@ -436,12 +436,27 @@ joinInnerMap val1 val2 _ =
             (fmap toKvMap (mkStreamLen val1))
             (fmap toKvMap (mkStreamLen val2))
 
+{-# INLINE joinOuter #-}
+joinOuter :: Int -> Int -> Int -> IO ()
+joinOuter val1 val2 _ =
+     S.drain $ Internal.joinOuter (==) (mkStreamLen val1) $ mkStreamLen val2
+
+{-# INLINE joinOuterMap #-}
+joinOuterMap :: Int -> Int -> Int -> IO ()
+joinOuterMap val1 val2 _ =
+        S.drain $
+            Internal.joinOuterMap
+            (fmap toKvMap (mkStreamLen val1))
+            (fmap toKvMap (mkStreamLen val2))            
+
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
           benchIOSrc1 "joinInner" (joinInner sqrtVal sqrtVal)
         , benchIOSrc1 "joinInnerMap" (joinInnerMap sqrtVal sqrtVal)
+        , benchIOSrc1 "joinOuter" (joinOuter sqrtVal sqrtVal)
+        , benchIOSrc1 "joinOuterMap" (joinOuterMap sqrtVal sqrtVal)
         ]
     ]
 

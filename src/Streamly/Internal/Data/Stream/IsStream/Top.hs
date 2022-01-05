@@ -42,9 +42,9 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , leftJoin
     , mergeLeftJoin
     , hashLeftJoin
-    , outerJoin
+    , joinOuter
     , mergeOuterJoin
-    , hashOuterJoin
+    , joinOuterMap
     )
 where
 
@@ -385,7 +385,7 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
             else Stream.nil
         Nothing -> return (a, Nothing)
 
--- | Like 'outerJoin' but uses a hashmap for efficiency.
+-- | Like 'joinOuter' but uses a hashmap for efficiency.
 --
 -- Space: O(n)
 --
@@ -423,13 +423,13 @@ mergeLeftJoin _eq _s1 _s2 = undefined
 -- Time: O(m x n)
 --
 -- /Unimplemented/
-{-# INLINE outerJoin #-}
-outerJoin :: MonadIO m =>
+{-# INLINE joinOuter #-}
+joinOuter :: MonadIO m =>
        (a -> b -> Bool)
     -> SerialT m a
     -> SerialT m b
     -> SerialT m (Maybe a, Maybe b)
-outerJoin eq s1 s =
+joinOuter eq s1 s =
     Stream.concatM $ do
         arr <- Array.fromStream $ fmap (,False) s
         return $ go arr <> leftOver arr
@@ -470,7 +470,7 @@ outerJoin eq s1 s =
 -- a flag. At the end go through @t m b@ and find those that are not in that
 -- hash to return (Nothing, b).
 --
--- | Like 'outerJoin' but uses a hashmap for efficiency.
+-- | Like 'joinOuter' but uses a hashmap for efficiency.
 --
 -- For space efficiency use the smaller stream as the second stream.
 --
@@ -478,13 +478,38 @@ outerJoin eq s1 s =
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE hashOuterJoin #-}
-hashOuterJoin :: -- (Monad m, Hashable b) =>
-    (a -> b -> Ordering) -> t m a -> t m b -> t m (Maybe a, Maybe b)
-hashOuterJoin _eq _s1 _s2 = undefined
+-- /Pre-release/
+{-# INLINE joinOuterMap #-}
+joinOuterMap ::
+    (IsStream t, Ord k, MonadIO m) =>
+    t m (k, a) -> t m (k, b) -> t m (k, Maybe a, Maybe b)
+joinOuterMap s1 s2 =
+    Stream.concatM $ do
+        km1 <- kvFold $ IsStream.adapt s1
+        km2 <- kvFold $ IsStream.adapt s2
 
--- | Like 'outerJoin' but works only on sorted streams.
+        let res1 = Stream.map (joinAB km2) s1
+                    where
+                    joinAB km (k, a) =
+                        case k `Map.lookup` km of
+                            Just b -> (k, Just a, Just b)
+                            Nothing -> (k, Just a, Nothing)
+
+        let res2 = Stream.mapMaybe (joinAB km1) s2
+                    where
+                    joinAB km (k, b) =
+                        case k `Map.lookup` km of
+                            Just _ -> Nothing
+                            Nothing -> Just (k, Nothing, Just b)
+
+        return $ Stream.serial res1 res2
+
+        where
+
+        -- XXX Generate error if a duplicate insertion is attempted?
+        kvFold = Stream.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
+
+-- | Like 'joinOuter' but works only on sorted streams.
 --
 -- Space: O(1)
 --
@@ -607,7 +632,7 @@ mergeDifferenceBy _eq _s1 _s2 = undefined
 -- unionBy eq s1 s2 = s1 \`serial` (s2 `differenceBy eq` s1)
 -- @
 --
--- Similar to 'outerJoin' but not the same.
+-- Similar to 'joinOuter' but not the same.
 --
 -- Space: O(n)
 --
