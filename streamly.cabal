@@ -539,7 +539,7 @@ library
                      , transformers      >= 0.4   && < 0.7
 
                      , heaps             >= 0.3     && < 0.5
-                     , filepath          >= 1.2.0.0 && < 1.4.3.0
+                     , filepath          >= 1.2.0.0 && < 1.5
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
