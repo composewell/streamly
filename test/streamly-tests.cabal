@@ -430,3 +430,8 @@ test-suite version-bounds
   import: test-options
   type: exitcode-stdio-1.0
   main-is: version-bounds.hs
+
+test-suite Data.Stream.Top
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Top.hs  
