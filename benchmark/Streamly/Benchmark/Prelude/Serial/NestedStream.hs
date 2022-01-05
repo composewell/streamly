@@ -459,6 +459,10 @@ o_n_heap_buffering value =
             $ joinWith Internal.joinOuter sqrtVal sqrtVal
         , benchIOSrc1 "joinOuterMap"
             $ joinMapWith Internal.joinOuterMap sqrtVal sqrtVal
+        , benchIOSrc1 "intersectBy"
+            $ joinWith Internal.intersectBy sqrtVal sqrtVal
+        , benchIOSrc1 "intersectBySorted"
+            $ joinMapWith Internal.intersectBySorted sqrtVal sqrtVal
         ]
     ]
 

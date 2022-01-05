@@ -142,6 +142,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Opposite to compact in ArrayStream
     , splitInnerBy
     , splitInnerBySuffix
+    , intersectBySorted
     )
 where
 
@@ -481,6 +482,59 @@ mergeBy
     :: (Monad m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
+
+-------------------------------------------------------------------------------
+-- Intersection of sorted streams ---------------------------------------------
+-------------------------------------------------------------------------------
+{-# INLINE_NORMAL intersectBySorted #-}
+intersectBySorted
+    :: (MonadIO m, Eq a)
+    => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
+    Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
+
+    where
+    {-# INLINE_LATE step #-}
+
+    -- step 1
+    step gst (Just sa, sb, Nothing, b, Nothing) = do
+        r <- stepa gst sa
+        return $ case r of
+            Yield a sa' -> Skip (Just sa', sb, Just a, b, Nothing)
+            Skip sa'    -> Skip (Just sa', sb, Nothing, b, Nothing)
+            Stop        -> Stop
+
+    -- step 2
+    step gst (sa, Just sb, a, Nothing, Nothing) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield b sb' -> Skip (sa, Just sb', a, Just b, Nothing)
+            Skip sb'    -> Skip (sa, Just sb', a, Nothing, Nothing)
+            Stop        -> Stop
+
+    -- step 3
+    -- both the values are available compare it
+    step _ (sa, sb, Just a, Just b, Nothing) = do
+        let res = cmp a b
+        return $ case res of
+            GT -> Skip (sa, sb, Just a, Nothing, Nothing)
+            LT -> Skip (sa, sb, Nothing, Just b, Nothing)
+            EQ -> Yield a (sa, sb, Nothing, Just a, Just b) -- step 4
+
+    -- step 4
+    -- Matching element
+    step gst (Just sa, Just sb, Nothing, Just _, Just b) = do
+        r1 <- stepa gst sa
+        return $ case r1 of
+            Yield a' sa' -> do
+                if a' == b -- match with prev a
+                then Yield a' (Just sa', Just sb, Nothing, Just b, Just b)  --step 1
+                else Skip (Just sa', Just sb, Just a', Nothing, Nothing)
+
+            Skip sa'    -> Skip (Just sa', Just sb, Nothing, Nothing, Nothing)
+            Stop        -> Stop
+
+    step _ (_, _, _, _, _) = return Stop
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - unfoldMany

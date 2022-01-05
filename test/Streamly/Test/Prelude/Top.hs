@@ -1,6 +1,7 @@
-module Main (main) where
+module Main (main)
+    where
 
-import Data.List (elem, nub, sort)
+import Data.List (elem, intersect, nub, sort)
 import Data.Maybe (isNothing)
 import Test.QuickCheck
     ( Gen
@@ -168,10 +169,45 @@ joinLeftMap =
                 let v2 = joinLeftList ls0 ls1
                 assert (v1 == v2)
 
--------------------------------------------------------------------------------
--- Main
--------------------------------------------------------------------------------
+intersectBy :: Property
+intersectBy =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort ls1)
 
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.intersectBy
+                        (==)
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = intersect ls0 ls1
+                assert (v1 == sort v2)
+
+intersectBySorted :: Property
+intersectBySorted =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort ls1)
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.intersectBySorted
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = intersect ls0 ls1
+                assert (v1 == sort v2)
+
+-------------------------------------------------------------------------------
 moduleName :: String
 moduleName = "Prelude.Top"
 
@@ -187,3 +223,6 @@ main = hspec $ do
         prop "joinOuterMap" Main.joinOuterMap
         prop "joinLeft" Main.joinLeft
         prop "joinLeftMap" Main.joinLeftMap
+        -- intersect
+        prop "intersectBy" Main.intersectBy
+        prop "intersectBySorted" Main.intersectBySorted
