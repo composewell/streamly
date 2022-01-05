@@ -36,9 +36,9 @@ module Streamly.Internal.Data.Stream.IsStream.Top
 
     -- ** Join operations
     , crossJoin
-    , innerJoin
-    , mergeInnerJoin
-    , hashInnerJoin
+    , joinInner
+    , joinInnerMerge
+    , joinInnerHash
     , leftJoin
     , mergeLeftJoin
     , hashLeftJoin
@@ -68,6 +68,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -78,6 +79,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Reduce as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
+
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
@@ -270,12 +272,12 @@ crossJoin s1 s2 = do
 -- Time: O(m x n)
 --
 -- /Pre-release/
-{-# INLINE innerJoin #-}
-innerJoin ::
+{-# INLINE joinInner #-}
+joinInner ::
     forall (t :: (Type -> Type) -> Type -> Type) m a b.
     (IsStream t, Monad (t m)) =>
         (a -> b -> Bool) -> t m a -> t m b -> t m (a, b)
-innerJoin eq s1 s2 = do
+joinInner eq s1 s2 = do
     -- XXX use concatMap instead?
     a <- s1
     b <- s2
@@ -286,7 +288,7 @@ innerJoin eq s1 s2 = do
 -- If the second stream is too big it can be partitioned based on hashes and
 -- then we can process one parition at a time.
 --
--- | Like 'innerJoin' but uses a hashmap for efficiency.
+-- | Like 'joinInner' but uses a hashmap for efficiency.
 --
 -- For space efficiency use the smaller stream as the second stream.
 --
@@ -294,22 +296,32 @@ innerJoin eq s1 s2 = do
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE hashInnerJoin #-}
-hashInnerJoin :: -- Hashable b =>
-    (a -> b -> Bool) -> t m a -> t m b -> t m (a, b)
-hashInnerJoin = undefined
+-- /Pre-release/
+{-# INLINE joinInnerHash #-}
+joinInnerHash :: (IsStream t, Monad m, Ord k) =>
+    t m (k, a) -> t m (k, b) -> t m (k, a, b)
+joinInnerHash s1 s2 =
+        Stream.concatM $ do
+        km <- Stream.fold (Fold.classify Fold.toList) $ IsStream.adapt s2
+        return $ Stream.mapMaybe (joinAB km) s1
 
--- | Like 'innerJoin' but works only on sorted streams.
+            where
+
+            joinAB km (k, a) =
+                case k `Map.lookup` km of
+                    Just b -> Just (k, a, head b)
+                    Nothing -> Nothing
+
+-- | Like 'joinInner' but works only on sorted streams.
 --
 -- Space: O(1)
 --
 -- Time: O(m + n)
 --
 -- /Unimplemented/
-{-# INLINE mergeInnerJoin #-}
-mergeInnerJoin :: (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
-mergeInnerJoin = undefined
+{-# INLINE joinInnerMerge #-}
+joinInnerMerge :: (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
+joinInnerMerge = undefined
 
 -- XXX We can do this concurrently.
 -- XXX If the second stream is sorted and passed as an Array or a seek capable
@@ -487,9 +499,9 @@ mergeOuterJoin _eq _s1 _s2 = undefined
 -- >>> Stream.toList $ Stream.intersectBy (==) (Stream.fromList [2,1,1,3]) (Stream.fromList [1,2,2,4])
 -- [2,1,1]
 --
--- 'intersectBy' is similar to but not the same as 'innerJoin':
+-- 'intersectBy' is similar to but not the same as 'joinInner':
 --
--- >>> Stream.toList $ fmap fst $ Stream.innerJoin (==) (Stream.fromList [1,2,2,4]) (Stream.fromList [2,1,1,3])
+-- >>> Stream.toList $ fmap fst $ Stream.joinInner (==) (Stream.fromList [1,2,2,4]) (Stream.fromList [2,1,1,3])
 -- [1,1,2,2]
 --
 -- Space: O(n) where @n@ is the number of elements in the second stream.
