@@ -451,6 +451,10 @@ o_n_heap_buffering value =
             $ joinWith Internal.joinInner sqrtVal sqrtVal
         , benchIOSrc1 "joinInnerMap"
             $ joinMapWith Internal.joinInnerMap sqrtVal sqrtVal
+        , benchIOSrc1 "joinLeft"
+            $ joinWith Internal.joinLeft sqrtVal sqrtVal
+        , benchIOSrc1 "joinLeftMap "
+            $ joinMapWith Internal.joinLeftMap sqrtVal sqrtVal
         , benchIOSrc1 "joinOuter"
             $ joinWith Internal.joinOuter sqrtVal sqrtVal
         , benchIOSrc1 "joinOuterMap"

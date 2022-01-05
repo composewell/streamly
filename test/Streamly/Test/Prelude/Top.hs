@@ -123,6 +123,51 @@ joinOuterMap =
                 let v2 = joinOuterList ls0 ls1
                 assert (sort v1 == sort v2)
 
+joinLeftList :: [(Int, Int)] -> [(Int, Int)] -> [(Int, Int, Maybe Int)]
+joinLeftList ls0 ls1 =
+    let v = do
+            i <- ls0
+            if i `elem` ls1
+            then return (fst i, fst i, Just (fst i))
+            else return (fst i, fst i, Nothing)
+    in v
+
+joinLeft :: Property
+joinLeft =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            -- nub the second list as no way to validate using list functions
+            monadicIO $ action ls0 (nub ls1)
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinLeft eq (S.fromList ls0) (S.fromList ls1)
+                let v2 = joinLeftList (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) ls1)
+                    v3 = map (\ (_, x1, x2) -> (x1, x2)) v2
+                assert (v1 == v3)
+
+joinLeftMap :: Property
+joinLeftMap =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            -- nub the second list as no way to validate using list functions
+            monadicIO $
+                action (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) (nub ls1))
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinLeftMap  (S.fromList ls0) (S.fromList ls1)
+                let v2 = joinLeftList ls0 ls1
+                assert (v1 == v2)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -140,3 +185,5 @@ main = hspec $ do
         -- XXX currently API is broken https://github.com/composewell/streamly/issues/1032
         --prop "joinOuter" Main.joinOuter
         prop "joinOuterMap" Main.joinOuterMap
+        prop "joinLeft" Main.joinLeft
+        prop "joinLeftMap" Main.joinLeftMap

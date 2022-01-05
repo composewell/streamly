@@ -39,9 +39,9 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , joinInner
     , joinInnerMap
     , joinInnerMerge
-    , leftJoin
+    , joinLeft
     , mergeLeftJoin
-    , hashLeftJoin
+    , joinLeftMap
     , joinOuter
     , mergeOuterJoin
     , joinOuterMap
@@ -291,6 +291,10 @@ joinInner eq s1 s2 = do
             ) s2
         ) s1
 
+-- XXX Generate error if a duplicate insertion is attempted?
+toMap ::  (Monad m, Ord k) => IsStream.SerialT m (k, v) -> m (Map.Map k v)
+toMap = Stream.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
+
 -- If the second stream is too big it can be partitioned based on hashes and
 -- then we can process one parition at a time.
 --
@@ -313,13 +317,10 @@ joinInnerMap :: (IsStream t, Monad m, Ord k) =>
     t m (k, a) -> t m (k, b) -> t m (k, a, b)
 joinInnerMap s1 s2 =
     Stream.concatM $ do
-        km <- kvFold $ IsStream.adapt s2
+        km <- toMap $ IsStream.adapt s2
         pure $ Stream.mapMaybe (joinAB km) s1
 
     where
-
-    -- XXX Generate error if a duplicate insertion is attempted?
-    kvFold = Stream.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
 
     joinAB kvm (k, a) =
         case k `Map.lookup` kvm of
@@ -353,7 +354,7 @@ joinInnerMerge = undefined
 -- stream is expensive to evaluate.
 --
 -- @
--- rightJoin = flip leftJoin
+-- rightJoin = flip joinLeft
 -- @
 --
 -- Space: O(n) assuming the second stream is cached in memory.
@@ -361,10 +362,10 @@ joinInnerMerge = undefined
 -- Time: O(m x n)
 --
 -- /Unimplemented/
-{-# INLINE leftJoin #-}
-leftJoin :: Monad m =>
+{-# INLINE joinLeft #-}
+joinLeft :: Monad m =>
     (a -> b -> Bool) -> SerialT m a -> SerialT m b -> SerialT m (a, Maybe b)
-leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
+joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
     a <- Stream.liftInner s1
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
@@ -391,13 +392,23 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE hashLeftJoin #-}
-hashLeftJoin :: -- Hashable b =>
-    (a -> b -> Bool) -> t m a -> t m b -> t m (a, Maybe b)
-hashLeftJoin = undefined
+-- /Pre-release/
+{-# INLINE joinLeftMap #-}
+joinLeftMap :: (IsStream t, Ord k, Monad m) =>
+    t m (k, a) -> t m (k, b) -> t m (k, a, Maybe b)
+joinLeftMap s1 s2 =
+    Stream.concatM $ do
+        km <- toMap $ IsStream.adapt s2
+        return $ Stream.map (joinAB km) s1
 
--- | Like 'leftJoin' but works only on sorted streams.
+            where
+
+            joinAB km (k, a) =
+                case k `Map.lookup` km of
+                    Just b -> (k, a, Just b)
+                    Nothing -> (k, a, Nothing)
+
+-- | Like 'joinLeft' but works only on sorted streams.
 --
 -- Space: O(1)
 --
@@ -575,7 +586,7 @@ mergeIntersectBy :: -- (IsStream t, Monad m) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
 mergeIntersectBy _eq _s1 _s2 = undefined
 
--- Roughly leftJoin s1 s2 = s1 `difference` s2 + s1 `intersection` s2
+-- Roughly joinLeft s1 s2 = s1 `difference` s2 + s1 `intersection` s2
 
 -- | Delete first occurrences of those elements from the first stream that are
 -- present in the second stream. If an element occurs multiple times in the
