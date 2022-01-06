@@ -95,7 +95,7 @@ ghc_prime_O0 () {
 # XXX avoid rebuilding if nothing has changed in the source
 # XXX run hlint only on changed files
 lint () {
-  packcheck cabal \
+  packcheck.sh cabal \
     HLINT_OPTIONS="lint --cpp-include=src --cpp-include=test"  \
     HLINT_TARGETS="src test benchmark"
 }
