@@ -269,7 +269,7 @@ invalidIndex label i =
 -- /Pre-release/
 {-# INLINE putIndex #-}
 putIndex :: MonadIO m => Array a -> Int -> a -> m ()
-putIndex arr@(Array {..}) i x =
+putIndex arr@Array {..} i x =
     if i >= 0 && i < arrLen
     then putIndexUnsafe arr i x
     else invalidIndex "putIndex" i
@@ -297,7 +297,7 @@ modifyIndexUnsafe Array {..} i f = do
 --
 -- /Pre-release/
 modifyIndex :: MonadIO m => Array a -> Int -> (a -> (a, b)) -> m b
-modifyIndex arr@(Array {..}) i f = do
+modifyIndex arr@Array {..} i f = do
     if i >= 0 && i < arrLen
     then modifyIndexUnsafe arr i f
     else invalidIndex "modifyIndex" i
@@ -380,7 +380,7 @@ snocWithRealloc sizer arr x = do
 -- /Pre-release/
 {-# INLINE snocWith #-}
 snocWith :: MonadIO m => (Int -> Int) -> Array a -> a -> m (Array a)
-snocWith sizer arr@(Array {..}) x = do
+snocWith sizer arr@Array {..} x = do
     if arrStart + arrLen < arrTrueLen
     then snocUnsafe arr x
     else snocWithRealloc sizer arr x
@@ -425,7 +425,7 @@ getIndexUnsafe Array {..} n =
 --
 {-# INLINE getIndex #-}
 getIndex :: MonadIO m => Array a -> Int -> m a
-getIndex arr@(Array {..}) i =
+getIndex arr@Array {..} i =
     if i >= 0 && i < arrLen
     then getIndexUnsafe arr i
     else invalidIndex "getIndex" i
@@ -449,7 +449,7 @@ getSliceUnsafe
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSliceUnsafe index len arr@(Array {..}) =
+getSliceUnsafe index len arr@Array {..} =
     assert (index >= 0 && len >= 0 && index + len <= arrLen)
         $ arr {arrStart = arrStart + index, arrLen = len}
 
@@ -464,7 +464,7 @@ getSlice
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSlice index len arr@(Array{..}) =
+getSlice index len arr@Array{..} =
     if index >= 0 && len >= 0 && index + len <= arrLen
     then arr {arrStart = arrStart + index, arrLen = len}
     else error
@@ -480,7 +480,7 @@ getSlice index len arr@(Array{..}) =
 -- /Pre-release/
 {-# INLINE toList #-}
 toList :: MonadIO m => Array a -> m [a]
-toList arr@(Array {..}) = mapM (getIndexUnsafe arr) [0 .. (arrLen - 1)]
+toList arr@Array{..} = mapM (getIndexUnsafe arr) [0 .. (arrLen - 1)]
 
 -- | Use the 'read' unfold instead.
 --
@@ -489,12 +489,12 @@ toList arr@(Array {..}) = mapM (getIndexUnsafe arr) [0 .. (arrLen - 1)]
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: MonadIO m => Array a -> D.Stream m a
-toStreamD arr@(Array {..}) =
+toStreamD arr@Array{..} =
     D.mapM (getIndexUnsafe arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 {-# INLINE toStreamK #-}
 toStreamK :: MonadIO m => Array a -> K.Stream m a
-toStreamK arr@(Array {..}) = K.unfoldrM step 0
+toStreamK arr@Array{..} = K.unfoldrM step 0
 
     where
 
