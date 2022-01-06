@@ -383,6 +383,10 @@ test-suite Prelude.Serial
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
+test-suite Prelude.Top
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/Top.hs
 
 test-suite Prelude.WAsync
   import: test-options
