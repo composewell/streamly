@@ -145,6 +145,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     , intersectBySorted
     , unionBySorted
     , differenceBySorted
+    , joinInnerMerge
     )
 where
 
@@ -154,6 +155,7 @@ import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
+import Data.IORef
 #if __GLASGOW_HASKELL__ >= 801
 import Data.Functor.Identity ( Identity )
 #endif
@@ -180,6 +182,7 @@ import qualified Streamly.Internal.Data.Ring.Foreign as RB
 import Streamly.Internal.Data.Stream.StreamD.Type
 
 import Prelude hiding (concatMap, mapM, zipWith)
+
 
 ------------------------------------------------------------------------------
 -- Appending
@@ -3103,3 +3106,417 @@ differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
     step _ (sa, Nothing, Just a, Nothing, Nothing) =
         return $ Yield a (sa, Nothing, Nothing, Nothing , Nothing)
     step _ (_, _, _, _, _) = return Stop
+
+-------------------------------------------------------------------------------
+-- Inner Join of sorted streams -----------------------------------------------
+-------------------------------------------------------------------------------
+
+-- Buffer the list of duplicate elements from right stream that will be
+-- iterated with matching elements from the left stream. An index in buffer is
+-- reset to 0 once an element from left stream is done so that next matching
+-- element from left stream again start with index 0.
+
+{-# INLINE_NORMAL joinInnerMerge #-}
+joinInnerMerge
+    :: (MonadIO m,  Eq a, Eq b)
+    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
+joinInnerMerge cmp (Stream stepa ta) (Stream stepb tb) =
+    Stream
+    step
+    ( Just ta       --  state of left stream
+    , Just tb       --  state of right stream
+    , Nothing       --  current element of left stream
+    , Nothing       --  current element of rigght stream
+    , Nothing       --  previous element of left stream
+    , Nothing       --  previous element of right stream
+    , Nothing       --  list of duplicate elements from right stream
+    , LeftRun       --  stream selector left/right
+    , 0             --  index of list of duplicate elements from right stream
+    )
+
+    where
+
+    {-# INLINE_LATE step #-}
+
+    -- step 1 : Initial Step when left stream could be  empty
+    step gst (Just sa, sb, Nothing, Nothing, pa, pb, _, LeftRun, idx) =
+        do
+        -- liftIO $ print "Step 1"
+        ref <- liftIO $ newIORef []
+        r <- stepa (adaptState gst) sa
+        return $
+            case r of
+                Yield a' sa' ->
+                    Skip
+                        ( Just sa'
+                        , sb
+                        , Just a'
+                        , Nothing
+                        , Just a'
+                        , pb
+                        , Just ref
+                        , RightRun
+                        , idx
+                        )
+
+                Skip sa' ->
+                    Skip
+                        ( Just sa'
+                        , sb
+                        , Nothing
+                        , Nothing
+                        , pa
+                        , pb
+                        , Just ref
+                        , LeftRun
+                        , idx
+                        )
+
+                Stop ->
+                    Stop
+
+    --  step 2 : pull element from right stream
+    step gst (Just sa, Just sb, a, b, pa, pb, buff, RightRun, idx) =
+        do
+        -- liftIO $ print "Step 2"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    Skip
+                        ( Just sa
+                        , Just sb'
+                        , a
+                        , Just b'
+                        , pa
+                        , Just b'
+                        , buff
+                        , CompareRun
+                        , idx
+                        ) -- go to compare step
+
+                Skip sb' ->
+                    Skip
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , b
+                        , pa
+                        , pb
+                        , buff
+                        , LeftRun
+                        , idx
+                        )
+
+                Stop ->
+                    Stop
+
+    -- step 3 : compare step compare left stream data with right stream
+    step _ (Just sa, Just sb, Just a, Just b, pa, pb, Just buff, CompareRun, idx) =
+        do
+        -- liftIO $ print "Step 3"
+        let res = cmp a b
+        return $
+            case res of
+                LT ->
+                    Skip
+                        ( Just sa
+                        , Just sb
+                        , Just a
+                        , Just b
+                        , pa
+                        , pb
+                        , Just buff
+                        , LeftRun
+                        , idx
+                        ) -- skip a step pull left
+                EQ ->
+                    Skip
+                        ( Just sa
+                        , Just sb
+                        , Just a
+                        , Just b
+                        , Just a
+                        , pb
+                        , Just buff
+                        , BuffPrepare
+                        , idx
+                        ) -- step 6
+                GT ->
+                    Skip
+                        ( Just sa
+                        , Just sb
+                        , Just a
+                        , Just b
+                        , pa
+                        , Just b
+                        , Just buff
+                        , RightDupRun
+                        , idx
+                        ) -- step right duplicate
+
+    -- step 4 : step pull left pull the data from left stream to compare next data from right stream
+    -- it is diff from initial step as this step has other states
+    step gst (Just sa, Just sb, Just a, Just b, pa, pb, buff, LeftRun, idx) =
+        do
+        -- liftIO $ print "Step 4"
+        r <- stepa (adaptState gst) sa
+        return $
+            case r of
+                Yield a' sa' ->
+                    Skip                                -- compare step
+                        ( Just sa'
+                        , Just sb
+                        , Just a'
+                        , Just b
+                        , Just a
+                        , pb
+                        , buff
+                        , CompareRun
+                        , idx
+                        )
+                Skip sa' ->
+                    Skip
+                        ( Just sa'
+                        , Just sb
+                        , Nothing
+                        , Nothing
+                        , pa
+                        , pb
+                        , buff
+                        , RightRun
+                        , idx
+                        )
+                Stop -> Stop
+
+
+    -- step 5 : step right duplicate both stream has data, pull data from right
+    --  stream and in next step compare b with previous b to remove mismatched
+    -- duplicates from right stream
+    step
+        gst
+        ( Just sa
+        , Just sb
+        , Just a
+        , Just b
+        , Just pa
+        , Just pb
+        , buff
+        , RightDupRun
+        , idx
+        ) =
+        do
+        -- liftIO $ print "Step 5"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    if b' == pb
+                    then
+                        Skip
+                            ( Just sa
+                            ,  Just sb'
+                            , Just a
+                            , Just b'
+                            , Just a
+                            , Just b'
+                            , buff
+                            , RightDupRun
+                            , idx
+                            ) -- step right duplicate
+                    else
+                        Skip
+                            ( Just sa
+                            , Just sb'
+                            , Just a
+                            , Just b'
+                            , Just a
+                            , Just b'
+                            , buff
+                            , CompareRun
+                            , idx
+                            ) -- compare step
+                Skip sb' ->
+                    Skip
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , Just b
+                        , Just pa
+                        , Nothing
+                        , buff
+                        , LeftRun
+                        , idx
+                        )
+                Stop ->
+                    Stop
+
+    -- step 6 : buffer the data from right stream to iterate over
+    step
+        gst
+        ( Just sa
+        , Just sb
+        , Just a
+        , Just b
+        , pa
+        , _
+        , Just buff
+        , BuffPrepare
+        , idx
+        ) =
+        do
+        -- liftIO $ print "Step 6"
+        liftIO $ modifyIORef'  buff (b : )
+        r <- stepb (adaptState gst) sb
+        case r of
+            Yield b' sb' -> do
+                if b' == b
+                then return $
+                    Skip
+                        ( Just sa
+                        , Just sb'
+                        , Just a
+                        , Just b'
+                        , pa
+                        , Just b'
+                        , Just buff
+                        , BuffPrepare
+                        , idx
+                        )
+                else return $
+                    Skip                                    -- step 7
+                        ( Just sa
+                        , Just sb'
+                        , Just a
+                        , Just b'
+                        , pa
+                        , Just b'
+                        , Just buff
+                        , BuffPair
+                        , 0
+                        )
+            Skip sb' ->
+                return $
+                    Skip
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , Just b
+                        , pa
+                        , Nothing
+                        , Just buff
+                        , LeftRun
+                        , idx
+                        )
+            Stop ->
+                return $
+                Skip
+                    ( Just sa
+                    , Just sb
+                    , Just a
+                    , Just b
+                    , pa
+                    , Just b
+                    , Just buff
+                    , BuffPair
+                    , 0
+                    )  -- step 7
+
+    -- step 7 : do pairing with buff (only when repeatation is over)
+    step
+        _
+        ( Just sa
+        , Just sb
+        , Just a
+        , Just b
+        , pa
+        , Just pb
+        , Just buff
+        , BuffPair
+        , idx
+        ) =
+        do
+        -- liftIO $ print "Step 7"
+        bl <- liftIO $ readIORef buff
+        if idx < length bl
+        then return $
+            Yield
+                (a, bl !! idx)
+                ( Just sa
+                , Just sb
+                , Just a
+                , Just b
+                , pa
+                , Just pb
+                , Just buff
+                , BuffPair
+                , idx+1
+                )
+        else return $
+            Skip                                    -- step 8
+                ( Just sa
+                , Just sb
+                , Just a
+                , Just b
+                , Just a
+                , Just pb
+                , Just buff
+                , BuffReset
+                , 0
+                )
+
+
+    -- step 8 : pull the data from left stream to compare next data from
+    -- right stream
+    step gst
+        (Just sa, sb, Just _, Just b, Just pa, pb, Just buff, BuffReset, idx) =
+        do
+        -- liftIO $ print "Step 8"
+        r <- stepa (adaptState gst) sa
+        case r of
+            Yield a' sa' -> do
+                if a' == pa
+                then return $
+                    Skip                                -- step 7
+                        ( Just sa'
+                        , sb
+                        , Just a'
+                        , Just b
+                        , Just a'
+                        , pb
+                        , Just buff
+                        , BuffPair
+                        , idx
+                        )
+                else do
+                    -- clear buff
+                    liftIO $ writeIORef buff []
+                    return $
+                        Skip                            -- compare step
+                            ( Just sa'
+                            , sb
+                            , Just a'
+                            , Just b
+                            , Just a'
+                            , pb
+                            , Just buff
+                            , CompareRun
+                            , idx
+                            )
+            Skip sa' ->
+                return $
+                    Skip
+                        ( Just sa'
+                        , sb
+                        , Nothing
+                        , Nothing
+                        , Just pa
+                        , pb
+                        , Just buff
+                        , RightRun
+                        , idx
+                        )
+            Stop ->
+                return Stop
+
+    step _ (_, _, _, _, _, _, _, _, _) = return Stop
