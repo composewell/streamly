@@ -174,13 +174,17 @@ firstf _  Nothing      = Nothing
 toArray :: Utf8 -> Array Word8
 toArray (Utf8 arr) = arr
 
--- | /O(n)/ Convert a 'String' into a 'Utf8'. Performs
+-- | Convert a 'String' into a 'Utf8'. Performs
 -- replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL pack #-}
 pack :: String -> Utf8
 pack = unstream . Stream.fromList
 
--- | /O(n)/ Convert a 'Utf8' into a 'String'.
+-- | Convert a 'Utf8' into a 'String'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL unpack #-}
 unpack :: Utf8 -> String
 unpack = unsafePerformIO . Stream.toList . stream
@@ -297,83 +301,108 @@ read = undefined
 -- Basic functions
 --------------------------------------------------------------------------------
 
--- | /O(n)/ Adds a character to the front of a 'Utf8'. This function is more
+-- | Adds a character to the front of a 'Utf8'. This function is more
 -- costly than its 'List' counterpart because it requires copying a new array.
 -- Performs replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE cons #-}
 cons :: Char -> Utf8 -> Utf8
 cons c = unstream . Stream.cons c . stream
 
--- | /O(n)/ Adds a character to the end of a 'Utf8'.  This copies the entire
+-- | Adds a character to the end of a 'Utf8'.  This copies the entire
 -- array in the process, unless fused.   Performs replacement
 -- on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE snoc #-}
 snoc :: Utf8 -> Char -> Utf8
 snoc = undefined
 
--- | /O(n)/ Appends one 'Utf8' to the other by copying both of them into a new
+-- | Appends one 'Utf8' to the other by copying both of them into a new
 -- 'Utf8'.
+--
+-- /Time complexity:/ O(n)
 {-# NOINLINE append #-}
 append :: Utf8 -> Utf8 -> Utf8
 append (Utf8 a) (Utf8 b) = Utf8 $ unsafePerformIO $ Array.splice a b
 
--- | /O(1)/ Returns the first character of a 'Utf8', or 'Nothing' if empty.
+-- | Returns the first character of a 'Utf8', or 'Nothing' if empty.
 --
+--
+-- /Time complexity:/ O(1)
 {-# INLINE head #-}
 head :: Utf8 -> Maybe Char
 head = unsafePerformIO . Stream.head . stream
 
--- | /O(1)/ Returns the first character and rest of a 'Utf8', or 'Nothing' if
+-- | Returns the first character and rest of a 'Utf8', or 'Nothing' if
 -- empty.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE_NORMAL uncons #-}
 uncons :: Utf8 -> Maybe (Char, Utf8)
 uncons = fmap (second unstream) . unsafePerformIO . Stream.uncons . stream
 
--- | /O(1)/ Returns the last character of a 'Utf8', or 'Nothing' if empty.
+-- | Returns the last character of a 'Utf8', or 'Nothing' if empty.
 --
+--
+-- /Time complexity:/ O(1)
 {-# INLINE_NORMAL last #-}
 last :: Utf8 -> Char
 last = undefined
 
--- | /O(1)/ Returns all characters after the head of a 'Utf8', or 'Nothing' if
+-- | Returns all characters after the head of a 'Utf8', or 'Nothing' if
 -- empty.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE_NORMAL tail #-}
 tail :: Utf8 -> Maybe Utf8
 tail = fmap unstream . unsafePerformIO . Stream.tail . stream
 
--- | /O(1)/ Returns all but the last character of a 'Utf8', or 'Nothing' if
+-- | Returns all but the last character of a 'Utf8', or 'Nothing' if
 -- empty.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE_NORMAL init #-}
 init :: Utf8 -> Maybe Utf8
 init = fmap unstream . unsafePerformIO . Stream.init . stream
 
--- | /O(1)/ Returns all but the last character and the last character of a
+-- | Returns all but the last character and the last character of a
 -- 'Utf8', or 'Nothing' if empty.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE unsnoc #-}
 unsnoc :: Utf8 -> Maybe (Utf8, Char)
 unsnoc = undefined
 
--- | /O(1)/ Tests whether a 'Utf8' is empty or not.
+-- | Tests whether a 'Utf8' is empty or not.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE null #-}
 null :: Utf8 -> Bool
 null = Array.null . toArray
 
--- | /O(1)/ Tests whether a 'Utf8' contains exactly one character.
+-- | Tests whether a 'Utf8' contains exactly one character.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE isSingleton #-}
 isSingleton :: Utf8 -> Bool
 isSingleton = undefined
 
--- | /O(n)/ Returns the number of characters in a 'Utf8'.
+-- | Returns the number of characters in a 'Utf8'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE length #-}
 length :: Utf8 -> Int
 length = unsafePerformIO . Stream.length . stream
 
-
--- | /O(n)/ Compare the count of characters in a 'Utf8' to a number.
+-- | Compare the count of characters in a 'Utf8' to a number.
 --
 -- This function gives the same answer as comparing against the result of
 -- 'length', but can short circuit if the count of characters is greater than
 -- the number, and hence be more efficient.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL compareLength #-}
 compareLength :: Utf8 -> Int -> Ordering
 compareLength = undefined

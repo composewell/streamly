@@ -121,41 +121,52 @@ import Prelude hiding
 fold :: MonadIO m => Fold m Char b -> Utf8 -> m b
 fold f = Stream.fold f . hoist liftIO . stream
 
-{-# INLINE foldl #-}
--- | /O(n)/ 'foldl', applied to a binary operator, a starting value
+-- | 'foldl', applied to a binary operator, a starting value
 -- (typically the left-identity of the operator), and a 'Utf8',
+--
+-- /Time complexity:/ O(n)
 -- reduces the 'Utf8' using the binary operator, from left to right.
 --
+{-# INLINE foldl #-}
 foldl :: (a -> Char -> a) -> a -> Utf8 -> a
 foldl = undefined
 
+-- | A strict version of 'foldl'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE foldl' #-}
--- | /O(n)/ A strict version of 'foldl'.
 foldl' :: (a -> Char -> a) -> a -> Utf8 -> a
 foldl' f z t = unsafePerformIO $ Stream.foldl' f z (stream t)
 
-{-# INLINE foldl1 #-}
--- | /O(n)/ A variant of 'foldl' that has no starting value argument. Returns
+-- | A variant of 'foldl' that has no starting value argument. Returns
 -- 'Nothing' if applied to an empty 'Utf8'.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE foldl1 #-}
 foldl1 :: (Char -> Char -> Char) -> Utf8 -> Char
 foldl1 = undefined
 
+-- | A strict version of 'foldl1'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE foldl1' #-}
--- | /O(n)/ A strict version of 'foldl1'.
 foldl1' :: (Char -> Char -> Char) -> Utf8 -> Maybe Char
 foldl1' f t = unsafePerformIO $ Stream.foldl1' f (stream t)
 
-{-# INLINE foldr #-}
--- | /O(n)/ 'foldr', applied to a binary operator, a starting value
+-- | 'foldr', applied to a binary operator, a starting value
 -- (typically the right-identity of the operator), and a 'Utf8',
 -- reduces the 'Utf8' using the binary operator, from right to left.
 --
+-- /Time complexity:/ O(n)
+{-# INLINE foldr #-}
 foldr :: (Char -> a -> a) -> a -> Utf8 -> a
 foldr f z t = unsafePerformIO $ Stream.foldr f z (stream t)
 
-{-# INLINE foldr1 #-}
--- | /O(n)/ A variant of 'foldr' that has no starting value argument. Returns
+-- | A variant of 'foldr' that has no starting value argument. Returns
 -- 'Nothing' if applied to an empty 'Utf8'.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE foldr1 #-}
 foldr1 :: (Char -> Char -> Char) -> Utf8 -> Maybe Char
 foldr1 = undefined
 
@@ -163,27 +174,35 @@ foldr1 = undefined
 -- Special folds
 --------------------------------------------------------------------------------
 
-{-# INLINE any #-}
--- | /O(n)/ 'any' @p@ @t@ determines whether any character in the
+-- | 'any' @p@ @t@ determines whether any character in the
 -- 'Utf8' @t@ satisfies the predicate @p@.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE any #-}
 any :: (Char -> Bool) -> Utf8 -> Bool
 any p t = unsafePerformIO $ Stream.any p (stream t)
 
-{-# INLINE all #-}
--- | /O(n)/ 'all' @p@ @t@ determines whether all characters in the
+-- | 'all' @p@ @t@ determines whether all characters in the
 -- 'Utf8' @t@ satisfy the predicate @p@.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE all #-}
 all :: (Char -> Bool) -> Utf8 -> Bool
 all p t = unsafePerformIO $ Stream.all p (stream t)
 
-{-# INLINE maximum #-}
--- | /O(n)/ 'maximum' returns the maximum value from a 'Utf8', or 'Nothing' if
+-- | 'maximum' returns the maximum value from a 'Utf8', or 'Nothing' if
 -- empty.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE maximum #-}
 maximum :: Utf8 -> Maybe Char
 maximum t = unsafePerformIO $ Stream.maximum (stream t)
 
-{-# INLINE minimum #-}
--- | /O(n)/ 'minimum' returns the minimum value from a 'Utf8', or 'Nothing' if
+-- | 'minimum' returns the minimum value from a 'Utf8', or 'Nothing' if
 -- empty.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE minimum #-}
 minimum :: Utf8 -> Maybe Char
 minimum t = unsafePerformIO $ Stream.minimum (stream t)
 
@@ -207,35 +226,42 @@ minimum t = unsafePerformIO $ Stream.minimum (stream t)
 -- searching for the index of @\"::\"@ and taking the substrings
 -- before and after that index, you would instead use @breakOnAll \"::\"@.
 
--- | /O(n)/ 'Utf8' index (subscript) operator, starting from 0.
+-- | 'Utf8' index (subscript) operator, starting from 0.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE index #-}
 index :: Utf8 -> Int -> Maybe Char
 index t n = unsafePerformIO $ (Stream.!!) (stream t) n
 
--- | /O(n)/ The 'findIndex' function takes a predicate and a 'Utf8'
+-- | The 'findIndex' function takes a predicate and a 'Utf8'
 -- and returns the index of the first element in the 'Utf8' satisfying
 -- the predicate.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE findIndex #-}
 findIndex :: (Char -> Bool) -> Utf8 -> Maybe Int
 findIndex p t = unsafePerformIO $ Stream.findIndex p (stream t)
 
--- | /O(n+m)/ The 'count' function returns the number of times the
+-- | The 'count' function returns the number of times the
 -- query string appears in the given 'Utf8'. An empty query string is
 -- invalid, and will cause an error to be raised.
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
+--
+-- /Time complexity:/ O(n+m)
 {-# INLINE_NORMAL count #-}
 count :: Utf8 -> Utf8 -> Int
 count = undefined
 
--- | /O(n)/ The 'countChar' function returns the number of times the
+-- | The 'countChar' function returns the number of times the
 -- query element appears in the given 'Utf8'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE countChar #-}
 countChar :: Char -> Utf8 -> Int
 countChar c t =
     unsafePerformIO $ Stream.length $ Stream.filter (== c) (stream t)
-
 
 --------------------------------------------------------------------------------
 -- Searching
@@ -245,16 +271,20 @@ countChar c t =
 -- Searching with a predicate
 --------------------------------------------------------------------------------
 
--- | /O(n)/ The 'elem' function takes a character and a 'Utf8', and
+-- | The 'elem' function takes a character and a 'Utf8', and
 -- returns 'True' if the element is found in the given 'Utf8', or
 -- 'False' otherwise.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE elem #-}
 elem :: Char -> Utf8 -> Bool
 elem c = any (== c)
 
--- | /O(n)/ The 'find' function takes a predicate and a 'Utf8', and
+-- | The 'find' function takes a predicate and a 'Utf8', and
 -- returns the first element matching the predicate, or 'Nothing' if
 -- there is no such element.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE find #-}
 find :: (Char -> Bool) -> Utf8 -> Maybe Char
 find p t = unsafePerformIO $ Stream.find p (stream t)
@@ -263,28 +293,34 @@ find p t = unsafePerformIO $ Stream.find p (stream t)
 -- Predicates
 --------------------------------------------------------------------------------
 
--- | /O(n)/ The 'isPrefixOf' function takes two 'Utf8's and returns
+-- | The 'isPrefixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a prefix of the second.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL _isPrefixOf #-}
 _isPrefixOf :: Utf8 -> Utf8 -> Bool
 _isPrefixOf a b =
     Array.byteLength (toArray a) <= Array.byteLength (toArray b)
         && unsafePerformIO (Stream.isPrefixOf (stream a) (stream b))
 
--- | /O(n)/ The 'isSuffixOf' function takes two 'Utf8's and returns
+-- | The 'isSuffixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a suffix of the second.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE _isSuffixOf #-}
 _isSuffixOf :: Utf8 -> Utf8 -> Bool
 _isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
 
 -- XXX This specific API uses a lot of memory to compile
 -- XXX Use domain specific knowledge to implement it efficiently!
--- | /O(n+m)/ The 'isInfixOf' function takes two 'Utf8's and returns
+-- | The 'isInfixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is contained, wholly and intact, anywhere
 -- within the second.
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
+--
+-- /Time complexity:/ O(n+m)
 {-# INLINE_NORMAL _isInfixOf #-}
 _isInfixOf :: Utf8 -> Utf8 -> Bool
 _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
@@ -293,7 +329,7 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 -- View patterns
 --------------------------------------------------------------------------------
 
--- | /O(n)/ Return the suffix of the second string if its prefix
+-- | Return the suffix of the second string if its prefix
 -- matches the entire first string.
 --
 -- Examples:
@@ -316,12 +352,14 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 -- > fnordLength :: Utf8 -> Int
 -- > fnordLength (stripPrefix "fnord" -> Just suf) = Utf8.length suf
 -- > fnordLength _                                 = -1
+--
+-- /Time complexity:/ O(n)
 _stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
 _stripPrefix p t =
     fmap unstream $ unsafePerformIO $ Stream.stripPrefix (stream p) (stream t)
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ Find the longest non-empty common prefix of two strings
+-- | Find the longest non-empty common prefix of two strings
 -- and return it, along with the suffixes of each string at which they
 -- no longer match.
 --
@@ -338,10 +376,12 @@ _stripPrefix p t =
 --
 -- >> commonPrefixes "" "baz"
 -- Nothing
+--
+-- /Time complexity:/ O(n)
 commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8,Utf8,Utf8)
 commonPrefixes = undefined
 
--- | /O(n)/ Return the prefix of the second string if its suffix
+-- | Return the prefix of the second string if its suffix
 -- matches the entire first string.
 --
 -- Examples:
@@ -364,6 +404,8 @@ commonPrefixes = undefined
 -- > quuxLength :: Utf8 -> Int
 -- > quuxLength (stripSuffix "quux" -> Just pre) = Utf8.length pre
 -- > quuxLength _                                = -1
+--
+-- /Time complexity:/ O(n)
 _stripSuffix :: Utf8 -> Utf8 -> Maybe Utf8
 _stripSuffix p t =
     fmap unstream $ unsafePerformIO $ Stream.stripSuffix (stream p) (stream t)

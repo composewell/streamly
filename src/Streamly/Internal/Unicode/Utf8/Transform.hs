@@ -123,7 +123,7 @@ import Prelude hiding
 -- Transformations
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'map' @f@ @t@ is the 'Utf8' obtained by applying @f@ to
+-- | 'map' @f@ @t@ is the 'Utf8' obtained by applying @f@ to
 -- each element of @t@.
 --
 -- Example:
@@ -133,12 +133,14 @@ import Prelude hiding
 -- "I am not angry! Not at all!"
 --
 -- Performs replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE map #-}
 map :: (Char -> Char) -> Utf8 -> Utf8
 map f = unstream . Stream.map f . stream
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ The 'intercalate' function takes a 'Utf8' and a list of
+-- | The 'intercalate' function takes a 'Utf8' and a list of
 -- 'Utf8's and concatenates the list after interspersing the first
 -- argument between each element of the list.
 --
@@ -146,12 +148,14 @@ map f = unstream . Stream.map f . stream
 --
 -- >> Utf8.intercalate "NI!" ["We", "seek", "the", "Holy", "Grail"]
 -- "WeNI!seekNI!theNI!HolyNI!Grail"
+--
+-- /Time complexity:/ O(n)
 {-# INLINE intercalate #-}
 intercalate :: Utf8 -> [Utf8] -> Utf8
 intercalate = undefined
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ The 'intersperse' function takes a character and places it
+-- | The 'intersperse' function takes a character and places it
 -- between the characters of a 'Utf8'.
 --
 -- Example:
@@ -160,24 +164,28 @@ intercalate = undefined
 -- "S.H.I.E.L.D"
 --
 -- Performs replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE intersperse #-}
 intersperse :: Char -> Utf8 -> Utf8
 intersperse = undefined
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ Reverse the characters of a string.
+-- | Reverse the characters of a string.
 --
 -- Example:
 --
 -- >> Utf8.reverse "desrever"
 -- "reversed"
 --
+--
+-- /Time complexity:/ O(n)
 {-# INLINE reverse #-}
 reverse :: Utf8 -> Utf8
 reverse = unstream . Stream.reverse . stream
 
 -- XXX Change >> to >>> after implementation
--- | /O(m+n)/ Replace every non-overlapping occurrence of @needle@ in
+-- | Replace every non-overlapping occurrence of @needle@ in
 -- @haystack@ with @replacement@.
 --
 -- This function behaves as though it was defined as follows:
@@ -202,6 +210,8 @@ reverse = unstream . Stream.reverse . stream
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
+--
+-- /Time complexity:/ O(m+n)
 {-# INLINE replace #-}
 replace :: Utf8
         -- ^ @needle@ to search for.  If this string is empty, an
@@ -217,7 +227,7 @@ replace = undefined
 -- Case conversions (folds)
 --------------------------------------------------------------------------------
 
--- | /O(n)/ Convert a string to folded case.
+-- | Convert a string to folded case.
 --
 -- This function is mainly useful for performing caseless (also known
 -- as case insensitive) string comparisons.
@@ -233,32 +243,38 @@ replace = undefined
 -- \"&#x576;\" (now, U+0576), while the Greek \"&#xb5;\" (micro sign,
 -- U+00B5) is case folded to \"&#x3bc;\" (small letter mu, U+03BC)
 -- instead of itself.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE toCaseFold #-}
 toCaseFold :: Utf8 -> Utf8
 toCaseFold = undefined
 
--- | /O(n)/ Convert a string to lower case, using simple case
+-- | Convert a string to lower case, using simple case
 -- conversion.
 --
 -- The result string may be longer than the input string.  For
 -- instance, \"&#x130;\" (Latin capital letter I with dot above,
 -- U+0130) maps to the sequence \"i\" (Latin small letter i, U+0069)
 -- followed by \" &#x307;\" (combining dot above, U+0307).
+--
+-- /Time complexity:/ O(n)
 {-# INLINE toLower #-}
 toLower :: Utf8 -> Utf8
 toLower = undefined
 
--- | /O(n)/ Convert a string to upper case, using simple case
+-- | Convert a string to upper case, using simple case
 -- conversion.
 --
 -- The result string may be longer than the input string.  For
 -- instance, the German \"&#xdf;\" (eszett, U+00DF) maps to the
 -- two-letter sequence \"SS\".
+--
+-- /Time complexity:/ O(n)
 {-# INLINE toUpper #-}
 toUpper :: Utf8 -> Utf8
 toUpper = undefined
 
--- | /O(n)/ Convert a 'Utf8' to title case, using simple case
+-- | Convert a 'Utf8' to title case, using simple case
 -- conversion.
 --
 -- The first letter of the input is converted to title case, as is
@@ -276,12 +292,14 @@ toUpper = undefined
 -- guides disagree on whether the book name \"The Hill of the Red
 -- Fox\" is correctly title cased&#x2014;but this function will
 -- capitalize /every/ word.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE toTitle #-}
 toTitle :: Utf8 -> Utf8
 toTitle = undefined
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ Left-justify a string to the given length, using the
+-- | Left-justify a string to the given length, using the
 -- specified fill character on the right.
 -- Performs replacement on invalid scalar values.
 --
@@ -292,11 +310,13 @@ toTitle = undefined
 --
 -- >> justifyLeft 3 'x' "foobar"
 -- "foobar"
+--
+-- /Time complexity:/ O(n)
 {-# INLINE justifyLeft #-}
 justifyLeft :: Int -> Char -> Utf8 -> Utf8
 justifyLeft = undefined
 
--- | /O(n)/ Right-justify a string to the given length, using the
+-- | Right-justify a string to the given length, using the
 -- specified fill character on the left.  Performs replacement on
 -- invalid scalar values.
 --
@@ -307,12 +327,14 @@ justifyLeft = undefined
 --
 -- >> justifyRight 3 'x' "foobar"
 -- "foobar"
+--
+-- /Time complexity:/ O(n)
 {-# INLINE justifyRight #-}
 justifyRight :: Int -> Char -> Utf8 -> Utf8
 justifyRight = undefined
 
 -- XXX Change >> to >>> after implementation
--- | /O(n)/ Center a string to the given length, using the specified
+-- | Center a string to the given length, using the specified
 -- fill character on either side.  Performs replacement on invalid
 -- scalar values.
 --
@@ -320,11 +342,13 @@ justifyRight = undefined
 --
 -- >> center 8 'x' "HS"
 -- "xxxHSxxx"
+--
+-- /Time complexity:/ O(n)
 {-# INLINE center #-}
 center :: Int -> Char -> Utf8 -> Utf8
 center = undefined
 
--- | /O(n)/ The 'transpose' function transposes the rows and columns
+-- | The 'transpose' function transposes the rows and columns
 -- of its 'Utf8' argument.  Note that this function uses 'pack',
 -- 'unpack', and the list version of transpose, and is thus not very
 -- efficient.
@@ -336,6 +360,8 @@ center = undefined
 --
 -- >>> transpose ["blue","red"]
 -- ["br","le","ud","e"]
+--
+-- /Time complexity:/ O(n)
 {-# INLINE transpose #-}
 transpose :: [Utf8] -> [Utf8]
 transpose = Prelude.map pack . List.transpose . Prelude.map unpack
@@ -344,7 +370,7 @@ transpose = Prelude.map pack . List.transpose . Prelude.map unpack
 -- Building 'Utf8's
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'scanl' is similar to 'foldl', but returns a list of
+-- | 'scanl' is similar to 'foldl', but returns a list of
 -- successive reduced values from the left.
 -- Performs replacement on invalid scalar values.
 --
@@ -353,19 +379,23 @@ transpose = Prelude.map pack . List.transpose . Prelude.map unpack
 -- Note that
 --
 -- > last (scanl f z xs) == foldl f z xs.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanl #-}
 scanl :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
 scanl f z t = unstream (Stream.scanl' f z (stream t))
 
--- | /O(n)/ 'scanl1' is a variant of 'scanl' that has no starting
+-- | 'scanl1' is a variant of 'scanl' that has no starting
 -- value argument. Performs replacement on invalid scalar values.
 --
 -- > scanl1 f [x1, x2, ...] == [x1, x1 `f` x2, ...]
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanl1 #-}
 scanl1 :: (Char -> Char -> Char) -> Utf8 -> Utf8
 scanl1 f t = unstream (Stream.scanl1' f (stream t))
 
--- | /O(n)/ 'scanl'' is similar to 'foldl'', but returns a list of
+-- | 'scanl'' is similar to 'foldl'', but returns a list of
 -- successive reduced values from the left.
 -- Performs replacement on invalid scalar values.
 --
@@ -374,28 +404,36 @@ scanl1 f t = unstream (Stream.scanl1' f (stream t))
 -- Note that
 --
 -- > last (scanl' f z xs) == foldl f z xs.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanl' #-}
 scanl' :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
 scanl' f z t = unstream (Stream.scanl' f z (stream t))
 
--- | /O(n)/ 'scanl1'' is a variant of 'scanl'' that has no starting
+-- | 'scanl1'' is a variant of 'scanl'' that has no starting
 -- value argument. Performs replacement on invalid scalar values.
 --
 -- > scanl1' f [x1, x2, ...] == [x1, x1 `f` x2, ...]
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanl1' #-}
 scanl1' :: (Char -> Char -> Char) -> Utf8 -> Utf8
 scanl1' f t = unstream (Stream.scanl1' f (stream t))
 
--- | /O(n)/ 'scanr' is the right-to-left dual of 'scanl'.  Performs
+-- | 'scanr' is the right-to-left dual of 'scanl'.  Performs
 -- replacement on invalid scalar values.
 --
 -- > scanr f v == reverse . scanl (flip f) v . reverse
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanr #-}
 scanr :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
 scanr = undefined
 
--- | /O(n)/ 'scanr1' is a variant of 'scanr' that has no starting
+-- | 'scanr1' is a variant of 'scanr' that has no starting
 -- value argument. Performs replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE scanr1 #-}
 scanr1 :: (Char -> Char -> Char) -> Utf8 -> Utf8
 scanr1 = undefined
@@ -404,9 +442,11 @@ scanr1 = undefined
 -- Searching with a predicate
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'filter', applied to a predicate and a 'Utf8',
+-- | 'filter', applied to a predicate and a 'Utf8',
 -- returns a 'Utf8' containing those characters that satisfy the
 -- predicate.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE filter #-}
 filter :: (Char -> Bool) -> Utf8 -> Utf8
 filter p t = unstream (Stream.filter p (stream t))
@@ -415,14 +455,16 @@ filter p t = unstream (Stream.filter p (stream t))
 -- Substrings
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'take' @n@, applied to a 'Utf8', returns the prefix of the
+-- | 'take' @n@, applied to a 'Utf8', returns the prefix of the
 -- 'Utf8' of length @n@, or the 'Utf8' itself if @n@ is greater than
 -- the length of the Utf8.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL take #-}
 take :: Int -> Utf8 -> Utf8
 take n t = unstream (Stream.take n (stream t))
 
--- | /O(n)/ 'takeEnd' @n@ @t@ returns the suffix remaining after
+-- | 'takeEnd' @n@ @t@ returns the suffix remaining after
 -- taking @n@ characters from the end of @t@.
 --
 -- Examples:
@@ -430,18 +472,22 @@ take n t = unstream (Stream.take n (stream t))
 -- >> takeEnd 3 "foobar"
 -- "bar"
 --
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL takeEnd #-}
 takeEnd :: Int -> Utf8 -> Utf8
 takeEnd = undefined
 
--- | /O(n)/ 'drop' @n@, applied to a 'Utf8', returns the suffix of the
+-- | 'drop' @n@, applied to a 'Utf8', returns the suffix of the
 -- 'Utf8' after the first @n@ characters, or the empty 'Utf8' if @n@
 -- is greater than the length of the 'Utf8'.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL drop #-}
 drop :: Int -> Utf8 -> Utf8
 drop n t = unstream (Stream.drop n (stream t))
 
--- | /O(n)/ 'dropEnd' @n@ @t@ returns the prefix remaining after
+-- | 'dropEnd' @n@ @t@ returns the prefix remaining after
 -- dropping @n@ characters from the end of @t@.
 --
 -- Examples:
@@ -449,18 +495,22 @@ drop n t = unstream (Stream.drop n (stream t))
 -- >> dropEnd 3 "foobar"
 -- "foo"
 --
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL dropEnd #-}
 dropEnd :: Int -> Utf8 -> Utf8
 dropEnd = undefined
 
--- | /O(n)/ 'takeWhile', applied to a predicate @p@ and a 'Utf8',
+-- | 'takeWhile', applied to a predicate @p@ and a 'Utf8',
 -- returns the longest prefix (possibly empty) of elements that
 -- satisfy @p@.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL takeWhile #-}
 takeWhile :: (Char -> Bool) -> Utf8 -> Utf8
 takeWhile p t = unstream (Stream.takeWhile p (stream t))
 
--- | /O(n)/ 'takeWhileEnd', applied to a predicate @p@ and a 'Utf8',
+-- | 'takeWhileEnd', applied to a predicate @p@ and a 'Utf8',
 -- returns the longest suffix (possibly empty) of elements that
 -- satisfy @p@.
 -- Examples:
@@ -468,17 +518,21 @@ takeWhile p t = unstream (Stream.takeWhile p (stream t))
 -- >> takeWhileEnd (=='o') "foo"
 -- "oo"
 --
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL takeWhileEnd #-}
 takeWhileEnd :: (Char -> Bool) -> Utf8 -> Utf8
 takeWhileEnd = undefined
 
--- | /O(n)/ 'dropWhile' @p@ @t@ returns the suffix remaining after
+-- | 'dropWhile' @p@ @t@ returns the suffix remaining after
 -- 'takeWhile' @p@ @t@.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL dropWhile #-}
 dropWhile :: (Char -> Bool) -> Utf8 -> Utf8
 dropWhile p t = unstream (Stream.dropWhile p (stream t))
 
--- | /O(n)/ 'dropWhileEnd' @p@ @t@ returns the prefix remaining after
+-- | 'dropWhileEnd' @p@ @t@ returns the prefix remaining after
 -- dropping characters that satisfy the predicate @p@ from the end of
 -- @t@.
 --
@@ -486,35 +540,45 @@ dropWhile p t = unstream (Stream.dropWhile p (stream t))
 --
 -- >> dropWhileEnd (=='.') "foo..."
 -- "foo"
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL dropWhileEnd #-}
 dropWhileEnd :: (Char -> Bool) -> Utf8 -> Utf8
 dropWhileEnd = undefined
 
--- | /O(n)/ 'dropAround' @p@ @t@ returns the substring remaining after
+-- | 'dropAround' @p@ @t@ returns the substring remaining after
 -- dropping characters that satisfy the predicate @p@ from both the
 -- beginning and end of @t@.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL dropAround #-}
 dropAround :: (Char -> Bool) -> Utf8 -> Utf8
 dropAround p = dropWhile p . dropWhileEnd p
 
--- | /O(n)/ Remove leading white space from a string.  Equivalent to:
+-- | Remove leading white space from a string.  Equivalent to:
 --
 -- > dropWhile isSpace
+--
+-- /Time complexity:/ O(n)
 {-# INLINE stripStart #-}
 stripStart :: Utf8 -> Utf8
 stripStart = dropWhile isSpace
 
--- | /O(n)/ Remove trailing white space from a string.  Equivalent to:
+-- | Remove trailing white space from a string.  Equivalent to:
 --
 -- > dropWhileEnd isSpace
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL stripEnd #-}
 stripEnd :: Utf8 -> Utf8
 stripEnd = dropWhileEnd isSpace
 
--- | /O(n)/ Remove leading and trailing white space from a string.
+-- | Remove leading and trailing white space from a string.
 -- Equivalent to:
 --
 -- > dropAround isSpace
+--
+-- /Time complexity:/ O(n)
 {-# INLINE_NORMAL strip #-}
 strip :: Utf8 -> Utf8
 strip = dropAround isSpace

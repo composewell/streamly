@@ -113,8 +113,10 @@ import Prelude hiding
 -- Special folds
 --------------------------------------------------------------------------------
 
+-- | Concatenate a list of 'Utf8's.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE concat #-}
--- | /O(n)/ Concatenate a list of 'Utf8's.
 concat :: [Utf8] -> Utf8
 concat ts =
     case Prelude.filter (not . null) ts of
@@ -122,50 +124,66 @@ concat ts =
         [t] -> t
         xs -> Prelude.foldl1 append xs
 
-{-# INLINE concatMap #-}
--- | /O(n)/ Map a function over a 'Utf8' that results in a 'Utf8', and
+-- | Map a function over a 'Utf8' that results in a 'Utf8', and
 -- concatenate the results.
+--
+-- /Time complexity:/ O(n)
+{-# INLINE concatMap #-}
 concatMap :: (Char -> Utf8) -> Utf8 -> Utf8
 concatMap f = concat . foldr ((:) . f) []
+
 
 --------------------------------------------------------------------------------
 -- Zipping
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'zip' takes two 'Utf8's and returns a list of
+-- | 'zip' takes two 'Utf8's and returns a list of
 -- corresponding pairs of bytes. If one input 'Utf8' is short,
 -- excess elements of the longer 'Utf8' are discarded. This is
 -- equivalent to a pair of 'unpack' operations.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE zip #-}
 zip :: Utf8 -> Utf8 -> [(Char,Char)]
 zip a b = unsafePerformIO $ Stream.toList $ Stream.zipWith (,) (stream a) (stream b)
 
--- | /O(n)/ 'zipWith' generalises 'zip' by zipping with the function
+
+-- | 'zipWith' generalises 'zip' by zipping with the function
 -- given as the first argument, instead of a tupling function.
 -- Performs replacement on invalid scalar values.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE zipWith #-}
 zipWith :: (Char -> Char -> Char) -> Utf8 -> Utf8 -> Utf8
 zipWith f a b = unstream (Stream.zipWith f (stream a) (stream b))
 
--- | /O(n)/ Breaks a 'Utf8' up into a list of words, delimited by 'Char's
+-- | Breaks a 'Utf8' up into a list of words, delimited by 'Char's
 -- representing white space.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE words #-}
 words :: Utf8 -> [Utf8]
 words = split isSpace
 
--- | /O(n)/ Breaks a 'Utf8' up into a list of 'Utf8's at
+-- | Breaks a 'Utf8' up into a list of 'Utf8's at
 -- newline 'Char's. The resulting strings do not contain newlines.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE lines #-}
 lines :: Utf8 -> [Utf8]
 lines = split (== '\n')
 
--- | /O(n)/ Joins lines, after appending a terminating newline to
+-- | Joins lines, after appending a terminating newline to
 -- each.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE unlines #-}
 unlines :: [Utf8] -> Utf8
 unlines = concat . List.map (`snoc` '\n')
 
--- | /O(n)/ Joins words using single space characters.
+-- | Joins words using single space characters.
+--
+-- /Time complexity:/ O(n)
 {-# INLINE unwords #-}
 unwords :: [Utf8] -> Utf8
 unwords = intercalate (singleton ' ')

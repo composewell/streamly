@@ -96,33 +96,41 @@ import Prelude hiding
 -- Substrings
 --------------------------------------------------------------------------------
 
--- | /O(n)/ 'splitAt' @n t@ returns a pair whose first element is a
+-- | 'splitAt' @n t@ returns a pair whose first element is a
 -- prefix of @t@ of length @n@, and whose second is the remainder of
 -- the string. It is equivalent to @('take' n t, 'drop' n t)@.
+--
+-- /Time complexity:/ O(n)
 splitAt :: Int -> Utf8 -> (Utf8, Utf8)
 splitAt = undefined
 
--- | /O(n)/ 'span', applied to a predicate @p@ and text @t@, returns
+-- | 'span', applied to a predicate @p@ and text @t@, returns
 -- a pair whose first element is the longest prefix (possibly empty)
 -- of @t@ of elements that satisfy @p@, and whose second is the
 -- remainder of the list.
 --
 -- >> Utf8.span (=='0') "000AB"
 -- ("000","AB")
+--
+-- /Time complexity:/ O(n)
 {-# INLINE span #-}
 span :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
 span = undefined
 
--- | /O(n)/ 'break' is like 'span', but the prefix returned is
+-- | 'break' is like 'span', but the prefix returned is
 -- over elements that fail the predicate @p@.
 --
 -- >> Utf8.break (=='c') "180cm"
 -- ("180","cm")
+--
+-- /Time complexity:/ O(n)
 {-# INLINE break #-}
 break :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
 break p = span (not . p)
 
--- | /O(n)/ Group characters in a string according to a predicate.
+-- | Group characters in a string according to a predicate.
+--
+-- /Time complexity:/ O(n)
 groupBy :: (Char -> Char -> Bool) -> Utf8 -> [Utf8]
 groupBy p = unsafePerformIO . Stream.toList . Stream.groupsBy p write . stream
 
@@ -137,17 +145,23 @@ findAIndexOrEnd q t@(Utf8 _arr _off len) = go 0
                 where Iter c d          = iter t i
 -}
 
--- | /O(n)/ Group characters in a string by equality.
+-- | Group characters in a string by equality.
+--
+-- /Time complexity:/ O(n)
 group :: Utf8 -> [Utf8]
 group = groupBy (==)
 
--- | /O(n)/ Return all initial segments of the given 'Utf8', shortest
+-- | Return all initial segments of the given 'Utf8', shortest
 -- first.
+--
+-- /Time complexity:/ O(n)
 inits :: Utf8 -> [Utf8]
 inits = undefined
 
--- | /O(n)/ Return all final segments of the given 'Utf8', longest
+-- | Return all final segments of the given 'Utf8', longest
 -- first.
+--
+-- /Time complexity:/ O(n)
 tails :: Utf8 -> [Utf8]
 tails = undefined
 
@@ -157,7 +171,7 @@ tails = undefined
 -- copies to create substrings; they just construct new 'Utf8's that
 -- are slices of the original.
 
--- | /O(m+n)/ Break a 'Utf8' into pieces separated by the first 'Utf8'
+-- | Break a 'Utf8' into pieces separated by the first 'Utf8'
 -- argument (which cannot be empty), consuming the delimiter. An empty
 -- delimiter is invalid, and will cause an error to be raised.
 --
@@ -181,6 +195,8 @@ tails = undefined
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
+--
+-- /Time complexity:/ O(m+n)
 {-# INLINE_NORMAL splitOn #-}
 splitOn :: Utf8
         -- ^ String to split on. If this string is empty, an error
@@ -195,7 +211,7 @@ splitOn pat src =
         $ Stream.toList $ Stream.splitOnSeq (toArray pat) write (stream src)
 -}
 
--- | /O(n)/ Splits a 'Utf8' into components delimited by separators,
+-- | Splits a 'Utf8' into components delimited by separators,
 -- where the predicate returns True for a separator element.  The
 -- resulting components do not contain the separators.  Two adjacent
 -- separators result in an empty component in the output.  eg.
@@ -205,12 +221,14 @@ splitOn pat src =
 --
 -- >>> split (=='a') ""
 -- [""]
+--
+-- /Time complexity:/ O(n)
 {-# INLINE split #-}
 split :: (Char -> Bool) -> Utf8 -> [Utf8]
 split p t =
     unsafePerformIO $ Stream.toList $ Stream.splitOn p write (stream t)
 
--- | /O(n)/ Splits a 'Utf8' into components of length @k@.  The last
+-- | Splits a 'Utf8' into components of length @k@.  The last
 -- element may be shorter than the other chunks, depending on the
 -- length of the input. Examples:
 --
@@ -219,12 +237,14 @@ split p t =
 --
 -- >>> chunksOf 4 "haskell.org"
 -- ["hask","ell.","org"]
+--
+-- /Time complexity:/ O(n)
 {-# INLINE chunksOf #-}
 chunksOf :: Int -> Utf8 -> [Utf8]
 chunksOf k t =
     unsafePerformIO $ Stream.toList $ Stream.chunksOf k write (stream t)
 
--- | /O(n+m)/ Find the first instance of @needle@ (which must be
+-- | Find the first instance of @needle@ (which must be
 -- non-'null') in @haystack@.  The first element of the returned tuple
 -- is the prefix of @haystack@ before @needle@ is matched.  The second
 -- is the remainder of @haystack@, starting with the match.
@@ -248,12 +268,14 @@ chunksOf k t =
 --
 -- In (unlikely) bad cases, this function's time complexity degrades
 -- towards /O(n*m)/.
+--
+-- /Time complexity:/ O(n+m)
 {-# INLINE breakOn #-}
 breakOn :: Utf8 -> Utf8 -> (Utf8, Utf8)
 breakOn = undefined
 
 -- XXX Change >> to >>> after implementation
--- | /O(n+m)/ Similar to 'breakOn', but searches from the end of the
+-- | Similar to 'breakOn', but searches from the end of the
 -- string.
 --
 -- The first element of the returned tuple is the prefix of @haystack@
@@ -262,6 +284,8 @@ breakOn = undefined
 --
 -- >> breakOnEnd "::" "a::b::c"
 -- ("a::b::","c")
+--
+-- /Time complexity:/ O(n+m)
 {-# INLINE breakOnEnd #-}
 breakOnEnd :: Utf8 -> Utf8 -> (Utf8, Utf8)
 breakOnEnd = undefined
@@ -270,17 +294,19 @@ breakOnEnd = undefined
 -- Searching
 --------------------------------------------------------------------------------
 
--- | /O(n)/ The 'partition' function takes a predicate and a 'Utf8',
+-- | The 'partition' function takes a predicate and a 'Utf8',
 -- and returns the pair of 'Utf8's with elements which do and do not
 -- satisfy the predicate, respectively; i.e.
 --
 -- > partition p t == (filter p t, filter (not . p) t)
+--
+-- /Time complexity:/ O(n)
 {-# INLINE partition #-}
 partition :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
 partition p t = (filter p t, filter (not . p) t)
 
 -- XXX Change >> to >>> after implementation
--- | /O(n+m)/ Find all non-overlapping instances of @needle@ in
+-- | Find all non-overlapping instances of @needle@ in
 -- @haystack@.  Each element of the returned list consists of a pair:
 --
 -- * The entire string prior to the /k/th match (i.e. the prefix)
@@ -299,6 +325,8 @@ partition p t = (filter p t, filter (not . p) t)
 -- towards /O(n*m)/.
 --
 -- The @needle@ parameter may not be empty.
+--
+-- /Time complexity:/ O(n+m)
 {-# INLINE breakOnAll #-}
 breakOnAll :: Utf8              -- ^ @needle@ to search for
            -> Utf8              -- ^ @haystack@ in which to search
