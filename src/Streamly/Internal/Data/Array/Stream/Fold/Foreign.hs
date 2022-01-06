@@ -51,6 +51,8 @@ module Streamly.Internal.Data.Array.Stream.Fold.Foreign
     )
 where
 
+#include "ArrayMacros.h"
+
 import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
@@ -58,7 +60,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem, touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Parser.ParserD (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -118,8 +120,8 @@ fromFold (Fold.Fold fstep finitial fextract) =
         goArray !_ !cur !fs = do
             x <- liftIO $ peek cur
             res <- fstep fs x
-            let elemSize = sizeOfElem (undefined :: a)
-                next = cur `plusPtr` elemSize
+            let elemSize = SIZE_OF(a)
+                next = PTR_NEXT(cur,a)
             case res of
                 Fold.Done b ->
                     return $ Done ((end `minusPtr` next) `div` elemSize) b
@@ -156,8 +158,8 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
             x <- liftIO $ peek cur
             liftIO $ touch contents
             res <- step1 fs x
-            let elemSize = sizeOfElem (undefined :: a)
-                next = cur `plusPtr` elemSize
+            let elemSize = SIZE_OF(a)
+                next = PTR_NEXT(cur,a)
                 arrRem = (end `minusPtr` next) `div` elemSize
             case res of
                 ParserD.Done n b -> do
@@ -320,8 +322,7 @@ take n (Fold (ParserD.Parser step1 initial1 extract1)) =
                 Error err -> return $ Error err
         else do
             let !(Array contents start _) = arr
-                sz = sizeOfElem (undefined :: a)
-                end = start `plusPtr` (i * sz)
+                end = PTR_INDEX(start,i,a)
                 arr1 = Array contents start end
                 remaining = negate i1
             res <- step1 r arr1

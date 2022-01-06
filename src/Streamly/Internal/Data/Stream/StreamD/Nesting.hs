@@ -146,6 +146,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 where
 
 #include "inline.hs"
+#include "ArrayMacros.h"
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -167,7 +168,6 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -1672,7 +1672,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
 
     patLen = A.length patArr
     maxIndex = patLen - 1
-    elemBits = sizeOfElem (undefined :: a) * 8
+    elemBits = SIZE_OF(a) * 8
 
     -- For word pattern case
     wordMask :: Word
@@ -1720,7 +1720,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                      then do
                          pat <- liftIO $ A.unsafeIndexIO patArr 0
                          return $ Skip $ SplitOnSeqSingle acc state pat
-                     else if sizeOfElem (undefined :: a) * patLen
+                     else if SIZE_OF(a) * patLen
                                <= sizeOf (undefined :: Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
@@ -1986,7 +1986,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
 
     patLen = A.length patArr
     maxIndex = patLen - 1
-    elemBits = sizeOfElem (undefined :: a) * 8
+    elemBits = SIZE_OF(a) * 8
 
     -- For word pattern case
     wordMask :: Word
@@ -2053,7 +2053,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                      then do
                          pat <- liftIO $ A.unsafeIndexIO patArr 0
                          skip $ SplitOnSuffixSeqSingleInit fs state pat
-                     else if sizeOfElem (undefined :: a) * patLen
+                     else if SIZE_OF(a) * patLen
                                <= sizeOf (undefined :: Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do

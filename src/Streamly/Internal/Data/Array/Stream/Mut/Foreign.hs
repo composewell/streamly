@@ -25,13 +25,14 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
 where
 
 #include "inline.hs"
+#include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..), sizeOfElem)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -211,7 +212,7 @@ compactLEParserD n = ParserD.Parser step initial extract
 
     where
 
-    nBytes = n * sizeOfElem (undefined :: a)
+    nBytes = n * SIZE_OF(a)
 
     initial =
         return
@@ -261,7 +262,7 @@ compactGEFold n = Fold step initial extract
 
     where
 
-    nBytes = n * sizeOfElem (undefined :: a)
+    nBytes = n * SIZE_OF(a)
 
     initial =
         return

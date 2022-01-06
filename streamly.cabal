@@ -86,6 +86,7 @@ extra-source-files:
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Stream/PreludeCommon.hs
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
+    src/Streamly/Internal/Data/Array/ArrayMacros.h
     src/Streamly/Internal/Data/Array/PrimInclude.hs
     src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
     src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
@@ -321,7 +322,11 @@ library
       default-extensions: QuantifiedConstraints
 
     js-sources: jsbits/clock.js
-    include-dirs:    src, src/Streamly/Internal/Data/Stream
+    include-dirs:
+          src
+        , src/Streamly/Internal/Data/Stream
+        , src/Streamly/Internal/Data/Array
+
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
       exposed-modules: Streamly.Internal.FileSystem.Event.Windows

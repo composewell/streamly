@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Ring.Foreign
     , slidingWindow
     ) where
 
+#include "ArrayMacros.h"
 #include "inline.hs"
 
 import Control.Exception (assert)
@@ -79,8 +80,7 @@ import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (Array, memcmp, sizeOfElem)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -124,7 +124,7 @@ startOf = unsafeForeignPtrToPtr . ringStart
 {-# INLINE new #-}
 new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
 new count = do
-    let size = count * sizeOfElem (undefined :: a)
+    let size = count * SIZE_OF(a)
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
     return (Ring
@@ -148,7 +148,7 @@ newRing = undefined
 {-# INLINE advance #-}
 advance :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
 advance Ring{..} ringHead =
-    let ptr = ringHead `plusPtr` sizeOfElem (undefined :: a)
+    let ptr = PTR_NEXT(ringHead,a)
     in if ptr <  ringBound
        then ptr
        else unsafeForeignPtrToPtr ringStart
@@ -162,7 +162,7 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
 
     where
 
-    elemSize = sizeOfElem (undefined :: a)
+    elemSize = SIZE_OF(a)
     ringStartPtr = unsafeForeignPtrToPtr ringStart
     lenInBytes = ringBound `minusPtr` ringStartPtr
     offInBytes = ringHead `minusPtr` ringStartPtr
@@ -362,7 +362,7 @@ asBytes = castUnsafe
 cast :: forall a b. Storable b => Ring a -> Maybe (Ring b)
 cast arr =
     let len = byteLength arr
-        r = len `mod` sizeOfElem (undefined :: b)
+        r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
         else Just $ castUnsafe arr
@@ -444,7 +444,7 @@ unsafeFoldRing ptr f z Ring{..} =
         | p == q = return acc
         | otherwise = do
             x <- peek p
-            go (f acc x) (p `plusPtr` sizeOfElem (undefined :: a)) q
+            go (f acc x) (PTR_NEXT(p,a)) q
 
 -- XXX Can we remove MonadIO here?
 withForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
@@ -464,8 +464,8 @@ unsafeFoldRingM ptr f z Ring {..} =
         | start == end = return acc
         | otherwise = do
             let !x = unsafeInlineIO $ peek start
-            acc' <- f acc x
-            go acc' (start `plusPtr` sizeOfElem (undefined :: a)) end
+            acc1 <- f acc x
+            go acc1 (PTR_NEXT(start,a)) end
 
 -- | Fold the entire length of a ring buffer starting at the supplied ringHead
 -- pointer.  Assuming the supplied ringHead pointer points to the oldest item,

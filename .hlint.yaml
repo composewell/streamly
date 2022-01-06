@@ -36,7 +36,13 @@
 
 # Specify additional command line arguments
 #
-- arguments: [--cpp-include=src, --cpp-include=test, --cpp-define=CABAL_OS_LINUX]
+- arguments:
+    [ --cpp-include=src
+    , --cpp-include=src/Streamly/Internal/Data/Stream
+    , --cpp-include=src/Streamly/Internal/Data/Array
+    , --cpp-include=test
+    , --cpp-define=CABAL_OS_LINUX
+    ]
 
 
 # Control which extensions/flags/modules/functions can be used

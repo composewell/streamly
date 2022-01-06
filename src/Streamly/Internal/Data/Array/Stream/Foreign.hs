@@ -46,6 +46,7 @@ module Streamly.Internal.Data.Array.Stream.Foreign
     )
 where
 
+#include "ArrayMacros.h"
 #include "inline.hs"
 
 import Data.Bifunctor (second)
@@ -76,7 +77,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (memcpy, allocBytesToElemCount, sizeOfElem)
+    (memcpy, allocBytesToElemCount)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign as Array
@@ -194,8 +195,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
                     r <- peek p
                     touch contents
                     return r
-        return $ D.Yield x (InnerLoop st contents
-                            (p `plusPtr` sizeOfElem (undefined :: a)) end)
+        return $ D.Yield x (InnerLoop st contents (PTR_NEXT(p,a)) end)
 
 -------------------------------------------------------------------------------
 -- Compact
@@ -349,8 +349,7 @@ foldD (Fold fstep initial extract) stream@(D.Stream step state) = do
     goArray !_ st fp@(ForeignPtr end contents) !cur !fs = do
         x <- liftIO $ peek cur
         res <- fstep fs x
-        let elemSize = sizeOfElem (undefined :: a)
-            next = cur `plusPtr` elemSize
+        let next = PTR_NEXT(cur,a)
         case res of
             FL.Done b -> do
                 let arr = Array (fptrToArrayContents contents) next (Ptr end)
@@ -390,8 +389,7 @@ takeArrayListRev = go
            else if n == len
            then [x]
            else let !(Array contents _ end) = x
-                    sz = sizeOfElem (undefined :: a)
-                    !start = end `plusPtr` negate (n * sz)
+                    !start = end `plusPtr` negate (n * SIZE_OF(a))
                  in [Array contents start end]
 
 -- When we have to take an array partially, take the last part of the array in
@@ -413,8 +411,7 @@ splitAtArrayListRev n ls
                 else if m == len
                 then ([x],xs)
                 else let !(Array contents start end) = x
-                         sz = sizeOfElem (undefined :: a)
-                         end1 = end `plusPtr` negate (m * sz)
+                         end1 = end `plusPtr` negate (m * SIZE_OF(a))
                          arr2 = Array contents start end1
                          arr1 = Array contents end1 end
                       in ([arr1], arr2:xs)
@@ -568,8 +565,7 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
     gobuf !_ s backBuf fp@(ForeignPtr end contents) !cur !pst = do
         x <- liftIO $ peek cur
         pRes <- pstep pst x
-        let elemSize = sizeOfElem (undefined :: a)
-            next = cur `plusPtr` elemSize
+        let next = PTR_NEXT(cur,a)
         case pRes of
             PR.Partial 0 pst1 ->
                  gobuf SPEC s (List []) fp next pst1

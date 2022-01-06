@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Array.Foreign
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -115,6 +113,9 @@ module Streamly.Internal.Data.Array.Foreign
     )
 where
 
+#include "inline.hs"
+#include "ArrayMacros.h"
+
 import Control.Exception (assert)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -130,8 +131,7 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import GHC.Ptr (Ptr(..))
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ReadUState(..), sizeOfElem, touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
@@ -205,8 +205,7 @@ producer = Producer step inject extract
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ peek cur
-                cur1 = cur `plusPtr` sizeOfElem (undefined :: a)
-            return $ D.Yield x (ReadUState contents end cur1)
+            return $ D.Yield x (ReadUState contents end (PTR_NEXT(cur,a)))
 
     extract (ReadUState contents end cur) = return $ Array contents cur end
 
@@ -250,7 +249,7 @@ unsafeRead = Unfold step inject
                         r <- peek p
                         touch contents
                         return r
-            let !p1 = p `plusPtr` sizeOfElem (undefined :: a)
+            let !p1 = PTR_NEXT(p,a)
             return $ D.Yield x (ReadUState contents end p1)
 
 -- |
@@ -272,8 +271,7 @@ getIndexRev arr i =
     unsafeInlineIO
         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
             $ \ptr -> do
-                let elemSize = sizeOfElem (undefined :: a)
-                    elemPtr = aEnd arr `plusPtr` negate (elemSize * (i + 1))
+                let elemPtr = PTR_RINDEX(aEnd arr,i,a)
                 if i >= 0 && elemPtr >= ptr
                 then Just <$> peek elemPtr
                 else return Nothing
@@ -383,7 +381,7 @@ getSliceUnsafe ::
     -> Array a
     -> Array a
 getSliceUnsafe index len (Array contents start e) =
-    let size = sizeOfElem (undefined :: a)
+    let size = SIZE_OF(a)
         fp1 = start `plusPtr` (index * size)
         end = fp1 `plusPtr` (len * size)
      in assert (end <= e) (Array contents fp1 end)
@@ -438,9 +436,8 @@ getIndex arr i =
     unsafeInlineIO
         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
             $ \ptr -> do
-                let elemSize = sizeOfElem (undefined :: a)
-                    elemPtr = ptr `plusPtr` (elemSize * i)
-                if i >= 0 && elemPtr `plusPtr` elemSize <= aEnd arr
+                let elemPtr = PTR_INDEX(ptr,i,a)
+                if i >= 0 && PTR_VALID(elemPtr,aEnd arr,a)
                 then Just <$> peek elemPtr
                 else return Nothing
 
@@ -550,7 +547,7 @@ asBytes = unsafeCast
 cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
 cast arr =
     let len = A.byteLength arr
-        r = len `mod` sizeOfElem (undefined :: b)
+        r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
         else Just $ unsafeCast arr
