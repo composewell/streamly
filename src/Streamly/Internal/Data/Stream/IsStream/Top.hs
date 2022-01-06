@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     -- ** Join operations
     , crossJoin
     , innerJoin
-    , mergeInnerJoin
+    , joinInnerMerge
     , hashInnerJoin
     , leftJoin
     , mergeLeftJoin
@@ -308,10 +308,14 @@ hashInnerJoin = undefined
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE mergeInnerJoin #-}
-mergeInnerJoin :: (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
-mergeInnerJoin = undefined
+-- /Pre-release/
+{-# INLINE joinInnerMerge #-}
+joinInnerMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
+    (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
+joinInnerMerge eq s1 =
+      IsStream.fromStreamD
+    . StreamD.joinInnerMerge eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 -- XXX We can do this concurrently.
 -- XXX If the second stream is sorted and passed as an Array or a seek capable
