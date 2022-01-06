@@ -40,7 +40,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , joinInnerMerge
     , hashInnerJoin
     , leftJoin
-    , mergeLeftJoin
+    , joinLeftMerge
     , hashLeftJoin
     , outerJoin
     , mergeOuterJoin
@@ -383,11 +383,14 @@ hashLeftJoin = undefined
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE mergeLeftJoin #-}
-mergeLeftJoin :: -- Monad m =>
+-- /Pre-release/
+{-# INLINE joinLeftMerge #-}
+joinLeftMerge :: (IsStream t, MonadIO m,  Eq a, Eq b) =>
     (a -> b -> Ordering) -> t m a -> t m b -> t m (a, Maybe b)
-mergeLeftJoin _eq _s1 _s2 = undefined
+joinLeftMerge eq s1 =
+      IsStream.fromStreamD
+    . StreamD.joinLeftMerge eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 -- XXX We can do this concurrently.
 --

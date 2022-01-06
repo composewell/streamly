@@ -1,7 +1,7 @@
 module Main (main)
     where
 
-import Data.List (intersect, sort, union, (\\))
+import Data.List (elem, intersect, nub, sort, union, (\\))
 import Test.QuickCheck
     ( Gen
     , Property
@@ -102,6 +102,30 @@ joinInnerMerge =
                         (S.fromList ls1)
                 let v2 = [ (i,j) | i <- ls0, j <- ls1, i == j ]
                 assert (v1 == v2)
+
+joinLeftMerge :: Property
+joinLeftMerge =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            -- nub the second list as no way to validate using list functions
+            monadicIO $ action (sort ls0) (sort (nub ls1))
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinLeftMerge
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = do
+                        i <- ls0
+                        if (elem i ls1)
+                        then return (i, Just i)
+                        else return (i, Nothing)
+                assert (v1 == v2)
 -------------------------------------------------------------------------------
 moduleName :: String
 moduleName = "Data.Stream.Top"
@@ -114,3 +138,4 @@ main = hspec $ do
         prop "unionBySorted" Main.unionBySorted
         prop "differenceBySorted" Main.differenceBySorted
         prop "joinInnerMerge" Main.joinInnerMerge
+        prop "joinLeftMerge" Main.joinLeftMerge
