@@ -28,11 +28,11 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     -- | These are not exactly set operations because streams are not
     -- necessarily sets, they may have duplicated elements.
     , intersectBy
-    , intersectBySorted    
+    , intersectBySorted
     , differenceBy
     , mergeDifferenceBy
     , unionBy
-    , mergeUnionBy
+    , unionBySorted
 
     -- ** Join operations
     , crossJoin
@@ -521,7 +521,9 @@ intersectBy eq s1 s2 =
 intersectBySorted :: (IsStream t, MonadIO m, Eq a) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
 intersectBySorted eq s1 =
-    IsStream.fromStreamD . StreamD.intersectBySorted eq (IsStream.toStreamD s1) . IsStream.toStreamD
+      IsStream.fromStreamD
+    . StreamD.intersectBySorted eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 -- Roughly leftJoin s1 s2 = s1 `difference` s2 + s1 `intersection` s2
 
@@ -613,8 +615,11 @@ unionBy eq s1 s2 =
 --
 -- Space: O(1)
 --
--- /Unimplemented/
-{-# INLINE mergeUnionBy #-}
-mergeUnionBy :: -- (IsStream t, Monad m) =>
+-- /Pre-release/
+{-# INLINE unionBySorted #-}
+unionBySorted :: (IsStream t, MonadAsync m, Ord a) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeUnionBy _eq _s1 _s2 = undefined
+unionBySorted cmp s1 =
+      IsStream.fromStreamD
+    . StreamD.unionBySorted cmp (IsStream.toStreamD s1)
+    . IsStream.toStreamD
