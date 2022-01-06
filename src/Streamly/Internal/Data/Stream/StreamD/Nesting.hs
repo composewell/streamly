@@ -144,6 +144,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     , splitInnerBySuffix
     , intersectBySorted
     , unionBySorted
+    , differenceBySorted
     )
 where
 
@@ -3038,3 +3039,67 @@ unionBySorted cmp (Stream stepa ta) (Stream stepb tb) =
                             )
 
     step _ (_, _, _, _, _, _, _) = return Stop
+
+-------------------------------------------------------------------------------
+-- Difference of sorted streams -----------------------------------------------
+-------------------------------------------------------------------------------
+{-# INLINE_NORMAL differenceBySorted #-}
+differenceBySorted :: (Monad m) =>
+    (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+differenceBySorted cmp (Stream stepa ta) (Stream stepb tb) =
+    Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
+
+    where
+    {-# INLINE_LATE step #-}
+
+    -- one of the values is missing, and the corresponding stream is running
+    step gst (Just sa, sb, Nothing, b, Nothing) = do
+        r <- stepa gst sa
+        return $ case r of
+            Yield a sa' -> Skip (Just sa', sb, Just a, b, Nothing)
+            Skip sa'    -> Skip (Just sa', sb, Nothing, b, Nothing)
+            Stop        -> Skip (Nothing, sb, Nothing, b, Nothing)
+
+    step gst (sa, Just sb, a, Nothing, Nothing) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield b sb' -> Skip (sa, Just sb', a, Just b, Nothing)
+            Skip sb'    -> Skip (sa, Just sb', a, Nothing, Nothing)
+            Stop        -> Skip (sa, Nothing, a, Nothing, Nothing)
+
+    -- Matching element
+    step gst (Just sa, Just sb, Nothing, _, Just _) = do
+        r1 <- stepa gst sa
+        r2 <- stepb gst sb
+        return $ case r1 of
+            Yield a sa' ->
+                case r2 of
+                    Yield c sb' ->
+                        Skip (Just sa', Just sb', Just a, Just c, Nothing)
+                    Skip sb' ->
+                        Skip (Just sa', Just sb', Just a, Just a, Nothing)
+                    Stop ->
+                        Yield a (Just sa', Just sb, Nothing, Nothing, Just a)
+            Skip sa' ->
+                case r2 of
+                    Yield c sb' ->
+                        Skip (Just sa', Just sb', Just c, Just c, Nothing)
+                    Skip sb' ->
+                        Skip (Just sa', Just sb', Nothing, Nothing, Nothing)
+                    Stop ->
+                        Stop
+            Stop ->
+                Stop
+
+    -- both the values are available
+    step _ (sa, sb, Just a, Just b, Nothing) = do
+        let res = cmp a b
+        return $ case res of
+            GT -> Skip (sa, sb, Just a, Nothing, Nothing)
+            LT -> Yield a (sa, sb, Nothing, Just b, Nothing)
+            EQ -> Skip (sa, sb, Nothing, Just b, Just b)
+
+    -- one of the values is missing, corresponding stream is done
+    step _ (sa, Nothing, Just a, Nothing, Nothing) =
+        return $ Yield a (sa, Nothing, Nothing, Nothing , Nothing)
+    step _ (_, _, _, _, _) = return Stop

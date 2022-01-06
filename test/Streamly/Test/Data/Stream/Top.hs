@@ -1,7 +1,7 @@
 module Main (main)
     where
 
-import Data.List (intersect, sort, union)
+import Data.List (intersect, sort, union, (\\))
 import Test.QuickCheck
     ( Gen
     , Property
@@ -64,6 +64,26 @@ unionBySorted =
                         (S.fromList ls1)
                 let v2 = sort $ union ls0 ls1
                 assert (v1 == v2)
+
+differenceBySorted :: Property
+differenceBySorted =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort ls1)
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.differenceBySorted
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = ls0 \\ ls1
+                assert (v1 == sort v2)
+
 -------------------------------------------------------------------------------
 moduleName :: String
 moduleName = "Data.Stream.Top"
@@ -74,3 +94,4 @@ main = hspec $ do
         -- intersect
         prop "intersectBySorted" Main.intersectBySorted
         prop "unionBySorted" Main.unionBySorted
+        prop "differenceBySorted" Main.differenceBySorted
