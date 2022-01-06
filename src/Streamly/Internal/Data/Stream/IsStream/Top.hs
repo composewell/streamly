@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , intersectBy
     , intersectBySorted
     , differenceBy
-    , mergeDifferenceBy
+    , differenceBySorted
     , unionBy
     , mergeUnionBy
 
@@ -632,11 +632,14 @@ differenceBy eq s1 s2 =
 --
 -- Space: O(1)
 --
--- /Unimplemented/
-{-# INLINE mergeDifferenceBy #-}
-mergeDifferenceBy :: -- (IsStream t, Monad m) =>
+-- /Pre-release/
+{-# INLINE differenceBySorted #-}
+differenceBySorted :: (IsStream t, MonadIO m) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeDifferenceBy _eq _s1 _s2 = undefined
+differenceBySorted eq s1 =
+      IsStream.fromStreamD
+    . StreamD.differenceBySorted eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 -- | This is essentially an append operation that appends all the extra
 -- occurrences of elements from the second stream that are not already present

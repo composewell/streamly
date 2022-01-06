@@ -461,6 +461,11 @@ o_n_heap_buffering value =
             $ joinWith Internal.intersectBy sqrtVal
         , benchIOSrc1 "intersectBySorted"
             $ joinMapWith (Internal.intersectBySorted compare) halfVal
+        -- XXX It hangs forever
+        --, benchIOSrc1 "differenceBy"
+        --    $ joinMapWith (Internal.differenceBy (==)) halfVal
+        , benchIOSrc1 "differenceBySorted"
+            $ joinMapWith (Internal.differenceBySorted compare) sqrtVal
         ]
     ]
 
