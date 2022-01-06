@@ -634,7 +634,7 @@ modifyIndexUnsafe Array{..} i f = do
 modifyIndexPtr :: forall m a b. (MonadIO m, Storable a) =>
     Int -> (a -> (a, b)) -> Ptr a -> Ptr a -> m b
 modifyIndexPtr i f start end = liftIO $ do
-    let elemSize = sizeOf (undefined :: a)
+    let elemSize = sizeOfElem (undefined :: a)
         elemPtr = start `plusPtr` (elemSize * i)
     if i >= 0 && elemPtr `plusPtr` elemSize <= end
     then do
@@ -682,7 +682,7 @@ modify Array{..} f = liftIO $
     where
 
     go ptr = do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
         when (ptr `plusPtr` elemSize <= aEnd) $ do
             r <- peek ptr
             poke ptr (f r)
@@ -706,7 +706,7 @@ unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> Int -> m ()
 unsafeSwapIndices Array{..} i1 i2 = liftIO $ do
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
             ptr1 = ptr `plusPtr` (elemSize * i1)
             ptr2 = ptr `plusPtr` (elemSize * i2)
         swapPtrs ptr1 (ptr2 :: Ptr a)
@@ -717,7 +717,7 @@ unsafeSwapIndices Array{..} i1 i2 = liftIO $ do
 swapIndices :: forall m a. (MonadIO m, Storable a)
     => Array a -> Int -> Int -> m ()
 swapIndices Array{..} i1 i2 = liftIO $ do
-        let elemSize = sizeOf (undefined :: a)
+        let elemSize = sizeOfElem (undefined :: a)
             ptr1 = arrStart `plusPtr` (elemSize * i1)
             ptr2 = arrStart `plusPtr` (elemSize * i2)
         when (i1 < 0 || ptr1 >= aEnd ) $ invalidIndex "swapIndices" i1
@@ -1208,7 +1208,7 @@ reverse Array{..} = liftIO $ do
 
     where
 
-    elemSize = sizeOf (undefined :: a)
+    elemSize = sizeOfElem (undefined :: a)
 
     swap l h = do
         when (l < h) $ do
