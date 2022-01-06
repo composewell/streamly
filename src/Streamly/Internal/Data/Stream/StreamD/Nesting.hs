@@ -143,6 +143,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     , splitInnerBy
     , splitInnerBySuffix
     , intersectBySorted
+    , unionBySorted
     )
 where
 
@@ -484,7 +485,30 @@ mergeBy
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 -------------------------------------------------------------------------------
--- Intersection of sorted streams
+-- Sorted stream joins --------------------------------------------------------
+-------------------------------------------------------------------------------
+
+data StreamEmptyNess =
+      LeftEmpty
+    | RightEmpty
+    | BothEmpty
+    | NoneEmpty
+        deriving (Eq, Show)
+
+data RunOrder =
+      LeftRun
+    | RightRun
+    | CompareRun
+    | CompareDupRun
+    | FastFarwardRun
+    | RightDupRun
+    | BuffPrepare
+    | BuffPair
+    | BuffReset
+        deriving (Eq, Show)
+
+-------------------------------------------------------------------------------
+-- Intersection of sorted streams ---------------------------------------------
 -------------------------------------------------------------------------------
 
 -- Assuming the streams are sorted in ascending order
@@ -2466,3 +2490,542 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
 
     step _ (SplitYielding x next) = return $ Yield x next
     step _ SplitFinishing = return Stop
+
+-------------------------------------------------------------------------------
+-- Union of two sorted streams
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL unionBySorted #-}
+unionBySorted :: (MonadIO m, Ord a) =>
+    (a -> a -> Ordering)
+    -> Stream m a
+    -> Stream m a
+    -> Stream m a
+unionBySorted cmp (Stream stepa ta) (Stream stepb tb) =
+    Stream
+    step
+    ( Just ta       --  State of left stream
+    , Just tb       --  State of right stream
+    , Nothing       --  Current element of left stream
+    , Nothing       --  Current element of right stream
+    , Nothing       --  Previous element of right stream
+    , LeftRun       --  Stream runner indicator
+    , NoneEmpty     --  Stream emptyness indicator
+    )
+
+    where
+    {-# INLINE_LATE step #-}
+
+    -- Initial step when left stream could be empty
+    step
+        gst
+        ( Just sa
+        , Just sb
+        , Nothing
+        , Nothing
+        , Nothing
+        , LeftRun
+        , NoneEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 1"
+        r <- stepa (adaptState gst) sa
+        return $ case r of
+            Yield a' sa' ->
+                Skip
+                    ( Just sa'
+                    , Just sb
+                    , Just a'
+                    , Nothing
+                    , Nothing
+                    , RightRun
+                    , NoneEmpty
+                    )
+            Skip sa' ->
+                Skip
+                    ( Just sa'
+                    , Just sb
+                    , Nothing
+                    , Nothing
+                    , Nothing
+                    , RightRun
+                    , NoneEmpty
+                    )
+            Stop ->
+                Skip
+                    ( Nothing
+                    , Just sb
+                    , Nothing
+                    , Nothing
+                    , Nothing
+                    , RightRun
+                    , LeftEmpty
+                    )
+
+    -- Take an element from right stream and compare with previously
+    -- picked element from left stream
+    step
+        gst
+        ( Just sa
+        , Just sb
+        , Just a
+        , Nothing
+        , Nothing
+        , RightRun
+        , NoneEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 2"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    Skip
+                        ( Just sa
+                        , Just sb'
+                        , Just a
+                        , Just b'
+                        , Just b'
+                        , CompareRun
+                        , NoneEmpty
+                        )
+                Skip sb' ->
+                    Skip
+                        ( Just sa
+                        , Just sb'
+                        , Just a
+                        , Nothing
+                        , Nothing
+                        , RightRun
+                        , NoneEmpty
+                        )
+                Stop ->
+                    Skip
+                        ( Just sa
+                        , Nothing
+                        , Just a
+                        , Nothing
+                        , Nothing
+                        , LeftRun
+                        , RightEmpty
+                        )
+
+    -- Left stream has finished so take the element from right stream
+    -- here we don't have any previous element from right stream
+    step
+        gst
+        ( Nothing
+        , Just sb
+        , Nothing
+        , Nothing
+        , Nothing
+        , RightRun
+        , LeftEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 2.1"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    Yield
+                        b'
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , Just b'
+                        , Just b'
+                        , RightRun
+                        , LeftEmpty
+                        )
+                Skip sb' ->
+                    Skip
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , Nothing
+                        , Nothing
+                        , RightRun
+                        , LeftEmpty
+                        )
+                Stop ->
+                    Stop
+
+    -- Left stream has finished so take the element from right stream.
+    -- Here we have a previous element from right stream to compare with current
+    -- element of the same stream and discard the duplicates from right stream.
+    step
+        gst
+        ( Nothing
+        , Just sb
+        , Nothing
+        , Just _
+        , Just pb
+        , RightRun
+        , LeftEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 2.2"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    if pb == b'     -- discard the duplicates from right stream.
+                    then
+                        Skip
+                            ( Nothing
+                            , Just sb'
+                            , Nothing
+                            , Just b'
+                            , Just b'
+                            , RightRun
+                            , LeftEmpty
+                            )
+                    else
+                        Yield
+                            b'
+                            ( Nothing
+                            , Just sb'
+                            , Nothing
+                            , Just b'
+                            , Just b'
+                            , RightRun
+                            , LeftEmpty
+                            )
+                Skip sb' ->
+                    Skip
+                        ( Nothing
+                        , Just sb'
+                        , Nothing
+                        , Nothing
+                        , Nothing
+                        , RightRun
+                        , LeftEmpty
+                        )
+                Stop ->
+                    Stop
+
+    -- Compare the elements from both streams, if equals then fast farward the
+    -- right stream to remove duplicated elements.
+    step gst (Just sa, Just sb, Just a, Just b, Just _, CompareRun, NoneEmpty) =
+        do
+        -- liftIO $ print "Step CompareRun"
+        let res = cmp a b
+        case res of
+            LT ->
+                return $
+                Yield
+                    a
+                    ( Just sa
+                    , Just sb
+                    , Just a
+                    , Just b
+                    , Just b
+                    , LeftRun
+                    , NoneEmpty
+                    )
+            EQ -> do
+                r <- stepa (adaptState gst) sa
+                case r of
+                    Yield a' sa' -> return $
+                        Yield
+                            a        -- remove duplicated elements from right
+                            ( Just sa'
+                            , Just sb
+                            , Just a'
+                            , Just b
+                            , Just b
+                            , FastFarwardRun
+                            , NoneEmpty
+                            )
+                    Skip sa' ->  return $
+                            Yield
+                                a        -- remove duplicated elements from right
+                                ( Just sa'
+                                , Just sb
+                                , Just a
+                                , Just b
+                                , Just b
+                                , FastFarwardRun
+                                , NoneEmpty
+                                )
+                    Stop ->  return $
+                        Yield
+                            a        -- remove duplicated elements from right
+                            ( Nothing
+                            , Just sb
+                            , Nothing
+                            , Just b
+                            , Just b
+                            , FastFarwardRun
+                            , LeftEmpty
+                            )
+            GT ->
+                return $
+                Yield
+                    b
+                    ( Just sa
+                    , Just sb
+                    , Just a
+                    , Just b
+                    , Just b
+                    , RightRun
+                    , NoneEmpty
+                    )
+
+    -- Compare the elements from both streams, if equals then discard the
+    -- element from right stream.
+    step
+        gst
+        ( Just sa
+        , Just sb
+        , Just a
+        , Just _
+        , Just pb
+        , RightRun
+        , NoneEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 3"
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    if pb == b'
+                    then
+                        Skip        -- discard the matching elements
+                            ( Just sa
+                            , Just sb'
+                            , Just a
+                            , Just b'
+                            , Just b'
+                            , RightRun
+                            , NoneEmpty
+                            )
+                    else
+                        Skip
+                            ( Just sa
+                            , Just sb'
+                            , Just a
+                            , Just b'
+                            , Just b'
+                            , CompareRun
+                            , NoneEmpty
+                            )
+
+                Skip sb' ->
+                    Skip
+                        ( Just sa
+                        , Just sb'
+                        , Just a
+                        , Nothing
+                        , Nothing
+                        , RightRun
+                        , NoneEmpty
+                        )
+                Stop ->
+                    Skip
+                        ( Just sa
+                        , Nothing
+                        , Just a
+                        , Nothing
+                        , Nothing
+                        , LeftRun
+                        , RightEmpty
+                        )
+
+    -- Fast forward right to remove dups
+    step
+        gst
+        ( sa
+        , Just sb
+        , a
+        , Just b
+        , Just pb
+        , FastFarwardRun
+        , e
+        ) =
+        do
+        -- liftIO $ print $ "Step 3.1 " ++ show e
+        r <- stepb (adaptState gst) sb
+        return $
+            case r of
+                Yield b' sb' ->
+                    if b'==pb
+                    then
+                        Skip
+                            ( sa
+                            , Just sb'
+                            , a
+                            , Just b'
+                            , Just b'
+                            , FastFarwardRun
+                            , e
+                            )
+                    else
+                        case e of
+                            LeftEmpty ->
+                                Yield b'
+                                ( Nothing
+                                , Just sb
+                                , Nothing
+                                , Just b'
+                                , Just b'
+                                , RightRun
+                                , LeftEmpty
+                                )
+                            _   ->
+                                Skip
+                                ( sa
+                                , Just sb
+                                , a
+                                , Just b'
+                                , Just b'
+                                , CompareRun
+                                , NoneEmpty
+                                )
+
+                Skip sb' ->
+                    Skip
+                        ( sa
+                        , Just sb'
+                        , a
+                        , Just b
+                        , Just pb
+                        , FastFarwardRun, NoneEmpty)
+                Stop ->
+                    --Yield a
+                    Skip
+                        ( sa
+                        , Nothing
+                        , a
+                        , Nothing
+                        , Nothing
+                        , LeftRun
+                        , RightEmpty
+                        )
+
+
+    -- Right stream is empty just iterate thru left stream
+    step
+        gst
+        ( Just sa
+        , Nothing
+        , a
+        , Nothing
+        , Nothing
+        , LeftRun
+        , RightEmpty
+        ) =
+        do
+        -- liftIO $ print "Step 4"
+        r <- stepa (adaptState gst) sa
+        return $
+            case r of
+                Yield a' sa' ->
+                    case a of
+                        Just v -> Yield
+                                    v
+                                    ( Just sa'
+                                    , Nothing
+                                    , Just a'
+                                    , Nothing
+                                    , Nothing
+                                    , LeftRun
+                                    , RightEmpty
+                                    )
+                        Nothing ->  Skip
+                                    ( Just sa'
+                                    , Nothing
+                                    , Just a'
+                                    , Nothing
+                                    , Nothing
+                                    , LeftRun
+                                    , RightEmpty
+                                    )
+                Skip sa' ->
+                    Skip
+                        ( Just sa'
+                        , Nothing
+                        , a
+                        , Nothing
+                        , Nothing
+                        , LeftRun
+                        , NoneEmpty
+                        )
+                Stop ->
+                    case a of
+                        Just v -> Yield
+                                    v
+                                    ( Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , LeftRun
+                                    , BothEmpty
+                                    )
+                        Nothing ->  Skip
+                                    ( Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , Nothing
+                                    , LeftRun
+                                    , BothEmpty
+                                    )
+
+    -- Right stream is non-empty just iterate thru left stream.
+    -- If last element of left stream is matching with current right element
+    -- ignore it.
+    step gst (Just sa, Just sb, Just a, Just b, Just _, LeftRun, NoneEmpty) =
+        do
+        -- liftIO $ print "Step 5"
+        r <- stepa (adaptState gst) sa
+        return $
+            case r of
+                Yield a' sa' ->
+                    Skip
+                        ( Just sa'
+                        , Just sb
+                        , Just a'
+                        , Just b
+                        , Just b
+                        , CompareRun
+                        , NoneEmpty
+                        )
+                Skip sa' ->
+                    Skip
+                        ( Just sa'
+                        , Just sb
+                        , Just a
+                        , Just b
+                        , Nothing
+                        , LeftRun
+                        , NoneEmpty
+                        )
+                Stop ->
+                    if a==b
+                    then
+                        Skip
+                            ( Nothing
+                            , Just sb
+                            , Nothing
+                            , Just b
+                            , Just b
+                            , RightRun
+                            , LeftEmpty
+                            )
+                    else
+                        Yield
+                            b
+                            ( Nothing
+                            , Just sb
+                            , Nothing
+                            , Just b
+                            , Just b
+                            , RightRun
+                            , LeftEmpty
+                            )
+
+    step _ (_, _, _, _, _, _, _) = return Stop
