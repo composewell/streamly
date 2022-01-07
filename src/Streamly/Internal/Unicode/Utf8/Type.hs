@@ -130,17 +130,6 @@ newtype Utf8 =
 empty :: Utf8
 empty = Utf8 Array.nil
 
-singleton :: Char -> Utf8
-singleton x = pack [x]
-
-instance IsString Utf8 where
-    {-# INLINE fromString #-}
-    fromString = pack
-
-instance Show Utf8 where
-    {-# INLINE showsPrec #-}
-    showsPrec p ps r = showsPrec p (unpack ps) r
-
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
@@ -188,6 +177,18 @@ pack = unstream . Stream.fromList
 {-# INLINE_NORMAL unpack #-}
 unpack :: Utf8 -> String
 unpack = unsafePerformIO . Stream.toList . stream
+
+--------------------------------------------------------------------------------
+-- Instances
+--------------------------------------------------------------------------------
+
+instance IsString Utf8 where
+    {-# INLINE fromString #-}
+    fromString = pack
+
+instance Show Utf8 where
+    {-# INLINE showsPrec #-}
+    showsPrec p ps r = showsPrec p (unpack ps) r
 
 --------------------------------------------------------------------------------
 -- Streamly style APIs
@@ -300,6 +301,9 @@ read = undefined
 --------------------------------------------------------------------------------
 -- Basic functions
 --------------------------------------------------------------------------------
+
+singleton :: Char -> Utf8
+singleton x = pack [x]
 
 -- | Adds a character to the front of a 'Utf8'. This function is more
 -- costly than its 'List' counterpart because it requires copying a new array.
