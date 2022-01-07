@@ -305,6 +305,15 @@ read = undefined
 singleton :: Char -> Utf8
 singleton x = pack [x]
 
+-- XXX From the review:
+--
+-- StreamD cons would be better here. And we should have a caveat that this
+-- function should be avoided to build a big array using this, so you should not
+-- be using foldr cons empty that would suck with StreamD cons. But an operation
+-- like x cons xs would work much better with StreamD cons compared to regular
+-- cons.
+--
+-- You can also memcpy if that turns out to be faster than stream.
 -- | Adds a character to the front of a 'Utf8'. This function is more
 -- costly than its 'List' counterpart because it requires copying a new array.
 -- Performs replacement on invalid scalar values.
@@ -339,6 +348,14 @@ append (Utf8 a) (Utf8 b) = Utf8 $ unsafePerformIO $ Array.splice a b
 head :: Utf8 -> Maybe Char
 head = unsafePerformIO . Stream.head . toStream
 
+-- XXX From the review:
+--
+-- We can use a length fold and a single char decoding fold in parallel on the
+-- stream. Then we can use a array slice to get the tail of the array using the
+-- length returned by the length fold.
+--
+-- Alternatively, we could get the head char, find its encoded length and use
+-- that to slice the array.
 -- | Returns the first character and rest of a 'Utf8', or 'Nothing' if
 -- empty.
 --
@@ -361,8 +378,15 @@ last = undefined
 -- /Time complexity:/ O(1)
 {-# INLINE_NORMAL tail #-}
 tail :: Utf8 -> Maybe Utf8
-tail = fmap fromStream . unsafePerformIO . Stream.tail . toStream
+tail = fmap snd . uncons
 
+-- XXX From the review
+--
+-- If we can write a routine to decode utf8 in reverse then we can just decode
+-- the last char from the end of the array and then slice it.
+--
+-- Otherwise, use last on the stream, get the encoded length of the last char
+-- and use that to slice it.
 -- | Returns all but the last character of a 'Utf8', or 'Nothing' if
 -- empty.
 --
@@ -393,6 +417,11 @@ null = Array.null . toArray
 isSingleton :: Utf8 -> Bool
 isSingleton = undefined
 
+-- XXX From the review
+--
+-- We could possibly determine the length faster by using a custom routine that
+-- counts the starting chars from the utf8 encoded bytes without decoding the
+-- chars.
 -- | Returns the number of characters in a 'Utf8'.
 --
 -- /Time complexity:/ O(n)

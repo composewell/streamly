@@ -329,6 +329,7 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (toStream a) (toStream b))
 -- View patterns
 --------------------------------------------------------------------------------
 
+-- XXX Change >> to >>> once exposed
 -- | Return the suffix of the second string if its prefix
 -- matches the entire first string.
 --
@@ -381,6 +382,7 @@ _stripPrefix p t =
 commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8,Utf8,Utf8)
 commonPrefixes = undefined
 
+-- XXX Change >> to >>> once exposed
 -- | Return the prefix of the second string if its suffix
 -- matches the entire first string.
 --
