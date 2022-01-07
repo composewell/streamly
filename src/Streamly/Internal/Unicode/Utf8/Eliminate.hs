@@ -119,7 +119,7 @@ import Prelude hiding
 
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m Char b -> Utf8 -> m b
-fold f = Stream.fold f . hoist liftIO . stream
+fold f = Stream.fold f . hoist liftIO . toStream
 
 -- | 'foldl', applied to a binary operator, a starting value
 -- (typically the left-identity of the operator), and a 'Utf8',
@@ -136,7 +136,7 @@ foldl = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE foldl' #-}
 foldl' :: (a -> Char -> a) -> a -> Utf8 -> a
-foldl' f z t = unsafePerformIO $ Stream.foldl' f z (stream t)
+foldl' f z t = unsafePerformIO $ Stream.foldl' f z (toStream t)
 
 -- | A variant of 'foldl' that has no starting value argument. Returns
 -- 'Nothing' if applied to an empty 'Utf8'.
@@ -151,7 +151,7 @@ foldl1 = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE foldl1' #-}
 foldl1' :: (Char -> Char -> Char) -> Utf8 -> Maybe Char
-foldl1' f t = unsafePerformIO $ Stream.foldl1' f (stream t)
+foldl1' f t = unsafePerformIO $ Stream.foldl1' f (toStream t)
 
 -- | 'foldr', applied to a binary operator, a starting value
 -- (typically the right-identity of the operator), and a 'Utf8',
@@ -160,7 +160,7 @@ foldl1' f t = unsafePerformIO $ Stream.foldl1' f (stream t)
 -- /Time complexity:/ O(n)
 {-# INLINE foldr #-}
 foldr :: (Char -> a -> a) -> a -> Utf8 -> a
-foldr f z t = unsafePerformIO $ Stream.foldr f z (stream t)
+foldr f z t = unsafePerformIO $ Stream.foldr f z (toStream t)
 
 -- | A variant of 'foldr' that has no starting value argument. Returns
 -- 'Nothing' if applied to an empty 'Utf8'.
@@ -180,7 +180,7 @@ foldr1 = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE any #-}
 any :: (Char -> Bool) -> Utf8 -> Bool
-any p t = unsafePerformIO $ Stream.any p (stream t)
+any p t = unsafePerformIO $ Stream.any p (toStream t)
 
 -- | 'all' @p@ @t@ determines whether all characters in the
 -- 'Utf8' @t@ satisfy the predicate @p@.
@@ -188,7 +188,7 @@ any p t = unsafePerformIO $ Stream.any p (stream t)
 -- /Time complexity:/ O(n)
 {-# INLINE all #-}
 all :: (Char -> Bool) -> Utf8 -> Bool
-all p t = unsafePerformIO $ Stream.all p (stream t)
+all p t = unsafePerformIO $ Stream.all p (toStream t)
 
 -- | 'maximum' returns the maximum value from a 'Utf8', or 'Nothing' if
 -- empty.
@@ -196,7 +196,7 @@ all p t = unsafePerformIO $ Stream.all p (stream t)
 -- /Time complexity:/ O(n)
 {-# INLINE maximum #-}
 maximum :: Utf8 -> Maybe Char
-maximum t = unsafePerformIO $ Stream.maximum (stream t)
+maximum t = unsafePerformIO $ Stream.maximum (toStream t)
 
 -- | 'minimum' returns the minimum value from a 'Utf8', or 'Nothing' if
 -- empty.
@@ -204,7 +204,7 @@ maximum t = unsafePerformIO $ Stream.maximum (stream t)
 -- /Time complexity:/ O(n)
 {-# INLINE minimum #-}
 minimum :: Utf8 -> Maybe Char
-minimum t = unsafePerformIO $ Stream.minimum (stream t)
+minimum t = unsafePerformIO $ Stream.minimum (toStream t)
 
 --------------------------------------------------------------------------------
 -- Indexing 'Utf8's
@@ -231,7 +231,7 @@ minimum t = unsafePerformIO $ Stream.minimum (stream t)
 -- /Time complexity:/ O(n)
 {-# INLINE index #-}
 index :: Utf8 -> Int -> Maybe Char
-index t n = unsafePerformIO $ (Stream.!!) (stream t) n
+index t n = unsafePerformIO $ (Stream.!!) (toStream t) n
 
 -- | The 'findIndex' function takes a predicate and a 'Utf8'
 -- and returns the index of the first element in the 'Utf8' satisfying
@@ -240,7 +240,7 @@ index t n = unsafePerformIO $ (Stream.!!) (stream t) n
 -- /Time complexity:/ O(n)
 {-# INLINE findIndex #-}
 findIndex :: (Char -> Bool) -> Utf8 -> Maybe Int
-findIndex p t = unsafePerformIO $ Stream.findIndex p (stream t)
+findIndex p t = unsafePerformIO $ Stream.findIndex p (toStream t)
 
 -- | The 'count' function returns the number of times the
 -- query string appears in the given 'Utf8'. An empty query string is
@@ -261,7 +261,7 @@ count = undefined
 {-# INLINE countChar #-}
 countChar :: Char -> Utf8 -> Int
 countChar c t =
-    unsafePerformIO $ Stream.length $ Stream.filter (== c) (stream t)
+    unsafePerformIO $ Stream.length $ Stream.filter (== c) (toStream t)
 
 --------------------------------------------------------------------------------
 -- Searching
@@ -287,7 +287,7 @@ elem c = any (== c)
 -- /Time complexity:/ O(n)
 {-# INLINE find #-}
 find :: (Char -> Bool) -> Utf8 -> Maybe Char
-find p t = unsafePerformIO $ Stream.find p (stream t)
+find p t = unsafePerformIO $ Stream.find p (toStream t)
 
 --------------------------------------------------------------------------------
 -- Predicates
@@ -301,7 +301,7 @@ find p t = unsafePerformIO $ Stream.find p (stream t)
 _isPrefixOf :: Utf8 -> Utf8 -> Bool
 _isPrefixOf a b =
     Array.byteLength (toArray a) <= Array.byteLength (toArray b)
-        && unsafePerformIO (Stream.isPrefixOf (stream a) (stream b))
+        && unsafePerformIO (Stream.isPrefixOf (toStream a) (toStream b))
 
 -- | The 'isSuffixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a suffix of the second.
@@ -309,7 +309,7 @@ _isPrefixOf a b =
 -- /Time complexity:/ O(n)
 {-# INLINE _isSuffixOf #-}
 _isSuffixOf :: Utf8 -> Utf8 -> Bool
-_isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
+_isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (toStream a) (toStream b))
 
 -- XXX This specific API uses a lot of memory to compile
 -- XXX Use domain specific knowledge to implement it efficiently!
@@ -323,7 +323,7 @@ _isSuffixOf a b = unsafePerformIO (Stream.isSuffixOf (stream a) (stream b))
 -- /Time complexity:/ O(n+m)
 {-# INLINE_NORMAL _isInfixOf #-}
 _isInfixOf :: Utf8 -> Utf8 -> Bool
-_isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
+_isInfixOf a b = unsafePerformIO (Stream.isInfixOf (toStream a) (toStream b))
 
 --------------------------------------------------------------------------------
 -- View patterns
@@ -356,7 +356,7 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (stream a) (stream b))
 -- /Time complexity:/ O(n)
 _stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
 _stripPrefix p t =
-    fmap unstream $ unsafePerformIO $ Stream.stripPrefix (stream p) (stream t)
+    fmap fromStream $ unsafePerformIO $ Stream.stripPrefix (toStream p) (toStream t)
 
 -- XXX Change >> to >>> after implementation
 -- | Find the longest non-empty common prefix of two strings
@@ -408,4 +408,5 @@ commonPrefixes = undefined
 -- /Time complexity:/ O(n)
 _stripSuffix :: Utf8 -> Utf8 -> Maybe Utf8
 _stripSuffix p t =
-    fmap unstream $ unsafePerformIO $ Stream.stripSuffix (stream p) (stream t)
+    fmap fromStream
+        $ unsafePerformIO $ Stream.stripSuffix (toStream p) (toStream t)

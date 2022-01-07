@@ -137,7 +137,7 @@ import Prelude hiding
 -- /Time complexity:/ O(n)
 {-# INLINE map #-}
 map :: (Char -> Char) -> Utf8 -> Utf8
-map f = unstream . Stream.map f . stream
+map f = fromStream . Stream.map f . toStream
 
 -- XXX Change >> to >>> after implementation
 -- | The 'intercalate' function takes a 'Utf8' and a list of
@@ -182,7 +182,7 @@ intersperse = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE reverse #-}
 reverse :: Utf8 -> Utf8
-reverse = unstream . Stream.reverse . stream
+reverse = fromStream . Stream.reverse . toStream
 
 -- XXX Change >> to >>> after implementation
 -- | Replace every non-overlapping occurrence of @needle@ in
@@ -383,7 +383,7 @@ transpose = Prelude.map pack . List.transpose . Prelude.map unpack
 -- /Time complexity:/ O(n)
 {-# INLINE scanl #-}
 scanl :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
-scanl f z t = unstream (Stream.scanl' f z (stream t))
+scanl f z t = fromStream (Stream.scanl' f z (toStream t))
 
 -- | 'scanl1' is a variant of 'scanl' that has no starting
 -- value argument. Performs replacement on invalid scalar values.
@@ -393,7 +393,7 @@ scanl f z t = unstream (Stream.scanl' f z (stream t))
 -- /Time complexity:/ O(n)
 {-# INLINE scanl1 #-}
 scanl1 :: (Char -> Char -> Char) -> Utf8 -> Utf8
-scanl1 f t = unstream (Stream.scanl1' f (stream t))
+scanl1 f t = fromStream (Stream.scanl1' f (toStream t))
 
 -- | 'scanl'' is similar to 'foldl'', but returns a list of
 -- successive reduced values from the left.
@@ -408,7 +408,7 @@ scanl1 f t = unstream (Stream.scanl1' f (stream t))
 -- /Time complexity:/ O(n)
 {-# INLINE scanl' #-}
 scanl' :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
-scanl' f z t = unstream (Stream.scanl' f z (stream t))
+scanl' f z t = fromStream (Stream.scanl' f z (toStream t))
 
 -- | 'scanl1'' is a variant of 'scanl'' that has no starting
 -- value argument. Performs replacement on invalid scalar values.
@@ -418,7 +418,7 @@ scanl' f z t = unstream (Stream.scanl' f z (stream t))
 -- /Time complexity:/ O(n)
 {-# INLINE scanl1' #-}
 scanl1' :: (Char -> Char -> Char) -> Utf8 -> Utf8
-scanl1' f t = unstream (Stream.scanl1' f (stream t))
+scanl1' f t = fromStream (Stream.scanl1' f (toStream t))
 
 -- | 'scanr' is the right-to-left dual of 'scanl'.  Performs
 -- replacement on invalid scalar values.
@@ -449,7 +449,7 @@ scanr1 = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE filter #-}
 filter :: (Char -> Bool) -> Utf8 -> Utf8
-filter p t = unstream (Stream.filter p (stream t))
+filter p t = fromStream (Stream.filter p (toStream t))
 
 --------------------------------------------------------------------------------
 -- Substrings
@@ -462,7 +462,7 @@ filter p t = unstream (Stream.filter p (stream t))
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL take #-}
 take :: Int -> Utf8 -> Utf8
-take n t = unstream (Stream.take n (stream t))
+take n t = fromStream (Stream.take n (toStream t))
 
 -- | 'takeEnd' @n@ @t@ returns the suffix remaining after
 -- taking @n@ characters from the end of @t@.
@@ -485,7 +485,7 @@ takeEnd = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL drop #-}
 drop :: Int -> Utf8 -> Utf8
-drop n t = unstream (Stream.drop n (stream t))
+drop n t = fromStream (Stream.drop n (toStream t))
 
 -- | 'dropEnd' @n@ @t@ returns the prefix remaining after
 -- dropping @n@ characters from the end of @t@.
@@ -508,7 +508,7 @@ dropEnd = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL takeWhile #-}
 takeWhile :: (Char -> Bool) -> Utf8 -> Utf8
-takeWhile p t = unstream (Stream.takeWhile p (stream t))
+takeWhile p t = fromStream (Stream.takeWhile p (toStream t))
 
 -- | 'takeWhileEnd', applied to a predicate @p@ and a 'Utf8',
 -- returns the longest suffix (possibly empty) of elements that
@@ -530,7 +530,7 @@ takeWhileEnd = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL dropWhile #-}
 dropWhile :: (Char -> Bool) -> Utf8 -> Utf8
-dropWhile p t = unstream (Stream.dropWhile p (stream t))
+dropWhile p t = fromStream (Stream.dropWhile p (toStream t))
 
 -- | 'dropWhileEnd' @p@ @t@ returns the prefix remaining after
 -- dropping characters that satisfy the predicate @p@ from the end of

@@ -118,7 +118,7 @@ replicate = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE replicateChar #-}
 replicateChar :: Int -> Char -> Utf8
-replicateChar n c = unstream (Stream.replicate n c)
+replicateChar n c = fromStream (Stream.replicate n c)
 
 -- | The 'unfoldr'
 -- function is analogous to the List 'L.unfoldr'. 'unfoldr' builds a
@@ -131,7 +131,7 @@ replicateChar n c = unstream (Stream.replicate n c)
 -- /Time complexity:/ O(n), where @n@ is the length of the result.
 {-# INLINE unfoldr #-}
 unfoldr :: (a -> Maybe (Char, a)) -> a -> Utf8
-unfoldr f s = unstream (Stream.unfoldr f s)
+unfoldr f s = fromStream (Stream.unfoldr f s)
 
 -- | Like 'unfoldr', 'unfoldrN' builds a 'Utf8' from a seed
 -- value. However, the length of the result should be limited by the

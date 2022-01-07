@@ -132,7 +132,7 @@ break p = span (not . p)
 --
 -- /Time complexity:/ O(n)
 groupBy :: (Char -> Char -> Bool) -> Utf8 -> [Utf8]
-groupBy p = unsafePerformIO . Stream.toList . Stream.groupsBy p write . stream
+groupBy p = unsafePerformIO . Stream.toList . Stream.groupsBy p write . toStream
 
 {-
 -- | Returns the /array/ index (in units of 'Word16') at which a
@@ -226,7 +226,7 @@ splitOn pat src =
 {-# INLINE split #-}
 split :: (Char -> Bool) -> Utf8 -> [Utf8]
 split p t =
-    unsafePerformIO $ Stream.toList $ Stream.splitOn p write (stream t)
+    unsafePerformIO $ Stream.toList $ Stream.splitOn p write (toStream t)
 
 -- | Splits a 'Utf8' into components of length @k@.  The last
 -- element may be shorter than the other chunks, depending on the
@@ -242,7 +242,7 @@ split p t =
 {-# INLINE chunksOf #-}
 chunksOf :: Int -> Utf8 -> [Utf8]
 chunksOf k t =
-    unsafePerformIO $ Stream.toList $ Stream.chunksOf k write (stream t)
+    unsafePerformIO $ Stream.toList $ Stream.chunksOf k write (toStream t)
 
 -- | Find the first instance of @needle@ (which must be
 -- non-'null') in @haystack@.  The first element of the returned tuple

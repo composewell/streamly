@@ -15,8 +15,8 @@ module Streamly.Internal.Unicode.Utf8.Type
     -- * Creation and elimination
     , empty
     , singleton
-    , stream
-    , unstream
+    , toStream
+    , fromStream
     , pack
     , unpack
 
@@ -134,13 +134,13 @@ empty = Utf8 Array.nil
 -- Helpers
 --------------------------------------------------------------------------------
 
-{-# INLINE stream #-}
-stream :: Utf8 -> SerialT IO Char
-stream = Unicode.decodeUtf8' . Array.toStream . toArray
+{-# INLINE toStream #-}
+toStream :: Utf8 -> SerialT IO Char
+toStream = Unicode.decodeUtf8' . Array.toStream . toArray
 
-{-# INLINE unstream #-}
-unstream :: SerialT IO Char -> Utf8
-unstream =
+{-# INLINE fromStream #-}
+fromStream :: SerialT IO Char -> Utf8
+fromStream =
     Utf8 . unsafePerformIO . Stream.fold Array.write . Unicode.encodeUtf8'
 
 {-# INLINE second #-}
@@ -169,14 +169,14 @@ toArray (Utf8 arr) = arr
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL pack #-}
 pack :: String -> Utf8
-pack = unstream . Stream.fromList
+pack = fromStream . Stream.fromList
 
 -- | Convert a 'Utf8' into a 'String'.
 --
 -- /Time complexity:/ O(n)
 {-# INLINE_NORMAL unpack #-}
 unpack :: Utf8 -> String
-unpack = unsafePerformIO . Stream.toList . stream
+unpack = unsafePerformIO . Stream.toList . toStream
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -312,7 +312,7 @@ singleton x = pack [x]
 -- /Time complexity:/ O(n)
 {-# INLINE cons #-}
 cons :: Char -> Utf8 -> Utf8
-cons c = unstream . Stream.cons c . stream
+cons c = fromStream . Stream.cons c . toStream
 
 -- | Adds a character to the end of a 'Utf8'.  This copies the entire
 -- array in the process, unless fused.   Performs replacement
@@ -337,7 +337,7 @@ append (Utf8 a) (Utf8 b) = Utf8 $ unsafePerformIO $ Array.splice a b
 -- /Time complexity:/ O(1)
 {-# INLINE head #-}
 head :: Utf8 -> Maybe Char
-head = unsafePerformIO . Stream.head . stream
+head = unsafePerformIO . Stream.head . toStream
 
 -- | Returns the first character and rest of a 'Utf8', or 'Nothing' if
 -- empty.
@@ -345,7 +345,7 @@ head = unsafePerformIO . Stream.head . stream
 -- /Time complexity:/ O(1)
 {-# INLINE_NORMAL uncons #-}
 uncons :: Utf8 -> Maybe (Char, Utf8)
-uncons = fmap (second unstream) . unsafePerformIO . Stream.uncons . stream
+uncons = fmap (second fromStream) . unsafePerformIO . Stream.uncons . toStream
 
 -- | Returns the last character of a 'Utf8', or 'Nothing' if empty.
 --
@@ -361,7 +361,7 @@ last = undefined
 -- /Time complexity:/ O(1)
 {-# INLINE_NORMAL tail #-}
 tail :: Utf8 -> Maybe Utf8
-tail = fmap unstream . unsafePerformIO . Stream.tail . stream
+tail = fmap fromStream . unsafePerformIO . Stream.tail . toStream
 
 -- | Returns all but the last character of a 'Utf8', or 'Nothing' if
 -- empty.
@@ -369,7 +369,7 @@ tail = fmap unstream . unsafePerformIO . Stream.tail . stream
 -- /Time complexity:/ O(1)
 {-# INLINE_NORMAL init #-}
 init :: Utf8 -> Maybe Utf8
-init = fmap unstream . unsafePerformIO . Stream.init . stream
+init = fmap fromStream . unsafePerformIO . Stream.init . toStream
 
 -- | Returns all but the last character and the last character of a
 -- 'Utf8', or 'Nothing' if empty.
@@ -398,7 +398,7 @@ isSingleton = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE length #-}
 length :: Utf8 -> Int
-length = unsafePerformIO . Stream.length . stream
+length = unsafePerformIO . Stream.length . toStream
 
 -- | Compare the count of characters in a 'Utf8' to a number.
 --

@@ -145,7 +145,9 @@ concatMap f = concat . foldr ((:) . f) []
 -- /Time complexity:/ O(n)
 {-# INLINE zip #-}
 zip :: Utf8 -> Utf8 -> [(Char,Char)]
-zip a b = unsafePerformIO $ Stream.toList $ Stream.zipWith (,) (stream a) (stream b)
+zip a b =
+    unsafePerformIO
+        $ Stream.toList $ Stream.zipWith (,) (toStream a) (toStream b)
 
 
 -- | 'zipWith' generalises 'zip' by zipping with the function
@@ -155,7 +157,7 @@ zip a b = unsafePerformIO $ Stream.toList $ Stream.zipWith (,) (stream a) (strea
 -- /Time complexity:/ O(n)
 {-# INLINE zipWith #-}
 zipWith :: (Char -> Char -> Char) -> Utf8 -> Utf8 -> Utf8
-zipWith f a b = unstream (Stream.zipWith f (stream a) (stream b))
+zipWith f a b = fromStream (Stream.zipWith f (toStream a) (toStream b))
 
 -- | Breaks a 'Utf8' up into a list of words, delimited by 'Char's
 -- representing white space.
