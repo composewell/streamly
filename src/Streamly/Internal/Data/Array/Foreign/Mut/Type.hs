@@ -382,35 +382,6 @@ data Array a =
     , aBound :: {-# UNPACK #-} !(Ptr a)        -- ^ first address beyond allocated memory
     }
 
-nil ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    Array a
-nil = Array nilArrayContents nullPtr nullPtr nullPtr
-
--- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
--- at the memory pointed by the @foreignPtr@, @end@ is the first unused
--- address, and @bound@ is the first address beyond the allocated memory.
---
--- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
--- integral multiple of the element size. Only PlainPtr type ForeignPtr is
--- supported.
---
--- /Pre-release/
---
-{-# INLINE fromForeignPtrUnsafe #-}
-fromForeignPtrUnsafe ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    ForeignPtr a -> Ptr a -> Ptr a -> Array a
-fromForeignPtrUnsafe (ForeignPtr start _) _ _
-    | Ptr start == nullPtr = nil
-fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
-    assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
-           (Array (fptrToArrayContents contents) (Ptr start) end bound)
-
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -472,6 +443,35 @@ newAlignedArrayContents (I# size) (I# align) = IO $ \s ->
 nilArrayContents :: ArrayContents
 nilArrayContents =
     fst $ unsafePerformIO $ newAlignedArrayContents 0 0
+
+nil ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    Array a
+nil = Array nilArrayContents nullPtr nullPtr nullPtr
+
+-- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
+-- at the memory pointed by the @foreignPtr@, @end@ is the first unused
+-- address, and @bound@ is the first address beyond the allocated memory.
+--
+-- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
+-- integral multiple of the element size. Only PlainPtr type ForeignPtr is
+-- supported.
+--
+-- /Pre-release/
+--
+{-# INLINE fromForeignPtrUnsafe #-}
+fromForeignPtrUnsafe ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    ForeignPtr a -> Ptr a -> Ptr a -> Array a
+fromForeignPtrUnsafe (ForeignPtr start _) _ _
+    | Ptr start == nullPtr = nil
+fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
+    assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
+           (Array (fptrToArrayContents contents) (Ptr start) end bound)
 
 -- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
 -- memory. The memory will never be freed by GHC.  This could be useful in
@@ -773,6 +773,144 @@ arrayChunkBytes :: Int
 arrayChunkBytes = 1024
 
 -------------------------------------------------------------------------------
+-- Resizing
+-------------------------------------------------------------------------------
+
+-- | Round the second argument down to multiples of the first argument.
+{-# INLINE roundDownTo #-}
+roundDownTo :: Int -> Int -> Int
+roundDownTo elemSize size = size - (size `mod` elemSize)
+
+-- XXX See if resizing can be implemented by reading the old array as a stream
+-- and then using writeN to the new array.
+--
+{-# NOINLINE reallocAligned #-}
+reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
+reallocAligned elemSize alignSize newCapacity Array{..} = do
+    assert (aEnd <= aBound) (return ())
+
+    -- Allocate new array
+    let newCapMax = roundUpLargeArray newCapacity
+    (contents, pNew) <- newAlignedArrayContents newCapMax alignSize
+
+    -- Copy old data
+    let oldStart = arrStart
+        oldSize = aEnd `minusPtr` oldStart
+        newCap = roundDownTo elemSize newCapMax
+        newLen = min oldSize newCap
+    assert (oldSize `mod` elemSize == 0) (return ())
+    assert (newLen >= 0) (return ())
+    assert (newLen `mod` elemSize == 0) (return ())
+    memcpy (castPtr pNew) (castPtr oldStart) newLen
+    touch arrContents
+
+    return $ Array
+        { arrStart = pNew
+        , arrContents = contents
+        , aEnd   = pNew `plusPtr` newLen
+        , aBound = pNew `plusPtr` newCap
+        }
+
+-- | @realloc newCapacity array@ reallocates the array to the specified
+-- capacity in bytes.
+--
+-- If the new size is less than the original array the array gets truncated.
+-- If the new size is not a multiple of array element size then it is rounded
+-- down to multiples of array size.  If the new size is more than
+-- 'largeObjectThreshold' then it is rounded up to the block size (4K).
+--
+{-# INLINABLE realloc #-}
+realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
+realloc n arr =
+    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) n arr
+
+-- | @reallocWith label capSizer minIncrement array@. The label is used
+-- in error messages and the capSizer is used to determine the capacity of the
+-- new array in bytes given the current byte length of the array.
+reallocWith :: forall m a. (MonadIO m , Storable a) =>
+       String
+    -> (Int -> Int)
+    -> Int
+    -> Array a
+    -> m (Array a)
+reallocWith label capSizer minIncr arr = do
+    let oldSize = aEnd arr `minusPtr` arrStart arr
+        newCap = capSizer oldSize
+        newSize = oldSize + minIncr
+        safeCap = max newCap newSize
+    assert (newCap >= newSize || error (badSize newSize)) (return ())
+    realloc safeCap arr
+
+    where
+
+    badSize newSize = concat
+        [ label
+        , ": new array size is less than required size "
+        , show newSize
+        , ". Please check the sizing function passed."
+        ]
+
+-- | @resize newCapacity array@ changes the total capacity of the array so that
+-- it is enough to hold the specified number of elements.  Nothing is done if
+-- the specified capacity is less than the length of the array.
+--
+-- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
+-- the block size (4K).
+--
+-- /Pre-release/
+{-# INLINE resize #-}
+resize :: forall m a. (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+resize n arr@Array{..} = do
+    let req = SIZE_OF(a) * n
+        len = aEnd `minusPtr` arrStart
+    if req < len
+    then return arr
+    else realloc req arr
+
+-- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
+-- it is rounded up to the closest power of 2.
+--
+-- /Pre-release/
+{-# INLINE resizeExp #-}
+resizeExp :: forall m a. (MonadIO m, Storable a) =>
+    Int -> Array a -> m (Array a)
+resizeExp n arr@Array{..} = do
+    let req = roundUpLargeArray (SIZE_OF(a) * n)
+        req1 =
+            if req > largeObjectThreshold
+            then roundUpToPower2 req
+            else req
+        len = aEnd `minusPtr` arrStart
+    if req1 < len
+    then return arr
+    else realloc req1 arr
+
+-- | Resize the allocated memory to drop any reserved free space at the end of
+-- the array and reallocate it to reduce wastage.
+--
+-- Up to 25% wastage is allowed to avoid reallocations.  If the capacity is
+-- more than 'largeObjectThreshold' then free space up to the 'blockSize' is
+-- retained.
+--
+-- /Pre-release/
+{-# INLINE rightSize #-}
+rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
+rightSize arr@Array{..} = do
+    assert (aEnd <= aBound) (return ())
+    let start = arrStart
+        len = aEnd `minusPtr` start
+        capacity = aBound `minusPtr` start
+        target = roundUpLargeArray len
+        waste = aBound `minusPtr` aEnd
+    assert (target >= len) (return ())
+    assert (len `mod` SIZE_OF(a) == 0) (return ())
+    -- We trade off some wastage (25%) to avoid reallocations and copying.
+    if target < capacity && len < 3 * waste
+    then realloc target arr
+    else return arr
+
+-------------------------------------------------------------------------------
 -- Snoc
 -------------------------------------------------------------------------------
 
@@ -818,32 +956,6 @@ snocMay arr@Array{..} x = liftIO $ do
     if newEnd <= aBound
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
-
--- | @reallocWith label capSizer minIncrement array@. The label is used
--- in error messages and the capSizer is used to determine the capacity of the
--- new array in bytes given the current byte length of the array.
-reallocWith :: forall m a. (MonadIO m , Storable a) =>
-       String
-    -> (Int -> Int)
-    -> Int
-    -> Array a
-    -> m (Array a)
-reallocWith label capSizer minIncr arr = do
-    let oldSize = aEnd arr `minusPtr` arrStart arr
-        newCap = capSizer oldSize
-        newSize = oldSize + minIncr
-        safeCap = max newCap newSize
-    assert (newCap >= newSize || error (badSize newSize)) (return ())
-    realloc safeCap arr
-
-    where
-
-    badSize newSize = concat
-        [ label
-        , ": new array size is less than required size "
-        , show newSize
-        , ". Please check the sizing function passed."
-        ]
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
@@ -914,117 +1026,6 @@ snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
 snoc = snocWith (* 2)
-
--------------------------------------------------------------------------------
--- Resizing
--------------------------------------------------------------------------------
-
--- | Round the second argument down to multiples of the first argument.
-roundDownTo :: Int -> Int -> Int
-roundDownTo elemSize size = size - (size `mod` elemSize)
-
--- XXX See if resizing can be implemented by reading the old array as a stream
--- and then using writeN to the new array.
---
-{-# NOINLINE reallocAligned #-}
-reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
-reallocAligned elemSize alignSize newCapacity Array{..} = do
-    assert (aEnd <= aBound) (return ())
-
-    -- Allocate new array
-    let newCapMax = roundUpLargeArray newCapacity
-    (contents, pNew) <- newAlignedArrayContents newCapMax alignSize
-
-    -- Copy old data
-    let oldStart = arrStart
-        oldSize = aEnd `minusPtr` oldStart
-        newCap = roundDownTo elemSize newCapMax
-        newLen = min oldSize newCap
-    assert (oldSize `mod` elemSize == 0) (return ())
-    assert (newLen >= 0) (return ())
-    assert (newLen `mod` elemSize == 0) (return ())
-    memcpy (castPtr pNew) (castPtr oldStart) newLen
-    touch arrContents
-
-    return $ Array
-        { arrStart = pNew
-        , arrContents = contents
-        , aEnd   = pNew `plusPtr` newLen
-        , aBound = pNew `plusPtr` newCap
-        }
-
--- | @realloc newCapacity array@ reallocates the array to the specified
--- capacity in bytes.
---
--- If the new size is less than the original array the array gets truncated.
--- If the new size is not a multiple of array element size then it is rounded
--- down to multiples of array size.  If the new size is more than
--- 'largeObjectThreshold' then it is rounded up to the block size (4K).
---
-{-# INLINABLE realloc #-}
-realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
-realloc n arr =
-    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) n arr
-
--- | @resize newCapacity array@ changes the total capacity of the array so that
--- it is enough to hold the specified number of elements.  Nothing is done if
--- the specified capacity is less than the length of the array.
---
--- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
--- the block size (4K).
---
--- /Pre-release/
-{-# INLINE resize #-}
-resize :: forall m a. (MonadIO m, Storable a) =>
-    Int -> Array a -> m (Array a)
-resize n arr@Array{..} = do
-    let req = SIZE_OF(a) * n
-        len = aEnd `minusPtr` arrStart
-    if req < len
-    then return arr
-    else realloc req arr
-
--- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
--- it is rounded up to the closest power of 2.
---
--- /Pre-release/
-{-# INLINE resizeExp #-}
-resizeExp :: forall m a. (MonadIO m, Storable a) =>
-    Int -> Array a -> m (Array a)
-resizeExp n arr@Array{..} = do
-    let req = roundUpLargeArray (SIZE_OF(a) * n)
-        req1 =
-            if req > largeObjectThreshold
-            then roundUpToPower2 req
-            else req
-        len = aEnd `minusPtr` arrStart
-    if req1 < len
-    then return arr
-    else realloc req1 arr
-
--- | Resize the allocated memory to drop any reserved free space at the end of
--- the array and reallocate it to reduce wastage.
---
--- Up to 25% wastage is allowed to avoid reallocations.  If the capacity is
--- more than 'largeObjectThreshold' then free space up to the 'blockSize' is
--- retained.
---
--- /Pre-release/
-{-# INLINE rightSize #-}
-rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
-rightSize arr@Array{..} = do
-    assert (aEnd <= aBound) (return ())
-    let start = arrStart
-        len = aEnd `minusPtr` start
-        capacity = aBound `minusPtr` start
-        target = roundUpLargeArray len
-        waste = aBound `minusPtr` aEnd
-    assert (target >= len) (return ())
-    assert (len `mod` SIZE_OF(a) == 0) (return ())
-    -- We trade off some wastage (25%) to avoid reallocations and copying.
-    if target < capacity && len < 3 * waste
-    then realloc target arr
-    else return arr
 
 -------------------------------------------------------------------------------
 -- Random reads
@@ -1720,6 +1721,44 @@ append :: forall m a. (MonadIO m, Storable a) =>
     m (Array a) -> Fold m a (Array a)
 append = appendWith (* 2)
 
+-- XXX We can carry bound as well in the state to make sure we do not lose the
+-- remaining capacity. Need to check perf impact.
+--
+-- | Like 'writeNUnsafe' but takes a new array allocator @alloc size@ function
+-- as argument.
+--
+-- >>> writeNWithUnsafe alloc n = Array.appendNUnsafe (alloc n) n
+--
+-- /Pre-release/
+{-# INLINE_NORMAL writeNWithUnsafe #-}
+writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
+    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
+
+    where
+
+    initial = FL.Partial . toArrayUnsafe <$> alloc (max n 0)
+
+    step (ArrayUnsafe contents start end) x = do
+        liftIO $ poke end x >> touch contents
+        return
+          $ FL.Partial
+          $ ArrayUnsafe contents start (PTR_NEXT(end,a))
+
+-- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- driver must not call the step function more than 'n' times otherwise it will
+-- corrupt the memory and crash. This function exists mainly because any
+-- conditional in the step function blocks fusion causing 10x performance
+-- slowdown.
+--
+-- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newArray
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL writeNUnsafe #-}
+writeNUnsafe :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+writeNUnsafe = writeNWithUnsafe newArray
+
 -- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
@@ -1772,44 +1811,6 @@ writeNAligned align = writeNWith (newArrayAligned align)
 writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAlignedUnmanaged align = writeNWith (newArrayAlignedUnmanaged align)
-
--- XXX We can carry bound as well in the state to make sure we do not lose the
--- remaining capacity. Need to check perf impact.
---
--- | Like 'writeNUnsafe' but takes a new array allocator @alloc size@ function
--- as argument.
---
--- >>> writeNWithUnsafe alloc n = Array.appendNUnsafe (alloc n) n
---
--- /Pre-release/
-{-# INLINE_NORMAL writeNWithUnsafe #-}
-writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
-    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
-
-    where
-
-    initial = FL.Partial . toArrayUnsafe <$> alloc (max n 0)
-
-    step (ArrayUnsafe contents start end) x = do
-        liftIO $ poke end x >> touch contents
-        return
-          $ FL.Partial
-          $ ArrayUnsafe contents start (PTR_NEXT(end,a))
-
--- | Like 'writeN' but does not check the array bounds when writing. The fold
--- driver must not call the step function more than 'n' times otherwise it will
--- corrupt the memory and crash. This function exists mainly because any
--- conditional in the step function blocks fusion causing 10x performance
--- slowdown.
---
--- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newArray
---
--- @since 0.7.0
-{-# INLINE_NORMAL writeNUnsafe #-}
-writeNUnsafe :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
-writeNUnsafe = writeNWithUnsafe newArray
 
 -- XXX Buffer to a list instead?
 --
