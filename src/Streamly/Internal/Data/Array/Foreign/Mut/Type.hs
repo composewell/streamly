@@ -1210,45 +1210,64 @@ permute = undefined
 {-# INLINE partitionBy #-}
 partitionBy :: forall m a. (MonadIO m, Storable a)
     => (a -> Bool) -> Array a -> m (Array a, Array a)
-partitionBy f arr = do
-    let low = 0
-        high = length arr - 1
-    swap low high arr
+partitionBy f arr@Array{..} = liftIO $ do
+    if arrStart >= aEnd
+    then return (arr, arr)
+    else do
+        ptr <- go arrStart (PTR_PREV(aEnd,a))
+        let pl = Array arrContents arrStart ptr ptr
+            pr = Array arrContents ptr aEnd aEnd
+        return (pl, pr)
 
     where
 
-    findL low = do
-        if length arr == low
-        then return low
-        else do
-            fw <- getIndex arr low
-            if not (f fw)
-            then findL (low + 1)
-            else return low
+    -- Invariant low < high on entry, and on return as well
+    moveHigh low high = do
+        h <- peek high
+        if f h
+        then
+            -- Correctly classified, continue the loop
+            let high1 = PTR_PREV(high,a)
+             in if low == high1
+                then return Nothing
+                else moveHigh low high1
+        else return (Just (high, h)) -- incorrectly classified
 
-    findR high = do
-        fw <- getIndex arr high
-        if f fw && high > 0
-        then findR (high - 1)
-        else return high
+    -- Keep a low pointer starting at the start of the array (first partition)
+    -- and a high pointer starting at the end of the array (second partition).
+    -- Keep incrementing the low ptr and decrementing the high ptr until both
+    -- are wrongly classified, at that point swap the two and continue until
+    -- the two pointer cross each other.
+    --
+    -- Invariants when entering this loop:
+    -- low <= high
+    -- Both low and high are valid locations within the array
+    go low high = do
+        l <- peek low
+        if f l
+        then
+            -- low is wrongly classified
+            if low == high
+            then return low
+            else do -- low < high
+                r <- moveHigh low high
+                case r of
+                    Nothing -> return low
+                    Just (high1, h) -> do -- low < high1
+                        poke low h
+                        poke high1 l
+                        let low1 = PTR_NEXT(low,a)
+                            high2 = PTR_PREV(high1,a)
+                        if low1 <= high2
+                        then go low1 high2
+                        else return low1 -- low1 > high2
 
-    swap low high arr0 = do
-        if low < high
-        then do
-            left <- findL low
-            right <- findR high
-            if left < right
-            then do
-                unsafeSwapIndices arr0 left right
-                swap (left + 1) (right - 1) arr0
-            else do
-                let al = getSlice 0 left arr0
-                    ar = getSlice left (length arr0 - left) arr0
-                return (al, ar)
         else do
-            let al = getSlice 0 low arr0
-                ar = getSlice low (length arr0 - low) arr0
-            return (al, ar)
+            -- low is correctly classified
+            let low1 = PTR_NEXT(low,a)
+            if low == high
+            then return low1
+            else go low1 high
 
 -- | Shuffle corresponding elements from two arrays using a shuffle function.
 -- If the shuffle function returns 'False' then do nothing otherwise swap the

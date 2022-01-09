@@ -1,7 +1,6 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Mut.Array
--- Copyright   : (c) 2020 Composewell Technologies
---
+-- Module      : Streamly.Benchmark.Data.Array.Foreign.Mut
+-- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
@@ -18,28 +17,17 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Main
-  (
-    main
-  ) where
+module Main (main) where
 
 import Control.DeepSeq (NFData(..))
+import Streamly.Prelude (MonadAsync, SerialT, IsStream)
 import System.Random (randomRIO)
-import Prelude hiding ()
 
-import qualified Streamly.Prelude  as Stream
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MArray
+import qualified Streamly.Prelude as Stream
+import qualified Streamly.Internal.Data.Array.Foreign.Mut as MArray
 
 import Gauge hiding (env)
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
 import Streamly.Benchmark.Common
-
-#ifdef INSPECTION
-import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
-import Test.Inspection
-#endif
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -57,21 +45,20 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 {-# INLINE benchIO #-}
 benchIO
     :: NFData b
-    => String -> (Int -> t IO a) -> (t IO a -> IO b) -> Benchmark
+    => String -> (Int -> a) -> (a -> IO b) -> Benchmark
 benchIO name src sink =
     bench name $ nfIO $ randomRIO (1,1) >>= sink . src
 
-{-# INLINE partitionBy #-}
-partitionBy :: Int -> SerialT IO (MArray.Array Int) -> IO ()
-partitionBy value s = Stream.fold Fold.drain $ do
-    a <- s
-    MArray.partitionBy ( < value) a
-
-o_n_space_serial_marray ::
-    Int -> [MArray.Array Int] -> [Benchmark]
-o_n_space_serial_marray bound arrays =
-    [ benchIO "partitionBy" (\_ -> Stream.fromList arrays)
-        $ partitionBy bound
+o_n_space_serial_marray :: Int -> MArray.Array Int -> [Benchmark]
+o_n_space_serial_marray value array =
+    [ benchIO "partitionBy (< 0)" (const array)
+        $ MArray.partitionBy (< 0)
+    , benchIO "partitionBy (> 0)" (const array)
+        $ MArray.partitionBy (> 0)
+    , benchIO "partitionBy (< value/2)" (const array)
+        $ MArray.partitionBy (< (value `div` 2))
+    , benchIO "partitionBy (> value/2)" (const array)
+        $ MArray.partitionBy (> (value `div` 2))
     ]
 
 -------------------------------------------------------------------------------
@@ -79,7 +66,7 @@ o_n_space_serial_marray bound arrays =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Mut.Array"
+moduleName = "Data.Array.Foreign.Mut"
 
 main :: IO ()
 main = do
@@ -87,10 +74,9 @@ main = do
 
     where
 
-    alloc value =
-        Stream.toList $ MArray.arraysOf value $ sourceUnfoldrM value 0
+    alloc value = MArray.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
 
-    allBenchmarks arrays value =
+    allBenchmarks array value =
         [ bgroup (o_1_space_prefix moduleName) $
-            o_n_space_serial_marray value arrays
+            o_n_space_serial_marray value array
         ]

@@ -483,16 +483,10 @@ benchmark Data.Array.Foreign
   if flag(limit-build-mem)
     ghc-options: +RTS -M1000M -RTS
 
-benchmark Data.Mut.Array
+benchmark Data.Array.Foreign.Mut
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Mut
-  main-is: Array.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11    
+  main-is: Streamly/Benchmark/Data/Array/Foreign/Mut.hs
 
 -------------------------------------------------------------------------------
 -- Array Stream Benchmarks

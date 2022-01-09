@@ -28,19 +28,21 @@ module Streamly.Internal.Data.Array.Foreign.Mut
     , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
+    , fromStream
     )
 where
 
-import Prelude hiding (foldr, length, read, splitAt)
-
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Stream.IsStream.Type (SerialT)
-import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import qualified Streamly.Internal.Data.Unfold as Unfold
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Unfold as Unfold
+-- import qualified Streamly.Internal.Data.Stream.Prelude as P
+
+import Prelude hiding (foldr, length, read, splitAt)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
@@ -50,7 +52,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 splitOn :: (MonadIO m, Storable a) =>
     (a -> Bool) -> Array a -> SerialT m (Array a)
 splitOn predicate arr =
-    IsStream.fromStreamD
+    SerialT
+        $ D.toStreamK
         $ fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (toStreamD arr)
 
@@ -84,3 +87,17 @@ getSlicesFromLen :: forall m a. (Monad m, Storable a)
 getSlicesFromLen from len =
     let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
      in Unfold.mapMWithInput mkSlice (genSlicesFromLen from len)
+
+-- | Create an 'Array' from a stream. This is useful when we want to create a
+-- single array from a stream of unknown size. 'writeN' is at least twice
+-- as efficient when the size is already known.
+--
+-- Note that if the input stream is too large memory allocation for the array
+-- may fail.  When the stream size is not known, `arraysOf` followed by
+-- processing of indvidual arrays in the resulting stream should be preferred.
+--
+-- /Pre-release/
+{-# INLINE fromStream #-}
+fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+fromStream (SerialT m) = fromStreamD $ D.fromStreamK m
+-- fromStream (SerialT m) = P.fold write m

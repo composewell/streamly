@@ -21,8 +21,6 @@ module Streamly.Internal.Data.Array.Stream.Mut.Foreign
     , compactLE
     , compactEQ
     , compactGE
-    , Array(..)
-    , partitionBy
     )
 where
 
@@ -34,7 +32,7 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..), partitionBy)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.IsStream.Type
