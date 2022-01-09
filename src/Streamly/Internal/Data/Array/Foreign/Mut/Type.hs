@@ -720,6 +720,7 @@ blockSize = 4 * 1024
 largeObjectThreshold :: Int
 largeObjectThreshold = (blockSize * 8) `div` 10
 
+-- XXX Should be done only when we are using the GHC allocator.
 -- | Round up an array larger than 'largeObjectThreshold' to use the whole
 -- block.
 {-# INLINE roundUpLargeArray #-}
@@ -732,16 +733,23 @@ roundUpLargeArray size =
             ((size + blockSize - 1) .&. negate blockSize)
     else size
 
+{-# INLINE isPower2 #-}
+isPower2 :: Int -> Bool
+isPower2 n = n .&. (n - 1) == 0
+
+{-# INLINE roundUpToPower2 #-}
 roundUpToPower2 :: Int -> Int
-roundUpToPower2 x =
+roundUpToPower2 n =
 #if WORD_SIZE_IN_BITS == 64
     1 + z6
 #else
     1 + z5
 #endif
+
     where
-    z = x - 1
-    z1 = z .|. z `shiftR` 1
+
+    z0 = n - 1
+    z1 = z0 .|. z0 `shiftR` 1
     z2 = z1 .|. z1 `shiftR` 2
     z3 = z2 .|. z2 `shiftR` 4
     z4 = z3 .|. z3 `shiftR` 8
@@ -1007,8 +1015,6 @@ snocWith allocSize arr x = liftIO $ do
 snocLinear :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
 snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 
--- XXX round it to next power of 2.
---
 -- | The array is mutated to append an additional element to it. If there is no
 -- reserved space available in the array then it is reallocated to double the
 -- original size.
@@ -1025,7 +1031,14 @@ snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 -- /Pre-release/
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
-snoc = snocWith (* 2)
+snoc = snocWith f
+
+    where
+
+    f oldSize =
+        if isPower2 oldSize
+        then oldSize * 2
+        else roundUpToPower2 oldSize * 2
 
 -------------------------------------------------------------------------------
 -- Random reads
