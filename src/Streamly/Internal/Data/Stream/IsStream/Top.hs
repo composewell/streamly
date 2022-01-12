@@ -43,7 +43,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , joinLeftMerge
     , hashLeftJoin
     , outerJoin
-    , mergeOuterJoin
+    , joinOuterMerge
     , hashOuterJoin
     )
 where
@@ -473,11 +473,14 @@ hashOuterJoin _eq _s1 _s2 = undefined
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
-{-# INLINE mergeOuterJoin #-}
-mergeOuterJoin :: -- Monad m =>
+-- /Pre-release/
+{-# INLINE joinOuterMerge #-}
+joinOuterMerge :: (IsStream t, MonadIO m,  Eq a, Eq b)  =>
     (a -> b -> Ordering) -> t m a -> t m b -> t m (Maybe a, Maybe b)
-mergeOuterJoin _eq _s1 _s2 = undefined
+joinOuterMerge eq s1 =
+      IsStream.fromStreamD
+    . StreamD.joinOuterMerge eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 ------------------------------------------------------------------------------
 -- Set operations (special joins)

@@ -2,6 +2,7 @@ module Main (main)
     where
 
 import Data.List (elem, intersect, nub, sort, union, (\\))
+import Data.Maybe (isNothing)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -126,6 +127,37 @@ joinLeftMerge =
                         then return (i, Just i)
                         else return (i, Nothing)
                 assert (v1 == v2)
+
+joinOuterMerge :: Property
+joinOuterMerge =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort (nub ls1))
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.joinOuterMerge
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = do
+                        i <- ls0
+                        if (elem i ls1)
+                        then return (Just i, Just i)
+                        else return (Just i, Nothing)
+                    v3 = do
+                        j <- ls1
+                        if (elem j ls0)
+                        then return (Just j, Just j)
+                        else return (Nothing, Just j)
+                    v4 = filter (\(a1, _) -> isNothing a1) v3
+
+                assert (sort v1 == sort (v2 ++ v4))
+
 -------------------------------------------------------------------------------
 moduleName :: String
 moduleName = "Data.Stream.Top"
@@ -139,3 +171,4 @@ main = hspec $ do
         prop "differenceBySorted" Main.differenceBySorted
         prop "joinInnerMerge" Main.joinInnerMerge
         prop "joinLeftMerge" Main.joinLeftMerge
+        prop "joinOuterMerge" Main.joinOuterMerge
