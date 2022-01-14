@@ -414,6 +414,42 @@ o_n_space_monad value =
     ]
 
 -------------------------------------------------------------------------------
+-- Joining
+-------------------------------------------------------------------------------
+
+toKvMap :: Int -> (Int, Int)
+toKvMap p = (p, p)
+
+mkStreamLen :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
+mkStreamLen count = sourceUnfoldrM count 0
+
+{-# INLINE joinInner #-}
+joinInner :: Int -> Int -> Int -> IO ()
+joinInner val1 val2 _ =
+     S.drain $ Internal.joinInner (==) (mkStreamLen val1) $ mkStreamLen val2
+
+{-# INLINE joinInnerHash #-}
+joinInnerHash :: Int -> Int -> Int -> IO ()
+joinInnerHash val1 val2 _ =
+        S.drain $
+            Internal.joinInnerHash
+            (fmap toKvMap (mkStreamLen val1))
+            (fmap toKvMap (mkStreamLen val2))
+
+o_n_heap_buffering :: Int -> [Benchmark]
+o_n_heap_buffering value =
+    [ bgroup "buffered"
+        [
+          benchIOSrc1 "joinInner" (joinInner sqrtVal sqrtVal)
+        , benchIOSrc1 "joinInnerHash" (joinInnerHash sqrtVal sqrtVal)
+        ]
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -440,4 +476,7 @@ benchmarks moduleName size =
             , o_n_space_monad size
             , o_n_space_concat size
             ]
+       , bgroup (o_n_heap_prefix moduleName) $
+            -- multi-stream
+            o_n_heap_buffering size
         ]
