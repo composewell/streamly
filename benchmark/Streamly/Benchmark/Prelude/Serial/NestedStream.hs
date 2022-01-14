@@ -428,11 +428,11 @@ joinInner :: Int -> Int -> Int -> IO ()
 joinInner val1 val2 _ =
      S.drain $ Internal.joinInner (==) (mkStreamLen val1) $ mkStreamLen val2
 
-{-# INLINE joinInnerHash #-}
-joinInnerHash :: Int -> Int -> Int -> IO ()
-joinInnerHash val1 val2 _ =
+{-# INLINE joinInnerMap #-}
+joinInnerMap :: Int -> Int -> Int -> IO ()
+joinInnerMap val1 val2 _ =
         S.drain $
-            Internal.joinInnerHash
+            Internal.joinInnerMap
             (fmap toKvMap (mkStreamLen val1))
             (fmap toKvMap (mkStreamLen val2))
 
@@ -441,7 +441,7 @@ o_n_heap_buffering value =
     [ bgroup "buffered"
         [
           benchIOSrc1 "joinInner" (joinInner sqrtVal sqrtVal)
-        , benchIOSrc1 "joinInnerHash" (joinInnerHash sqrtVal sqrtVal)
+        , benchIOSrc1 "joinInnerMap" (joinInnerMap sqrtVal sqrtVal)
         ]
     ]
 

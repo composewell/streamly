@@ -37,8 +37,8 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     -- ** Join operations
     , crossJoin
     , joinInner
+    , joinInnerMap
     , joinInnerMerge
-    , joinInnerHash
     , leftJoin
     , mergeLeftJoin
     , hashLeftJoin
@@ -79,7 +79,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Reduce as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
@@ -261,11 +260,16 @@ crossJoin s1 s2 = do
 -- are equal by the given equality pedicate then return the tuple (a, b).
 --
 -- The second stream is evaluated multiple times. If the stream is a
--- consume-once stream then the caller should cache it in an 'Data.Array.Array'
--- before calling this function. Caching may also improve performance if the
--- stream is expensive to evaluate.
+-- consume-once stream then the caller should cache it (e.g. in a
+-- 'Data.Array.Array') before calling this function. Caching may also improve
+-- performance if the stream is expensive to evaluate.
 --
 -- For space efficiency use the smaller stream as the second stream.
+--
+-- You should almost always use joinInnerMap instead of joinInner. joinInnerMap
+-- is an order of magnitude faster. joinInner may be used when the second
+-- stream is generated from a seed, therefore, need not be stored in memory and
+-- the amount of memory it takes is a concern.
 --
 -- Space: O(n) assuming the second stream is cached in memory.
 --
@@ -275,20 +279,27 @@ crossJoin s1 s2 = do
 {-# INLINE joinInner #-}
 joinInner ::
     forall (t :: (Type -> Type) -> Type -> Type) m a b.
-    (IsStream t, Monad (t m)) =>
+    (IsStream t, Monad m) =>
         (a -> b -> Bool) -> t m a -> t m b -> t m (a, b)
 joinInner eq s1 s2 = do
-    -- XXX use concatMap instead?
-    a <- s1
-    b <- s2
-    if a `eq` b
-    then return (a, b)
-    else Stream.nil
+    -- ConcatMap works faster than bind
+    Stream.concatMap (\a ->
+        Stream.concatMap (\b ->
+            if a `eq` b
+            then Stream.fromPure (a, b)
+            else Stream.nil
+            ) s2
+        ) s1
 
 -- If the second stream is too big it can be partitioned based on hashes and
 -- then we can process one parition at a time.
 --
--- | Like 'joinInner' but uses a hashmap for efficiency.
+-- XXX An IntMap may be faster when the keys are Int.
+-- XXX Use hashmap instead of map?
+--
+-- | Like 'joinInner' but uses a 'Map' for efficiency.
+--
+-- If the input streams have duplicate keys, the behavior is undefined.
 --
 -- For space efficiency use the smaller stream as the second stream.
 --
@@ -297,20 +308,23 @@ joinInner eq s1 s2 = do
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinInnerHash #-}
-joinInnerHash :: (IsStream t, Monad m, Ord k) =>
+{-# INLINE joinInnerMap #-}
+joinInnerMap :: (IsStream t, Monad m, Ord k) =>
     t m (k, a) -> t m (k, b) -> t m (k, a, b)
-joinInnerHash s1 s2 =
-        Stream.concatM $ do
-        km <- Stream.fold (Fold.classify Fold.toList) $ IsStream.adapt s2
-        return $ Stream.mapMaybe (joinAB km) s1
+joinInnerMap s1 s2 =
+    Stream.concatM $ do
+        km <- kvFold $ IsStream.adapt s2
+        pure $ Stream.mapMaybe (joinAB km) s1
 
-            where
+    where
 
-            joinAB km (k, a) =
-                case k `Map.lookup` km of
-                    Just b -> Just (k, a, head b)
-                    Nothing -> Nothing
+    -- XXX Generate error if a duplicate insertion is attempted?
+    kvFold = Stream.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
+
+    joinAB kvm (k, a) =
+        case k `Map.lookup` kvm of
+            Just b -> Just (k, a, b)
+            Nothing -> Nothing
 
 -- | Like 'joinInner' but works only on sorted streams.
 --

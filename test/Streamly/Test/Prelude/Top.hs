@@ -1,5 +1,4 @@
-module Main (main)
-    where
+module Main (main) where
 
 import Data.List (sort)
 import Test.QuickCheck
@@ -30,7 +29,6 @@ chooseInt = choose
 eq :: Int -> Int -> Bool
 eq = (==)
 
-
 joinInner :: Property
 joinInner =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
@@ -47,10 +45,8 @@ joinInner =
                 let v2 = [ (i,j) | i <- ls0, j <- ls1, i == j ]
                 assert (v1 == v2)
 
-
-
-joinInnerHash :: Property
-joinInnerHash =
+joinInnerMap :: Property
+joinInnerMap =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
             monadicIO $ action (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) ls1)
@@ -61,7 +57,7 @@ joinInnerHash =
                 v1 <-
                     run
                     $ S.toList
-                    $ Top.joinInnerHash (S.fromList ls0) (S.fromList ls1)
+                    $ Top.joinInnerMap (S.fromList ls0) (S.fromList ls1)
                 let v2 = [
                             (fst i, fst i, fst j)
                             | i <- ls0, j <- ls1
@@ -69,8 +65,10 @@ joinInnerHash =
                           ]
                 assert (v1 == v2)
 
-
 -------------------------------------------------------------------------------
+-- Main
+-------------------------------------------------------------------------------
+
 moduleName :: String
 moduleName = "Prelude.Top"
 
@@ -80,4 +78,4 @@ main = hspec $ do
         -- Joins
 
         prop "joinInner" Main.joinInner
-        prop "joinInnerHash" Main.joinInnerHash
+        prop "joinInnerMap" Main.joinInnerMap
