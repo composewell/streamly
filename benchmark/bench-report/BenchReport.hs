@@ -31,12 +31,15 @@ data Options = Options
     , useGauge :: Bool
     , benchType :: Maybe BenchType
     , fields :: [String]
+    , thresholdOpt :: Word
+    , failureFieldOpt :: Maybe String
     , diffStyle :: GroupStyle
     , cutOffPercent :: Double
     } deriving Show
 
 defaultOptions :: Options
-defaultOptions = Options False False False Nothing ["time"] PercentDiff 0
+defaultOptions =
+    Options False False False Nothing ["time"] 3 Nothing PercentDiff 0
 
 setGenGraphs :: Monad m => Bool -> StateT (a, Options) m ()
 setGenGraphs val = do
@@ -80,6 +83,18 @@ setCutOff val = do
     case readMaybe val of
         Just x -> put (args, opts { cutOffPercent = x })
         Nothing -> error $ "Invalid cutoff value: " ++ show val
+
+setThresholdOpt :: Monad m => String -> StateT (a, Options) m ()
+setThresholdOpt val = do
+    (args, opts) <- get
+    case readMaybe val of
+        Just x -> put (args, opts { thresholdOpt = x })
+        Nothing -> error $ "Invalid threshold value: " ++ show val
+
+setFailureField :: Monad m => String -> StateT (a, Options) m ()
+setFailureField val = do
+    (args, opts) <- get
+    put (args, opts { failureFieldOpt = Just val })
 
 -- Like the shell "shift" to shift the command line arguments
 shift :: StateT ([String], Options) (MaybeT IO) (Maybe String)
@@ -127,6 +142,24 @@ parseCutOff = do
                 liftIO $ putStrLn "please provide a cutoff percent"
                 mzero
 
+parseThresholdOpt :: StateT ([String], Options) (MaybeT IO) ()
+parseThresholdOpt = do
+    x <- shift
+    case x of
+        Just str -> setThresholdOpt str
+        Nothing -> do
+                liftIO $ putStrLn "please provide a threshold"
+                mzero
+
+parseFailureFieldOpt :: StateT ([String], Options) (MaybeT IO) ()
+parseFailureFieldOpt = do
+    x <- shift
+    case x of
+        Just str -> setFailureField str
+        Nothing -> do
+                liftIO $ putStrLn "please provide a failure field"
+                mzero
+
 -- totally imperative style option parsing
 parseOptions :: IO (Maybe Options)
 parseOptions = do
@@ -146,6 +179,8 @@ parseOptions = do
             "--fields" -> parseFields
             "--diff-style" -> parseDiff
             "--diff-cutoff-percent" -> parseCutOff
+            "--threshold" -> parseThresholdOpt
+            "--failure-field" -> parseFailureFieldOpt
             str -> do
                 liftIO $ putStrLn $ "Unrecognized option " <> str
                 mzero
@@ -248,7 +283,10 @@ main = do
         Nothing -> do
             putStrLn "cannot parse options"
             return ()
-        Just opts@Options{fields = fs, benchType = btype} ->
+        Just opts@Options{ fields = fs
+                         , benchType = btype
+                         , thresholdOpt = thresh
+                         , failureFieldOpt = ffld } ->
             let cfg = defaultConfig
                     { presentation = Groups (diffStyle opts)
                     , selectBenchmarks = selectBench opts
@@ -256,6 +294,8 @@ main = do
                         ( flip elem (fmap (fmap toLower) fs)
                         . fmap toLower
                         )
+                    , threshold = thresh
+                    , failureField = ffld
                     }
             in case btype of
                 Just (Compare str) ->
