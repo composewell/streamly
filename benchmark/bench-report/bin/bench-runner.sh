@@ -18,6 +18,7 @@ print_help () {
   echo "       [--benchmarks <"bench1 bench2 ..." | help>]"
   echo "       [--prefix <benchmark name prefix to match>"
   echo "       [--fields <"field1 field2 ..." | help>]"
+  echo "       [--failure-field]"
   echo "       [--sort-by-name]"
   echo "       [--compare]"
   echo "       [--diff-style <absolute|percent|multiples>]"
@@ -40,6 +41,8 @@ print_help () {
   echo "--benchmarks: benchmarks to run, use 'help' for list of benchmarks"
   echo "--compare: compare the specified benchmarks with each other"
   echo "--fields: measurement fields to report, use 'help' for a list"
+  echo "--threshold: threshold percentage to decide regression"
+  echo "--failure-field: measurement fields to fail on if over threshold"
   echo "--graphs: Generate graphical reports"
   echo "--no-measure: Don't run benchmarks, run reports from previous results"
   echo "--append: Don't overwrite previous results, append for comparison"
@@ -444,7 +447,9 @@ run_reports() {
             $(test "$SORT_BY_NAME" = 1 && echo "--sort-by-name") \
             $(test -n "$BENCH_DIFF_STYLE" && echo "--diff-style $BENCH_DIFF_STYLE") \
             $(test -n "$BENCH_CUTOFF_PERCENT" && echo "--diff-cutoff-percent $BENCH_CUTOFF_PERCENT") \
-            --fields "$FIELDS"
+            --fields "$FIELDS" \
+            $(test "$THRESHOLD" && echo "--threshold $THRESHOLD") \
+            $(test "$FAILURE_FIELD" && echo "--failure-field $FAILURE_FIELD")
     done
 }
 
@@ -486,6 +491,8 @@ do
     --targets) shift; TARGETS=$1; shift ;;
     --prefix) shift; BENCH_PREFIX="$1"; shift ;;
     --fields) shift; FIELDS=$1; shift ;;
+    --threshold) shift; THRESHOLD=$1; shift ;;
+    --failure-field) shift; FAILURE_FIELD=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
     --with-compiler) shift; CABAL_WITH_COMPILER=$1; shift ;;
