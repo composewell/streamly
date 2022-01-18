@@ -46,6 +46,8 @@ import Prelude hiding (replicate)
 -- replacement on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE mapAccumL #-}
 mapAccumL :: (a -> Char -> (a,Char)) -> a -> Utf8 -> (a, Utf8)
 mapAccumL = undefined
@@ -56,6 +58,8 @@ mapAccumL = undefined
 -- returning a final value of this accumulator together with the new
 -- 'Utf8'.
 -- Performs replacement on invalid scalar values.
+--
+-- /Unimplemented/
 {-# INLINE mapAccumR #-}
 mapAccumR :: (a -> Char -> (a,Char)) -> a -> Utf8 -> (a, Utf8)
 mapAccumR = undefined
@@ -68,6 +72,8 @@ mapAccumR = undefined
 -- @t@ repeated @n@ times.
 --
 -- /Time complexity:/ O(n*m)
+--
+-- /Unimplemented/
 {-# INLINE replicate #-}
 replicate :: Int -> Utf8 -> Utf8
 replicate = undefined
@@ -101,6 +107,8 @@ unfoldr f s = fromStream (Stream.unfoldr f s)
 -- Performs replacement on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE unfoldrN #-}
 unfoldrN :: Int -> (a -> Maybe (Char, a)) -> a -> Utf8
 unfoldrN = undefined

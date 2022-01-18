@@ -122,6 +122,8 @@ map f = fromStream . Stream.map f . toStream
 -- "WeNI!seekNI!theNI!HolyNI!Grail"
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE intercalate #-}
 intercalate :: Utf8 -> [Utf8] -> Utf8
 intercalate = undefined
@@ -138,6 +140,8 @@ intercalate = undefined
 -- Performs replacement on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE intersperse #-}
 intersperse :: Char -> Utf8 -> Utf8
 intersperse = undefined
@@ -184,6 +188,8 @@ reverse = fromStream . Stream.reverse . toStream
 -- towards /O(n*m)/.
 --
 -- /Time complexity:/ O(m+n)
+--
+-- /Unimplemented/
 {-# INLINE replace #-}
 replace :: Utf8
         -- ^ @needle@ to search for.  If this string is empty, an
@@ -217,6 +223,8 @@ replace = undefined
 -- instead of itself.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE toCaseFold #-}
 toCaseFold :: Utf8 -> Utf8
 toCaseFold = undefined
@@ -230,6 +238,8 @@ toCaseFold = undefined
 -- followed by \" &#x307;\" (combining dot above, U+0307).
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE toLower #-}
 toLower :: Utf8 -> Utf8
 toLower = undefined
@@ -242,6 +252,8 @@ toLower = undefined
 -- two-letter sequence \"SS\".
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE toUpper #-}
 toUpper :: Utf8 -> Utf8
 toUpper = undefined
@@ -266,6 +278,8 @@ toUpper = undefined
 -- capitalize /every/ word.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE toTitle #-}
 toTitle :: Utf8 -> Utf8
 toTitle = undefined
@@ -284,6 +298,8 @@ toTitle = undefined
 -- "foobar"
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE justifyLeft #-}
 justifyLeft :: Int -> Char -> Utf8 -> Utf8
 justifyLeft = undefined
@@ -301,6 +317,8 @@ justifyLeft = undefined
 -- "foobar"
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE justifyRight #-}
 justifyRight :: Int -> Char -> Utf8 -> Utf8
 justifyRight = undefined
@@ -316,6 +334,8 @@ justifyRight = undefined
 -- "xxxHSxxx"
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE center #-}
 center :: Int -> Char -> Utf8 -> Utf8
 center = undefined
@@ -398,6 +418,8 @@ scanl1' f t = fromStream (Stream.scanl1' f (toStream t))
 -- > scanr f v == reverse . scanl (flip f) v . reverse
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE scanr #-}
 scanr :: (Char -> Char -> Char) -> Char -> Utf8 -> Utf8
 scanr = undefined
@@ -406,6 +428,8 @@ scanr = undefined
 -- value argument. Performs replacement on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE scanr1 #-}
 scanr1 :: (Char -> Char -> Char) -> Utf8 -> Utf8
 scanr1 = undefined
@@ -446,6 +470,8 @@ take n t = fromStream (Stream.take n (toStream t))
 --
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL takeEnd #-}
 takeEnd :: Int -> Utf8 -> Utf8
 takeEnd = undefined
@@ -469,6 +495,8 @@ drop n t = fromStream (Stream.drop n (toStream t))
 --
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL dropEnd #-}
 dropEnd :: Int -> Utf8 -> Utf8
 dropEnd = undefined
@@ -492,6 +520,8 @@ takeWhile p t = fromStream (Stream.takeWhile p (toStream t))
 --
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL takeWhileEnd #-}
 takeWhileEnd :: (Char -> Bool) -> Utf8 -> Utf8
 takeWhileEnd = undefined
@@ -514,6 +544,8 @@ dropWhile p t = fromStream (Stream.dropWhile p (toStream t))
 -- "foo"
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL dropWhileEnd #-}
 dropWhileEnd :: (Char -> Bool) -> Utf8 -> Utf8
 dropWhileEnd = undefined

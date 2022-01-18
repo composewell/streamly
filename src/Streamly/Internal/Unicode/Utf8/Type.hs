@@ -254,6 +254,9 @@ write = Fold.Fold step initial (return . Utf8 . Array.unsafeFreeze)
         x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
         x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
+-- |
+--
+-- /Unimplemented/
 {-# INLINE read #-}
 read :: Unfold m Utf8 Char
 read = undefined
@@ -288,6 +291,8 @@ cons c = fromStream . Stream.cons c . toStream
 -- on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE snoc #-}
 snoc :: Utf8 -> Char -> Utf8
 snoc = undefined
@@ -328,6 +333,8 @@ uncons = fmap (second fromStream) . unsafePerformIO . Stream.uncons . toStream
 --
 --
 -- /Time complexity:/ O(1)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL last #-}
 last :: Utf8 -> Char
 last = undefined
@@ -359,6 +366,8 @@ init = fmap fromStream . unsafePerformIO . Stream.init . toStream
 -- 'Utf8', or 'Nothing' if empty.
 --
 -- /Time complexity:/ O(1)
+--
+-- /Unimplemented/
 {-# INLINE unsnoc #-}
 unsnoc :: Utf8 -> Maybe (Utf8, Char)
 unsnoc = undefined
@@ -373,6 +382,8 @@ null = Array.null . toArray
 -- | Tests whether a 'Utf8' contains exactly one character.
 --
 -- /Time complexity:/ O(1)
+--
+-- /Unimplemented/
 {-# INLINE isSingleton #-}
 isSingleton :: Utf8 -> Bool
 isSingleton = undefined
@@ -396,6 +407,8 @@ length = unsafePerformIO . Stream.length . toStream
 -- the number, and hence be more efficient.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL compareLength #-}
 compareLength :: Utf8 -> Int -> Ordering
 compareLength = undefined

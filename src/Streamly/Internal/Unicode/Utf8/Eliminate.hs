@@ -97,6 +97,7 @@ fold f = Stream.fold f . hoist liftIO . toStream
 -- /Time complexity:/ O(n)
 -- reduces the 'Utf8' using the binary operator, from left to right.
 --
+-- /Unimplemented/
 {-# INLINE foldl #-}
 foldl :: (a -> Char -> a) -> a -> Utf8 -> a
 foldl = undefined
@@ -112,6 +113,8 @@ foldl' f z t = unsafePerformIO $ Stream.foldl' f z (toStream t)
 -- 'Nothing' if applied to an empty 'Utf8'.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE foldl1 #-}
 foldl1 :: (Char -> Char -> Char) -> Utf8 -> Char
 foldl1 = undefined
@@ -136,6 +139,8 @@ foldr f z t = unsafePerformIO $ Stream.foldr f z (toStream t)
 -- 'Nothing' if applied to an empty 'Utf8'.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE foldr1 #-}
 foldr1 :: (Char -> Char -> Char) -> Utf8 -> Maybe Char
 foldr1 = undefined
@@ -220,6 +225,8 @@ findIndex p t = unsafePerformIO $ Stream.findIndex p (toStream t)
 -- towards /O(n*m)/.
 --
 -- /Time complexity:/ O(n+m)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL count #-}
 count :: Utf8 -> Utf8 -> Int
 count = undefined
@@ -349,6 +356,8 @@ _stripPrefix p t =
 -- Nothing
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8,Utf8,Utf8)
 commonPrefixes = undefined
 

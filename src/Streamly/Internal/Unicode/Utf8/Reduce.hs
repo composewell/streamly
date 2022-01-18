@@ -61,6 +61,8 @@ import Prelude hiding (break, filter, span, splitAt)
 -- the string. It is equivalent to @('take' n t, 'drop' n t)@.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 splitAt :: Int -> Utf8 -> (Utf8, Utf8)
 splitAt = undefined
 
@@ -73,6 +75,8 @@ splitAt = undefined
 -- ("000","AB")
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 {-# INLINE span #-}
 span :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
 span = undefined
@@ -115,6 +119,8 @@ group = groupBy (==)
 -- first.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 inits :: Utf8 -> [Utf8]
 inits = undefined
 
@@ -122,6 +128,8 @@ inits = undefined
 -- first.
 --
 -- /Time complexity:/ O(n)
+--
+-- /Unimplemented/
 tails :: Utf8 -> [Utf8]
 tails = undefined
 
@@ -157,6 +165,8 @@ tails = undefined
 -- towards /O(n*m)/.
 --
 -- /Time complexity:/ O(m+n)
+--
+-- /Unimplemented/
 {-# INLINE_NORMAL splitOn #-}
 splitOn :: Utf8
         -- ^ String to split on. If this string is empty, an error
@@ -230,6 +240,8 @@ chunksOf k t =
 -- towards /O(n*m)/.
 --
 -- /Time complexity:/ O(n+m)
+--
+-- /Unimplemented/
 {-# INLINE breakOn #-}
 breakOn :: Utf8 -> Utf8 -> (Utf8, Utf8)
 breakOn = undefined
@@ -246,6 +258,8 @@ breakOn = undefined
 -- ("a::b::","c")
 --
 -- /Time complexity:/ O(n+m)
+--
+-- /Unimplemented/
 {-# INLINE breakOnEnd #-}
 breakOnEnd :: Utf8 -> Utf8 -> (Utf8, Utf8)
 breakOnEnd = undefined
@@ -287,6 +301,8 @@ partition p t = (filter p t, filter (not . p) t)
 -- The @needle@ parameter may not be empty.
 --
 -- /Time complexity:/ O(n+m)
+--
+-- /Unimplemented/
 {-# INLINE breakOnAll #-}
 breakOnAll :: Utf8              -- ^ @needle@ to search for
            -> Utf8              -- ^ @haystack@ in which to search
