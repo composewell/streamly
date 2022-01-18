@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- This module mimics the API of the text package. Some documentation snippets
+-- may have been taken from the text package.
 module Streamly.Internal.Unicode.Utf8
     (
 
