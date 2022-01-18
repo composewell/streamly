@@ -160,6 +160,7 @@ intersperse = undefined
 reverse :: Utf8 -> Utf8
 reverse = fromStream . Stream.reverse . toStream
 
+-- XXX Add time complexity after implementation
 -- XXX Change >> to >>> after implementation
 -- | Replace every non-overlapping occurrence of @needle@ in
 -- @haystack@ with @replacement@.
@@ -183,11 +184,6 @@ reverse = fromStream . Stream.reverse . toStream
 --
 -- >> replace "ofo" "bar" "ofofo"
 -- "barfo"
---
--- In (unlikely) bad cases, this function's time complexity degrades
--- towards /O(n*m)/.
---
--- /Time complexity:/ O(m+n)
 --
 -- /Unimplemented/
 {-# INLINE replace #-}

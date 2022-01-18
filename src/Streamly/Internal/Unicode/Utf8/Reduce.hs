@@ -130,12 +130,14 @@ inits = undefined
 tails :: Utf8 -> [Utf8]
 tails = undefined
 
+
 -- $split
 --
 -- Splitting functions in this library do not perform character-wise
 -- copies to create substrings; they just construct new 'Utf8's that
 -- are slices of the original.
 
+-- XXX Add time complexity after implementation
 -- | Break a 'Utf8' into pieces separated by the first 'Utf8'
 -- argument (which cannot be empty), consuming the delimiter. An empty
 -- delimiter is invalid, and will cause an error to be raised.
@@ -157,11 +159,6 @@ tails = undefined
 -- > splitOn (singleton c)             == split (==c)
 --
 -- (Note: the string @s@ to split on above cannot be empty.)
---
--- In (unlikely) bad cases, this function's time complexity degrades
--- towards /O(n*m)/.
---
--- /Time complexity:/ O(m+n)
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL splitOn #-}
@@ -211,6 +208,7 @@ chunksOf :: Int -> Utf8 -> [Utf8]
 chunksOf k t =
     unsafePerformIO $ Stream.toList $ Stream.chunksOf k write (toStream t)
 
+-- XXX Add time complexity after implementation
 -- | Find the first instance of @needle@ (which must be
 -- non-'null') in @haystack@.  The first element of the returned tuple
 -- is the prefix of @haystack@ before @needle@ is matched.  The second
@@ -232,11 +230,6 @@ chunksOf k t =
 -- If you need to break a string by a substring repeatedly (e.g. you
 -- want to break on every instance of a substring), use 'breakOnAll'
 -- instead, as it has lower startup overhead.
---
--- In (unlikely) bad cases, this function's time complexity degrades
--- towards /O(n*m)/.
---
--- /Time complexity:/ O(n+m)
 --
 -- /Unimplemented/
 {-# INLINE breakOn #-}
@@ -280,6 +273,7 @@ partition p = unsafePerformIO . Stream.fold partitionFold . toStream
 
     partitionFold = Fold.tee (Fold.filter p write) (Fold.filter (not . p) write)
 
+-- XXX Add time complexity after implementation
 -- XXX Change >> to >>> after implementation
 -- | Find all non-overlapping instances of @needle@ in
 -- @haystack@.  Each element of the returned list consists of a pair:
@@ -296,12 +290,7 @@ partition p = unsafePerformIO . Stream.fold partitionFold . toStream
 -- >> breakOnAll "/" "a/b/c/"
 -- [("a","/b/c/"),("a/b","/c/"),("a/b/c","/")]
 --
--- In (unlikely) bad cases, this function's time complexity degrades
--- towards /O(n*m)/.
---
 -- The @needle@ parameter may not be empty.
---
--- /Time complexity:/ O(n+m)
 --
 -- /Unimplemented/
 {-# INLINE breakOnAll #-}
