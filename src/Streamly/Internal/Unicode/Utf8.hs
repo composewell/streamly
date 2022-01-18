@@ -113,6 +113,10 @@ import Prelude hiding
 -- Special folds
 --------------------------------------------------------------------------------
 
+-- XXX We should write these APIs generalized on Array a and then just use those
+-- for the Utf8 type. The generalized APIs would be more useful, they can go in
+-- the Array module itself and can be used generally for arrays, you won't need
+-- to transform arrays into stream and then back for such common operations.
 -- | Concatenate a list of 'Utf8's.
 --
 -- /Time complexity:/ O(n)
