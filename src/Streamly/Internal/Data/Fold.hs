@@ -113,6 +113,7 @@ module Streamly.Internal.Data.Fold
     --, lsequence
     , lmapM
     , scan
+    , postscan
     , indexed
 
     -- ** Filtering
@@ -390,6 +391,8 @@ scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     where
 
+    -- XXX It can be moved out and used for both scan and postscan
+    {-# INLINE runStep #-}
     runStep actionL sR = do
         rL <- actionL
         case rL of
@@ -410,6 +413,47 @@ scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
         r <- initialR
         case r of
             Partial sR -> runStep initialL sR
+            Done b -> return $ Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    extract = extractR . snd
+
+-- | Postscan the input of a 'Fold' to change it in a stateful manner using
+-- another 'Fold'.
+-- /Pre-release/
+{-# INLINE postscan #-}
+postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 -> Done <$> extractR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                return
+                    $ case rR of
+                        Partial sR1 -> Partial (sL, sR1)
+                        Done bR -> Done bR
+
+    initial = do
+        r <- initialR
+        rL <- initialL
+        case r of
+            Partial sR ->
+                case rL of
+                    Done _ -> Done <$> extractR sR
+                    Partial sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
