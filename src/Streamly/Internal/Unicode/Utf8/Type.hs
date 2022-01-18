@@ -255,7 +255,7 @@ read = undefined
 --------------------------------------------------------------------------------
 
 singleton :: Char -> Utf8
-singleton x = pack [x]
+singleton = fromStream . Stream.fromPure
 
 -- XXX From the review:
 --
