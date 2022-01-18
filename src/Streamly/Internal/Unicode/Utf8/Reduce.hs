@@ -99,14 +99,11 @@ groupBy :: (Char -> Char -> Bool) -> Utf8 -> [Utf8]
 groupBy p = unsafePerformIO . Stream.toList . Stream.groupsBy p write . toStream
 
 {-
--- | Returns the /array/ index (in units of 'Word16') at which a
+-- | Returns the /array/ index (in units of 'Word8') at which a
 -- character may be found.  This is /not/ the same as the logical
 -- index returned by e.g. 'findIndex'.
 findAIndexOrEnd :: (Char -> Bool) -> Utf8 -> Int
-findAIndexOrEnd q t@(Utf8 _arr _off len) = go 0
-    where go !i | i >= len || q c       = i
-                | otherwise             = go (i+d)
-                where Iter c d          = iter t i
+findAIndexOrEnd = undefined
 -}
 
 -- | Group characters in a string by equality.
