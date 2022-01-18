@@ -46,47 +46,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Unicode.Utf8.Type
 import Streamly.Internal.Unicode.Utf8.Transform (filter)
 
-import Prelude hiding
-    ( all
-    , any
-    , break
-    , concat
-    , concatMap
-    , drop
-    , dropWhile
-    , elem
-    , filter
-    , foldl
-    , foldl1
-    , foldr
-    , foldr1
-    , head
-    , init
-    , last
-    , length
-    , lines
-    , map
-    , maximum
-    , minimum
-    , null
-    , read
-    , replicate
-    , reverse
-    , scanl
-    , scanl1
-    , scanr
-    , scanr1
-    , span
-    , splitAt
-    , tail
-    , take
-    , takeWhile
-    , unlines
-    , unwords
-    , words
-    , zip
-    , zipWith
-    )
+import Prelude hiding (break, filter, span, splitAt)
 
 -- $setup
 -- >>> :set -XOverloadedStrings

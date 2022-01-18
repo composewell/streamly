@@ -54,7 +54,6 @@ import Data.Char (isSpace)
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.List as List
-import qualified Prelude
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 
 import Streamly.Internal.Unicode.Utf8.Type
@@ -64,40 +63,11 @@ import Streamly.Internal.Unicode.Utf8.Generate
 import Streamly.Internal.Unicode.Utf8.Reduce
 
 import Prelude hiding
-    ( all
-    , any
-    , break
-    , concat
+    ( concat
     , concatMap
-    , drop
-    , dropWhile
-    , elem
-    , filter
-    , foldl
-    , foldl1
     , foldr
-    , foldr1
-    , head
-    , init
-    , last
-    , length
     , lines
-    , map
-    , maximum
-    , minimum
     , null
-    , read
-    , replicate
-    , reverse
-    , scanl
-    , scanl1
-    , scanr
-    , scanr1
-    , span
-    , splitAt
-    , tail
-    , take
-    , takeWhile
     , unlines
     , unwords
     , words
