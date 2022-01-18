@@ -41,12 +41,12 @@ where
 
 import System.IO.Unsafe (unsafePerformIO)
 
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 
 import Streamly.Internal.Unicode.Utf8.Type
-import Streamly.Internal.Unicode.Utf8.Transform (filter)
 
-import Prelude hiding (break, filter, span, splitAt)
+import Prelude hiding (break, span, splitAt)
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -274,7 +274,11 @@ breakOnEnd = undefined
 -- /Time complexity:/ O(n)
 {-# INLINE partition #-}
 partition :: (Char -> Bool) -> Utf8 -> (Utf8, Utf8)
-partition p t = (filter p t, filter (not . p) t)
+partition p = unsafePerformIO . Stream.fold partitionFold . toStream
+
+    where
+
+    partitionFold = Fold.tee (Fold.filter p write) (Fold.filter (not . p) write)
 
 -- XXX Change >> to >>> after implementation
 -- | Find all non-overlapping instances of @needle@ in
