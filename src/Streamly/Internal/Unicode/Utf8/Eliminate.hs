@@ -87,6 +87,7 @@ import Prelude hiding
 -- Reducing Streams (folds)
 --------------------------------------------------------------------------------
 
+-- XXX Try removing MonadIO constraint here
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m Char b -> Utf8 -> m b
 fold f = Stream.fold f . hoist liftIO . toStream
@@ -102,6 +103,7 @@ fold f = Stream.fold f . hoist liftIO . toStream
 foldl :: (a -> Char -> a) -> a -> Utf8 -> a
 foldl = undefined
 
+-- XXX Try using Identity monad instead of IO
 -- | A strict version of 'foldl'.
 --
 -- /Time complexity:/ O(n)

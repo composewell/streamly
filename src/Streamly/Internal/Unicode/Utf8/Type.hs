@@ -95,10 +95,14 @@ empty = Utf8 Array.nil
 -- Helpers
 --------------------------------------------------------------------------------
 
+-- XXX Try removing IO
 {-# INLINE toStream #-}
 toStream :: Utf8 -> SerialT IO Char
 toStream = Unicode.decodeUtf8' . Array.toStream . toArray
 
+-- XXX Try removing IO
+-- XXX This would require rewriting Array.Foreign.write-ish functions. We can't
+-- use the underlying Array.Foreign.Mut.write-ish
 {-# INLINE fromStream #-}
 fromStream :: SerialT IO Char -> Utf8
 fromStream =
