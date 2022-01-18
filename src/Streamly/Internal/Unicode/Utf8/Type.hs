@@ -53,6 +53,7 @@ where
 
 import Control.DeepSeq (NFData)
 import Control.Monad.IO.Class (MonadIO)
+import Data.Bifunctor (second)
 import Data.Bits (shiftR, (.&.))
 import Data.Char (ord)
 import Data.String (IsString(..))
@@ -102,18 +103,6 @@ toStream = Unicode.decodeUtf8' . Array.toStream . toArray
 fromStream :: SerialT IO Char -> Utf8
 fromStream =
     Utf8 . unsafePerformIO . Stream.fold Array.write . Unicode.encodeUtf8'
-
-{-# INLINE second #-}
-second :: (b -> c) -> (a, b) -> (a, c)
-second f (a, b) = (a, f b)
-
-{-
--- | Apply a function to the first element of an optional pair.
-{-# INLINE firstf #-}
-firstf :: (a -> c) -> Maybe (a,b) -> Maybe (c,b)
-firstf f (Just (a, b)) = Just (f a, b)
-firstf _  Nothing      = Nothing
--}
 
 --------------------------------------------------------------------------------
 -- Conversion to/from 'Utf8'
