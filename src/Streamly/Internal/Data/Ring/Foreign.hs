@@ -217,30 +217,37 @@ unsafeFoldRingFull f z rb@(Ring {..}) =
 
     where
 
+    elemSize = sizeOf (undefined :: a)
+    ringStartP = ringAsPtr rb
+    ringNextP = ringStartP `plusPtr` (ringNext * elemSize)
+    ringLengthP = ringStartP `plusPtr` (ringLength * elemSize)
     go_ = do
-        acc1 <- go z ringNext ringLength
-        go acc1 0 ringNext
+        acc1 <- go z ringNextP ringLengthP
+        go acc1 ringStartP ringNextP
 
     go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- unsafeIndexInnerArray rb p
-            go (f acc x) (p + 1) q
+            x <- peek p
+            go (f acc x) (p `plusPtr` elemSize) q
 
 {-# INLINE unsafeFoldRingPartial #-}
 unsafeFoldRingPartial :: forall a b. Storable a
     => (b -> a -> b) -> b -> Ring a -> b
 unsafeFoldRingPartial f z rb@(Ring {..}) =
-    let !res = unsafeInlineIO $ go z 0 ringNext
+    let !res = unsafeInlineIO $ go z ringStartP ringNextP
      in res
 
     where
 
+    elemSize = sizeOf (undefined :: a)
+    ringStartP = ringAsPtr rb
+    ringNextP = ringStartP `plusPtr` (ringNext * elemSize)
     go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- unsafeIndexInnerArray rb p
-            go (f acc x) (p + 1) q
+            x <- peek p
+            go (f acc x) (p `plusPtr` elemSize) q
 
 {-# INLINE unsafeFoldRingFullM #-}
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
@@ -249,30 +256,38 @@ unsafeFoldRingFullM f z rb@(Ring {..}) = go_
 
     where
 
+    elemSize = sizeOf (undefined :: a)
+    ringStartP = ringAsPtr rb
+    ringNextP = ringStartP `plusPtr` (ringNext * elemSize)
+    ringLengthP = ringStartP `plusPtr` (ringLength * elemSize)
+
     go_ = do
-        acc1 <- go z ringNext ringLength
-        go acc1 0 ringNext
+        acc1 <- go z ringNextP ringLengthP
+        go acc1 ringStartP ringNextP
 
     go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- liftIO $ unsafeIndexInnerArray rb p
+            x <- liftIO $ peek p
             acc1 <- f acc x
-            go acc1 (p + 1) q
+            go acc1 (p `plusPtr` elemSize) q
 
 {-# INLINE unsafeFoldRingPartialM #-}
 unsafeFoldRingPartialM :: forall m a b. (MonadIO m, Storable a)
     => (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingPartialM f z rb@(Ring {..}) = go z 0 ringNext
+unsafeFoldRingPartialM f z rb@(Ring {..}) = go z ringStartP ringNextP
 
     where
 
-    go !acc !p@(I# p#) !q
+    elemSize = sizeOf (undefined :: a)
+    ringStartP = ringAsPtr rb
+    ringNextP = ringStartP `plusPtr` (ringNext * elemSize)
+    go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- liftIO $ unsafeIndexInnerArray rb p
+            x <- liftIO $ peek p
             acc1 <- f acc x
-            go acc1 (p + 1) q
+            go acc1 (p `plusPtr` elemSize) q
 
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Storable a
