@@ -122,7 +122,6 @@ import Data.Functor.Identity (Identity)
 #if !(MIN_VERSION_base(4,11,0))
 import Data.Semigroup ((<>))
 #endif
-import Data.Primitive.Types (Prim(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (plusPtr, castPtr)
@@ -297,7 +296,7 @@ last arr = getIndexRev arr 0
 --
 -- @since 0.8.0
 {-# INLINE writeLastN #-}
-writeLastN :: (Prim a, Storable a, MonadIO m) => Int -> Fold m a (Array a)
+writeLastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = A.unsafeFreeze <$> Fold step initial done

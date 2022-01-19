@@ -102,7 +102,6 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
-import Data.Primitive.Types (Prim(..))
 import GHC.Int (Int(..))
 import GHC.IO (IO(..))
 
@@ -137,8 +136,19 @@ data Ring a = Ring
                                         -- filled.
     }
 
+{-# INLINE ringAsPtr #-}
+ringAsPtr :: Ring a -> Ptr a
+ringAsPtr Ring {..} = Ptr (byteArrayContents# (unsafeCoerce# ringContents#))
+
+{-# INLINE withRing #-}
+withRing :: Ring a -> (Ptr a -> IO b) -> IO b
+withRing Ring {..} f = do
+    let p = Ptr (byteArrayContents# (unsafeCoerce# ringContents#))
+    r <- f p
+    IO $ \s# -> case touch# ringContents# s# of s1# -> (# s1#, r #)
+
 {-# INLINE reset #-}
-reset :: Prim a => Ring a -> Ring a
+reset :: Ring a -> Ring a
 reset rb = rb {ringNext = 0, ringFull = False}
 
 -- Only for complete rings
@@ -157,49 +167,51 @@ unsafeAdvance rb@(Ring {..}) =
     then rb {ringNext = 0}
     else rb {ringNext = ringNext + 1}
 
-{-# INLINE unsafePeek #-}
-unsafePeek :: Prim a => Ring a -> IO a
-unsafePeek rb@(Ring {..}) = IO $ \s# -> readByteArray# ringContents# p# s#
-
-    where
-
-    !(I# p#) = ringNext
+{-# INLINE unsafeIndexInnerArrayBytes #-}
+unsafeIndexInnerArrayBytes :: forall a. Storable a => Ring a -> Int -> IO a
+unsafeIndexInnerArrayBytes rb iBytes = withRing rb $ \p -> peekElemOff p iBytes
 
 {-# INLINE unsafeIndexInnerArray #-}
-unsafeIndexInnerArray :: Prim a => Ring a -> Int -> IO a
-unsafeIndexInnerArray (Ring {..}) (I# p#) =
-    IO $ \s# -> readByteArray# ringContents# p# s#
-
-
-{-# INLINE unsafeInsert #-}
-unsafeInsert :: Prim a => Ring a -> a -> IO (Ring a)
-unsafeInsert rb@(Ring {..}) newVal =
-    IO
-        $ \s# ->
-              let s1# = writeByteArray# ringContents# ringNext# newVal s#
-               in (# s1#, newRing #)
+unsafeIndexInnerArray :: forall a. Storable a => Ring a -> Int -> IO a
+unsafeIndexInnerArray rb i = unsafeIndexInnerArrayBytes rb iBytes
 
     where
 
-    !(I# ringNext#) = ringNext
+    iBytes = i * sizeOf (undefined :: a)
+
+{-# INLINE unsafePeek #-}
+unsafePeek :: Storable a => Ring a -> IO a
+unsafePeek rb = unsafeIndexInnerArray rb (ringNext rb)
+
+{-# INLINE unsafeInsert #-}
+unsafeInsert :: forall a. Storable a => Ring a -> a -> IO (Ring a)
+unsafeInsert rb newVal =
+    withRing rb
+        $ \p -> do
+              pokeElemOff p ringNextBytes newVal
+              return newRing
+
+    where
+
+    ringNextBytes = ringNext rb * sizeOf (undefined :: a)
     newRing =
-        if ringNext + 1 == ringLength
+        if ringNext rb + 1 == ringLength rb
         then rb {ringNext = 0, ringFull = True}
-        else rb {ringNext = ringNext + 1, ringFull = True}
+        else rb {ringNext = ringNext rb + 1, ringFull = True}
 
 {-# INLINE new #-}
-new :: forall a. Prim a => Int -> IO (Ring a)
+new :: forall a. Storable a => Int -> IO (Ring a)
 new count =
-    let !size@(I# size#) = count * I# (sizeOf# (undefined :: a))
+    let !size@(I# size#) = count * sizeOf (undefined :: a)
      in IO
             $ \s# ->
-                  case newByteArray# size# s# of
+                  case newPinnedByteArray# size# s# of
                       (# s1#, mb #) -> (# s1#, Ring mb 0 count False #)
 
 {-# INLINE unsafeFoldRingFull #-}
-unsafeFoldRingFull :: forall a b. Prim a
+unsafeFoldRingFull :: forall a b. Storable a
     => (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRingFull f z Ring {..} =
+unsafeFoldRingFull f z rb@(Ring {..}) =
     let !res = unsafeInlineIO go_
      in res
 
@@ -209,31 +221,31 @@ unsafeFoldRingFull f z Ring {..} =
         acc1 <- go z ringNext ringLength
         go acc1 0 ringNext
 
-    go !acc !p@(I# p#) !q
+    go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- IO $ \s# -> readByteArray# ringContents# p# s#
+            x <- unsafeIndexInnerArray rb p
             go (f acc x) (p + 1) q
 
 {-# INLINE unsafeFoldRingPartial #-}
-unsafeFoldRingPartial :: forall a b. Prim a
+unsafeFoldRingPartial :: forall a b. Storable a
     => (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRingPartial f z Ring {..} =
+unsafeFoldRingPartial f z rb@(Ring {..}) =
     let !res = unsafeInlineIO $ go z 0 ringNext
      in res
 
     where
 
-    go !acc !p@(I# p#) !q
+    go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- IO $ \s# -> readByteArray# ringContents# p# s#
+            x <- unsafeIndexInnerArray rb p
             go (f acc x) (p + 1) q
 
 {-# INLINE unsafeFoldRingFullM #-}
-unsafeFoldRingFullM :: forall m a b. (MonadIO m, Prim a)
+unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
     => (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingFullM f z Ring {..} = go_
+unsafeFoldRingFullM f z rb@(Ring {..}) = go_
 
     where
 
@@ -241,29 +253,29 @@ unsafeFoldRingFullM f z Ring {..} = go_
         acc1 <- go z ringNext ringLength
         go acc1 0 ringNext
 
-    go !acc !p@(I# p#) !q
+    go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- liftIO $ IO $ \s# -> readByteArray# ringContents# p# s#
+            x <- liftIO $ unsafeIndexInnerArray rb p
             acc1 <- f acc x
             go acc1 (p + 1) q
 
 {-# INLINE unsafeFoldRingPartialM #-}
-unsafeFoldRingPartialM :: forall m a b. (MonadIO m, Prim a)
+unsafeFoldRingPartialM :: forall m a b. (MonadIO m, Storable a)
     => (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingPartialM f z Ring {..} = go z 0 ringNext
+unsafeFoldRingPartialM f z rb@(Ring {..}) = go z 0 ringNext
 
     where
 
     go !acc !p@(I# p#) !q
         | p == q = return acc
         | otherwise = do
-            x <- liftIO $ IO $ \s# -> readByteArray# ringContents# p# s#
+            x <- liftIO $ unsafeIndexInnerArray rb p
             acc1 <- f acc x
             go acc1 (p + 1) q
 
 {-# INLINE unsafeFoldRing #-}
-unsafeFoldRing :: forall a b. Prim a
+unsafeFoldRing :: forall a b. Storable a
     => (b -> a -> b) -> b -> Ring a -> b
 unsafeFoldRing f z rb =
     if ringFull rb
@@ -272,28 +284,34 @@ unsafeFoldRing f z rb =
 
 {-# INLINE unsafeEqArrayFull #-}
 unsafeEqArrayFull ::
-       forall a. (Eq a, Storable a, Prim a)
+       forall a. (Eq a, Storable a)
     => Ring a -> A.Array a -> Bool
-unsafeEqArrayFull Ring {..} A.Array {..} =
+unsafeEqArrayFull rb@(Ring {..}) A.Array {..} =
     let !res = unsafeInlineIO go_
      in res
 
     where
 
     elemSize = sizeOf (undefined :: a)
+    ringStartP = ringAsPtr rb
+    ringNextP = ringStartP `plusPtr` (ringNext * elemSize)
+    ringLengthP = ringStartP `plusPtr` (ringLength * elemSize)
     go_ = do
-        eq1 <- go arrStart ringNext ringLength
+        eq1 <- go arrStart ringNextP ringLengthP
         eq2 <-
-            go (arrStart `plusPtr` (ringLength - ringNext) :: Ptr a) 0 ringNext
+            go
+                (arrStart `plusPtr` (ringLength - ringNext) :: Ptr a)
+                ringStartP
+                ringNextP
         return $ eq1 && eq2
 
-    go !ptr !p@(I# p#) !q
+    go !ptr !p !q
         | p == q = return True
         | otherwise = do
-            r <- IO $ \s# -> readByteArray# ringContents# p# s#
+            r <- peek p
             a <- peek ptr
             if r == a
-            then go (ptr `plusPtr` elemSize) (p + 1) q
+            then go (ptr `plusPtr` elemSize) (p `plusPtr` elemSize) q
             else return False
 
 {-
