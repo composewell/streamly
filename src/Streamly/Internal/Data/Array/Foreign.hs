@@ -136,7 +136,7 @@ import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -302,23 +302,23 @@ writeLastN n
 
     where
 
-    step (Tuple3' rb rh i) a = do
-        rh1 <- liftIO $ RB.unsafeInsert rb rh a
-        return $ FL.Partial $ Tuple3' rb rh1 (i + 1)
+    step (Tuple' rb i) a = do
+        rb1 <- liftIO $ RB.unsafeInsert rb a
+        return $ FL.Partial $ Tuple' rb1 (i + 1)
 
     initial =
-        let f (a, b) = FL.Partial $ Tuple3' a b (0 :: Int)
+        let f a = FL.Partial $ Tuple' a (0 :: Int)
          in fmap f $ liftIO $ RB.new n
 
-    done (Tuple3' rb rh i) = do
+    done (Tuple' rb i) = do
         arr <- liftIO $ MA.newArray n
-        foldFunc i rh snoc' arr rb
+        foldFunc i snoc' arr rb
 
     -- XXX We should write a read unfold for ring.
     snoc' b a = liftIO $ MA.snocUnsafe b a
 
     foldFunc i
-        | i < n = RB.unsafeFoldRingM
+        | i < n = RB.unsafeFoldRingPartialM
         | otherwise = RB.unsafeFoldRingFullM
 
 -------------------------------------------------------------------------------

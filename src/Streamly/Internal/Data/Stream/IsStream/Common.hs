@@ -66,6 +66,7 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Primitive.Types (Prim(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
@@ -668,7 +669,7 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 -- that we can search files in files for example.
 {-# INLINE splitOnSeq #-}
 splitOnSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Prim a, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m =
     IsStream.fromStreamD $ D.splitOnSeq patt f (IsStream.toStreamD m)
