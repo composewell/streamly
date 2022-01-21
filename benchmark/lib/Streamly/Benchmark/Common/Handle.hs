@@ -39,7 +39,7 @@ import Data.Word (Word8)
 import System.Directory (getFileSize)
 import System.Environment (lookupEnv)
 import System.IO (openFile, IOMode(..), Handle, hClose, stderr, hPutStrLn)
-import System.Process.Typed (shell, runProcess_)
+import System.Process (callCommand)
 
 import Data.IORef
 import Prelude hiding (last, length)
@@ -183,8 +183,8 @@ mkHandleBenchEnv = do
                             ++ "\" && head -c " ++ show size
                             ++ " </dev/urandom >" ++ infile
                             ++ ";}"
-                runProcess_ (shell (cmd inFileSmall smallFileSize))
-                runProcess_ (shell (cmd inFileBig bigFileSize))
+                callCommand (cmd inFileSmall smallFileSize)
+                callCommand (cmd inFileBig bigFileSize)
                 return (inFileSmall, inFileBig)
 
     hPutStrLn stderr $ "Using small input file: " ++ small
