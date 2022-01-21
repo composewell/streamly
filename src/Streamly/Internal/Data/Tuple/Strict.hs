@@ -21,15 +21,24 @@ module Streamly.Internal.Data.Tuple.Strict
     (
       Tuple' (..)
     , Tuple3' (..)
+    , Tuple3Fused' (..)
     , Tuple4' (..)
     )
 where
 
+import Fusion.Plugin.Types (Fuse(..))
+
 -- | A strict '(,)'
 data Tuple' a b = Tuple' !a !b deriving Show
 
+-- XXX Add TupleFused'
+
 -- | A strict '(,,)'
+{-# ANN type Tuple3Fused' Fuse #-}
 data Tuple3' a b c = Tuple3' !a !b !c deriving Show
+
+-- | A strict '(,,)'
+data Tuple3Fused' a b c = Tuple3Fused' !a !b !c deriving Show
 
 -- | A strict '(,,,)'
 data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
