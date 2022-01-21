@@ -61,7 +61,7 @@ captureMonadState = control $ \run -> run (return $ RunInIO run)
 -- exception handler.
 {-# INLINE rawForkIO #-}
 rawForkIO :: IO () -> IO ThreadId
-rawForkIO action = IO $ \ s ->
+rawForkIO (IO action) = IO $ \ s ->
    case fork# action s of (# s1, tid #) -> (# s1, ThreadId tid #)
 
 -- | Fork a thread to run the given computation, installing the provided
