@@ -1176,7 +1176,7 @@ manyTill (Fold fstep finitial fextract)
 
     -- Caution: Mutual recursion
 
-    -- Don't inline this
+    {-# INLINE scrutR #-}
     scrutL fs p c d e = do
         resL <- initialL
         case resL of
@@ -1188,7 +1188,6 @@ manyTill (Fold fstep finitial fextract)
                     FL.Done fb -> return $ d fb
             IError err -> return $ e err
 
-    {-# INLINE scrutR #-}
     scrutR fs p c d e = do
         resR <- initialR
         case resR of

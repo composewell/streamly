@@ -1209,7 +1209,6 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial ss -> return $ Partial $ f ss cs
             Done sb -> cstep cs sb >>= collect
 
-    {-# INLINE collect #-}
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split ManyFirst cs
@@ -1269,7 +1268,6 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial ss1 -> return $ Partial $ Tuple' ss1 cs
             Done sb -> cstep cs sb >>= collect
 
-    {-# INLINE collect #-}
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split cs
@@ -1333,7 +1331,6 @@ refoldMany (Fold sstep sinitial sextract) (Refold cstep cinject cextract) =
             Partial ss -> return $ Partial $ Tuple' cs (f ss)
             Done sb -> cstep cs sb >>= collect
 
-    {-# INLINE collect #-}
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split cs Left
@@ -1385,7 +1382,6 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
             Partial ss -> return $ Partial $ ConsumeMany x cs (f ss)
             Done sb -> cstep cs sb >>= collect x
 
-    {-# INLINE collect #-}
     collect x cres =
         case cres of
             Partial cs -> sinject x >>= split x cs Left

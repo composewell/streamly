@@ -545,7 +545,6 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    {-# INLINE go #-}
     go !_ st backBuf !pst = do
         r <- step defState st
         case r of
@@ -558,6 +557,7 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
                 return (b, D.nil)
 
     -- Use strictness on "cur" to keep it unboxed
+    {-# INLINE gobuf #-}
     gobuf !_ s backBuf fp@(ForeignPtr end _) !cur !pst
         | cur == Ptr end = do
             liftIO $ touchForeignPtr fp
@@ -642,7 +642,6 @@ parseArrD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    {-# INLINE go #-}
     go !_ st backBuf !pst = do
         r <- step defState st
         case r of
@@ -652,6 +651,7 @@ parseArrD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
                 b <- extract pst
                 return (b, D.nil)
 
+    {-# INLINE gobuf #-}
     gobuf !_ [] s backBuf !pst = go SPEC s backBuf pst
     gobuf !_ (x:xs) s backBuf !pst = do
         pRes <- pstep pst x

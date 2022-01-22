@@ -166,7 +166,6 @@ parse_ (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    {-# INLINE go #-}
     go !_ st buf !pst = do
         r <- step defState st
         case r of
@@ -199,6 +198,7 @@ parse_ (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 b <- extract pst
                 return (b, let List buffer = buf in fromList buffer)
 
+    {-# INLINE gobuf #-}
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
         pRes <- pstep pst x

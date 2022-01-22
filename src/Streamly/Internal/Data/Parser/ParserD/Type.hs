@@ -732,7 +732,6 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     -- Caution! There is mutual recursion here, inlining the right functions is
     -- important.
 
-    {-# INLINE handleCollect #-}
     handleCollect partial done fres =
         case fres of
             FL.Partial fs -> do
@@ -744,7 +743,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IError _ -> done <$> fextract fs
             FL.Done fb -> return $ done fb
 
-    -- Do not inline this
+    {-# INLINE handleCollect #-}
     runCollectorWith cont fs pb = fstep fs pb >>= cont
 
     initial = finitial >>= handleCollect IPartial IDone
@@ -794,7 +793,6 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     -- Caution! There is mutual recursion here, inlining the right functions is
     -- important.
 
-    {-# INLINE handleCollect #-}
     handleCollect partial done fres =
         case fres of
             FL.Partial fs -> do
@@ -806,7 +804,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IError _ -> done <$> fextract fs
             FL.Done fb -> return $ done fb
 
-    -- Do not inline this
+    {-# INLINE handleCollect #-}
     runCollectorWith cont fs pb = fstep fs pb >>= cont
 
     initial = finitial >>= handleCollect IPartial IDone
@@ -854,7 +852,6 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     -- Caution! There is mutual recursion here, inlining the right functions is
     -- important.
 
-    {-# INLINE handleCollect #-}
     handleCollect partial done fres =
         case fres of
             FL.Partial fs -> do
@@ -866,7 +863,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IError _ -> done <$> fextract fs
             FL.Done fb -> return $ done fb
 
-    -- Do not inline this
+    {-# INLINE handleCollect #-}
     runCollectorWith cont fs pb = fstep fs pb >>= cont
 
     initial = do
