@@ -135,7 +135,6 @@ parseD
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    {-# INLINE go #-}
     go !_ st buf !pst = do
         r <- ustep st
         case r of
