@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: GHC ${{ matrix.name }}
+    name: GHC ${{matrix.name}}
     env:
       # packcheck environment variables
       LC_ALL: C.UTF-8
@@ -47,105 +47,114 @@ jobs:
       DOCTEST: ${{ matrix.doctest }}
 
     runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.ignore_error }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
+        # The order is important to optimize fail-fast.
         name:
-          - 9.2.1
-          - 9.0.1
-          - 8.10.7+stack
-          - 8.10.7+macOS
-          - 8.10.7+linux+coverage+cabal
-          - 8.10.7+docspec
-          - 8.8.4
-          - 8.8.4+inspection+fusion-plugin+Werror
-          - 8.6.5+fusion-plugin
-          - 8.6.5+streamk
-          - 8.4.4+debug
+          - 8.10.7-sdist-fusion-inspection-Werror
+          - 9.2.1-docspec
+          - 8.10.7-coverage
+
+        # Note: if cabal.project is not specified benchmarks and tests won't
+        # run. But we need at least one test where we test without
+        # cabal.project because that is how hackage would build it.
         include:
+          - name: head
+            ghc_version: head
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: latest
+            cabal_project: cabal.project.ghc-head
+            disable_sdist_build: "y"
+            ignore_error: true
           - name: 9.2.1
             ghc_version: 9.2.1
-            build: cabal-v2
-            cabal_build_options: "--allow-newer=hsc2hs"
-            disable_sdist_build: "y"
             runner: ubuntu-latest
+            build: cabal
+            cabal_project: cabal.project
             cabal_version: 3.6
+            disable_sdist_build: "y"
+            ignore_error: false
+          - name: 9.2.1-docspec
+            ghc_version: 9.2.1
+            runner: ubuntu-latest
+            doctest: "y"
+            cabal_version: 3.6
+            ignore_error: false
           - name: 9.0.1
             ghc_version: 9.0.1
-            build: cabal-v2
-            cabal_build_options: "--allow-newer=hsc2hs"
-            disable_sdist_build: "y"
             runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.10.7+stack
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            disable_sdist_build: "y"
+            ignore_error: false
+          - name: 8.10.7-sdist-stack
+            runner: ubuntu-latest
             build: stack
-            resolver: lts-18.18
+            resolver: lts-18.23
             stack_yaml: stack.yaml
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
-            runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.10.7+macOS
+            cabal_version: 3.6
+            ignore_error: false
+          - name: 8.10.7-macos
             ghc_version: 8.10.7
-            build: cabal-v2
-            disable_sdist_build: "y"
             runner: macos-latest
-            cabal_version: 3.4
-          - name: 8.10.7+linux+coverage+cabal
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            disable_sdist_build: "y"
+            ignore_error: false
+          - name: 8.10.7-coverage
             ghc_version: 8.10.7
-            coverage: "y"
             runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.8.4+inspection+fusion-plugin+Werror
-            ghc_version: 8.8.4
-            build: cabal-v2
+            coverage: "y"
+            cabal_version: 3.6
+            ignore_error: false
+          - name: 8.10.7-sdist-fusion-inspection-Werror
+            ghc_version: 8.10.7
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
             cabal_project: cabal.project.Werror
             cabal_build_options: "--flag fusion-plugin --flag inspection"
-            runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.8.4
+            ignore_error: false
+          - name: 8.8.4-sdist-fusion
             ghc_version: 8.8.4
+            runner: ubuntu-latest
             build: cabal
-            cabal_project: cabal.project
-            cabal_build_options: "--flag -opt"
-            runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.6.5+streamk
-            ghc_version: 8.6.5
-            build: cabal-v2
-            cabal_project: cabal.project
-            cabal_build_options: "--flag streamk --flag -opt"
-            runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.6.5+fusion-plugin
-            ghc_version: 8.6.5
-            build: cabal-v2
+            cabal_version: 3.6
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin"
-            # haddock generation does not work with 8.6.5+fusion-plugin
-            disable_docs: "y"
+            ignore_error: false
+          - name: 8.6.5-sdist-streamk-unoptimized
+            ghc_version: 8.6.5
             runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.4.4+debug
-            ghc_version: 8.4.4
-            build: cabal-v2
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            cabal_build_options: "--flag streamk --flag -opt"
+            ignore_error: false
+          - name: 8.6.5-sdist-debug-unoptimized
+            ghc_version: 8.6.5
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
             cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
+            ignore_error: false
+          - name: 8.4.4-sdist
+            ghc_version: 8.4.4
             runner: ubuntu-latest
-            cabal_version: 3.4
-          - name: 8.10.7+docspec
-            ghc_version: 8.10.7
-            doctest: "y"
-            runner: ubuntu-latest
-            cabal_version: 3.4
+            build: cabal
+            cabal_version: 3.6
+            ignore_error: false
 
     steps:
     - uses: actions/checkout@v2
-
-    - uses: haskell/actions/setup@v1
-      with:
-        ghc-version: ${{ matrix.ghc_version }}
-        cabal-version: ${{ matrix.cabal_version }}
 
     - uses: actions/cache@v1
       name: Cache ~/.cabal
@@ -161,6 +170,23 @@ jobs:
         PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
         if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
         chmod +x $PACKCHECK_LOCAL_PATH
+
+        os=$(uname -s -m)
+        case "$os" in
+          "Linux x86_64") GHCUP_ARCH="x86_64-linux" ;;
+          "Darwin x86_64") GHCUP_ARCH="x86_64-apple-darwin" ;;
+          *) echo "Unknown OS/Arch: $os"; exit 1;;
+        esac
+
+        $CURL -sL -o ./ghcup https://downloads.haskell.org/~ghcup/0.1.17.4/${GHCUP_ARCH}-ghcup-0.1.17.4
+        chmod +x ./ghcup
+        if test "$GHCVER" = "head"
+        then
+          ./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-deb10-linux-integer-simple.tar.xz?job=validate-x86_64-linux-deb10-integer-simple head
+        else
+          ./ghcup install ghc $GHCVER
+        fi
+        ./ghcup set ghc $GHCVER
 
     - name: Run tests
       run: |
