@@ -2042,7 +2042,7 @@ fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
-{-# INLINABLE fromList #-}
+{-# INLINE fromList #-}
 fromList :: (MonadIO m, Storable a) => [a] -> m (Array a)
 fromList xs = fromStreamD $ D.fromList xs
 

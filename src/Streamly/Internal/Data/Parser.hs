@@ -534,7 +534,7 @@ drainWhile p = takeWhile p FL.drain
 --
 -- /Pre-release/
 --
-{-# INLINABLE sliceSepByP #-}
+{-# INLINE sliceSepByP #-}
 sliceSepByP ::
     MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
@@ -544,7 +544,7 @@ sliceSepByP cond = K.toParserK . D.sliceSepByP cond . K.fromParserK
 -- separator is emitted as a separate element in the output.
 --
 -- /Unimplemented/
-{-# INLINABLE sliceSepWith #-}
+{-# INLINE sliceSepWith #-}
 sliceSepWith :: -- MonadCatch m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
@@ -583,7 +583,7 @@ sliceSepWith _cond = undefined -- K.toParserK . D.sliceSepBy cond
 --
 -- /Pre-release/
 --
-{-# INLINABLE sliceBeginWith #-}
+{-# INLINE sliceBeginWith #-}
 sliceBeginWith ::
     MonadCatch m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
@@ -593,7 +593,7 @@ sliceBeginWith cond = K.toParserK . D.sliceBeginWith cond
 -- escape char determined by the second predicate.
 --
 -- /Unimplemented/
-{-# INLINABLE escapedSliceSepBy #-}
+{-# INLINE escapedSliceSepBy #-}
 escapedSliceSepBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedSliceSepBy _cond _esc = undefined
@@ -622,7 +622,7 @@ escapedSliceSepBy _cond _esc = undefined
 -- @
 --
 -- /Unimplemented/
-{-# INLINABLE escapedFrameBy #-}
+{-# INLINE escapedFrameBy #-}
 escapedFrameBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedFrameBy _begin _end _escape _p = undefined
@@ -672,7 +672,7 @@ wordBy f = K.toParserK . D.wordBy f
 --
 -- /Pre-release/
 --
-{-# INLINABLE groupBy #-}
+{-# INLINE groupBy #-}
 groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy eq = K.toParserK . D.groupBy eq
 
@@ -706,7 +706,7 @@ groupBy eq = K.toParserK . D.groupBy eq
 --
 -- /Pre-release/
 --
-{-# INLINABLE groupByRolling #-}
+{-# INLINE groupByRolling #-}
 groupByRolling :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupByRolling eq = K.toParserK . D.groupByRolling eq
 
@@ -720,7 +720,7 @@ groupByRolling eq = K.toParserK . D.groupByRolling eq
 -- Fold.toList Fold.toList'.
 --
 -- /Unimplemented/
-{-# INLINABLE groupByRollingEither #-}
+{-# INLINE groupByRollingEither #-}
 groupByRollingEither :: MonadCatch m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = K.toParserK . D.groupByRollingEither eq f1

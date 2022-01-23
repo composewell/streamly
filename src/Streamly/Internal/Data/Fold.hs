@@ -809,7 +809,7 @@ toListRev = foldl' (flip (:)) []
 -- > drainN n = Fold.take n Fold.drain
 --
 -- /Pre-release/
-{-# INLINABLE drainN #-}
+{-# INLINE drainN #-}
 drainN :: Monad m => Int -> Fold m a ()
 drainN n = take n drain
 

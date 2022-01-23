@@ -268,7 +268,7 @@ fromFold (Fold fstep finitial fextract) = Parser step initial fextract
 --
 -- /Pre-release/
 --
-{-# INLINABLE peek #-}
+{-# INLINE peek #-}
 peek :: MonadThrow m => Parser m a a
 peek = Parser step initial extract
 
@@ -284,7 +284,7 @@ peek = Parser step initial extract
 --
 -- /Pre-release/
 --
-{-# INLINABLE eof #-}
+{-# INLINE eof #-}
 eof :: Monad m => Parser m a ()
 eof = Parser step initial return
 
@@ -805,7 +805,7 @@ data GroupByStatePair a s1 s2
     | GroupByGroupingPairL !a !s1 !s2
     | GroupByGroupingPairR !a !s1 !s2
 
-{-# INLINABLE groupByRollingEither #-}
+{-# INLINE groupByRollingEither #-}
 groupByRollingEither :: MonadCatch m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither
