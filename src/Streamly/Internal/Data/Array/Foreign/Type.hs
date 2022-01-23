@@ -357,7 +357,7 @@ fromListRevN _n _xs = undefined
 -- /Since 0.7.0 (Streamly.Memory.Array)/
 --
 -- @since 0.8.0
-{-# INLINABLE fromList #-}
+{-# INLINE fromList #-}
 fromList :: Storable a => [a] -> Array a
 fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 

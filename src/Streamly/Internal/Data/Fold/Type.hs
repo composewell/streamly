@@ -528,7 +528,7 @@ fromRefold (Refold step inject extract) c =
 -- > drain = drainBy (const (return ()))
 --
 -- @since 0.7.0
-{-# INLINABLE drain #-}
+{-# INLINE drain #-}
 drain :: Monad m => Fold m a ()
 drain = foldl' (\_ _ -> ()) ()
 
