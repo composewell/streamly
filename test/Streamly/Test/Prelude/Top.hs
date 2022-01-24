@@ -84,7 +84,6 @@ joinOuter =
                 let v2 = [ (Just i, Just j) | i <- ls0, j <- ls1, i == j ]
                 assert (v1 == v2)
 
-
 joinOuterMap :: Property
 joinOuterMap =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->

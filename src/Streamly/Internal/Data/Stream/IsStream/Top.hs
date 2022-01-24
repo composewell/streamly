@@ -385,7 +385,7 @@ leftJoin eq s1 s2 = Stream.evalStateT (return False) $ do
             else Stream.nil
         Nothing -> return (a, Nothing)
 
--- | Like 'joinOuter' but uses a hashmap for efficiency.
+-- | Like 'joinLeft' but uses a hashmap for efficiency.
 --
 -- Space: O(n)
 --
@@ -470,11 +470,9 @@ joinOuter eq s1 s =
 -- a flag. At the end go through @t m b@ and find those that are not in that
 -- hash to return (Nothing, b).
 --
--- | Like 'joinOuter' but uses a hashmap for efficiency.
+-- | Like 'joinOuter' but uses a 'Map' for efficiency.
 --
--- For space efficiency use the smaller stream as the second stream.
---
--- Space: O(n)
+-- Space: O(m + n)
 --
 -- Time: O(m + n)
 --
@@ -488,14 +486,20 @@ joinOuterMap s1 s2 =
         km1 <- kvFold $ IsStream.adapt s1
         km2 <- kvFold $ IsStream.adapt s2
 
-        let res1 = Stream.map (joinAB km2) s1
+        -- XXX Not sure if toList/fromList would fuse optimally. We may have to
+        -- create a fused Map.toStream function.
+        let res1 = Stream.map (joinAB km2) $ Stream.fromList $ Map.toList km1
                     where
                     joinAB km (k, a) =
                         case k `Map.lookup` km of
                             Just b -> (k, Just a, Just b)
                             Nothing -> (k, Just a, Nothing)
 
-        let res2 = Stream.mapMaybe (joinAB km1) s2
+        -- XXX We can take advantage of the lookups in the first pass above to
+        -- reduce the number of lookups in this pass. If we keep mutable cells
+        -- in the second Map, we can flag it in the first pass and not do any
+        -- lookup in the second pass if it is flagged.
+        let res2 = Stream.mapMaybe (joinAB km1) $ Stream.fromList $ Map.toList km2
                     where
                     joinAB km (k, b) =
                         case k `Map.lookup` km of

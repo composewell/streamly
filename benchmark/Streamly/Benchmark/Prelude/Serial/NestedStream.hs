@@ -420,43 +420,41 @@ o_n_space_monad value =
 toKvMap :: Int -> (Int, Int)
 toKvMap p = (p, p)
 
-mkStreamLen :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-mkStreamLen count = sourceUnfoldrM count 0
+{-# INLINE joinWith #-}
+joinWith :: (S.MonadAsync m) =>
+       ((Int -> Int -> Bool) -> SerialT m Int -> SerialT m Int -> SerialT m b)
+    -> Int
+    -> Int
+    -> Int
+    -> m ()
+joinWith j val1 val2 i =
+    S.drain $ j (==) (sourceUnfoldrM val1 i) (sourceUnfoldrM val2 i)
 
-{-# INLINE joinInner #-}
-joinInner :: Int -> Int -> Int -> IO ()
-joinInner val1 val2 _ =
-     S.drain $ Internal.joinInner (==) (mkStreamLen val1) $ mkStreamLen val2
-
-{-# INLINE joinInnerMap #-}
-joinInnerMap :: Int -> Int -> Int -> IO ()
-joinInnerMap val1 val2 _ =
-        S.drain $
-            Internal.joinInnerMap
-            (fmap toKvMap (mkStreamLen val1))
-            (fmap toKvMap (mkStreamLen val2))
-
-{-# INLINE joinOuter #-}
-joinOuter :: Int -> Int -> Int -> IO ()
-joinOuter val1 val2 _ =
-     S.drain $ Internal.joinOuter (==) (mkStreamLen val1) $ mkStreamLen val2
-
-{-# INLINE joinOuterMap #-}
-joinOuterMap :: Int -> Int -> Int -> IO ()
-joinOuterMap val1 val2 _ =
-        S.drain $
-            Internal.joinOuterMap
-            (fmap toKvMap (mkStreamLen val1))
-            (fmap toKvMap (mkStreamLen val2))            
+{-# INLINE joinMapWith #-}
+joinMapWith :: (S.MonadAsync m) =>
+       (SerialT m (Int, Int) -> SerialT m (Int, Int) -> SerialT m b)
+    -> Int
+    -> Int
+    -> Int
+    -> m ()
+joinMapWith j val1 val2 i =
+    S.drain
+        $ j
+            (fmap toKvMap (sourceUnfoldrM val1 i))
+            (fmap toKvMap (sourceUnfoldrM val2 i))
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
-          benchIOSrc1 "joinInner" (joinInner sqrtVal sqrtVal)
-        , benchIOSrc1 "joinInnerMap" (joinInnerMap sqrtVal sqrtVal)
-        , benchIOSrc1 "joinOuter" (joinOuter sqrtVal sqrtVal)
-        , benchIOSrc1 "joinOuterMap" (joinOuterMap sqrtVal sqrtVal)
+          benchIOSrc1 "joinInner"
+            $ joinWith Internal.joinInner sqrtVal sqrtVal
+        , benchIOSrc1 "joinInnerMap"
+            $ joinMapWith Internal.joinInnerMap sqrtVal sqrtVal
+        , benchIOSrc1 "joinOuter"
+            $ joinWith Internal.joinOuter sqrtVal sqrtVal
+        , benchIOSrc1 "joinOuterMap"
+            $ joinMapWith Internal.joinOuterMap sqrtVal sqrtVal
         ]
     ]
 
