@@ -680,7 +680,7 @@ splitOnSeq patt f m =
 -- | Like 'zipWith' but using a monadic zipping function.
 --
 -- @since 0.4.0
-{-# INLINABLE zipWithM #-}
+{-# INLINE zipWithM #-}
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 =
     IsStream.fromStreamS
@@ -699,7 +699,7 @@ zipWithM f m1 m2 =
 -- @
 --
 -- @since 0.1.0
-{-# INLINABLE zipWith #-}
+{-# INLINE zipWith #-}
 zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 =
     IsStream.fromStreamS

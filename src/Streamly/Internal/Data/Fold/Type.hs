@@ -541,7 +541,7 @@ drain = foldl' (\_ _ -> ()) ()
 -- > toList = foldr (:) []
 --
 -- @since 0.7.0
-{-# INLINABLE toList #-}
+{-# INLINE toList #-}
 toList :: Monad m => Fold m a [a]
 toList = foldr (:) []
 
@@ -556,7 +556,7 @@ toList = foldr (:) []
 -- /Pre-release/
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toStreamKRev #-}
+{-# INLINE toStreamKRev #-}
 toStreamKRev :: Monad m => Fold m a (K.Stream n a)
 toStreamKRev = foldl' (flip K.cons) K.nil
 
@@ -987,7 +987,7 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 -- > lmap = Fold.lmapM return
 --
 -- @since 0.8.0
-{-# INLINABLE lmap #-}
+{-# INLINE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
 lmap f (Fold step begin done) = Fold step' begin done
     where
@@ -996,7 +996,7 @@ lmap f (Fold step begin done) = Fold step' begin done
 -- | @lmapM f fold@ maps the monadic function @f@ on the input of the fold.
 --
 -- @since 0.8.0
-{-# INLINABLE lmapM #-}
+{-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
 lmapM f (Fold step begin done) = Fold step' begin done
     where
@@ -1014,7 +1014,7 @@ lmapM f (Fold step begin done) = Fold step' begin done
 -- > filter f = Fold.filterM (return . f)
 --
 -- @since 0.8.0
-{-# INLINABLE filter #-}
+{-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
 filter f (Fold step begin done) = Fold step' begin done
     where
@@ -1023,7 +1023,7 @@ filter f (Fold step begin done) = Fold step' begin done
 -- | Like 'filter' but with a monadic predicate.
 --
 -- @since 0.8.0
-{-# INLINABLE filterM #-}
+{-# INLINE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
 filterM f (Fold step begin done) = Fold step' begin done
     where
@@ -1105,7 +1105,7 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- fold.  Compare with 'snoc' which appends a singleton value to the fold.
 --
 -- /Pre-release/
-{-# INLINABLE duplicate #-}
+{-# INLINE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
 duplicate (Fold step1 initial1 extract1) =
     Fold step initial (\s -> pure $ Fold step1 (pure $ Partial s) extract1)

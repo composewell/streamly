@@ -1492,7 +1492,7 @@ classifySessionsBy tick reset ejectPred tmout
 --
 -- /Pre-release/
 --
-{-# INLINABLE classifyKeepAliveSessions #-}
+{-# INLINE classifyKeepAliveSessions #-}
 classifyKeepAliveSessions ::
        (IsStream t, MonadAsync m, Ord k)
     => (Int -> m Bool) -- ^ predicate to eject sessions on session count
@@ -1539,7 +1539,7 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 --
 -- /Pre-release/
 --
-{-# INLINABLE classifySessionsOf #-}
+{-# INLINE classifySessionsOf #-}
 classifySessionsOf ::
        (IsStream t, MonadAsync m, Ord k)
     => (Int -> m Bool) -- ^ predicate to eject sessions on session count

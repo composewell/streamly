@@ -745,7 +745,7 @@ mergeBy f m1 m2 = fromStream $ K.mergeBy f (toStream m1) (toStream m2)
 -- See also: 'mergeByMFused'
 --
 -- @since 0.6.0
-{-# INLINABLE mergeByM #-}
+{-# INLINE mergeByM #-}
 mergeByM
     :: (IsStream t, Monad m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a

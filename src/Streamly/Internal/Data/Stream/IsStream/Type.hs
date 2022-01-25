@@ -654,7 +654,7 @@ concatMapWith par f xs = bindWith par xs f
 -- /Since: 0.8.0 (Renamed foldMapWith to concatMapFoldableWith)/
 --
 -- /Since: 0.1.0 ("Streamly")/
-{-# INLINABLE concatMapFoldableWith #-}
+{-# INLINE concatMapFoldableWith #-}
 concatMapFoldableWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
 concatMapFoldableWith f g = Prelude.foldr (f . g) nil

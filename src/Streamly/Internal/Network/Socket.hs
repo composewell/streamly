@@ -324,7 +324,7 @@ writeChunk = writeArrayWith sendAll
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
-{-# INLINABLE _readChunksUptoWith #-}
+{-# INLINE _readChunksUptoWith #-}
 _readChunksUptoWith :: (IsStream t, MonadIO m)
     => (Int -> h -> IO (Array Word8))
     -> Int -> h -> t m (Array Word8)
