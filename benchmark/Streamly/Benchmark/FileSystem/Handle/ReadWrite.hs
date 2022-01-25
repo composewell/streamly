@@ -159,7 +159,6 @@ o_1_space_copy_fromBytes env =
     ]
 
 -- | Send the file contents ('defaultChunkSize') to /dev/null
-{-# NOINLINE writeReadWithBufferOf #-}
 writeReadWithBufferOf :: Handle -> Handle -> IO ()
 writeReadWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
@@ -177,7 +176,6 @@ inspect $ 'writeReadWithBufferOf `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeN
 #endif
 
 -- | Send the file contents ('AT.defaultChunkSize') to /dev/null
-{-# NOINLINE writeRead #-}
 writeRead :: Handle -> Handle -> IO ()
 writeRead inh devNull = IUF.fold fld unf inh
 
