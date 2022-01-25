@@ -478,7 +478,7 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- See also: 'Streamly.Prelude.mapM_'
 --
 -- @since 0.7.0
-{-# INLINABLE drainBy #-}
+{-# INLINE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = lmapM f drain
 
@@ -487,7 +487,7 @@ drainBy f = lmapM f drain
 -- > last = fmap getLast $ Fold.foldMap (Last . Just)
 --
 -- @since 0.7.0
-{-# INLINABLE last #-}
+{-# INLINE last #-}
 last :: Monad m => Fold m a (Maybe a)
 last = foldl1' (\_ x -> x)
 
@@ -612,7 +612,7 @@ minimum = foldl1' min
 -- stream.
 --
 -- @since 0.7.0
-{-# INLINABLE mean #-}
+{-# INLINE mean #-}
 mean :: (Monad m, Fractional a) => Fold m a a
 mean = fmap done $ foldl' step begin
 
@@ -630,7 +630,7 @@ mean = fmap done $ foldl' step begin
 -- the input stream.
 --
 -- @since 0.7.0
-{-# INLINABLE variance #-}
+{-# INLINE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
 variance = fmap done $ foldl' step begin
 
@@ -653,7 +653,7 @@ variance = fmap done $ foldl' step begin
 -- elements in the input stream.
 --
 -- @since 0.7.0
-{-# INLINABLE stdDev #-}
+{-# INLINE stdDev #-}
 stdDev :: (Monad m, Floating a) => Fold m a a
 stdDev = sqrt <$> variance
 
@@ -669,7 +669,7 @@ stdDev = sqrt <$> variance
 -- See https://en.wikipedia.org/wiki/Rolling_hash
 --
 -- @since 0.8.0
-{-# INLINABLE rollingHashWithSalt #-}
+{-# INLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
 rollingHashWithSalt = foldl' step
 
@@ -689,7 +689,7 @@ defaultSalt = -2578643520546668380
 -- > rollingHash = Fold.rollingHashWithSalt defaultSalt
 --
 -- @since 0.8.0
-{-# INLINABLE rollingHash #-}
+{-# INLINE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Fold m a Int64
 rollingHash = rollingHashWithSalt defaultSalt
 
@@ -699,7 +699,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- > rollingHashFirstN = Fold.take n Fold.rollingHash
 --
 -- /Pre-release/
-{-# INLINABLE rollingHashFirstN #-}
+{-# INLINE rollingHashFirstN #-}
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
 rollingHashFirstN n = take n rollingHash
 
@@ -749,7 +749,7 @@ mconcat = sconcat mempty
 -- Sum {getSum = 55}
 --
 -- @since 0.7.0
-{-# INLINABLE foldMap #-}
+{-# INLINE foldMap #-}
 foldMap :: (Monad m, Monoid b
 #if !MIN_VERSION_base(4,11,0)
     , Semigroup b
@@ -767,7 +767,7 @@ foldMap f = lmap f mconcat
 -- Sum {getSum = 55}
 --
 -- @since 0.7.0
-{-# INLINABLE foldMapM #-}
+{-# INLINE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
 foldMapM act = foldlM' step (pure mempty)
 
@@ -795,7 +795,7 @@ foldMapM act = foldlM' step (pure mempty)
 -- @since 0.8.0
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toListRev #-}
+{-# INLINE toListRev #-}
 toListRev :: Monad m => Fold m a [a]
 toListRev = foldl' (flip (:)) []
 
@@ -820,7 +820,7 @@ drainN n = take n drain
 -- | Like 'index', except with a more general 'Integral' argument
 --
 -- /Pre-release/
-{-# INLINABLE genericIndex #-}
+{-# INLINE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
 genericIndex i = mkFold step (Partial 0) (const Nothing)
 
@@ -836,21 +836,21 @@ genericIndex i = mkFold step (Partial 0) (const Nothing)
 -- See also: 'Streamly.Prelude.!!'
 --
 -- @since 0.7.0
-{-# INLINABLE index #-}
+{-# INLINE index #-}
 index :: Monad m => Int -> Fold m a (Maybe a)
 index = genericIndex
 
 -- | Extract the first element of the stream, if any.
 --
 -- @since 0.7.0
-{-# INLINABLE head #-}
+{-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
 head = mkFold_ (const (Done . Just)) (Partial Nothing)
 
 -- | Returns the first element that satisfies the given predicate.
 --
 -- @since 0.7.0
-{-# INLINABLE find #-}
+{-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
 find predicate = mkFold step (Partial ()) (const Nothing)
 
@@ -867,7 +867,7 @@ find predicate = mkFold step (Partial ()) (const Nothing)
 -- > lookup = snd <$> Fold.find ((==) . fst)
 --
 -- @since 0.7.0
-{-# INLINABLE lookup #-}
+{-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
 lookup a0 = mkFold step (Partial ()) (const Nothing)
 
@@ -881,7 +881,7 @@ lookup a0 = mkFold step (Partial ()) (const Nothing)
 -- | Returns the first index that satisfies the given predicate.
 --
 -- @since 0.7.0
-{-# INLINABLE findIndex #-}
+{-# INLINE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
 findIndex predicate = mkFold step (Partial 0) (const Nothing)
 
@@ -897,7 +897,7 @@ findIndex predicate = mkFold step (Partial 0) (const Nothing)
 -- > elemIndex a = Fold.findIndex (== a)
 --
 -- @since 0.7.0
-{-# INLINABLE elemIndex #-}
+{-# INLINE elemIndex #-}
 elemIndex :: (Eq a, Monad m) => a -> Fold m a (Maybe Int)
 elemIndex a = findIndex (a ==)
 
@@ -910,7 +910,7 @@ elemIndex a = findIndex (a ==)
 -- > null = fmap isJust Fold.head
 --
 -- @since 0.7.0
-{-# INLINABLE null #-}
+{-# INLINE null #-}
 null :: Monad m => Fold m a Bool
 null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 
@@ -940,7 +940,7 @@ any predicate = mkFold_ step initial
 -- > elem a = Fold.any (== a)
 --
 -- @since 0.7.0
-{-# INLINABLE elem #-}
+{-# INLINE elem #-}
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
 
@@ -952,7 +952,7 @@ elem a = any (a ==)
 -- > all p = Fold.lmap p Fold.and
 --
 -- @since 0.7.0
-{-# INLINABLE all #-}
+{-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Fold m a Bool
 all predicate = mkFold_ step initial
 
@@ -970,7 +970,7 @@ all predicate = mkFold_ step initial
 -- > notElem a = Fold.all (/= a)
 --
 -- @since 0.7.0
-{-# INLINABLE notElem #-}
+{-# INLINE notElem #-}
 notElem :: (Eq a, Monad m) => a -> Fold m a Bool
 notElem a = all (a /=)
 
@@ -1782,6 +1782,6 @@ toStream = fmap SerialT toStreamK
 -- /Pre-release/
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toStreamRev #-}
+{-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT n a)
 toStreamRev = fmap SerialT toStreamKRev

@@ -277,7 +277,7 @@ writeIOVec (Handle fd) iov =
 -- | @readArraysOfUpto size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE _readArraysOfUpto #-}
+{-# INLINE _readArraysOfUpto #-}
 _readArraysOfUpto :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
 _readArraysOfUpto size h = go

@@ -277,7 +277,7 @@ withConnectionM addr port =
 -- exception, then this exception will be raised by 'usingConnection'.
 --
 -- /Pre-release/
-{-# INLINABLE usingConnection #-}
+{-# INLINE usingConnection #-}
 usingConnection :: (MonadCatch m, MonadAsync m)
     => Unfold m Socket a
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) a
@@ -297,7 +297,7 @@ usingConnection =
 -- 'withConnection' rather than any exception raised by 'act'.
 --
 -- /Pre-release/
-{-# INLINABLE withConnection #-}
+{-# INLINE withConnection #-}
 withConnection :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
 withConnection addr port =
@@ -418,7 +418,7 @@ write = writeWithBufferOf defaultChunkSize
 -- Transformations
 -------------------------------------------------------------------------------
 
-{-# INLINABLE withInputConnect #-}
+{-# INLINE withInputConnect #-}
 withInputConnect
     :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
@@ -446,7 +446,7 @@ withInputConnect addr port input f = S.bracket pre post handler
 --
 -- /Pre-release/
 --
-{-# INLINABLE processBytes #-}
+{-# INLINE processBytes #-}
 processBytes
     :: (IsStream t, MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)

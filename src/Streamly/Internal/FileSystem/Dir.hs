@@ -103,7 +103,7 @@ readArrayUpto size h = do
 -- | @toChunksWithBufferOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE _toChunksWithBufferOf #-}
+{-# INLINE _toChunksWithBufferOf #-}
 _toChunksWithBufferOf :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
 _toChunksWithBufferOf size h = go

@@ -151,14 +151,14 @@ withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
 --
 -- /Pre-release/
 --
-{-# INLINABLE usingFile #-}
+{-# INLINE usingFile #-}
 usingFile :: (MonadCatch m, MonadAsync m)
     => Unfold m Handle a -> Unfold m FilePath a
 usingFile =
     UF.bracket (\file -> liftIO $ openFile file ReadMode)
                (liftIO . hClose)
 
-{-# INLINABLE usingFile2 #-}
+{-# INLINE usingFile2 #-}
 usingFile2 :: (MonadCatch m, MonadAsync m)
     => Unfold m (x, Handle) a -> Unfold m (x, FilePath) a
 usingFile2 = UF.bracket before after
@@ -171,7 +171,7 @@ usingFile2 = UF.bracket before after
 
     after (_, h) = liftIO $ hClose h
 
-{-# INLINABLE usingFile3 #-}
+{-# INLINE usingFile3 #-}
 usingFile3 :: (MonadCatch m, MonadAsync m)
     => Unfold m (x, y, z, Handle) a -> Unfold m (x, y, z, FilePath) a
 usingFile3 = UF.bracket before after
@@ -215,7 +215,7 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 -- | @toChunksWithBufferOf size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE toChunksWithBufferOf #-}
+{-# INLINE toChunksWithBufferOf #-}
 toChunksWithBufferOf :: (IsStream t, MonadCatch m, MonadAsync m)
     => Int -> FilePath -> t m (Array Word8)
 toChunksWithBufferOf size file =
