@@ -21,7 +21,7 @@ print_help () {
   echo "       [--sort-by-name]"
   echo "       [--compare]"
   echo "       [--diff-style <absolute|percent|multiples>]"
-  echo "       [--cutoff-percent <percent-value>]"
+  echo "       [--diff-cutoff-percent <percent-value>]"
   echo "       [--graphs]"
   echo "       [--silent]"
   echo "       [--no-measure]"
@@ -40,6 +40,13 @@ print_help () {
   echo
   echo "--benchmarks: benchmarks to run, use 'help' for list of benchmarks"
   echo "--compare: compare the specified benchmarks with each other"
+
+  echo "--diff-cutoff-percent: Diff percentage used for benchmark selection."
+  echo "This applies only to the second column of the report and makes sense"
+  echo "only while comparing benchmarks."
+  echo "A positive cutoff value selects only regressions, whereas, a negative"
+  echo "cutoff value selects only improvements."
+
   echo "--fields: measurement fields to report, use 'help' for a list"
   echo "--graphs: Generate graphical reports"
   echo "--no-measure: Don't run benchmarks, run reports from previous results"
