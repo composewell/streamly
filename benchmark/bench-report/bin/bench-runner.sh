@@ -23,6 +23,7 @@ print_help () {
   echo "       [--diff-style <absolute|percent|multiples>]"
   echo "       [--cutoff-percent <percent-value>]"
   echo "       [--graphs]"
+  echo "       [--silent]"
   echo "       [--no-measure]"
   echo "       [--append]"
   echo "       [--long]"
@@ -111,7 +112,7 @@ build_report_progs() {
       local prog
       prog=$BENCH_REPORT_DIR/bin/bench-report
       test -x $prog || die "Cannot find bench-report executable"
-      echo "Using bench-report executable [$prog]"
+      test -z "$SILENT" && echo "Using bench-report executable [$prog]"
   fi
 }
 
@@ -432,11 +433,11 @@ run_reports() {
     local prog
     prog=$BENCH_REPORT_DIR/bin/bench-report
     test -x $prog || die "Cannot find bench-report executable"
-    echo
+    test -z "$SILENT" && echo
 
     for i in $1
     do
-        echo "Generating reports for ${i}..."
+        test -z "$SILENT" && echo "Generating reports for ${i}..."
         $prog \
             --benchmark $i \
             $(test "$USE_GAUGE" = 1 && echo "--use-gauge") \
@@ -497,6 +498,7 @@ do
     --diff-cutoff-percent) shift; BENCH_CUTOFF_PERCENT=$1; shift ;;
     # flags
     --slow) SLOW=1; shift ;;
+    --silent) SILENT=1; shift ;;
     --quick) QUICK_MODE=1; shift ;;
     --compare) COMPARE=1; shift ;;
     --commit-compare) COMMIT_COMPARE=1; shift ;;
@@ -598,7 +600,7 @@ TARGETS=$(set_targets)
 TARGETS_ORIG=$TARGETS
 TARGETS=$(only_real_benchmarks)
 
-echo "Using benchmark suites [$TARGETS]"
+test -z "$SILENT" && echo "Using benchmark suites [$TARGETS]"
 
 #-----------------------------------------------------------------------------
 # Build reporting utility
