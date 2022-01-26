@@ -221,6 +221,8 @@ benchmark Prelude.WSerial
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
 
 benchmark Prelude.Merge
   import: bench-options
