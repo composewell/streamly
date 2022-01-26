@@ -209,25 +209,23 @@ selectBench
     -> (SortColumn -> Maybe GroupStyle -> Either String [(String, Double)])
     -> [String]
 selectBench Options{..} f =
-    reverse
-    $ fmap fst
-    $ filter (\(_,y) -> filterPred y)
-    $ either
-      (const $ either error sortFunc $ f (ColumnIndex 0) (Just PercentDiff))
-      sortFunc
-      $ f (ColumnIndex 1) (Just PercentDiff)
+    -- Apply filterPred only if at least 2 columns exist
+    let colVals =
+            case f (ColumnIndex 1) (Just PercentDiff) of
+                Left _ -> either error id $ f (ColumnIndex 0) (Just PercentDiff)
+                Right xs -> filter (filterPred . snd) xs
+    in reverse
+           $ fmap fst
+           $ sortFunc colVals
 
     where
 
     sortFunc = if sortByName then sortOn fst else sortOn snd
 
-    cutOffMultiples = 1 + cutOffPercent / 100
-
-    filterPred x =
-        case benchType of
-            Just (Compare _) ->
-                x <= negate cutOffPercent || x >= cutOffPercent
-            _ -> True
+    filterPred x
+        | cutOffPercent > 0 = x >= cutOffPercent
+        | cutOffPercent < 0 = x <= cutOffPercent
+        | otherwise = True
 
 benchShow ::
        Options
