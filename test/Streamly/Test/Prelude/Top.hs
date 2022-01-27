@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Data.List (sort)
+import Data.List (nub, sort)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -49,7 +49,10 @@ joinInnerMap :: Property
 joinInnerMap =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
-            monadicIO $ action (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) ls1)
+            monadicIO $
+                action
+                (map (\a -> (a,a)) ls0)
+                (map (\a -> (a,a)) ls1)
 
             where
 
@@ -60,10 +63,10 @@ joinInnerMap =
                     $ Top.joinInnerMap (S.fromList ls0) (S.fromList ls1)
                 let v2 = [
                             (fst i, fst i, fst j)
-                            | i <- ls0, j <- ls1
+                            | i <- ls0, j <- nub ls1
                             , fst i == fst j
                           ]
-                assert (v1 == v2)
+                assert (sort v1 == sort v2)
 
 -------------------------------------------------------------------------------
 -- Main
