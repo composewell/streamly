@@ -1,6 +1,7 @@
 .circleci/config.yml
 .ghci
 .github/workflows/haskell.yml
+.github/workflows/regression-check.yml
 .gitignore
 .hlint.ignore
 .hlint.yaml
