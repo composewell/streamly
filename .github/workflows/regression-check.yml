@@ -1,0 +1,121 @@
+name: Regression checking
+
+on: pull_request
+
+
+# References:
+# https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow
+# https://docs.github.com/en/actions/using-workflows/reusing-workflows#reusable-workflows-and-starter-workflows
+# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_call
+# https://docs.github.com/en/actions/learn-github-actions/contexts#about-contexts-and-expressions
+
+jobs:
+  check-regressions:
+    env:
+      BENCH_SH: bin/bench.sh
+      BENCHMARKS: >-
+        Data.Array
+        Data.Array.Foreign
+        Data.Array.Prim
+        Data.Array.Prim.Pinned
+        Data.Fold
+        Data.Parser
+        Data.Parser.ParserD
+        Data.Parser.ParserK
+        Data.SmallArray
+        Data.Stream.StreamD
+        Data.Stream.StreamDK
+        Data.Stream.StreamK
+        Data.Unfold
+        FileSystem.Handle
+        Prelude.Ahead
+        Prelude.Async
+        Prelude.Parallel
+        Prelude.Serial
+        Prelude.WAsync
+        Prelude.WSerial
+        Prelude.ZipAsync
+        Prelude.ZipSerial
+        Unicode.Char
+        Unicode.Stream
+        Unicode.Utf8
+      FIELDS: allocated
+      DIFF_CUTOFF_PERCENT: 3
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Setup haskell
+      uses: actions/setup-haskell@v1
+      with:
+        ghc-version: 8.8.4
+        cabal-version: 3.2
+
+    - uses: actions/cache@v2
+      name: Cache ~/.cabal and bench-report
+      with:
+        path: |
+            ~/.cabal
+            ./benchmark/bench-report/bin/bench-report
+        # Bump the key version to clear the cache
+        key: cache-v1
+
+    - name: Cache charts from master
+      id: cache-charts-master
+      uses: actions/cache@v2
+      with:
+        path: charts-master
+        # Bump the key version to clear the cache
+        key: charts-master-v1
+
+    # -----------------------------------------------------------------
+    # -- Generate reports for the base branch and upload
+    # -----------------------------------------------------------------
+
+    - name: Checkout the base branch
+      if: steps.cache-charts-master.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        ref: master
+
+    - name: Run benchmarks
+      if: steps.cache-charts-master.outputs.cache-hit != 'true'
+      run: |
+        chmod +x $BENCH_SH
+        $BENCH_SH --benchmarks "$BENCHMARKS" --raw
+
+    - name: Move charts to charts-master
+      if: steps.cache-charts-master.outputs.cache-hit != 'true'
+      run: mv charts charts-master
+
+    # -----------------------------------------------------------------
+    # -- Download, generate reports for the current branch and append
+    # -----------------------------------------------------------------
+
+    - name: Checkout the current branch
+      uses: actions/checkout@v2
+      with:
+        clean: false
+
+    - name: Copy charts-master to charts
+      run: cp -r charts-master charts
+
+    - name: Run benchmarks and append
+      run: |
+        chmod +x $BENCH_SH
+        $BENCH_SH --benchmarks "$BENCHMARKS" --raw --append
+
+    # -----------------------------------------------------------------
+    # -- Compare
+    # -----------------------------------------------------------------
+
+    - name: Compare benchmarks
+      run: |
+        chmod +x $BENCH_SH
+        ! $BENCH_SH --benchmarks "$BENCHMARKS" \
+                  --fields "$FIELDS" \
+                  --no-measure \
+                  --silent --append \
+                  --diff-cutoff-percent $DIFF_CUTOFF_PERCENT \
+            | grep -v "^$"
