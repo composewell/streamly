@@ -95,9 +95,8 @@ empty = Utf8 Array.nil
 -- Helpers
 --------------------------------------------------------------------------------
 
--- XXX Try removing IO
 {-# INLINE toStream #-}
-toStream :: Utf8 -> SerialT IO Char
+toStream :: Monad m => Utf8 -> SerialT m Char
 toStream = Unicode.decodeUtf8 . Array.toStream . toArray
 
 -- XXX Try removing IO
@@ -112,6 +111,9 @@ fromStream =
 -- Conversion to/from 'Utf8'
 --------------------------------------------------------------------------------
 
+-- | Convert a 'Utf8' to a 'Array Word8'.
+--
+-- /Time complexity:/ O(1)
 {-# INLINE toArray #-}
 toArray :: Utf8 -> Array Word8
 toArray (Utf8 arr) = arr
@@ -247,7 +249,15 @@ write = Fold.Fold step initial (return . Utf8 . Array.unsafeFreeze)
         x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
         x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
--- |
+-- XXX Similar to the comment on write, this should be implemented in terms of
+-- "foldMany" along with "writeCharUtf8"
+--
+-- foldMany :: Fold m b c -> Unfold m a b -> Unfold m a c
+-- writeCharUtf8 :: Fold m Word8 Char
+--
+-- read = foldMany Unicode.writeCharUtf8 Array.read
+--
+-- | Unfold a 'Utf8' into a stream of 'Char'.
 --
 -- /Unimplemented/
 {-# INLINE read #-}
@@ -258,6 +268,8 @@ read = undefined
 -- Basic functions
 --------------------------------------------------------------------------------
 
+-- | Produce a singleton 'Utf8'.
+--
 singleton :: Char -> Utf8
 singleton = fromStream . Stream.fromPure
 
@@ -270,6 +282,7 @@ singleton = fromStream . Stream.fromPure
 -- cons.
 --
 -- You can also memcpy if that turns out to be faster than stream.
+--
 -- | Adds a character to the front of a 'Utf8'. This function is more
 -- costly than its 'List' counterpart because it requires copying a new array.
 -- Performs replacement on invalid scalar values.
@@ -279,8 +292,7 @@ singleton = fromStream . Stream.fromPure
 cons :: Char -> Utf8 -> Utf8
 cons c = fromStream . Stream.cons c . toStream
 
--- | Adds a character to the end of a 'Utf8'.  This copies the entire
--- array in the process, unless fused.   Performs replacement
+-- | Adds a character to the end of a 'Utf8'. Performs replacement
 -- on invalid scalar values.
 --
 -- /Time complexity:/ O(n)
@@ -300,7 +312,6 @@ append (Utf8 a) (Utf8 b) = Utf8 $ unsafePerformIO $ Array.splice a b
 
 -- | Returns the first character of a 'Utf8', or 'Nothing' if empty.
 --
---
 -- /Time complexity:/ O(1)
 {-# INLINE head #-}
 head :: Utf8 -> Maybe Char
@@ -314,6 +325,10 @@ head = unsafePerformIO . Stream.head . toStream
 --
 -- Alternatively, we could get the head char, find its encoded length and use
 -- that to slice the array.
+--
+-- We can use "writeCharUtf8" - once implemented - here. See the notes on
+-- "writeCharUtf8'" in "Unicode.Stream".
+--
 -- | Returns the first character and rest of a 'Utf8', or 'Nothing' if
 -- empty.
 --
@@ -323,7 +338,6 @@ uncons :: Utf8 -> Maybe (Char, Utf8)
 uncons = fmap (second fromStream) . unsafePerformIO . Stream.uncons . toStream
 
 -- | Returns the last character of a 'Utf8', or 'Nothing' if empty.
---
 --
 -- /Time complexity:/ O(1)
 --
@@ -386,6 +400,7 @@ isSingleton = undefined
 -- We could possibly determine the length faster by using a custom routine that
 -- counts the starting chars from the utf8 encoded bytes without decoding the
 -- chars.
+--
 -- | Returns the number of characters in a 'Utf8'.
 --
 -- /Time complexity:/ O(n)

@@ -98,14 +98,6 @@ break p = span (not . p)
 groupBy :: (Char -> Char -> Bool) -> Utf8 -> [Utf8]
 groupBy p = unsafePerformIO . Stream.toList . Stream.groupsBy p write . toStream
 
-{-
--- | Returns the /array/ index (in units of 'Word8') at which a
--- character may be found.  This is /not/ the same as the logical
--- index returned by e.g. 'findIndex'.
-findAIndexOrEnd :: (Char -> Bool) -> Utf8 -> Int
-findAIndexOrEnd = undefined
--}
-
 -- | Group characters in a string by equality.
 --
 -- /Time complexity:/ O(n)
@@ -129,13 +121,6 @@ inits = undefined
 -- /Unimplemented/
 tails :: Utf8 -> [Utf8]
 tails = undefined
-
-
--- $split
---
--- Splitting functions in this library do not perform character-wise
--- copies to create substrings; they just construct new 'Utf8's that
--- are slices of the original.
 
 -- XXX Add time complexity after implementation
 -- | Break a 'Utf8' into pieces separated by the first 'Utf8'

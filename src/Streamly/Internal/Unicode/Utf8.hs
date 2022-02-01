@@ -108,7 +108,6 @@ concat ts =
 concatMap :: (Char -> Utf8) -> Utf8 -> Utf8
 concatMap f = concat . foldr ((:) . f) []
 
-
 --------------------------------------------------------------------------------
 -- Zipping
 --------------------------------------------------------------------------------
@@ -124,7 +123,6 @@ zip :: Utf8 -> Utf8 -> [(Char,Char)]
 zip a b =
     unsafePerformIO
         $ Stream.toList $ Stream.zipWith (,) (toStream a) (toStream b)
-
 
 -- | 'zipWith' generalises 'zip' by zipping with the function
 -- given as the first argument, instead of a tupling function.

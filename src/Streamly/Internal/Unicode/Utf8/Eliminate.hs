@@ -88,6 +88,10 @@ import Prelude hiding
 --------------------------------------------------------------------------------
 
 -- XXX Try removing MonadIO constraint here
+--
+-- See this: https://github.com/composewell/streamly/issues/1457
+-- We can probably work on remving the MonadIO constraint after.
+--
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m Char b -> Utf8 -> m b
 fold f = Stream.fold f . hoist liftIO . toStream
@@ -104,6 +108,10 @@ foldl :: (a -> Char -> a) -> a -> Utf8 -> a
 foldl = undefined
 
 -- XXX Try using Identity monad instead of IO
+--
+-- See this: https://github.com/composewell/streamly/issues/1457
+-- We can probably work on remving the MonadIO constraint after.
+--
 -- | A strict version of 'foldl'.
 --
 -- /Time complexity:/ O(n)
@@ -187,22 +195,6 @@ minimum t = unsafePerformIO $ Stream.minimum (toStream t)
 -- Indexing 'Utf8's
 --------------------------------------------------------------------------------
 
--- $index
---
--- If you think of a 'Utf8' value as an array of 'Char' values (which
--- it is not), you run the risk of writing inefficient code.
---
--- An idiom that is common in some languages is to find the numeric
--- offset of a character or substring, then use that number to split
--- or trim the searched string.  With a 'Utf8' value, this approach
--- would require two /O(n)/ operations: one to perform the search, and
--- one to operate from wherever the search ended.
---
--- For example, suppose you have a string that you want to split on
--- the substring @\"::\"@, such as @\"foo::bar::quux\"@. Instead of
--- searching for the index of @\"::\"@ and taking the substrings
--- before and after that index, you would instead use @breakOnAll \"::\"@.
-
 -- | 'Utf8' index (subscript) operator, starting from 0.
 --
 -- /Time complexity:/ O(n)
@@ -223,10 +215,7 @@ findIndex p t = unsafePerformIO $ Stream.findIndex p (toStream t)
 -- query string appears in the given 'Utf8'. An empty query string is
 -- invalid, and will cause an error to be raised.
 --
--- In (unlikely) bad cases, this function's time complexity degrades
--- towards /O(n*m)/.
---
--- /Time complexity:/ O(n+m)
+-- /Time complexity:/ O(n*m)
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL count #-}
@@ -272,6 +261,8 @@ find p t = unsafePerformIO $ Stream.find p (toStream t)
 -- Predicates
 --------------------------------------------------------------------------------
 
+-- XXX This function isn't exported as it takes too much time to compile.
+-- Need to investigate.
 -- | The 'isPrefixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a prefix of the second.
 --
@@ -282,6 +273,8 @@ _isPrefixOf a b =
     Array.byteLength (toArray a) <= Array.byteLength (toArray b)
         && unsafePerformIO (Stream.isPrefixOf (toStream a) (toStream b))
 
+-- XXX This function isn't exported as it takes too much time to compile.
+-- Need to investigate.
 -- | The 'isSuffixOf' function takes two 'Utf8's and returns
 -- 'True' iff the first is a suffix of the second.
 --
@@ -323,16 +316,6 @@ _isInfixOf a b = unsafePerformIO (Stream.isInfixOf (toStream a) (toStream b))
 -- >> stripPrefix "foo" "quux"
 -- Nothing
 --
--- This is particularly useful with the @ViewPatterns@ extension to
--- GHC, as follows:
---
--- > {-# LANGUAGE ViewPatterns #-}
--- > import Streamly.Internal.Unicode.Utf8 as Utf8
--- >
--- > fnordLength :: Utf8 -> Int
--- > fnordLength (stripPrefix "fnord" -> Just suf) = Utf8.length suf
--- > fnordLength _                                 = -1
---
 -- /Time complexity:/ O(n)
 _stripPrefix :: Utf8 -> Utf8 -> Maybe Utf8
 _stripPrefix p t =
@@ -360,7 +343,7 @@ _stripPrefix p t =
 -- /Time complexity:/ O(n)
 --
 -- /Unimplemented/
-commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8,Utf8,Utf8)
+commonPrefixes :: Utf8 -> Utf8 -> Maybe (Utf8, Utf8, Utf8)
 commonPrefixes = undefined
 
 -- XXX Change >> to >>> once exposed
@@ -377,16 +360,6 @@ commonPrefixes = undefined
 --
 -- >> stripSuffix "foo" "quux"
 -- Nothing
---
--- This is particularly useful with the @ViewPatterns@ extension to
--- GHC, as follows:
---
--- > {-# LANGUAGE ViewPatterns #-}
--- > import Streamly.Internal.Unicode.Utf8 as Utf8
--- >
--- > quuxLength :: Utf8 -> Int
--- > quuxLength (stripSuffix "quux" -> Just pre) = Utf8.length pre
--- > quuxLength _                                = -1
 --
 -- /Time complexity:/ O(n)
 _stripSuffix :: Utf8 -> Utf8 -> Maybe Utf8
