@@ -267,6 +267,23 @@ inspect $ hasNoTypeClasses 'copyStreamUtf8
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
+{-# NOINLINE _copyStreamUtf8'Fold #-}
+_copyStreamUtf8'Fold :: Handle -> Handle -> IO ()
+_copyStreamUtf8'Fold inh outh =
+   Stream.fold (Handle.write outh)
+     $ Unicode.encodeUtf8
+     $ Stream.foldMany Unicode.writeCharUtf8'
+     $ Stream.unfold Handle.read inh
+
+{-# NOINLINE _copyStreamUtf8Parser #-}
+_copyStreamUtf8Parser :: Handle -> Handle -> IO ()
+_copyStreamUtf8Parser inh outh =
+   Stream.fold (Handle.write outh)
+     $ Unicode.encodeUtf8
+     $ Stream.parseMany
+           (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
+     $ Stream.unfold Handle.read inh
+
 o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
 o_1_space_decode_encode_read env =
     [ bgroup "decode-encode"
@@ -280,7 +297,11 @@ o_1_space_decode_encode_read env =
         -- Requires valid unicode input
         , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
             _copyStreamUtf8' inh outh
+        , mkBench "encodeUtf8' . foldMany writeCharUtf8'" env $ \inh outh ->
+            _copyStreamUtf8'Fold inh outh
 #endif
+        , mkBenchSmall "encodeUtf8 . parseMany parseCharUtf8" env
+              $ \inh outh -> _copyStreamUtf8Parser inh outh
         , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
             copyStreamUtf8 inh outh
         ]

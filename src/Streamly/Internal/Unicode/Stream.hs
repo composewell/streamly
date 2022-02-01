@@ -15,6 +15,9 @@ module Streamly.Internal.Unicode.Stream
       decodeLatin1
 
     -- ** UTF-8 Decoding
+    , CodingFailureMode(..)
+    , writeCharUtf8'
+    , parseCharUtf8With
     , decodeUtf8
     , decodeUtf8'
     , decodeUtf8_
@@ -78,6 +81,7 @@ where
 
 #include "inline.hs"
 
+import Control.Monad.Catch (MonadThrow, MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (chr, ord)
@@ -101,6 +105,9 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -422,6 +429,96 @@ data CodingFailureMode
 {-# INLINE replacementChar #-}
 replacementChar :: Char
 replacementChar = '\xFFFD'
+
+data UTF8CharDecodeState a
+    = UTF8CharDecodeInit
+    | UTF8CharDecoding !DecodeState !CodePoint
+
+{-# INLINE parseCharUtf8WithD #-}
+parseCharUtf8WithD ::
+       Monad m => CodingFailureMode -> ParserD.Parser m Word8 Char
+parseCharUtf8WithD cfm =
+    let A.Array _ ptr _ = utf8d
+    in ParserD.Parser (step' ptr) initial extract
+
+    where
+
+    prefix = "Streamly.Internal.Data.Stream.parseCharUtf8WithD:"
+
+    {-# INLINE initial #-}
+    initial = return $ ParserD.IPartial UTF8CharDecodeInit
+
+    handleError err souldBackTrack =
+        case cfm of
+            ErrorOnCodingFailure -> ParserD.Error err
+            TransliterateCodingFailure ->
+                case souldBackTrack of
+                    True -> ParserD.Done 1 replacementChar
+                    False -> ParserD.Done 0 replacementChar
+            DropOnCodingFailure ->
+                case souldBackTrack of
+                    True -> ParserD.Continue 1 UTF8CharDecodeInit
+                    False -> ParserD.Continue 0 UTF8CharDecodeInit
+
+    {-# INLINE step' #-}
+    step' table UTF8CharDecodeInit x =
+        -- Note: It is important to use a ">" instead of a "<=" test
+        -- here for GHC to generate code layout for default branch
+        -- prediction for the common case. This is fragile and might
+        -- change with the compiler versions, we need a more reliable
+        -- "likely" primitive to control branch predication.
+        return $ case x > 0x7f of
+            False -> ParserD.Done 0 $ unsafeChr $ fromIntegral x
+            True ->
+                let (Tuple' sv cp) = decode0 table x
+                 in case sv of
+                        12 ->
+                            let msg = prefix
+                                    ++ "Invalid first UTF8 byte" ++ show x
+                             in handleError msg False
+                        0 -> ParserD.Error $ prefix ++ "unreachable state"
+                        _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
+
+    step' table (UTF8CharDecoding statePtr codepointPtr) x = return $
+        let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+         in case sv of
+            0 -> ParserD.Done 0 $ unsafeChr cp
+            12 ->
+                let msg = prefix
+                        ++ "Invalid subsequent UTF8 byte"
+                        ++ show x
+                        ++ "in state"
+                        ++ show statePtr
+                        ++ "accumulated value"
+                        ++ show codepointPtr
+                 in handleError msg True
+            _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
+
+    {-# INLINE extract #-}
+    extract _ = error $ prefix ++ "Not enough input"
+
+-- XXX This should ideally accept a "CodingFailureMode" and perform appropriate
+-- error handling. This isn't possible now as "TransliterateCodingFailure"'s
+-- workflow requires backtracking 1 element. This can be revisited once "Fold"
+-- supports backtracking.
+{-# INLINE writeCharUtf8' #-}
+writeCharUtf8' :: MonadThrow m => Fold m Word8 Char
+writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
+
+-- XXX The initial idea was to have "parseCharUtf8" and offload the error
+-- handling to another parser. So, say we had "parseCharUtf8'",
+--
+-- >>> parseCharUtf8Smart = parseCharUtf8' <|> Parser.fromPure replacementChar
+--
+-- But unfortunately parseCharUtf8Smart used in conjunction with "parseMany" -
+-- that is "parseMany parseCharUtf8Smart" on a stream causes the heap to
+-- overflow. Even a heap size of 500 MB was not sufficient.
+--
+-- This needs to be investigated futher.
+{-# INLINE parseCharUtf8With #-}
+parseCharUtf8With ::
+       MonadCatch m => CodingFailureMode -> Parser.Parser m Word8 Char
+parseCharUtf8With = ParserK.toParserK . parseCharUtf8WithD
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
 -- if that preserves the same performance. Or we can use a resumable parser
