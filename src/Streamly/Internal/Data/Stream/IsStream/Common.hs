@@ -34,6 +34,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     -- $smapM_Notes
     , take
     , takeWhile
+    , takeEndBy
     , drop
     , findIndices
     , intersperseM
@@ -429,6 +430,10 @@ take n m = fromStreamS $ S.take n $ toStreamS
 {-# INLINE takeWhile #-}
 takeWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
+
+{-# INLINE takeEndBy #-}
+takeEndBy :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --

@@ -74,6 +74,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , take
     , takeWhile
     , takeWhileM
+    , takeEndBy
+    , takeEndByM
 
     -- * Nesting
     , ConcatMapUState (..)
@@ -637,6 +639,32 @@ takeWhileM f (Stream step state) = Stream step' state
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 takeWhile f = takeWhileM (return . f)
+
+-- Like takeWhile but with an inverted condition and also taking
+-- the matching element.
+
+{-# INLINE_NORMAL takeEndByM #-}
+takeEndByM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+takeEndByM f (Stream step state) = Stream step' (Just state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (Just st) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                b <- f x
+                return $
+                    if not b
+                    then Yield x (Just s)
+                    else Yield x Nothing
+            Skip s -> return $ Skip (Just s)
+            Stop   -> return Stop
+
+    step' _ Nothing = return Stop
+
+{-# INLINE takeEndBy #-}
+takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+takeEndBy f = takeEndByM (return . f)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatAp
