@@ -241,7 +241,8 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
-import Streamly.Internal.Data.SVar.Type (adaptState)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 import System.IO.Unsafe (unsafePerformIO)
@@ -1090,20 +1091,19 @@ data GetIndicesState contents start end st =
 -- bounds.
 --
 -- /Pre-release/
-{-# INLINE getIndices #-}
-getIndices :: (MonadIO m, Storable a) =>
-    Unfold m (Array a) Int -> Unfold m (Array a) a
-getIndices (Unfold stepi injecti) = Unfold step inject
+{-# INLINE getIndicesD #-}
+getIndicesD :: (MonadIO m, Storable a) =>
+    D.Stream m Int -> Unfold m (Array a) a
+getIndicesD (D.Stream stepi sti) = Unfold step inject
 
     where
 
-    inject arr@(Array contents start (Ptr end) _) = do
-        st <- injecti arr
-        return $ GetIndicesState contents start (Ptr end) st
+    inject (Array contents start (Ptr end) _) =
+        return $ GetIndicesState contents start (Ptr end) sti
 
     {-# INLINE_LATE step #-}
     step (GetIndicesState contents start end st) = do
-        r <- stepi st
+        r <- stepi defState st
         case r of
             D.Yield i s -> do
                 x <- liftIO $ getIndexPtr start end i
@@ -1112,6 +1112,10 @@ getIndices (Unfold stepi injecti) = Unfold step inject
             D.Stop -> do
                 liftIO $ touch contents
                 return D.Stop
+
+{-# INLINE getIndices #-}
+getIndices :: (MonadIO m, Storable a) => SerialT m Int -> Unfold m (Array a) a
+getIndices (SerialT stream) = getIndicesD $ D.fromStreamK stream
 
 -------------------------------------------------------------------------------
 -- Subarrays
