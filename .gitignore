@@ -2,6 +2,10 @@
 .stack-work/
 dist/
 dist-newstyle*/
+.cabal.nix
+autom4te.cache/
+benchmark/bench-report/bin/bench-report
+charts/
 
 # Local GHC and Cabal related files
 .ghc.environment*
