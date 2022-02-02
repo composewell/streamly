@@ -124,7 +124,7 @@ import GHC.Word (Word8)
 import System.Mem (performMajorGC)
 import Test.Hspec.QuickCheck
 import Test.Hspec
-import Test.QuickCheck (Property, choose, forAll, withMaxSuccess)
+import Test.QuickCheck (Property, choose, forAll, listOf, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
@@ -134,6 +134,7 @@ import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.IsStream.Common as IS
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import qualified Data.Map.Strict as Map
@@ -1074,6 +1075,13 @@ transformCombineFromList constr eq listOp t op a b c =
             let list = a <> listOp (b <> c)
             listEquals eq stream list
 
+takeEndBy :: Property
+takeEndBy = forAll (listOf (chooseInt (0, maxStreamLen))) $ \lst -> monadicIO $ do
+    let (s1, s3) = span (<= 200) lst
+    let s4 = [head s3 | not (null s3)]
+    s2 <- run $ S.toList $ IS.takeEndBy (> 200) $ S.fromList lst
+    assert $ s1 ++ s4 == s2
+
 -- XXX add tests for MonadReader and MonadError etc. In case an SVar is
 -- accidentally passed through them.
 --
@@ -1119,6 +1127,8 @@ transformCombineOpsCommon constr desc eq t = do
         transform (takeWhile (const True)) t (S.takeWhileM (const $ return True))
     prop (desc <> " takeWhileM False") $
         transform (takeWhile (const False)) t (S.takeWhileM (const $ return False))
+
+    prop "takeEndBy" takeEndBy
 
     prop (desc <> " drop maxBound") $
         transform (drop maxBound) t (S.drop maxBound)
