@@ -119,7 +119,7 @@ build_report_progs() {
       local prog
       prog=$BENCH_REPORT_DIR/bin/bench-report
       test -x $prog || die "Cannot find bench-report executable"
-      test -z "$SILENT" && echo "Using bench-report executable [$prog]"
+      echo "Using bench-report executable [$prog]"
   fi
 }
 
@@ -615,7 +615,10 @@ test -z "$SILENT" && echo "Using benchmark suites [$TARGETS]"
 
 # We need to build the report progs first at the current (latest) commit before
 # checking out any other commit for benchmarking.
-build_report_progs
+if test -z "$SILENT"
+then build_report_progs
+else silently build_report_progs
+fi
 
 #-----------------------------------------------------------------------------
 # Build and run targets
