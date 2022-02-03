@@ -47,6 +47,11 @@ main = hspec
         wAsyncOps $ prop "wAsyncly consM" . constructWithConsM S.consM sort
         wAsyncOps $ prop "wAsyncly (.:)" . constructWithCons (S..:)
         wAsyncOps $ prop "wAsyncly (|:)" . constructWithConsM (S.|:) sort
+        prop "wAsync" $
+            constructfromWAsync
+            (S.fromList [1,2,3])
+            (S.fromList [4,5,6])
+            [1,4,2,5,3,6]
 
     describe "Functor operations" $ do
         wAsyncOps $ functorOps S.fromFoldable "wAsyncly" sortEq

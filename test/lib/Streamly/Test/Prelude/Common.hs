@@ -31,6 +31,7 @@ module Streamly.Test.Prelude.Common
     , constructWithConsM
     , constructWithFromPure
     , constructWithFromEffect
+    , constructfromWAsync
     , simpleOps
     -- * Applicative operations
     , applicativeOps
@@ -289,6 +290,18 @@ constructWithFromIndicesM op len =
             S.take (fromIntegral len) $ S.fromIndicesM (addIndex mvl)
         streamEffect <- run $ readIORef mvl
         listEquals (==) streamEffect list
+
+constructfromWAsync ::
+    S.WAsyncT IO Int -> S.WAsyncT IO Int-> [Int] -> Property
+constructfromWAsync s1 s2 res =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        x <-  run
+            $ S.toList
+            $ S.fromWAsync
+            $ S.maxThreads 1
+            $ s1 `S.wAsync` s2
+        equals (==) x res
 
 constructWithCons ::
        IsStream t
