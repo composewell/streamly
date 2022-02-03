@@ -9,11 +9,15 @@ on: pull_request
 # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_call
 # https://docs.github.com/en/actions/learn-github-actions/contexts#about-contexts-and-expressions
 
+# You can override the default DIFF_CUTOFF_PERCENT by specifying a cutoff along
+# with the benchmark target.
+# Eg, "Data.Async:12" where "Data.Async" is the benchmark target, ":" is the
+# seperator, and "12" is the new cutoff percent
 jobs:
   check-regressions:
     env:
       BENCH_SH: bin/bench.sh
-      BENCHMARKS: >-
+      BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Foreign
         Data.Array.Prim
@@ -25,14 +29,14 @@ jobs:
         Data.SmallArray
         Data.Stream.StreamD
         Data.Stream.StreamDK
-        Data.Stream.StreamK
+        Data.Stream.StreamK:6
         Data.Unfold
         FileSystem.Handle
         Prelude.Ahead
-        Prelude.Async
+        Prelude.Async:12
         Prelude.Parallel
         Prelude.Serial
-        Prelude.WAsync
+        Prelude.WAsync:6
         Prelude.WSerial
         Prelude.ZipAsync
         Prelude.ZipSerial
@@ -45,6 +49,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+    - name: Update environment
+      run: |
+        BENCHMARKS=""
+        for i in $BENCHMARKS_WITH_CUTOFF
+        do
+          bname=$(echo "$i" | cut -d: -f1)
+          BENCHMARKS="$BENCHMARKS $bname"
+        done
+        echo "BENCHMARKS=$BENCHMARKS" >> $GITHUB_ENV
 
     - name: Setup haskell
       uses: actions/setup-haskell@v1
@@ -113,9 +127,27 @@ jobs:
     - name: Compare benchmarks
       run: |
         chmod +x $BENCH_SH
-        ! $BENCH_SH --benchmarks "$BENCHMARKS" \
-                  --fields "$FIELDS" \
-                  --no-measure \
-                  --silent --append \
-                  --diff-cutoff-percent $DIFF_CUTOFF_PERCENT \
-            | grep -v "^$"
+
+        EXIT_STATUS=0
+
+        for i in $BENCHMARKS_WITH_CUTOFF
+        do
+          arrI=(${i//:/ })
+
+          bname=${arrI[0]}
+          cutoff=${arrI[1]}
+
+          test -z "$cutoff" && cutoff=$DIFF_CUTOFF_PERCENT
+
+          echo
+          echo "Checking $bname for regressions greater than $cutoff percent"
+          ! $BENCH_SH --benchmarks "$bname" \
+                      --fields "$FIELDS" \
+                      --no-measure \
+                      --silent --append \
+                      --diff-cutoff-percent $cutoff \
+                | grep -v "^$"
+          test $? -eq 1 && EXIT_STATUS=1
+        done
+
+        exit $EXIT_STATUS
