@@ -223,6 +223,8 @@ selectBench Options{..} f =
     sortFunc = if sortByName then sortOn fst else sortOn snd
 
     filterPred x
+        | isInfinite x = False
+        | isNaN x = False
         | cutOffPercent > 0 = x >= cutOffPercent
         | cutOffPercent < 0 = x <= cutOffPercent
         | otherwise = True
