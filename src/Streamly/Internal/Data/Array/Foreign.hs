@@ -132,7 +132,8 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..), length)
+import Streamly.Internal.Data.Array.Foreign.Type
+    (Array(..), length, unsafeWithArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -269,7 +270,7 @@ null arr = A.byteLength arr == 0
 getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
-        $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ unsafeWithArray arr
             $ \ptr -> do
                 let elemPtr = PTR_RINDEX(aEnd arr,i,a)
                 if i >= 0 && elemPtr >= ptr
@@ -436,7 +437,7 @@ getSlicesFromLen from len =
 getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
 getIndex arr i =
     unsafeInlineIO
-        $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
+        $ unsafeWithArray arr
             $ \ptr -> do
                 let elemPtr = PTR_INDEX(ptr,i,a)
                 if i >= 0 && PTR_VALID(elemPtr,aEnd arr,a)
@@ -561,8 +562,8 @@ cast arr =
 -- /Pre-release/
 --
 unsafeAsPtr :: Array a -> (Ptr b -> IO c) -> IO c
-unsafeAsPtr Array{..} act = do
-    MA.unsafeWithArrayContents arrContents arrStart $ \ptr -> act (castPtr ptr)
+unsafeAsPtr arr act = do
+    unsafeWithArray arr $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --
@@ -574,8 +575,8 @@ unsafeAsPtr Array{..} act = do
 --
 unsafeAsCString :: Array a -> (CString -> IO b) -> IO b
 unsafeAsCString arr act = do
-    let Array{..} = asBytes arr <> A.fromList [0]
-    MA.unsafeWithArrayContents arrContents arrStart $ \ptr -> act (castPtr ptr)
+    let arr1 = asBytes arr <> A.fromList [0]
+    unsafeWithArray arr1 $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds
