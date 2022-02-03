@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Array.Stream.Fold.Foreign
     -- * Construction
     , fromFold
     , fromParser
+    , fromParserD
     , fromArrayFold
 
     -- * Mapping
@@ -69,6 +70,8 @@ import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
+import qualified Streamly.Internal.Data.Parser as Parser
 
 import Prelude hiding (concatMap, take)
 
@@ -128,14 +131,14 @@ fromFold (Fold.Fold fstep finitial fextract) =
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
 
--- | Convert an element 'Parser' into an array stream fold. If the parser fails
--- the fold would throw an exception.
+-- | Convert an element 'ParserD.Parser' into an array stream fold. If the
+-- parser fails the fold would throw an exception.
 --
 -- /Pre-release/
-{-# INLINE fromParser #-}
-fromParser :: forall m a b. (MonadIO m, Storable a) =>
+{-# INLINE fromParserD #-}
+fromParserD :: forall m a b. (MonadIO m, Storable a) =>
     ParserD.Parser m a b -> Fold m a b
-fromParser (ParserD.Parser step1 initial1 extract1) =
+fromParserD (ParserD.Parser step1 initial1 extract1) =
     Fold (ParserD.Parser step initial1 extract1)
 
     where
@@ -169,6 +172,15 @@ fromParser (ParserD.Parser step1 initial1 extract1) =
                 ParserD.Continue n fs1 -> do
                     partial arrRem cur next elemSize Continue n fs1
                 Error err -> return $ Error err
+
+-- | Convert an element 'Parser.Parser' into an array stream fold. If the parser
+-- fails the fold would throw an exception.
+--
+-- /Pre-release/
+{-# INLINE fromParser #-}
+fromParser :: forall m a b. (MonadThrow m, MonadIO m, Storable a) =>
+    Parser.Parser m a b -> Fold m a b
+fromParser = fromParserD . ParserK.fromParserK
 
 -- | Adapt an array stream fold.
 --
