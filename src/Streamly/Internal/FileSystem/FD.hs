@@ -131,9 +131,8 @@ import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
 import Streamly.Internal.Data.Array.Foreign.Type
-    (Array(..), byteLength, unsafeFreeze)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (fromForeignPtrUnsafe, unsafeWithArrayContents)
+    (Array(..), byteLength, unsafeFreeze, unsafeWithArray)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -241,7 +240,7 @@ readArrayUpto size (Handle fd) = do
 writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr =
-    unsafeWithArrayContents (arrContents arr) (arrStart arr) $ \p ->
+    unsafeWithArray arr $ \p ->
     -- RawIO.writeAll fd (castPtr p) aLen
 #if MIN_VERSION_base(4,15,0)
     RawIO.write fd (castPtr p) 0 aLen
@@ -266,7 +265,7 @@ writeArray (Handle fd) arr =
 writeIOVec :: Handle -> Array RawIO.IOVec -> IO ()
 writeIOVec _ iov | A.length iov == 0 = return ()
 writeIOVec (Handle fd) iov =
-    unsafeWithArrayContents (arrContents iov) (arrStart iov) $ \p ->
+    unsafeWithArray iov $ \p ->
         RawIO.writevAll fd p (A.length iov)
 #endif
 
