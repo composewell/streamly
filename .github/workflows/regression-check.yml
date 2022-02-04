@@ -124,6 +124,11 @@ jobs:
     # -- Compare
     # -----------------------------------------------------------------
 
+    - name: List all benchmarks
+      run: |
+        chmod +x $BENCH_SH
+        $BENCH_SH --no-measure
+
     - name: Compare benchmarks
       run: |
         chmod +x $BENCH_SH
@@ -143,8 +148,7 @@ jobs:
           echo "Checking $bname for regressions greater than $cutoff percent"
           ! $BENCH_SH --benchmarks "$bname" \
                       --fields "$FIELDS" \
-                      --no-measure \
-                      --silent --append \
+                      --no-measure --silent \
                       --diff-cutoff-percent $cutoff \
                 | grep -v "^$"
           test $? -eq 1 && EXIT_STATUS=1
