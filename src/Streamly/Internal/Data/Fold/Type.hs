@@ -454,6 +454,9 @@ foldrM g z =
 -- need that?
 --
 -- Until we investigate this we are not releasing these.
+--
+-- XXX The above text would apply to
+-- Streamly.Internal.Data.Parser.ParserD.Type.parser
 
 -- | Make a terminating fold using a pure step function, a pure initial state
 -- and a pure state extraction function.

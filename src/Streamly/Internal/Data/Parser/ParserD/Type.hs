@@ -112,11 +112,16 @@
 
 module Streamly.Internal.Data.Parser.ParserD.Type
     (
+    -- * Types
       Initial (..)
     , Step (..)
     , Parser (..)
     , ParseError (..)
     , rmapM
+
+    -- * Constructors
+    , parser
+    , parserM
 
     , fromPure
     , fromEffect
@@ -160,6 +165,7 @@ import Prelude hiding (concatMap)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse)
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
 -- XXX The only differences between Initial and Step types are:
 --
@@ -347,6 +353,30 @@ instance Functor m => Functor (Parser m a) where
         initial = fmap2 f initial1
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
+
+------------------------------------------------------------------------------
+-- General parser constructors
+------------------------------------------------------------------------------
+
+-- | Make a parser using a parsing step and a starting value.
+--
+-- /Pre-release/
+--
+{-# INLINE parser #-}
+parser :: Monad m => (b -> a -> Step b b) -> Initial b b -> Parser m a b
+parser step initial =
+    Parser (\s a -> return $ step s a) (return initial) return
+
+-- | Like 'parser' but with a monadic step function.
+--
+-- >>> parserM step initial = ParserD.Parser step initial return
+--
+-- /Pre-release/
+--
+{-# INLINE parserM #-}
+parserM ::
+    Monad m => (b -> a -> m (Step b b)) -> m (Initial b b) -> Parser m a b
+parserM step initial = Parser step initial return
 
 ------------------------------------------------------------------------------
 -- Mapping on the output
