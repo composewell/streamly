@@ -17,15 +17,30 @@ import Data.List (sort)
 import Data.Semigroup ((<>))
 #endif
 import Test.Hspec.QuickCheck
+import Test.QuickCheck (Property, withMaxSuccess)
+import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
+import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
 
 moduleName :: String
 moduleName = "Prelude.WAsync"
+
+constructfromWAsync ::
+    S.WAsyncT IO Int -> S.WAsyncT IO Int-> [Int] -> Property
+constructfromWAsync s1 s2 res =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        x <-  run
+            $ S.toList
+            $ S.fromWAsync
+            $ S.maxThreads 1
+            $ s1 `S.wAsync` s2
+        equals (==) x res
 
 main :: IO ()
 main = hspec
@@ -47,11 +62,42 @@ main = hspec
         wAsyncOps $ prop "wAsyncly consM" . constructWithConsM S.consM sort
         wAsyncOps $ prop "wAsyncly (.:)" . constructWithCons (S..:)
         wAsyncOps $ prop "wAsyncly (|:)" . constructWithConsM (S.|:) sort
-        prop "wAsync" $
+        prop "wAsync1" $
             constructfromWAsync
-            (S.fromList [1,2,3])
-            (S.fromList [4,5,6])
-            [1,4,2,5,3,6]
+            (S.fromList [1,2,3,4,5])
+            (S.fromList [6,7,8,9,10])
+            [1,6,2,7,3,8,4,9,5,10]
+
+        prop "wAsync2" $
+            constructfromWAsync
+            (S.fromList [1,2,3,4,5,6,7])
+            (S.fromList [8,9,10])
+            [1,8,2,9,3,10,4,5,6,7]
+
+        prop "wAsync3" $
+            constructfromWAsync
+            (S.fromList [1,2,3,4])
+            (S.fromList [5,6,7,8,9,10])
+            [1,5,2,6,3,7,4,8,9,10]
+
+        prop "wAsync4" $
+            constructfromWAsync
+            (S.fromList [])
+            (S.fromList [5,6,7,8,9,10])
+            [5,6,7,8,9,10]
+
+        prop "wAsync5" $
+            constructfromWAsync
+            (S.fromList [1,2,3,4])
+            (S.fromList [])
+            [1,2,3,4]
+
+        prop "wAsync6" $
+            constructfromWAsync
+            (S.fromList [])
+            (S.fromList [])
+            []
+
 
     describe "Functor operations" $ do
         wAsyncOps $ functorOps S.fromFoldable "wAsyncly" sortEq

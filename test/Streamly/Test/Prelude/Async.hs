@@ -15,16 +15,32 @@ import Data.List (sort)
 import Data.Semigroup ((<>))
 #endif
 import Test.Hspec.QuickCheck
+import Test.QuickCheck (Property, withMaxSuccess)
+import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import Streamly.Prelude
 import qualified Streamly.Prelude as S
 
 import Data.IORef
+import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
+
 
 moduleName :: String
 moduleName = "Prelude.Async"
+
+constructfromAsyncSingleThread ::
+    S.AsyncT IO Int -> S.AsyncT IO Int-> [Int] -> Property
+constructfromAsyncSingleThread s1 s2 res =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        x <-  run
+            $ S.toList
+            $ S.fromAsync
+            $ S.maxThreads 1
+            $ s1 `S.async` s2
+        equals (==) x res
 
 concurrentApplicative :: IO ()
 concurrentApplicative = do
@@ -56,6 +72,11 @@ main = hspec
         asyncOps $ prop "asyncly consM" . constructWithConsM S.consM sort
         asyncOps $ prop "asyncly (.:)" . constructWithCons (S..:)
         asyncOps $ prop "asyncly (|:)" . constructWithConsM (S.|:) sort
+        prop "asyncSingleThreaded" $
+            constructfromAsyncSingleThread
+            (S.fromList [1,2,3,4,5])
+            (S.fromList [6,7,8,9,10])
+            [1,2,3,4,5,6,7,8,9,10]
 
     describe "Functor operations" $ do
         asyncOps     $ functorOps S.fromFoldable "asyncly" sortEq
