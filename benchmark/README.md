@@ -129,6 +129,14 @@ $ cabal run FileSystem.Handle -- FileSystem.Handle/o-1-space/reduce/read/S.split
 The automatic tests do not test unicode input, this option is useful to specify
 a unicode text file manually.
 
+## Running benchmarks on valid UTF8 input
+
+To run the unicode benchmarks on valid utf8 input, you can do the following,
+
+```
+$ Benchmark_FileSystem_Handle_InputFile=<valid-unicode-filepath> bin/bench.sh --benchmarks Unicode.Stream --cabal-build-options "-f include-strict-utf8"
+```
+
 ## Benchmarking notes
 
 We run each benchmark in an isolated process to minimize interference
