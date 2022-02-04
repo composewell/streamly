@@ -426,28 +426,33 @@ serialWith func (Parser stepL initialL extractL)
 
     -- Note: For the composed parse to terminate, the left parser has to be
     -- a terminating parser returning a Done at some point.
-    step (SeqParseL st) a =
-      (\resL initR ->
+    step (SeqParseL st) a = do
+        -- Important: Please do not use Applicative here. See
+        -- https://github.com/composewell/streamly/issues/1033 and the problem
+        -- defined in split_ for more info.
+        resL <- stepL st a
         case resL of
             -- Note: We need to buffer the input for a possible Alternative
             -- e.g. in ((,) <$> p1 <*> p2) <|> p3, if p2 fails we have to
             -- backtrack and start running p3. So we need to keep the input
             -- buffered until we know that the applicative cannot fail.
-            Partial n s -> Continue n (SeqParseL s)
-            Continue n s -> Continue n (SeqParseL s)
-            Done n b ->
-                case initR of
+            Partial n s -> return $ Continue n (SeqParseL s)
+            Continue n s -> return $ Continue n (SeqParseL s)
+            Done n b -> do
+                initR <- initialR
+                return $ case initR of
                    IPartial sr -> Continue n $ SeqParseR (func b) sr
                    IDone br -> Done n (func b br)
                    IError err -> Error err
-            Error err -> Error err) <$> stepL st a <*> initialR
+            Error err -> return $ Error err
 
-    step (SeqParseR f st) a =
-        (\case
+    step (SeqParseR f st) a = do
+        resR <- stepR st a
+        return $ case resR of
             Partial n s -> Partial n (SeqParseR f s)
             Continue n s -> Continue n (SeqParseR f s)
             Done n b -> Done n (f b)
-            Error err -> Error err) <$> stepR st a
+            Error err -> Error err
 
     extract (SeqParseR f sR) = fmap f (extractR sR)
     extract (SeqParseL sL) = do
@@ -1147,4 +1152,3 @@ instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
 instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
-
