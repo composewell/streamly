@@ -16,8 +16,8 @@ on: pull_request
 jobs:
   check-regressions:
     env:
-      BENCH_SH: bin/bench.sh
-      BENCHMARKS_WITH_CUTOFF: >-
+      CI_BENCH_SH: bin/bench.sh
+      CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Foreign
         Data.Array.Prim
@@ -43,8 +43,8 @@ jobs:
         Unicode.Char
         Unicode.Stream
         Unicode.Utf8
-      FIELDS: allocated
-      DIFF_CUTOFF_PERCENT: 3
+      CI_FIELDS: allocated
+      CI_DIFF_CUTOFF_PERCENT: 3
 
     runs-on: ubuntu-latest
 
@@ -52,13 +52,13 @@ jobs:
 
     - name: Update environment
       run: |
-        BENCHMARKS=""
-        for i in $BENCHMARKS_WITH_CUTOFF
+        CI_BENCHMARKS=""
+        for i in $CI_BENCHMARKS_WITH_CUTOFF
         do
           bname=$(echo "$i" | cut -d: -f1)
-          BENCHMARKS="$BENCHMARKS $bname"
+          CI_BENCHMARKS="$CI_BENCHMARKS $bname"
         done
-        echo "BENCHMARKS=$BENCHMARKS" >> $GITHUB_ENV
+        echo "CI_BENCHMARKS=$CI_BENCHMARKS" >> $GITHUB_ENV
 
     - name: Setup haskell
       uses: actions/setup-haskell@v1
@@ -96,8 +96,8 @@ jobs:
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
-        chmod +x $BENCH_SH
-        $BENCH_SH --benchmarks "$BENCHMARKS" --raw
+        chmod +x $CI_BENCH_SH
+        $CI_BENCH_SH --benchmarks "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
@@ -117,8 +117,8 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        chmod +x $BENCH_SH
-        $BENCH_SH --benchmarks "$BENCHMARKS" --raw --append
+        chmod +x $CI_BENCH_SH
+        $CI_BENCH_SH --benchmarks "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare
@@ -126,28 +126,28 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        chmod +x $BENCH_SH
-        $BENCH_SH --no-measure
+        chmod +x $CI_BENCH_SH
+        $CI_BENCH_SH --no-measure
 
     - name: Compare benchmarks
       run: |
-        chmod +x $BENCH_SH
+        chmod +x $CI_BENCH_SH
 
         EXIT_STATUS=0
 
-        for i in $BENCHMARKS_WITH_CUTOFF
+        for i in $CI_BENCHMARKS_WITH_CUTOFF
         do
           arrI=(${i//:/ })
 
           bname=${arrI[0]}
           cutoff=${arrI[1]}
 
-          test -z "$cutoff" && cutoff=$DIFF_CUTOFF_PERCENT
+          test -z "$cutoff" && cutoff=$CI_DIFF_CUTOFF_PERCENT
 
           echo
           echo "Checking $bname for regressions greater than $cutoff percent"
-          ! $BENCH_SH --benchmarks "$bname" \
-                      --fields "$FIELDS" \
+          ! $CI_BENCH_SH --benchmarks "$bname" \
+                      --fields "$CI_FIELDS" \
                       --no-measure --silent \
                       --diff-cutoff-percent $cutoff \
                 | grep -v "^$"
