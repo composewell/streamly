@@ -10,6 +10,7 @@ appveyor.yml
 benchmark/bench-report/default.nix
 bin/ghc.sh
 bin/run-ci.sh
+bin/run-repl-quick.sh
 cabal.project
 cabal.project.coverage
 cabal.project.doctest
