@@ -545,8 +545,8 @@ withNewArrayUnsafe count f = do
 -- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
-    => Array a -> Int -> a -> m ()
-putIndexUnsafe Array{..} i x =
+    => Int -> a -> Array a -> m ()
+putIndexUnsafe i x Array{..} =
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemPtr = PTR_INDEX(ptr,i,a)
         assert (i >= 0 && PTR_VALID(elemPtr,aEnd,a)) (return ())
@@ -568,14 +568,14 @@ putIndexPtr start end i x = do
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- >>> putIndex arr ix val = Array.modifyIndex arr ix (const (val, ()))
+-- >>> putIndex arr ix val = Array.modifyIndex ix (const (val, ())) arr
 -- >>> f = Array.putIndices
--- >>> putIndex arr ix val = Stream.fold (f arr) (Stream.fromPure (ix, val))
+-- >>> putIndex ix val arr = Stream.fold (f arr) (Stream.fromPure (ix, val))
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
-putIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
-putIndex arr i x =
+putIndex :: (MonadIO m, Storable a) => Int -> a -> Array a -> m ()
+putIndex i x arr =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> putIndexPtr p (aEnd arr) i x
 
@@ -600,8 +600,8 @@ putIndices Array{..} = FL.mkFoldM step initial extract
 --
 -- /Pre-release/
 modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
-    Array a -> Int -> (a -> (a, b)) -> m b
-modifyIndexUnsafe Array{..} i f = do
+    Int -> (a -> (a, b)) -> Array a -> m b
+modifyIndexUnsafe i f Array{..} = do
     liftIO $ unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemPtr = PTR_INDEX(ptr,i,a)
         assert (i >= 0 && PTR_NEXT(elemPtr,a) <= aEnd) (return ())
@@ -627,8 +627,8 @@ modifyIndexPtr i f start end = liftIO $ do
 --
 -- /Pre-release/
 modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
-    Array a -> Int -> (a -> (a, b)) -> m b
-modifyIndex Array{..} i f = do
+    Int -> (a -> (a, b)) -> Array a -> m b
+modifyIndex i f Array{..} = do
     liftIO $ unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         modifyIndexPtr i f ptr aEnd
 
@@ -654,8 +654,8 @@ modifyIndices f Array{..} = Fold step initial extract
 --
 -- /Pre-release/
 modify :: forall m a. (MonadIO m, Storable a)
-    => Array a -> (a -> a) -> m ()
-modify Array{..} f = liftIO $
+    => (a -> a) -> Array a -> m ()
+modify f Array{..} = liftIO $
     unsafeWithArrayContents arrContents arrStart go
 
     where
@@ -681,8 +681,8 @@ swapPtrs ptr1 ptr2 = do
 -- /Pre-release/
 {-# INLINE unsafeSwapIndices #-}
 unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
-    => Array a -> Int -> Int -> m ()
-unsafeSwapIndices Array{..} i1 i2 = liftIO $ do
+    => Int -> Int -> Array a -> m ()
+unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let ptr1 = PTR_INDEX(ptr,i1,a)
             ptr2 = PTR_INDEX(ptr,i2,a)
@@ -692,8 +692,8 @@ unsafeSwapIndices Array{..} i1 i2 = liftIO $ do
 --
 -- /Pre-release/
 swapIndices :: forall m a. (MonadIO m, Storable a)
-    => Array a -> Int -> Int -> m ()
-swapIndices Array{..} i1 i2 = liftIO $ do
+    => Int -> Int -> Array a -> m ()
+swapIndices i1 i2 Array{..} = liftIO $ do
         let ptr1 = PTR_INDEX(arrStart,i1,a)
             ptr2 = PTR_INDEX(arrStart,i2,a)
         when (i1 < 0 || PTR_INVALID(ptr1,aEnd,a))
@@ -1048,8 +1048,8 @@ snoc = snocWith f
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Array a -> Int -> m a
-getIndexUnsafe Array {..} i =
+getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndexUnsafe i Array {..} =
     unsafeWithArrayContents arrContents arrStart $ \ptr -> do
         let elemPtr = PTR_INDEX(ptr,i,a)
         assert (i >= 0 && PTR_VALID(elemPtr,aEnd,a)) (return ())
@@ -1067,8 +1067,8 @@ getIndexPtr start end i = do
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: (MonadIO m, Storable a) => Array a -> Int -> m a
-getIndex arr i =
+getIndex :: (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndex i arr =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> getIndexPtr p (aEnd arr) i
 
@@ -1087,8 +1087,8 @@ getIndexPtrRev start end i = do
 -- Slightly faster than computing the forward index and using getIndex.
 --
 {-# INLINE getIndexRev #-}
-getIndexRev :: (MonadIO m, Storable a) => Array a -> Int -> m a
-getIndexRev arr i =
+getIndexRev :: (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndexRev i arr =
     unsafeWithArrayContents (arrContents arr) (arrStart arr)
         $ \p -> getIndexPtrRev p (aEnd arr) i
 
