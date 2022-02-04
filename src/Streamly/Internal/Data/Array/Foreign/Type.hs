@@ -433,13 +433,13 @@ breakOn sep arr = do
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndexIO #-}
-unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
-unsafeIndexIO arr i = MA.getIndexUnsafe i (unsafeThaw arr)
+unsafeIndexIO :: forall a. Storable a => Int -> Array a -> IO a
+unsafeIndexIO i arr = MA.getIndexUnsafe i (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
-unsafeIndex :: forall a. Storable a => Array a -> Int -> a
-unsafeIndex arr i = let !r = unsafeInlineIO $ unsafeIndexIO arr i in r
+unsafeIndex :: forall a. Storable a => Int -> Array a -> a
+unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
 
 -- | /O(1)/ Get the byte length of the array.
 --

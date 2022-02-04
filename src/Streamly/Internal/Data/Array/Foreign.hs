@@ -266,8 +266,8 @@ null arr = A.byteLength arr == 0
 --
 -- /Pre-release/
 {-# INLINE getIndexRev #-}
-getIndexRev :: forall a. Storable a => Array a -> Int -> Maybe a
-getIndexRev arr i =
+getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
+getIndexRev i arr =
     unsafeInlineIO
         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
             $ \ptr -> do
@@ -284,7 +284,7 @@ getIndexRev arr i =
 -- /Pre-release/
 {-# INLINE last #-}
 last :: Storable a => Array a -> Maybe a
-last arr = getIndexRev arr 0
+last = getIndexRev 0
 
 -------------------------------------------------------------------------------
 -- Folds with Array as the container
@@ -431,8 +431,8 @@ getSlicesFromLen from len =
 --
 -- @since 0.8.0
 {-# INLINE getIndex #-}
-getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
-getIndex arr i =
+getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
+getIndex i arr =
     unsafeInlineIO
         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
             $ \ptr -> do
