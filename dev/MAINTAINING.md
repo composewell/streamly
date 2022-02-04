@@ -31,11 +31,18 @@
 
 * _Documentation_:
 
-    * README is updated, links in README are stable. Run `rg '/blob/'`
-      and `rg '/tree/'` to search for github links, replace `master` ref
-      with release tag where possible (e.g. streamly-examples). Ideally,
-      the distribution process should automatically replace these with
-      current stable references.
+    * README is updated.
+    * Check if all the links in the README are stable.
+      * External links might point to the `master` branch of a few
+        repositories. Pin them to a specific version that works with the current
+        release.
+      * You can run `rg '/blob/'` and `rg '/tree/'` to search for github links.
+      * For example, links that point to `streamly-examples` point to its
+        `master` branch. Instead, while making the release we need to pin the
+        links to a specific revision that works with the latest commit of the
+        current release.
+      * Ideally, the distribution process should automatically replace these
+        with current stable references.
     * Haddock docs are consistent with the changes in the release
     * Tutorial has been updated for new changes
     * Documents in the `docs` directory are consistent with new changes
