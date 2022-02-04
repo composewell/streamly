@@ -150,8 +150,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Ring.Foreign as RB
 
-
-
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -462,9 +460,10 @@ getIndex arr i =
 --
 -- /Pre-release/
 {-# INLINE getIndices #-}
-getIndices :: (MonadIO m, Storable a)
-    => SerialT m Int -> Unfold m (Array a) a
-getIndices st = Unfold.lmap A.unsafeThaw (MA.getIndices st)
+getIndices :: (Monad m, Storable a) => SerialT m Int -> Unfold m (Array a) a
+getIndices (SerialT stream) =
+    let unf = MA.getIndicesD (return . unsafeInlineIO) $ D.fromStreamK stream
+     in Unfold.lmap A.unsafeThaw unf
 
 -- | Unfolds @(from, then, to, array)@ generating a finite stream whose first
 -- element is the array value from the index @from@ and the successive elements

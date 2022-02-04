@@ -114,6 +114,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , getIndex
     , getIndexUnsafe
     , getIndices
+    , getIndicesD
     -- , getFromThenTo
     , getIndexRev
 
@@ -1092,9 +1093,9 @@ data GetIndicesState contents start end st =
 --
 -- /Pre-release/
 {-# INLINE getIndicesD #-}
-getIndicesD :: (MonadIO m, Storable a) =>
-    D.Stream m Int -> Unfold m (Array a) a
-getIndicesD (D.Stream stepi sti) = Unfold step inject
+getIndicesD :: (Monad m, Storable a) =>
+    (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (Array a) a
+getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
 
     where
 
@@ -1106,16 +1107,16 @@ getIndicesD (D.Stream stepi sti) = Unfold step inject
         r <- stepi defState st
         case r of
             D.Yield i s -> do
-                x <- liftIO $ getIndexPtr start end i
+                x <- liftio $ getIndexPtr start end i
                 return $ D.Yield x (GetIndicesState contents start end s)
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> do
-                liftIO $ touch contents
+                liftio $ touch contents
                 return D.Stop
 
 {-# INLINE getIndices #-}
 getIndices :: (MonadIO m, Storable a) => SerialT m Int -> Unfold m (Array a) a
-getIndices (SerialT stream) = getIndicesD $ D.fromStreamK stream
+getIndices (SerialT stream) = getIndicesD liftIO $ D.fromStreamK stream
 
 -------------------------------------------------------------------------------
 -- Subarrays
