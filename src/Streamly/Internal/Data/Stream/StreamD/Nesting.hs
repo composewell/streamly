@@ -1718,7 +1718,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                 then return $ Skip $ SplitOnSeqEmpty acc state
                 else if patLen == 1
                      then do
-                         pat <- liftIO $ A.unsafeIndexIO patArr 0
+                         pat <- liftIO $ A.unsafeIndexIO 0 patArr
                          return $ Skip $ SplitOnSeqSingle acc state pat
                      else if SIZE_OF(a) * patLen
                                <= sizeOf (undefined :: Word)
@@ -2051,7 +2051,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                 then skip $ SplitOnSuffixSeqEmpty fs state
                 else if patLen == 1
                      then do
-                         pat <- liftIO $ A.unsafeIndexIO patArr 0
+                         pat <- liftIO $ A.unsafeIndexIO 0 patArr
                          skip $ SplitOnSuffixSeqSingleInit fs state pat
                      else if SIZE_OF(a) * patLen
                                <= sizeOf (undefined :: Word)
