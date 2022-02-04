@@ -331,14 +331,14 @@ next = Parser step initial extract
 --
 {-# INLINE maybe #-}
 maybe :: MonadThrow m => (a -> Maybe b) -> Parser m a b
-maybe parser = Parser step initial extract
+maybe parserF = Parser step initial extract
 
     where
 
     initial = return $ IPartial ()
 
     step () a = return $
-        case parser a of
+        case parserF a of
             Just b -> Done 0 b
             Nothing -> Error "maybe: predicate failed"
 
@@ -350,14 +350,14 @@ maybe parser = Parser step initial extract
 --
 {-# INLINE either #-}
 either :: MonadThrow m => (a -> Either String b) -> Parser m a b
-either parser = Parser step initial extract
+either parserF = Parser step initial extract
 
     where
 
     initial = return $ IPartial ()
 
     step () a = return $
-        case parser a of
+        case parserF a of
             Right b -> Done 0 b
             Left err -> Error $ "either: " ++ err
 
