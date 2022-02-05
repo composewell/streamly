@@ -85,7 +85,7 @@ toChunksLast inh = do
     larr <- Stream.last s
     return $ case larr of
         Nothing -> Nothing
-        Just arr -> Array.getIndex arr (Array.length arr - 1)
+        Just arr -> Array.getIndex (Array.length arr - 1) arr
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksLast
