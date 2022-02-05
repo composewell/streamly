@@ -92,7 +92,7 @@ module Streamly.Internal.Data.Array.Foreign
     , cast
     , asBytes
     , unsafeCast   -- castUnsafe?
-    , unsafeAsPtr  -- asPtrUnsafe?
+    , asPtrUnsafe
     , unsafeAsCString -- asCStringUnsafe?
     , A.unsafeFreeze -- asImmutableUnsafe?
     , A.unsafeThaw   -- asMutableUnsafe?
@@ -128,8 +128,6 @@ import Foreign.C.String (CString)
 import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
-
-import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
 import Streamly.Internal.Data.Array.Foreign.Type
@@ -554,16 +552,6 @@ cast arr =
      in if r /= 0
         then Nothing
         else Just $ unsafeCast arr
-
--- | Use an @Array a@ as @Ptr b@.
---
--- /Unsafe/
---
--- /Pre-release/
---
-unsafeAsPtr :: Array a -> (Ptr b -> IO c) -> IO c
-unsafeAsPtr arr act = do
-    asPtrUnsafe arr $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --

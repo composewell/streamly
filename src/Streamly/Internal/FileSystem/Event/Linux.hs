@@ -836,7 +836,7 @@ readOneEvent :: Config -> Watch -> Parser IO Word8 Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = sizeOf (undefined :: CInt) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)
-    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.unsafeAsPtr arr readHeader
+    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.asPtrUnsafe arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.
