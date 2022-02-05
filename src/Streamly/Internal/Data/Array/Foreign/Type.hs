@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     (
     -- $arrayNotes
       Array (..)
-    , unsafeWithArray
+    , asPtrUnsafe
 
     -- * Freezing and Thawing
     , unsafeFreeze
@@ -159,9 +159,14 @@ data Array a =
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: CString -> IO CSize
 
--- | Similar to unsafeWithForeignPtr.
-unsafeWithArray :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-unsafeWithArray Array{..} f = do
+-- | Use an @Array a@ as @Ptr a@.
+--
+-- /Unsafe/
+--
+-- /Pre-release/
+--
+asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
+asPtrUnsafe Array{..} f = do
   r <- f arrStart
   liftIO $ touch arrContents
   return r
