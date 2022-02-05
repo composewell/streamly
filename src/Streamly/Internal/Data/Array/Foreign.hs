@@ -427,12 +427,14 @@ getSlicesFromLen from len =
 -- XXX Change this to a partial function instead of a Maybe type? And use
 -- MA.getIndex instead.
 --
+-- XXX The signature should be "Int -> Array a -> Maybe a"
+-- XXX This is a released API so make this change in the next major release.
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 -- @since 0.8.0
 {-# INLINE getIndex #-}
-getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
-getIndex i arr =
+getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
+getIndex arr i =
     unsafeInlineIO
         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
             $ \ptr -> do
