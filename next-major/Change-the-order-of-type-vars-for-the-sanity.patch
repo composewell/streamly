@@ -1,0 +1,27 @@
+From 28baeb74939033336be242dd518e382291b26557 Mon Sep 17 00:00:00 2001
+From: Adithya Kumar <adithya@composewell.com>
+Date: Thu, 18 Nov 2021 14:38:34 +0530
+Subject: [PATCH 3/3] Revert "Change the order of type vars for the sanity of
+ type applications"
+
+This reverts commit e375af344d43e6eff5c4147bbc54eaf0a1866f61.
+---
+ src/Streamly/Internal/Data/Stream/IsStream/Generate.hs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Streamly/Internal/Data/Stream/IsStream/Generate.hs b/src/Streamly/Internal/Data/Stream/IsStream/Generate.hs
+index 6e0cc730..16af401a 100644
+--- a/src/Streamly/Internal/Data/Stream/IsStream/Generate.hs
++++ b/src/Streamly/Internal/Data/Stream/IsStream/Generate.hs
+@@ -223,7 +223,7 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
+ --
+ -- /Since: 0.1.0/
+ {-# INLINE_EARLY unfoldrM #-}
+-unfoldrM :: forall t m b a. (IsStream t, MonadAsync m) =>
++unfoldrM :: forall t m a b. (IsStream t, MonadAsync m) =>
+     (b -> m (Maybe (a, b))) -> b -> t m a
+ unfoldrM step = fromStream . K.unfoldrMWith (IsStream.toConsK (consM @t)) step
+ 
+-- 
+2.17.1
+

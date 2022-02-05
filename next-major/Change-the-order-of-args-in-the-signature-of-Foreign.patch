@@ -1,0 +1,70 @@
+From aa59c88e1353b5859536bcc3241dd5a2938bab29 Mon Sep 17 00:00:00 2001
+From: Adithya Kumar <adithya@composewell.com>
+Date: Sun, 6 Feb 2022 01:43:22 +0530
+Subject: [PATCH] Change the order of args in the signature of Foreign.getIndex
+
+---
+ benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs | 2 +-
+ src/Streamly/Internal/Data/Array/Foreign.hs               | 6 ++----
+ src/Streamly/Internal/FileSystem/Event/Linux.hs           | 4 ++--
+ 3 files changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs b/benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
+index 7666f43e..e31669b2 100644
+--- a/benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
++++ b/benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
+@@ -85,7 +85,7 @@ toChunksLast inh = do
+     larr <- Stream.last s
+     return $ case larr of
+         Nothing -> Nothing
+-        Just arr -> Array.getIndex arr (Array.length arr - 1)
++        Just arr -> Array.getIndex (Array.length arr - 1) arr
+ 
+ #ifdef INSPECTION
+ inspect $ hasNoTypeClasses 'toChunksLast
+diff --git a/src/Streamly/Internal/Data/Array/Foreign.hs b/src/Streamly/Internal/Data/Array/Foreign.hs
+index 804f23c6..316b0a22 100644
+--- a/src/Streamly/Internal/Data/Array/Foreign.hs
++++ b/src/Streamly/Internal/Data/Array/Foreign.hs
+@@ -427,14 +427,12 @@ getSlicesFromLen from len =
+ -- XXX Change this to a partial function instead of a Maybe type? And use
+ -- MA.getIndex instead.
+ --
+--- XXX The signature should be "Int -> Array a -> Maybe a"
+--- XXX This is a released API so make this change in the next major release.
+ -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
+ --
+ -- @since 0.8.0
+ {-# INLINE getIndex #-}
+-getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
+-getIndex arr i =
++getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
++getIndex i arr =
+     unsafeInlineIO
+         $ MA.unsafeWithArrayContents (arrContents arr) (arrStart arr)
+             $ \ptr -> do
+diff --git a/src/Streamly/Internal/FileSystem/Event/Linux.hs b/src/Streamly/Internal/FileSystem/Event/Linux.hs
+index d5e836c0..6ca65313 100644
+--- a/src/Streamly/Internal/FileSystem/Event/Linux.hs
++++ b/src/Streamly/Internal/FileSystem/Event/Linux.hs
+@@ -658,7 +658,7 @@ ensureTrailingSlash :: Array Word8 -> Array Word8
+ ensureTrailingSlash path =
+     if byteLength path /= 0
+     then
+-        let mx = A.getIndex path (byteLength path - 1)
++        let mx = A.getIndex (byteLength path - 1) path
+          in case mx of
+             Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
+             Just x ->
+@@ -672,7 +672,7 @@ removeTrailingSlash path =
+     if byteLength path /= 0
+     then
+         let n = byteLength path - 1
+-            mx = A.getIndex path n
++            mx = A.getIndex n path
+          in case mx of
+             Nothing -> error "removeTrailingSlash: Bug: Invalid index"
+             Just x ->
+-- 
+2.17.1
+

@@ -1,0 +1,32 @@
+From 4718fc134984454658fe6702b6023a82f7567c14 Mon Sep 17 00:00:00 2001
+From: Harendra Kumar <harendra@composewell.com>
+Date: Wed, 28 Jul 2021 17:07:55 +0530
+Subject: [PATCH] Simplify the signature of iterateMapLeftsWith
+
+---
+ src/Streamly/Internal/Data/Stream/IsStream/Expand.hs | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/Streamly/Internal/Data/Stream/IsStream/Expand.hs b/src/Streamly/Internal/Data/Stream/IsStream/Expand.hs
+index 998e1c58..aac91abd 100644
+--- a/src/Streamly/Internal/Data/Stream/IsStream/Expand.hs
++++ b/src/Streamly/Internal/Data/Stream/IsStream/Expand.hs
+@@ -1160,10 +1160,10 @@ iterateSmapMWith combine f initial stream =
+ --
+ {-# INLINE iterateMapLeftsWith #-}
+ iterateMapLeftsWith
+-    :: IsStream t
+-    => (t m (Either a b) -> t m (Either a b) -> t m (Either a b))
+-    -> (a -> t m (Either a b))
+-    -> t m (Either a b)
+-    -> t m (Either a b)
++    :: (IsStream t, b ~ Either a c)
++    => (t m b -> t m b -> t m b)
++    -> (a -> t m b)
++    -> t m b
++    -> t m b
+ iterateMapLeftsWith combine f =
+     iterateMapWith combine (either f (const IsStream.nil))
+-- 
+2.17.1
+

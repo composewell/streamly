@@ -1,0 +1,63 @@
+From 1ee873facc557408c4ce7659fe96ea997eb53348 Mon Sep 17 00:00:00 2001
+From: Harendra Kumar <harendra@composewell.com>
+Date: Wed, 6 Oct 2021 16:32:54 +0530
+Subject: [PATCH 1/2] Add NFData1 instance
+
+---
+ src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs | 9 +++++++++
+ src/Streamly/Internal/Data/Array/Foreign/Type.hs     | 8 ++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs b/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
+index 31aab040..c41a9c86 100644
+--- a/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
++++ b/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
+@@ -209,6 +209,9 @@ where
+ 
+ import Control.Exception (assert)
+ import Control.DeepSeq (NFData(..))
++#if MIN_VERSION_deepseq(1,4,3)
++import Control.DeepSeq (NFData1(..))
++#endif
+ import Control.Monad (when, void)
+ import Control.Monad.IO.Class (MonadIO(..))
+ import Data.Bits ((.&.))
+@@ -2145,3 +2148,9 @@ cmp arr1 arr2 =
+ instance NFData (Array a) where
+     {-# INLINE rnf #-}
+     rnf Array {} = ()
++
++#if MIN_VERSION_deepseq(1,4,3)
++instance NFData1 Array where
++    {-# INLINE liftRnf #-}
++    liftRnf _ Array{} = ()
++#endif
+diff --git a/src/Streamly/Internal/Data/Array/Foreign/Type.hs b/src/Streamly/Internal/Data/Array/Foreign/Type.hs
+index 90a5a79a..505c1f0f 100644
+--- a/src/Streamly/Internal/Data/Array/Foreign/Type.hs
++++ b/src/Streamly/Internal/Data/Array/Foreign/Type.hs
+@@ -75,6 +75,9 @@ where
+ 
+ import Control.Exception (assert)
+ import Control.DeepSeq (NFData(..))
++#if MIN_VERSION_deepseq(1,4,3)
++import Control.DeepSeq (NFData1(..))
++#endif
+ import Control.Monad.IO.Class (MonadIO(..))
+ import Data.Functor.Identity (Identity(..))
+ import Data.Word (Word8)
+@@ -706,6 +709,11 @@ instance NFData (Array a) where
+     {-# INLINE rnf #-}
+     rnf Array {} = ()
+ 
++#if MIN_VERSION_deepseq(1,4,3)
++instance NFData1 Array where
++    liftRnf _ Array{} = ()
++#endif
++
+ instance (Storable a, Ord a) => Ord (Array a) where
+     {-# INLINE compare #-}
+     compare arr1 arr2 = runIdentity $
+-- 
+2.17.1
+
