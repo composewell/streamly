@@ -133,7 +133,7 @@ import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
 import Streamly.Internal.Data.Array.Foreign.Type
-    (Array(..), length, unsafeWithArray)
+    (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -270,7 +270,7 @@ null arr = A.byteLength arr == 0
 getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
-        $ unsafeWithArray arr
+        $ asPtrUnsafe arr
             $ \ptr -> do
                 let elemPtr = PTR_RINDEX(aEnd arr,i,a)
                 if i >= 0 && elemPtr >= ptr
@@ -437,7 +437,7 @@ getSlicesFromLen from len =
 getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
 getIndex arr i =
     unsafeInlineIO
-        $ unsafeWithArray arr
+        $ asPtrUnsafe arr
             $ \ptr -> do
                 let elemPtr = PTR_INDEX(ptr,i,a)
                 if i >= 0 && PTR_VALID(elemPtr,aEnd arr,a)
@@ -563,7 +563,7 @@ cast arr =
 --
 unsafeAsPtr :: Array a -> (Ptr b -> IO c) -> IO c
 unsafeAsPtr arr act = do
-    unsafeWithArray arr $ \ptr -> act (castPtr ptr)
+    asPtrUnsafe arr $ \ptr -> act (castPtr ptr)
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --
@@ -576,7 +576,7 @@ unsafeAsPtr arr act = do
 unsafeAsCString :: Array a -> (CString -> IO b) -> IO b
 unsafeAsCString arr act = do
     let arr1 = asBytes arr <> A.fromList [0]
-    unsafeWithArray arr1 $ \ptr -> act (castPtr ptr)
+    asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds
