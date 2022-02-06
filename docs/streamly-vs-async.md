@@ -227,7 +227,7 @@ the concurrent actions are executed.
 
 See the [haddock documentation on
 hackage](https://hackage.haskell.org/package/streamly) and [a comprehensive tutorial
-here](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
+here](https://streamly.composewell.com/streamly-0.8.1/Tutorial.html).
 
 ## References
 

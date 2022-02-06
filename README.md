@@ -296,7 +296,7 @@ sys     0m0.140s
 ```
 
 These example programs have assumed ASCII encoded input data.  For UTF-8
-streams, we have a [concurrent wc implementation][WordCountUTF8.hs]
+streams, we have a [concurrent wc implementation][WordCountParallelUTF8.hs]
 with UTF-8 decoding.  This concurrent implementation performs as well
 as the standard `wc` program in serial benchmarks. In concurrent mode
 [Streamly][]'s implementation can utilise multiple processing cores if
@@ -595,7 +595,7 @@ significant way:
   * Gabriella Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
-Please see the [`credits`](./credits/README.md) directory for a full
+Please see the [`credits`](./docs/Credits.md) directory for a full
 list of contributors, credits and licenses.
 
 ## Licensing
@@ -637,7 +637,7 @@ links (for online docs) before we release.
 [WordCount.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.hs
 [WordCount.c]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCount.c
 [WordCountParallel.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallel.hs
-[WordCountUTF8.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountUTF8.hs
+[WordCountParallelUTF8.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordCountParallelUTF8.hs
 [WordServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/WordServer.hs
 [MergeServer.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/MergeServer.hs
 [ListDir.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/ListDir.hs

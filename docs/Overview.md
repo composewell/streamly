@@ -95,7 +95,7 @@ can be constructed from monadic effects, not just pure elements.  Streams are
 processed just like lists, with list like combinators, except that they are
 monadic and work in a streaming fashion. In other words streamly just completes
 what lists lack, you do not need to learn anything new. Please see [streamly vs
-lists](docs/streamly-vs-lists.md) for a detailed comparison.
+lists](streamly-vs-lists.md) for a detailed comparison.
 
 Not surprisingly, the monad instance of streamly is a list transformer, with
 concurrency capability.
@@ -369,7 +369,7 @@ using streamly.  You can compile these with `ghc -O2 -fspec-constr-recursive=16
 -fmax-worker-args=16` and compare the performance with regular GNU coreutils
 available on your system.  Though many of these are not most optimal solutions
 to keep them short and elegant. Source file
-[HandleIO.hs](https://github.com/composewell/streamly-examples/tree/master/examples/HandleIO.hs)
+[CoreUtilsHandle.hs](https://github.com/composewell/streamly-examples/blob/master/examples/CoreUtilsHandle.hs)
 in the examples directory includes these examples.
 
 ``` haskell

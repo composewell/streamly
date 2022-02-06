@@ -146,7 +146,7 @@ BRANCH.
 
 It is a good idea to include tests for the changes where applicable. See
 the existing tests in the [test](test) directory.  Also see the
-[test/README](test/README) for more details on how to run the tests.
+[test/README.md](test/README.md) for more details on how to run the tests.
 
 ### Documentation
 
@@ -163,13 +163,13 @@ any of the existing performance benchmarks. If you introduced something new
 then you may want to add benchmarks to check if it performs as well as expected
 by the programmers to deem it usable.
 
-See the [README](benchmark/README) file in the `benchmark` directory for more
+See the [README](benchmark/README.md) file in the `benchmark` directory for more
 details on how to run the benchmarks.
 
 The first level of check is the regression in "allocations", this is
 the most stable measure of regression. "bytesCopied" is another stable
 measure, it gives an idea of the amount of long lived data being copied
-across generations of GC. 
+across generations of GC.
 
 The next measure to look at is "cpuTime" this may have some variance
 from run to run because of factors like cpu frequency scaling, load on

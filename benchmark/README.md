@@ -310,7 +310,7 @@ they are usually annotated so in their documentation.
 ### Resolving the problem
 
 Review the problematic code, see [the optimization
-guide](dev/optimization-guidelines.md) for common problems and how to
+guide](../dev/optimization-guidelines.md) for common problems and how to
 solve those. If no obvious issues are found on review, then generate and
 examine the core.
 
