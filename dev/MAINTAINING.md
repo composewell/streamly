@@ -43,6 +43,9 @@
         current release.
       * Ideally, the distribution process should automatically replace these
         with current stable references.
+    * The markdown documentation files have no broken links. See the section
+      about [checking for broken
+      links](#checking-for-broken-links-in-the-markdown-files) for more info.
     * Haddock docs are consistent with the changes in the release
     * Tutorial has been updated for new changes
     * Documents in the `docs` directory are consistent with new changes
