@@ -93,7 +93,7 @@ module Streamly.Internal.Data.Array.Foreign
     , asBytes
     , castUnsafe
     , asPtrUnsafe
-    , unsafeAsCString -- asCStringUnsafe?
+    , asCStringUnsafe
     , A.unsafeFreeze -- asImmutableUnsafe?
     , A.unsafeThaw   -- asMutableUnsafe?
 
@@ -562,8 +562,8 @@ cast arr =
 --
 -- /Pre-release/
 --
-unsafeAsCString :: Array a -> (CString -> IO b) -> IO b
-unsafeAsCString arr act = do
+asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
+asCStringUnsafe arr act = do
     let arr1 = asBytes arr <> A.fromList [0]
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 

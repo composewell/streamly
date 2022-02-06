@@ -727,7 +727,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX The file may have even got deleted and then recreated which we will
     -- never get to know, document this.
-    wd <- A.unsafeAsCString absPath $ \pathPtr ->
+    wd <- A.asCStringUnsafe absPath $ \pathPtr ->
             throwErrnoIfMinus1 ("addToWatch: " ++ utf8ToString absPath) $
                 c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
 
