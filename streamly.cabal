@@ -129,7 +129,7 @@ extra-source-files:
 
 extra-doc-files:
     CONTRIBUTING.md
-    Changelog.md
+    CHANGELOG.md
     README.md
     benchmark/README.md
     dev/*.md
