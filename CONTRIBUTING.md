@@ -90,7 +90,7 @@ Here is a quick checklist for a PR, for details please see the next section:
 * [Performance benchmarks](benchmark) are added, where applicable
 * No significant regressions are reported by [performance benchmarks](benchmark/README.md)
 * Haddock documentation is added to user visible APIs and data types
-* Tutorial module, [README](README.md), and [guides](docs) are updated if
+* Tutorial module, [README](docs/Introduction.md), and [guides](docs) are updated if
   necessary.
 * [Changelog](Changelog.md) is updated if needed
 * The code conforms to the license, it is not stolen, credit is given,

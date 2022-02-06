@@ -8,7 +8,7 @@ ecosystem.
 This document discusses the related packages in the Haskell ecosystem
 and how streamly unifies, overlaps, or compares with those. We provide
 simple code snippets for illustrations, for a better overview of the
-library please see the [Streamly Quick Overview](../README.md) document.
+library please see the [Streamly Quick Overview](./Introduction.md) document.
 
 ## Existing Haskell Libraries
 

@@ -43,11 +43,11 @@ further reading.
 If you wish to follow along with this guide, you will need to have
 [Streamly][] installed.
 
-Please see the [Getting Started With The Streamly Package](docs/getting-started.md)
+Please see the [Getting Started With The Streamly Package](getting-started.md)
 guide for instructions on how to install [Streamly][].
 
 If you wish to run benchmarks, please be sure to build your
-application using the instructions in the [Build Guide](docs/building.md).
+application using the instructions in the [Build Guide](building.md).
 
 ### An overview of the types used in these examples
 
@@ -490,7 +490,7 @@ Examples][streamly-examples] web page.
 * [Streaming Benchmarks][streaming-benchmarks]
 * [Concurrency Benchmarks][concurrency-benchmarks]
 * Functional Conf 2019 [Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
-* [Other Guides](docs/)
+* [Other Guides](./)
 * [Streamly Homepage][Streamly]
 
 ## Performance
@@ -595,7 +595,7 @@ significant way:
   * Gabriella Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
-Please see the [`credits`](./docs/Credits.md) directory for a full
+Please see the [`credits`](./Credits.md) directory for a full
 list of contributors, credits and licenses.
 
 ## Licensing
@@ -646,6 +646,6 @@ links (for online docs) before we release.
 [CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
 
 <!-- local files -->
-[LICENSE]: LICENSE
-[CONTRIBUTING.md]: CONTRIBUTING.md
+[LICENSE]: ../LICENSE
+[CONTRIBUTING.md]: ../CONTRIBUTING.md
 [docs]: docs/
