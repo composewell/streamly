@@ -189,10 +189,8 @@ All this comes with no change in the streaming APIs.
 The combination of non-determinism, concurrency, and streaming makes
 Streamly a strong reactive programming library as well. Reactive
 programming fundamentally deals with streams of events that can be
-processed concurrently. The
-[https://github.com/composewell/streamly-examples/tree/master/AcidRain.hs](Acid
-Rain) and [Circling
-Square](https://github.com/composewell/streamly-examples/tree/master/CirclingSquare.hs)
+processed concurrently. The [Acid Rain][AcidRain.hs] and
+[Circling Square][CirclingSquare.hs]
 examples demonstrate the basic reactive capability of Streamly.
 
 In core concepts, Streamly is strikingly similar to `dunai`.  `dunai` was
@@ -228,7 +226,7 @@ concise manner. Some key points that Streamly stresses are:
   then you know how to use Streamly. This library is built with simplicity
   and ease of use as a design goal.
 * _Concurrency_: Simple, powerful, and scalable concurrency.  Concurrency is
-  built-in, and not intrusive, concurrent programs are written exactly 
+  built-in, and not intrusive, concurrent programs are written exactly
   as non-concurrent ones.
 * _Generality_: Unifies functionality provided by several disparate packages
   (streaming, concurrency, list transformer, logic programming, reactive
@@ -270,3 +268,8 @@ libraries:
 ### Arrays
 
 * [vector](https://hackage.haskell.org/package/vector)
+
+<!-- Markdown Links -->
+
+[AcidRain.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/AcidRain.hs
+[CirclingSquare.hs]: https://github.com/composewell/streamly-examples/blob/master/examples/CirclingSquare.hs
