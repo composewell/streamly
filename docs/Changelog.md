@@ -8,7 +8,7 @@
 
 ## 0.8.1 (Nov 2021)
 
-See docs/API-changelog.txt for new APIs introduced.
+See API-changelog.txt for new APIs introduced.
 
 ### Bug Fixes
 
@@ -18,11 +18,11 @@ See docs/API-changelog.txt for new APIs introduced.
     * Fix potentially writing beyond allocated memory when shrinking. Likely
       cause of [#944](https://github.com/composewell/streamly/issues/944).
     * Fix potentially writing beyond allocated memory when writing the last
-      element. Likely cause of 
+      element. Likely cause of
       [#944](https://github.com/composewell/streamly/issues/944).
     * Fix missing pointer touch could potentially cause use of freed memory.
     * Fix unnecessary additional allocation due to a bug
-* Fix a bug in classifySessionsBy, see 
+* Fix a bug in classifySessionsBy, see
   [PR #1311](https://github.com/composewell/streamly/pull/1311). The bug
   could cause premature ejection of a session when input events with the
   same key are split into multiple sessions.
@@ -36,7 +36,7 @@ See docs/API-changelog.txt for new APIs introduced.
 
 ## 0.8.0 (Jun 2021)
 
-See [API Changelog](docs/API-changelog.txt) for a complete list of signature
+See [API Changelog](./API-changelog.txt) for a complete list of signature
 changes and new APIs introduced.
 
 ### Breaking changes
@@ -75,7 +75,7 @@ changes and new APIs introduced.
 
 ### Enhancements
 
-* See [API Changelog](docs/API-changelog.txt) for a complete list of new
+* See [API Changelog](./API-changelog.txt) for a complete list of new
   modules and APIs introduced.
 * The Fold type is now more powerful, the new termination behavior allows
   to express basic parsing of streams using folds.

@@ -92,7 +92,7 @@ Here is a quick checklist for a PR, for details please see the next section:
 * Haddock documentation is added to user visible APIs and data types
 * Tutorial module, [README](docs/Introduction.md), and [guides](docs) are updated if
   necessary.
-* [Changelog](Changelog.md) is updated if needed
+* [Changelog](docs/Changelog.md) is updated if needed
 * The code conforms to the license, it is not stolen, credit is given,
   copyright notices are retained, original license is included if needed.
 
