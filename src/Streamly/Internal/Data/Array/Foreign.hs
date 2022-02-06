@@ -91,7 +91,7 @@ module Streamly.Internal.Data.Array.Foreign
     -- * Casting
     , cast
     , asBytes
-    , unsafeCast   -- castUnsafe?
+    , castUnsafe
     , asPtrUnsafe
     , unsafeAsCString -- asCStringUnsafe?
     , A.unsafeFreeze -- asImmutableUnsafe?
@@ -525,12 +525,12 @@ streamTransform f arr =
 --
 -- /Pre-release/
 --
-unsafeCast ::
+castUnsafe ::
 #ifdef DEVBUILD
     Storable b =>
 #endif
     Array a -> Array b
-unsafeCast (Array contents start end) =
+castUnsafe (Array contents start end) =
     Array contents (castPtr start) (castPtr end)
 
 -- | Cast an @Array a@ into an @Array Word8@.
@@ -538,7 +538,7 @@ unsafeCast (Array contents start end) =
 -- @since 0.8.0
 --
 asBytes :: Array a -> Array Word8
-asBytes = unsafeCast
+asBytes = castUnsafe
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
@@ -552,7 +552,7 @@ cast arr =
         r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
-        else Just $ unsafeCast arr
+        else Just $ castUnsafe arr
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --

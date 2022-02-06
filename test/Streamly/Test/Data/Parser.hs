@@ -677,7 +677,7 @@ data Event = Event
 readOneEvent :: P.Parser IO Word8 Event
 readOneEvent = do
     arr <- P.takeEQ 24 (A.writeN 24)
-    let arr1 = A.unsafeCast arr :: A.Array Word64
+    let arr1 = A.castUnsafe arr :: A.Array Word64
         eid = A.unsafeIndex 0 arr1
         eflags = A.unsafeIndex 1 arr1
         pathLen = fromIntegral $ A.unsafeIndex 2 arr1
