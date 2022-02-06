@@ -326,3 +326,33 @@ dependencies. May show additional ghc boot libraries.
 ```
 $ nix-shell --run "ghc-pkg dot | dot -Tpdf > streamly.pdf"
 ```
+
+## Checking for broken links in the markdown files
+
+You can use [markdown-link-check](https://github.com/tcort/markdown-link-check)
+for finding broken links.
+
+You can run it using `npx` like so:
+```
+npx markdown-link-check <markdown-file>
+```
+
+The following command - when run from the repository root - finds all the
+markdown files that we need to consider:
+
+```
+find . -type f -name "*.md" \
+    -not -path "./dist*" \
+    -not -path "./.stack*" \
+    -not -path "./benchmark/bench-report/dist*"
+```
+
+The following executes the markdown link checking on the results:
+
+```
+find . -type f -name "*.md" \
+    -not -path "./dist*" \
+    -not -path "./.stack*" \
+    -not -path "./benchmark/bench-report/dist*" \
+    -exec npx markdown-link-check --quiet {} \;
+```
