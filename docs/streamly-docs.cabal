@@ -17,6 +17,7 @@ build-type:         Simple
 
 extra-doc-files:
   Roadmap.link
+  *.md
 
 library
   default-language: Haskell2010
