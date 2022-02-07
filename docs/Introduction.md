@@ -47,7 +47,7 @@ Please see the [Getting Started With The Streamly Package](getting-started.md)
 guide for instructions on how to install [Streamly][].
 
 If you wish to run benchmarks, please be sure to build your
-application using the instructions in the [Build Guide](building.md).
+application using the instructions in the [Build Guide](compiling.md).
 
 ### An overview of the types used in these examples
 
