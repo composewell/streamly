@@ -31,8 +31,8 @@
 
 * _Documentation_:
 
-    * README is updated.
-    * Check if all the links in the README are stable.
+    * Documentation is updated.
+    * Check if all the links in the docs are stable.
       * External links might point to the `master` branch of a few
         repositories. Pin them to a specific version that works with the current
         release.
@@ -98,7 +98,7 @@
 
 * _Update Package Metadata:_
 
-    * Make sure the description in cabal file is in sync with README and other docs
+    * Make sure the description in cabal file is in sync with the docs
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update GHC `tested-with` field
     * Update `docs/building.md` with the distributions tested with
@@ -140,7 +140,8 @@
 
         * Create a git tag corresponding to the release where X.Y.Z is the new
           package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
-        * Mask out the build status lines from the README
+        * Mask out the build status lines from the
+          [docs/Introduction.md](docs/Introduction.md)
         * Upload to hackage
           * Use a clean workspace to create source distribution
           by freshly cloning the git repository. The reason for
