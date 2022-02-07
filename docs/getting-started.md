@@ -283,7 +283,7 @@ If you got this far successfully, congratulations!
 * Please browse the code examples in the
   [`Streamly examples repository`][streamly-examples].
 * If you would like to start on a real world project, please take a
-  look at the [Streamly Build Guide](building.md).
+  look at the [Streamly Build Guide](Compiling.md).
 * For comprehensive documentation please visit the
   [Streamly Homepage][Streamly].
 
