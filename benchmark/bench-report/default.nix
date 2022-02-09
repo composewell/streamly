@@ -1,11 +1,10 @@
+let
+  nixpkgsPath_21_11 =
+    "https://github.com/NixOS/nixpkgs/archive/refs/tags/21.11.tar.gz";
+  nixpkgsDefault = import (builtins.fetchTarball nixpkgsPath_21_11) { };
+in
 {
-  nixpkgs ?
-    # nixpkgs 21.05 needs a revised version of bench-show and we do not
-    # know how to use a revised version in nix.
-    #import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/refs/tags/21.05.tar.gz)
-    import (builtins.fetchTarball https://github.com/composewell/nixpkgs/archive/01dd2b4e738.tar.gz)
-        {}
-#, compiler ? "ghc884" # For nix 21.05
+  nixpkgs ? nixpkgsDefault
 , compiler ? "default"
 }:
 let haskellPackages =
@@ -26,6 +25,12 @@ let haskellPackages =
             overrides = self: super:
                 with nixpkgs.haskell.lib;
                 {
+                    bench-show = super.callHackageDirect {
+                      pkg = "bench-show";
+                      ver = "0.3.2";
+                      sha256 = "16b8vyzdp9b5bh34kqmbfwjsyv8wgnxxwl8kjcpgxjsh52xzyaa0";
+                    } { };
+
                     bench-report = mkPackage super "bench-report" ./. "" inShell;
                 };
         };
