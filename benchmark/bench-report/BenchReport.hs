@@ -10,7 +10,6 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import Data.Char (toLower)
 import Data.List
-import GHC.Real (infinity)
 import System.Environment (getArgs)
 import Text.Read (readMaybe)
 
@@ -165,7 +164,7 @@ ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
 ------------------------------------------------------------------------------
 
 makeGraphs :: String -> Config -> String -> IO ()
-makeGraphs name cfg@Config{..} inputFile =
+makeGraphs name cfg inputFile =
     ignoringErr $ graph inputFile name cfg
 
 ------------------------------------------------------------------------------
