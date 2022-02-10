@@ -484,57 +484,47 @@ mergeBy
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 -------------------------------------------------------------------------------
--- Intersection of sorted streams ---------------------------------------------
+-- Intersection of sorted streams
 -------------------------------------------------------------------------------
+
+-- Assuming the streams are sorted in ascending order
 {-# INLINE_NORMAL intersectBySorted #-}
-intersectBySorted
-    :: (MonadIO m, Eq a)
+intersectBySorted :: Monad m
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
-    Stream step (Just ta, Just tb, Nothing, Nothing, Nothing)
+    Stream step
+        ( ta -- left stream state
+        , tb -- right stream state
+        , Nothing -- left value
+        , Nothing -- right value
+        )
 
     where
-    {-# INLINE_LATE step #-}
 
-    -- step 1
-    step gst (Just sa, sb, Nothing, b, Nothing) = do
+    {-# INLINE_LATE step #-}
+    -- step 1, fetch the first value
+    step gst (sa, sb, Nothing, b) = do
         r <- stepa gst sa
         return $ case r of
-            Yield a sa' -> Skip (Just sa', sb, Just a, b, Nothing)
-            Skip sa'    -> Skip (Just sa', sb, Nothing, b, Nothing)
+            Yield a sa' -> Skip (sa', sb, Just a, b) -- step 2/3
+            Skip sa'    -> Skip (sa', sb, Nothing, b)
             Stop        -> Stop
 
-    -- step 2
-    step gst (sa, Just sb, a, Nothing, Nothing) = do
+    -- step 2, fetch the second value
+    step gst (sa, sb, a@(Just _), Nothing) = do
         r <- stepb gst sb
         return $ case r of
-            Yield b sb' -> Skip (sa, Just sb', a, Just b, Nothing)
-            Skip sb'    -> Skip (sa, Just sb', a, Nothing, Nothing)
+            Yield b sb' -> Skip (sa, sb', a, Just b) -- step 3
+            Skip sb'    -> Skip (sa, sb', a, Nothing)
             Stop        -> Stop
 
-    -- step 3
-    -- both the values are available compare it
-    step _ (sa, sb, Just a, Just b, Nothing) = do
+    -- step 3, compare the two values
+    step _ (sa, sb, Just a, Just b) = do
         let res = cmp a b
         return $ case res of
-            GT -> Skip (sa, sb, Just a, Nothing, Nothing)
-            LT -> Skip (sa, sb, Nothing, Just b, Nothing)
-            EQ -> Yield a (sa, sb, Nothing, Just a, Just b) -- step 4
-
-    -- step 4
-    -- Matching element
-    step gst (Just sa, Just sb, Nothing, Just _, Just b) = do
-        r1 <- stepa gst sa
-        return $ case r1 of
-            Yield a' sa' -> do
-                if a' == b -- match with prev a
-                then Yield a' (Just sa', Just sb, Nothing, Just b, Just b)  --step 1
-                else Skip (Just sa', Just sb, Just a', Nothing, Nothing)
-
-            Skip sa'    -> Skip (Just sa', Just sb, Nothing, Nothing, Nothing)
-            Stop        -> Stop
-
-    step _ (_, _, _, _, _) = return Stop
+            GT -> Skip (sa, sb, Just a, Nothing) -- step 2
+            LT -> Skip (sa, sb, Nothing, Just b) -- step 1
+            EQ -> Yield a (sa, sb, Nothing, Just b) -- step 1
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - unfoldMany

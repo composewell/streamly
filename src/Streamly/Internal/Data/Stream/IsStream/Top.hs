@@ -28,7 +28,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     -- | These are not exactly set operations because streams are not
     -- necessarily sets, they may have duplicated elements.
     , intersectBy
-    , intersectBySorted    
+    , intersectBySorted
     , differenceBy
     , mergeDifferenceBy
     , unionBy
@@ -65,7 +65,6 @@ import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), adapt, foldl', fromList)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
---import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
@@ -576,7 +575,7 @@ intersectBy eq s1 s2 =
             xs <- Stream.toListRev $ Stream.uniqBy eq $ adapt s2
             return $ Stream.filter (\x -> List.any (eq x) xs) s1
 
--- | Like 'intersectBy' but works only on sorted streams.
+-- | Like 'intersectBy' but works only on streams sorted in ascending order.
 --
 -- Space: O(1)
 --
@@ -584,10 +583,12 @@ intersectBy eq s1 s2 =
 --
 -- /Pre-release/
 {-# INLINE intersectBySorted #-}
-intersectBySorted :: (IsStream t, MonadIO m, Eq a) =>
+intersectBySorted :: (IsStream t, Monad m) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
 intersectBySorted eq s1 =
-    IsStream.fromStreamD . StreamD.intersectBySorted eq (IsStream.toStreamD s1) . IsStream.toStreamD
+      IsStream.fromStreamD
+    . StreamD.intersectBySorted eq (IsStream.toStreamD s1)
+    . IsStream.toStreamD
 
 -- Roughly joinLeft s1 s2 = s1 `difference` s2 + s1 `intersection` s2
 

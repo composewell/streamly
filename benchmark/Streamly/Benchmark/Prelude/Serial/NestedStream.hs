@@ -417,57 +417,56 @@ o_n_space_monad value =
 -- Joining
 -------------------------------------------------------------------------------
 
-toKvMap :: Int -> (Int, Int)
-toKvMap p = (p, p)
+toKv :: Int -> (Int, Int)
+toKv p = (p, p)
 
 {-# INLINE joinWith #-}
 joinWith :: (S.MonadAsync m) =>
        ((Int -> Int -> Bool) -> SerialT m Int -> SerialT m Int -> SerialT m b)
     -> Int
     -> Int
-    -> Int
     -> m ()
-joinWith j val1 val2 i =
-    S.drain $ j (==) (sourceUnfoldrM val1 i) (sourceUnfoldrM val2 i)
+joinWith j val i =
+    S.drain $ j (==) (sourceUnfoldrM val i) (sourceUnfoldrM val (val `div` 2))
 
 {-# INLINE joinMapWith #-}
 joinMapWith :: (S.MonadAsync m) =>
        (SerialT m (Int, Int) -> SerialT m (Int, Int) -> SerialT m b)
     -> Int
     -> Int
-    -> Int
     -> m ()
-joinMapWith j val1 val2 i =
+joinMapWith j val i =
     S.drain
         $ j
-            (fmap toKvMap (sourceUnfoldrM val1 i))
-            (fmap toKvMap (sourceUnfoldrM val2 i))
+            (fmap toKv (sourceUnfoldrM val i))
+            (fmap toKv (sourceUnfoldrM val (val `div` 2)))
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
-          benchIOSrc1 "joinInner"
-            $ joinWith Internal.joinInner sqrtVal sqrtVal
+          benchIOSrc1 "joinInner (sqrtVal)"
+            $ joinWith Internal.joinInner sqrtVal
         , benchIOSrc1 "joinInnerMap"
-            $ joinMapWith Internal.joinInnerMap sqrtVal sqrtVal
-        , benchIOSrc1 "joinLeft"
-            $ joinWith Internal.joinLeft sqrtVal sqrtVal
+            $ joinMapWith Internal.joinInnerMap halfVal
+        , benchIOSrc1 "joinLeft (sqrtVal)"
+            $ joinWith Internal.joinLeft sqrtVal
         , benchIOSrc1 "joinLeftMap "
-            $ joinMapWith Internal.joinLeftMap sqrtVal sqrtVal
-        , benchIOSrc1 "joinOuter"
-            $ joinWith Internal.joinOuter sqrtVal sqrtVal
+            $ joinMapWith Internal.joinLeftMap halfVal
+        , benchIOSrc1 "joinOuter (sqrtVal)"
+            $ joinWith Internal.joinOuter sqrtVal
         , benchIOSrc1 "joinOuterMap"
-            $ joinMapWith Internal.joinOuterMap sqrtVal sqrtVal
-        , benchIOSrc1 "intersectBy"
-            $ joinWith Internal.intersectBy sqrtVal sqrtVal
+            $ joinMapWith Internal.joinOuterMap halfVal
+        , benchIOSrc1 "intersectBy (sqrtVal)"
+            $ joinWith Internal.intersectBy sqrtVal
         , benchIOSrc1 "intersectBySorted"
-            $ joinMapWith Internal.intersectBySorted sqrtVal sqrtVal
+            $ joinMapWith (Internal.intersectBySorted compare) halfVal
         ]
     ]
 
     where
 
+    halfVal = value `div` 2
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
