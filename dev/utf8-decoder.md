@@ -263,7 +263,7 @@ back to it, we\'ve seen a whole Unicode character. Transitions not in
 the graph are disallowed; they all lead to state one, which has been
 omitted for readability.
 
-![DFA with range transitions](./dfa-bytes.png)
+![DFA with range transitions](/dev/dfa-bytes.png)
 
 ### Automaton with character class transitions
 
@@ -273,7 +273,7 @@ encoding the ranges directly, the ranges are split such that each byte
 belongs to exactly one character class. Then the transitions go over
 these character classes.
 
-![DFA with class transitions](./dfa-classes.png)
+![DFA with class transitions](/dev/dfa-classes.png)
 
 ### Mapping bytes to character classes
 
@@ -404,7 +404,7 @@ the non-ASCII starter is swapped (approximately a 5% increase), but GCC
 I have experimented with various rearrangements of states and character
 classes. A seemingly promising one is the following:
 
-![Re-arranged DFA with class transitions](./dfa-rearr.png)
+![Re-arranged DFA with class transitions](/dev/dfa-rearr.png)
 
 One of the continuation ranges has been split into two, the other
 changes are just renamings. This arrangement allows, when a continuation

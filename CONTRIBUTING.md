@@ -34,8 +34,8 @@ The `bin/test.sh` and `bin/bench.sh` are custom scripts to perform test
 and benchmarking tasks conveniently. They support running a group of
 tests or benchmarks, coverage, using correct optimization flags for
 benchmarking, benchmark comparison reports etc. Use the `--help` option
-to see how to use these.  See [benchmark/README.md](benchmark/README.md)
-and [test/README.md](test/README.md) for more details.
+to see how to use these.  See [benchmark/README.md](/benchmark/README.md)
+and [test/README.md](/test/README.md) for more details.
 
 You can also run tests or benchmarks directly for example:
 
@@ -86,13 +86,13 @@ Here is a quick checklist for a PR, for details please see the next section:
 * Compiler warnings are fixed
 * Reasonable hlint suggestions are accepted
 * Tests are added to cover the changed parts
-* All [tests](test) pass
-* [Performance benchmarks](benchmark) are added, where applicable
-* No significant regressions are reported by [performance benchmarks](benchmark/README.md)
+* All [tests](/test) pass
+* [Performance benchmarks](/benchmark) are added, where applicable
+* No significant regressions are reported by [performance benchmarks](/benchmark/README.md)
 * Haddock documentation is added to user visible APIs and data types
-* Tutorial module, [Introduction](docs/Introduction.md), and [guides](docs) are
+* Tutorial module, [Introduction](/docs/Introduction.md), and [guides](/docs) are
   updated if necessary.
-* [Changelog](docs/Changelog.md) is updated if needed
+* [Changelog](/docs/Changelog.md) is updated if needed
 * The code conforms to the license, it is not stolen, credit is given,
   copyright notices are retained, original license is included if needed.
 
@@ -145,8 +145,8 @@ BRANCH.
 ### Testing
 
 It is a good idea to include tests for the changes where applicable. See
-the existing tests in the [test](test) directory.  Also see the
-[test/README.md](test/README.md) for more details on how to run the tests.
+the existing tests in the [test](/test) directory.  Also see the
+[test/README.md](/test/README.md) for more details on how to run the tests.
 
 ### Documentation
 
@@ -154,7 +154,7 @@ For user visible APIs, it is a good idea to provide haddock documentation that
 is easily understood by the end programmer and does not sound highfalutin,
 and preferably with examples. If your change affects the tutorial or needs to
 be mentioned in the tutorial then please update the tutorial. Check if the
-additional [guides](docs) are affected or need to updated.
+additional [guides](/docs) are affected or need to updated.
 
 ### Performance Benchmarks
 
@@ -163,7 +163,7 @@ any of the existing performance benchmarks. If you introduced something new
 then you may want to add benchmarks to check if it performs as well as expected
 by the programmers to deem it usable.
 
-See the [README](benchmark/README.md) file in the `benchmark` directory for more
+See the [README](/benchmark/README.md) file in the `benchmark` directory for more
 details on how to run the benchmarks.
 
 The first level of check is the regression in "allocations", this is
@@ -222,7 +222,7 @@ copying does not have an associated license please do not use it.
 
 * Use https://streamly.composewell.com/ for searching in reference docs
 * Build haddock docs for latest reference docs
-* See [the dev directory](dev) for design guidelines and dev documents.
+* See [the dev directory](/dev) for design guidelines and dev documents.
 
 ## Coding Guidelines
 
