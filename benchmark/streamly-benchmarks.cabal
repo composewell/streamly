@@ -84,6 +84,7 @@ common compile-options
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Rghc-timing
+                      -Wmissing-export-lists
 
     if flag(has-llvm)
       ghc-options: -fllvm

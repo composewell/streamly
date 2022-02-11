@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Array.Prim.Pinned where
+module Streamly.Test.Data.Array.Prim.Pinned (main) where
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 

@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.Fold where
+module Streamly.Test.Prelude.Fold (main) where
 
 #ifdef DEVBUILD
 import Control.Concurrent (threadDelay)

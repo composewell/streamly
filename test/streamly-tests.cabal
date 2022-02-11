@@ -67,6 +67,7 @@ common compile-options
                       -Wincomplete-uni-patterns
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
+                      -Wmissing-export-lists
                       -Rghc-timing
 
     if flag(has-llvm)

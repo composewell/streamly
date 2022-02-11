@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.ZipAsync where
+module Streamly.Test.Prelude.ZipAsync  (main) where
 
 import Test.Hspec.QuickCheck
 import Test.Hspec as H

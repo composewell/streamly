@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.Async where
+module Streamly.Test.Prelude.Async (main) where
 
 import Control.Concurrent (threadDelay)
 import Data.List (sort)
