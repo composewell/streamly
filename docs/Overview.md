@@ -95,7 +95,7 @@ can be constructed from monadic effects, not just pure elements.  Streams are
 processed just like lists, with list like combinators, except that they are
 monadic and work in a streaming fashion. In other words streamly just completes
 what lists lack, you do not need to learn anything new. Please see [streamly vs
-lists](streamly-vs-lists.md) for a detailed comparison.
+lists](/docs/streamly-vs-lists.md) for a detailed comparison.
 
 Not surprisingly, the monad instance of streamly is a list transformer, with
 concurrency capability.

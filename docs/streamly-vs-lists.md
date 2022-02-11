@@ -237,7 +237,7 @@ resources compared to streamly. We only show those operations that are at least
 shown in a sorted order, from list's worst performing ones on the left to its
 best ones on the right.
 
-![Streamly vs Lists (time) comparison](streamly-vs-list-time.svg)
+![Streamly vs Lists (time) comparison](/docs/streamly-vs-list-time.svg)
 
 ## Why use streams instead of lists?
 
