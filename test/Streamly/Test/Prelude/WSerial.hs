@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.WSerial where
+module Streamly.Test.Prelude.WSerial (main) where
 
 import Data.List (sort)
 #if __GLASGOW_HASKELL__ < 808

@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.Parallel where
+module Streamly.Test.Prelude.Parallel (main) where
 
 import Data.List (sort)
 #if !(MIN_VERSION_base(4,11,0))

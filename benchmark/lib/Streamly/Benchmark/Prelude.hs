@@ -10,7 +10,59 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Streamly.Benchmark.Prelude where
+module Streamly.Benchmark.Prelude
+    ( absTimes
+    , apDiscardFst
+    , apDiscardSnd
+    , apLiftA2
+    , benchIO
+    , benchIOSink
+    , benchIOSrc
+    , breakAfterSome
+    , composeN
+    , concatFoldableWith
+    , concatForFoldableWith
+    , concatPairsWith
+    , concatStreamsWith
+    , filterAllInM
+    , filterAllOutM
+    , filterSome
+    , fmapN
+    , mapM
+    , mapN
+    , mkAsync
+    , monadThen
+    , runToList
+    , sourceConcatMapId
+    , sourceFoldMapM
+    , sourceFoldMapWith
+    , sourceFoldMapWithM
+    , sourceFoldMapWithStream
+    , sourceFracFromThenTo
+    , sourceFracFromTo
+    , sourceFromFoldable
+    , sourceFromFoldableM
+    , sourceFromList
+    , sourceFromListM
+    , sourceIntegerFromStep
+    , sourceIntFromThenTo
+    , sourceIntFromTo
+    , sourceUnfoldr
+    , sourceUnfoldrAction
+    , sourceUnfoldrM
+    , sourceUnfoldrMSerial
+    , toListM
+    , toListSome
+    , toNull
+    , toNullAp
+    , toNullM
+    , toNullM3
+    , transformComposeMapM
+    , transformMapM
+    , transformTeeMapM
+    , transformZipMapM
+    )
+where
 
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..))
@@ -20,6 +72,7 @@ import Data.Functor.Identity (Identity)
 import Data.Semigroup (Semigroup((<>)))
 #endif
 import GHC.Exception (ErrorCall)
+import Prelude hiding (mapM)
 import System.Random (randomRIO)
 
 import qualified Data.Foldable as F

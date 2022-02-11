@@ -9,7 +9,7 @@
 
 {-# LANGUAGE OverloadedLists #-}
 
-module Streamly.Test.Prelude.Concurrent where
+module Streamly.Test.Prelude.Concurrent (main) where
 
 import Control.Concurrent (MVar, takeMVar, threadDelay, putMVar, newEmptyMVar)
 import Control.Exception

@@ -11,12 +11,39 @@
 -- Unicode Char stream and then use these parsers on the Char stream.
 
 -- XXX Add explicit export list.
-module Streamly.Internal.Unicode.Char.Parser where
+module Streamly.Internal.Unicode.Char.Parser
+    ( alpha
+    , alphaNum
+    , ascii
+    , asciiLower
+    , asciiUpper
+    , char
+    , decimal
+    , digit
+    , double
+    , hexadecimal
+    , hexDigit
+    , latin1
+    , letter
+    , lower
+    , mark
+    , number
+    , octDigit
+    , print
+    , punctuation
+    , separator
+    , signed
+    , space
+    , symbol
+    , upper
+    )
+where
 
 import Control.Applicative (Alternative(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
+import Prelude hiding (print)
 import Streamly.Internal.Data.Parser (Parser)
 
 import qualified Data.Char as Char

@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.WAsync where
+module Streamly.Test.Prelude.WAsync (main) where
 
 #ifdef DEVBUILD
 import Control.Concurrent ( threadDelay )

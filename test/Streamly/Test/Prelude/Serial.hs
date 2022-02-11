@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.Serial where
+module Streamly.Test.Prelude.Serial (checkTakeDropTime, main) where
 
 import Control.Concurrent ( threadDelay )
 import Control.Monad ( when, forM_ )

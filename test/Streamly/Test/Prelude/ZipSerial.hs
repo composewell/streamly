@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Prelude.ZipSerial where
+module Streamly.Test.Prelude.ZipSerial (main) where
 
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
