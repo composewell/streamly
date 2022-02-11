@@ -351,12 +351,44 @@ find . -type f -name "*.md" \
     -not -path "./benchmark/bench-report/dist*"
 ```
 
-The following executes the markdown link checking on the results:
+The following executes the markdown link checking with proper configuration on
+the results. This also checks all the links are absolute to the root of the
+repo.
 
 ```
 find . -type f -name "*.md" \
     -not -path "./dist*" \
     -not -path "./.stack*" \
     -not -path "./benchmark/bench-report/dist*" \
-    -exec npx markdown-link-check --quiet {} \;
+    -exec npx markdown-link-check -c /dev/stdin --quiet {} \; <<EOF
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^http"
+    },
+    {
+      "pattern": "^ftp"
+    },
+    {
+      "pattern": "^mailto"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^", "replacement": "{{BASEURL}}"
+    }
+  ]
+}
+EOF
+```
+
+Once you run that, you can check all the links again without the config,
+filtering in only `http`, `ftp`, and `mailto` links.
+
+```
+find . -type f -name "*.md" \
+    -not -path "./dist*" \
+    -not -path "./.stack*" \
+    -not -path "./benchmark/bench-report/dist*" \
+    -exec npx markdown-link-check --quiet {} \; 2>&1 | grep -e "http" -e "ftp" -e "mailto"
 ```
