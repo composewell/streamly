@@ -236,6 +236,7 @@ module Streamly.Internal.Data.Fold
     , chunksBetween
 
     -- ** Nesting
+    , unfoldMany
     , concatSequence
     , concatMap
 
@@ -257,6 +258,8 @@ module Streamly.Internal.Data.Fold
     )
 where
 
+#include "inline.hs"
+
 import Data.Bifunctor (first)
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
@@ -266,6 +269,7 @@ import Data.Maybe (isJust, fromJust)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
@@ -273,6 +277,7 @@ import qualified Data.IntSet as IntSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Prelude
 
@@ -1921,3 +1926,36 @@ toStream = fmap SerialT toStreamK
 {-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT n a)
 toStreamRev = fmap SerialT toStreamKRev
+
+-- XXX This does not fuse. It contains a recursive step function. We will need
+-- a Skip input constructor in the fold type to make it fuse.
+--
+-- | Unfold and flatten the input stream of a fold.
+--
+-- @
+-- Stream.fold (unfoldMany u f) = Stream.fold f . Stream.unfoldMany u
+-- @
+--
+-- /Pre-release/
+{-# INLINE unfoldMany #-}
+unfoldMany :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
+unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
+    Fold consume initial extract
+
+    where
+
+    {-# INLINE produce #-}
+    produce fs us = do
+        ures <- ustep us
+        case ures of
+            StreamD.Yield b us1 -> do
+                fres <- fstep fs b
+                case fres of
+                    Partial fs1 -> produce fs1 us1
+                    -- XXX What to do with the remaining stream?
+                    Done c -> return $ Done c
+            StreamD.Skip us1 -> produce fs us1
+            StreamD.Stop -> return $ Partial fs
+
+    {-# INLINE_LATE consume #-}
+    consume s a = inject a >>= produce s

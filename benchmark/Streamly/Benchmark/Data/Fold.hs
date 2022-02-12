@@ -20,6 +20,7 @@ import Streamly.Internal.Data.Fold (Fold(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Prelude as S
@@ -234,6 +235,17 @@ unzipWithMinM = do
     IP.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------
+-- Nested
+-------------------------------------------------------------------------------
+
+{-# INLINE unfoldMany #-}
+unfoldMany :: Int -> Benchmarkable
+unfoldMany val =
+    nfIO
+        $ IP.fold (FL.unfoldMany (Unfold.replicateM val) FL.drain)
+        $ IP.fromPure (randomRIO (1, 1 :: Int))
+
+-------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
@@ -365,6 +377,7 @@ o_1_space_serial_composition value =
             , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
             , benchIOSink value "classifyScanWith sum"
                 $ classifyScanWith (fst . fn)
+            , bench "unfoldMany" $ unfoldMany value
             ]
       ]
 
