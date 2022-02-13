@@ -202,6 +202,11 @@ flag limit-build-mem
   manual: True
   default: False
 
+flag streamly-core
+  description: Build only the core modules
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -330,35 +335,196 @@ library
 
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
-      exposed-modules: Streamly.Internal.FileSystem.Event.Windows
-      build-depends: Win32 >= 2.6 && < 2.13
 
     if os(darwin)
-      frameworks:    Cocoa
       include-dirs:  src/Streamly/Internal
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Darwin.c
-                   , src/Streamly/Internal/FileSystem/Event/Darwin.m
-      exposed-modules:
-                     Streamly.Internal.FileSystem.Event.Darwin
-
-    if os(linux)
-      exposed-modules: Streamly.Internal.FileSystem.Event.Linux
-
-    if os(linux) || os(darwin) || os(windows)
-      exposed-modules: Streamly.Internal.FileSystem.Event
 
     hs-source-dirs:    src
-    other-modules:
-                       Streamly.Data.Array
-                     , Streamly.Data.Prim.Array
-                     , Streamly.Data.SmallArray
-
     exposed-modules:
-                       Streamly.Prelude
-                     , Streamly.Data.Unfold
+                     -- Internal modules, listed roughly in bottom up
+                     -- dependency order To view dependency graph:
+                     -- graphmod | dot -Tps > deps.ps
+
+                     -- streamly-base
+                       Streamly.Internal.BaseCompat
+                     , Streamly.Internal.Control.Exception
+                     , Streamly.Internal.Control.Monad
+                     , Streamly.Internal.Control.ForkIO
+                     , Streamly.Internal.Data.Cont
+                     , Streamly.Internal.Foreign.Malloc
+                     , Streamly.Internal.System.IO
+
+                     -- streamly-strict-data
+                     , Streamly.Internal.Data.Tuple.Strict
+                     , Streamly.Internal.Data.Maybe.Strict
+                     , Streamly.Internal.Data.Either.Strict
+
+                     -- XXX Depends on monad-control
+                     , Streamly.Internal.Control.Concurrent
+                     , Streamly.Internal.Control.ForkLifted
+                     , Streamly.Internal.Data.IOFinalizer
+
+                     -- streamly-time
+                     , Streamly.Internal.Data.Time
+                     , Streamly.Internal.Data.Time.TimeSpec
+                     , Streamly.Internal.Data.Time.Units
+                     , Streamly.Internal.Data.Time.Clock.Type
+                     , Streamly.Internal.Data.Time.Clock
+
+                     -- streamly-core-stream-types
+                     , Streamly.Internal.Data.SVar.Type
+                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Fold.Step
+                     , Streamly.Internal.Data.Refold.Type
+                     , Streamly.Internal.Data.Fold.Type
+                     , Streamly.Internal.Data.Stream.StreamD.Step
+                     , Streamly.Internal.Data.Stream.StreamD.Type
+                     , Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Unfold.Type
+                     , Streamly.Internal.Data.Producer.Type
+                     , Streamly.Internal.Data.Producer
+                     , Streamly.Internal.Data.Producer.Source
+                     , Streamly.Internal.Data.Sink.Type
+                     , Streamly.Internal.Data.Parser.ParserK.Type
+                     , Streamly.Internal.Data.Parser.ParserD.Type
+                     , Streamly.Internal.Data.Pipe.Type
+
+                     -- streamly-core-array-types
+                    -- Unboxed IORef
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.IORef.Prim
+                     -- May depend on streamly-core-stream
+                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Foreign.Mut
+                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Mut.Type
+
+                     -- streamly-core-streams
+                     -- StreamD depends on streamly-array-types
+                     , Streamly.Internal.Data.Stream.StreamD.Generate
+                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
+                     , Streamly.Internal.Data.Stream.StreamD.Nesting
+                     , Streamly.Internal.Data.Stream.StreamD.Transform
+                     , Streamly.Internal.Data.Stream.StreamD.Exception
+                     , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.Stream.StreamD
+                     , Streamly.Internal.Data.Stream.StreamDK
+                     , Streamly.Internal.Data.Stream.Prelude
+
+                     , Streamly.Internal.Data.Parser.ParserD.Tee
+                     , Streamly.Internal.Data.Parser.ParserD
+
+                     -- streamly-core-data
+                     , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Unfold.Enumeration
+                     , Streamly.Internal.Data.Fold.Tee
+                     , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Sink
+                     , Streamly.Internal.Data.Parser
+                     , Streamly.Internal.Data.Pipe
+                     , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.List
+
+                     -- streamly-core-data-arrays
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Mut.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
+
+                    -- Ring Arrays
+                     , Streamly.Internal.Data.Ring.Foreign
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.Ring
+
+                     -- Only used for benchmarks
+                     , Streamly.Internal.Data.Stream.StreamK
+
+                     -- streamly-core exposed modules
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
+
+    if !flag(streamly-core)
+        exposed-modules:
+                     -- XXX To be moved to streamly-core
+                       Streamly.Data.Unfold
+
+                     -- XXX To be removed or put under dev flag
+                     , Streamly.Internal.Data.Array.Prim.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
+                     , Streamly.Internal.Data.Array.Prim.Pinned.Type
+                     , Streamly.Internal.Data.SmallArray.Type
+                     , Streamly.Internal.Data.Array.Prim
+                     , Streamly.Internal.Data.Array.Prim.Pinned
+                     , Streamly.Internal.Data.SmallArray
+
+                     -- streamly-concurrent
+                     , Streamly.Internal.Data.Atomics
+                     , Streamly.Internal.Data.SVar.Worker
+                     , Streamly.Internal.Data.SVar.Dispatch
+                     , Streamly.Internal.Data.SVar.Pull
+                     , Streamly.Internal.Data.SVar
+
+                     , Streamly.Internal.Data.Unfold.SVar
+                     , Streamly.Internal.Data.Fold.SVar
+                     , Streamly.Internal.Data.Fold.Async
+                     , Streamly.Internal.Data.Stream.SVar.Generate
+                     , Streamly.Internal.Data.Stream.SVar.Eliminate
+
+                     , Streamly.Internal.Data.Stream.Async
+                     , Streamly.Internal.Data.Stream.Parallel
+                     , Streamly.Internal.Data.Stream.Ahead
+                     , Streamly.Internal.Data.Stream.ZipAsync
+
+                     , Streamly.Internal.Data.Stream.IsStream.Type
+                     , Streamly.Internal.Data.Stream.IsStream.Combinators
+                     , Streamly.Internal.Data.Stream.IsStream.Common
+                     , Streamly.Internal.Data.Stream.IsStream.Enumeration
+                     , Streamly.Internal.Data.Stream.IsStream.Generate
+                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
+                     , Streamly.Internal.Data.Stream.IsStream.Transform
+                     , Streamly.Internal.Data.Stream.IsStream.Expand
+                     , Streamly.Internal.Data.Stream.IsStream.Reduce
+                     , Streamly.Internal.Data.Stream.IsStream.Exception
+                     , Streamly.Internal.Data.Stream.IsStream.Lift
+                     , Streamly.Internal.Data.Stream.IsStream.Top
+                     , Streamly.Internal.Data.Stream.IsStream
+
+                     , Streamly.Internal.Data.Array.Stream.Foreign
+
+                     -- streamly-serde
+                     , Streamly.Internal.Data.Binary.Decode
+
+                     -- streamly-unicode
+                     , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.Utf8
+                     , Streamly.Internal.Unicode.Char
+                     , Streamly.Internal.Unicode.Char.Parser
+                     , Streamly.Internal.Unicode.Array.Char
+                     , Streamly.Internal.Unicode.Array.Prim.Pinned
+
+                     -- streamly-filesystem
+                     , Streamly.Internal.System.IOVec.Type
+                     , Streamly.Internal.System.IOVec
+                     , Streamly.Internal.FileSystem.Handle
+                     , Streamly.Internal.FileSystem.Dir
+                     , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
+
+                     -- streamly-console
+                     , Streamly.Internal.Console.Stdio
+
+                     -- streamly-network
+                     , Streamly.Internal.Network.Socket
+                     , Streamly.Internal.Network.Inet.TCP
+
+                     -- Exposed modules
+                     , Streamly.Prelude
 
                      -- Text Processing
                      , Streamly.Unicode.Stream
@@ -376,165 +542,23 @@ library
                      , Streamly.Data.Unicode.Stream
                      , Streamly.Memory.Array
 
-                     -- Internal modules, listed roughly in dependency order
-                     -- To view dependency graph:
-                     -- graphmod | dot -Tps > deps.ps
+        other-modules:
+                       Streamly.Data.Array
+                     , Streamly.Data.Prim.Array
+                     , Streamly.Data.SmallArray
 
-                     -- streamly-base
-                     , Streamly.Internal.BaseCompat
-                     , Streamly.Internal.Control.Exception
-                     , Streamly.Internal.Control.Monad
-                     , Streamly.Internal.Control.ForkIO
-                     , Streamly.Internal.Control.ForkLifted
-                     , Streamly.Internal.Control.Concurrent
-                     , Streamly.Internal.Data.Cont
-                     , Streamly.Internal.Data.Tuple.Strict
-                     , Streamly.Internal.Data.Maybe.Strict
-                     , Streamly.Internal.Data.Either.Strict
-                     , Streamly.Internal.Foreign.Malloc
-                     , Streamly.Internal.Data.Atomics
-                     , Streamly.Internal.Data.IOFinalizer
-                     , Streamly.Internal.Data.Time
-                     , Streamly.Internal.Data.Time.TimeSpec
-                     , Streamly.Internal.Data.Time.Units
-                     , Streamly.Internal.Data.Time.Clock.Type
-                     , Streamly.Internal.Data.Time.Clock
-                     , Streamly.Internal.System.IO
-                     , Streamly.Internal.System.IOVec.Type
+        if os(windows)
+          exposed-modules: Streamly.Internal.FileSystem.Event.Windows
 
-                     -- streamly-core-stream
-                     , Streamly.Internal.Data.SVar.Type
-                     , Streamly.Internal.Data.SVar.Worker
-                     , Streamly.Internal.Data.SVar.Dispatch
-                     , Streamly.Internal.Data.SVar.Pull
-                     , Streamly.Internal.Data.SVar
-                     , Streamly.Internal.Data.Stream.StreamK.Type
-                     , Streamly.Internal.Data.Fold.Step
-                     , Streamly.Internal.Data.Refold.Type
-                     , Streamly.Internal.Data.Fold.Type
-                     , Streamly.Internal.Data.Stream.StreamD.Step
-                     , Streamly.Internal.Data.Stream.StreamD.Type
-                     , Streamly.Internal.Data.Stream.StreamDK.Type
-                     , Streamly.Internal.Data.Unfold.Type
-                     , Streamly.Internal.Data.Producer.Type
-                     , Streamly.Internal.Data.Producer
-                     , Streamly.Internal.Data.Producer.Source
-                     , Streamly.Internal.Data.Sink.Type
-                     , Streamly.Internal.Data.Parser.ParserK.Type
-                     , Streamly.Internal.Data.Parser.ParserD.Type
-                     , Streamly.Internal.Data.Pipe.Type
+        if os(darwin)
+          c-sources: src/Streamly/Internal/FileSystem/Event/Darwin.m
+          exposed-modules: Streamly.Internal.FileSystem.Event.Darwin
 
-                    -- Unboxed IORef
-                     , Streamly.Internal.Data.IORef.Prim
+        if os(linux)
+          exposed-modules: Streamly.Internal.FileSystem.Event.Linux
 
-                     -- streamly-core-array
-                     -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
-                     , Streamly.Internal.Data.Array.Foreign.Mut
-                     , Streamly.Internal.Data.Array.Foreign.Type
-                     , Streamly.Internal.Data.Array.Prim.Mut.Type
-                     , Streamly.Internal.Data.Array.Prim.Type
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Type
-                     , Streamly.Internal.Data.Array.Mut.Type
-                     , Streamly.Internal.Data.SmallArray.Type
-
-                     -- streamly-base-streams
-                     -- StreamD depends on streamly-core-array
-                     , Streamly.Internal.Data.Stream.StreamD.Generate
-                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                     , Streamly.Internal.Data.Stream.StreamD.Nesting
-                     , Streamly.Internal.Data.Stream.StreamD.Transform
-                     , Streamly.Internal.Data.Stream.StreamD.Exception
-                     , Streamly.Internal.Data.Stream.StreamD.Lift
-                     , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.StreamDK
-                     , Streamly.Internal.Data.Stream.Prelude
-
-                     , Streamly.Internal.Data.Parser.ParserD.Tee
-                     , Streamly.Internal.Data.Parser.ParserD
-
-                     -- streamly-core
-                     , Streamly.Internal.Data.Unfold
-                     , Streamly.Internal.Data.Unfold.SVar
-                     , Streamly.Internal.Data.Unfold.Enumeration
-                     , Streamly.Internal.Data.Fold.Tee
-                     , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Fold.SVar
-                     , Streamly.Internal.Data.Fold.Async
-                     , Streamly.Internal.Data.Sink
-                     , Streamly.Internal.Data.Parser
-                     , Streamly.Internal.Data.Pipe
-
-                     , Streamly.Internal.Data.Stream.SVar.Generate
-                     , Streamly.Internal.Data.Stream.SVar.Eliminate
-                     , Streamly.Internal.Data.Stream.Serial
-                     , Streamly.Internal.Data.Stream.Async
-                     , Streamly.Internal.Data.Stream.Parallel
-                     , Streamly.Internal.Data.Stream.Ahead
-                     , Streamly.Internal.Data.Stream.Zip
-                     , Streamly.Internal.Data.Stream.ZipAsync
-                     , Streamly.Internal.Data.List
-
-                     , Streamly.Internal.Data.Stream.IsStream.Type
-                     , Streamly.Internal.Data.Stream.IsStream.Combinators
-                     , Streamly.Internal.Data.Stream.IsStream.Common
-                     , Streamly.Internal.Data.Stream.IsStream.Enumeration
-                     , Streamly.Internal.Data.Stream.IsStream.Generate
-                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
-                     , Streamly.Internal.Data.Stream.IsStream.Transform
-                     , Streamly.Internal.Data.Stream.IsStream.Expand
-                     , Streamly.Internal.Data.Stream.IsStream.Reduce
-                     , Streamly.Internal.Data.Stream.IsStream.Exception
-                     , Streamly.Internal.Data.Stream.IsStream.Lift
-                     , Streamly.Internal.Data.Stream.IsStream.Top
-                     , Streamly.Internal.Data.Stream.IsStream
-
-                     -- streamly-arrays
-                     -- May depend on streamly-core
-                     , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Foreign
-                     , Streamly.Internal.Data.Array.Prim
-                     , Streamly.Internal.Data.Array.Prim.Pinned
-                     , Streamly.Internal.Data.SmallArray
-                     , Streamly.Internal.Data.Array.Stream.Mut.Foreign
-                     , Streamly.Internal.Data.Array.Stream.Foreign
-                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
-
-                    -- Memory storage
-                     , Streamly.Internal.Data.Ring.Foreign
-                     , Streamly.Internal.Data.Ring
-
-                     -- IOVec (depends on arrays/streams)
-                     , Streamly.Internal.System.IOVec
-
-                     -- streamly-unicode
-                     , Streamly.Internal.Unicode.Stream
-                     , Streamly.Internal.Unicode.Utf8
-                     , Streamly.Internal.Unicode.Char
-                     , Streamly.Internal.Unicode.Char.Parser
-                     , Streamly.Internal.Unicode.Array.Char
-                     , Streamly.Internal.Unicode.Array.Prim.Pinned
-
-                     -- streamly-serde
-                     , Streamly.Internal.Data.Binary.Decode
-
-                     -- streamly-filesystem
-                     , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
-
-                     -- streamly-console
-                     , Streamly.Internal.Console.Stdio
-
-                     -- streamly-network
-                     , Streamly.Internal.Network.Socket
-                     , Streamly.Internal.Network.Inet.TCP
-
-                     -- Only used for benchmarks
-                     , Streamly.Internal.Data.Stream.StreamK
+        if os(linux) || os(darwin) || os(windows)
+          exposed-modules: Streamly.Internal.FileSystem.Event
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max
@@ -550,26 +574,33 @@ library
                      , exceptions        >= 0.8   && < 0.11
                      , ghc-prim          >= 0.2   && < 0.9
                      , mtl               >= 2.2   && < 2.3
-                     , primitive         >= 0.5.4 && < 0.8
                      , transformers      >= 0.4   && < 0.7
-
-                     , heaps             >= 0.3     && < 0.5
                      , filepath          >= 1.2.0.0 && < 1.5
 
+                     , fusion-plugin-types >= 0.1 && < 0.2
+                     , monad-control     >= 1.0   && < 1.1
+
+                     -- XXX to be removed
+                     , transformers-base >= 0.4   && < 0.5
+                     , primitive         >= 0.5.4 && < 0.8
+                     , heaps             >= 0.3     && < 0.5
+
+    if !flag(streamly-core)
+        build-depends:
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
 
-                    -- transfomers
-                     , monad-control     >= 1.0   && < 1.1
-                     , transformers-base >= 0.4   && < 0.5
-
-                     , fusion-plugin-types >= 0.1 && < 0.2
                      , unicode-data      >= 0.1   && < 0.4
 
                     -- Network
                      , network           >= 2.6   && < 3.2
 
+        if os(windows)
+          build-depends: Win32 >= 2.6 && < 2.13
+
+        if os(darwin)
+          frameworks: Cocoa
 
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.17
