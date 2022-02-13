@@ -384,6 +384,8 @@ library
                      , Streamly.Internal.BaseCompat
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
+                     , Streamly.Internal.Control.ForkIO
+                     , Streamly.Internal.Control.ForkLifted
                      , Streamly.Internal.Control.Concurrent
                      , Streamly.Internal.Data.Cont
                      , Streamly.Internal.Data.Tuple.Strict

@@ -33,7 +33,7 @@ import Control.Monad (forever, when, void)
 import Streamly.Internal.Data.Time.Clock.Type (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
     (MicroSecond64(..), fromAbsTime, addToAbsTime, toRelTime)
-import Streamly.Internal.Control.Concurrent (forkManaged)
+import Streamly.Internal.Control.ForkIO (forkIOManaged)
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 
@@ -82,7 +82,7 @@ asyncClock :: Clock -> Double -> IO (ThreadId, Prim.IORef MicroSecond64)
 asyncClock clock g = do
     timeVar <- Prim.newIORef 0
     updateTimeVar clock timeVar
-    tid <- forkManaged $ forever (updateWithDelay clock g timeVar)
+    tid <- forkIOManaged $ forever (updateWithDelay clock g timeVar)
     return (tid, timeVar)
 
 {-# INLINE readClock #-}
@@ -145,7 +145,7 @@ timer clock g period = do
         reset = resetTimerExpiry clock p1 timeVar
         process = processTimerTick clock g timeVar mvar reset
     reset
-    tid <- forkManaged $ forever process
+    tid <- forkIOManaged $ forever process
     return $ Timer tid mvar reset
 
 -- | Blocking wait for a timer tick.

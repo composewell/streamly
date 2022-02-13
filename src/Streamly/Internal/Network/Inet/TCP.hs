@@ -103,7 +103,8 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
-import Streamly.Internal.Control.Concurrent (MonadAsync, fork)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.ForkLifted (fork)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)

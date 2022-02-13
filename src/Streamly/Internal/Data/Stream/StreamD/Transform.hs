@@ -133,7 +133,8 @@ import Data.Maybe (fromJust, isJust)
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Internal.Control.Concurrent (MonadAsync, fork, forkManaged)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.ForkLifted (fork, forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
