@@ -16,6 +16,7 @@ jobs:
       GHCVER: ${{ matrix.ghc_version }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
       DISABLE_TEST: ${{ matrix.disable_test }}
+      DISABLE_BENCH: ${{ matrix.disable_bench }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
       SDIST_OPTIONS: ${{ matrix.sdist_options }}
       DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
@@ -55,7 +56,7 @@ jobs:
         name:
           - 8.10.7-sdist-fusion-inspection-Werror
           - 9.2.1-docspec
-          - 8.10.7-coverage
+        # - 8.10.7-coverage
 
         # Note: if cabal.project is not specified benchmarks and tests won't
         # run. But we need at least one test where we test without
@@ -108,12 +109,12 @@ jobs:
             cabal_project: cabal.project
             disable_sdist_build: "y"
             ignore_error: false
-          - name: 8.10.7-coverage
-            ghc_version: 8.10.7
-            runner: ubuntu-latest
-            coverage: "y"
-            cabal_version: 3.6
-            ignore_error: false
+        # - name: 8.10.7-coverage
+        #   ghc_version: 8.10.7
+        #   runner: ubuntu-latest
+        #   coverage: "y"
+        #   cabal_version: 3.6
+        #   ignore_error: false
           - name: 8.10.7-sdist-fusion-inspection-Werror
             ghc_version: 8.10.7
             runner: ubuntu-latest
@@ -121,6 +122,17 @@ jobs:
             cabal_version: 3.6
             cabal_project: cabal.project.Werror
             cabal_build_options: "--flag fusion-plugin --flag inspection"
+            ignore_error: false
+          - name: 8.10.7-sdist-streamly-core
+            ghc_version: 8.10.7
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            cabal_build_targets: "streamly"
+            cabal_build_options: "--flag streamly-core"
+            disable_test: "y"
+            disable_bench: "y"
             ignore_error: false
           - name: 8.8.4-sdist-fusion
             ghc_version: 8.8.4
