@@ -25,10 +25,8 @@ where
 
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
 
@@ -83,7 +81,7 @@ after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 -- @since 0.7.0
 --
 {-# INLINE after #-}
-after :: (IsStream t, MonadIO m, MonadBaseControl IO m)
+after :: (IsStream t, MonadRunInIO m)
     => m b -> t m a -> t m a
 after action xs = fromStreamD $ D.after action $ toStreamD xs
 

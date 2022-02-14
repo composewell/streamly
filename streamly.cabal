@@ -207,6 +207,11 @@ flag streamly-core
   manual: True
   default: False
 
+flag use-unliftio
+  description: Use unliftio-core instead of monad-control
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -257,6 +262,9 @@ common compile-options
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
+
+    if flag(use-unliftio)
+      cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
     default-extensions:
@@ -360,7 +368,7 @@ library
                      , Streamly.Internal.Data.Maybe.Strict
                      , Streamly.Internal.Data.Either.Strict
 
-                     -- XXX Depends on monad-control
+                     -- XXX Depends on monad-control or unliftio-core
                      , Streamly.Internal.Control.Concurrent
                      , Streamly.Internal.Control.ForkLifted
                      , Streamly.Internal.Data.IOFinalizer
@@ -578,12 +586,15 @@ library
                      , filepath          >= 1.2.0.0 && < 1.5
 
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , monad-control     >= 1.0   && < 1.1
 
                      -- XXX to be removed
                      , transformers-base >= 0.4   && < 0.5
                      , primitive         >= 0.5.4 && < 0.8
                      , heaps             >= 0.3     && < 0.5
+    if flag(use-unliftio)
+      build-depends:   unliftio-core     >= 0.2 && < 0.3
+    else
+      build-depends:   monad-control     >= 1.0 && < 1.1
 
     if !flag(streamly-core)
         build-depends:
@@ -595,6 +606,7 @@ library
 
                     -- Network
                      , network           >= 2.6   && < 3.2
+
 
         if os(windows)
           build-depends: Win32 >= 2.6 && < 2.13

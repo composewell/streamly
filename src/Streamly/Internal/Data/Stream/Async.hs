@@ -41,7 +41,6 @@ where
 import Control.Concurrent (myThreadId)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.Trans.Control (MonadBaseControl (..))
 import Control.Concurrent.MVar (newEmptyMVar)
 -- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
@@ -59,7 +58,7 @@ import Prelude hiding (map)
 import qualified Data.Set as S
 
 import Streamly.Internal.Control.Concurrent
-    (MonadAsync, RunInIO(..), captureMonadState)
+    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Serial (SerialT (..))
@@ -104,7 +103,7 @@ data WorkerStatus = Continue | Suspend
 
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef [(RunInIO m, Stream m a)]
     -> State Stream m a
     -> SVar Stream m a
@@ -143,7 +142,7 @@ workLoopLIFO q st sv winfo = run
         if res
         then K.foldStreamShared st yieldk single (return Continue) r
         else do
-            runInIO <- captureMonadState
+            runInIO <- askRunInIO
             liftIO $ enqueueLIFO sv q (runInIO, r)
             return Suspend
 
@@ -158,7 +157,7 @@ workLoopLIFO q st sv winfo = run
 -- make a check every time.
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
-    :: forall m a. (MonadIO m, MonadBaseControl IO m)
+    :: forall m a. MonadRunInIO m
     => IORef [(RunInIO m, Stream m a)]
     -> State Stream m a
     -> SVar Stream m a
@@ -209,7 +208,7 @@ workLoopLIFOLimited q st sv winfo = run
         if res && yieldLimitOk
         then K.foldStreamShared st yieldk single incrContinue r
         else do
-            runInIO <- captureMonadState
+            runInIO <- askRunInIO
             liftIO $ incrementYieldLimit sv
             liftIO $ enqueueLIFO sv q (runInIO, r)
             return Suspend
@@ -240,7 +239,7 @@ enqueueFIFO sv q m = do
 
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => LinkedQueue (RunInIO m, Stream m a)
     -> State Stream m a
     -> SVar Stream m a
@@ -273,13 +272,13 @@ workLoopFIFO q st sv winfo = run
     -- yielding.
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        runInIO <- captureMonadState
+        runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
         return $ if res then Continue else Suspend
 
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
-    :: forall m a. (MonadIO m, MonadBaseControl IO m)
+    :: forall m a. MonadRunInIO m
     => LinkedQueue (RunInIO m, Stream m a)
     -> State Stream m a
     -> SVar Stream m a
@@ -316,7 +315,7 @@ workLoopFIFOLimited q st sv winfo = run
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        runInIO <- captureMonadState
+        runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if res && yieldLimitOk
@@ -533,7 +532,7 @@ getFifoSVar st mrun = do
 newAsyncVar :: MonadAsync m
     => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newAsyncVar st m = do
-    mrun <- captureMonadState
+    mrun <- askRunInIO
     sv <- liftIO $ getLifoSVar st mrun
     sendFirstWorker sv m
 
@@ -573,7 +572,7 @@ mkAsyncD m = D.Stream step Nothing
 newWAsyncVar :: MonadAsync m
     => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newWAsyncVar st m = do
-    mrun <- captureMonadState
+    mrun <- askRunInIO
     sv <- liftIO $ getFifoSVar st mrun
     -- XXX Use just Stream and IO in all the functions below
     -- XXX pass mrun instead of calling captureMonadState again inside it
@@ -653,7 +652,7 @@ forkSVarAsync style m1 m2 = K.mkStream $ \st yld sng stp -> do
     K.foldStream st yld sng stp $ getSerialT $ fromSVar sv
     where
     concurrently ma mb = K.mkStream $ \st yld sng stp -> do
-        runInIO <- captureMonadState
+        runInIO <- askRunInIO
         liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
         K.foldStreamShared st yld sng stp ma
 
@@ -663,7 +662,7 @@ joinStreamVarAsync :: MonadAsync m
 joinStreamVarAsync style m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
-            runInIO <- captureMonadState
+            runInIO <- askRunInIO
             liftIO $ enqueue sv (runInIO, m2)
             K.foldStreamShared st yld sng stp m1
         _ -> K.foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)

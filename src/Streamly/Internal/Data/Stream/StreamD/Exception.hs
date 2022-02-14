@@ -28,11 +28,9 @@ where
 
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -119,7 +117,7 @@ data GbracketIOState s1 s2 v wref
 -- /Pre-release/
 {-# INLINE_NORMAL gbracket #-}
 gbracket
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => m c -- ^ before
     -> (forall s. m s -> m (Either e s)) -- ^ try (exception handling)
     -> (c -> m d1) -- ^ on normal stop
@@ -141,7 +139,7 @@ gbracket bef exc aft gc fexc fnormal =
         -- of 'bef' and the registration of 'aft' atomic.
         -- A similar thing is done in the resourcet package: https://git.io/JvKV3
         -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
-        (r, ref) <- liftBaseOp_ mask_ $ do
+        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
             r <- bef
             ref <- newIOFinalizer (gc r)
             return (r, ref)
@@ -210,7 +208,7 @@ after_ action (Stream step state) = Stream step' state
 -- | See 'Streamly.Internal.Data.Stream.IsStream.after'.
 --
 {-# INLINE_NORMAL after #-}
-after :: (MonadIO m, MonadBaseControl IO m)
+after :: MonadRunInIO m
     => m b -> Stream m a -> Stream m a
 after action (Stream step state) = Stream step' Nothing
 

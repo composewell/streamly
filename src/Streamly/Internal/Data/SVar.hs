@@ -48,7 +48,7 @@ import Data.Heap (Heap, Entry(..))
 import Data.IORef (newIORef, readIORef)
 import Data.IORef (IORef, atomicModifyIORef)
 import Streamly.Internal.Control.Concurrent
-    (MonadAsync, captureMonadState, RunInIO(..))
+    (MonadAsync, askRunInIO, RunInIO)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -432,7 +432,7 @@ newAheadVar :: MonadAsync m
         -> m ())
     -> m (SVar t m a)
 newAheadVar st m wloop = do
-    mrun <- captureMonadState
+    mrun <- askRunInIO
     sv <- liftIO $ getAheadSVar st wloop mrun
     sendFirstWorker sv m
 
@@ -533,5 +533,5 @@ getParallelSVar ss st mrun = do
 newParallelVar :: MonadAsync m
     => SVarStopStyle -> State t m a -> m (SVar t m a)
 newParallelVar ss st = do
-    mrun <- captureMonadState
+    mrun <- askRunInIO
     liftIO $ getParallelSVar ss st mrun
