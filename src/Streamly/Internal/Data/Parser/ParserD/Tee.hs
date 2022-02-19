@@ -30,6 +30,7 @@ module Streamly.Internal.Data.Parser.ParserD.Tee
       teeWith
     , teeWithFst
     , teeWithMin
+    , teeWithFold
 
     -- Parallel alternatives
     , shortest
@@ -39,12 +40,15 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, try)
-import Prelude
-       hiding (any, all, takeWhile)
-
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser.ParserD.Type
        (Initial(..), Parser(..), Step(..), ParseError)
+
+import qualified Streamly.Internal.Data.Fold as Fold
+
+import Prelude hiding (all, any, takeWhile)
+
 
 -------------------------------------------------------------------------------
 -- Distribute input to two parsers and collect both results
@@ -369,6 +373,58 @@ teeWithMin ::
     -- Monad m =>
     (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 teeWithMin = undefined
+
+-- | Tee a 'Parser' with a 'Fold'
+{-# INLINE teeWithFold #-}
+teeWithFold ::
+       Monad m => (a -> b -> c) -> Parser m x a -> Fold m x b -> Parser m x c
+teeWithFold zf (Parser stepL initialL extractL) (Fold stepR initialR extractR) =
+    Parser step initial extract
+
+    where
+
+    {-# INLINE initial #-}
+    initial = do
+        resL <- initialL
+        resR <- initialR
+        case resL of
+            IPartial sl ->
+                case resR of
+                    Fold.Partial sr -> return $ IPartial (sl, sr)
+                    Fold.Done br -> do
+                        bl <- extractL sl
+                        return $ IDone $ zf bl br
+            IDone bl ->
+                case resR of
+                    Fold.Partial sr -> IDone . zf bl <$> extractR sr
+                    Fold.Done br -> return $ IDone $ zf bl br
+            IError err -> return $ IError err
+
+    {-# INLINE_LATE step #-}
+    step (sl, sr) x = do
+        resL <- stepL sl x
+        case resL of
+            Partial 0 sl1 -> do
+                resR <- stepR sr x
+                case resR of
+                    Fold.Partial sr1 -> return $ Partial 0 (sl1, sr1)
+                    Fold.Done br -> do
+                      bl <- extractL sl1
+                      return $ Done 0 $ zf bl br
+            Continue 0 sl1 -> do
+                resR <- stepR sr x
+                return $ case resR of
+                    Fold.Partial sr1 -> Continue 0 (sl1, sr1)
+                    Fold.Done _ ->
+                        Error $  "teeWithFold: Result of the parser "
+                              ++ "is not extractable."
+            Partial n sl1 -> return $ Partial n (sl1, sr)
+            Continue n sl1 -> return $ Continue n (sl1, sr)
+            Done n bl -> Done n . zf bl <$> extractR sr
+            Error err -> return $ Error err
+
+    {-# INLINE extract #-}
+    extract (sl, sr) = zf <$> extractL sl <*> extractR sr
 
 -------------------------------------------------------------------------------
 -- Distribute input to two parsers and choose one result
