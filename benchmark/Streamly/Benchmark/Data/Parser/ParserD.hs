@@ -29,6 +29,7 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
+import qualified Streamly.Internal.Data.Parser.ParserD.Tee as PR
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
@@ -154,6 +155,16 @@ serialWith value =
         ((,)
             <$> drainWhile (<= (value `div` 2))
             <*> drainWhile (<= value)
+        )
+
+{-# INLINE teeAllFold #-}
+teeAllFold :: MonadThrow m
+    => Int -> SerialT m Int -> m ((), ())
+teeAllFold value =
+    IP.parseD
+        (PR.teeWithFold (,)
+            (drainWhile (<= value))
+            (FL.drain)
         )
 
 {-# INLINE teeAllAny #-}
@@ -333,6 +344,7 @@ o_1_space_serial value =
     , benchIOSink value "some" some
     , benchIOSink value "sliceSepByP" $ sliceSepByP value
     , benchIOSink value "manyTill" $ manyTill value
+    , benchIOSink value "teeFold (all)" $ teeAllFold value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
