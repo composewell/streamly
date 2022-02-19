@@ -23,6 +23,7 @@ module Streamly.Internal.Unicode.Stream
     -- ** UTF-8 Decoding
     , CodingFailureMode(..)
     , writeCharUtf8'
+    , writeCharUtf8Rev'
     , parseCharUtf8With
     , decodeUtf8
     , decodeUtf8'
@@ -113,6 +114,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
@@ -570,6 +572,34 @@ parseCharUtf8WithD cfm =
 {-# INLINE writeCharUtf8' #-}
 writeCharUtf8' :: MonadThrow m => Fold m Word8 Char
 writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
+
+data WCURState
+    = WCURInit
+    | WCUR1 Word8
+    | WCUR2 Word8 Word8
+    | WCUR3 Word8 Word8 Word8
+
+-- | Decode the first 'Char' from a reversed Unicode byte stream.
+{-# INLINE writeCharUtf8Rev' #-}
+writeCharUtf8Rev' :: Monad m => Fold m Word8 Char
+writeCharUtf8Rev' = Fold.mkFold step (Fold.Partial WCURInit) extract
+
+    where
+
+    {-# INLINE step #-}
+    step WCURInit m0
+        | m0 < 0x80 = Fold.Done $ unsafeChr_ m0
+        | otherwise = Fold.Partial $ WCUR1 m0
+    step (WCUR1 m0) m1
+        | m1 >= 0xC0 = Fold.Done $ unsafeChr2 m1 m0
+        | otherwise = Fold.Partial $ WCUR2 m1 m0
+    step (WCUR2 m1 m0) m2
+        | m2 >= 0xC0 = Fold.Done $ unsafeChr3 m2 m1 m0
+        | otherwise = Fold.Partial $ WCUR3 m2 m1 m0
+    step (WCUR3 m2 m1 m0) m3 = Fold.Done $ unsafeChr4 m3 m2 m1 m0
+
+    {-# INLINE extract #-}
+    extract _ = error "writeCharUtf8Rev: Insufficient input."
 
 -- XXX The initial idea was to have "parseCharUtf8" and offload the error
 -- handling to another parser. So, say we had "parseCharUtf8'",
