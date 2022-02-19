@@ -14,6 +14,12 @@ module Streamly.Internal.Unicode.Stream
     -- * Construction (Decoding)
       decodeLatin1
 
+    -- ** UTF-8 Decoding Primitives
+    , unsafeChr_
+    , unsafeChr2
+    , unsafeChr3
+    , unsafeChr4
+
     -- ** UTF-8 Decoding
     , CodingFailureMode(..)
     , writeCharUtf8'
@@ -89,8 +95,10 @@ import Data.Word (Word8)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (assert, unsafeChr)
+import GHC.Exts (Char(..), (+#), (-#), chr#, uncheckedIShiftL#, word2Int#)
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
+import GHC.Word (Word8(..))
 import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Foreign (Array)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents, touch)
@@ -115,6 +123,16 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Prelude hiding (lines, words, unlines, unwords)
+
+#if MIN_VERSION_ghc_prim(0,8,0)
+import GHC.Exts (word8ToWord#)
+#else
+import GHC.Exts (Word#)
+
+word8ToWord# :: Word# -> Word#
+word8ToWord# w# = w#
+#endif
+
 
 -- $setup
 -- >>> :m
@@ -185,6 +203,54 @@ encodeLatin1_ = S.map (fromIntegral . ord) . S.filter (<= chr 255)
 {-# INLINE encodeLatin1Lax #-}
 encodeLatin1Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeLatin1Lax = encodeLatin1
+
+-------------------------------------------------------------------------------
+-- UTF-8 Decoding Primitives
+-------------------------------------------------------------------------------
+
+{-# INLINE unsafeChr_ #-}
+unsafeChr_ :: Word8 -> Char
+unsafeChr_ (W8# w#) = C# (chr# (word2Int# (word8ToWord# w#)))
+
+{-# INLINE unsafeChr2 #-}
+unsafeChr2 :: Word8 -> Word8 -> Char
+unsafeChr2 (W8# x1#) (W8# x2#) = C# (chr# (z1# +# z2#))
+
+    where
+
+    !y1# = word2Int# (word8ToWord# x1#)
+    !y2# = word2Int# (word8ToWord# x2#)
+    !z1# = uncheckedIShiftL# (y1# -# 192#) 6#
+    !z2# = y2# -# 128#
+
+{-# INLINE unsafeChr3 #-}
+unsafeChr3 :: Word8 -> Word8 -> Word8 -> Char
+unsafeChr3 (W8# x1#) (W8# x2#) (W8# x3#) = C# (chr# (z1# +# z2# +# z3#))
+
+    where
+
+    !y1# = word2Int# (word8ToWord# x1#)
+    !y2# = word2Int# (word8ToWord# x2#)
+    !y3# = word2Int# (word8ToWord# x3#)
+    !z1# = uncheckedIShiftL# (y1# -# 224#) 12#
+    !z2# = uncheckedIShiftL# (y2# -# 128#) 6#
+    !z3# = y3# -# 128#
+
+{-# INLINE unsafeChr4 #-}
+unsafeChr4 :: Word8 -> Word8 -> Word8 -> Word8 -> Char
+unsafeChr4 (W8# x1#) (W8# x2#) (W8# x3#) (W8# x4#) =
+    C# (chr# (z1# +# z2# +# z3# +# z4#))
+
+    where
+
+    !y1# = word2Int# (word8ToWord# x1#)
+    !y2# = word2Int# (word8ToWord# x2#)
+    !y3# = word2Int# (word8ToWord# x3#)
+    !y4# = word2Int# (word8ToWord# x4#)
+    !z1# = uncheckedIShiftL# (y1# -# 240#) 18#
+    !z2# = uncheckedIShiftL# (y2# -# 128#) 12#
+    !z3# = uncheckedIShiftL# (y3# -# 128#) 6#
+    !z4# = y4# -# 128#
 
 -------------------------------------------------------------------------------
 -- UTF-8 decoding
