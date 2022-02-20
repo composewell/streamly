@@ -27,8 +27,8 @@ import Control.Monad.Catch (MonadThrow)
 #ifdef USE_UNLIFTIO
 import Control.Monad.IO.Unlift (MonadUnliftIO(..), UnliftIO(..), askUnliftIO)
 #else
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.Control (MonadBaseControl(..), control)
 #endif
 
 #ifdef USE_UNLIFTIO
