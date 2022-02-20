@@ -476,7 +476,7 @@ parseCharUtf8WithD cfm =
                             let msg = prefix
                                     ++ "Invalid first UTF8 byte" ++ show x
                              in handleError msg False
-                        0 -> ParserD.Error $ prefix ++ "unreachable state"
+                        0 -> error $ prefix ++ "unreachable state"
                         _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
 
     step' table (UTF8CharDecoding statePtr codepointPtr) x = return $
