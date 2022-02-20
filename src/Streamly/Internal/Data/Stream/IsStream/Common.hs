@@ -463,6 +463,13 @@ findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 -- >>> Stream.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.fromList "hello"
 -- h.,e.,l.,l.,o"h,e,l,l,o"
 --
+-- Be careful about the order of effects. In the above example we used trace
+-- after the intersperse, if we use it before the intersperse the output would
+-- be he.l.l.o."h,e,l,l,o".
+--
+-- >>> Stream.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar $ Stream.fromList "hello"
+-- he.l.l.o."h,e,l,l,o"
+--
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
