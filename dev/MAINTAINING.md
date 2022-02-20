@@ -154,6 +154,9 @@
             * `cabal v2-haddock --haddock-for-hackage --enable-doc; cabal upload -d <tarpath>`
           * Publish the package
             * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
+            * Run packcheck on the uploaded package. To get the latest uploaded
+              version from hackage, run `cabal unpack <package-name>`. You might
+              have to run `cabal update`.
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
         * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
             * Update release contributors on github release page
