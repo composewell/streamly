@@ -119,7 +119,7 @@ common bench-depends
     , mtl                 >= 2.2   && < 2.3
 
     -- other libraries
-    , streamly            >= 0.7.0
+    , streamly
     , random              >= 1.0   && < 2.0
     , transformers        >= 0.4   && < 0.7
     , containers          >= 0.5   && < 0.7
