@@ -32,7 +32,7 @@ import Control.Monad.Trans.Control (MonadBaseControl(..), control)
 #endif
 
 #ifdef USE_UNLIFTIO
-type MonadRunInIO = MonadUnliftIO
+type MonadRunInIO m = MonadUnliftIO m
 #else
 type MonadRunInIO m = (MonadIO m, MonadBaseControl IO m)
 #endif
@@ -46,7 +46,11 @@ type MonadRunInIO m = (MonadIO m, MonadBaseControl IO m)
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-type MonadAsync m = (MonadRunInIO m, MonadThrow m)
+#ifdef USE_UNLIFTIO
+type MonadAsync m = (MonadUnliftIO m, MonadThrow m)
+#else
+type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+#endif
 
 
 #ifdef USE_UNLIFTIO
