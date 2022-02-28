@@ -21,8 +21,7 @@ import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (control)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import Streamly.Internal.Data.Fold.Type
@@ -65,7 +64,7 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
             Partial s -> do
                 mv <- liftIO $ newMVar False
                 t <-
-                    control $ \run ->
+                    withRunInIO $ \run ->
                         mask $ \restore -> do
                             tid <-
                                 forkIO

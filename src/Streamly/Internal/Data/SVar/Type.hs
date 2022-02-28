@@ -62,7 +62,7 @@ import Data.Kind (Type)
 import Data.Set (Set)
 
 import Streamly.Internal.Data.Time.Units (AbsTime, NanoSecond64(..))
-import Streamly.Internal.Control.Concurrent (RunInIO(..))
+import Streamly.Internal.Control.Concurrent (RunInIO)
 
 newtype Count = Count Int64
     deriving ( Eq

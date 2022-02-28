@@ -39,7 +39,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Control.Monad.Trans.Control (MonadBaseControl (..))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Maybe (fromJust)
@@ -51,7 +50,7 @@ import GHC.Exts (inline)
 import qualified Data.Heap as H
 
 import Streamly.Internal.Control.Concurrent
-    (MonadAsync, RunInIO(..), captureMonadState)
+    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
@@ -229,7 +228,7 @@ abortExecution q sv winfo m = do
 -- In both cases we give the drainer a chance to run more often.
 --
 processHeap
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -326,7 +325,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                           stop
                           r
         else do
-            runIn <- captureMonadState
+            runIn <- askRunInIO
             let ent = Entry seqNo (AheadEntryStream (runIn, r))
             liftIO $ do
                 requeueOnHeapTop heap ent seqNo
@@ -339,7 +338,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
 
 {-# NOINLINE drainHeap #-}
 drainHeap
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -357,7 +356,7 @@ data HeapStatus = HContinue | HStop
 data WorkerStatus = Continue | Suspend
 
 processWithoutToken
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -381,7 +380,7 @@ processWithoutToken q heap st sv winfo m seqNo = do
     r <- liftIO $ mrun $
             K.foldStreamShared st
                 (\a r -> do
-                    runIn <- captureMonadState
+                    runIn <- askRunInIO
                     toHeap $ AheadEntryStream (runIn, K.cons a r))
                 (toHeap . AheadEntryPure)
                 stop
@@ -432,7 +431,7 @@ processWithoutToken q heap st sv winfo m seqNo = do
 data TokenWorkerStatus = TokenContinue Int | TokenSuspend
 
 processWithToken
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -484,7 +483,7 @@ processWithToken q heap st sv winfo action sno = do
                           stop
                           r
         else do
-            runIn <- captureMonadState
+            runIn <- askRunInIO
             let ent = Entry seqNo (AheadEntryStream (runIn, r))
             liftIO $ requeueOnHeapTop heap ent seqNo
             liftIO $ incrementYieldLimit sv
@@ -546,7 +545,7 @@ processWithToken q heap st sv winfo action sno = do
 -- XXX we can remove the sv parameter as it can be derived from st
 
 workLoopAhead
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -610,7 +609,7 @@ forkSVarAhead m1 m2 = K.mkStream $ \st yld sng stp -> do
         K.foldStream st yld sng stp $ getSerialT (fromSVar sv)
     where
     concurrently ma mb = K.mkStream $ \st yld sng stp -> do
-        runInIO <- captureMonadState
+        runInIO <- askRunInIO
         liftIO $ enqueue (fromJust $ streamVar st) (runInIO, mb)
         K.foldStream st yld sng stp ma
 
@@ -619,7 +618,7 @@ aheadK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 aheadK m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
-            runInIO <- captureMonadState
+            runInIO <- askRunInIO
             liftIO $ enqueue sv (runInIO, m2)
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further

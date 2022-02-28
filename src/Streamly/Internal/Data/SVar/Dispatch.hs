@@ -49,7 +49,7 @@ import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup ((<>))
 #endif
-import Streamly.Internal.Control.Concurrent (MonadAsync, captureMonadState)
+import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
@@ -707,7 +707,7 @@ sendFirstWorker sv m = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    runIn <- captureMonadState
+    runIn <- askRunInIO
     liftIO $ enqueue sv (runIn, m)
     case yieldRateInfo sv of
         Nothing -> pushWorker 0 sv

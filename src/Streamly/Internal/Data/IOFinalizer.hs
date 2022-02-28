@@ -21,9 +21,8 @@ where
 import Control.Exception (mask_)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, control)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
-import Streamly.Internal.Control.Concurrent (captureMonadState, runInIO)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, askRunInIO, runInIO, withRunInIO)
 
 -- | An 'IOFinalizer' has an associated IO action that is automatically called
 -- whenever the finalizer is garbage collected. The action can be run and
@@ -38,9 +37,9 @@ import Streamly.Internal.Control.Concurrent (captureMonadState, runInIO)
 newtype IOFinalizer = IOFinalizer (IORef (Maybe (IO ())))
 
 -- | Make a finalizer from a monadic action @m a@ that can run in IO monad.
-mkIOFinalizer :: MonadBaseControl IO m => m b -> m (IO ())
+mkIOFinalizer :: MonadRunInIO m => m b -> m (IO ())
 mkIOFinalizer f = do
-    mrun <- captureMonadState
+    mrun <- askRunInIO
     return $
         void $ do
             _ <- runInIO mrun f
@@ -66,7 +65,7 @@ runFinalizerGC ref = do
 -- of the monad but we want to keep both the cases consistent.
 --
 -- /Pre-release/
-newIOFinalizer :: (MonadIO m, MonadBaseControl IO m) => m a -> m IOFinalizer
+newIOFinalizer :: MonadRunInIO m => m a -> m IOFinalizer
 newIOFinalizer finalizer = do
     f <- mkIOFinalizer finalizer
     ref <- liftIO $ newIORef $ Just f
@@ -95,9 +94,9 @@ runIOFinalizer (IOFinalizer ref) = liftIO $ do
 -- action is run with async exceptions masked.
 --
 -- /Pre-release/
-clearingIOFinalizer :: MonadBaseControl IO m => IOFinalizer -> m a -> m a
+clearingIOFinalizer :: MonadRunInIO m => IOFinalizer -> m a -> m a
 clearingIOFinalizer (IOFinalizer ref) action = do
-    control $ \runinio ->
+    withRunInIO $ \runinio ->
         mask_ $ do
             writeIORef ref Nothing
             runinio action

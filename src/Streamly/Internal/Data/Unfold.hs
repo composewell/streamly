@@ -248,11 +248,9 @@ where
 
 import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Functor (($>))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
@@ -830,7 +828,7 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 -- /Pre-release/
 {-# INLINE_NORMAL gbracket #-}
 gbracket
-    :: (MonadIO m, MonadBaseControl IO m)
+    :: MonadRunInIO m
     => (a -> m c)                           -- ^ before
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
     -> (c -> m d)                           -- ^ after, on normal stop, or GC
@@ -845,7 +843,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- liftBaseOp_ mask_ $ do
+        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
@@ -931,7 +929,7 @@ after_ action (Unfold step1 inject1) = Unfold step inject
 --
 -- /Pre-release/
 {-# INLINE_NORMAL after #-}
-after :: (MonadIO m, MonadBaseControl IO m)
+after :: MonadRunInIO m
     => (a -> m c) -> Unfold m a b -> Unfold m a b
 after action (Unfold step1 inject1) = Unfold step inject
 
@@ -1123,7 +1121,7 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- liftBaseOp_ mask_ $ do
+        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)

@@ -16,26 +16,24 @@ where
 
 import Control.Concurrent (ThreadId, forkIO)
 import Control.Exception (SomeException(..), catch, mask)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, control, liftBaseDiscard)
 import Data.Functor (void)
-import Streamly.Internal.Control.Concurrent (RunInIO(..))
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
 import Streamly.Internal.Control.ForkIO (rawForkIO, forkManagedWith)
 
 -- | Fork a thread to run the given computation, installing the provided
--- exception handler. Lifted to any monad with 'MonadBaseControl IO m'
+-- exception handler. Lifted to any monad with 'MonadRunInIO m'
 -- capability.
 --
 -- TODO: the RunInIO argument can be removed, we can directly pass the action
 -- as "mrun action" instead.
 {-# INLINE doFork #-}
-doFork :: MonadBaseControl IO m
+doFork :: MonadRunInIO m
     => m ()
     -> RunInIO m
     -> (SomeException -> IO ())
     -> m ThreadId
 doFork action (RunInIO mrun) exHandler =
-    control $ \run ->
+    withRunInIO $ \run ->
         mask $ \restore -> do
                 tid <- rawForkIO $ catch (restore $ void $ mrun action)
                                          exHandler
@@ -44,12 +42,12 @@ doFork action (RunInIO mrun) exHandler =
 -- | 'fork' lifted to any monad with 'MonadBaseControl IO m' capability.
 --
 {-# INLINABLE fork #-}
-fork :: MonadBaseControl IO m => m () -> m ThreadId
-fork = liftBaseDiscard forkIO
+fork :: MonadRunInIO m => m () -> m ThreadId
+fork m = withRunInIONoRestore $ \run -> forkIO $ void $ run m
 
 -- | Fork a thread that is automatically killed as soon as the reference to the
 -- returned threadId is garbage collected.
 --
 {-# INLINABLE forkManaged #-}
-forkManaged :: (MonadIO m, MonadBaseControl IO m) => m () -> m ThreadId
+forkManaged :: MonadRunInIO m => m () -> m ThreadId
 forkManaged = forkManagedWith fork

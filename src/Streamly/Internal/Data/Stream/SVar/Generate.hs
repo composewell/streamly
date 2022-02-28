@@ -37,7 +37,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
-import Streamly.Internal.Control.Concurrent (MonadAsync, captureMonadState)
+import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
@@ -90,7 +90,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- be read back from the SVar using 'fromSVar'.
 toSVar :: MonadAsync m => SVar SerialT m a -> SerialT m a -> m ()
 toSVar sv m = do
-    runIn <- captureMonadState
+    runIn <- askRunInIO
     liftIO $ enqueue sv (runIn, m)
     done <- allThreadsDone sv
     -- XXX This is safe only when called from the consumer thread or when no
