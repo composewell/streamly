@@ -14,7 +14,7 @@ However, upcoming releases may fix some of these issues.
 
 ### Distributions
 
-Tested with stackage `lts-18.18` and `nix 21.05`.
+Tested with stackage `lts-18.27` and `nix 21.05`.
 
 ### Memory requirements
 
