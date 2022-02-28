@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Array.Foreign.Type
     -- $arrayNotes
       Array (..)
     , asPtrUnsafe
+    , castUnsafe
 
     -- * Freezing and Thawing
     , unsafeFreeze
@@ -170,6 +171,20 @@ asPtrUnsafe Array{..} f = do
   r <- f arrStart
   liftIO $ touch arrContents
   return r
+
+-- | Cast an array having elements of type @a@ into an array having elements of
+-- type @b@. The array size must be a multiple of the size of type @b@
+-- otherwise accessing the last element of the array may result into a crash or
+-- a random value.
+--
+-- /Pre-release/
+--
+castUnsafe ::
+#ifdef DEVBUILD
+    Storable b =>
+#endif
+    Array a -> Array b
+castUnsafe = unsafeFreeze . MA.castUnsafe . unsafeThaw
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing
