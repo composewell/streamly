@@ -34,9 +34,9 @@ environment:
     # Note requiring a specific version of stack using STACKVER may fail due to
     # github API limit while checking and upgrading/downgrading to the specific
     # version.
-    #STACKVER: "1.6.5"
+    # STACKVER: "1.6.5"
     STACK_UPGRADE: "y"
-    RESOLVER: "lts-18.18"
+    # RESOLVER: "lts-18.27"
     STACK_ROOT: "c:\\sr"
     STACK_BUILD_OPTIONS: "--flag streamly-benchmarks:-opt"
     STACK_YAML: "stack.yaml"
