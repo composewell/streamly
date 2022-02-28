@@ -201,7 +201,8 @@ module Streamly.Internal.Data.Fold
 
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector.
+    -- fold selector. 'demux' is a generalization of 'classify' where each key
+    -- of the classifier can use a different fold.
     , demux        -- XXX rename this to demux_
     , demuxWith
     , demuxDefault -- XXX rename this to demux
@@ -211,7 +212,9 @@ module Streamly.Internal.Data.Fold
 
     -- ** Classifying
     -- | In an input stream of key value pairs fold values for different keys
-    -- in individual output buckets using the given fold.
+    -- in individual output buckets using the given fold. 'classify' is a
+    -- special case of 'demux' where all the branches of the demultiplexer use
+    -- the same fold.
     --
     -- Different types of maps can be used with these combinators via the IsMap
     -- type class. Hashmap performs better when there are more collisions, trie
@@ -1476,7 +1479,7 @@ partition = partitionBy id
 --
 -- Any input that does not map to a fold in the input Map is silently ignored.
 --
--- > demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
+-- >>> demuxWith f kv = fmap fst $ Fold.demuxDefaultWith f kv Fold.drain
 --
 -- /Pre-release/
 --
@@ -1497,7 +1500,7 @@ demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 -- :}
 -- fromList [("PRODUCT",8),("SUM",4)]
 --
--- > demux = demuxWith id
+-- >>> demux = Fold.demuxWith id
 --
 -- /Pre-release/
 {-# INLINE demux #-}
@@ -1630,7 +1633,7 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
         return (doneMap, b)
 
 -- |
--- > demuxDefault = demuxDefaultWith id
+-- >>> demuxDefault = Fold.demuxDefaultWith id
 --
 -- /Pre-release/
 {-# INLINE demuxDefault #-}
@@ -1813,12 +1816,12 @@ classifyMutWith f fld =
 --
 -- Same as:
 --
--- > classify fld = Fold.classifyWith fst (lmap snd fld)
+-- >>> classify = Fold.classifyWith fst . Fold.lmap snd
 --
 -- /Pre-release/
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify fld = classifyWith fst (lmap snd fld)
+classify = classifyWith fst . lmap snd
 
 ------------------------------------------------------------------------------
 -- Unzipping
