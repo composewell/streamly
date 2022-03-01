@@ -508,6 +508,7 @@ tapOffsetEvery offset n f xs =
 -- parent stream, but we guarantee that before the parent stream stops the tap
 -- finishes and all exceptions from it are drained.
 --
+-- >>> tapAsync f = Stream.tapAsyncK (Stream.fold f . Stream.adapt)
 --
 -- Compare with 'tap'.
 --
@@ -516,37 +517,18 @@ tapOffsetEvery offset n f xs =
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
 tapAsync f xs = fromStreamD $ Par.tapAsyncF f (toStreamD xs)
 
--- | Redirect a copy of the stream to a supplied fold and run it concurrently
--- in an independent thread. The fold may buffer some elements. The buffer size
--- is determined by the prevailing 'Streamly.Prelude.maxBuffer' setting.
---
--- @
---               Stream m a -> m b
---                       |
--- -----stream m a ---------------stream m a-----
---
--- @
---
--- @
--- > S.drain $ S.tapAsync (S.mapM_ print) (S.enumerateFromTo 1 2)
--- 1
--- 2
--- @
---
--- Exceptions from the concurrently running fold are propagated to the current
--- computation.  Note that, because of buffering in the fold, exceptions may be
--- delayed and may not correspond to the current element being processed in the
--- parent stream, but we guarantee that before the parent stream stops the tap
--- finishes and all exceptions from it are drained.
---
---
--- Compare with 'tap'.
+-- XXX We should keep only tapAsyncK as tapAsync can be implemented in terms
+-- of tapAsyncK and it has better performance. Rename this to tapAsync.
+
+-- | Like 'tapAsyncF' but uses a stream fold function instead of a 'Fold' type.
 --
 -- /Pre-release/
 {-# INLINE tapAsyncK #-}
 tapAsyncK :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsyncK f m = fromStream $ Par.tapAsyncK (f . fromStream) (toStream m)
 
+-- XXX rename this to tapManyAsync_?
+--
 -- | Concurrently distribute a stream to a collection of fold functions,
 -- discarding the outputs of the folds.
 --
