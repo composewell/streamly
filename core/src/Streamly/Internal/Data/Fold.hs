@@ -1306,7 +1306,7 @@ tee = teeWith (,)
 -- >>> Stream.fold (Fold.distribute [Fold.sum, Fold.length]) (Stream.enumerateFromTo 1 5)
 -- [15,5]
 --
--- > distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
+-- >>> distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 --
