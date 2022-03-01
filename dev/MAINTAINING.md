@@ -101,7 +101,7 @@
     * Make sure the description in cabal file is in sync with the docs
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update GHC `tested-with` field
-    * Update `docs/building.md` with the distributions tested with
+    * Update `docs/Compiling.md` with the distributions tested with
     * Any docs linked inside haddock/cabal/changelog or any other such file
       should go in the extra-doc-files section instead of
       extra-source-files. Otherwise hackage shows the links as broken.
@@ -117,11 +117,10 @@
     * Bump the release version in `docs/CONTRIBUTORS.md`.
     * Make sure any third party code included in the release has been listed in
       `docs/Credits.md` and the license is added to the repo.
-    * Bump the release version in `docs/Credits.md`.
 
 * _Update changelog & Version_:
 
-    * Find API changes using `cabal-diff streamly 0.8.1 .` and record
+    * Find API changes using `cabal-diff streamly 0.8.2 .` and record
       them in docs/API-changelog.txt.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
