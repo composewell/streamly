@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.8.1.1
+version:            0.8.2
 synopsis:           Dataflow programming and declarative concurrency
 description:
   Browse the documentation at https://streamly.composewell.com.

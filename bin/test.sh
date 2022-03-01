@@ -2,7 +2,7 @@
 
 SCRIPT_DIR=$(dirname $0)
 
-STREAMLY_VERSION=0.8.1.1
+STREAMLY_VERSION=0.8.2
 BENCH_REPORT_DIR=benchmark/bench-report
 source $SCRIPT_DIR/targets.sh
 
