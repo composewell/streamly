@@ -793,6 +793,7 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
+-- >>> scanl' step z = scan (Fold.foldl' step z)
 -- >>> scanl' f z xs = scanlM' (\a b -> return (f a b)) (return z) xs
 -- >>> scanl' f z xs = z `Stream.cons` postscanl' f z xs
 --
@@ -805,6 +806,7 @@ scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
 
 -- | Like 'scanl'' but does not stream the initial value of the accumulator.
 --
+-- >>> postscanl' step z = postscan (Fold.foldl' step z)
 -- >>> postscanl' f z = postscanlM' (\a b -> return (f a b)) (return z)
 -- >>> postscanl' f z xs = Stream.drop 1 $ Stream.scanl' f z xs
 --
