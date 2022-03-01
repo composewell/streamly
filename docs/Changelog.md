@@ -2,6 +2,12 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## 0.8.2 (Feb 2022)
+
+* Fix performance issues for GHC-9. These changes coupled with GHC changes
+  expected to land in 9.2.2 will bring the performance back to the same levels
+  as before.
+
 ## 0.8.1.1 (Dec 2021)
 
 * Disable building FileSystem.Events where FS Events isn't supported.
