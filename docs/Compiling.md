@@ -8,9 +8,10 @@ GHC 8.6 and above are recommended.  For best performance use GHC 8.8 or
 8.10 along with `fusion-plugin` (see below).  Benchmarks show that GHC
 8.8 has significantly better performance than GHC 8.6 in many cases.
 
-GHC 9.0 and GHC 9.2 have some performance issues, please see [this
+GHC 9.0 and GHC 9.2.1 have some performance issues, please see [this
 issue](https://github.com/composewell/streamly/issues/1061) for details.
-However, upcoming releases may fix some of these issues.
+GHC 9.2.2 is expected to have the fixes that will bring the performance on par
+with previous versions.
 
 ### Distributions
 
