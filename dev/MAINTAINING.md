@@ -137,8 +137,6 @@
 
     * Wait for final CI tests to pass:
 
-        * Create a git tag corresponding to the release where X.Y.Z is the new
-          package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Mask out the build status lines from the
           [docs/Introduction.md](/docs/Introduction.md)
         * Upload to hackage
@@ -156,6 +154,8 @@
             * Run packcheck on the uploaded package. To get the latest uploaded
               version from hackage, run `cabal unpack <package-name>`. You might
               have to run `cabal update`.
+        * Create a git tag corresponding to the release where X.Y.Z is the new
+          package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
         * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
             * Update release contributors on github release page
