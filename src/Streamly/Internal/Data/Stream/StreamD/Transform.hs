@@ -1224,7 +1224,7 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
 
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (a -> a -> Maybe a) -> Stream m a -> Stream m a
-rollingMap f = (mapMaybe id) . rollingMapM (\x y -> return $ f x y)
+rollingMap f = catMaybes . rollingMapM (\ x y -> return $ f x y)
 
 ------------------------------------------------------------------------------
 -- Maybe Streams
@@ -1238,3 +1238,7 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
+
+{-# INLINE catMaybes #-}
+catMaybes :: (Monad m) => Stream m (Maybe a) -> Stream m a
+catMaybes = fmap fromJust . filter isJust
