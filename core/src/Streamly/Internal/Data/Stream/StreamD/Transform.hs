@@ -113,6 +113,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- | Map using the previous element.
     , rollingMap
     , rollingMapM
+    , rollingMap2
 
     -- * Maybe Streams
     , mapMaybe
@@ -1200,31 +1201,35 @@ slicesBy p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
 -- Rolling map
 ------------------------------------------------------------------------------
 
-data RollingMapState s a = RollingMapInit s | RollingMapGo s a
+data RollingMapState s a = RollingMapGo s a
 
 {-# INLINE rollingMapM #-}
-rollingMapM :: Monad m => (a -> a -> m b) -> Stream m a -> Stream m b
-rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
-    where
-    step gst (RollingMapInit st) = do
-        r <- step1 (adaptState gst) st
-        return $ case r of
-            Yield x s -> Skip $ RollingMapGo s x
-            Skip s -> Skip $ RollingMapInit s
-            Stop   -> Stop
+rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Stream m a -> Stream m b
+rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
 
-    step gst (RollingMapGo s1 x1) = do
+    where
+
+    step gst (RollingMapGo s1 curr) = do
         r <- step1 (adaptState gst) s1
         case r of
             Yield x s -> do
-                !res <- f x x1
-                return $ Yield res $ RollingMapGo s x
-            Skip s -> return $ Skip $ RollingMapGo s x1
+                !res <- f curr x
+                return $ Yield res $ RollingMapGo s (Just x)
+            Skip s -> return $ Skip $ RollingMapGo s curr
             Stop   -> return Stop
 
 {-# INLINE rollingMap #-}
-rollingMap :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
+rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
 rollingMap f = rollingMapM (\x y -> return $ f x y)
+
+{-# INLINE rollingMap2 #-}
+rollingMap2 :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
+rollingMap2 f = catMaybes . rollingMap g
+
+    where
+
+    g Nothing _ = Nothing
+    g (Just x) y = Just (f x y)
 
 ------------------------------------------------------------------------------
 -- Maybe Streams
@@ -1238,3 +1243,7 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
+
+{-# INLINE catMaybes #-}
+catMaybes :: (Monad m) => Stream m (Maybe a) -> Stream m a
+catMaybes = fmap fromJust . filter isJust

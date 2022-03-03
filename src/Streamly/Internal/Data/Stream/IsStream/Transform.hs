@@ -156,6 +156,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- | Map using the previous element.
     , rollingMapM
     , rollingMap
+    , rollingMap2
 
     -- * Maybe Streams
     -- Move these to Streamly.Data.Maybe.Stream?
@@ -921,8 +922,14 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 {-# INLINE uniqBy #-}
 uniqBy :: (IsStream t, Monad m, Functor (t m)) =>
     (a -> a -> Bool) -> t m a -> t m a
-uniqBy eq =
-    catMaybes . rollingMap (\x y -> if x `eq` y then Nothing else Just y)
+uniqBy eq = catMaybes . rollingMap f
+
+    where
+
+    f pre curr =
+        case pre of
+            Nothing -> Just curr
+            Just x -> if x `eq` curr then Nothing else Just curr
 
 -- | Drop repeated elements that are adjacent to each other.
 --
@@ -1519,7 +1526,7 @@ elemIndices a = findIndices (== a)
 -- /Pre-release/
 --
 {-# INLINE rollingMap #-}
-rollingMap :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
+rollingMap :: (IsStream t, Monad m) => (Maybe a -> a -> b) -> t m a -> t m b
 rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 
 -- | Like 'rollingMap' but with an effectful map function.
@@ -1527,8 +1534,12 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 -- /Pre-release/
 --
 {-# INLINE rollingMapM #-}
-rollingMapM :: (IsStream t, Monad m) => (a -> a -> m b) -> t m a -> t m b
+rollingMapM :: (IsStream t, Monad m) => (Maybe a -> a -> m b) -> t m a -> t m b
 rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
+
+{-# INLINE rollingMap2 #-}
+rollingMap2 :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
+rollingMap2 f m = fromStreamD $ D.rollingMap2 f $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Maybe Streams
