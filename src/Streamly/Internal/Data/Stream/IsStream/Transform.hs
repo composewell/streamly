@@ -919,10 +919,10 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 -- /Pre-release/
 --
 {-# INLINE uniqBy #-}
-uniqBy :: (IsStream t, Monad m, Functor (t m)) =>
+uniqBy :: (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a
 uniqBy eq =
-    catMaybes . rollingMap (\x y -> if x `eq` y then Nothing else Just y)
+    rollingMap (\x y -> if x `eq` y then Nothing else Just y)
 
 -- | Drop repeated elements that are adjacent to each other.
 --
@@ -1519,7 +1519,7 @@ elemIndices a = findIndices (== a)
 -- /Pre-release/
 --
 {-# INLINE rollingMap #-}
-rollingMap :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
+rollingMap :: (IsStream t, Monad m) => (a -> a -> Maybe a) -> t m a -> t m a
 rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 
 -- | Like 'rollingMap' but with an effectful map function.
@@ -1527,8 +1527,8 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 -- /Pre-release/
 --
 {-# INLINE rollingMapM #-}
-rollingMapM :: (IsStream t, Monad m) => (a -> a -> m b) -> t m a -> t m b
-rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
+rollingMapM :: (IsStream t, Monad m) => (a -> a -> m (Maybe a)) -> t m a -> t m a
+rollingMapM f m = catMaybes $ fromStreamD $ D.rollingMapM f $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Maybe Streams

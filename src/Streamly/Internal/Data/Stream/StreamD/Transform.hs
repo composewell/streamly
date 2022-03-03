@@ -1203,13 +1203,13 @@ slicesBy p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
 data RollingMapState s a = RollingMapInit s | RollingMapGo s a
 
 {-# INLINE rollingMapM #-}
-rollingMapM :: Monad m => (a -> a -> m b) -> Stream m a -> Stream m b
+rollingMapM :: Monad m => (a -> a -> m (Maybe a)) -> Stream m a -> Stream m (Maybe a)
 rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
     where
     step gst (RollingMapInit st) = do
         r <- step1 (adaptState gst) st
         return $ case r of
-            Yield x s -> Skip $ RollingMapGo s x
+            Yield x s -> Yield (Just x) $ RollingMapGo s x
             Skip s -> Skip $ RollingMapInit s
             Stop   -> Stop
 
@@ -1217,14 +1217,14 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
         r <- step1 (adaptState gst) s1
         case r of
             Yield x s -> do
-                !res <- f x x1
+                !res <- f x1 x
                 return $ Yield res $ RollingMapGo s x
             Skip s -> return $ Skip $ RollingMapGo s x1
             Stop   -> return Stop
 
 {-# INLINE rollingMap #-}
-rollingMap :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
-rollingMap f = rollingMapM (\x y -> return $ f x y)
+rollingMap :: Monad m => (a -> a -> Maybe a) -> Stream m a -> Stream m a
+rollingMap f = (mapMaybe id) . rollingMapM (\x y -> return $ f x y)
 
 ------------------------------------------------------------------------------
 -- Maybe Streams

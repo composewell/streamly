@@ -151,7 +151,7 @@ pollCounts n =
 
     where
 
-    f = Internal.rollingMap (-) . Internal.delayPost 1
+    f = Internal.rollingMap (\a b -> Just (a-b)) . Internal.delayPost 1
 
 {-# INLINE timestamped #-}
 timestamped :: (S.MonadAsync m) => SerialT m Int -> m ()

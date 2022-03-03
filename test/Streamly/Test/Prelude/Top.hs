@@ -178,10 +178,10 @@ intersectBy ::
        )
     -> (Int -> Int -> a)
     -> Property
-intersectBy _srt intersectFunc cmp =
+intersectBy srt intersectFunc cmp =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
-            monadicIO $ action (sort ls0) (sort ls1)
+            monadicIO $ action (srt ls0) (srt ls1)
 
             where
 
@@ -194,7 +194,7 @@ intersectBy _srt intersectFunc cmp =
                         (S.fromList ls0)
                         (S.fromList ls1)
                 let v2 = ls0 `intersect` ls1
-                assert (v1 == sort v2)
+                assert (sort v1 == sort v2)
 
 -------------------------------------------------------------------------------
 -- Main
@@ -215,7 +215,7 @@ main = hspec $ do
         prop "joinLeft" Main.joinLeft
         prop "joinLeftMap" Main.joinLeftMap
         -- intersect
-        -- XXX currently API is broken https://github.com/composewell/streamly/issues/1471
-        --prop "intersectBy" (intersectBy id Top.intersectBy (==))
+        prop "intersectBy"
+            (intersectBy id Top.intersectBy (==))
         prop "intersectBySorted"
             (intersectBy sort Top.intersectBySorted compare)
