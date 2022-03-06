@@ -166,7 +166,7 @@ partitionByFstM =
 partitionByMinM :: Monad m => SerialT m Int -> m (Int, Int)
 partitionByMinM =
     IP.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
-
+{-
 {-# INLINE demuxWith  #-}
 demuxWith ::
        (Monad m, Ord k)
@@ -175,15 +175,16 @@ demuxWith ::
     -> SerialT m a
     -> m (Map k b)
 demuxWith f mp = S.fold (FL.demuxWith f mp)
+-}
 
 {-# INLINE demuxDefaultWith #-}
 demuxDefaultWith ::
        (Monad m, Ord k, Num b)
-    => (a -> (k, b))
-    -> Map k (Fold m b b)
+    => (a -> k)
+    -> Map k (Fold m a b)
     -> SerialT m a
-    -> m (Map k b, b)
-demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.lmap snd FL.sum))
+    -> m (Map k b)
+demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.foldl' const 0))
 
 {-# INLINE classifyWith #-}
 classifyWith ::
@@ -336,17 +337,17 @@ o_1_space_serial_composition value =
             , benchIOSink value "unzipWithMinM (sum, length)" unzipWithMinM
             , benchIOSink value "demuxDefaultWith [sum, length] sum"
                   $ demuxDefaultWith fn mp
-            , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
-            , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+           -- , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
+            , benchIOSink value "classifyWith sum" $ classifyWith fn
             ]
       ]
 
     where
 
     -- We use three keys 0, 1, and 2. 0 and 1 are mapped and 3 is unmapped.
-    fn x = (x `mod` 3, x)
+    fn x = x `mod` 3
 
-    mp = Map.fromList [(0, FL.sum), (1, FL.length)]
+    mp = Map.fromList [(0 :: Int, FL.sum), (1, FL.length)]
 
 o_n_space_serial :: Int -> [Benchmark]
 o_n_space_serial value =
