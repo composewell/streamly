@@ -187,9 +187,9 @@ module Streamly.Internal.Data.Fold
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
     -- fold selector.
-    , demux        -- XXX rename this to demux_
-    , demuxWith
-    , demuxDefault -- XXX rename this to demux
+    --, demux        -- XXX rename this to demux_
+    --, demuxWith
+    --, demuxDefault -- XXX rename this to demux
     , demuxDefaultWith
     -- , demuxWithSel
     -- , demuxWithMin
@@ -1348,10 +1348,12 @@ partition = partitionBy id
 --
 -- /Pre-release/
 --
+{-
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
-    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a (Map k b)
-demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
+    => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
+demuxWith f kv = demuxDefaultWith f kv drain
+-}
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1368,10 +1370,12 @@ demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
 -- > demux = demuxWith id
 --
 -- /Pre-release/
+{-
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
 demux = demuxWith id
+-}
 
 data DemuxState s b doneMap runMap =
       DemuxMapAndDefault !s !doneMap !runMap
@@ -1391,10 +1395,10 @@ data DemuxState s b doneMap runMap =
 --
 {-# INLINE demuxDefaultWith #-}
 demuxDefaultWith :: (Monad m, Ord k)
-    => (a -> (k, a'))
-    -> Map k (Fold m a' b)
-    -> Fold m (k, a') c
-    -> Fold m a (Map k b, c)
+    => (a -> k)
+    -> Map k (Fold m a b)
+    -> Fold m a b
+    -> Fold m a (Map k b)
 demuxDefaultWith f kv (Fold dstep dinitial dextract) =
     Fold step initial extract
 
@@ -1426,7 +1430,7 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
                   Done b ->
                       if Map.size runMap > 0
                       then Partial $ DemuxOnlyMap b doneMap runMap
-                      else Done (doneMap, b)
+                      else Done doneMap
 
     {-# INLINE runFold #-}
     runFold fPartial fDone doneMap runMap (Fold step1 initial1 done1) k a1 = do
@@ -1448,10 +1452,10 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
             Done _ -> error "Bug: demuxDefaultWith: Done fold"
 
     step (DemuxMapAndDefault dacc doneMap runMap) a = do
-        let (k, a1) = f a
+        let k = f a
         case Map.lookup k runMap of
             Nothing -> do
-                res <- dstep dacc (k, a1)
+                res <- dstep dacc a
                 return
                     $ Partial
                     $ case res of
@@ -1461,24 +1465,24 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
                 runFold
                     (DemuxMapAndDefault dacc)
                     (Partial . DemuxOnlyDefault dacc)
-                    doneMap runMap fld k a1
+                    doneMap runMap fld k a
 
     step (DemuxOnlyMap dval doneMap runMap) a = do
-        let (k, a1) = f a
+        let k = f a
         case Map.lookup k runMap of
             Nothing -> return $ Partial $ DemuxOnlyMap dval doneMap runMap
             Just fld ->
                 runFold
                     (DemuxOnlyMap dval)
-                    (Done . (, dval))
-                    doneMap runMap fld k a1
+                    Done
+                    doneMap runMap fld k a
+
     step (DemuxOnlyDefault dacc doneMap) a = do
-        let (k, a1) = f a
-        res <- dstep dacc (k, a1)
+        res <- dstep dacc a
         return
             $ case res of
                   Partial s -> Partial $ DemuxOnlyDefault s doneMap
-                  Done b -> Done (doneMap, b)
+                  Done _b -> Done doneMap
 
     runExtract (Fold _ initial1 done1) = do
         res <- initial1
@@ -1487,24 +1491,16 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
             Done b -> return b
 
     extract (DemuxMapAndDefault dacc doneMap runMap) = do
-        b <- dextract dacc
+        _b <- dextract dacc
         runMap1 <- Prelude.mapM runExtract runMap
-        return (doneMap `Map.union` runMap1, b)
-    extract (DemuxOnlyMap dval doneMap runMap) = do
+        return (doneMap `Map.union` runMap1)
+    extract (DemuxOnlyMap _dval doneMap runMap) = do
         runMap1 <- Prelude.mapM runExtract runMap
-        return (doneMap `Map.union` runMap1, dval)
+        return (doneMap `Map.union` runMap1)
     extract (DemuxOnlyDefault dacc doneMap) = do
-        b <- dextract dacc
-        return (doneMap, b)
+        _b <- dextract dacc
+        return doneMap
 
--- |
--- > demuxDefault = demuxDefaultWith id
---
--- /Pre-release/
-{-# INLINE demuxDefault #-}
-demuxDefault :: (Monad m, Ord k)
-    => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
-demuxDefault = demuxDefaultWith id
 
 -- TODO If the data is large we may need a map/hashmap in pinned memory instead
 -- of a regular Map. That may require a serializable constraint though. We can
@@ -1529,46 +1525,7 @@ demuxDefault = demuxDefaultWith id
 --
 {-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
-classifyWith f (Fold step1 initial1 extract1) =
-    rmapM extract $ foldlM' step initial
-
-    where
-
-    initial = return Map.empty
-
-    step kv a =
-        case Map.lookup k kv of
-            Nothing -> do
-                x <- initial1
-                case x of
-                      Partial s -> do
-                        r <- step1 s a
-                        return
-                            $ flip (Map.insert k) kv
-                            $ case r of
-                                  Partial s1 -> Left' s1
-                                  Done b -> Right' b
-                      Done b -> return $ Map.insert k (Right' b) kv
-            Just x -> do
-                case x of
-                    Left' s -> do
-                        r <- step1 s a
-                        return
-                            $ flip (Map.insert k) kv
-                            $ case r of
-                                  Partial s1 -> Left' s1
-                                  Done b -> Right' b
-                    Right' _ -> return kv
-
-        where
-
-        k = f a
-
-    extract =
-        Prelude.mapM
-            (\case
-                 Left' s -> extract1 s
-                 Right' b -> return b)
+classifyWith f = demuxDefaultWith f Map.empty
 
 -- | Given an input stream of key value pairs and a fold for values, fold all
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the
