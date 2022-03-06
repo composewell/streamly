@@ -43,7 +43,7 @@ intersectBySorted =
                         compare
                         (S.fromList ls0)
                         (S.fromList ls1)
-                let v2 = intersect ls0 ls1
+                let v2 = ls0 `intersect` ls1
                 assert (v1 == sort v2)
 
 unionBySorted :: Property
