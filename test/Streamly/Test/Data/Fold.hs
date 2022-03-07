@@ -546,9 +546,9 @@ headAndRest ls = monadicIO $ do
     taill [] = []
     taill (_:xs) = xs
 
-demux :: Expectation
-demux =
-    let table = Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
+demux_ :: Expectation
+demux_ =
+    let table = Data.Map.fromList [("SUM", FL.drain), ("PRODUCT", FL.drain)]
         input = Stream.fromList (
                 [ ("SUM", 1)
                 , ("PRODUCT", 2)
@@ -556,59 +556,54 @@ demux =
                 , ("PRODUCT", 4)
                 ] :: [(String, Int)])
     in Stream.fold
-        (F.demux table)
+        (F.demux_ table)
         input
         `shouldReturn`
-        Data.Map.fromList [("PRODUCT", 8),("SUM", 4)]
+        Data.Map.fromList [("PRODUCT", ()),("SUM", ())]
 
-
-demuxWithSum :: Expectation
-demuxWithSum =
-    let f x = ("SUM", x::Int)
-        table = Data.Map.fromList [("SUM", FL.sum)]
-        input = Stream.fromList [1, 4]
+demuxSum :: Expectation
+demuxSum =
+    let table = Data.Map.fromList [("SUM", FL.lmap snd FL.sum)]
+        input = Stream.fromList [("SUM", 1 :: Int), ("SUM", 4)]
     in Stream.fold
-        (F.demuxWith f table)
+        (F.demux table FL.sum)
         input
         `shouldReturn`
         Data.Map.fromList [("SUM", 5)]
 
-demuxWithProduct :: Expectation
-demuxWithProduct =
-    let f x = ("PRODUCT", x::Int)
-        table = Data.Map.fromList [("PRODUCT", FL.product)]
-        input = Stream.fromList [2, 4]
+demuxProduct :: Expectation
+demuxProduct =
+    let table = Data.Map.fromList [("PRODUCT", FL.lmap snd FL.product)]
+        input = Stream.fromList [("PRODUCT", 2 :: Int), ("PRODUCT", 4)]
     in Stream.fold
-        (F.demuxWith f table)
+        (F.demux table FL.product)
         input
         `shouldReturn`
         Data.Map.fromList [("PRODUCT", 8)]
 
 demuxDefaultWithSum :: Expectation
 demuxDefaultWithSum =
-    let f x = ("SUM", x::Int)
-        table = Data.Map.fromList [("SUM", FL.sum)]
-        input = Stream.fromList [2, 4]
+    let table = Data.Map.fromList [("SUM", FL.lmap snd FL.sum)]
+        input = Stream.fromList [("SUM", 2 :: Int), ("SUM", 4)]
     in Stream.fold
-        (F.demuxDefaultWith f table (FL.lmap snd FL.sum))
+        (F.demuxDefaultWith fst table (FL.lmap snd FL.sum))
         input
         `shouldReturn`
-        (Data.Map.fromList [("SUM" , 6)] , 0)
+        Data.Map.fromList [("SUM", 6)]
 
 demuxDefaultWithProduct :: Expectation
 demuxDefaultWithProduct =
-    let f x = ("PRODUCT", x::Int)
-        table = Data.Map.fromList [("PRODUCT", FL.product)]
-        input = Stream.fromList [2, 4]
+    let table = Data.Map.fromList [("PRODUCT", FL.lmap snd FL.product)]
+        input = Stream.fromList [("PRODUCT", 2 :: Int), ("PRODUCT", 4)]
     in Stream.fold
-        (F.demuxDefaultWith f table (FL.lmap snd FL.product))
+        (F.demuxDefaultWith fst table (FL.lmap snd FL.product))
         input
         `shouldReturn`
-        (Data.Map.fromList [("PRODUCT" , 8)] , 1)
+        Data.Map.fromList [("PRODUCT" , 8)]
 
 demuxDefault :: Expectation
 demuxDefault =
-    let table =  Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
+    let table =  Data.Map.fromList [("SUM", FL.lmap snd FL.sum), ("PRODUCT", FL.lmap snd FL.product)]
         input = Stream.fromList
             [ ("SUM", 1::Int)
             , ("PRODUCT", 2::Int)
@@ -616,24 +611,29 @@ demuxDefault =
             , ("PRODUCT", 4::Int)
             ]
     in Stream.fold
-        (F.demuxDefault table (FL.lmap snd FL.product))
+        (F.demux table FL.sum)
         input
         `shouldReturn`
-        (Data.Map.fromList [("PRODUCT", 8), ("SUM", 4)], 1)
+        Data.Map.fromList [("PRODUCT", 8), ("SUM", 4)]
 
 demuxDefaultEmpty :: Expectation
 demuxDefaultEmpty =
     let table =  Data.Map.empty
         input = Stream.fromList []
     in Stream.fold
-        (F.demuxDefault table (FL.lmap snd FL.product))
+        (F.demux table (FL.lmap snd FL.product))
         input
         `shouldReturn`
-        (Data.Map.fromList ([]::[(String, Int)]), 1)
+        Data.Map.fromList ([]::[(String, Int)])
 
 classifyWith :: Expectation
 classifyWith =
-    let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+    let input = Stream.fromList
+                [ ("ONE", 1)
+                , ("ONE", 1.1)
+                , ("TWO", 2)
+                , ("TWO", 2.2)
+                ]
     in Stream.fold
         (F.classifyWith fst (FL.lmap snd FL.toList))
         input
@@ -695,9 +695,9 @@ main = hspec $ do
 
         prop "toList" toList
         prop "toListRev" toListRev
-        prop "demux" demux
-        prop "demuxWithSum" demuxWithSum
-        prop "demuxWithProduct" demuxWithProduct
+        prop "demux_" demux_
+        prop "demuxSum" demuxSum
+        prop "demuxProduct" demuxProduct
         prop "demuxDefaultWithSum" demuxDefaultWithSum
         prop "demuxDefaultWithProduct" demuxDefaultWithProduct
         prop "demuxDefault" demuxDefault

@@ -187,9 +187,9 @@ module Streamly.Internal.Data.Fold
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
     -- fold selector.
-    --, demux        -- XXX rename this to demux_
+    , demux_
     --, demuxWith
-    --, demuxDefault -- XXX rename this to demux
+    , demux
     , demuxDefaultWith
     -- , demuxWithSel
     -- , demuxWithMin
@@ -1307,76 +1307,6 @@ partition :: Monad m
     => Fold m b x -> Fold m c y -> Fold m (Either b c) (x, y)
 partition = partitionBy id
 
-{-
--- | Send one item to each fold in a round-robin fashion. This is the consumer
--- side dual of producer side 'mergeN' operation.
---
--- partitionN :: Monad m => [Fold m a b] -> Fold m a [b]
--- partitionN fs = Fold step begin done
--}
-
--- TODO Demultiplex an input element into a number of typed variants. We want
--- to statically restrict the target values within a set of predefined types,
--- an enumeration of a GADT. We also want to make sure that the Map contains
--- only those types and the full set of those types.
---
--- TODO Instead of the input Map it should probably be a lookup-table using an
--- array and not in GC memory. The same applies to the output Map as well.
--- However, that would only be helpful if we have a very large data structure,
--- need to measure and see how it scales.
---
--- This is the consumer side dual of the producer side 'mux' operation (XXX to
--- be implemented).
-
--- | Split the input stream based on a key field and fold each split using a
--- specific fold collecting the results in a map from the keys to the results.
--- Useful for cases like protocol handlers to handle different type of packets
--- using different handlers.
---
--- @
---
---                             |-------Fold m a b
--- -----stream m a-----Map-----|
---                             |-------Fold m a b
---                             |
---                                       ...
--- @
---
--- Any input that does not map to a fold in the input Map is silently ignored.
---
--- > demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
---
--- /Pre-release/
---
-{-
-{-# INLINE demuxWith #-}
-demuxWith :: (Monad m, Ord k)
-    => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
-demuxWith f kv = demuxDefaultWith f kv drain
--}
-
--- | Fold a stream of key value pairs using a map of specific folds for each
--- key into a map from keys to the results of fold outputs of the corresponding
--- values.
---
--- >>> import qualified Data.Map
--- >>> :{
---  let table = Data.Map.fromList [("SUM", Fold.sum), ("PRODUCT", Fold.product)]
---      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
---   in Stream.fold (Fold.demux table) input
--- :}
--- fromList [("PRODUCT",8),("SUM",4)]
---
--- > demux = demuxWith id
---
--- /Pre-release/
-{-
-{-# INLINE demux #-}
-demux :: (Monad m, Ord k)
-    => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
-demux = demuxWith id
--}
-
 data DemuxState s b doneMap runMap =
       DemuxMapAndDefault !s !doneMap !runMap
     | DemuxOnlyMap b !doneMap !runMap
@@ -1399,7 +1329,7 @@ demuxDefaultWith :: (Monad m, Ord k)
     -> Map k (Fold m a b)
     -> Fold m a b
     -> Fold m a (Map k b)
-demuxDefaultWith f kv (Fold dstep dinitial dextract) =
+demuxDefaultWith f kv fd@(Fold dstep dinitial dextract) =
     Fold step initial extract
 
     where
@@ -1423,10 +1353,7 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
         return
             $ case dres of
                   Partial s ->
-                      Partial
-                          $ if Map.size runMap > 0
-                            then DemuxMapAndDefault s doneMap runMap
-                            else DemuxOnlyDefault s doneMap
+                      Partial $ DemuxMapAndDefault s doneMap runMap
                   Done b ->
                       if Map.size runMap > 0
                       then Partial $ DemuxOnlyMap b doneMap runMap
@@ -1454,13 +1381,11 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
     step (DemuxMapAndDefault dacc doneMap runMap) a = do
         let k = f a
         case Map.lookup k runMap of
-            Nothing -> do
-                res <- dstep dacc a
-                return
-                    $ Partial
-                    $ case res of
-                          Partial s -> DemuxMapAndDefault s doneMap runMap
-                          Done b -> DemuxOnlyMap b doneMap runMap
+            Nothing ->
+                runFold
+                    (DemuxMapAndDefault dacc)
+                    (Partial . DemuxOnlyDefault dacc)
+                    doneMap runMap fd k a
             Just fld ->
                 runFold
                     (DemuxMapAndDefault dacc)
@@ -1482,7 +1407,7 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
         return
             $ case res of
                   Partial s -> Partial $ DemuxOnlyDefault s doneMap
-                  Done _b -> Done doneMap
+                  Done _ -> Done doneMap
 
     runExtract (Fold _ initial1 done1) = do
         res <- initial1
@@ -1491,16 +1416,15 @@ demuxDefaultWith f kv (Fold dstep dinitial dextract) =
             Done b -> return b
 
     extract (DemuxMapAndDefault dacc doneMap runMap) = do
-        _b <- dextract dacc
+        _ <- dextract dacc
         runMap1 <- Prelude.mapM runExtract runMap
         return (doneMap `Map.union` runMap1)
-    extract (DemuxOnlyMap _dval doneMap runMap) = do
+    extract (DemuxOnlyMap _ doneMap runMap) = do
         runMap1 <- Prelude.mapM runExtract runMap
         return (doneMap `Map.union` runMap1)
     extract (DemuxOnlyDefault dacc doneMap) = do
-        _b <- dextract dacc
+        _ <- dextract dacc
         return doneMap
-
 
 -- TODO If the data is large we may need a map/hashmap in pinned memory instead
 -- of a regular Map. That may require a serializable constraint though. We can
@@ -1545,6 +1469,32 @@ classifyWith f = demuxDefaultWith f Map.empty
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
 classify fld = classifyWith fst (lmap snd fld)
+
+-- | Fold a stream of key value pairs using a map of specific folds for each
+-- key into a map from keys to the results of fold outputs of the corresponding
+-- values.
+--
+-- >>> import qualified Data.Map
+-- >>> :{
+--  let table = Data.Map.fromList [("SUM", Fold.sum), ("PRODUCT", Fold.product)]
+--      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
+--   in Stream.fold (Fold.demux table) input
+-- :}
+-- fromList [("PRODUCT",8),("SUM",4)]
+--
+-- > demux kv fld = demuxDefaultWith fst kv (lmap snd fld)
+--
+-- /Pre-release/
+{-# INLINE demux #-}
+demux ::  (Monad m, Ord k)
+    => Map k (Fold m (k, a) b) -> Fold m a b -> Fold m (k, a) (Map k b)
+demux kv fld = demuxDefaultWith fst kv (lmap snd fld)
+
+-- /Pre-release/
+{-# INLINE demux_ #-}
+demux_ :: (Monad m, Ord k)
+    => Map k (Fold m (k, a) ()) -> Fold m (k, a) (Map k ())
+demux_ kv = demux kv drain
 
 ------------------------------------------------------------------------------
 -- Unzipping
