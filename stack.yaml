@@ -3,6 +3,7 @@ packages:
 - '.'
 - './benchmark'
 - './test'
+- './core'
 
 extra-deps:
   - unicode-data-0.2.0

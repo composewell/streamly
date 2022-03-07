@@ -146,6 +146,7 @@ jobs:
         - *restore
         - run:
             environment:
+              CABAL_PROJECT: "cabal.project"
               DISABLE_TEST: "yes"
               DISABLE_BENCH: "yes"
               DISABLE_DIST_CHECKS: "yes"

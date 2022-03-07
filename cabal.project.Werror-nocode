@@ -2,8 +2,12 @@ packages:
   ./
   benchmark
   test
+  core
 
 package streamly
+  ghc-options: -Werror -fno-code
+
+package streamly-core
   ghc-options: -Werror -fno-code
 
 package streamly-benchmarks

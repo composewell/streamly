@@ -184,6 +184,7 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 --
 -- $setup
 -- >>> :m
+-- >>> :set -package streamly
 -- >>> import Prelude hiding ()
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream

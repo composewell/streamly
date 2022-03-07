@@ -2,11 +2,16 @@ packages:
   ./
   test
   benchmark
+  core
 
 -- Keep the flags same as cabal.project.doctest because we utilize the
 -- same build for doctests in CI.
 
 package streamly
+  flags: -opt
+  ghc-options: -O0 -Werror
+
+package streamly-core
   flags: -opt
   ghc-options: -O0 -Werror
 

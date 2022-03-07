@@ -273,6 +273,7 @@ import Streamly.Internal.Data.Fold.Type
 
 -- $setup
 -- >>> :m
+-- >>> :set -package streamly
 -- >>> import Prelude hiding (break, map, span, splitAt)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, foldMany)

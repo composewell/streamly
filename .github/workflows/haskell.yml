@@ -83,6 +83,7 @@ jobs:
             runner: ubuntu-latest
             doctest: "y"
             cabal_version: 3.6
+            cabal_project: cabal.project
             ignore_error: false
           - name: 9.0.1
             ghc_version: 9.0.1
@@ -123,17 +124,6 @@ jobs:
             cabal_project: cabal.project.Werror
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
-          - name: 8.10.7-sdist-streamly-core
-            ghc_version: 8.10.7
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6
-            cabal_project: cabal.project
-            cabal_build_targets: "streamly"
-            cabal_build_options: "--flag streamly-core"
-            disable_test: "y"
-            disable_bench: "y"
-            ignore_error: false
           - name: 8.8.4-sdist-fusion
             ghc_version: 8.8.4
             runner: ubuntu-latest
@@ -163,6 +153,7 @@ jobs:
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6
+            cabal_project: cabal.project
             ignore_error: false
 
     steps:

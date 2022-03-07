@@ -18,10 +18,6 @@ AC_CHECK_DECLS([kFSEventStreamCreateFlagFullHistory],[],[],[#include <CoreServic
 AC_CHECK_DECLS([kFSEventStreamEventFlagItemCloned],[],[],[#include <CoreServices/CoreServices.h>])
 AC_CHECK_DECLS([kFSEventStreamEventFlagItemIsHardlink],[],[],[#include <CoreServices/CoreServices.h>])
 
-# Check headers and functions required
-AC_CHECK_HEADERS([time.h])
-AC_CHECK_FUNCS([clock_gettime])
-
 # Output
 AC_CONFIG_HEADERS([src/config.h])
 AC_OUTPUT
