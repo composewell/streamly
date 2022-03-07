@@ -215,6 +215,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 --
 -- $setup
 -- >>> :m
+-- >>> :set -package streamly
 -- >>> import Prelude hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)

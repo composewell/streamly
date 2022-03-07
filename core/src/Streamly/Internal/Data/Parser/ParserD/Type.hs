@@ -160,6 +160,7 @@ import Prelude hiding (concatMap)
 --
 -- $setup
 -- >>> :m
+-- >>> :set -package streamly
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Prelude hiding (concatMap)
 -- >>> import qualified Streamly.Prelude as Stream

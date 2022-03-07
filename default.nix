@@ -44,6 +44,8 @@ let haskellPackages =
                 with nixpkgs.haskell.lib;
                 {
                     streamly = mkPackage super "streamly" ./. flags inShell;
+                    streamly-core =
+                        mkPackage super "streamly-core" ./core flags inShell;
                     streamly-benchmarks =
                         mkPackage super "streamly-benchmarks"
                             ./benchmark flags inShell;
@@ -109,6 +111,7 @@ let haskellPackages =
     shell = drv.shellFor {
         packages = p:
           [ p.streamly
+            p.streamly-core
             p.streamly-benchmarks
             p.streamly-tests
             p.streamly-docs

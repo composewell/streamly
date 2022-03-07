@@ -1,8 +1,12 @@
 packages:
   ./
   test
+  core
 
 package streamly
+  coverage: true
+
+package streamly-core
   coverage: true
 
 -- package streamly-tests

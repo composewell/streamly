@@ -2,8 +2,12 @@ packages:
   ./
   benchmark
   test
+  core
 
 package streamly
+  ghc-options: -Werror
+
+package streamly-core
   ghc-options: -Werror
 
 package streamly-benchmarks

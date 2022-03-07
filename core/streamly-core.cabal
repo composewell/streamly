@@ -1,0 +1,345 @@
+cabal-version:      2.2
+name:               streamly-core
+version:            0.1.0
+synopsis:           Dataflow programming and declarative concurrency
+description:        Basic streaming and arrays functionality of streamly.
+
+homepage:            https://streamly.composewell.com
+bug-reports:         https://github.com/composewell/streamly/issues
+author:              Composewell Technologies
+maintainer:          streamly@composewell.com
+copyright:           2017 Composewell Technologies
+category:
+    Streamly, Streaming, Dataflow, Pipes, List,
+    Logic, Non-determinism, Parsing, Array, Time
+stability:           Stable
+build-type:          Configure
+
+extra-source-files:
+    configure
+    configure.ac
+
+    -- This is duplicated
+    src/Streamly/Internal/Data/Stream/Instances.hs
+    src/Streamly/Internal/Data/Stream/PreludeCommon.hs
+    src/Streamly/Internal/Data/Array/ArrayMacros.h
+    src/inline.hs
+
+    src/Streamly/Internal/Data/Time/Clock/config-clock.h
+    src/config.h.in
+
+extra-tmp-files:
+    config.log
+    config.status
+    autom4te.cache
+    src/config.h
+
+source-repository head
+    type: git
+    location: https://github.com/composewell/streamly
+
+flag debug
+  description: Debug build with asserts enabled
+  manual: True
+  default: False
+
+flag dev
+  description: Development build
+  manual: True
+  default: False
+
+flag has-llvm
+  description: Use llvm backend for code generation
+  manual: True
+  default: False
+
+flag no-fusion
+  description: Disable rewrite rules for stream fusion
+  manual: True
+  default: False
+
+flag streamk
+  description: Use CPS style streams when possible
+  manual: True
+  default: False
+
+flag use-c-malloc
+  description: Use C malloc instead of GHC malloc
+  manual: True
+  default: False
+
+flag opt
+  description: off=GHC default, on=-O2
+  manual: True
+  default: True
+
+flag limit-build-mem
+  description: Limits memory when building
+  manual: True
+  default: False
+
+flag use-unliftio
+  description: Use unliftio-core instead of monad-control
+  manual: True
+  default: False
+
+-------------------------------------------------------------------------------
+-- Common stanzas
+-------------------------------------------------------------------------------
+
+common compile-options
+    default-language: Haskell2010
+
+    if flag(streamk)
+      cpp-options:    -DUSE_STREAMK_ONLY
+
+    if flag(no-fusion)
+      cpp-options:    -DDISABLE_FUSION
+
+    if flag(dev)
+      cpp-options:    -DDEVBUILD
+
+    if flag(use-c-malloc)
+      cpp-options:    -DUSE_C_MALLOC
+
+    ghc-options:      -Wall
+                      -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
+                      -Wmissing-export-lists
+                      -Rghc-timing
+
+    if flag(has-llvm)
+      ghc-options: -fllvm
+
+    if flag(dev)
+      ghc-options:    -Wmissed-specialisations
+                      -Wall-missed-specialisations
+
+    if flag(limit-build-mem)
+        ghc-options: +RTS -M1000M -RTS
+
+    if flag(use-unliftio)
+      cpp-options: -DUSE_UNLIFTIO
+
+common default-extensions
+    default-extensions:
+        BangPatterns
+        CApiFFI
+        CPP
+        ConstraintKinds
+        DeriveDataTypeable
+        DeriveGeneric
+        DeriveTraversable
+        ExistentialQuantification
+        FlexibleContexts
+        FlexibleInstances
+        GeneralizedNewtypeDeriving
+        InstanceSigs
+        KindSignatures
+        LambdaCase
+        MagicHash
+        MultiParamTypeClasses
+        PatternSynonyms
+        RankNTypes
+        RecordWildCards
+        ScopedTypeVariables
+        TupleSections
+        TypeApplications
+        TypeFamilies
+        ViewPatterns
+
+        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
+        -- regressions. Disable it. This must come after TypeFamilies,
+        -- otherwise TypeFamilies will enable it again.
+        NoMonoLocalBinds
+
+        -- UndecidableInstances -- Does not show any perf impact
+        -- UnboxedTuples        -- interferes with (#.)
+
+common optimization-options
+  if flag(opt)
+    ghc-options: -O2
+                 -fdicts-strict
+                 -fspec-constr-recursive=16
+                 -fmax-worker-args=16
+
+  -- For this to be effective it must come after the -O2 option
+  if flag(dev) || flag(debug) || !flag(opt)
+    ghc-options: -fno-ignore-asserts
+
+common threading-options
+  ghc-options:  -threaded
+                -with-rtsopts=-N
+
+-- We need optimization options here to optimize internal (non-inlined)
+-- versions of functions. Also, we have some benchmarking inspection tests
+-- part of the library when built with --benchmarks flag. Thos tests fail
+-- if we do not use optimization options here. It was observed that due to
+-- -O2 here some concurrent/nested benchmarks improved and others regressed.
+-- We can investigate a bit more here why the regression occurred.
+common lib-options
+  import: compile-options, optimization-options, default-extensions
+
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
+library
+    import: lib-options
+
+    if impl(ghc >= 8.6)
+      default-extensions: QuantifiedConstraints
+
+    js-sources: jsbits/clock.js
+
+    include-dirs:
+          src
+        , src/Streamly/Internal/Data/Stream
+        , src/Streamly/Internal/Data/Array
+
+    if os(windows)
+      c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
+
+    if os(darwin)
+      include-dirs:  src/Streamly/Internal
+      c-sources:     src/Streamly/Internal/Data/Time/Clock/Darwin.c
+
+    hs-source-dirs:    src
+    exposed-modules:
+                     -- Internal modules, listed roughly in bottom up
+                     -- dependency order To view dependency graph:
+                     -- graphmod | dot -Tps > deps.ps
+
+                     -- streamly-base
+                       Streamly.Internal.BaseCompat
+                     , Streamly.Internal.Control.Exception
+                     , Streamly.Internal.Control.Monad
+                     , Streamly.Internal.Control.ForkIO
+                     , Streamly.Internal.Data.Cont
+                     , Streamly.Internal.Foreign.Malloc
+                     , Streamly.Internal.System.IO
+
+                     -- streamly-strict-data
+                     , Streamly.Internal.Data.Tuple.Strict
+                     , Streamly.Internal.Data.Maybe.Strict
+                     , Streamly.Internal.Data.Either.Strict
+
+                     -- XXX Depends on monad-control or unliftio-core
+                     , Streamly.Internal.Control.Concurrent
+                     , Streamly.Internal.Control.ForkLifted
+                     , Streamly.Internal.Data.IOFinalizer
+
+                     -- streamly-time
+                     , Streamly.Internal.Data.Time
+                     , Streamly.Internal.Data.Time.TimeSpec
+                     , Streamly.Internal.Data.Time.Units
+                     , Streamly.Internal.Data.Time.Clock.Type
+                     , Streamly.Internal.Data.Time.Clock
+
+                     -- streamly-core-stream-types
+                     , Streamly.Internal.Data.SVar.Type
+                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Fold.Step
+                     , Streamly.Internal.Data.Refold.Type
+                     , Streamly.Internal.Data.Fold.Type
+                     , Streamly.Internal.Data.Stream.StreamD.Step
+                     , Streamly.Internal.Data.Stream.StreamD.Type
+                     , Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Unfold.Type
+                     , Streamly.Internal.Data.Producer.Type
+                     , Streamly.Internal.Data.Producer
+                     , Streamly.Internal.Data.Producer.Source
+                     , Streamly.Internal.Data.Sink.Type
+                     , Streamly.Internal.Data.Parser.ParserK.Type
+                     , Streamly.Internal.Data.Parser.ParserD.Type
+                     , Streamly.Internal.Data.Pipe.Type
+
+                     -- streamly-core-array-types
+                    -- Unboxed IORef
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.IORef.Prim
+                     -- May depend on streamly-core-stream
+                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Foreign.Mut
+                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Mut.Type
+
+                     -- streamly-core-streams
+                     -- StreamD depends on streamly-array-types
+                     , Streamly.Internal.Data.Stream.StreamD.Generate
+                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
+                     , Streamly.Internal.Data.Stream.StreamD.Nesting
+                     , Streamly.Internal.Data.Stream.StreamD.Transform
+                     , Streamly.Internal.Data.Stream.StreamD.Exception
+                     , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.Stream.StreamD
+                     , Streamly.Internal.Data.Stream.StreamDK
+                     , Streamly.Internal.Data.Stream.Prelude
+
+                     , Streamly.Internal.Data.Parser.ParserD.Tee
+                     , Streamly.Internal.Data.Parser.ParserD
+
+                     -- streamly-core-data
+                     , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Unfold.Enumeration
+                     , Streamly.Internal.Data.Fold.Tee
+                     , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Sink
+                     , Streamly.Internal.Data.Parser
+                     , Streamly.Internal.Data.Pipe
+                     , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.List
+
+                     -- streamly-core-data-arrays
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Mut.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
+
+                    -- Ring Arrays
+                     , Streamly.Internal.Data.Ring.Foreign
+                     -- XXX Depends on primitive
+                     , Streamly.Internal.Data.Ring
+
+                     -- Only used for benchmarks
+                     , Streamly.Internal.Data.Stream.StreamK
+
+                     -- streamly-core exposed modules
+                     , Streamly.Data.Fold
+                     , Streamly.Data.Fold.Tee
+                     , Streamly.Data.Array.Foreign
+
+    build-depends:
+                    -- Core libraries shipped with ghc, the min and max
+                    -- constraints of these libraries should match with
+                    -- the GHC versions we support. This is to make sure that
+                    -- packages depending on the "ghc" package (packages
+                    -- depending on doctest is a common example) can
+                    -- depend on streamly.
+                       base              >= 4.9   && < 4.17
+                     , containers        >= 0.5   && < 0.7
+                     , deepseq           >= 1.4.1 && < 1.5
+                     , directory         >= 1.2.2 && < 1.4
+                     , exceptions        >= 0.8   && < 0.11
+                     , ghc-prim          >= 0.2   && < 0.9
+                     , mtl               >= 2.2   && < 2.3
+                     , transformers      >= 0.4   && < 0.7
+                     , filepath          >= 1.2.0.0 && < 1.5
+
+                     , fusion-plugin-types >= 0.1 && < 0.2
+
+                     -- XXX to be removed
+                     , transformers-base >= 0.4   && < 0.5
+                     , primitive         >= 0.5.4 && < 0.8
+                     , heaps             >= 0.3     && < 0.5
+    if flag(use-unliftio)
+      build-depends:   unliftio-core     >= 0.2 && < 0.3
+    else
+      build-depends:   monad-control     >= 1.0 && < 1.1
