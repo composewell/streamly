@@ -107,7 +107,6 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -518,7 +517,7 @@ writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
 {-# INLINE parseCharUtf8With #-}
 parseCharUtf8With ::
        MonadCatch m => CodingFailureMode -> Parser.Parser m Word8 Char
-parseCharUtf8With = ParserK.toParserK . parseCharUtf8WithD
+parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
 -- if that preserves the same performance. Or we can use a resumable parser

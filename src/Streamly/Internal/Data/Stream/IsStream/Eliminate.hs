@@ -403,7 +403,7 @@ parseK = parse
 --
 {-# INLINE [3] parse #-}
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
-parse = parseD . PRK.fromParserK
+parse = parseD . PRD.fromParserK
 
 {-# INLINE_NORMAL parseD_ #-}
 parseD_ :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m (b, SerialT m a)
@@ -417,7 +417,7 @@ parseD_ parser strm = do
 --
 {-# INLINE [3] parse_ #-}
 parse_ :: MonadThrow m => Parser m a b -> SerialT m a -> m (b, SerialT m a)
-parse_ = parseD_ . PRK.fromParserK
+parse_ = parseD_ . PRD.fromParserK
 
 ------------------------------------------------------------------------------
 -- Specific Fold Functions
