@@ -140,15 +140,6 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     , stripPrefix
     -- , stripInfix
     , stripSuffix
-
-    -- * Deprecated
-    , foldx
-    , foldxM
-    , foldr1
-    , runStream
-    , runN
-    , runWhile
-    , toHandle
     )
 where
 
@@ -160,7 +151,6 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Parser (Parser (..))
-import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold, fold_, foldOn, drop, findIndices, reverse, splitOnSeq, take
     , takeWhile, mkParallel)
@@ -175,7 +165,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
-import qualified System.IO as IO
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
@@ -261,18 +250,6 @@ foldrM = IsStream.foldrM
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 foldr = IsStream.foldr
 
--- XXX This seems to be of limited use as it cannot be used to construct
--- recursive structures and for reduction foldl1' is better.
---
--- | Lazy right fold for non-empty streams, using first element as the starting
--- value. Returns 'Nothing' if the stream is empty.
---
--- @since 0.5.0
-{-# INLINE foldr1 #-}
-{-# DEPRECATED foldr1 "Use foldrM instead." #-}
-foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
-foldr1 f m = S.foldr1 f (toStreamS m)
-
 ------------------------------------------------------------------------------
 -- Left Folds
 ------------------------------------------------------------------------------
@@ -297,17 +274,6 @@ foldlS f z =
 foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
     => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
 foldlT f z s = S.foldlT f z (toStreamS s)
-
--- | Strict left fold with an extraction function. Like the standard strict
--- left fold, but applies a user supplied extraction function (the third
--- argument) to the folded value at the end. This is designed to work with the
--- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
---
--- @since 0.2.0
-{-# DEPRECATED foldx "Please use foldl' followed by fmap instead." #-}
-{-# INLINE foldx #-}
-foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx = IsStream.foldlx'
 
 -- | Left associative/strict push fold. @foldl' reduce initial stream@ invokes
 -- @reduce@ with the accumulator and the next input in the input stream, using
@@ -335,14 +301,6 @@ foldl1' step m = do
         Just (h, t) -> do
             res <- foldl' step h t
             return $ Just res
-
--- | Like 'foldx', but with a monadic step function.
---
--- @since 0.2.0
-{-# DEPRECATED foldxM "Please use foldlM' followed by fmap instead." #-}
-{-# INLINE foldxM #-}
-foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM = IsStream.foldlMx'
 
 -- | Like 'foldl'' but with a monadic step function.
 --
@@ -461,17 +419,6 @@ drainN :: Monad m => Int -> SerialT m a -> m ()
 drainN n = drain . take n
 
 -- |
--- > runN n = runStream . take n
---
--- Run maximum up to @n@ iterations of a stream.
---
--- @since 0.6.0
-{-# DEPRECATED runN "Please use \"drainN\" instead" #-}
-{-# INLINE runN #-}
-runN :: Monad m => Int -> SerialT m a -> m ()
-runN = drainN
-
--- |
 -- > drainWhile p = Stream.drain . Stream.takeWhile p
 --
 -- Run a stream as long as the predicate holds true.
@@ -480,27 +427,6 @@ runN = drainN
 {-# INLINE drainWhile #-}
 drainWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
 drainWhile p = drain . takeWhile p
-
--- |
--- > runWhile p = runStream . takeWhile p
---
--- Run a stream as long as the predicate holds true.
---
--- @since 0.6.0
-{-# DEPRECATED runWhile "Please use \"drainWhile\" instead" #-}
-{-# INLINE runWhile #-}
-runWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
-runWhile = drainWhile
-
--- | Run a stream, discarding the results. By default it interprets the stream
--- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @runStream . 'fromAsync'@.
---
--- @since 0.2.0
-{-# DEPRECATED runStream "Please use \"drain\" instead" #-}
-{-# INLINE runStream #-}
-runStream :: Monad m => SerialT m a -> m ()
-runStream = drain
 
 -- | Determine whether the stream is empty.
 --
@@ -796,25 +722,6 @@ toList = IsStream.toList
 {-# INLINE toListRev #-}
 toListRev :: Monad m => SerialT m a -> m [a]
 toListRev = D.toListRev . toStreamD
-
--- |
--- @
--- toHandle h = S.mapM_ $ hPutStrLn h
--- @
---
--- Write a stream of Strings to an IO Handle.
---
--- @since 0.1.0
-{-# DEPRECATED toHandle
-   "Please use Streamly.FileSystem.Handle module (see the changelog)" #-}
-toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
-toHandle h = go
-    where
-    go m1 =
-        let stop = return ()
-            single a = liftIO (IO.hPutStrLn h a)
-            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in IsStream.foldStream defState yieldk single stop m1
 
 -- | Convert a stream to a pure stream.
 --

@@ -42,10 +42,6 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Transformation
     , map
     , mapM
-
-    -- * Deprecated
-    , StreamT
-    , InterleavedT
     )
 where
 
@@ -133,11 +129,6 @@ newtype SerialT m a = SerialT {getSerialT :: Stream m a}
 --
 -- @since 0.8.0
 type Serial = SerialT IO
-
--- |
--- @since 0.1.0
-{-# DEPRECATED StreamT "Please use 'SerialT' instead." #-}
-type StreamT = SerialT
 
 ------------------------------------------------------------------------------
 -- Generation
@@ -316,11 +307,6 @@ newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
 --
 -- @since 0.8.0
 type WSerial = WSerialT IO
-
--- |
--- @since 0.1.0
-{-# DEPRECATED InterleavedT "Please use 'WSerialT' instead." #-}
-type InterleavedT = WSerialT
 
 {-# INLINE consMWSerial #-}
 {-# SPECIALIZE consMWSerial :: IO a -> WSerialT IO a -> WSerialT IO a #-}

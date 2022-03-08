@@ -155,8 +155,6 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
 
     -- * Deprecated
     , concatUnfold
-    , (<=>)
-    , (<|)
     )
 where
 
@@ -285,16 +283,6 @@ infixr 6 `wSerial`
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
 wSerial m1 m2 = fromStream $ Serial.wSerialK (toStream m1) (toStream m2)
-
-infixr 5 <=>
-
--- | Same as 'wSerial'.
---
--- @since 0.1.0
-{-# DEPRECATED (<=>) "Please use 'wSerial' instead." #-}
-{-# INLINE (<=>) #-}
-(<=>) :: IsStream t => t m a -> t m a -> t m a
-(<=>) = wSerial
 
 -- XXX Same as 'wSerial'. We should perhaps rename wSerial to interleave.
 -- XXX Document the interleaving behavior of side effects in all the
@@ -481,14 +469,6 @@ infixr 6 `async`
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 async m1 m2 = fromStream $ asyncK (toStream m1) (toStream m2)
-
--- | Same as 'async'.
---
--- @since 0.1.0
-{-# DEPRECATED (<|) "Please use 'async' instead." #-}
-{-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-(<|) = async
 
 infixr 6 `wAsync`
 

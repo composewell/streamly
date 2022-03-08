@@ -15,7 +15,6 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     -- * IsStream Type Class
       IsStream (..)
     , K.Stream (..)
-    , Streaming
 
     -- * Type Conversion
     , fromStreamS
@@ -101,11 +100,6 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     -- * Zip style operations
     , eqBy
     , cmpBy
-
-    -- * Deprecated
-    , interleaving
-    , zipping
-    , zippingAsync
     )
 where
 
@@ -204,12 +198,6 @@ class
     (|:) :: MonadAsync m => m a -> t m a -> t m a
     -- We can define (|:) just as 'consM' but it is defined explicitly for each
     -- type because we want to use SPECIALIZE pragma on the definition.
-
--- | Same as 'IsStream'.
---
--- @since 0.1.0
-{-# DEPRECATED Streaming "Please use IsStream instead." #-}
-type Streaming = IsStream
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators
@@ -493,14 +481,6 @@ instance IsStream SerialT where
 -- @since 0.8.0
 fromWSerial :: IsStream t => WSerialT m a -> t m a
 fromWSerial = adapt
-
--- | Same as 'fromWSerial'.
---
--- @since 0.1.0
-{-# DEPRECATED interleaving "Please use fromWSerial instead." #-}
-interleaving :: IsStream t => WSerialT m a -> t m a
-interleaving = fromWSerial
-
 instance IsStream WSerialT where
     toStream = getWSerialT
     fromStream = WSerialT
@@ -619,13 +599,6 @@ instance IsStream ParallelT where
 fromZipSerial :: IsStream t => ZipSerialM m a -> t m a
 fromZipSerial = adapt
 
--- | Same as 'fromZipSerial'.
---
--- @since 0.1.0
-{-# DEPRECATED zipping "Please use fromZipSerial instead." #-}
-zipping :: IsStream t => ZipSerialM m a -> t m a
-zipping = fromZipSerial
-
 instance IsStream ZipSerialM where
     toStream = getZipSerialM
     fromStream = ZipSerialM
@@ -647,14 +620,6 @@ instance IsStream ZipSerialM where
 -- @since 0.8.0
 fromZipAsync :: IsStream t => ZipAsyncM m a -> t m a
 fromZipAsync = adapt
-
--- | Same as 'fromZipAsync'.
---
--- @since 0.1.0
-{-# DEPRECATED zippingAsync "Please use fromZipAsync instead." #-}
-zippingAsync :: IsStream t => ZipAsyncM m a -> t m a
-zippingAsync = fromZipAsync
-
 instance IsStream ZipAsyncM where
     toStream = getZipAsyncM
     fromStream = ZipAsyncM

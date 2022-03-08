@@ -204,9 +204,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Diagnostics
     , inspectMode
-
-    -- * Deprecated
-    , scanx
     )
 where
 
@@ -704,7 +701,6 @@ postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
 ------------------------------------------------------------------------------
 -- Scanning - Transformation by Folding
 ------------------------------------------------------------------------------
-
 -- XXX It may be useful to have a version of scan where we can keep the
 -- accumulator independent of the value emitted. So that we do not necessarily
 -- have to keep a value in the accumulator which we are not using. We can pass
@@ -712,22 +708,9 @@ postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
 -- of the element and emit the next value in the stream. That will also make it
 -- possible to modify the accumulator after using it. In fact, the step function
 -- can return new accumulator and the value to be emitted. The signature would
--- be more like mapAccumL. Or we can change the signature of scanx to
+-- be more like mapAccumL. Or we can change the signature of scanlM' to
 -- accommodate this.
 --
--- | Strict left scan with an extraction function. Like 'scanl'', but applies a
--- user supplied extraction function (the third argument) at each step. This is
--- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
--- extraction.
---
--- /Since 0.2.0/
---
--- /Since: 0.7.0 (Monad m constraint)/
-{-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
-{-# INLINE scanx #-}
-scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx step begin done = fromStreamS . S.scanlx' step begin done . toStreamS
-
 -- XXX this needs to be concurrent
 -- XXX because of the use of D.cons for appending, scanlM' has quadratic
 -- complexity when iterated over a stream. We should use StreamK style scanlM'

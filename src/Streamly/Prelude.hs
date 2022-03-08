@@ -919,19 +919,8 @@ module Streamly.Prelude
     , adapt
 
     -- * Deprecated
-    , once
     , yield
     , yieldM
-    , each
-    , scanx
-    , foldx
-    , foldxM
-    , foldr1
-    , runStream
-    , runN
-    , runWhile
-    , fromHandle
-    , toHandle
     , concatUnfold
     )
 where

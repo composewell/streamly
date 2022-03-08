@@ -20,9 +20,6 @@ module Streamly.Internal.Data.Stream.Zip
     , consMZip
     , zipWithK
     , zipWithMK
-
-    -- * Deprecated
-    , ZipStream
     )
 where
 
@@ -102,11 +99,6 @@ zipWithK f = zipWithMK (\a b -> return (f a b))
 -- @since 0.8.0
 newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
         deriving (Semigroup, Monoid)
-
--- |
--- @since 0.1.0
-{-# DEPRECATED ZipStream "Please use 'ZipSerialM' instead." #-}
-type ZipStream = ZipSerialM
 
 -- | An IO stream whose applicative instance zips streams serially.
 --
