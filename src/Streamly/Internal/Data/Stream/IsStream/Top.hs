@@ -32,7 +32,7 @@ module Streamly.Internal.Data.Stream.IsStream.Top
     , differenceBy
     , mergeDifferenceBy
     , unionBy
-    , mergeUnionBy
+    , unionBySorted
 
     -- ** Join operations
     , crossJoin
@@ -680,8 +680,11 @@ unionBy eq s1 s2 =
 --
 -- Space: O(1)
 --
--- /Unimplemented/
-{-# INLINE mergeUnionBy #-}
-mergeUnionBy :: -- (IsStream t, Monad m) =>
+-- /Pre-release/
+{-# INLINE unionBySorted #-}
+unionBySorted :: (IsStream t, MonadAsync m, Ord a) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeUnionBy _eq _s1 _s2 = undefined
+unionBySorted cmp s1 =
+      IsStream.fromStreamD
+    . StreamD.unionBySorted cmp (IsStream.toStreamD s1)
+    . IsStream.toStreamD

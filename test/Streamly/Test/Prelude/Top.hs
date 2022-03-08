@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Data.List (elem, intersect, nub, sort)
+import Data.List (elem, intersect, nub, sort, union)
 import Data.Maybe (isNothing)
 import Streamly.Prelude (SerialT)
 import Test.QuickCheck
@@ -178,10 +178,10 @@ intersectBy ::
        )
     -> (Int -> Int -> a)
     -> Property
-intersectBy _srt intersectFunc cmp =
+intersectBy srt intersectFunc cmp =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
-            monadicIO $ action (sort ls0) (sort ls1)
+            monadicIO $ action (srt ls0) (srt ls1)
 
             where
 
@@ -194,7 +194,26 @@ intersectBy _srt intersectFunc cmp =
                         (S.fromList ls0)
                         (S.fromList ls1)
                 let v2 = ls0 `intersect` ls1
-                assert (v1 == sort v2)
+                assert (sort v1 == sort v2)
+
+unionBySorted :: Property
+unionBySorted =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort ls1)
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.unionBySorted
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = sort $ union ls0 ls1
+                assert (v1 == v2)
 
 -------------------------------------------------------------------------------
 -- Main
@@ -219,3 +238,4 @@ main = hspec $ do
         --prop "intersectBy" (intersectBy id Top.intersectBy (==))
         prop "intersectBySorted"
             (intersectBy sort Top.intersectBySorted compare)
+        prop "unionBySorted" Main.unionBySorted

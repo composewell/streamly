@@ -461,6 +461,10 @@ o_n_heap_buffering value =
             $ joinWith Internal.intersectBy sqrtVal
         , benchIOSrc1 "intersectBySorted"
             $ joinMapWith (Internal.intersectBySorted compare) halfVal
+        , benchIOSrc1 "unionBy (sqrtVal)"
+            $ joinWith Internal.unionBy sqrtVal
+        , benchIOSrc1 "unionBySorted"
+            $ joinMapWith (Internal.unionBySorted compare) halfVal
         ]
     ]
 
