@@ -1476,7 +1476,7 @@ classify fld = classifyWith fst (lmap snd fld)
 --
 -- >>> import qualified Data.Map
 -- >>> :{
---  let table = Data.Map.fromList [("SUM", Fold.sum), ("PRODUCT", Fold.product)]
+--  let table = Data.Map.fromList [("SUM", Fold.lmap snd Fold.sum), ("PRODUCT", Fold.lmap snd Fold.product)]
 --      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
 --   in Stream.fold (Fold.demux table Fold.sum) input
 -- :}
