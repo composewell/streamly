@@ -60,18 +60,18 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 #ifdef FROM_PARSERK
-#define PARSE_OP (IP.parseD . PR.fromParserK)
+#define PARSE_OP (IP.parseD . PRD.fromParserK)
 #else
 #define PARSE_OP IP.parseK
 #endif
 
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> PR.Parser m a a
-satisfy = PR.toParserK . PRD.satisfy
+satisfy = PRD.toParserK . PRD.satisfy
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
-takeWhile p = PR.toParserK $ PRD.takeWhile p FL.drain
+takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadCatch m => Int -> SerialT m Int -> m ()

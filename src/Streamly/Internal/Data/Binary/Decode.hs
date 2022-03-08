@@ -35,7 +35,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 
 -- | A value of type '()' is encoded as @0@ in binary encoding.
 --
@@ -131,7 +130,7 @@ word16beD = PRD.Parser step initial extract
 --
 {-# INLINE word16be #-}
 word16be :: MonadCatch m => Parser m Word8 Word16
-word16be = PRK.toParserK word16beD
+word16be = PRD.toParserK word16beD
 
 -- | Little endian (LSB first) Word16
 {-# INLINE word16leD #-}
@@ -156,7 +155,7 @@ word16leD = PRD.Parser step initial extract
 --
 {-# INLINE word16le #-}
 word16le :: MonadCatch m => Parser m Word8 Word16
-word16le = PRK.toParserK word16leD
+word16le = PRD.toParserK word16leD
 
 -- | Big endian (MSB first) Word32
 {-# INLINE word32beD #-}
@@ -183,7 +182,7 @@ word32beD = PRD.Parser step initial extract
 --
 {-# INLINE word32be #-}
 word32be :: MonadCatch m => Parser m Word8 Word32
-word32be = PRK.toParserK word32beD
+word32be = PRD.toParserK word32beD
 
 -- | Little endian (LSB first) Word32
 {-# INLINE word32leD #-}
@@ -209,7 +208,7 @@ word32leD = PRD.Parser step initial extract
 --
 {-# INLINE word32le #-}
 word32le :: MonadCatch m => Parser m Word8 Word32
-word32le = PRK.toParserK word32leD
+word32le = PRD.toParserK word32leD
 
 -- | Big endian (MSB first) Word64
 {-# INLINE word64beD #-}
@@ -236,7 +235,7 @@ word64beD = PRD.Parser step initial extract
 --
 {-# INLINE word64be #-}
 word64be :: MonadCatch m => Parser m Word8 Word64
-word64be = PRK.toParserK word64beD
+word64be = PRD.toParserK word64beD
 
 -- | Little endian (LSB first) Word64
 {-# INLINE word64leD #-}
@@ -262,7 +261,7 @@ word64leD = PRD.Parser step initial extract
 --
 {-# INLINE word64le #-}
 word64le :: MonadCatch m => Parser m Word8 Word64
-word64le = PRK.toParserK word64leD
+word64le = PRD.toParserK word64leD
 
 -------------------------------------------------------------------------------
 -- Host byte order

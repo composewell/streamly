@@ -119,6 +119,10 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , ParseError (..)
     , rmapM
 
+    -- * Conversion to/from ParserK
+    , fromParserK
+    , toParserK
+
     -- * Constructors
     , parser
     , parserM
@@ -151,10 +155,12 @@ import Control.Monad.State.Class (MonadState, get, put)
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Control.Exception (assertM)
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
 import Prelude hiding (concatMap)
 --
@@ -354,6 +360,170 @@ instance Functor m => Functor (Parser m a) where
         initial = fmap2 f initial1
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
+
+-------------------------------------------------------------------------------
+-- Convert direct style 'Parser' to CPS style 'K.Parser'
+-------------------------------------------------------------------------------
+
+-- XXX Unlike the direct style folds/parsers, the initial action in CPS parsers
+-- is not performed when the fold is initialized. It is performed when the
+-- first element is processed by the fold or if no elements are processed then
+-- at the extraction. We should either make the direct folds like this or make
+-- the CPS folds behavior also like the direct ones.
+--
+-- | Convert a direct style parser ('D.Parser') to a CPS style parser
+-- ('Parser').
+--
+{-# INLINE_NORMAL parseDToK #-}
+parseDToK
+    :: MonadCatch m
+    => (s -> a -> m (Step s b))
+    -> m (Initial s b)
+    -> (s -> m b)
+    -> Int
+    -> (Int, Int)
+    -> ((Int, Int) -> K.Parse b -> m (K.Driver m a r))
+    -> m (K.Driver m a r)
+
+parseDToK pstep initial extract leftover (0, _) cont = do
+    res <- initial
+    case res of
+        IPartial r -> return $ K.Continue leftover (parseCont (return r))
+        IDone b -> cont (0,0) (K.Done 0 b)
+        IError err -> cont (0,0) (K.Error err)
+
+    where
+
+    parseCont pst (Just x) = do
+        r <- pst
+        pRes <- pstep r x
+        case pRes of
+            Done n b -> cont (0,0) (K.Done n b)
+            Error err -> cont (0,0) (K.Error err)
+            Partial n pst1 -> return $ K.Partial n (parseCont (return pst1))
+            Continue n pst1 -> return $ K.Continue n (parseCont (return pst1))
+
+    parseCont acc Nothing = do
+        pst <- acc
+        r <- try $ extract pst
+        case r of
+            Left (e :: ParseError) -> cont (0,0) (K.Error (displayException e))
+            Right b -> cont (0,0) (K.Done 0 b)
+
+parseDToK pstep initial extract leftover (level, count) cont = do
+    res <- initial
+    case res of
+        IPartial r -> return $ K.Continue leftover (parseCont count (return r))
+        IDone b -> cont (level,count) (K.Done 0 b)
+        IError err -> cont (level,count) (K.Error err)
+
+    where
+
+    parseCont !cnt pst (Just x) = do
+        let !cnt1 = cnt + 1
+        r <- pst
+        pRes <- pstep r x
+        case pRes of
+            Done n b -> do
+                assert (n <= cnt1) (return ())
+                cont (level, cnt1 - n) (K.Done n b)
+            Error err ->
+                cont (level, cnt1) (K.Error err)
+            Partial n pst1 -> do
+                assert (n <= cnt1) (return ())
+                return $ K.Partial n (parseCont (cnt1 - n) (return pst1))
+            Continue n pst1 -> do
+                assert (n <= cnt1) (return ())
+                return $ K.Continue n (parseCont (cnt1 - n) (return pst1))
+    parseCont cnt acc Nothing = do
+        pst <- acc
+        r <- try $ extract pst
+        let s = (level, cnt)
+        case r of
+            Left (e :: ParseError) -> cont s (K.Error (displayException e))
+            Right b -> cont s (K.Done 0 b)
+
+-- | Convert a direct style 'Parser' to a CPS style 'K.Parser'.
+--
+-- /Pre-release/
+--
+{-# INLINE_LATE toParserK #-}
+toParserK :: MonadCatch m => Parser m a b -> K.Parser m a b
+toParserK (Parser step initial extract) =
+    K.MkParser $ parseDToK step initial extract
+
+-------------------------------------------------------------------------------
+-- Convert CPS style 'Parser' to direct style 'D.Parser'
+-------------------------------------------------------------------------------
+
+-- | A continuation to extract the result when a CPS parser is done.
+{-# INLINE parserDone #-}
+parserDone :: Monad m => (Int, Int) -> K.Parse b -> m (K.Driver m a b)
+parserDone (0,_) (K.Done n b) = return $ K.Stop n b
+parserDone st (K.Done _ _) =
+    error $ "Bug: fromParserK: inside alternative: " ++ show st
+parserDone _ (K.Error e) = return $ K.Failed e
+
+-- | When there is no more input to feed, extract the result from the Parser.
+--
+-- /Pre-release/
+--
+extractParse :: MonadThrow m => (Maybe a -> m (K.Driver m a b)) -> m b
+extractParse cont = do
+    r <- cont Nothing
+    case r of
+        K.Stop _ b -> return b
+        K.Partial _ _ -> error "Bug: extractParse got Partial"
+        K.Continue _ cont1 -> extractParse cont1
+        K.Failed e -> throwM $ ParseError e
+
+data FromParserK b c = FPKDone !Int !b | FPKCont c
+
+-- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
+--
+-- "initial" returns a continuation which can be called one input at a time
+-- using the "step" function.
+--
+-- /Pre-release/
+--
+{-# INLINE_LATE fromParserK #-}
+fromParserK :: MonadThrow m => K.Parser m a b -> Parser m a b
+fromParserK parser0 = Parser step initial extract
+
+    where
+
+    initial = do
+        r <- K.runParser parser0 0 (0,0) parserDone
+        return $ case r of
+            K.Stop n b -> IPartial $ FPKDone n b
+            K.Failed e -> IError e
+            K.Partial _ cont -> IPartial $ FPKCont cont -- XXX can we get this?
+            K.Continue _ cont -> IPartial $ FPKCont cont
+
+    -- Note, we can only reach FPKDone and FPKError from "initial". FPKCont
+    -- always transitions to only FPKCont.  The input remains unconsumed in
+    -- this case so we use "n + 1".
+    step (FPKDone n b) _ = do
+        assertM (n == 0)
+        return $ Done (n + 1) b
+    step (FPKCont cont) a = do
+        r <- cont (Just a)
+        return $ case r of
+            K.Stop n b -> Done n b
+            K.Failed e -> Error e
+            K.Partial n cont1 -> Partial n (FPKCont cont1)
+            K.Continue n cont1 -> Continue n (FPKCont cont1)
+
+    -- Note, we can only reach FPKDone and FPKError from "initial".
+    extract (FPKDone _ b) = return b
+    extract (FPKCont cont) = extractParse cont
+
+#ifndef DISABLE_FUSION
+{-# RULES "fromParserK/toParserK fusion" [2]
+    forall s. toParserK (fromParserK s) = s #-}
+{-# RULES "toParserK/fromParserK fusion" [2]
+    forall s. fromParserK (toParserK s) = s #-}
+#endif
 
 ------------------------------------------------------------------------------
 -- General parser constructors
@@ -1160,19 +1330,19 @@ instance MonadCatch m => MonadPlus (Parser m a) where
 instance (MonadThrow m, MonadReader r m, MonadCatch m) => MonadReader r (Parser m a) where
     {-# INLINE ask #-}
     ask = fromEffect ask
+
     {-# INLINE local #-}
     local f (Parser step init' extract) =
       Parser ((local f .) . step)
              (local f init')
              (local f . extract)
 
-
 instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
     {-# INLINE get #-}
     get = fromEffect get
+
     {-# INLINE put #-}
     put = fromEffect . put
-
 
 instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
     {-# INLINE liftIO #-}

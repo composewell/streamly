@@ -202,7 +202,7 @@ parse
     -> Producer m (Source s a) a
     -> Source s a
     -> m (b, Source s a)
-parse = parseD . ParserK.fromParserK
+parse = parseD . ParserD.fromParserK
 
 -------------------------------------------------------------------------------
 -- Nested parsing
@@ -234,4 +234,4 @@ parseMany :: MonadThrow m =>
        ParserK.Parser m a b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
-parseMany parser = parseManyD (ParserK.fromParserK parser)
+parseMany parser = parseManyD (ParserD.fromParserK parser)

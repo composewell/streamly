@@ -180,7 +180,6 @@ import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -384,7 +383,7 @@ parseMany
     -> t m a
     -> t m b
 parseMany p m =
-    fromStreamD $ D.parseMany (PRK.fromParserK p) (toStreamD m)
+    fromStreamD $ D.parseMany (PRD.fromParserK p) (toStreamD m)
 
 {-# INLINE parseManyD #-}
 parseManyD
@@ -448,7 +447,7 @@ parseIterate
     -> t m a
     -> t m b
 parseIterate f i m = fromStreamD $
-    D.parseIterate (PRK.fromParserK . f) i (toStreamD m)
+    D.parseIterate (PRD.fromParserK . f) i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Generalized grouping

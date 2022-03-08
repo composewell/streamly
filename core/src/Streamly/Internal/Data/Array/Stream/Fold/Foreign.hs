@@ -70,7 +70,6 @@ import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Parser as Parser
 
 import Prelude hiding (concatMap, take)
@@ -180,7 +179,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 {-# INLINE fromParser #-}
 fromParser :: forall m a b. (MonadThrow m, MonadIO m, Storable a) =>
     Parser.Parser m a b -> Fold m a b
-fromParser = fromParserD . ParserK.fromParserK
+fromParser = fromParserD . ParserD.fromParserK
 
 -- | Adapt an array stream fold.
 --

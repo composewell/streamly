@@ -18,6 +18,10 @@ module Streamly.Internal.Data.Parser.ParserD
     , Initial (..)
     , rmapM
 
+    -- * Conversion to/from ParserK
+    , fromParserK
+    , toParserK
+
     -- * Downgrade to Fold
     , toFold
 
