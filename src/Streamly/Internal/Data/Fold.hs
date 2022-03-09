@@ -246,7 +246,7 @@ import Data.Either (isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
-import Data.Maybe (isJust, fromJust)
+import Data.Maybe (isJust, fromJust, isNothing)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
@@ -1312,9 +1312,35 @@ data DemuxState s b doneMap runMap =
     | DemuxOnlyMap b !doneMap !runMap
     | DemuxOnlyDefault s !doneMap
 
--- | Like 'demuxWith' but uses a default catchall fold to handle inputs which
--- do not have a specific fold in the map to handle them.
+-- TODO Demultiplex an input element into a number of typed variants. We want
+-- to statically restrict the target values within a set of predefined types,
+-- an enumeration of a GADT. We also want to make sure that the Map contains
+-- only those types and the full set of those types.
 --
+-- TODO Instead of the input Map it should probably be a lookup-table using an
+-- array and not in GC memory. The same applies to the output Map as well.
+-- However, that would only be helpful if we have a very large data structure,
+-- need to measure and see how it scales.
+--
+-- This is the consumer side dual of the producer side 'mux' operation (XXX to
+-- be implemented).
+
+-- | Split the input stream based on a key field and fold each split using a
+-- specific fold collecting the results in a map from the keys to the results.
+-- Useful for cases like protocol handlers to handle different type of packets
+-- using different handlers.
+--
+-- @
+--
+--                             |-------Fold m a b
+-- -----stream m a-----Map-----|
+--                             |-------Fold m a b
+--                             |
+--                                       ...
+-- @
+--
+-- Any input that does not map to a fold in the input Map is mapped to the
+-- catchall fold.
 -- If any fold in the map stops, inputs meant for that fold are sent to the
 -- catchall fold. If the catchall fold stops then inputs that do not match any
 -- fold are ignored.
@@ -1327,7 +1353,7 @@ data DemuxState s b doneMap runMap =
 demuxDefaultWith :: (Monad m, Ord k)
     => (a -> k)
     -> Map k (Fold m a b)
-    -> Fold m a b
+    -> Fold m a b           -- catchall fold.
     -> Fold m a (Map k b)
 demuxDefaultWith f kv fd@(Fold dstep dinitial dextract) =
     Fold step initial extract
@@ -1380,17 +1406,24 @@ demuxDefaultWith f kv fd@(Fold dstep dinitial dextract) =
 
     step (DemuxMapAndDefault dacc doneMap runMap) a = do
         let k = f a
+            finished = Map.lookup k doneMap
         case Map.lookup k runMap of
-            Nothing ->
-                runFold
+            Nothing
+                | isNothing finished ->
+                    runFold
                     (DemuxMapAndDefault dacc)
                     (Partial . DemuxOnlyDefault dacc)
                     doneMap runMap fd k a
-            Just fld ->
-                runFold
+                | otherwise ->
+                    return (Done doneMap)
+            Just fld
+                | isNothing finished ->
+                    runFold
                     (DemuxMapAndDefault dacc)
                     (Partial . DemuxOnlyDefault dacc)
                     doneMap runMap fld k a
+                | otherwise ->
+                    return (Done doneMap)
 
     step (DemuxOnlyMap dval doneMap runMap) a = do
         let k = f a
