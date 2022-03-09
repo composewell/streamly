@@ -166,25 +166,15 @@ partitionByFstM =
 partitionByMinM :: Monad m => SerialT m Int -> m (Int, Int)
 partitionByMinM =
     IP.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
-{-
-{-# INLINE demux  #-}
-demux ::
-       (Monad m, Ord k)
-    => Map k (Fold m (k, a) b)
-    -> Fold m a b
-    -> SerialT m (k, a)
-    -> m (Map k b)
-demux mp fld  = S.fold (FL.demux mp fld)
--}
 
-{-# INLINE demuxDefaultWith #-}
-demuxDefaultWith ::
+{-# INLINE demuxWith #-}
+demuxWith ::
        (Monad m, Ord k, Num b)
     => (a -> k)
     -> Map k (Fold m a b)
     -> SerialT m a
     -> m (Map k b)
-demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.foldl' const 0))
+demuxWith f mp = S.fold (FL.demuxWith f mp (FL.foldl' const 0))
 
 {-# INLINE classifyWith #-}
 classifyWith ::
@@ -335,9 +325,8 @@ o_1_space_serial_composition value =
             , benchIOSink value "unzip (sum, length)" unzip
             , benchIOSink value "unzipWithFstM (sum, length)" unzipWithFstM
             , benchIOSink value "unzipWithMinM (sum, length)" unzipWithMinM
-            , benchIOSink value "demuxDefaultWith [sum, length] sum"
-                  $ demuxDefaultWith fn mp
-            --, benchIOSink value "demux [sum, length]" $ demux mp fld
+            , benchIOSink value "demuxWith [sum, length] sum"
+                  $ demuxWith fn mp
             , benchIOSink value "classifyWith sum" $ classifyWith fn
             ]
       ]

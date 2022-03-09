@@ -546,21 +546,6 @@ headAndRest ls = monadicIO $ do
     taill [] = []
     taill (_:xs) = xs
 
-demux_ :: Expectation
-demux_ =
-    let table = Data.Map.fromList [("SUM", FL.drain), ("PRODUCT", FL.drain)]
-        input = Stream.fromList (
-                [ ("SUM", 1)
-                , ("PRODUCT", 2)
-                , ("SUM",3)
-                , ("PRODUCT", 4)
-                ] :: [(String, Int)])
-    in Stream.fold
-        (F.demux_ table)
-        input
-        `shouldReturn`
-        Data.Map.fromList [("PRODUCT", ()),("SUM", ())]
-
 demuxSum :: Expectation
 demuxSum =
     let table = Data.Map.fromList [("SUM", FL.lmap snd FL.sum)]
@@ -581,22 +566,22 @@ demuxProduct =
         `shouldReturn`
         Data.Map.fromList [("PRODUCT", 8)]
 
-demuxDefaultWithSum :: Expectation
-demuxDefaultWithSum =
+demuxWithSum :: Expectation
+demuxWithSum =
     let table = Data.Map.fromList [("SUM", FL.lmap snd FL.sum)]
         input = Stream.fromList [("SUM", 2 :: Int), ("SUM", 4)]
     in Stream.fold
-        (F.demuxDefaultWith fst table (FL.lmap snd FL.sum))
+        (F.demuxWith fst table (FL.lmap snd FL.sum))
         input
         `shouldReturn`
         Data.Map.fromList [("SUM", 6)]
 
-demuxDefaultWithProduct :: Expectation
-demuxDefaultWithProduct =
+demuxWithProduct :: Expectation
+demuxWithProduct =
     let table = Data.Map.fromList [("PRODUCT", FL.lmap snd FL.product)]
         input = Stream.fromList [("PRODUCT", 2 :: Int), ("PRODUCT", 4)]
     in Stream.fold
-        (F.demuxDefaultWith fst table (FL.lmap snd FL.product))
+        (F.demuxWith fst table (FL.lmap snd FL.product))
         input
         `shouldReturn`
         Data.Map.fromList [("PRODUCT" , 8)]
@@ -695,11 +680,10 @@ main = hspec $ do
 
         prop "toList" toList
         prop "toListRev" toListRev
-        prop "demux_" demux_
         prop "demuxSum" demuxSum
         prop "demuxProduct" demuxProduct
-        prop "demuxDefaultWithSum" demuxDefaultWithSum
-        prop "demuxDefaultWithProduct" demuxDefaultWithProduct
+        prop "demuxWithSum" demuxWithSum
+        prop "demuxWithProduct" demuxWithProduct
         prop "demuxDefault" demuxDefault
         prop "demuxDefaultEmpty" demuxDefaultEmpty
         prop "classifyWith" classifyWith
