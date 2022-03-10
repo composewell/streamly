@@ -1,5 +1,17 @@
 cradle:
   multi:
+    - path: "./"
+      config:
+        cradle:
+          cabal:
+            - path: "./src"
+              component: "lib:streamly"
+    - path: "./core"
+      config:
+        cradle:
+          cabal:
+            - path: "./core/src"
+              component: "lib:streamly-core"
     - path: "./benchmark"
       config:
         cradle:
@@ -56,12 +68,6 @@ cradle:
               component: "bench:Unicode.Stream"
             - path: "./benchmark/lib/"
               component: "lib:streamly-benchmarks"
-    - path: "./"
-      config:
-        cradle:
-          cabal:
-            - path: "./src"
-              component: "lib:streamly"
     - path: "./test"
       config:
         cradle:
@@ -131,4 +137,7 @@ cradle:
 
 dependencies:
   - streamly.cabal
+  - ./core/streamly-core.cabal
+  - ./benchmark/streamly-benchmarks.cabal
+  - ./test/streamly-tests.cabal
   - hie.yaml
