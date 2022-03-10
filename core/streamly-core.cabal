@@ -21,7 +21,6 @@ extra-source-files:
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs
-    src/Streamly/Internal/Data/Stream/PreludeCommon.hs
     src/Streamly/Internal/Data/Array/ArrayMacros.h
     src/inline.hs
 
@@ -199,7 +198,6 @@ library
 
     include-dirs:
           src
-        , src/Streamly/Internal/Data/Stream
         , src/Streamly/Internal/Data/Array
 
     if os(windows)
@@ -279,7 +277,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK
-                     , Streamly.Internal.Data.Stream.Prelude
+                     , Streamly.Internal.Data.Stream.Common
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD

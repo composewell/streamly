@@ -134,7 +134,6 @@ extra-source-files:
     core/configure
     core/configure.ac
     core/src/Streamly/Internal/Data/Stream/Instances.hs
-    core/src/Streamly/Internal/Data/Stream/PreludeCommon.hs
     core/src/Streamly/Internal/Data/Array/ArrayMacros.h
     core/src/inline.hs
     core/src/Streamly/Internal/Data/Time/Clock/config-clock.h
@@ -186,7 +185,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Stream/StreamD/Lift.hs
     core/src/Streamly/Internal/Data/Stream/StreamD.hs
     core/src/Streamly/Internal/Data/Stream/StreamDK.hs
-    core/src/Streamly/Internal/Data/Stream/Prelude.hs
+    core/src/Streamly/Internal/Data/Stream/Common.hs
     core/src/Streamly/Internal/Data/Parser/ParserD/Tee.hs
     core/src/Streamly/Internal/Data/Parser/ParserD.hs
     core/src/Streamly/Internal/Data/Unfold.hs
@@ -575,7 +574,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK
-                     , Streamly.Internal.Data.Stream.Prelude
+                     , Streamly.Internal.Data.Stream.Common
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD

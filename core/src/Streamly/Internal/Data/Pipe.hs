@@ -260,7 +260,7 @@ import Streamly.Internal.Data.Pipe.Type
 -- import qualified Streamly.Prelude as S
 -- import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- import qualified Streamly.Internal.Data.Stream.StreamK as K
--- import qualified Streamly.Internal.Data.Stream.Prelude as P
+-- import qualified Streamly.Internal.Data.Stream.Common as P
 
 ------------------------------------------------------------------------------
 -- Pipes
