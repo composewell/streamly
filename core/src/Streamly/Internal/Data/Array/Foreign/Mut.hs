@@ -39,7 +39,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
--- import qualified Streamly.Internal.Data.Stream.Prelude as P
+-- import qualified Streamly.Internal.Data.Stream.Common as P
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
