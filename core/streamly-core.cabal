@@ -335,6 +335,7 @@ library
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Producer
+                     , Streamly.Internal.Data.Scan
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.MutByteArray
