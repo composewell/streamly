@@ -40,6 +40,18 @@ data Step s b
     = Partial !s
     | Done !b
 
+{-
+-- We can use this type for more general use cases. This can also represent the
+-- ability to either perform an effect during initial (partial) or not
+-- (Continue).
+--
+{-# ANN type Step Fuse #-}
+data Step s b =
+      Partial !s !b -- in initial, b can be used for scan instead of postscan
+    | Continue !s -- in initial, it can be used for postscan, instead of scan
+    | Done !b -- in initial this can be used for `take 0` type of use case
+-}
+
 -- | 'first' maps over 'Partial' and 'second' maps over 'Done'.
 --
 instance Bifunctor Step where
