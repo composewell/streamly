@@ -83,6 +83,12 @@ isProduce s =
         Produce _ -> True
         Consume _ -> False
 
+-- A Pipe is an encapsulation of a stream and a scan, or an unfold and a fold.
+-- Stream is to unfolds as Scan is to folds. Stream produces and scan consumes.
+-- Producer (ReUnfold) on unfold side corresponds to ReFold on fold side.
+--
+-- A scan has to consume, and a stream cannot consume.
+--
 data Pipe m a b =
   forall s1 s2. Pipe (s1 -> a -> m (Step (PipeState s1 s2) b))
                      (s2 -> m (Step (PipeState s1 s2) b)) s1
