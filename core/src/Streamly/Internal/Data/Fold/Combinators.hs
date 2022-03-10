@@ -139,6 +139,8 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Scanning Input
     , scan
     , scanMany
+    , runScan
+    , toScan
     , indexed
 
     -- ** Zipping Input
@@ -230,9 +232,11 @@ import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -244,6 +248,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -532,6 +537,87 @@ scan = scanWith False
 {-# INLINE scanMany #-}
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True
+
+-- | Does not work correctly for scans which can emit YieldRep or SkipRep
+-- constructors. This will get fixed when we add SkipRep to folds as well.
+{-# INLINE runScan #-}
+runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
+runScan (Scan stepL initialL) (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
+
+    where
+
+    initial = do
+        rR <- initialR
+        case rR of
+            Partial sR -> return $ Partial (initialL, sR)
+            Done b -> return $ Done b
+
+    step (sL, sR) x = do
+        rL <- stepL sL x
+        case rL of
+            Scan.Yield sL1 bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 -> return $ Partial (sL1, sR1)
+                    Done bR -> return (Done bR)
+            Scan.Skip sL1 -> return $ Partial (sL1, sR)
+            Scan.Stop -> Done <$> finalR sR
+            Scan.YieldRep _sL1 bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    -- XXX return SkipRep
+                    Partial _sR1 -> undefined -- return $ Partial (sL1, sR1)
+                    Done bR -> return (Done bR)
+            Scan.SkipRep _sL1 ->
+                -- XXX return SkipRep
+                undefined -- return $ Partial (sL1, sR)
+
+    extract = extractR . snd
+
+    final = finalR . snd
+
+-- Note when we have a separate Scan type then we can remove extract from
+-- Folds. Then folds can only be used for foldMany or many and not for
+-- scanning. This combinator has to be removed then.
+
+-- XXX The way filter is implemented in Folds is that it discards the input and
+-- on "extract" it will return the previous accumulator value only. Thus the
+-- accumulator may repeat in the output stream when filter is used. Ideally the
+-- output stream should not have a value corresponding to the filtered value.
+-- With "Continue s" and "Partial s b" instead of using "extract" we can do
+-- that.
+
+{-# ANN type ToScanState Fuse #-}
+data ToScanState s = ToScanInit | ToScanGo s | ToScanStop
+
+-- | ScanR does not support finalization yet. This does not finalize the fold
+-- when the stream stops before the fold terminates. So cannot be used on folds
+-- that require finalization.
+--
+-- >>> Stream.toList $ Stream.runScan (Fold.toScan Fold.sum) $ Stream.fromList [1..5::Int]
+-- [1,3,6,10,15]
+--
+{-# INLINE toScan #-}
+toScan :: Monad m => Fold m a b -> Scan m a b
+toScan (Fold fstep finitial fextract _) = Scan step ToScanInit
+
+    where
+
+    step ToScanInit _ = do
+        r <- finitial
+        return $ case r of
+            Partial s -> Scan.SkipRep (ToScanGo s)
+            Done b -> Scan.YieldRep ToScanStop b
+
+    step (ToScanGo st) a = do
+        r <- fstep st a
+        case r of
+            Partial s -> do
+                b <- fextract s
+                return $ Scan.Yield (ToScanGo s) b
+            Done b -> return $ Scan.Yield ToScanStop b
+    step ToScanStop _ = return Scan.Stop
 
 ------------------------------------------------------------------------------
 -- Filters

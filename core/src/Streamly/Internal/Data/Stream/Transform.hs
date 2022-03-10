@@ -37,6 +37,7 @@ module Streamly.Internal.Data.Stream.Transform
     , postscan
     , scan
     , scanMany
+    , runScan
 
     -- * Splitting
     , splitOn
@@ -160,6 +161,7 @@ import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -169,6 +171,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
@@ -561,6 +564,35 @@ scan = scanWith False
 scanMany :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scanMany = scanWith True
+
+{-# ANN type RunScanState Fuse #-}
+data RunScanState st sc x = RunScan st sc | RunScanRep st sc x
+
+{-# INLINE runScan #-}
+runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
+runScan (Scan scan_step initial) (Stream stream_step state) =
+    Stream step (RunScan state initial)
+
+    where
+
+    {-# INLINE goScan #-}
+    goScan st sc x = do
+        res <- scan_step sc x
+        return
+            $ case res of
+                Scan.Yield s b -> Yield b (RunScan st s)
+                Scan.Skip s -> Skip (RunScan st s)
+                Scan.Stop -> Stop
+                Scan.YieldRep s b -> Yield b (RunScanRep st s x)
+                Scan.SkipRep s -> Skip (RunScanRep st s x)
+
+    step gst (RunScan st sc) = do
+        r <- stream_step (adaptState gst) st
+        case r of
+            Yield x s -> goScan s sc x
+            Skip s -> return $ Skip (RunScan s sc)
+            Stop -> return Stop
+    step _ (RunScanRep st sc x) = goScan st sc x
 
 ------------------------------------------------------------------------------
 -- Scanning - Prescans
