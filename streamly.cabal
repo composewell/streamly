@@ -87,7 +87,6 @@ extra-source-files:
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs
-    src/Streamly/Internal/Data/Stream/PreludeCommon.hs
     src/Streamly/Internal/Data/Array/ArrayMacros.h
 
     src/Streamly/Internal/Data/Array/PrimInclude.hs
