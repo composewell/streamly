@@ -195,7 +195,7 @@ import Prelude hiding (concatMap)
 data Initial s b
     = IPartial !s   -- ^ Wait for step function to be called with state @s@.
     | IDone !b      -- ^ Return a result right away without an input.
-    | IError String -- ^ Return an error right away without an input.
+    | IError !String -- ^ Return an error right away without an input.
 
 -- | @first@ maps on 'IPartial' and @second@ maps on 'IDone'.
 --
@@ -272,7 +272,7 @@ instance Functor (Initial s) where
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
-        Partial Int s
+        Partial !Int !s
     -- ^ Partial result with an optional backtrack request.
     --
     -- @Partial count state@ means a partial result is available which
@@ -281,7 +281,7 @@ data Step s b =
     -- The current input position is reset to @count@ elements back and any
     -- input before that is dropped from the backtrack buffer.
 
-    | Continue Int s
+    | Continue !Int !s
     -- ^ Need more input with an optional backtrack request.
     --
     -- @Continue count state@ means the parser has consumed the current input
@@ -289,14 +289,14 @@ data Step s b =
     -- The current input is retained in the backtrack buffer and the input
     -- position is reset to @count@ elements back.
 
-    | Done Int b
+    | Done !Int !b
     -- ^ Done with leftover input count and result.
     --
     -- @Done count result@ means the parser has finished, it will accept no
     -- more input, last @count@ elements from the input are unused and the
     -- result of the parser is in @result@.
 
-    | Error String
+    | Error !String
     -- ^ Parser failed without generating any output.
     --
     -- The parsing operation may backtrack to the beginning and try another
