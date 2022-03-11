@@ -50,6 +50,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     , splitOn
     , splitOnSuffix
     , splitOnPrefix
+    , splitOnAny
 
     -- , splitBy
     , splitWithSuffix
@@ -68,7 +69,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
 
     -- Splitting using multiple sequence separators
     -- , splitOnAnySeq
-    -- , splitOnAnySuffixSeq
+    , splitOnSuffixSeqAny
     -- , splitOnAnyPrefixSeq
 
     -- -- *** Splitting By Streams
@@ -125,6 +126,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce
     -- output stream.
 
     , wordsBy -- stripAndCompactBy
+    , wordsOn
     , groups
     , groupsBy
     , groupsByRolling
@@ -203,7 +205,7 @@ import Prelude hiding (concatMap, map)
 --
 -- Space: @O(1)@
 --
--- /Unimplemented/ - Help wanted.
+-- /Unimplemented/
 {-# INLINE dropPrefix #-}
 dropPrefix ::
     -- (Eq a, IsStream t, Monad m) =>
@@ -215,7 +217,7 @@ dropPrefix = error "Not implemented yet!"
 --
 -- Space: @O(n)@ where n is the length of the infix.
 --
--- /Unimplemented/ - Help wanted.
+-- /Unimplemented/
 {-# INLINE dropInfix #-}
 dropInfix ::
     -- (Eq a, IsStream t, Monad m) =>
@@ -227,7 +229,7 @@ dropInfix = error "Not implemented yet!"
 --
 -- Space: @O(n)@ where n is the length of the suffix.
 --
--- /Unimplemented/ - Help wanted.
+-- /Unimplemented/
 {-# INLINE dropSuffix #-}
 dropSuffix ::
     -- (Eq a, IsStream t, Monad m) =>
@@ -382,6 +384,10 @@ parseMany
 parseMany p m =
     fromStreamD $ D.parseMany (PRD.fromParserK p) (toStreamD m)
 
+-- | Same as parseMany but for StreamD streams.
+--
+-- /Internal/
+--
 {-# INLINE parseManyD #-}
 parseManyD
     :: (IsStream t, MonadThrow m)
@@ -394,7 +400,7 @@ parseManyD p m =
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
 --
--- /Pre-release/
+-- /Unimplemented/
 --
 {-# INLINE parseSequence #-}
 parseSequence
@@ -445,45 +451,6 @@ parseIterate
     -> t m b
 parseIterate f i m = fromStreamD $
     D.parseIterate (PRD.fromParserK . f) i (toStreamD m)
-
-------------------------------------------------------------------------------
--- Generalized grouping
-------------------------------------------------------------------------------
-
--- This combinator is the most general grouping combinator and can be used to
--- implement all other grouping combinators.
---
--- XXX check if this can implement the splitOn combinator i.e. we can slide in
--- new elements, slide out old elements and incrementally compute the hash.
--- Also, can we implement the windowed classification combinators using this?
---
--- In fact this is a parse. Instead of using a special return value in the fold
--- we are using a mapping function.
---
--- Note that 'scanl'' (usually followed by a map to extract the desired value
--- from the accumulator) can be used to realize many implementations e.g. a
--- sliding window implementation. A scan followed by a mapMaybe is also a good
--- pattern to express many problems where we want to emit a filtered output and
--- not emit an output on every input.
---
--- Passing on of the initial accumulator value to the next fold is equivalent
--- to returning the leftover concept.
-
-{-
--- | @groupScan splitter fold stream@ folds the input stream using @fold@.
--- @splitter@ is applied on the accumulator of the fold every time an item is
--- consumed by the fold. The fold continues until @splitter@ returns a 'Just'
--- value.  A 'Just' result from the @splitter@ specifies a result to be emitted
--- in the output stream and the initial value of the accumulator for the next
--- group's fold. This allows us to control whether to start fresh for the next
--- fold or to continue from the previous fold's output.
---
-{-# INLINE groupScan #-}
-groupScan
-    :: (IsStream t, Monad m)
-    => (x -> m (Maybe (b, x))) -> Fold m a x -> t m a -> t m b
-groupScan split fold m = undefined
--}
 
 ------------------------------------------------------------------------------
 -- Grouping
@@ -820,16 +787,16 @@ splitWithSuffix predicate f = foldMany (FL.takeEndBy predicate f)
 -- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
 
-{-
 -- This can be implemented easily using Rabin Karp
 -- | Split on any one of the given patterns.
+--
+-- /Unimplemented/
+--
 {-# INLINE splitOnAny #-}
-splitOnAny
-    :: (IsStream t, Monad m, Storable a, Integral a)
-    => [Array a] -> Fold m a b -> t m a -> t m b
-splitOnAny subseq f m = undefined
-    -- fromStreamD $ D.splitOnAny f subseq (toStreamD m)
--}
+splitOnAny :: -- (IsStream t, Monad m, Storable a, Integral a) =>
+    [Array a] -> Fold m a b -> t m a -> t m b
+splitOnAny _subseq _f _m =
+    undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
 
 -- XXX use a non-monadic intersperse to remove the MonadAsync constraint.
 -- XXX Use two folds, one ring buffer fold for separator sequence and the other
@@ -925,16 +892,14 @@ splitOnSuffixSeq
 splitOnSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq False patt f (toStreamD m)
 
-{-
 -- | Like 'splitOn' but drops any empty splits.
 --
+-- /Unimplemented/
 {-# INLINE wordsOn #-}
-wordsOn
-    :: (IsStream t, Monad m, Storable a, Eq a)
-    => Array a -> Fold m a b -> t m a -> t m b
-wordsOn subseq f m = undefined
-    -- fromStreamD $ D.wordsOn f subseq (toStreamD m)
--}
+wordsOn :: -- (IsStream t, Monad m, Storable a, Eq a) =>
+    Array a -> Fold m a b -> t m a -> t m b
+wordsOn _subseq _f _m =
+    undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
 
 -- | Like 'splitOnSuffixSeq' but keeps the suffix intact in the splits.
 --
@@ -972,16 +937,15 @@ splitWithSuffixSeq
 splitWithSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq True patt f (toStreamD m)
 
-{-
 -- This can be implemented easily using Rabin Karp
 -- | Split post any one of the given patterns.
+--
+-- /Unimplemented/
 {-# INLINE splitOnSuffixSeqAny #-}
-splitOnSuffixSeqAny
-    :: (IsStream t, Monad m, Storable a, Integral a)
-    => [Array a] -> Fold m a b -> t m a -> t m b
-splitOnSuffixSeqAny subseq f m = undefined
-    -- fromStreamD $ D.splitPostAny f subseq (toStreamD m)
--}
+splitOnSuffixSeqAny :: -- (IsStream t, Monad m, Storable a, Integral a) =>
+    [Array a] -> Fold m a b -> t m a -> t m b
+splitOnSuffixSeqAny _subseq _f _m = undefined
+    -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Chunking
@@ -1061,16 +1025,6 @@ chunksOfTimeout n timeout f =
 -- Windowed classification
 ------------------------------------------------------------------------------
 
--- We divide the stream into windows or chunks in space or time and each window
--- can be associated with a key, all events associated with a particular key in
--- the window can be folded to a single result. The stream can be split into
--- windows by size or by using a split predicate on the elements in the stream.
--- For example, when we receive a closing flag, we can close the window.
---
--- A "chunk" is a space window and a "session" is a time window. Are there any
--- other better short words to describe them. An alternative is to use
--- "swindow" and "twindow". Another word for "session" could be "spell".
---
 -- TODO: To mark the position in space or time we can have Indexed or
 -- TimeStamped types. That can make it easy to deal with the position indices
 -- or timestamps.
