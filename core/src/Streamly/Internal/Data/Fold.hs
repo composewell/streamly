@@ -128,9 +128,9 @@ module Streamly.Internal.Data.Fold
     , mapMaybe
     -- , mapMaybeM
 
-    {-
     -- ** Scanning Filters
     , findIndices
+    {-
     , elemIndices
 
     -- ** Insertion
@@ -892,6 +892,23 @@ findIndex predicate = mkFold step (Partial 0) (const Nothing)
         if predicate a
         then Done $ Just i
         else Partial (i + 1)
+
+-- XXX If we have a Continue contructor we won't need a Maybe type for the
+-- scan. The fold will have the ability to skip producing output.
+--
+-- | Returns all indices that satisfy the given predicate.
+--
+{-# INLINE findIndices #-}
+findIndices :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
+findIndices predicate =
+    fmap (either (const Nothing) Just) $ foldl' step (Left (-1))
+
+    where
+
+    step i a =
+        if predicate a
+        then Right (either id id i + 1)
+        else Left (either id id i + 1)
 
 -- | Returns the first index where a given value is found in the stream.
 --
