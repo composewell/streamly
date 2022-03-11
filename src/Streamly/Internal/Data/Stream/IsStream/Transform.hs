@@ -1518,10 +1518,10 @@ elemIndices a = findIndices (== a)
 -- XXX this is not a one-to-one map so calling it map may not be right.
 -- We can perhaps call it zipWithTail or rollWith.
 --
--- | Apply a function on every two successive elements of a stream. If the
--- stream consists of a single element the output is an empty stream.
---
--- This is the stream equivalent of the list idiom @zipWith f xs (tail xs)@.
+-- | Apply a function on every two successive elements of a stream. The first
+-- argument of the map function is the previous element and the second argument
+-- is the current element. When the current element is the first element, the
+-- previous element is 'Nothing'.
 --
 -- /Pre-release/
 --
@@ -1537,6 +1537,13 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 rollingMapM :: (IsStream t, Monad m) => (Maybe a -> a -> m b) -> t m a -> t m b
 rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
 
+-- | Like 'rollingMap' but requires at least two elements in the stream,
+-- returns an empty stream otherwise.
+--
+-- This is the stream equivalent of the list idiom @zipWith f xs (tail xs)@.
+--
+-- /Pre-release/
+--
 {-# INLINE rollingMap2 #-}
 rollingMap2 :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
 rollingMap2 f m = fromStreamD $ D.rollingMap2 f $ toStreamD m
