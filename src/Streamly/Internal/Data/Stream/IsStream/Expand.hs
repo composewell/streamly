@@ -1008,23 +1008,6 @@ concatSmapMWith
 concatSmapMWith combine f initial =
     IsStream.concatMapWith combine id . smapM f initial
 
--- Keep concating either streams as long as rights are generated, stop as soon
--- as a left is generated and concat the left stream.
---
--- See also: 'handle'
---
--- /Unimplemented/
---
-{-
-concatMapEitherWith
-    :: -- (IsStream t, MonadAsync m) =>
-       (forall x. t m x -> t m x -> t m x)
-    -> (a -> t m (Either (t m b) b))
-    -> t m a
-    -> t m b
-concatMapEitherWith = undefined
--}
-
 -- XXX Implement a StreamD version for fusion.
 --
 -- | Combine streams in pairs using a binary stream combinator, then combine
@@ -1141,8 +1124,25 @@ iterateSmapMWith combine f initial stream =
             (fromEffect $ f b a)
 
 ------------------------------------------------------------------------------
--- iterateMap - Either streams
+-- Either streams
 ------------------------------------------------------------------------------
+
+-- Keep concating either streams as long as rights are generated, stop as soon
+-- as a left is generated and concat the left stream.
+--
+-- See also: 'handle'
+--
+-- /Unimplemented/
+--
+{-
+concatMapEitherWith
+    :: -- (IsStream t, MonadAsync m) =>
+       (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either (t m b) b))
+    -> t m a
+    -> t m b
+concatMapEitherWith = undefined
+-}
 
 -- | In an 'Either' stream iterate on 'Left's.  This is a special case of
 -- 'iterateMapWith':
