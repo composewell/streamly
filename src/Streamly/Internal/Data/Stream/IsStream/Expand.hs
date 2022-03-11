@@ -75,12 +75,14 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , zipAsyncWithM
 
     -- ** Merge
-    -- , merge
+    , merge
     , mergeBy
     , mergeByM
     , mergeByMFused
     , mergeAsyncBy
     , mergeAsyncByM
+    , mergeMinBy
+    , mergeFstBy
 
     -- * Combine Streams and Unfolds
     -- |
@@ -764,37 +766,36 @@ mergeByMFused
 mergeByMFused f m1 m2 =
     fromStreamD $ D.mergeByM f (toStreamD m1) (toStreamD m2)
 
-{-
 -- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
-{-# INLINABLE mergeEndByAny #-}
-mergeEndByAny
-    :: (IsStream t, Monad m)
-    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeEndByAny f m1 m2 = fromStreamD $
-    D.mergeEndByAny f (toStreamD m1) (toStreamD m2)
+--
+-- /Unimplemented/
+{-# INLINABLE mergeMinBy #-}
+mergeMinBy :: -- (IsStream t, Monad m) =>
+    (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeMinBy _f _m1 _m2 = undefined
+    -- fromStreamD $ D.mergeMinBy f (toStreamD m1) (toStreamD m2)
 
--- Like 'mergeByM' but stops merging as soon as the first stream stops.
-{-# INLINABLE mergeEndByFirst #-}
-mergeEndByFirst
-    :: (IsStream t, Monad m)
-    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeEndByFirst f m1 m2 = fromStreamS $
-    D.mergeEndByFirst f (toStreamD m1) (toStreamD m2)
+-- | Like 'mergeByM' but stops merging as soon as the first stream stops.
+--
+-- /Unimplemented/
+{-# INLINABLE mergeFstBy #-}
+mergeFstBy :: -- (IsStream t, Monad m) =>
+    (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeFstBy _f _m1 _m2 = undefined
+    -- fromStreamS $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
 
--- Holding this back for now, we may want to use the name "merge" differently
+-- XXX we may want to use the name "merge" differently
 -- | Same as @'mergeBy' 'compare'@.
 --
--- @
 -- >>> Stream.toList $ Stream.merge (Stream.fromList [1,3,5]) (Stream.fromList [2,4,6,8])
 -- [1,2,3,4,5,6,8]
--- @
 --
--- @since 0.6.0
+-- /Internal/
+--
 {-# INLINABLE merge #-}
 merge ::
-       (IsStream t, Monad m, Ord a) => t m a -> t m a -> t m a
+       (IsStream t, Ord a) => t m a -> t m a -> t m a
 merge = mergeBy compare
--}
 
 -- | Like 'mergeBy' but merges concurrently (i.e. both the elements being
 -- merged are generated concurrently).
