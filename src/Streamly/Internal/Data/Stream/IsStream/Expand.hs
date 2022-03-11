@@ -154,6 +154,7 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     , iterateMapWith
     , iterateSmapMWith
     , iterateMapLeftsWith
+    , iterateUnfold
 
     -- * Deprecated
     , concatUnfold
@@ -962,13 +963,6 @@ intercalateSuffix :: (IsStream t, Monad m)
 intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
     $ D.intersperseSuffix (return seed) (toStreamD str)
 
-{-
-{-# INLINE iterateUnfold #-}
-iterateUnfold :: (IsStream t, MonadAsync m)
-    => Unfold m a a -> t m a -> t m a
-iterateUnfold unf xs = undefined
--}
-
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------
@@ -1075,12 +1069,14 @@ iterateMapWith combine f = IsStream.concatMapWith combine go
     where
     go x = fromPure x `combine` IsStream.concatMapWith combine go (f x)
 
-{-
+-- | Same as @iterateMapWith Stream.serial@ but more efficient due to stream
+-- fusion.
+--
+-- /Unimplemented/
 {-# INLINE iterateUnfold #-}
-iterateUnfold :: (IsStream t, MonadAsync m)
-    => Unfold m a a -> t m a -> t m a
-iterateUnfold unf xs = undefined
--}
+iterateUnfold :: -- (IsStream t, MonadAsync m) =>
+    Unfold m a a -> t m a -> t m a
+iterateUnfold = undefined
 
 ------------------------------------------------------------------------------
 -- Flattening Graphs
