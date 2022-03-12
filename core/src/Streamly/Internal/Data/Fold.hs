@@ -74,6 +74,7 @@ module Streamly.Internal.Data.Fold
     -- $toListRev
     , toStream
     , toStreamRev
+    , toMap
 
     -- ** Terminating Folds
     , drainN
@@ -199,6 +200,7 @@ module Streamly.Internal.Data.Fold
     -- in individual output buckets using the given fold.
     , classify
     , classifyWith
+    , classifyScanWith
     -- , classifyWithSel
     -- , classifyWithMin
 
@@ -258,6 +260,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Prelude
@@ -1524,10 +1527,57 @@ demuxDefault :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
 demuxDefault = demuxDefaultWith id
 
--- TODO If the data is large we may need a map/hashmap in pinned memory instead
--- of a regular Map. That may require a serializable constraint though. We can
--- have another API for that.
---
+{-# INLINE classifyScanWith #-}
+classifyScanWith :: (Monad m, Ord k) =>
+    -- Note: we need to return the Map itself to display the in-progress values
+    -- e.g. to implement top. We could possibly create a separate abstraction
+    -- for that use case. We return an action because we want it to be lazy so
+    -- that the downstream consumers can choose to process or discard it.
+    (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+classifyScanWith f (Fold step1 initial1 extract1) =
+    fmap extract $ foldlM' step initial
+
+    where
+
+    initial = return $ Tuple3' Map.empty Set.empty Nothing
+
+    {-# INLINE initFold #-}
+    initFold kv set k a = do
+        x <- initial1
+        case x of
+              Partial s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple3' (Map.insert k s1 kv) set Nothing
+                          Done b ->
+                            Tuple3' kv set (Just (k, b))
+              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
+
+    step (Tuple3' kv set _) a = do
+        let k = f a
+        case Map.lookup k kv of
+            Nothing -> do
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else initFold kv set k a
+            Just s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple3' (Map.insert k s1 kv) set Nothing
+                          Done b ->
+                            let kv1 = Map.delete k kv
+                             in Tuple3' kv1 (Set.insert k set) (Just (k, b))
+
+    extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
+
+{-# INLINE toMap #-}
+toMap :: (Monad m, Ord k) => Fold m (k, a) (Map k a)
+toMap = foldl' (\kv (k, v) -> Map.insert k v kv) Map.empty
+
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
 -- or for generating histograms.
@@ -1538,55 +1588,30 @@ demuxDefault = demuxDefaultWith id
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
--- If the classifier fold stops for a particular key any further inputs in that
--- bucket are ignored.
+-- Once the classifier fold terminates for a particular key any further inputs
+-- in that bucket are ignored.
+--
+-- Space used is proportional to the number of keys seen till now and
+-- monotonically increases because it stores whether a key has been seen or
+-- not.
 --
 -- /Stops: never/
 --
 -- /Pre-release/
 --
 {-# INLINE classifyWith #-}
-classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
-classifyWith f (Fold step1 initial1 extract1) =
-    rmapM extract $ foldlM' step initial
-
-    where
-
-    initial = return Map.empty
-
-    step kv a =
-        case Map.lookup k kv of
-            Nothing -> do
-                x <- initial1
-                case x of
-                      Partial s -> do
-                        r <- step1 s a
-                        return
-                            $ flip (Map.insert k) kv
-                            $ case r of
-                                  Partial s1 -> Left' s1
-                                  Done b -> Right' b
-                      Done b -> return $ Map.insert k (Right' b) kv
-            Just x -> do
-                case x of
-                    Left' s -> do
-                        r <- step1 s a
-                        return
-                            $ flip (Map.insert k) kv
-                            $ case r of
-                                  Partial s1 -> Left' s1
-                                  Done b -> Right' b
-                    Right' _ -> return kv
-
-        where
-
-        k = f a
-
-    extract =
-        Prelude.mapM
-            (\case
-                 Left' s -> extract1 s
-                 Right' b -> return b)
+classifyWith :: (Monad m, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (Map k b)
+classifyWith f fld =
+    let
+        classifier = classifyScanWith f fld
+        getMap Nothing = pure Map.empty
+        getMap (Just action) = action
+        aggregator =
+            teeWith Map.union
+                (rmapM getMap $ lmap fst last)
+                (lmap snd $ catMaybes toMap)
+    in postscan classifier aggregator
 
 -- | Given an input stream of key value pairs and a fold for values, fold all
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the

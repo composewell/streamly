@@ -190,6 +190,11 @@ classifyWith ::
        (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
 classifyWith f = S.fold (FL.classifyWith f FL.sum)
 
+{-# INLINE classifyScanWith #-}
+classifyScanWith ::
+       (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
+classifyScanWith f = S.drain . S.postscan (FL.classifyScanWith f FL.sum)
+
 -------------------------------------------------------------------------------
 -- unzip
 -------------------------------------------------------------------------------
@@ -338,6 +343,8 @@ o_1_space_serial_composition value =
                   $ demuxDefaultWith fn mp
             , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
             , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+            , benchIOSink value "classifyScanWith sum"
+                $ classifyScanWith (fst . fn)
             ]
       ]
 
