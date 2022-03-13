@@ -146,7 +146,6 @@ where
 
 #include "inline.hs"
 
-import Control.Concurrent (threadDelay)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -165,8 +164,6 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , interjectSuffix
     , intersperseM
     , map
-    , parallelFst
-    , repeatM
     , scanlMAfter'
     , splitOnSeq
     , fromPure)
@@ -1188,7 +1185,9 @@ classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 data SessionState t m k a b = SessionState
     { sessionCurTime :: !AbsTime  -- ^ time since last event
     , sessionEventTime :: !AbsTime -- ^ time as per last event
-    , sessionCount :: !Int -- ^ total number sessions in progress
+    -- We can use the Map size instead of maintaining a count, but if we have
+    -- to switch to HashMap then it can be useful.
+    , sessionCount :: !Int -- ^ total number of sessions in progress
     , sessionTimerHeap :: H.Heap (H.Entry AbsTime k) -- ^ heap for timeouts
     , sessionKeyValueMap :: Map.Map k a -- ^ Stored sessions for keys
     , sessionOutputStream :: t (m :: Type -> Type) (k, b) -- ^ Completed sessions
@@ -1219,6 +1218,11 @@ data SessionEntry a b = LiveSession !a !b | ZombieSession
 -- limited to an upper bound. If the ejection @predicate@ returns 'True', the
 -- oldest session is ejected before inserting a new session.
 --
+-- When the stream ends any buffered sessions are ejected immediately.
+--
+-- If a session key is received even after a session has finished, another
+-- session is created for that key.
+--
 -- >>> :{
 -- Stream.mapM_ print
 --     $ Stream.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
@@ -1243,9 +1247,11 @@ classifySessionsBy
     -> t m (AbsTime, (k, a)) -- ^ timestamp, (session key, session data)
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick reset ejectPred tmout
-    (Fold step initial extract) str =
-    concatMap sessionOutputStream $
-        scanlMAfter' sstep (return szero) flush stream
+    (Fold step initial extract) input =
+    concatMap sessionOutputStream
+        $ scanlMAfter' sstep (return szero) flush
+        $ interjectSuffix tick (return Nothing)
+        $ map Just input
 
     where
 
@@ -1272,12 +1278,14 @@ classifySessionsBy tick reset ejectPred tmout
 
     -- Got a new stream input element
     sstep session@SessionState{..} (Just (timestamp, (key, value))) = do
-        -- XXX we should use a heap in pinned memory to scale it to a large
-        -- size
+        -- XXX instead of a heap we could use a timer wheel.
         --
         -- XXX if the key is an Int, we can also use an IntMap for slightly
         -- better performance.
         --
+        -- How it works:
+        --
+        -- Values for each key are collected in a map using the supplied fold.
         -- When we insert a key in the Map we insert an entry into the heap as
         -- well with the session expiry as the sort key.  The Map entry
         -- consists of the fold result, and the expiry time of the session. If
@@ -1302,6 +1310,14 @@ classifySessionsBy tick reset ejectPred tmout
         -- finished we still keep a dummy Map entry (ZombieSession) until the
         -- heap entry is removed. That way if we have a Map entry we do not
         -- insert a heap entry because we know it is already there.
+        -- XXX The ZombieSession mechanism does not work as expected as we
+        -- ignore ZombieSession when inserting a new entry. Anyway, we can
+        -- remove this mechanism as at most only two heap entries may be
+        -- created and they will be ultimately cleaned up.
+        --
+        -- Heap processing needs the map and map processing needs the heap,
+        -- therefore we cannot separate the two for modularity unless we have a
+        -- way to achieve mutual recursion.
         --
         let curTime = max sessionEventTime timestamp
             mOld = Map.lookup key sessionKeyValueMap
@@ -1475,12 +1491,6 @@ classifySessionsBy tick reset ejectPred tmout
                 Nothing -> do
                     assert (Map.null mp) (return ())
                     return (hp, mp, out, cnt)
-
-    -- merge timer events in the stream
-    stream = map Just str `parallelFst` repeatM timer
-    timer = do
-        liftIO $ threadDelay (round $ tick * 1000000)
-        return Nothing
 
 -- | Same as 'classifySessionsBy' with a timer tick of 1 second and keepalive
 -- option set to 'True'.
