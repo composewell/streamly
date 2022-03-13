@@ -135,6 +135,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , bytesFree
 
     -- * In-place Mutation Algorithms
+    , strip
     , reverse
     , permute
     , partitionBy
@@ -193,7 +194,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , memcpy
     , memcmp
     , c_memchr
-    , strip
     )
 where
 
@@ -2300,37 +2300,43 @@ instance NFData1 Array where
 -- | Strip elements which match with predicate from both ends.
 --
 -- /Pre-release/
+{-# INLINE strip #-}
 strip :: forall a m. (Storable a, MonadIO m) =>
     (a -> Bool) -> Array a -> m (Array a)
 strip eq arr@Array{..} = do
-    let p = arrStart
-        q = aEnd
-        len = length arr
-    st <- liftIO $ getStart p len
-    end <- liftIO $ do
+    st <- liftIO $ getStart arrStart
+    end <- liftIO $ getLast aEnd st
+    liftIO $ do
         touch arrContents
-        if st == q
-        then return q
-        else getLast $ PTR_PREV(q, a)
-    go st end
+        return arr {arrStart = st, aEnd = end, aBound = end}
 
     where
 
-    getStart p i = do
-        touch arrContents
-        r <- peek p
-        if eq r && i > 0
-        then getStart (PTR_NEXT(p, a)) (i - 1)
-        else return p
+    {-
+    -- XXX This should have the same perf but it does not, investigate.
+    getStart = do
+        r <- liftIO $ D.head $ D.findIndices (not . eq) $ toStreamD arr
+        pure $
+            case r of
+                Nothing -> aEnd
+                Just i -> PTR_INDEX(arrStart,i,a)
+    -}
 
-    getLast p = do
-        touch arrContents
-        r <- peek p
-        if eq r
-        then getLast $ PTR_PREV(p, a)
-        else return $ PTR_NEXT(p, a)
+    getStart cur = do
+        if cur < aEnd
+        then do
+            r <- peek cur
+            if eq r
+            then getStart (PTR_NEXT(cur, a))
+            else return cur
+        else return cur
 
-    {-# INLINE go #-}
-    go p q = liftIO $ do
-        touch arrContents
-        return arr {arrStart = p, aEnd = q, aBound = q}
+    getLast cur low = do
+        if cur > low
+        then do
+            let prev = PTR_PREV(cur,a)
+            r <- peek prev
+            if eq r
+            then getLast prev low
+            else return cur
+        else return cur
