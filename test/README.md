@@ -94,15 +94,12 @@ all the test suites before running `Prelude.Serial`.
 
 ## Writing doctests
 
-* The test named `doctest` runs all the code snippets in a source module
-  that are written using the `>>>` markup in haddock. See `doctest.hs`.
+* We use `cabal-docspec` to run all the code snippets in a source module
+  that are written using the `>>>` markup in haddock.
 * Make sure you do not enclose your snippets in the `@ .. @` markup otherwise
   they will show up verbatim in the docs and not as ghci styled snippets.
-* We use `--fast` mode of doctest, which means snippets are run as if you are
-  typing those examples from top to bottom in that order in GHCi. Previous
-  snippet's state is available to the next one.
 * A haddock section named `$setup` contains a snippet that is always run before
-  any other. When `--fast` mode is not used it is run before every snippet.
+  any other.
 
 An example setup section:
 
@@ -113,8 +110,8 @@ An example setup section:
 -- >>> import Data.Function ((&))
 ```
 
-Some tests that may take long can be written as follows.  Just assigning
-the code to a function makes it compile but not run.
+Some tests that may take long can be written as follows.  Just defining
+the snippet as a function makes it compile but not run.
 
 ```
 >>> :{
@@ -128,26 +125,10 @@ main = do
 
 ## Running doctests
 
-Run tests for all modules:
-
 ```
-$ cabal run doctests --flag doctests
+$ cabal build all
+$ cabal-docspec --timeout 60 --check-properties --property-variables xs
 ```
-
-Use verbose mode to debug:
-
-```
-$ cabal run doctests --flag doctests -- --verbose
-```
-
-Run tests only for selected modules:
-
-```
-$ cabal run doctests --flag doctests -- --modules Streamly.Prelude
-```
-
-If it fails with a message that a particular modules is not loaded specify that
-module as well on the command line.
 
 ## Naming of test modules
 

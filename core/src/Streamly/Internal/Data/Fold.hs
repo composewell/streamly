@@ -1534,7 +1534,7 @@ demuxDefault = demuxDefaultWith id
 --
 -- >>> :{
 --  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---   in Stream.fold (Fold.classifyWith fst (Fold.map snd Fold.toList)) input
+--   in Stream.fold (Fold.classifyWith fst (Fold.lmap snd Fold.toList)) input
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --

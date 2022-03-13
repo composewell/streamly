@@ -28,6 +28,7 @@ import Streamly.Internal.Data.Fold.Type
 
 -- $setup
 -- >>> :m
+-- >>> :set -XFlexibleContexts
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Async as Fold
