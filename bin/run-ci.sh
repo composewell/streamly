@@ -19,7 +19,7 @@ CABAL_BUILD_OPTIONS="--flag limit-build-mem"
 #------------------------------------------------------------------------------
 
 # XXX take these from command line
-GHC_PRIME_NIX="ghc8104"
+GHC_PRIME_NIX="ghc8107"
 GHC_PRIME_VER="8.10"
 JOBS=1
 
