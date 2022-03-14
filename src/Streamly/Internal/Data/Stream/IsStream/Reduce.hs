@@ -161,8 +161,7 @@ import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    ( concatMap
-    , fold
+    ( fold
     , interjectSuffix
     , intersperseM
     , map
@@ -182,7 +181,9 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Expand
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
+import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (concatMap, map)
 
@@ -1189,7 +1190,10 @@ data SessionEntry a b = LiveSession !a !b | ZombieSession
 -- (3,"abc")
 --
 -- /Pre-release/
---
+
+-- XXX this fuses with INLINE but it may be too much work for the compiler.
+-- Maybe we can NOINLINE the heap processing stuff and then INLINE it to reduce
+-- the code bloat.
 {-# INLINABLE classifySessionsBy #-}
 classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
@@ -1202,7 +1206,7 @@ classifySessionsBy
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick reset ejectPred tmout
     (Fold step initial extract) input =
-    concatMap sessionOutputStream
+    Expand.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
         $ scanlMAfter' sstep (return szero) flush
         $ interjectSuffix tick (return Nothing)
         $ map Just input

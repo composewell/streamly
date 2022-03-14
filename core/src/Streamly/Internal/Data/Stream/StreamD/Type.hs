@@ -759,7 +759,7 @@ instance Applicative f => Applicative (Stream f) where
 -- Combine N Streams - unfoldMany
 ------------------------------------------------------------------------------
 
--- Define a unique structure to use in inspection testing
+{-# ANN type ConcatMapUState Fuse #-}
 data ConcatMapUState o i =
       ConcatMapUOuter o
     | ConcatMapUInner o i
