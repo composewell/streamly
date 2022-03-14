@@ -19,6 +19,15 @@ module Streamly.Internal.Data.Fold
     , Fold (..)
 
     -- * Constructors
+    -- | Which constructor to use?
+    --
+    -- * @foldl*@: If the fold never terminates i.e. does not use the 'Done'
+    -- constructor otherwise use the @mkFold@ variants.
+    -- * @*M@: Use the @M@ suffix variants if any of the step, initial, or
+    -- extract function is monadic, otherwise use the pure variants.
+    -- * @*_@: Use the @_@ suffix variants if the extract function is 'id' or
+    -- 'return'.
+    --
     , foldl'
     , foldlM'
     , foldl1'
