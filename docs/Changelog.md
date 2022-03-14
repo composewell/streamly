@@ -1,7 +1,7 @@
 # Changelog
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
-## 0.9.0 (Mar 2022)
+## Unreleased (Mar 2022)
 * Removed functions deprecated in or before 0.7.0.
 
 ## 0.8.2 (Mar 2022)
