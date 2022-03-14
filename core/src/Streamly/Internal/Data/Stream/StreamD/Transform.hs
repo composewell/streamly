@@ -131,6 +131,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.IORef (newIORef, mkWeakIORef)
 import Data.Maybe (fromJust, isJust)
+import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
 
@@ -578,6 +579,12 @@ postscanlM' fstep begin (Stream step state) =
 postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 
+{-# ANN type PScanAfterState Fuse #-}
+data PScanAfterState m st acc =
+      PScanAfterStep st (m acc)
+    | PScanAfterYield acc (PScanAfterState m st acc)
+    | PScanAfterStop
+
 -- We can possibly have the "done" function as a Maybe to provide an option to
 -- emit or not emit the accumulator when the stream stops.
 --
@@ -587,21 +594,26 @@ postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 postscanlMAfter' :: Monad m
     => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
 postscanlMAfter' fstep initial done (Stream step1 state1) = do
-    Stream step (Just (state1, initial))
+    Stream step (PScanAfterStep state1 initial)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (Just (st, acc)) = do
+    step gst (PScanAfterStep st acc) = do
         r <- step1 (adaptState gst) st
         case r of
             Yield x s -> do
-                old <- acc
-                y <- fstep old x
-                y `seq` return (Yield y (Just (s, return y)))
-            Skip s -> return $ Skip $ Just (s, acc)
-            Stop -> acc >>= done >>= \res -> return (Yield res Nothing)
-    step _ Nothing = return Stop
+                !old <- acc
+                !y <- fstep old x
+                return (Skip $ PScanAfterYield y (PScanAfterStep s (return y)))
+            Skip s -> return $ Skip $ PScanAfterStep s acc
+            -- Strictness is important for fusion
+            Stop -> do
+                !v <- acc
+                !res <- done v
+                return (Skip $ PScanAfterYield res PScanAfterStop)
+    step _ (PScanAfterYield acc next) = return $ Yield acc next
+    step _ PScanAfterStop = return Stop
 
 {-# INLINE_NORMAL postscanlM #-}
 postscanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
@@ -646,8 +658,7 @@ scanlM' fstep begin (Stream step state) = Stream step' Nothing
 scanlMAfter' :: Monad m
     => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
 scanlMAfter' fstep initial done s =
-    (initial >>= \x -> x `seq` return x) `consM`
-        postscanlMAfter' fstep initial done s
+    initial `consM` postscanlMAfter' fstep initial done s
 
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
