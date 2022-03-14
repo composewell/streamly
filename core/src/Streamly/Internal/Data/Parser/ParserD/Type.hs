@@ -327,21 +327,20 @@ instance Functor (Initial s) where
 {-# ANN type Step Fuse #-}
 data Step s b =
         Partial !Int !s
-    -- ^ Partial result with an optional backtrack request.
+    -- ^ @Partial count state@. The following hold:
     --
-    -- @Partial count state@ means a partial result is available which
-    -- can be extracted successfully, @state@ is the opaque state of the
-    -- parser to be supplied to the next invocation of the step operation.
-    -- The current input position is reset to @count@ elements back and any
-    -- input before that is dropped from the backtrack buffer.
+    -- 1. @extract@ on @state@ would succeed and give a result.
+    -- 2. Current input stream position is reset to @current position - count@.
+    -- 3. All input before the new current position is dropped. The parser can
+    -- never backtrack beyond this position.
 
     | Continue !Int !s
-    -- ^ Need more input with an optional backtrack request.
+    -- ^ @Continue count state@. The following hold:
     --
-    -- @Continue count state@ means the parser has consumed the current input
-    -- but no new result is generated, @state@ is the next state of the parser.
-    -- The current input is retained in the backtrack buffer and the input
-    -- position is reset to @count@ elements back.
+    -- 1. @extract@ on @state@ would give the last 'Partial' result or throw
+    -- 'ParseError' if there is none.
+    -- 2. Current input stream position is reset to @current position - count@.
+    -- 3. the input is retained in a backtrack buffer.
 
     | Done !Int !b
     -- ^ Done with leftover input count and result.
@@ -950,7 +949,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     -- restriction helps us make backtracking more efficient, as we do not need
     -- to keep the consumed items buffered after a yield. Note that we do not
     -- enforce this and if a misbehaving parser does not honor this then we can
-    -- get unexpected results.
+    -- get unexpected results. XXX Can we detect and flag this?
     step (AltParseL cnt st) a = do
         r <- stepL st a
         case r of

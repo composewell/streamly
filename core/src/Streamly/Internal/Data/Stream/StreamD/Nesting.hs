@@ -1156,6 +1156,8 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
+-- XXX This is in fact parseMany1 (a la foldMany1). Do we need a parseMany as
+-- well?
 {-# INLINE_NORMAL parseMany #-}
 parseMany
     :: MonadThrow m
