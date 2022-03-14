@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Data.List (elem, intersect, nub, sort)
+import Data.List (elem, intersect, nub, sort, (\\))
 import Data.Maybe (isNothing)
 import Streamly.Prelude (SerialT)
 import Test.QuickCheck
@@ -196,6 +196,25 @@ intersectBy srt intersectFunc cmp =
                 let v2 = ls0 `intersect` ls1
                 assert (sort v1 == sort v2)
 
+differenceBySorted :: Property
+differenceBySorted =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ action (sort ls0) (sort ls1)
+
+            where
+
+            action ls0 ls1 = do
+                v1 <-
+                    run
+                    $ S.toList
+                    $ Top.differenceBySorted
+                        compare
+                        (S.fromList ls0)
+                        (S.fromList ls1)
+                let v2 = ls0 \\ ls1
+                assert (v1 == sort v2)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -219,3 +238,4 @@ main = hspec $ do
             (intersectBy id Top.intersectBy (==))
         prop "intersectBySorted"
             (intersectBy sort Top.intersectBySorted compare)
+        prop "differenceBySorted" Main.differenceBySorted
