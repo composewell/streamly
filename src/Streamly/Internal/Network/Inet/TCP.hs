@@ -314,7 +314,7 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
-read = UF.many (usingConnection ISK.readChunks) A.read
+read = UF.many A.read (usingConnection ISK.readChunks)
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --

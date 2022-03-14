@@ -572,8 +572,8 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL many #-}
-many :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
-many (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+many :: Monad m => Unfold m b c -> Unfold m a b -> Unfold m a c
+many (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     where
 

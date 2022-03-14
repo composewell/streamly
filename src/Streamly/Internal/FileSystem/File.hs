@@ -293,7 +293,7 @@ readWithBufferOf = usingFile2 FH.readWithBufferOf
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadAsync m) => Unfold m FilePath Word8
-read = UF.many (usingFile FH.readChunks) A.read
+read = UF.many A.read (usingFile FH.readChunks)
 
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single

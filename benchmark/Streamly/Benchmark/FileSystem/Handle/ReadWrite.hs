@@ -135,7 +135,7 @@ _readChunks inh devNull = IUF.fold fld unf inh
     where
 
     fld = FH.write devNull
-    unf = IUF.many FH.readChunks A.read
+    unf = IUF.many A.read FH.readChunks
 
 -- | Send the chunk content to /dev/null
 -- Implicitly benchmarked via 'readWithBufferOfFromBytesNull'
@@ -145,7 +145,7 @@ _readChunksWithBufferOf inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     where
 
     fld = FH.write devNull
-    unf = IUF.many FH.readChunksWithBufferOf A.read
+    unf = IUF.many A.read FH.readChunksWithBufferOf
 
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]

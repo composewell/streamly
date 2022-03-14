@@ -343,12 +343,12 @@ readChunks = UF.supplyFirst defaultChunkSize readChunksWithBufferOf
 -- | Unfolds the tuple @(bufsize, handle)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
--- >>> readWithBufferOf = Unfold.many Handle.readChunksWithBufferOf Array.read
+-- >>> readWithBufferOf = Unfold.many Array.read Handle.readChunksWithBufferOf
 --
 -- @since 0.7.0
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
-readWithBufferOf = UF.many readChunksWithBufferOf A.read
+readWithBufferOf = UF.many A.read readChunksWithBufferOf
 
 -- | @toBytesWithBufferOf bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
@@ -373,7 +373,7 @@ toBytesWithBufferOf size h = AS.concat $ toChunksWithBufferOf size h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Handle Word8
-read = UF.many readChunks A.read
+read = UF.many A.read readChunks
 
 -- | Generate a byte stream from a file 'Handle'.
 --
