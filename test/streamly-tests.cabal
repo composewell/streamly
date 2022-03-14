@@ -390,11 +390,6 @@ test-suite Prelude.Top
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Top.hs
 
-test-suite Data.Stream.Top
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Stream/Top.hs
-
 test-suite Prelude.WAsync
   import: test-options
   type: exitcode-stdio-1.0
