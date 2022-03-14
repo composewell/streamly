@@ -183,25 +183,25 @@ o_1_space_reduce_read env =
 -------------------------------------------------------------------------------
 
 -- | Count the number of lines in a file.
-toChunksConcatUnfoldCountLines :: Handle -> IO Int
-toChunksConcatUnfoldCountLines inh =
+getChunksConcatUnfoldCountLines :: Handle -> IO Int
+getChunksConcatUnfoldCountLines inh =
     S.length
         $ IUS.lines FL.drain
         $ SS.decodeLatin1
         -- XXX replace with toBytes
-        $ S.unfoldMany A.read (IFH.toChunks inh)
+        $ S.unfoldMany A.read (IFH.getChunks inh)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksConcatUnfoldCountLines
-inspect $ 'toChunksConcatUnfoldCountLines `hasNoType` ''Step
-inspect $ 'toChunksConcatUnfoldCountLines `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
+inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Step
+inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''D.ConcatMapUState
 #endif
 
 o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toBytes env =
     [ bgroup "reduce/toBytes"
         [ mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
-            toChunksConcatUnfoldCountLines inh
+            getChunksConcatUnfoldCountLines inh
         ]
     ]
 

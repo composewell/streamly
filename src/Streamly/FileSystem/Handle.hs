@@ -76,9 +76,9 @@ module Streamly.FileSystem.Handle
     -- encountered.
 
     , read
-    , readWithBufferOf
+    , readWith
     , readChunks
-    , readChunksWithBufferOf
+    , readChunksWith
 
     -- ** Writing
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
@@ -87,8 +87,14 @@ module Streamly.FileSystem.Handle
     -- of the handle.
 
     , write
-    , writeWithBufferOf
+    , writeWith
     , writeChunks
+    
+     -- * Deprecated
+    , readChunksWithBufferOf
+    , readWithBufferOf
+    , writeChunksWithBufferOf
+    , writeWithBufferOf
     )
 where
 

@@ -55,7 +55,7 @@ copyCodecUtf8ArraysLenient inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8'
      $ Unicode.decodeUtf8Arrays
-     $ Handle.toChunks inh
+     $ Handle.getChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient

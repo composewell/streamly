@@ -44,7 +44,7 @@ module Streamly.Internal.FileSystem.File
       withFile
 
     -- ** Read From File
-    , readWithBufferOf
+    , readWith
     , read
     -- , readShared
     -- , readUtf8
@@ -54,11 +54,11 @@ module Streamly.Internal.FileSystem.File
     , toBytes
 
     -- -- * Array Read
-    , readChunksWithBufferOf
+    , readChunksWith
     , readChunksFromToWith
     , readChunks
 
-    , toChunksWithBufferOf
+    , toChunksWith
     , toChunks
 
     -- ** Write To File
@@ -66,10 +66,10 @@ module Streamly.Internal.FileSystem.File
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeWithBufferOf
+    , writeWith
 
     , fromBytes
-    , fromBytesWithBufferOf
+    , fromBytesWith
 
     -- -- * Array Write
     , putChunk
@@ -78,7 +78,7 @@ module Streamly.Internal.FileSystem.File
 
     -- ** Append To File
     , append
-    , appendWithBufferOf
+    , appendWith
     -- , appendShared
     , appendArray
     , appendChunks
@@ -211,14 +211,16 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @toChunksWithBufferOf size file@ reads a stream of arrays from file @file@.
+-- | @toChunksWith size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINE toChunksWithBufferOf #-}
-toChunksWithBufferOf :: (IsStream t, MonadCatch m, MonadAsync m)
+--
+-- @since 0.9.0
+{-# INLINE toChunksWith #-}
+toChunksWith :: (IsStream t, MonadCatch m, MonadAsync m)
     => Int -> FilePath -> t m (Array Word8)
-toChunksWithBufferOf size file =
-    withFile file ReadMode (FH.toChunksWithBufferOf size)
+toChunksWith size file =
+    withFile file ReadMode (FH.getChunksWith size)
 
 -- XXX read 'Array a' instead of Word8
 --
@@ -226,13 +228,13 @@ toChunksWithBufferOf size file =
 -- The maximum size of a single array is limited to @defaultChunkSize@. The
 -- actual size read may be less than @defaultChunkSize@.
 --
--- > toChunks = toChunksWithBufferOf defaultChunkSize
+-- > toChunks = toChunksWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
 toChunks :: (IsStream t, MonadCatch m, MonadAsync m)
     => FilePath -> t m (Array Word8)
-toChunks = toChunksWithBufferOf defaultChunkSize
+toChunks = toChunksWith defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -249,10 +251,10 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 --
 -- /Pre-release/
 --
-{-# INLINE readChunksWithBufferOf #-}
-readChunksWithBufferOf :: (MonadCatch m, MonadAsync m)
+{-# INLINE readChunksWith #-}
+readChunksWith :: (MonadCatch m, MonadAsync m)
     => Unfold m (Int, FilePath) (Array Word8)
-readChunksWithBufferOf = usingFile2 FH.readChunksWithBufferOf
+readChunksWith = usingFile2 FH.readChunksWith
 
 -- | Unfold the tuple @(from, to, bufsize, filepath)@ into a stream
 -- of 'Word8' arrays.
@@ -282,9 +284,9 @@ readChunks = usingFile FH.readChunks
 -- to the IO device are performed using buffers of @bufsize@.
 --
 -- /Pre-release/
-{-# INLINE readWithBufferOf #-}
-readWithBufferOf :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
-readWithBufferOf = usingFile2 FH.readWithBufferOf
+{-# INLINE readWith #-}
+readWith :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
+readWith = usingFile2 FH.readWith
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
@@ -303,7 +305,7 @@ read = UF.many A.read (usingFile FH.readChunks)
 --
 {-# INLINE toBytes #-}
 toBytes :: (IsStream t, MonadCatch m, MonadAsync m) => FilePath -> t m Word8
-toBytes file = AS.concat $ withFile file ReadMode FH.toChunks
+toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -346,13 +348,13 @@ fromChunks = fromChunksMode WriteMode
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
--- @since 0.7.0
-{-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf :: (MonadAsync m, MonadCatch m)
+-- @since 0.9.0
+{-# INLINE fromBytesWith #-}
+fromBytesWith :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-fromBytesWithBufferOf n file xs = fromChunks file $ AS.arraysOf n xs
+fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
 
--- > write = 'writeWithBufferOf' defaultChunkSize
+-- > write = 'writeWith' defaultChunkSize
 --
 -- | Write a byte stream to a file. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing. If the file exists it is
@@ -362,7 +364,7 @@ fromBytesWithBufferOf n file xs = fromChunks file $ AS.arraysOf n xs
 -- /Pre-release/
 {-# INLINE fromBytes #-}
 fromBytes :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-fromBytes = fromBytesWithBufferOf defaultChunkSize
+fromBytes = fromBytesWith defaultChunkSize
 
 {-
 {-# INLINE write #-}
@@ -394,18 +396,18 @@ writeChunks path = Fold step initial extract
             FL.Partial fs -> extract1 fs
             FL.Done fb -> return fb
 
--- | @writeWithBufferOf chunkSize handle@ writes the input stream to @handle@.
+-- | @writeWith chunkSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk
 -- of size @chunkSize@ and then written to the IO device.
 --
 -- /Pre-release/
-{-# INLINE writeWithBufferOf #-}
-writeWithBufferOf :: (MonadIO m, MonadCatch m)
+{-# INLINE writeWith #-}
+writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
-writeWithBufferOf n path =
+writeWith n path =
     FL.chunksOf n (writeNUnsafe n) (writeChunks path)
 
--- > write = 'writeWithBufferOf' A.defaultChunkSize
+-- > write = 'writeWith' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
 -- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing to
@@ -415,7 +417,7 @@ writeWithBufferOf n path =
 --
 {-# INLINE write #-}
 write :: (MonadIO m, MonadCatch m) => FilePath -> Fold m Word8 ()
-write = writeWithBufferOf defaultChunkSize
+write = writeWith defaultChunkSize
 
 -- | Append a stream of arrays to a file.
 --
@@ -429,11 +431,11 @@ appendChunks = fromChunksMode AppendMode
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
--- @since 0.7.0
-{-# INLINE appendWithBufferOf #-}
-appendWithBufferOf :: (MonadAsync m, MonadCatch m)
+-- @since 0.9.0
+{-# INLINE appendWith #-}
+appendWith :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-appendWithBufferOf n file xs = appendChunks file $ AS.arraysOf n xs
+appendWith n file xs = appendChunks file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
@@ -443,7 +445,7 @@ appendWithBufferOf n file xs = appendChunks file $ AS.arraysOf n xs
 -- @since 0.7.0
 {-# INLINE append #-}
 append :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-append = appendWithBufferOf defaultChunkSize
+append = appendWith defaultChunkSize
 
 {-
 -- | Like 'append' but the file is not locked for exclusive writes.

@@ -66,14 +66,14 @@ read = Unfold.lmap (\() -> stdin) Handle.read
 
 -- | Read a byte stream from standard input.
 --
--- > getBytes = Handle.toBytes stdin
+-- > getBytes = Handle.getBytes stdin
 -- > getBytes = Stream.unfold Stdio.read ()
 --
 -- /Pre-release/
 --
 {-# INLINE getBytes #-}
 getBytes :: MonadIO m => SerialT m Word8
-getBytes = Handle.toBytes stdin
+getBytes = Handle.getBytes stdin
 
 -- | Read a character stream from Utf8 encoded standard input.
 --
@@ -96,14 +96,14 @@ readChunks = Unfold.lmap (\() -> stdin) Handle.readChunks
 -- chunk is limited to @defaultChunkSize@. The actual size read may be less
 -- than @defaultChunkSize@.
 --
--- > getChunks = Handle.toChunks stdin
+-- > getChunks = Handle.getChunks stdin
 -- > getChunks = Stream.unfold Stdio.readChunks ()
 --
 -- /Pre-release/
 --
 {-# INLINE getChunks #-}
 getChunks :: MonadIO m => SerialT m (Array Word8)
-getChunks = Handle.toChunks stdin
+getChunks = Handle.getChunks stdin
 
 {-
 -- | Read UTF8 encoded lines from standard input.

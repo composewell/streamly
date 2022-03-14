@@ -81,7 +81,7 @@ benchIO name src sink =
 -- | Get the last byte from a file bytestream.
 toChunksLast :: Handle -> IO (Maybe Word8)
 toChunksLast inh = do
-    let s = Handle.toChunks inh
+    let s = Handle.getChunks inh
     larr <- Stream.last s
     return $ case larr of
         Nothing -> Nothing
@@ -95,7 +95,7 @@ inspect $ 'toChunksLast `hasNoType` ''Step
 -- | Count the number of bytes in a file.
 toChunksSumLengths :: Handle -> IO Int
 toChunksSumLengths inh =
-    let s = Handle.toChunks inh
+    let s = Handle.getChunks inh
     in Stream.sum (Stream.map Array.length s)
 
 #ifdef INSPECTION
@@ -107,7 +107,7 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 toChunksCountBytes :: Handle -> IO Word8
 toChunksCountBytes inh = do
     let foldlArr' f z = runIdentity . Stream.foldl' f z . Array.toStream
-    let s = Handle.toChunks inh
+    let s = Handle.getChunks inh
     Stream.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
 #ifdef INSPECTION
@@ -117,7 +117,7 @@ inspect $ 'toChunksCountBytes `hasNoType` ''Step
 
 toChunksDecodeUtf8Arrays :: Handle -> IO ()
 toChunksDecodeUtf8Arrays =
-   Stream.drain . Unicode.decodeUtf8Arrays . Handle.toChunks
+   Stream.drain . Unicode.decodeUtf8Arrays . Handle.getChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
@@ -131,7 +131,7 @@ inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
 -- | Count the number of lines in a file.
 toChunksSplitOnSuffix :: Handle -> IO Int
 toChunksSplitOnSuffix =
-    Stream.length . ArrayStream.splitOnSuffix 10 . Handle.toChunks
+    Stream.length . ArrayStream.splitOnSuffix 10 . Handle.getChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksSplitOnSuffix
@@ -141,7 +141,7 @@ inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
 -- XXX use a word splitting combinator instead of splitOn and test it.
 -- | Count the number of words in a file.
 toChunksSplitOn :: Handle -> IO Int
-toChunksSplitOn = Stream.length . ArrayStream.splitOn 32 . Handle.toChunks
+toChunksSplitOn = Stream.length . ArrayStream.splitOn 32 . Handle.getChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksSplitOn
@@ -181,7 +181,7 @@ copyChunksSplitInterposeSuffix inh outh =
     Stream.fold (Handle.write outh)
         $ ArrayStream.interposeSuffix 10
         $ ArrayStream.splitOnSuffix 10
-        $ Handle.toChunks inh
+        $ Handle.getChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Storable]
@@ -196,7 +196,7 @@ copyChunksSplitInterpose inh outh =
         $ ArrayStream.interpose 32
         -- XXX this is not correct word splitting combinator
         $ ArrayStream.splitOn 32
-        $ Handle.toChunks inh
+        $ Handle.getChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Storable]

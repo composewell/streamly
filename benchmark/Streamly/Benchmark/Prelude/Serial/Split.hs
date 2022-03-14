@@ -209,7 +209,7 @@ splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
         $ IUS.decodeUtf8Arrays
-        $ IFH.toChunks inh) -- >>= print
+        $ IFH.getChunks inh) -- >>= print
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =

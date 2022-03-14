@@ -80,7 +80,7 @@ readFromHandle =
 readWithBufferFromHandle :: IO (SerialT IO Char)
 readWithBufferFromHandle =
     let f1 = (\h -> (1024, h))
-        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readWithBufferOf . f1
+        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readWith . f1
     in executor f2
 
 readChunksFromHandle :: IO (SerialT IO Char)
@@ -96,7 +96,7 @@ readChunksWithBuffer =
         f2 =
               Unicode.decodeUtf8
             . Stream.concatMap Array.toStream
-            . Stream.unfold Handle.readChunksWithBufferOf
+            . Stream.unfold Handle.readChunksWith
             . f1
     in executor f2
 
@@ -148,7 +148,7 @@ testWriteWithChunk =
                 hw <- openFile fpathWrite ReadWriteMode
                 hSeek hw AbsoluteSeek 0
                 _ <- Stream.fold (Handle.writeChunks hw)
-                    $ Stream.unfold Handle.readChunksWithBufferOf (1024, hr)
+                    $ Stream.unfold Handle.readChunksWith (1024, hr)
                 hFlush hw
                 hSeek hw AbsoluteSeek 0
                 ls <- Stream.toList $ Stream.unfold Handle.read hw
@@ -209,9 +209,9 @@ main =
       describe moduleName $ do
         describe "Read From Handle" $ do
             prop "read" $ testRead readFromHandle
-            prop "readWithBufferOf" $ testRead readWithBufferFromHandle
+            prop "readWith" $ testRead readWithBufferFromHandle
             prop "readChunks" $ testRead readChunksFromHandle
-            prop "readChunksWithBufferOf" $ testRead readChunksWithBuffer
+            prop "readChunksWith" $ testRead readChunksWithBuffer
             prop "readChunksFromToWith (0,0,n)"
                 testReadChunksFromToWithFirstByte
             prop "readChunksFromToWith (1,1,n)"
@@ -226,7 +226,7 @@ main =
                 testReadChunksFromToWithRangeInvalid
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
-            prop "writeWithBufferOf"
-                $ testWrite $ Handle.writeWithBufferOf 1024
+            prop "writeWith"
+                $ testWrite $ Handle.writeWith 1024
             -- XXX This test needs a lot of stack when built with -O0
             prop "writeChunks" testWriteWithChunk

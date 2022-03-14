@@ -160,7 +160,7 @@ readWriteFinallyStream inh devNull =
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
     let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toBytes inh)
+                    (\_ -> IFH.getBytes inh)
     in IFH.putBytes devNull $ readEx
 
 #ifdef INSPECTION
@@ -170,7 +170,7 @@ inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toBytes inh)
+                    (\_ -> IFH.getBytes inh)
     in IFH.putBytes devNull $ readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
@@ -280,7 +280,7 @@ toChunksBracket_ inh devNull =
     let readEx = IP.bracket_
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.toChunks inh)
+            (\_ -> IFH.getChunks inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
 #ifdef INSPECTION
@@ -292,7 +292,7 @@ toChunksBracket inh devNull =
     let readEx = S.bracket
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.toChunks inh)
+            (\_ -> IFH.getChunks inh)
     in S.fold (IFH.writeChunks devNull) $ readEx
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
