@@ -62,7 +62,7 @@
 -- A parser building a collection of values (e.g. a list) can use the @Partial@
 -- constructor whenever a new item in the output collection is generated. If a
 -- parser building a collection of values has yielded at least one value then
--- it considered successful and cannot fail after that. In the current
+-- it is considered successful and cannot fail after that. In the current
 -- implementation, this is not automatically enforced, there is a rule that the
 -- parser MUST use only @Done@ for termination after the first @Partial@, it
 -- cannot use @Error@. It may be possible to change the implementation so that
@@ -94,6 +94,60 @@
 -- layers. Note that we cannot use exception throwing mechanism in @step@
 -- function because of performance reasons. 'Error' constructor in that case
 -- allows loop fusion and better performance.
+--
+-- = Optimizing backtracking
+--
+-- == Applicative Composition
+--
+-- If a parser once returned 'Partial' it can never fail after that. This is
+-- used to reduce the buffering. A 'Partial' results in dropping the buffer and
+-- we cannot backtrack before that point.
+--
+-- Parsers can be composed using an Alternative, if we are in an alternative
+-- composition we may have to backtrack to try the other branch.  When we
+-- compose two parsers using applicative @f <$> p1 <*> p2@ we can return a
+-- 'Partial' result only after both the parsers have succeeded. While running
+-- @p1@ we have to ensure that the input is not dropped until we have run @p2@,
+-- therefore we have to return a Continue instead of a Partial.
+--
+-- However, if we know they both cannot fail then we know that the composed
+-- parser can never fail.  For this reason we should have "backtracking folds"
+-- as a separate type so that we can compose them in an efficient manner. In p1
+-- itself we can drop the buffer as soon as a 'Partial' result arrives. In
+-- fact, there is no Alternative composition for folds because they cannot
+-- fail.
+--
+-- == Alternative Composition
+--
+-- In @p1 <|> p2@ as soon as the parser p1 returns 'Partial' we know that it
+-- will not fail and we can immediately drop the buffer.
+--
+-- If we are not using the parser in an alternative composition we can
+-- downgrade the parser to a backtracking fold and use the "backtracking
+-- fold"'s applicative for more efficient implementation. To downgrade we can
+-- translate the "Error" of parser to an exception.  This gives us best of both
+-- worlds, the applicative as well as alternative would have optimal
+-- backtracking buffer.
+--
+-- The "many" for parsers would be different than "many" for folds. In case of
+-- folds an error would be propagated. In case of parsers the error would be
+-- ignored.
+--
+-- = Implementation Approach
+--
+-- Backtracking folds have an issue with tee style composition because each
+-- fold can backtrack independently, we will need independent buffers. Though
+-- this may be possible to implement it may not be efficient especially for
+-- folds that do not backtrack at all. Three types are possible, optimized for
+-- different use cases:
+--
+-- * Non-backtracking folds: efficient Tee
+-- * Backtracking folds: efficient applicative
+-- * Parsers: alternative
+--
+-- Downgrade parsers to backtracking folds for applicative used without
+-- alternative.  Upgrade backtracking folds to parsers when we have to use them
+-- as the last alternative.
 --
 -- = Future Work
 --

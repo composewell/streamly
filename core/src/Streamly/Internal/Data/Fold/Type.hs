@@ -12,45 +12,115 @@
 -- We can classify stream consumers in the following categories in order of
 -- increasing complexity and power:
 --
--- == Accumulators
+-- == Folds that never terminate
 --
--- These are the simplest folds that never fail and never terminate, they
--- accumulate the input values forever and can always accept new inputs (never
--- terminate) and always have a valid result value.  A
--- 'Streamly.Internal.Data.Fold.sum' operation is an example of an accumulator.
+-- An Accumulator is the simplest type of fold, it never fails and never
+-- terminates. It can always accept more inputs (never terminates) and the
+-- accumulator is always valid.  For example 'Streamly.Internal.Data.Fold.sum'.
 -- Traditional Haskell left folds like 'foldl' are accumulators.
 --
--- We can distribute an input stream to two or more accumulators using a @tee@
--- style composition.  Accumulators cannot be applied on a stream one after the
--- other, which we call a @serial@ append style composition of folds. This is
--- because accumulators never terminate, since the first accumulator in a
--- series will never terminate, the next one will never get to run.
+-- Accumulators can be composed in parallel where we distribute the input
+-- stream to all accumulators.  Since accumulators never terminate they cannot
+-- be appended.
 --
--- == Terminating Folds
+-- An accumulator can be represented as:
 --
--- Terminating folds are accumulators that can terminate. Once a fold
--- terminates it no longer accepts any more inputs.  Terminating folds can be
--- used in a @serial@ append style composition where one fold can be applied
--- after the other on an input stream. We can apply a terminating fold
--- repeatedly on an input stream, splitting the stream and consuming it in
--- fragments.  Terminating folds never fail, therefore, they do not need
--- backtracking.
+-- @
+-- data Fold0 m a b =
+--   forall s. Fold0
+--      (s -> a -> m s) -- step
+--      (m s)           -- initial
+--      (s -> m b)      -- extract
+-- @
+--
+-- This is just a traditional left fold, compare with @foldl@. The driver of
+-- the fold would call @initial@ at the beginning and then keep accumulating
+-- inputs into its result using @step@ and finally extract the result using
+-- @extract@.
+--
+-- == Folds that terminate after one or more input
+--
+-- Terminating folds are accumulators that can terminate, like accumulators
+-- they do not fail. Once a fold terminates it no longer accepts any more
+-- inputs.  Terminating folds can be appended, the next fold can be
+-- applied after the first one terminates.  Because they cannot fail, they do
+-- not need backtracking.
 --
 -- The 'Streamly.Internal.Data.Fold.take' operation is an example of a
--- terminating fold  It terminates after consuming @n@ items. Coupled with an
--- accumulator (e.g. sum) it can be used to split and process the stream into
--- chunks of fixed size.
+-- terminating fold. It terminates after consuming @n@ items. Coupled with an
+-- accumulator (e.g. sum) it can be used to process the stream into chunks of
+-- fixed size.
 --
--- == Terminating Folds with Leftovers
+-- A terminating fold can be represented as:
 --
--- The next upgrade after terminating folds is terminating folds with leftover
--- inputs.  Consider the example of @takeWhile@ operation, it needs to inspect
--- an element for termination decision. However, it does not consume the
--- element on which it terminates. To implement @takeWhile@ a terminating fold
--- will have to implement a way to return unconsumed input to the fold driver.
+-- @
+-- data Step s b
+--     = Partial !s -- the fold can accept more input
+--     | Done !b    -- the fold is done
 --
--- Single element leftover case is the most common and its easy to implement it
--- in terminating folds using a @Done1@ constructor in the 'Step' type which
+-- data Fold1 m a b =
+--   forall s. Fold1
+--      (s -> a -> m (Step s b)) -- step
+--      (m s)                    -- initial
+--      (s -> m b)               -- extract
+-- @
+--
+-- The fold driver stops driving the fold as soon as the fold returns a @Done@.
+-- @extract@ is required only if the fold has not stopped yet and the input
+-- ends. @extract@ can never be called if the fold is @Done@.
+--
+-- Notice that the @initial@ of `Fold1` type does not return a "Step" type,
+-- therefore, it cannot say "Done" in initial. It always has to consume at
+-- least one element before it can say "Done" for termination, via the @step@
+-- function.
+--
+-- == Folds that terminate after 0 or more input
+--
+-- The `Fold1` type makes combinators like @take 0@ impossible to implement
+-- because they need to terminate even before they can consume any elements at
+-- all.  Implementing this requires the @initial@ function to be able to return
+-- @Done@.
+--
+-- @
+-- data Fold m a b =
+--   forall s. Fold
+--      (s -> a -> m (Step s b)) -- step
+--      (m (Step s b))           -- initial
+--      (s -> m b)               -- extract
+-- @
+--
+-- This is also required if we want to compose terminating folds using an
+-- Applicative or Monadic composition. @pure@ needs to yield an output without
+-- having to consume an input.
+--
+-- @initial@ now has the ability to terminate the fold without consuming any
+-- input based on the state of the monad.
+--
+-- In some cases it does not make sense to use a fold that does not consume any
+-- items at all, and it may even lead to an infinite loop. It might make sense
+-- to use a `Fold1` type for such cases because it guarantees to consume at
+-- least one input, therefore, guarantees progress. For example, in
+-- classifySessionsBy or any other splitting operations it may not make sense
+-- to pass a fold that never consumes an input. However, we do not have a
+-- separate Fold1 type for the sake of simplicity of types/API.
+--
+-- Adding this capability adds a certain amount of complexity in the
+-- implementation of fold combinators. @initial@ has to always handle two cases
+-- now.  We could potentially not implement this in folds to keep fold
+-- implementation simpler, and these use cases can be transferred to the parser
+-- type. However, it would be a bit inconvenient to not have a `take` operation
+-- or to not be able to use `take 0` if we have it. Also, applicative and
+-- monadic composition of folds would not be possible.
+--
+-- == Terminating Folds with backtracking
+--
+-- Consider the example of @takeWhile@ operation, it needs to inspect an
+-- element for termination decision. However, it does not consume the element
+-- on which it terminates. To implement @takeWhile@ a terminating fold will
+-- have to implement a way to return the unconsumed input to the fold driver.
+--
+-- Single element leftover case is quite common and its easy to implement it in
+-- terminating folds by adding a @Done1@ constructor in the 'Step' type which
 -- indicates that the last element was not consumed by the fold. The following
 -- additional operations can be implemented as terminating folds if we do that.
 --
@@ -60,30 +130,74 @@
 -- wordBy
 -- @
 --
--- However, it creates several complications.  The 'many' combinator  requires
--- a @Partial1@ ('Partial' with leftover) to handle a @Done1@ from the top
--- level fold, for efficient implementation.  If the collecting fold in "many"
--- returns a @Partial1@ or @Done1@ then what to do with all the elements that
--- have been consumed?
+-- However, it creates several complications.
 --
--- Similarly, in distribute, if one fold consumes a value and others say its a
--- leftover then what do we do?  Folds like "many" require the leftover to be
--- fed to it again. So in a distribute operation those folds which gave a
--- leftover will have to be fed the leftover while the folds that consumed will
--- have to be fed the next input.  This is very complicated to implement. We
--- have the same issue in backtracking parsers being used in a distribute
--- operation.
+-- === Nested backtracking
 --
--- To avoid these issues we want to enforce by typing that the collecting folds
--- can never return a leftover. So we need a fold type without @Done1@ or
--- @Partial1@. This leads us to design folds to never return a leftover and the
--- use cases of single leftover are transferred to parsers where we have
--- general backtracking mechanism and single leftover is just a special case of
+-- Nesting of backtracking folds increases the amount of backtracking required
+-- exponentially.
+--
+-- For example, the combinator @many inner outer@ applies the outer fold on the
+-- input stream and applies the inner fold on the results of the outer fold.
+--
+-- many :: Monad m => Fold m b c -> Fold m a b -> Fold m a c
+--
+-- If the inner fold itself returns a @Done1@ then we need to backtrack all
+-- the elements that have been consumed by the outer fold to generate that
+-- value. We need backtracking of more than one element.
+--
+-- Arbitrary backtracking requires arbitrary buffering. However, we do not want
+-- to buffer unconditionally, only if the buffer is needed. One way to do this
+-- is to use a "Continue" constructor like parsers. When we have nested folds,
+-- the top level fold always returns a "Continue" to the driver until an output
+-- is generated by it, this means the top level driver keeps buffering until an
+-- output is generated via Partial or Done. Intermediate level "Continue" keep
+-- propagating up to the top level.
+--
+-- === Parallel backtracking
+--
+-- In compositions like Alternative and Distributive we may have several
+-- branches. Each branch can backtrack independently. We need to keep the input
+-- as long as any of the branches need it. We can use a single copy of the
+-- buffer and maintain it based on all the branches, or we can make each branch
+-- have its own buffer. The latter approach may be simpler to implement.
+-- Whenever we branch we can introduce an independent buffer for backtracking.
+-- Or we can use a newtype that allows branched composition to handle
 -- backtracking.
 --
+-- === Implementation Approach
+--
+-- To avoid these issues we can enforce, by using types, that the collecting
+-- folds can never return a leftover.  This leads us to define a type that can
+-- never return a leftover. The use cases of single leftover can be transferred
+-- to parsers where we have general backtracking mechanism and single leftover
+-- is just a special case of backtracking.
+--
 -- This means: takeWhile, groupBy, wordBy would be implemented as parsers.
--- "take 0" can implemented as a fold if we make initial return @Step@ type.
--- "takeInterval" can be implemented without @Done1@.
+--
+-- A proposed design is to use the same Step type with Error in Folds as well
+-- as Parsers. Folds won't use the Error constructor and even if they use, it
+-- will be equivalent to just throwing an error. They won't have an
+-- alternative.
+--
+-- Because of the complexity of implementing a distributive composition in
+-- presence of backtracking we could possibly have a type without backtracking
+-- but with the "Continue" constructor, and use either the Parser type or
+-- another type for backtracking.
+--
+-- == Folds with an additional input
+--
+-- The `Fold` type does not allow a dynamic input to be used to generate the
+-- initial value of the fold accumulator. We can extend the type further to
+-- allow that:
+--
+-- @
+-- data Refold m i a b =
+--   forall s. Refold
+--      (s -> a -> m (Step s b)) -- step
+--      (i -> m (Step s b))      -- initial
+--      (s -> m b)               -- extract
+-- @
 --
 -- == Parsers
 --
@@ -95,11 +209,33 @@
 -- would succeed if the condition is satisfied and it would fail otherwise, on
 -- failure an alternative parser can be used on the same input.
 --
+-- We add @Error@ and @Continue@ to the @Step@ type of fold. @Continue@ is to
+-- skip producing an output or to backtrack. We also add the ability to
+-- backtrack in @Partial@ and @Done@.:
+--
+-- Also @extract@ now needs to be able to express an error. We could have it
+-- return the @Step@ type as well but that makes the implementation more
+-- complicated.
+--
+-- @
+-- data Step s b =
+--       Partial Int s   -- partial result and how much to backtrack
+--     | Done Int b      -- final result and how much to backtrack
+--     | Continue Int s  -- no result and how much to backtrack
+--     | Error String    -- error
+--
+-- data Parser m a b =
+--   forall s. Fold
+--      (s -> a -> m (Step s b))   -- step
+--      (m (Step s b))             -- initial
+--      (s -> m (Either String b)) -- extract
+-- @
+--
 -- = Types for Stream Consumers
 --
--- In streamly, there is no separate type for accumulators. Terminating folds
--- are a superset of accumulators and to avoid too many types we represent both
--- using the same type, 'Fold'.
+-- We do not have a separate type for accumulators. Terminating folds are a
+-- superset of accumulators and to avoid too many types we represent both using
+-- the same type, 'Fold'.
 --
 -- We do not club the leftovers functionality with terminating folds because of
 -- the reasons explained earlier. Instead combinators that require leftovers
@@ -155,23 +291,15 @@
 --
 -- However, removing extract altogether may lead to less optimal code in some
 -- cases because the driver of the fold needs to thread around the intermediate
--- output to return it if the stream stops before the fold could @Done@.  When
--- using this approach, the @parseMany (FL.take filesize)@ benchmark shows a
--- 2x worse performance even after ensuring everything fuses.  So we keep the
+-- output to return it if the stream stops before the fold could return @Done@.
+-- When using this approach, the @parseMany (FL.take filesize)@ benchmark shows
+-- a 2x worse performance even after ensuring everything fuses.  So we keep the
 -- "extract" approach to ensure better perf in all cases.
 --
 -- But we could still yield both state and the output in @Partial@, the output
 -- can be used for the scan use case, instead of using extract. Extract would
 -- then be used only for the case when the stream stops before the fold
 -- completes.
---
--- = Accumulators and Terminating Folds
---
--- Folds in this module can be classified in two categories viz. accumulators
--- and terminating folds. Accumulators do not have a terminating condition,
--- they run forever and consume the entire stream, for example the 'length'
--- fold. Terminating folds have a terminating condition and can terminate
--- without consuming the entire stream, for example, the 'head' fold.
 --
 -- = Monoids
 --
