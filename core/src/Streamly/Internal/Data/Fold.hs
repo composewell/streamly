@@ -55,6 +55,9 @@ module Streamly.Internal.Data.Fold
     , drainBy
     , last
     , length
+    , genericLength
+    , countDistinct
+    , countDistinctInt
     , mean
     , variance
     , stdDev
@@ -268,6 +271,7 @@ import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
+import qualified Data.IntSet as IntSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
@@ -525,6 +529,56 @@ genericLength = foldl' (\n _ -> n + 1) 0
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
 length = genericLength
+
+-- XXX Try Hash set
+-- XXX Add a countDistinct window fold
+-- XXX Add a bloom filter fold
+
+-- | Count non-duplicate elements in the stream.
+--
+-- The memory used is proportional to the number of distinct elements in the
+-- stream, to guard against using too much memory use it as a scan and
+-- terminate if the count reaches more than a threshold.
+--
+-- /Space/: \(\mathcal{O}(n)\)
+--
+-- /Pre-release/
+--
+{-# INLINE countDistinct #-}
+countDistinct :: (Monad m, Ord a) => Fold m a Int
+countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
+
+    where
+
+    initial = Tuple' Set.empty 0
+
+    step (Tuple' set n) x = do
+        if Set.member x set
+        then
+            Tuple' set n
+        else
+            let cnt = n + 1
+             in Tuple' (Set.insert x set) cnt
+
+-- | Like 'countDistinct' but specialized to a stream of 'Int', for better
+-- performance.
+--
+-- /Pre-release/
+{-# INLINE countDistinctInt #-}
+countDistinctInt :: Monad m => Fold m Int Int
+countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
+
+    where
+
+    initial = Tuple' IntSet.empty 0
+
+    step (Tuple' set n) x = do
+        if IntSet.member x set
+        then
+            Tuple' set n
+        else
+            let cnt = n + 1
+             in Tuple' (IntSet.insert x set) cnt
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
 -- identity (@0@) when the stream is empty. Note that this is not numerically
