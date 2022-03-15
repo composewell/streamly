@@ -129,7 +129,6 @@ let haskellPackages =
         # Use a better prompt
         shellHook = ''
           export CABAL_DIR="$(pwd)/.cabal.nix"
-          cabal user-config update -a "jobs: 1"
           if test -n "$PS_SHELL"
           then
             export PS1="$PS_SHELL\[$bldred\](nix:streamly)\[$txtrst\] "
