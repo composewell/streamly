@@ -81,7 +81,7 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadThrow, MonadCatch)
+import Control.Monad.Catch (MonadThrow(..), MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (chr, ord)
@@ -436,7 +436,7 @@ data UTF8CharDecodeState a
 
 {-# INLINE parseCharUtf8WithD #-}
 parseCharUtf8WithD ::
-       Monad m => CodingFailureMode -> ParserD.Parser m Word8 Char
+       MonadThrow m => CodingFailureMode -> ParserD.Parser m Word8 Char
 parseCharUtf8WithD cfm =
     let A.Array _ ptr _ = utf8d
     in ParserD.Parser (step' ptr) initial extract
@@ -495,7 +495,15 @@ parseCharUtf8WithD cfm =
             _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
 
     {-# INLINE extract #-}
-    extract _ = error $ prefix ++ "Not enough input"
+    extract UTF8CharDecodeInit =  error $ prefix ++ "Not enough input"
+    extract (UTF8CharDecoding _ _) =
+        case cfm of
+            ErrorOnCodingFailure ->
+                throwM $ ParserD.ParseError $ prefix ++ "Not enough input"
+            TransliterateCodingFailure -> return replacementChar
+            -- XXX We shouldn't error out here. There is no way to represent an
+            -- empty parser result unless we return a "Maybe" type.
+            DropOnCodingFailure -> error $ prefix ++ "Not enough input"
 
 -- XXX This should ideally accept a "CodingFailureMode" and perform appropriate
 -- error handling. This isn't possible now as "TransliterateCodingFailure"'s
