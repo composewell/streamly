@@ -322,6 +322,12 @@ benchmark Data.Fold
   else
     buildable: True
 
+benchmark Data.Fold.Window
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Fold
+  main-is: Window.hs
+
 benchmark Data.Parser.ParserD
   import: bench-options
   type: exitcode-stdio-1.0

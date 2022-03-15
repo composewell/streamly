@@ -251,6 +251,12 @@ test-suite Data.Fold
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Fold.hs
 
+test-suite Data.Fold.Window
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Fold/Window.hs
+  ghc-options: -main-is Streamly.Test.Data.Fold.Window.main
+
 test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0

@@ -68,6 +68,8 @@ cradle:
               component: "bench:Unicode.Stream"
             - path: "./benchmark/lib/"
               component: "lib:streamly-benchmarks"
+            - path: "./benchmark/Streamly/Benchmark/Data/Fold/Window.hs"
+              component: "bench:Data.Fold.Window"
     - path: "./test"
       config:
         cradle:
@@ -134,6 +136,8 @@ cradle:
               component: "lib:streamly-tests"
             - path: "./test/version-bounds.hs"
               component: "test:version-bounds"
+            - path: "./test/Streamly/Test/Data/Fold/Window.hs"
+              component: "test:Data.Fold.Window"
 
 dependencies:
   - streamly.cabal
