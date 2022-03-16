@@ -201,8 +201,8 @@ module Streamly.Internal.Data.Unfold
     , map
     , mapM
     , mapMWithInput
-    , scanlM'
-    , scan
+    , postscanlM'
+    , postscan
     , foldMany
     -- pipe
 
@@ -478,9 +478,9 @@ either (Unfold step1 inject1) = Unfold step inject
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL scan #-}
-scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scan (Fold stepF initial extract) (Unfold stepU injectU) =
+{-# INLINE_NORMAL postscan #-}
+postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+postscan (Fold stepF initial extract) (Unfold stepU injectU) =
     Unfold step inject
 
     where
@@ -509,10 +509,10 @@ scan (Fold stepF initial extract) (Unfold stepU injectU) =
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
--- /Unimplemented/
-{-# INLINE_NORMAL scanlM' #-}
-scanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-scanlM' f z = scan (FL.foldlM' f z)
+-- /Pre-release/
+{-# INLINE_NORMAL postscanlM' #-}
+postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
+postscanlM' f z = postscan (FL.foldlM' f z)
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds

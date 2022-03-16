@@ -290,6 +290,11 @@ enumerateFromToFractional size start =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
+{-# INLINE postscan #-}
+postscan :: Monad m => Int -> Int -> m ()
+postscan size start =
+    drainTransformationDefault (size + start) (UF.postscan FL.sum) start
+
 {-# INLINE map #-}
 map :: Monad m => Int -> Int -> m ()
 map size start = drainTransformationDefault (size + start) (UF.map (+1)) start
@@ -663,6 +668,7 @@ o_1_space_transformation size =
           [ benchIO "map" $ map size
           , benchIO "mapM" $ mapM size
           , benchIO "mapMWithInput" $ mapMWithInput size
+          , benchIO "postscan" $ postscan size
           ]
     ]
 

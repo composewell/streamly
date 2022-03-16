@@ -624,9 +624,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     Stream.fromEffect $ putStrLn $ show (x, y)
 -- :}
 -- (1,3)
--- (1,4)
--- (2,3)
--- (2,4)
+-- ...
+-- ...
+-- ...
 --
 -- Nested iterations are given preference for concurrent evaluation i.e.
 -- (1,4) will be scheduled in preference to (2,3).

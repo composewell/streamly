@@ -13,6 +13,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Data.List as List
 import qualified Prelude
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -449,6 +450,14 @@ enumerateFromToFractional =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
+postscan :: Property
+postscan =
+    property
+        $ \(ls :: [Int]) ->
+              let unf = UF.postscan Fold.sum UF.fromList
+                  mList = scanl1 (+) ls
+              in testUnfold unf ls mList
+
 mapM :: Property
 mapM =
     property
@@ -655,6 +664,7 @@ testTransformation =
     describe "Transformation"
         $ do
             -- prop "map" map
+            prop "postscan" postscan
             prop "mapM" mapM
             prop "mapMWithInput" mapMWithInput
             prop "takeWhileM" takeWhileM
