@@ -375,6 +375,10 @@ o_1_space_serial_transformation value =
             (S.fold $ FL.scan FL.sum FL.drain)
         , benchIOSink
             value
+            "fold-scanMany"
+            (S.fold $ FL.scanMany (FL.take 2 FL.drain) FL.drain)
+        , benchIOSink
+            value
             "fold-postscan"
             (S.fold $ FL.postscan FL.sum FL.drain)
         ]

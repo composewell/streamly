@@ -126,6 +126,7 @@ module Streamly.Internal.Data.Fold
     --, lsequence
     , lmapM
     , scan
+    , scanMany
     , postscan
     , indexed
 
@@ -292,10 +293,9 @@ import qualified Data.IntSet as IntSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
+import qualified Prelude
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
--- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
-import qualified Prelude
 
 import Prelude hiding
        ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith
@@ -417,17 +417,13 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     extract (Tuple' _ fs) = fextract fs
 
--- | Scan the input of a 'Fold' to change it in a stateful manner using another
--- 'Fold'.
--- /Pre-release/
-{-# INLINE scan #-}
-scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+{-# INLINE scanWith #-}
+scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
+scanWith isMany (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
 
-    -- XXX It can be moved out and used for both scan and postscan
     {-# INLINE runStep #-}
     runStep actionL sR = do
         rL <- actionL
@@ -435,7 +431,10 @@ scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Done bL -> do
                 rR <- stepR sR bL
                 case rR of
-                    Partial sR1 -> Done <$> extractR sR1
+                    Partial sR1 ->
+                        if isMany
+                        then runStep initialL sR1
+                        else Done <$> extractR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
@@ -454,6 +453,24 @@ scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (sL, sR) x = runStep (stepL sL x) sR
 
     extract = extractR . snd
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE scan #-}
+scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+scan = scanWith False
+
+-- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+--
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan restarts with a fresh state if the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE scanMany #-}
+scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+scanMany = scanWith True
 
 -- | Postscan the input of a 'Fold' to change it in a stateful manner using
 -- another 'Fold'.
