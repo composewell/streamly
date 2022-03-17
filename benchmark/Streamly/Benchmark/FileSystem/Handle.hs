@@ -17,10 +17,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
-
-#if __GLASGOW_HASKELL__ >= 800
-#endif
-
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Handle.ReadWrite as RW

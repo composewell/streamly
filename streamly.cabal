@@ -31,8 +31,7 @@ homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD-3-Clause
 license-file:        LICENSE
-tested-with:         GHC==8.0.2
-                   , GHC==8.4.4
+tested-with:         GHC==8.4.4
                    , GHC==8.6.5
                    , GHC==8.8.4
                    , GHC==8.10.7

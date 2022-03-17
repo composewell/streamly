@@ -117,9 +117,6 @@ import Data.List
     , unfoldr
     )
 import Data.Maybe (mapMaybe)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup, (<>))
-#endif
 import GHC.Word (Word8)
 import System.Mem (performMajorGC)
 import Test.Hspec.QuickCheck
@@ -972,9 +969,6 @@ nestTwoStreamsApp desc streamListT listT t =
 composeAndComposeSimple
     :: ( IsStream t1, Semigroup (t1 IO Int)
        , IsStream t2, Monoid (t2 IO Int), Monad (t2 IO)
-#if !(MIN_VERSION_base(4,11,0))
-       , Semigroup (t2 IO Int)
-#endif
        )
     => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)

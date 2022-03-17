@@ -263,9 +263,6 @@ import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Semigroup (Semigroup((<>)))
-#endif
 import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
@@ -838,9 +835,6 @@ sconcat = foldl' (<>)
 {-# INLINE mconcat #-}
 mconcat ::
     ( Monad m
-#if !MIN_VERSION_base(4,11,0)
-    , Semigroup a
-#endif
     , Monoid a) => Fold m a a
 mconcat = sconcat mempty
 
@@ -856,9 +850,6 @@ mconcat = sconcat mempty
 -- @since 0.7.0
 {-# INLINE foldMap #-}
 foldMap :: (Monad m, Monoid b
-#if !MIN_VERSION_base(4,11,0)
-    , Semigroup b
-#endif
     ) => (a -> b) -> Fold m a b
 foldMap f = lmap f mconcat
 

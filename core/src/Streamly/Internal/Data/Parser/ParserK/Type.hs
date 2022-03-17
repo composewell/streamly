@@ -36,12 +36,8 @@ import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader.Class (MonadReader, ask, local)
 import Control.Monad.State.Class (MonadState, get, put)
-#if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
-#endif
-#if !(MIN_VERSION_base(4,10,0))
-import Data.Semigroup ((<>))
-#endif
+
 
 -- | The parse driver result. The driver may stop with a final result, pause
 -- with a continuation to resume, or fail with an error.
@@ -157,10 +153,8 @@ instance Monad m => Applicative (Parser m a) where
             yield1 s (Error e) = yieldk s (Error e)
         in runParser m1 lo st yield1
 
-#if MIN_VERSION_base(4,10,0)
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
-#endif
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -238,12 +232,9 @@ instance Monad m => Monad (Parser m a) where
     {-# INLINE fail #-}
     fail = die
 #endif
-
-#if MIN_VERSION_base(4,9,0)
 instance Monad m => Fail.MonadFail (Parser m a) where
     {-# INLINE fail #-}
     fail = die
-#endif
 
 instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
     MonadReader r (Parser m a) where

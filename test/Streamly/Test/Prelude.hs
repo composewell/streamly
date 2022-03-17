@@ -15,9 +15,6 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Error.Class (throwError, MonadError)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.List (sort)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup(..))
-#endif
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Test.Hspec as H

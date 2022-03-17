@@ -27,9 +27,7 @@ import Streamly.Internal.System.IOVec.Type (IOVec)
 import Control.Concurrent (threadWaitWrite)
 import Data.Int (Int64)
 import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
-#if __GLASGOW_HASKELL__ >= 802
 import Foreign.C.Types (CBool(..))
-#endif
 import System.Posix.Internals (c_write, c_safe_write)
 import Streamly.Internal.System.IOVec.Type (c_writev, c_safe_writev)
 #endif

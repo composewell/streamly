@@ -10,9 +10,6 @@
 module Streamly.Test.Prelude.Parallel (main) where
 
 import Data.List (sort)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup ((<>))
-#endif
 import Test.Hspec.QuickCheck
 import Test.Hspec as H
 

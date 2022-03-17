@@ -56,12 +56,8 @@ module Streamly.Internal.Data.SmallArray.Type
 
 import GHC.Exts hiding (toList)
 import qualified GHC.Exts
-
 import Control.Applicative
 import Control.Monad
-#if MIN_VERSION_base(4,9,0)
-import qualified Control.Monad.Fail as Fail
-#endif
 import Control.Monad.Fix
 import Control.Monad.Primitive
 import Control.Monad.ST
@@ -69,28 +65,19 @@ import Control.Monad.Zip
 import Data.Data
 import Data.Foldable as Foldable
 import Data.Functor.Identity
-#if !(MIN_VERSION_base(4,10,0))
-import Data.Monoid
-#endif
-#if MIN_VERSION_base(4,9,0)
-import qualified GHC.ST as GHCST
-import qualified Data.Semigroup as Sem
-#endif
-import Text.ParserCombinators.ReadP
-
-#if MIN_VERSION_base(4,9,0) && !MIN_VERSION_base(4,10,0)
-import GHC.Base (runRW#)
-#endif
-
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
 import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..),Read1(..))
-#endif
+
+import qualified Control.Monad.Fail as Fail
+import qualified GHC.ST as GHCST
+
+import Text.ParserCombinators.ReadP
 
 data SmallArray a = SmallArray (SmallArray# a)
   deriving Typeable
 
 data SmallMutableArray s a = SmallMutableArray (SmallMutableArray# s a)
   deriving Typeable
+
 
 -- | Create a new small mutable array.
 newSmallArray
@@ -318,14 +305,6 @@ mapSmallArray' f sa = createSmallArray (length sa) (die "mapSmallArray'" "imposs
       let !y = f x
       writeSmallArray smb i y *> go (i+1)
 {-# INLINE mapSmallArray' #-}
-
-#if !MIN_VERSION_base(4,9,0)
-runSmallArray
-  :: (forall s. ST s (SmallMutableArray s a))
-  -> SmallArray a
-runSmallArray m = runST $ m >>= unsafeFreezeSmallArray
-
-#else
 -- This low-level business is designed to work with GHC's worker-wrapper
 -- transformation. A lot of the time, we don't actually need an Array
 -- constructor. By putting it on the outside, and being careful about
@@ -347,8 +326,6 @@ runSmallArray# m = case runRW# $ \s ->
 
 unST :: ST s a -> State# s -> (# State# s, a #)
 unST (GHCST.ST f) = f
-
-#endif
 
 -- See the comment on runSmallArray for why we use emptySmallArray#.
 createSmallArray
@@ -393,20 +370,11 @@ smallArrayLiftEq p sa1 sa2 = length sa1 == length sa2 && loop (length sa1 - 1)
     | (# x #) <- indexSmallArray## sa1 i
     , (# y #) <- indexSmallArray## sa2 i
     = p x y && loop (i-1)
-
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
--- | @since 0.6.4.0
 instance Eq1 SmallArray where
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,5,0)
   liftEq = smallArrayLiftEq
-#else
-  eq1 = smallArrayLiftEq (==)
-#endif
-#endif
 
 instance Eq a => Eq (SmallArray a) where
   sa1 == sa2 = smallArrayLiftEq (==) sa1 sa2
-
 instance Eq (SmallMutableArray s a) where
   SmallMutableArray sma1# == SmallMutableArray sma2# =
     isTrue# (sameSmallMutableArray# sma1# sma2#)
@@ -422,15 +390,8 @@ smallArrayLiftCompare elemCompare a1 a2 = loop 0
     = elemCompare x1 x2 `mappend` loop (i+1)
     | otherwise = compare (length a1) (length a2)
 
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
--- | @since 0.6.4.0
 instance Ord1 SmallArray where
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,5,0)
   liftCompare = smallArrayLiftCompare
-#else
-  compare1 = smallArrayLiftCompare compare
-#endif
-#endif
 
 -- | Lexicographic ordering. Subject to change between major versions.
 instance Ord a => Ord (SmallArray a) where
@@ -668,11 +629,8 @@ instance Monad SmallArray where
 #if !(MIN_VERSION_base(4,13,0)) && MIN_VERSION_base(4,9,0)
   fail = Fail.fail
 #endif
-
-#if MIN_VERSION_base(4,9,0)
 instance Fail.MonadFail SmallArray where
   fail _ = emptySmallArray
-#endif
 
 instance MonadPlus SmallArray where
   mzero = empty
@@ -715,24 +673,19 @@ instance MonadFix SmallArray where
       sz = sizeofSmallArray (f err)
       err = error "mfix for Data.Primitive.SmallArray applied to strict function."
 
-#if MIN_VERSION_base(4,9,0)
 -- | @since 0.6.3.0
-instance Sem.Semigroup (SmallArray a) where
+instance Semigroup (SmallArray a) where
   (<>) = (<|>)
-  sconcat = mconcat . toList
-#endif
 
 instance Monoid (SmallArray a) where
   mempty = empty
-#if !(MIN_VERSION_base(4,11,0))
-  mappend = (<|>)
-#endif
+  mappend = (<>)
   mconcat l = createSmallArray n (die "mconcat" "impossible") $ \ma ->
     let go !_  [    ] = return ()
         go off (a:as) =
           copySmallArray ma off a 0 (sizeofSmallArray a) >> go (off + sizeofSmallArray a) as
-     in go 0 l
-   where n = sum . fmap length $ l
+      in go 0 l
+    where n = sum . fmap length $ l
 
 instance IsList (SmallArray a) where
   type Item (SmallArray a) = a
@@ -751,16 +704,8 @@ listLiftShowsPrec _ sl _ = sl
 
 instance Show a => Show (SmallArray a) where
   showsPrec = smallArrayLiftShowsPrec showsPrec showList
-
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
--- | @since 0.6.4.0
 instance Show1 SmallArray where
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,5,0)
   liftShowsPrec = smallArrayLiftShowsPrec
-#else
-  showsPrec1 = smallArrayLiftShowsPrec showsPrec showList
-#endif
-#endif
 
 smallArrayLiftReadsPrec :: (Int -> ReadS a) -> ReadS [a] -> Int -> ReadS (SmallArray a)
 smallArrayLiftReadsPrec _ listReadsPrec p = readParen (p > 10) . readP_to_S $ do
@@ -774,17 +719,8 @@ smallArrayLiftReadsPrec _ listReadsPrec p = readParen (p > 10) . readP_to_S $ do
 instance Read a => Read (SmallArray a) where
   readsPrec = smallArrayLiftReadsPrec readsPrec readList
 
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
--- | @since 0.6.4.0
 instance Read1 SmallArray where
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,5,0)
   liftReadsPrec = smallArrayLiftReadsPrec
-#else
-  readsPrec1 = smallArrayLiftReadsPrec readsPrec readList
-#endif
-#endif
-
-
 
 smallArrayDataType :: DataType
 smallArrayDataType =

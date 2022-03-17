@@ -234,10 +234,8 @@ instance Monad m => Applicative (SerialT m) where
     (<*>) = apSerial
     -- (<*>) = K.apSerial
 
-#if MIN_VERSION_base(4,10,0)
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
-#endif
 
     {-# INLINE (*>) #-}
     (*>)  = apSequence

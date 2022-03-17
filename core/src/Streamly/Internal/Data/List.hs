@@ -67,11 +67,10 @@ import Control.DeepSeq (NFData(..))
 import Control.DeepSeq (NFData1(..))
 #endif
 import Data.Functor.Identity (Identity, runIdentity)
+import GHC.Exts (IsList(..), IsString(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import GHC.Exts (IsList(..), IsString(..))
-
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
 
@@ -148,9 +147,7 @@ pattern Cons x xs <-
 
     Cons x xs = List $ Serial.cons x (toSerial xs)
 
-#if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE Nil, Cons #-}
-#endif
 
 ------------------------------------------------------------------------------
 -- ZipList

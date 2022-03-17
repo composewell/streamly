@@ -21,9 +21,6 @@ import Control.Monad.State (MonadState, get, modify, runStateT
                            , StateT(..), evalStateT)
 import Data.Foldable (fold)
 import Data.IORef (readIORef, modifyIORef, newIORef)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup, (<>))
-#endif
 import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
 import Test.Hspec as H

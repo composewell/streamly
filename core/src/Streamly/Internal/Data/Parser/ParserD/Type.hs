@@ -905,10 +905,9 @@ instance MonadThrow m => Applicative (Parser m a) where
     {-# INLINE (*>) #-}
     (*>) = split_
 
-#if MIN_VERSION_base(4,10,0)
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
-#endif
+
 
 -------------------------------------------------------------------------------
 -- Sequential Alternative

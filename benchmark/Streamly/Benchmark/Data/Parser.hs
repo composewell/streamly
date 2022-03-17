@@ -20,11 +20,7 @@ import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum(..))
 import GHC.Magic (inline)
-#if __GLASGOW_HASKELL__ >= 802
 import GHC.Magic (noinline)
-#else
-#define noinline
-#endif
 import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude

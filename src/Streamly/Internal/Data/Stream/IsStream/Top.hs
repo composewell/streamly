@@ -58,9 +58,6 @@ import Data.Function ((&))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Kind (Type)
 import Data.Maybe (isJust)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup (Semigroup(..))
-#endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
 import Streamly.Internal.Data.Stream.IsStream.Type

@@ -258,10 +258,8 @@ instance MonadThrow m => Applicative (Fold m a) where
     {-# INLINE (*>) #-}
     (*>) = serial_
 
-#if MIN_VERSION_base(4,10,0)
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
-#endif
 
 -------------------------------------------------------------------------------
 -- Monad

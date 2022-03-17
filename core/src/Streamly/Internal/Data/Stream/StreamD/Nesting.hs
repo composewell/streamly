@@ -153,9 +153,7 @@ import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
-#if __GLASGOW_HASKELL__ >= 801
 import Data.Functor.Identity ( Identity )
-#endif
 import Data.Word (Word32)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -424,10 +422,8 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
             Skip sb' -> return $ Skip (sa, sb', Just x)
             Stop     -> return Stop
 
-#if __GLASGOW_HASKELL__ >= 801
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
-#endif
 
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c

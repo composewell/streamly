@@ -257,9 +257,6 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-#if __GLASGOW_HASKELL__ == 802
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-#endif
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
@@ -884,14 +881,8 @@ with f comb g = fmap snd . comb g . f
 --
 -- @since 0.1.0
 {-# INLINE filter #-}
-#if __GLASGOW_HASKELL__ != 802
--- GHC 8.2.2 crashes with this code, when used with "stack"
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
 filter p m = fromStreamS $ S.filter p $ toStreamS m
-#else
-filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter p m = fromStream $ K.filter p $ toStream m
-#endif
 
 -- | Same as 'filter' but with a monadic predicate.
 --

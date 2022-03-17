@@ -231,11 +231,7 @@ import GHC.Base
 #ifndef USE_FOREIGN_PTR
 import GHC.Base (RealWorld, MutableByteArray#)
 #endif
-#if __GLASGOW_HASKELL__ < 802
-#define noinline
-#else
 import GHC.Base (noinline)
-#endif
 import GHC.Exts (unsafeCoerce#)
 import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
 #ifdef USE_C_MALLOC

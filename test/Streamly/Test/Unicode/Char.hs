@@ -16,9 +16,6 @@ module Streamly.Test.Unicode.Char (main) where
 import Control.Monad (when)
 import Data.Char (chr, isSpace, ord, toUpper)
 import Data.List (intercalate, isPrefixOf)
-#if MIN_VERSION_base(4,8,0)
-import Data.Function ((&))
-#endif
 import Streamly.Internal.Unicode.Char
     ( NormalizationMode(NFC, NFD, NFKC, NFKD)
     , normalize
@@ -30,11 +27,6 @@ import System.FilePath.Posix ((</>))
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified System.Directory as Dir
-
-#if !MIN_VERSION_base(4,8,0)
-(&) :: a -> (a -> b) -> b
-x & f = f x
-#endif
 
 chrToHex :: Char -> [Char]
 chrToHex = map toUpper . printf "%.4x" . ord

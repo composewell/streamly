@@ -24,11 +24,7 @@ where
 
 import Data.Word (Word8)
 import GHC.Magic (inline)
-#if __GLASGOW_HASKELL__ >= 802
 import GHC.Magic (noinline)
-#else
-#define noinline
-#endif
 import System.IO (Handle)
 
 import qualified Streamly.FileSystem.Handle as FH

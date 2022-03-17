@@ -4,9 +4,6 @@
 
 module Main (main) where
 
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup ((<>))
-#endif
 import Test.Hspec
 import qualified GHC.Exts as GHC
 
@@ -148,11 +145,7 @@ main = hspec $
             ("hello" :: List Char) `shouldBe` GHC.fromList "hello"
 
         it "pattern matches" $ do
-#if __GLASGOW_HASKELL__ >= 802
             case "" of
-#else
-            case "" :: List Char of
-#endif
                 Nil -> return ()
                 _ -> expectationFailure "not reached"
 

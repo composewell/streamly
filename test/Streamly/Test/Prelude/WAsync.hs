@@ -13,9 +13,6 @@ module Streamly.Test.Prelude.WAsync (main) where
 import Control.Concurrent ( threadDelay )
 #endif
 import Data.List (sort)
-#if !(MIN_VERSION_base(4,11,0))
-import Data.Semigroup ((<>))
-#endif
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
