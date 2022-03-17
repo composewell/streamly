@@ -519,6 +519,16 @@ unzip =
     let v2 = (6, ["aa", "bb", "cc"])
     assert (v1 == v2)
 
+postscan :: Property
+postscan = forAll (listOf (chooseInt (intMin, intMax))) $ \ls ->
+    monadicIO $ do
+    v1 :: [Int] <-
+        run
+            $ S.fold (F.postscan FL.sum FL.toList)
+            $ S.fromList ls
+    let v2 = scanl1 (+) ls
+    assert (v1 == v2)
+
 many :: Property
 many =
     forAll (listOf (chooseInt (0, 100))) $ \lst ->
@@ -734,6 +744,7 @@ main = hspec $ do
 
         -- Transformation
         prop "scan" scan
+        prop "postscan" Main.postscan
         -- rsequence
         -- Functor instance
         prop "rmapM" Main.rmapM
