@@ -165,7 +165,6 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Producer/Type.hs
     core/src/Streamly/Internal/Data/Producer.hs
     core/src/Streamly/Internal/Data/Producer/Source.hs
-    core/src/Streamly/Internal/Data/Sink/Type.hs
     core/src/Streamly/Internal/Data/Parser/ParserK/Type.hs
     core/src/Streamly/Internal/Data/Parser/ParserD/Type.hs
     core/src/Streamly/Internal/Data/Pipe/Type.hs
@@ -189,7 +188,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Unfold/Enumeration.hs
     core/src/Streamly/Internal/Data/Fold/Tee.hs
     core/src/Streamly/Internal/Data/Fold.hs
-    core/src/Streamly/Internal/Data/Sink.hs
+
     core/src/Streamly/Internal/Data/Parser.hs
     core/src/Streamly/Internal/Data/Pipe.hs
     core/src/Streamly/Internal/Data/Stream/Serial.hs
@@ -546,7 +545,7 @@ library
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
                      , Streamly.Internal.Data.Producer.Source
-                     , Streamly.Internal.Data.Sink.Type
+
                      , Streamly.Internal.Data.Parser.ParserK.Type
                      , Streamly.Internal.Data.Parser.ParserD.Type
                      , Streamly.Internal.Data.Pipe.Type
@@ -572,7 +571,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Common
-
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD
 
@@ -581,7 +579,6 @@ library
                      , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Sink
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial
