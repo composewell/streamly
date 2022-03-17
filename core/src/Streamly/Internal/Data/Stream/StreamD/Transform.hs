@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Scanning By 'Fold'
     , postscanOnce -- XXX rename to postscan
     , scanOnce     -- XXX rename to scan
+    , scanMany
 
     -- * Scanning
     -- | Left scans. Stateful, mostly one-to-one maps.
@@ -444,35 +445,44 @@ postscanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
             Stop -> return Stop
     step _ ScanDone = return Stop
 
-{-# INLINE scanOnce #-}
-scanOnce :: Monad m
-    => FL.Fold m a b -> Stream m a -> Stream m b
-scanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
+{-# INLINE scanWith #-}
+scanWith :: Monad m
+    => Bool -> Fold m a b -> Stream m a -> Stream m b
+scanWith restart (Fold fstep initial extract) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
 
-    {-# INLINE_LATE step #-}
-    step _ (ScanInit st) = do
-        res <- initial
+    {-# INLINE runStep #-}
+    runStep st action = do
+        res <- action
         case res of
             FL.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b $ ScanDo st fs
-            FL.Done b -> return $ Yield b ScanDone
+            FL.Done b ->
+                let next = if restart then ScanInit st else ScanDone
+                 in return $ Yield b next
+
+    {-# INLINE_LATE step #-}
+    step _ (ScanInit st) = runStep st initial
     step gst (ScanDo st fs) = do
         res <- sstep (adaptState gst) st
         case res of
-            Yield x s -> do
-                r <- fstep fs x
-                case r of
-                    FL.Partial fs1 -> do
-                        !b <- extract fs1
-                        return $ Yield b $ ScanDo s fs1
-                    FL.Done b -> return $ Yield b ScanDone
+            Yield x s -> runStep s (fstep fs x)
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> return Stop
     step _ ScanDone = return Stop
+
+{-# INLINE scanOnce #-}
+scanOnce :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+scanOnce = scanWith False
+
+{-# INLINE scanMany #-}
+scanMany :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+scanMany = scanWith True
 
 ------------------------------------------------------------------------------
 -- Scanning - Prescans
