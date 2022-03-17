@@ -666,6 +666,16 @@ splitAt =
     `shouldReturn`
     ("Hello ","World!")
 
+scan :: Property
+scan = forAll (listOf (chooseInt (0, 100))) $ \lst ->
+    monadicIO $ do
+    v1 :: [Int] <-
+        run
+            $ S.fold (F.scan FL.sum FL.toList)
+            $ S.fromList lst
+    let v2 = scanl (+) 0 lst
+    assert (v1 == v2)
+
 moduleName :: String
 moduleName = "Data.Fold"
 
@@ -723,6 +733,7 @@ main = hspec $ do
         -- Combinators
 
         -- Transformation
+        prop "scan" scan
         -- rsequence
         -- Functor instance
         prop "rmapM" Main.rmapM
