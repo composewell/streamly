@@ -6,12 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Stateful transformations without termination.  A Scan can be used on a
--- stream, after an unfold or before a fold. Because it does not terminate it
--- is just a transformation, it is neither a stream nor a fold. Therefore, it
--- can be combined with both stream and fold to extend them.
---
--- Unlike folds, a scan does not emit a default value even without an input.
+-- Stateful transformations with filtering and termination.  A Scan can be used
+-- on the output of a stream on the input of a fold.
 --
 -- Summary of abstractions:
 --
@@ -76,7 +72,7 @@ data Scan m a b =
 -- If we have a separate scan type with Partial, Continue and Done, we can use
 -- a fold type without Continue i.e. Partial/Skip/Done. Note folds would become
 -- dual to streams. Scan has no nesting, fold does not need Continue as we do
--- not scan using intermdiate values. Also scans would be used to for scanning
+-- not scan using intermdiate values. Also scans would be used for scanning
 -- with intermediate output whereas folds would be used to scan with terminal
 -- output, that will also solve an oddity.
 --
@@ -86,73 +82,55 @@ module Streamly.Internal.Data.Scan
     (
       Scan (..)
     , map
+    , mapM
     , compose
     , scan
+    , scanFold
+    , toScan
+    , zipWith
+    , filter
     )
 where
 
 #include "inline.hs"
 import Control.Category (Category(..))
--- import Control.Monad ((>=>))
--- import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
-
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Fold.Step as Fold
+import Data.Functor ((<&>))
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
--- import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Fusion.Plugin.Types (Fuse(..))
-import Prelude hiding (zipWith, map)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+
+import qualified Streamly.Internal.Data.Fold.Step as Fold
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import Prelude hiding (zipWith, map, mapM, filter)
 
 -------------------------------------------------------------------------------
 -- Scan step
 -------------------------------------------------------------------------------
 
--- XXX Should we use "Partial s b" instead like in the type "Step s b". But
--- that would not be the same as in Stream. We should probably change "Yield a
--- s" to "Yield s a" in streams?
---
--- This type is similar to the Stream Step type the only difference is that
--- here "Done" returns a result whereas in stream Stop does not yield a value.
---
--- Scans are postscan only, therefore, result is not allowed in the initial
--- action.
---
 {-# ANN type Step Fuse #-}
 data Step s b =
-      Partial !b !s -- for transformation, not allowed in initial
-    | Done !b       -- for termination with output, not allowed in initial
-    | Continue !s   -- for filtering, not allowed in zipWith
-    | Stop          -- termination without output (empty)
+      Partial !s !b -- for transformation
+    | Done !b       -- for termination with output
+    | Continue !s   -- for filtering
+    | Stop          -- termination without output (empty stream)
 
 instance Functor (Step s) where
     {-# INLINE fmap #-}
-    fmap f (Partial b s) = Partial (f b) s
+    fmap f (Partial s b) = Partial s (f b)
     fmap f (Done b) = Done (f b)
     fmap _ (Continue s) = Continue s
     fmap _ Stop = Stop
-
-{-
--- | Map a monadic function over the result @b@ in @Step s b@.
---
--- /Internal/
-{-# INLINE mapMStep #-}
-mapMStep :: Applicative m => (a -> m b) -> Step s a -> m (Step s b)
-mapMStep f res =
-    case res of
-        Partial b s -> (`Partial` s) <$> f b
-        Done b -> Done <$> f b
-        Continue s -> pure $ Continue s
-        Stop -> pure Stop
--}
 
 -------------------------------------------------------------------------------
 -- Scan
 -------------------------------------------------------------------------------
 
--- Initial can avoid 'm' but we need this to be able to convert folds to scans.
--- Note: The type of initial allows only postscan.
+-- Scans are postscan only, therefore, output is not allowed in the initial
+-- action.  Initial type can avoid 'm' but we need this to be able to convert
+-- folds to scans.
 data Scan m a b =
     -- | @Scan@ @step@ @initial@ @extract@
     forall s. Scan (s -> a -> m (Step s b)) (m (Maybe s))
@@ -163,13 +141,11 @@ data Scan m a b =
 
 instance Functor m => Functor (Scan m a) where
     {-# INLINE fmap #-}
-    fmap f (Scan step1 initial1) =
-        Scan step initial1
+    fmap f (Scan step1 initial) = Scan step initial
 
         where
 
-        step s b = fmap2 f (step1 s b)
-        fmap2 g = fmap (fmap g)
+        step s b = fmap (fmap f) (step1 s b)
 
 {-
 -- |
@@ -189,7 +165,6 @@ fromEffect :: Monad m => m b -> Scan m a b
 fromEffect b = Scan undefined (Done <$> b)
 -}
 
-{-
 -- XXX The tee folds can be zipped, can we use the same type for zipping scans?
 -- Tees also have Partial and Done only, zipping scans also need the same.
 -- We can write a scanning zipWith for the tee folds. tee folds will require an
@@ -200,8 +175,6 @@ fromEffect b = Scan undefined (Done <$> b)
 -- stuff can be used with both streams and folds and therefore has to be
 -- written as scans.
 --
-{-# ANN type TeeState Fuse #-}
-data TeeState sL sR = TeeBoth !sL !sR
 
 -- XXX Merging of streams is not possible because that would require a Skip
 -- loop.
@@ -220,33 +193,37 @@ zipWith func (Scan stepL initialL) (Scan stepR initialR) =
 
     where
 
-    {-# INLINE runBoth #-}
-    runBoth actionL actionR = do
-        resL <- actionL
-        resR <- actionR
+    initial = do
+        rR <- initialR
+        rL <- initialL
+        return
+            $ case rR of
+                Just sR -> do
+                    case rL of
+                        Just sL -> Just $ Tuple' sL sR
+                        Nothing -> Nothing
+                Nothing -> Nothing
+
+    step (Tuple' sL sR) a = do
+        resL <- stepL sL a
+        resR <- stepR sR a
         return
             $ case resL of
-                  Partial bl sl ->
+                  Partial sl bl ->
                       case resR of
-                            Partial br sr ->
-                                Partial (func bl br) $ TeeBoth sl sr
+                            Partial sr br ->
+                                Partial (Tuple' sl sr) (func bl br)
                             Done br -> Done (func bl br)
                             Continue _ -> error "zipWith: Continue"
                             Stop -> Stop
                   Done bl ->
                       case resR of
-                        Partial br _ -> Done (func bl br)
+                        Partial _ br -> Done (func bl br)
                         Done br -> Done (func bl br)
                         Continue _ -> error "zipWith: Continue"
                         Stop -> Stop
                   Continue _ -> error "zipWith: Continue"
                   Stop -> Stop
-
-    -- XXX initial needs to discard the initial values
-    initial = runBoth initialL initialR
-
-    step (TeeBoth sL sR) a = runBoth (stepL sL a) (stepR sR a)
--}
 
 {-
 instance Monad m => Applicative (Scan m a) where
@@ -255,10 +232,14 @@ instance Monad m => Applicative (Scan m a) where
     (<*>) = zipWith Prelude.id
 -}
 
+-------------------------------------------------------------------------------
+-- Category
+-------------------------------------------------------------------------------
+
 -- | postscan a scan
 {-# INLINE compose #-}
-compose :: Monad m => Scan m a b -> Scan m b c -> Scan m a c
-compose (Scan stepL initialL) (Scan stepR initialR) = Scan step initial
+compose :: Monad m => Scan m b c -> Scan m a b -> Scan m a c
+compose (Scan stepR initialR) (Scan stepL initialL) = Scan step initial
 
     where
 
@@ -270,15 +251,15 @@ compose (Scan stepL initialL) (Scan stepR initialR) = Scan step initial
                 rR <- stepR sR bL
                 return
                     $ case rR of
-                        Partial br _ -> Done br
+                        Partial _ br -> Done br
                         Done bR -> Done bR
                         Continue _ -> Stop
                         Stop -> Stop
-            Partial bL sL -> do
+            Partial sL bL -> do
                 rR <- stepR sR bL
                 return
                     $ case rR of
-                        Partial br sR1 -> Partial br (sL, sR1)
+                        Partial sR1 br -> Partial (sL, sR1) br
                         Done bR -> Done bR
                         Continue sR1 -> Continue (sL, sR1)
                         Stop -> Stop
@@ -298,19 +279,26 @@ compose (Scan stepL initialL) (Scan stepR initialR) = Scan step initial
 
     step (sL, sR) x = runStep (stepL sL x) sR
 
+{-# INLINE mapM #-}
+mapM :: Monad m => (a -> m b) -> Scan m a b
+mapM f = Scan (\() a -> f a <&> Partial ()) (return $ Just ())
+
+{-# INLINE map #-}
+map :: Monad m => (a -> b) -> Scan m a b
+map f = mapM (return Prelude.. f)
+
 {-# INLINE identity #-}
 identity :: Monad m => Scan m a a
-identity = Scan (\_ a -> return $ Partial a ()) (return $ Just ())
+identity = map Prelude.id
 
 instance Monad m => Category (Scan m) where
     id = identity
 
-    (.) = flip compose
+    (.) = compose
 
-{-# INLINE map #-}
-map :: Monad m => (a -> m b) -> Scan m a b
-map f =
-    Scan (\() a -> f a >>= \b -> return $ Partial b ()) (return $ Just ())
+-------------------------------------------------------------------------------
+-- Scanning
+-------------------------------------------------------------------------------
 
 data ScanState s sr = ScanInit | ScanRun s sr | ScanDone
 
@@ -326,7 +314,7 @@ scanD (Scan scan_step initial) (D.UnStream stream_step stream_state) =
         res <- action
         return
             $ case res of
-                Partial b ss -> D.Yield b (ScanRun s ss)
+                Partial ss b -> D.Yield b (ScanRun s ss)
                 Done b -> D.Yield b ScanDone
                 Continue ss -> D.Skip (ScanRun s ss)
                 Stop -> D.Stop
@@ -347,12 +335,14 @@ scanD (Scan scan_step initial) (D.UnStream stream_step stream_state) =
 
     step _ ScanDone = return D.Stop
 
+-- XXX This should move to the stream module.
 -- | postscan a stream
 {-# INLINE scan #-}
 scan :: Monad m => Scan m a b -> SerialT m a -> SerialT m b
 scan s (SerialT stream) =
     SerialT $ D.toStreamK $ scanD s (D.fromStreamK stream)
 
+-- XXX This should move to the fold module.
 -- | postscan a fold
 {-# INLINE scanFold #-}
 scanFold :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
@@ -370,14 +360,13 @@ scanFold (Scan stepL initialL) (Fold stepR initialR extractR) =
                 case rR of
                     Fold.Partial sR1 -> Fold.Done <$> extractR sR1
                     Fold.Done bR -> return $ Fold.Done bR
-            Partial bL sL -> do
+            Partial sL bL -> do
                 rR <- stepR sR bL
                 return
                     $ case rR of
                         Fold.Partial sR1 -> Fold.Partial (sL, sR1)
                         Fold.Done bR -> Fold.Done bR
-            -- XXX We need Continue in Folds for this
-            Continue sL -> undefined
+            Continue sL -> return $ Fold.Partial (sL, sR)
             Stop -> Fold.Done <$> extractR sR
 
     initial = do
@@ -394,13 +383,39 @@ scanFold (Scan stepL initialL) (Fold stepR initialR extractR) =
 
     extract = extractR Prelude.. snd
 
-{-
-scanFromFold :: Monad m => FL.Fold m a b -> Scan m a b
-scanFromFold (FL.Fold fl_step fl_initial fl_extract) = Scan step fl_initial
-  where
-    step ms a = do
-        s <- ms
-        s' <- fl_step s a
-        b <- fl_extract s'
-        return $ Tuple' (return s') b
-        -}
+-- | Note, if we use a filter on a fold and then convert it to scan, the fold
+-- would result in the previous output for the filter step.
+{-# INLINE toScan #-}
+toScan :: Monad m => Fold m a b -> Scan m a b
+toScan (Fold fstep finitial fextract) = Scan step initial
+
+    where
+
+    initial = do
+        r <- finitial
+        return $ case r of
+            Fold.Partial s -> Just s
+            Fold.Done _ -> Nothing
+
+    step st a = do
+        r <- fstep st a
+        case r of
+            Fold.Partial s -> fextract s >>= \b -> return $ Partial s b
+            Fold.Done b -> return $ Done b
+
+-------------------------------------------------------------------------------
+-- Scans
+-------------------------------------------------------------------------------
+
+{-# INLINE filter #-}
+filter :: Monad m => (a -> m Bool) -> Scan m a a
+filter f = Scan (\() a -> f a >>= g a) (return $ Just ())
+
+    where
+
+    {-# INLINE g #-}
+    g a b =
+        return
+            $ if b
+              then Partial () a
+              else Continue ()
