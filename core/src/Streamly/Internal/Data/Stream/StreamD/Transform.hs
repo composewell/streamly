@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Scanning By 'Fold'
     , postscanOnce -- XXX rename to postscan
     , scanOnce     -- XXX rename to scan
+    , scan
 
     -- * Scanning
     -- | Left scans. Stateful, mostly one-to-one maps.
@@ -137,6 +138,7 @@ import qualified Control.Monad.Catch as MC
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork, forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -146,6 +148,7 @@ import Streamly.Internal.Data.Time.Units
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
@@ -468,6 +471,39 @@ scanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
                     FL.Done b -> return $ Yield b ScanDone
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> return Stop
+    step _ ScanDone = return Stop
+
+{-# INLINE scan #-}
+scan :: Monad m => Scan m a b -> Stream m a -> Stream m b
+scan (Scan scan_step initial) (Stream stream_step state) =
+    Stream step (ScanInit state)
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep s action = do
+        res <- action
+        return
+            $ case res of
+                Scan.Partial ss b -> Yield b (ScanDo s ss)
+                Scan.Done b -> Yield b ScanDone
+                Scan.Continue ss -> Skip (ScanDo s ss)
+                Scan.Stop -> Stop
+
+    step _ (ScanInit st) = do
+        r <- initial
+        return
+            $ case r of
+                Just s -> Skip (ScanDo st s)
+                Nothing -> Stop
+
+    step gst (ScanDo st acc) = do
+        r <- stream_step (adaptState gst) st
+        case r of
+            Yield x s -> runStep s (scan_step acc x)
+            Skip s -> return $ Skip (ScanDo s acc)
+            Stop -> return Stop
+
     step _ ScanDone = return Stop
 
 ------------------------------------------------------------------------------

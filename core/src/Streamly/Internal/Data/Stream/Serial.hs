@@ -42,6 +42,7 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Transformation
     , map
     , mapM
+    , scan
 
     -- * Deprecated
     , StreamT
@@ -75,10 +76,12 @@ import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.StreamK.Type
        (Stream, mkStream, foldStream)
+import Streamly.Internal.Data.Scan (Scan(..))
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
+-- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (map, mapM, errorWithoutStackTrace, repeat)
@@ -258,6 +261,12 @@ LIST_INSTANCES(SerialT)
 NFDATA1_INSTANCE(SerialT)
 FOLDABLE_INSTANCE(SerialT)
 TRAVERSABLE_INSTANCE(SerialT)
+
+-- | postscan a stream
+{-# INLINE scan #-}
+scan :: Monad m => Scan m a b -> SerialT m a -> SerialT m b
+scan s (SerialT stream) =
+    SerialT $ D.toStreamK $ D.scan s (D.fromStreamK stream)
 
 ------------------------------------------------------------------------------
 -- WSerialT

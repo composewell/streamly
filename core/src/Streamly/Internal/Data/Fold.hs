@@ -125,6 +125,8 @@ module Streamly.Internal.Data.Fold
     , scan
     , postscan
     , indexed
+    -- , scanFold
+    , toScan
 
     -- ** Filtering
     , filter
@@ -265,12 +267,14 @@ import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 import qualified Prelude
 
@@ -432,12 +436,12 @@ scan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
     extract = extractR . snd
 
--- | Postscan the input of a 'Fold' to change it in a stateful manner using
--- another 'Fold'.
+-- | postscan a fold
+--
 -- /Pre-release/
 {-# INLINE postscan #-}
-postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+postscan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
+postscan (Scan stepL initialL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
@@ -446,32 +450,54 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     runStep actionL sR = do
         rL <- actionL
         case rL of
-            Done bL -> do
+            Scan.Done bL -> do
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> extractR sR1
                     Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
+            Scan.Partial sL bL -> do
+                rR <- stepR sR bL
                 return
                     $ case rR of
                         Partial sR1 -> Partial (sL, sR1)
                         Done bR -> Done bR
+            Scan.Continue sL -> return $ Partial (sL, sR)
+            Scan.Stop -> Done <$> extractR sR
 
     initial = do
-        r <- initialR
+        rR <- initialR
         rL <- initialL
-        case r of
+        case rR of
             Partial sR ->
                 case rL of
-                    Done _ -> Done <$> extractR sR
-                    Partial sL -> return $ Partial (sL, sR)
+                    Just sL -> return $ Partial (sL, sR)
+                    Nothing -> Done <$> extractR sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
 
-    extract = extractR . snd
+    extract = extractR Prelude.. snd
+
+-- XXX Note, if we use a filter on a fold and then convert it to scan, the fold
+-- would generate the output of the previous step in the filtered step. This
+-- can only be fixed by using a Continue and Partial s b in folds.
+{-# INLINE toScan #-}
+toScan :: Monad m => Fold m a b -> Scan m a b
+toScan (Fold fstep finitial fextract) = Scan step initial
+
+    where
+
+    initial = do
+        r <- finitial
+        return $ case r of
+            Partial s -> Just s
+            Done _ -> Nothing
+
+    step st a = do
+        r <- fstep st a
+        case r of
+            Partial s -> fextract s >>= \b -> return $ Scan.Partial s b
+            Done b -> return $ Scan.Done b
 
 ------------------------------------------------------------------------------
 -- Left folds
