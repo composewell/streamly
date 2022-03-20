@@ -85,8 +85,6 @@ joinOuterList ls0 ls1 =
         v4 = filter (\(_, a2, _) -> isNothing a2)  v3
     in v2 ++ v4
 
--- XXX A bug need to be fixed in joinOuter function
-{-
 joinOuter :: Property
 joinOuter =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
@@ -103,7 +101,7 @@ joinOuter =
                          (map (\a -> (a, a)) ls1)
                     v3 = map (\(_, v10, v20) -> (v10, v20)) v2
                 assert (sort v1 == sort v3)
--}
+
 
 joinOuterMap :: Property
 joinOuterMap =
@@ -209,8 +207,7 @@ main = hspec $ do
         -- Joins
         prop "joinInner" Main.joinInner
         prop "joinInnerMap" Main.joinInnerMap
-        -- XXX currently API is broken https://github.com/composewell/streamly/issues/1032
-        --prop "joinOuter" Main.joinOuter
+        prop "joinOuter" Main.joinOuter
         prop "joinOuterMap" Main.joinOuterMap
         prop "joinLeft" Main.joinLeft
         prop "joinLeftMap" Main.joinLeftMap
