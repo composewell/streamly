@@ -1,0 +1,16 @@
+packages: benchmark/report/.
+
+source-repository-package
+  type: git
+  location: git@github.com:composewell/bench-report.git
+  tag: 4a9710b2e1edea19fc1ca9a9a3da0b9bfe4b4dc2
+
+source-repository-package
+  type: git
+  location: git@github.com:composewell/streamly-coreutils.git
+  tag: a12756efe24bbf303f2f6d66a95426c7657d297b
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-shell.git
+  tag: 7d77ddc0c06aec21fbbfd1b920ec4f58da654a1b

@@ -214,6 +214,9 @@ extra-source-files:
     core/streamly-core.cabal
     core/jsbits/clock.js
     core/Setup.hs
+    benchmark/report/Main.hs
+    benchmark/report/report.cabal
+    cabal.project.report
 
 extra-doc-files:
     CONTRIBUTING.md
