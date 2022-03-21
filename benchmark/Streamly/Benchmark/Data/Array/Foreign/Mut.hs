@@ -24,6 +24,7 @@ import Streamly.Prelude (MonadAsync, SerialT, IsStream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Prelude as Stream
+import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Mut as MArray
 
 import Gauge hiding (env)
@@ -49,8 +50,9 @@ benchIO
 benchIO name src sink =
     bench name $ nfIO $ randomRIO (1,1) >>= sink . src
 
-o_1_space_serial_marray :: Int -> MArray.Array Int -> [Benchmark]
-o_1_space_serial_marray value array =
+o_1_space_serial_marray ::
+    Int -> (MArray.Array Int, Array.Array Int) -> [Benchmark]
+o_1_space_serial_marray value ~(array, indices) =
     [ benchIO "partitionBy (< 0)" (const array)
         $ MArray.partitionBy (< 0)
     , benchIO "partitionBy (> 0)" (const array)
@@ -63,6 +65,9 @@ o_1_space_serial_marray value array =
         $ MArray.strip (\x -> x < value `div` 2 || x > value `div` 2)
     , benchIO "strip (> 0)" (const array)
         $ MArray.strip (> 0)
+    , benchIO "modifyIndices (+ 1)" (const indices)
+        $ Stream.fold (MArray.modifyIndices (+ 1) array)
+        . Stream.unfold Array.read
     ]
 
 -------------------------------------------------------------------------------
@@ -78,7 +83,10 @@ main = do
 
     where
 
-    alloc value = MArray.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
+    alloc value = do
+        marr <- MArray.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
+        indices <- Array.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
+        return (marr, indices)
 
     allBenchmarks array value =
         [ bgroup (o_1_space_prefix moduleName) $
