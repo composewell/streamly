@@ -885,12 +885,12 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 gbracket
     :: MonadRunInIO m
     => (a -> m c)                           -- ^ before
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
     -> (c -> m d)                           -- ^ after, on normal stop, or GC
     -> Unfold m (c, e) b                    -- ^ on exception
+    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
-gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
+gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
     Unfold step inject
 
     where
@@ -907,7 +907,7 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
-        res <- exc $ step1 st
+        res <- ftry $ step1 st
         case res of
             Right r -> case r of
                 Yield x s -> return $ Yield x (Right (s, v, ref))
