@@ -27,7 +27,7 @@ import qualified Streamly.Prelude as S
 
 import Gauge
 import Streamly.Benchmark.Common
-import Prelude hiding (all, any, take, unzip, sequence_)
+import Prelude hiding (all, any, take, unzip, sequence_, filter)
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -77,6 +77,25 @@ sequence_ value =
 
     {-# INLINE f #-}
     f m k = FL.concatMap (const k) m
+
+-------------------------------------------------------------------------------
+-- Filter
+-------------------------------------------------------------------------------
+
+{-# INLINE filter #-}
+filter :: Monad m => Int -> SerialT m Int -> m ()
+filter _ = IP.fold (FL.filter even FL.drain)
+
+{-# INLINE foldFilter #-}
+foldFilter :: Monad m => Int -> SerialT m Int -> m ()
+foldFilter _ = IP.fold (FL.foldFilter (FL.satisfy even) FL.drain)
+
+{-# INLINE foldFilter2 #-}
+foldFilter2 :: Monad m => Int -> SerialT m Int -> m ()
+foldFilter2 _ =
+    IP.fold
+        $ FL.foldFilter (FL.satisfy even)
+        $ FL.foldFilter (FL.satisfy odd) FL.drain
 
 -------------------------------------------------------------------------------
 -- Splitting by serial application
@@ -323,7 +342,10 @@ o_1_space_serial_composition :: Int -> [Benchmark]
 o_1_space_serial_composition value =
       [ bgroup
             "composition"
-            [ benchIOSink value "serialWith (all, any)" $ splitAllAny value
+            [ benchIOSink value "filter even" $ filter value
+            , benchIOSink value "foldFilter even" $ foldFilter value
+            , benchIOSink value "foldFilter even, odd" $ foldFilter2 value
+            , benchIOSink value "serialWith (all, any)" $ splitAllAny value
             , benchIOSink value "serial_ (all, any)" $ serial_ value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many

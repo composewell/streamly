@@ -132,6 +132,8 @@ module Streamly.Internal.Data.Fold
     -- ** Filtering
     , filter
     , filterM
+    , foldFilter
+    , satisfy
     , sampleFromthen
     -- , ldeleteBy
     -- , luniq
@@ -476,6 +478,42 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (sL, sR) x = runStep (stepL sL x) sR
 
     extract = extractR . snd
+
+------------------------------------------------------------------------------
+-- Filters
+------------------------------------------------------------------------------
+
+-- | Convert a predicate into a filtering fold.
+--
+-- >>> f = Fold.foldFilter (Fold.satisfy (> 5)) Fold.sum
+-- >>> Stream.fold f $ Stream.fromList [1..10]
+-- 40
+--
+-- /Pre-release/
+{-# INLINE satisfy #-}
+satisfy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
+
+    where
+
+    step () a = return $ Done $ if f a then Just a else Nothing
+
+-- | Use a 'Maybe' returning fold as a filtering scan.
+--
+-- >>> f = Fold.foldFilter (Fold.satisfy (> 5)) Fold.sum
+-- >>> Stream.fold f $ Stream.fromList [1..10]
+-- 40
+--
+-- The above snippet is equivalent to:
+--
+-- >>> f = Fold.filter (> 5) Fold.sum
+-- >>> Stream.fold f $ Stream.fromList [1..10]
+-- 40
+--
+-- /Pre-release/
+{-# INLINE foldFilter #-}
+foldFilter :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
+foldFilter f1 f2 = many f1 (catMaybes f2)
 
 ------------------------------------------------------------------------------
 -- Left folds

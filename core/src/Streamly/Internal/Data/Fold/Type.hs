@@ -393,6 +393,7 @@ module Streamly.Internal.Data.Fold.Type
     )
 where
 
+#include "inline.hs"
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
@@ -1167,7 +1168,7 @@ filterM f (Fold step begin done) = Fold step' begin done
 -- and sent to the original fold, 'Nothing' values are discarded.
 --
 -- @since 0.8.0
-{-# INLINE catMaybes #-}
+{-# INLINE_NORMAL catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 catMaybes = filter isJust . lmap fromJust
 
