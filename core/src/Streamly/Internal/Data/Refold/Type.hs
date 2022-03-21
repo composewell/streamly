@@ -39,11 +39,10 @@ module Streamly.Internal.Data.Refold.Type
     , lmapM
     , rmapM
     , append
-    , take
+    -- , take
     )
 where
 
-import Control.Monad ((>=>))
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup (Semigroup((<>)))
 #endif
@@ -69,7 +68,7 @@ import Prelude hiding (take, iterate)
 -- /Internal/
 data Refold m c a b =
   -- | @Fold @ @ step @ @ inject @ @ extract@
-  forall s. Refold (s -> a -> m (Step s b)) (c -> m (Step s b)) (s -> m b)
+  forall s. Refold (s -> a -> m (Step s b)) (c -> m (Step s b)) (s -> m (Maybe b))
 
 ------------------------------------------------------------------------------
 -- Left fold constructors
@@ -88,9 +87,9 @@ data Refold m c a b =
 foldl' :: Monad m => (b -> a -> b) -> Refold m b a b
 foldl' step =
     Refold
-        (\s a -> return $ Partial $ step s a)
-        (return . Partial)
-        return
+        (\s a -> return $ let b = step s a in Partial b b)
+        (\b -> return $ Partial b b)
+        (return . Just)
 
 ------------------------------------------------------------------------------
 -- Mapping on input
@@ -116,7 +115,7 @@ lmapM f (Refold step inject extract) = Refold step1 inject extract
 -- /Internal/
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Refold m x a b -> Refold m x a c
-rmapM f (Refold step inject extract) = Refold step1 inject1 (extract >=> f)
+rmapM f (Refold step inject extract) = Refold step1 inject1 (\s -> extract s >>= Prelude.mapM f)
 
     where
 
@@ -136,11 +135,11 @@ drainBy f = Refold step inject extract
 
     where
 
-    inject = return . Partial
+    inject c = return $ Partial c ()
 
-    step c a = f c a >> return (Partial c)
+    step c a = f c a >> return (Partial c ())
 
-    extract _ = return ()
+    extract _ = return (Just ())
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -173,24 +172,32 @@ append (Refold step1 inject1 extract1) (Refold step2 inject2 extract2) =
 
     where
 
+    goRight r = do
+        case r of
+            Partial s b1 -> return $ Partial (Right s) b1
+            Continue s -> return $ Continue (Right s)
+            Done b1 -> return $ Done b1
+            Stop s -> do
+                res <- extract2 s
+                return $ case res of
+                    Nothing -> Stop (Right s)
+                    Just b1 -> Done b1
+
     goLeft r = do
         case r of
-            Partial s -> return $ Partial $ Left s
-            Done b -> do
-                r1 <- inject2 b
-                return $ case r1 of
-                    Partial s -> Partial $ Right s
-                    Done b1 -> Done b1
+            Partial s b -> return $ Partial (Left s) b
+            Continue s -> return $ Continue (Left s)
+            Done b -> inject2 b >>= goRight
+            Stop s -> do
+                res <- extract1 s
+                case res of
+                    Nothing -> return $ Stop (Left s)
+                    Just b -> inject2 b >>= goRight
 
     inject x = inject1 x >>= goLeft
 
     step (Left s) a = step1 s a >>= goLeft
-
-    step (Right s) a = do
-        r <- step2 s a
-        case r of
-            Partial s1 -> return $ Partial (Right s1)
-            Done b -> return $ Done b
+    step (Right s) a = step2 s a >>= goRight
 
     extract (Left s) = extract1 s
     extract (Right s) = extract2 s
@@ -207,13 +214,20 @@ iterate (Refold step1 inject1 extract1) =
 
     go r =
         case r of
-            Partial s -> return $ Partial s
+            Partial s b -> return $ Partial s b
+            Continue s -> return $ Continue s
             Done b -> inject b
+            Stop s -> do
+                res <- extract1 s
+                case res of
+                    Nothing -> return $ Stop s
+                    Just b -> inject b
 
     inject x = inject1 x >>= go
 
     step s a = step1 s a >>= go
 
+{-
 ------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
@@ -235,21 +249,22 @@ take n (Refold fstep finject fextract) = Refold step inject extract
     inject x = do
         res <- finject x
         case res of
-            Partial s ->
+            Partial s b ->
                 if n > 0
-                then return $ Partial $ Tuple'Fused 0 s
+                then return $ Partial (Tuple'Fused 0 s) b
                 else Done <$> fextract s
             Done b -> return $ Done b
 
     step (Tuple'Fused i r) a = do
         res <- fstep r a
         case res of
-            Partial sres -> do
+            Partial sres b -> do
                 let i1 = i + 1
                     s1 = Tuple'Fused i1 sres
                 if i1 < n
-                then return $ Partial s1
+                then return $ Partial s1 b
                 else Done <$> fextract sres
             Done bres -> return $ Done bres
 
     extract (Tuple'Fused _ r) = fextract r
+-}

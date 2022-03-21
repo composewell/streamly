@@ -319,6 +319,7 @@
 --
 module Streamly.Internal.Data.Fold.Type
     (
+    {-
     -- * Types
       Step (..)
     , Fold (..)
@@ -390,6 +391,7 @@ module Streamly.Internal.Data.Fold.Type
     , snoc
     , duplicate
     , finish
+    -}
     )
 where
 
@@ -397,7 +399,7 @@ import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
+import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM, extractStep)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
@@ -429,6 +431,42 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- The type @b@ is the accumulator of the writer. That's the reason the
 -- default folds in various modules are called "write".
 
+-- Should we keep folds and scans as separate abstractions or combine these?
+--
+-- Continue is needed in both folds and scans. If we do not have Continue in
+-- folds, then tee will have odd behavior when one fold filters and other
+-- doesn't. We will be using stale value from one tee. Or we do not allow
+-- filtering folds to tee zip. And anyway Continue is required in parsers which
+-- are an extension of folds. So it makes sense to add Continue to folds.
+--
+-- extract is required in folds but not in scans. Because in folds we may have
+-- to get final value after a Stop. But even in scans we can use extract to
+-- perform a side effect.
+--
+-- Done b in initial is required in folds but not in scans.  In folds, Done b
+-- can be replaced by Stop and extract. But Done b is required in scans to know
+-- that the scan is done.
+--
+-- Stop is required for scans but not in folds. This is the only addition in
+-- folds due to scan integration. And this also requires the extract type to
+-- become Maybe because the folds now may generate no output at all.
+
+-- XXX Folds can generate a sequence of values. Scans use the stream of
+-- intermediate values while folds use only the final value. A fold may choose
+-- to skip all intermediate values by using the Continue constructor. If we
+-- scan using such a fold we will only get the final value in the scan.
+--
+-- XXX Stop should return "s" so that we can extract it. It may happen that a
+-- fold may return Stop after generating a partial result, in which case we
+-- need to use extract on it which can return Stop or Done b. Done b and Stop
+-- s cannot be combined, there is a difference between the two. Stop occurs
+-- when the input ends, Done occurs when the fold decides to terminate. But in
+-- case of scans the fold can also decide to use Stop, so we need "Stop s".
+--
+-- But we usually store the last fold state, and we can extract the last result
+-- from it using extract. But perhaps it is better to use the most recent
+-- state.
+
 -- | The type @Fold m a b@ having constructor @Fold step initial extract@
 -- represents a fold over an input stream of values of type @a@ to a final
 -- value of type @b@ in 'Monad' @m@.
@@ -451,7 +489,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
-  forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
+  forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m (Maybe b))
 
 ------------------------------------------------------------------------------
 -- Mapping on the output
@@ -462,12 +500,13 @@ data Fold m a b =
 -- @since 0.8.0
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
-rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
+rmapM f (Fold step initial extract) = Fold step1 initial1 extract1
 
     where
 
     initial1 = initial >>= mapMStep f
     step1 s a = step s a >>= mapMStep f
+    extract1 s = extract s >>= Prelude.mapM f
 
 ------------------------------------------------------------------------------
 -- Left fold constructors
@@ -494,9 +533,9 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
 foldl' step initial =
     Fold
-        (\s a -> return $ Partial $ step s a)
-        (return (Partial initial))
-        return
+        (\s a -> return $ let b = step s a in Partial b b)
+        (return (Partial initial initial))
+        (return . Just)
 
 -- | Make a fold from a left fold style monadic step function and initial value
 -- of the accumulator.
@@ -515,7 +554,10 @@ foldl' step initial =
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 foldlM' step initial =
-    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
+    Fold
+        (\s a -> step s a >>= \b -> return $ Partial b b)
+        (initial >>= \b -> return $ Partial b b)
+        (return . Just)
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
@@ -524,17 +566,28 @@ foldlM' step initial =
 --
 -- /Pre-release/
 {-# INLINE foldl1' #-}
-foldl1' :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
+foldl1' :: Monad m => (a -> a -> a) -> Fold m a a
+foldl1' step = Fold step1 (return $ Continue Nothing') (return . toMaybe)
 
     where
 
-    step1 Nothing' a = Just' a
-    step1 (Just' x) a = Just' $ step x a
+    step1 Nothing' a = return $ Partial (Just' a) a
+    step1 (Just' x) a = return $ let b = step x a in Partial (Just' b) b
 
 ------------------------------------------------------------------------------
 -- Right fold constructors
 ------------------------------------------------------------------------------
+
+-- | Maps a function on the output of the fold (the type @b@).
+instance Functor m => Functor (Fold m a) where
+    {-# INLINE fmap #-}
+    fmap f (Fold step1 initial1 extract) = Fold step initial (fmap2 (fmap f) extract)
+
+        where
+
+        initial = fmap2 f initial1
+        step s b = fmap2 f (step1 s b)
+        fmap2 g = fmap (fmap g)
 
 -- | Make a fold using a right fold style step function and a terminal value.
 -- It performs a strict right fold via a left fold using function composition.
@@ -593,7 +646,7 @@ foldrM g z =
 -- /Pre-release/
 --
 {-# INLINE mkFold #-}
-mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
+mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> Maybe b) -> Fold m a b
 mkFold step initial extract =
     Fold (\s a -> return $ step s a) (return initial) (return . extract)
 
@@ -608,7 +661,7 @@ mkFold step initial extract =
 --
 {-# INLINE mkFold_ #-}
 mkFold_ :: Monad m => (b -> a -> Step b b) -> Step b b -> Fold m a b
-mkFold_ step initial = mkFold step initial id
+mkFold_ step initial = mkFold step initial Just
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -620,7 +673,7 @@ mkFold_ step initial = mkFold step initial id
 -- /Pre-release/
 --
 {-# INLINE mkFoldM #-}
-mkFoldM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
+mkFoldM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m (Maybe b)) -> Fold m a b
 mkFoldM = Fold
 
 -- | Similar to 'mkFoldM' but the final state extracted is identical to the
@@ -634,7 +687,24 @@ mkFoldM = Fold
 --
 {-# INLINE mkFoldM_ #-}
 mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
-mkFoldM_ step initial = mkFoldM step initial return
+mkFoldM_ step initial = mkFoldM step initial (return . Just)
+
+-- XXX scan constructors
+------------------------------------------------------------------------------
+-- Scans
+------------------------------------------------------------------------------
+
+-- | Like 'foldl'' except that it does emit the initial value of the
+-- accumulator.
+--
+-- /Pre-release/
+{-# INLINE postscanl' #-}
+postscanl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
+postscanl' step initial =
+    Fold
+        (\s a -> let b = step s a in return $ Partial b b)
+        (return (Continue initial))
+        (return . Just)
 
 ------------------------------------------------------------------------------
 -- Refold
@@ -706,17 +776,6 @@ toStreamK = foldr K.cons K.nil
 -- Instances
 ------------------------------------------------------------------------------
 
--- | Maps a function on the output of the fold (the type @b@).
-instance Functor m => Functor (Fold m a) where
-    {-# INLINE fmap #-}
-    fmap f (Fold step1 initial1 extract) = Fold step initial (fmap2 f extract)
-
-        where
-
-        initial = fmap2 f initial1
-        step s b = fmap2 f (step1 s b)
-        fmap2 g = fmap (fmap g)
-
 -- This is the dual of stream "fromPure".
 --
 -- | A fold that always yields a pure value without consuming any input.
@@ -777,22 +836,24 @@ serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     {-# INLINE runL #-}
     runL action = do
         resL <- action
-        chainStepM (return . SeqFoldL) (runR initialR . func) resL
+        chainStepM (return . SeqFoldL) extractL (runR initialR . func) resL
 
     initial = runL initialL
 
     step (SeqFoldL st) a = runL (stepL st a)
     step (SeqFoldR f st) a = runR (stepR st a) f
 
-    extract (SeqFoldR f sR) = fmap f (extractR sR)
+    extract (SeqFoldR f sR) = fmap (fmap f) (extractR sR)
     extract (SeqFoldL sL) = do
+        -- XXX Use MaybeT
         rL <- extractL sL
-        res <- initialR
-        fmap (func rL)
-            $ case res of
-                Partial sR -> extractR sR
-                Done rR -> return rR
+        case rL of
+            Nothing -> return Nothing
+            Just bL -> do
+                res <- initialR
+                fmap (fmap (func bL)) $ extractStep extractR res
 
+{-
 {-# ANN type SeqFoldState_ Fuse #-}
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 
@@ -835,12 +896,14 @@ serial_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
         case res of
             Partial sR -> extractR sR
             Done rR -> return rR
+-}
 
 {-# ANN type TeeState Fuse #-}
 data TeeState sL sR bL bR
     = TeeBoth !sL !sR
     | TeeLeft !bR !sL
     | TeeRight !bL !sR
+    | TeeEmpty
 
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
@@ -857,26 +920,46 @@ data TeeState sL sR bL bR
 -- See also: "Streamly.Internal.Data.Fold.Tee"
 --
 -- @since 0.8.0
+
+-- This fold does not generate any intermediate values to be used in a scan.
 --
+-- XXX This is a folding tee, scanning tee would be different. We can create a
+-- Scan module for scanning combinators using folds. Or should we use separate
+-- types folds and scans?
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+    Fold undefined initial undefined
 
     where
+
+    goRight resR sl = do
+      case resR of
+        -- XXX If run as a parser, Continue will hold on to the
+        -- input. So it is not the same Continue as in parsers. We need to
+        -- distinguish Hold and Discard cases.
+            Partial sr _ -> return $ Continue (TeeBoth sl sr)
+            Continue sr -> return $ Continue (TeeBoth sl sr)
+            Stop sr -> do
+                r <- extractR sr
+                case r of
+                    Nothing -> return $ Stop TeeEmpty
+                    Just br -> return $ Continue (TeeLeft br sl)
+            Done br -> return $ Continue (TeeLeft br sl)
 
     {-# INLINE runBoth #-}
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
-        return
-            $ case resL of
-                  Partial sl ->
-                      Partial
-                          $ case resR of
-                                Partial sr -> TeeBoth sl sr
-                                Done br -> TeeLeft br sl
-                  Done bl -> bimap (TeeRight bl) (f bl) resR
+        case resL of
+              Partial sl _ -> goRight resR sl
+              Continue sl -> goRight resR sl
+              Stop sl -> do
+                r <- extractL sl
+                case r of
+                    Nothing -> return $ Stop TeeEmpty
+                    Just bl -> return $ bimap (TeeRight bl) (f bl) resR
+              Done bl -> return $ bimap (TeeRight bl) (f bl) resR
 
     initial = runBoth initialL initialR
 
@@ -884,10 +967,27 @@ teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (TeeLeft bR sL) a = bimap (TeeLeft bR) (`f` bR) <$> stepL sL a
     step (TeeRight bL sR) a = bimap (TeeRight bL) (f bL) <$> stepR sR a
 
-    extract (TeeBoth sL sR) = f <$> extractL sL <*> extractR sR
-    extract (TeeLeft bR sL) = (`f` bR) <$> extractL sL
-    extract (TeeRight bL sR) = f bL <$> extractR sR
+    extract (TeeBoth sL sR) = do -- f <$> extractL sL <*> extractR sR
+        rL <- extractL sL
+        case rL of
+            Nothing -> return Nothing
+            Just bL -> do
+                rR <- extractR sR
+                case rR of
+                    Nothing -> return Nothing
+                    Just bR -> return $ Just $ f bL bR
+    extract (TeeLeft bR sL) = do -- (`f` bR) <$> extractL sL
+        rL <- extractL sL
+        case rL of
+            Nothing -> return Nothing
+            Just bL -> return $ Just $ f bL bR
+    extract (TeeRight bL sR) = do -- f bL <$> extractR sR
+        rR <- extractR sR
+        case rR of
+            Nothing -> return Nothing
+            Just bR -> return $ Just $ f bL bR
 
+{-
 {-# ANN type TeeFstState Fuse #-}
 data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
@@ -1542,3 +1642,4 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
 {-# INLINE refold #-}
 refold :: Monad m => Fold m a b -> Refold m b a b -> Fold m a b
 refold f (Refold step inject extract) = Fold step (finish f >>= inject) extract
+-}

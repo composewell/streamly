@@ -424,6 +424,18 @@ instance Functor m => Functor (Parser m a) where
 -- at the extraction. We should either make the direct folds like this or make
 -- the CPS folds behavior also like the direct ones.
 --
+-- XXX initial is more like a "produce" step of a pipe. Though in folds/pasers
+-- it is a special case of calling it just once before consuming. To be able to
+-- identify whether we have already initialized or not we would need a state,
+-- it could be the Producer/Consumer state of the pipe.
+--
+-- But that would make the folds/parsers a bit more complicated to write.
+-- Instead of using Producer/Consumer state we could make use of the "Skip"
+-- constructor.
+--
+-- We could make use of the smart constructors/pattern synonyms to simplify
+-- writing folds using parsers or writing parsers using pipes.
+--
 -- | Convert a direct style parser ('D.Parser') to a CPS style parser
 -- ('Parser').
 --
@@ -438,12 +450,13 @@ parseDToK
     -> ((Int, Int) -> K.Parse b -> m (K.Driver m a r))
     -> m (K.Driver m a r)
 
+-- Not in Alternative case, fastpath
 parseDToK pstep initial extract leftover (0, _) cont = do
     res <- initial
     case res of
         IPartial r -> return $ K.Continue leftover (parseCont (return r))
-        IDone b -> cont (0,0) (K.Done 0 b)
-        IError err -> cont (0,0) (K.Error err)
+        IDone b -> cont def (K.Done 0 b)
+        IError err -> cont def (K.Error err)
 
     where
 
@@ -451,8 +464,8 @@ parseDToK pstep initial extract leftover (0, _) cont = do
         r <- pst
         pRes <- pstep r x
         case pRes of
-            Done n b -> cont (0,0) (K.Done n b)
-            Error err -> cont (0,0) (K.Error err)
+            Done n b -> cont def (K.Done n b)
+            Error err -> cont def (K.Error err)
             Partial n pst1 -> return $ K.Partial n (parseCont (return pst1))
             Continue n pst1 -> return $ K.Continue n (parseCont (return pst1))
 
@@ -460,9 +473,12 @@ parseDToK pstep initial extract leftover (0, _) cont = do
         pst <- acc
         r <- try $ extract pst
         case r of
-            Left (e :: ParseError) -> cont (0,0) (K.Error (displayException e))
-            Right b -> cont (0,0) (K.Done 0 b)
+            Left (e :: ParseError) -> cont def (K.Error (displayException e))
+            Right b -> cont def (K.Done 0 b)
 
+    where def = (0,0)
+
+-- In Alternative case (i.e. level is non-zero)
 parseDToK pstep initial extract leftover (level, count) cont = do
     res <- initial
     case res of

@@ -49,12 +49,12 @@ import Data.Semigroup ((<>))
 -- /Pre-release/
 --
 data Driver m a r =
-      Stop !Int r
+      Stop !Int r  -- this is basically extract
       -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
       -- measure if that works any better.
-    | Partial !Int (Maybe a -> m (Driver m a r))
-    | Continue !Int (Maybe a -> m (Driver m a r))
-    | Failed String
+    | Partial !Int !(Maybe a -> m (Driver m a r))  -- extract/consume
+    | Continue !Int !(Maybe a -> m (Driver m a r)) -- extract/consume
+    | Failed !String
 
 instance Functor m => Functor (Driver m a) where
     fmap f (Stop n r) = Stop n (f r)
@@ -62,6 +62,7 @@ instance Functor m => Functor (Driver m a) where
     fmap f (Continue n yld) = Continue n (fmap (fmap f) . yld)
     fmap _ (Failed e) = Failed e
 
+-- XXX change this to Result or Output
 -- The parser's result.
 --
 -- /Pre-release/
@@ -74,21 +75,39 @@ instance Functor Parse where
     fmap f (Done n b) = Done n (f b)
     fmap _ (Error e) = Error e
 
+-- XXX An Alternative can be implemented as an error continuation. So we will
+-- have two continuations one for success and another for error case.
+--
+-- In parserD it would be harder to implement the alternatives, we would need a
+-- list of alternatives and try those, just like interleaving in StreamD. For
+-- Alternative parsers we can probably just force parserK and not covert to
+-- parserD.
+--
+-- Folds could be kept for non-alternative and parsers for alternative.
+
 -- | A continuation passing style parser representation.
 newtype Parser m a b = MkParser
     { runParser :: forall r.
            -- The number of elements that were not used by the previous
            -- consumer and should be carried forward.
+           -- XXX reverse index into the buffer.
            Int
-           -- (nesting level, used elem count). Nesting level is increased
-           -- whenever we enter an Alternative composition and decreased when
-           -- it is done. The used element count is a count of elements
-           -- consumed by the Alternative. If the Alternative fails we need to
-           -- backtrack by this amount.
+           -- XXX CPS folds can avoid this. Can fold CPS be more efficient by
+           -- avoiding this?
+           -- (nesting level, used elem count).
            --
-           -- The nesting level is used in parseDToK to optimize the case when
-           -- we are not in an alternative, in that case we do not need to
-           -- maintain the element count for backtracking.
+           -- The "nesting level" is used in parseDToK to optimize the case
+           -- when we are not in an alternative, in that case we do not need to
+           -- maintain the element count for backtracking.  Nesting level is
+           -- increased whenever we enter an Alternative composition and
+           -- decreased when it is done.
+           --
+           -- XXX forward index into the buffer
+           -- XXX why do we need forward and reverse both?
+           -- The "used elem count" is a count of elements consumed by the
+           -- Alternative. If the Alternative fails we need to backtrack by
+           -- this amount. XXX can it fail after consuming some input?
+           --
         -> (Int, Int)
            -- The first argument is the (nest level, used count) tuple as
            -- described above. The leftover element count is carried as part of
@@ -129,7 +148,8 @@ fromPure b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser m a b
-fromEffect eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
+fromEffect eff =
+    MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
