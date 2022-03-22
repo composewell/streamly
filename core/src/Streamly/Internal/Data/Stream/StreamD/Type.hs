@@ -920,6 +920,8 @@ data FoldMany s fs b a
     | FoldManyYield b (FoldMany s fs b a)
     | FoldManyDone
 
+-- XXX Nested foldMany does not fuse.
+--
 -- | Apply a fold multiple times until the stream ends. If the stream is empty
 -- the output would be empty.
 --
