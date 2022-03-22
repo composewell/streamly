@@ -52,8 +52,8 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     -- streams that come earlier in the composition.
     --
     , wSerial
-    , Serial.wSerialFst
-    , Serial.wSerialMin
+    , WSerial.wSerialFst
+    , WSerial.wSerialMin
 
     -- ** Interleave
     -- | 'interleave' is like 'wSerial'  but using a direct style
@@ -175,7 +175,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -285,7 +285,7 @@ infixr 6 `wSerial`
 --
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ Serial.wSerialK (toStream m1) (toStream m2)
+wSerial m1 m2 = fromStream $ WSerial.wSerialK (toStream m1) (toStream m2)
 
 -- XXX Same as 'wSerial'. We should perhaps rename wSerial to interleave.
 -- XXX Document the interleaving behavior of side effects in all the

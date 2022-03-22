@@ -18,7 +18,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 
 import Streamly.Prelude hiding (repeat)
 import qualified Streamly.Prelude as S
@@ -67,7 +67,7 @@ wSerialMinLengthProp =
 
     finiteStream len = S.take len $ S.repeat (1 :: Int)
     infiniteStream = S.repeat 1
-    combined len = infiniteStream `Serial.wSerialMin` finiteStream len
+    combined len = infiniteStream `WSerial.wSerialMin` finiteStream len
 
 moduleName :: String
 moduleName = "Prelude.WSerial"

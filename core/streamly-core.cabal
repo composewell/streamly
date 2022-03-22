@@ -290,6 +290,7 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
 
