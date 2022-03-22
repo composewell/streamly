@@ -21,6 +21,8 @@ module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Exception (SomeException, ErrorCall, try)
+import Data.Char (ord)
+import Data.Word (Word8)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
 import System.Random (randomRIO)
@@ -693,8 +695,17 @@ o_1_space_zip size =
           ]
     ]
 
-o_1_space_nested :: Int -> [Benchmark]
-o_1_space_nested size =
+lf :: Word8
+lf = fromIntegral (ord '\n')
+
+-- | Split on line feed.
+foldManySepBy :: Handle -> IO Int
+foldManySepBy =
+    let u = UF.foldMany (FL.takeEndBy_ (== lf) FL.drain) FH.read
+     in UF.fold FL.length u
+
+o_1_space_nested :: BenchEnv -> Int -> [Benchmark]
+o_1_space_nested env size =
     [ bgroup
           "nested"
           [ benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp size
@@ -711,6 +722,8 @@ o_1_space_nested size =
           , benchIO "filterSome" $ filterSome size
 
           , benchIO "concat" $ concat size
+          , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
+            $ \inh _ -> foldManySepBy inh
           ]
     ]
 
@@ -819,7 +832,7 @@ main = do
                   , o_1_space_transformation size
                   , o_1_space_filtering size
                   , o_1_space_zip size
-                  , o_1_space_nested size
+                  , o_1_space_nested env size
                   , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)

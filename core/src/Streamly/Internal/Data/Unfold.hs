@@ -362,12 +362,61 @@ fold (Fold fstep initial extract) (Unfold ustep inject) a = do
             Skip s -> go SPEC fs s
             Stop -> extract fs
 
+-- {-# ANN type FoldMany Fuse #-}
+data FoldMany s fs b a
+    = FoldManyStart s
+    | FoldManyFirst fs s
+    | FoldManyLoop s fs
+    | FoldManyYield b (FoldMany s fs b a)
+    | FoldManyDone
+
 -- | Apply a fold multiple times on the output of an unfold.
 --
--- /Unimplemented/
-foldMany :: -- Monad m =>
-    Fold m b c -> Unfold m a b -> Unfold m a c
-foldMany = undefined
+-- /Pre-release/
+{-# INLINE_NORMAL foldMany #-}
+foldMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
+    Unfold step inject
+
+    where
+
+    inject x = do
+        r <- inject1 x
+        return (FoldManyStart r)
+
+    {-# INLINE consume #-}
+    consume x s fs = do
+        res <- fstep fs x
+        return
+            $ Skip
+            $ case res of
+                  FL.Done b -> FoldManyYield b (FoldManyStart s)
+                  FL.Partial ps -> FoldManyLoop s ps
+
+    {-# INLINE_LATE step #-}
+    step (FoldManyStart st) = do
+        r <- initial
+        return
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs -> FoldManyFirst fs st
+    step (FoldManyFirst fs st) = do
+        r <- ustep st
+        case r of
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyFirst fs s)
+            Stop -> return Stop
+    step (FoldManyLoop st fs) = do
+        r <- ustep st
+        case r of
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyLoop s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (FoldManyYield b FoldManyDone)
+    step (FoldManyYield b next) = return $ Yield b next
+    step FoldManyDone = return Stop
 
 -- | Apply a monadic function to each element of the stream and replace it
 -- with the output of the resulting action.
