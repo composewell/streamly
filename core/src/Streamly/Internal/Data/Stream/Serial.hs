@@ -42,6 +42,7 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Transformation
     , map
     , mapM
+    , foldFilter
 
     -- * Deprecated
     , StreamT
@@ -72,12 +73,14 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
+import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.StreamK.Type
        (Stream, mkStream, foldStream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -258,6 +261,23 @@ LIST_INSTANCES(SerialT)
 NFDATA1_INSTANCE(SerialT)
 FOLDABLE_INSTANCE(SerialT)
 TRAVERSABLE_INSTANCE(SerialT)
+
+{-# INLINE toStreamD #-}
+toStreamD :: Applicative m => SerialT m a -> D.Stream m a
+toStreamD (SerialT m) = D.fromStreamK m
+
+{-# INLINE fromStreamD #-}
+fromStreamD :: Monad m => D.Stream m a -> SerialT m a
+fromStreamD m = SerialT $ D.toStreamK m
+
+-- | Use a filtering fold on a stream.
+--
+-- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
+-- 40
+--
+{-# INLINE foldFilter #-}
+foldFilter :: Monad m => Fold m a (Maybe b) -> SerialT m a -> SerialT m b
+foldFilter p = fromStreamD . D.foldFilter p . toStreamD
 
 ------------------------------------------------------------------------------
 -- WSerialT

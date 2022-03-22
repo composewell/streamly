@@ -70,6 +70,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- | Produce a subset of the stream.
     , filter
     , filterM
+    , foldFilter
     , deleteBy
     , uniq
 
@@ -740,6 +741,19 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
+
+-- XXX nested foldMany does not fuse, therefore, this may not be very useful as
+-- a filter unless that is fixed.
+--
+-- | Use a filtering fold on a stream.
+--
+-- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
+-- 40
+--
+-- /Pre-release/
+{-# INLINE foldFilter #-}
+foldFilter :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
+foldFilter f = catMaybes . foldMany f
 
 -- Adapted from the vector package
 {-# INLINE_NORMAL filterM #-}

@@ -31,6 +31,7 @@ import Test.Inspection
 #endif
 
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -288,6 +289,10 @@ filterMAllOut value n = composeN n $ S.filterM (\x -> return $ x > (value + 1))
 filterMAllIn :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
 filterMAllIn value n = composeN n $ S.filterM (\x -> return $ x <= (value + 1))
 
+{-# INLINE foldFilterEven #-}
+foldFilterEven :: MonadIO m => Int -> SerialT m Int -> m ()
+foldFilterEven n = composeN n $ Serial.foldFilter (FL.satisfy even)
+
 {-# INLINE _takeOne #-}
 _takeOne :: MonadIO m => Int -> SerialT m Int -> m ()
 _takeOne n = composeN n $ S.take 1
@@ -396,6 +401,8 @@ o_1_space_filtering value =
         , benchIOSink value "filterM-all-out" (filterMAllOut value 1)
         , benchIOSink value "filterM-all-in" (filterMAllIn value 1)
 
+        , benchIOSink value "foldFilter-even" (foldFilterEven 1)
+
         -- Trimming
         , benchIOSink value "take-all" (takeAll value 1)
         , benchIOSink
@@ -440,6 +447,8 @@ o_1_space_filteringX4 value =
         , benchIOSink value "filterM-even" (filterMEven 4)
         , benchIOSink value "filterM-all-out" (filterMAllOut value 4)
         , benchIOSink value "filterM-all-in" (filterMAllIn value 4)
+
+        , benchIOSink value "foldFilter-even" (foldFilterEven 4)
 
         -- trimming
         , benchIOSink value "take-all" (takeAll value 4)
