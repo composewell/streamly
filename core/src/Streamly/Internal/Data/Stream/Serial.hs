@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Serial
@@ -35,13 +36,16 @@ module Streamly.Internal.Data.Stream.Serial
     , repeat
     , unfoldrM
     , fromList
+    , list
 
     -- * Elimination
     , toList
+    , foldWith
 
     -- * Transformation
     , map
     , mapM
+    , filter
     , foldFilter
     )
 where
@@ -77,7 +81,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (map, mapM, repeat)
+import Prelude hiding (map, mapM, repeat, filter)
 
 #include "Instances.hs"
 #include "inline.hs"
@@ -256,6 +260,14 @@ toStreamD (SerialT m) = D.fromStreamK m
 fromStreamD :: Monad m => D.Stream m a -> SerialT m a
 fromStreamD m = SerialT $ D.toStreamK m
 
+-- XXX We should only export generation and combinators from this module.
+--
+-- | Include only those elements that pass a predicate.
+--
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> SerialT m a -> SerialT m a
+filter p = fromStreamD . D.filter p . toStreamD
+
 -- | Use a filtering fold on a stream.
 --
 -- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
@@ -264,6 +276,52 @@ fromStreamD m = SerialT $ D.toStreamK m
 {-# INLINE foldFilter #-}
 foldFilter :: Monad m => Fold m a (Maybe b) -> SerialT m a -> SerialT m b
 foldFilter p = fromStreamD . D.foldFilter p . toStreamD
+
+-- XXX Renamed to foldWith because SerialT has a Foldable instance having
+-- method fold.
+--
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
+--
+-- >>> Stream.foldWith Fold.sum (Stream.enumerateFromTo 1 100)
+-- 5050
+--
+-- Folds never fail, therefore, they produce a default value even when no input
+-- is provided. It means we can always fold an empty stream and get a valid
+-- result.  For example:
+--
+-- >>> Stream.foldWith Fold.sum Stream.nil
+-- 0
+--
+-- However, 'foldMany' on an empty stream results in an empty stream.
+-- Therefore, @Stream.foldWith f@ is not the same as @Stream.head . Stream.foldMany
+-- f@.
+--
+-- @foldWith f = Stream.parse (Parser.fromFold f)@
+--
+-- /Pre-release/
+{-# INLINE foldWith #-}
+foldWith :: Monad m => Fold m a b -> SerialT m a -> m b
+foldWith fld m = D.fold fld $ toStreamD m
+
+-- XXX Renamed to "list" because fromList is present in IsList instance.
+--
+-- |
+-- @
+-- fromList = 'Prelude.foldr' 'K.cons' 'K.nil'
+-- @
+--
+-- Construct a stream from a list of pure values. This is more efficient than
+-- 'K.fromFoldable' for serial streams.
+--
+-- @since 0.4.0
+{-# INLINE_EARLY list #-}
+list :: Monad m => [a] -> SerialT m a
+list = fromStreamD . D.fromList
+{-# RULES "list fallback to StreamK" [1]
+    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
 
 ------------------------------------------------------------------------------
 -- WSerialT
