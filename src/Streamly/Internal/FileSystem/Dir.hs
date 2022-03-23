@@ -51,7 +51,7 @@ module Streamly.Internal.FileSystem.Dir
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Either (isRight, isLeft)
+import Data.Either (isRight, isLeft, fromLeft, fromRight)
 -- import Data.Word (Word8)
 -- import Foreign.ForeignPtr (withForeignPtr)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -62,7 +62,6 @@ import Data.Either (isRight, isLeft)
 import Prelude hiding (read)
 
 -- import Streamly.Data.Fold (Fold)
-import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.Internal.Data.Array.Foreign.Type
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,

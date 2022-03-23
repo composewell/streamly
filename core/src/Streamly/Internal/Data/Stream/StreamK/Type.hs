@@ -98,9 +98,6 @@ import Control.Monad (ap, (>=>))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Function (fix)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Semigroup (Semigroup(..))
-#endif
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Prelude hiding
     (map, mapM, concatMap, foldr, repeat, null, reverse, tail, init)

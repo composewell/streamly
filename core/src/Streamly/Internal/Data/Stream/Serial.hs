@@ -47,10 +47,7 @@ module Streamly.Internal.Data.Stream.Serial
 where
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData(..))
-#if MIN_VERSION_deepseq(1,4,3)
-import Control.DeepSeq (NFData1(..))
-#endif
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -64,11 +61,11 @@ import Data.Semigroup (Endo(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import GHC.Exts (IsList(..), IsString(..))
+import GHC.Exts (IsList(..), IsString(..), oneShot)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
-import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
+import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.StreamK.Type
@@ -80,7 +77,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (map, mapM, errorWithoutStackTrace, repeat)
+import Prelude hiding (map, mapM, repeat)
 
 #include "Instances.hs"
 #include "inline.hs"

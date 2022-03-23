@@ -78,10 +78,6 @@ o_n_stack_prefix name = name ++ "/o-n-stack"
 -- Benchmarking utilities
 -------------------------------------------------------------------------------
 
-#if !MIN_VERSION_deepseq(1,4,3)
-instance NFData Ordering where rnf = (`seq` ())
-#endif
-
 -- XXX once we convert all the functions to use this we can rename this to
 -- benchIOSink
 {-# INLINE benchIOSink1 #-}

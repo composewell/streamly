@@ -206,10 +206,7 @@ where
 #endif
 
 import Control.Exception (assert)
-import Control.DeepSeq (NFData(..))
-#if MIN_VERSION_deepseq(1,4,3)
-import Control.DeepSeq (NFData1(..))
-#endif
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
@@ -239,7 +236,6 @@ import GHC.ForeignPtr (mallocForeignPtrAlignedBytes)
 #endif
 import GHC.Ptr (Ptr(..))
 
-import Streamly.Internal.BaseCompat
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -2287,11 +2283,9 @@ instance NFData (Array a) where
     {-# INLINE rnf #-}
     rnf Array {} = ()
 
-#if MIN_VERSION_deepseq(1,4,3)
 instance NFData1 Array where
     {-# INLINE liftRnf #-}
     liftRnf _ Array{} = ()
-#endif
 
 -- | Strip elements which match with predicate from both ends.
 --

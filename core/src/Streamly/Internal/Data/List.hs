@@ -63,9 +63,7 @@ where
 
 import Control.Arrow (second)
 import Control.DeepSeq (NFData(..))
-#if MIN_VERSION_deepseq(1,4,3)
 import Control.DeepSeq (NFData1(..))
-#endif
 import Data.Functor.Identity (Identity, runIdentity)
 import GHC.Exts (IsList(..), IsString(..))
 #if __GLASGOW_HASKELL__ < 808
@@ -93,12 +91,10 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- @since 0.6.0
 newtype List a = List { toSerial :: SerialT Identity a }
-    deriving (Show, Read, Eq, Ord, NFData
-#if MIN_VERSION_deepseq(1,4,3)
-    , NFData1
-#endif
-             , Semigroup, Monoid, Functor, Foldable
-             , Applicative, Traversable, Monad)
+    deriving
+    ( Show, Read, Eq, Ord, NFData , NFData1
+    , Semigroup, Monoid, Functor, Foldable
+    , Applicative, Traversable, Monad)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
@@ -158,12 +154,11 @@ pattern Cons x xs <-
 --
 -- @since 0.6.0
 newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
-    deriving (Show, Read, Eq, Ord, NFData
-#if MIN_VERSION_deepseq(1,4,3)
-    , NFData1
-#endif
-             , Semigroup, Monoid, Functor, Foldable
-             , Applicative, Traversable)
+    deriving
+    ( Show, Read, Eq, Ord, NFData , NFData1
+    , Semigroup, Monoid, Functor, Foldable
+    , Applicative, Traversable
+    )
 
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}

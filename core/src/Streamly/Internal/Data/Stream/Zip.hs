@@ -24,10 +24,7 @@ module Streamly.Internal.Data.Stream.Zip
 where
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData(..))
-#if MIN_VERSION_deepseq(1,4,3)
-import Control.DeepSeq (NFData1(..))
-#endif
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Data.Foldable (Foldable(foldl'), fold)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.Maybe (fromMaybe)
@@ -35,11 +32,11 @@ import Data.Semigroup (Endo(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import GHC.Exts (IsList(..), IsString(..))
+import GHC.Exts (IsList(..), IsString(..), oneShot)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
-import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace, oneShot)
+import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
@@ -50,7 +47,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
-import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
+import Prelude hiding (map, repeat, zipWith)
 
 #include "Instances.hs"
 

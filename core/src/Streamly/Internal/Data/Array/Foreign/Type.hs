@@ -77,10 +77,7 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.DeepSeq (NFData(..))
-#if MIN_VERSION_deepseq(1,4,3)
-import Control.DeepSeq (NFData1(..))
-#endif
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
@@ -741,10 +738,8 @@ instance NFData (Array a) where
     {-# INLINE rnf #-}
     rnf Array {} = ()
 
-#if MIN_VERSION_deepseq(1,4,3)
 instance NFData1 Array where
     liftRnf _ Array{} = ()
-#endif
 
 instance (Storable a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}

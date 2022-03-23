@@ -16,6 +16,7 @@ module Streamly.Test.Unicode.Char (main) where
 import Control.Monad (when)
 import Data.Char (chr, isSpace, ord, toUpper)
 import Data.List (intercalate, isPrefixOf)
+import Data.Function ((&))
 import Streamly.Internal.Unicode.Char
     ( NormalizationMode(NFC, NFD, NFKC, NFKD)
     , normalize

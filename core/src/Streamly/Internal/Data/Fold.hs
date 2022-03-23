@@ -258,12 +258,11 @@ module Streamly.Internal.Data.Fold
 where
 
 import Data.Bifunctor (first)
-import Data.Either (isLeft, isRight)
+import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
-import Streamly.Internal.BaseCompat (fromLeft, fromRight)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))

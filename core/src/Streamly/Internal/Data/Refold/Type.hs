@@ -44,9 +44,6 @@ module Streamly.Internal.Data.Refold.Type
 where
 
 import Control.Monad ((>=>))
-#if __GLASGOW_HASKELL__ < 804
-import Data.Semigroup (Semigroup((<>)))
-#endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
