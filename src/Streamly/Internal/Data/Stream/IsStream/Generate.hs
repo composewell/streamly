@@ -79,10 +79,8 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , fromPrimIORef
 
     -- * Deprecated
-    , once
     , yield
     , yieldM
-    , each
     , fromHandle
     , currentTime
     )
@@ -624,14 +622,6 @@ fromListM = fromFoldableM
 fromListMSerial :: MonadAsync m => [m a] -> SerialT m a
 fromListMSerial = fromStreamD . D.fromListM
 
--- | Same as 'fromFoldable'.
---
--- @since 0.1.0
-{-# DEPRECATED each "Please use fromFoldable instead." #-}
-{-# INLINE each #-}
-each :: (IsStream t, Foldable f) => f a -> t m a
-each = fromFoldable
-
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
@@ -670,11 +660,3 @@ fromCallback setCallback = concatM $ do
 {-# INLINE fromPrimIORef #-}
 fromPrimIORef :: (IsStream t, MonadIO m, Prim a) => Prim.IORef a -> t m a
 fromPrimIORef = fromStreamD . Prim.toStreamD
-
--- | Same as fromEffect
---
--- @since 0.2.0
-{-# DEPRECATED once "Please use fromEffect instead." #-}
-{-# INLINE once #-}
-once :: (Monad m, IsStream t) => m a -> t m a
-once = IsStream.fromEffect

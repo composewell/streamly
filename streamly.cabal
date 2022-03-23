@@ -150,7 +150,6 @@ extra-source-files:
     core/src/Streamly/Internal/Control/Concurrent.hs
     core/src/Streamly/Internal/Control/ForkLifted.hs
     core/src/Streamly/Internal/Data/IOFinalizer.hs
-    core/src/Streamly/Internal/Data/Time.hs
     core/src/Streamly/Internal/Data/Time/TimeSpec.hsc
     core/src/Streamly/Internal/Data/Time/Units.hs
     core/src/Streamly/Internal/Data/Time/Clock/Type.hsc
@@ -529,7 +528,6 @@ library
                      , Streamly.Internal.Data.IOFinalizer
 
                      -- streamly-time
-                     , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock.Type
