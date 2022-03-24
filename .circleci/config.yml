@@ -400,7 +400,7 @@ jobs:
               count2=$(awk '{ if (length($0) > 80) {print "Line length exceeds 80 : " length($0); print $0; } }' tmp_len | tee /dev/tty | wc -l)
               rm tmp_len
               if [ $count2 -gt 0 ]
-              then exit 0
+              then exit 2
               else exit 0
               fi
         - *save
