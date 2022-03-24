@@ -395,6 +395,8 @@ jobs:
               if [ $count -gt 0 ]
               then exit 1
               fi
+              bash -c "$PACKCHECK $BUILD" || exit 1
+              echo "Checking 80 char column..."
               git diff master HEAD "*.hs" | grep '^+' | grep -v '^+++' > tmp_len
               count2=$(awk '{ if (length($0) > 80) {print "Line length exceeds 80 : " length($0); print $0; } }' tmp_len | tee /dev/tty | wc -l)
               rm tmp_len
