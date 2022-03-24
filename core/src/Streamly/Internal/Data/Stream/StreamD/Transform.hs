@@ -73,6 +73,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , foldFilter
     , deleteBy
     , uniq
+    , nub
 
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
@@ -135,6 +136,7 @@ import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 import qualified Control.Monad.Catch as MC
+import qualified Data.Set as Set
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork, forkManaged)
@@ -795,6 +797,26 @@ uniq (Stream step state) = Stream step' (Nothing, state)
                        | otherwise -> return $ Yield y (Just y, s)
              Skip  s   -> return $ Skip (Just x, s)
              Stop      -> return Stop
+
+-- | The memory used is proportional to the number of unique elements in the
+-- stream. If we want to limit the memory we can just use "take" to limit the
+-- uniq elements in the stream.
+{-# INLINE_NORMAL nub #-}
+nub :: (Monad m, Ord a) => Stream m a -> Stream m a
+nub (Stream step1 state1) = Stream step (Set.empty, state1)
+
+    where
+
+    step gst (set, st) = do
+        r <- step1 gst st
+        return
+            $ case r of
+                Yield x s ->
+                    if Set.member x set
+                    then Skip (set, s)
+                    else Yield x (Set.insert x set, s)
+                Skip s -> Skip (set, s)
+                Stop -> Stop
 
 {-# INLINE_NORMAL deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
