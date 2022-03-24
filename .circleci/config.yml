@@ -395,6 +395,12 @@ jobs:
               if [ $count > 0 ]
               then exit 1
               fi
+              git diff master HEAD "*.hs" | grep '^+' | grep -v '^+++' > tmp_len
+              count2=$(awk '{ if (length($0) > 80) {print "Line length exceeds 80 : " length($0); print $0; } }' tmp_len | tee /dev/tty | wc -l)
+              rm tmp_len
+              if [ $count2 > 0 ]
+              then exit 2
+              fi
         - *save
 
 workflows:
@@ -411,8 +417,8 @@ workflows:
       #- cabal-ghc-8_0_2:
       #    name: GHC 8.0.2 + no-test + no-bench + no-docs
       #- cabal-ghc-7.10.3
-      #- cabal-ghcjs-8_4:
-      #    name: GHCJS 8.4 + no-test + no-docs
+      - cabal-ghcjs-8_4:
+          name: GHCJS 8.4 + no-test + no-docs
       #- stack-ghc-8.4
       #- stack-ghc-8.2
       #- coveralls-ghc-8.2.2
