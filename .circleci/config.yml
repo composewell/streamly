@@ -394,6 +394,7 @@ jobs:
               count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
               if [ $count > 0 ]
               then exit 1
+              else exit $count
               fi
         - *save
 
