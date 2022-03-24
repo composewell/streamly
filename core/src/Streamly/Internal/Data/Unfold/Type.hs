@@ -566,8 +566,10 @@ identity = function Prelude.id
 {-# ANN type ConcatState Fuse #-}
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 
--- | Apply the second unfold to each output element of the first unfold and
+-- | Apply the first unfold to each output element of the second unfold and
 -- flatten the output in a single stream.
+--
+-- /Since: 0.9.0 (signature changed)/
 --
 -- /Since: 0.8.0/
 --
