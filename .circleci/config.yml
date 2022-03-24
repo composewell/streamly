@@ -401,6 +401,7 @@ jobs:
               rm tmp_len
               if [ $count2 -gt 0 ]
               then exit 2
+              else exit $count2
               fi
         - *save
 
