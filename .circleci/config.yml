@@ -392,7 +392,7 @@ jobs:
               bash -c "$PACKCHECK $BUILD" || exit 1
               echo "Checking trailing spaces..."
               count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
-              if [ $count > 0 ]
+              if [ $count -gt 0 ]
               then exit 1
               else exit $count
               fi
