@@ -70,7 +70,92 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
-          
+          - name: 9.2.1
+            ghc_version: 9.2.1
+            runner: ubuntu-latest
+            build: cabal
+            cabal_project: cabal.project
+            cabal_version: 3.6
+            disable_sdist_build: "y"
+            ignore_error: false
+          - name: 9.2.1-docspec
+            ghc_version: 9.2.1
+            runner: ubuntu-latest
+            doctest: "y"
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            ignore_error: false
+          - name: 9.0.1
+            ghc_version: 9.0.1
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            disable_sdist_build: "y"
+            ignore_error: false
+          - name: 8.10.7-sdist-stack
+            runner: ubuntu-latest
+            build: stack
+            resolver: lts-18.23
+            stack_yaml: stack.yaml
+            sdist_options: "--ignore-check"
+            stack_build_options: "--flag streamly-benchmarks:-opt"
+            cabal_version: 3.6
+            ignore_error: false
+          - name: 8.10.7-macos
+            ghc_version: 8.10.7
+            runner: macos-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            disable_sdist_build: "y"
+            ignore_error: false
+        # - name: 8.10.7-coverage
+        #   ghc_version: 8.10.7
+        #   runner: ubuntu-latest
+        #   coverage: "y"
+        #   cabal_version: 3.6
+        #   ignore_error: false
+          - name: 8.10.7-sdist-fusion-inspection-Werror
+            ghc_version: 8.10.7
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project.Werror
+            cabal_build_options: "--flag fusion-plugin --flag inspection"
+            ignore_error: false
+          - name: 8.8.4-sdist-fusion
+            ghc_version: 8.8.4
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            cabal_build_options: "--flag fusion-plugin"
+            ignore_error: false
+          - name: 8.6.5-sdist-streamk-unoptimized
+            ghc_version: 8.6.5
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            cabal_build_options: "--flag streamk --flag -opt"
+            ignore_error: false
+          - name: 8.6.5-sdist-debug-unoptimized
+            ghc_version: 8.6.5
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            cabal_build_options: "--flag debug --flag -opt"
+            ignore_error: false
+          - name: 8.4.4-sdist
+            ghc_version: 8.4.4
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project
+            ignore_error: false
+
     steps:
     - uses: actions/checkout@v2
 
