@@ -396,6 +396,12 @@ jobs:
               then exit 1
               else exit $count
               fi
+              git diff master HEAD "*.hs" | grep '^+' | grep -v '^+++' > tmp_len
+              count2=$(awk '{ if (length($0) > 80) {print "Line length exceeds 80 : " length($0); print $0; } }' tmp_len | tee /dev/tty | wc -l)
+              rm tmp_len
+              if [ $count2 -gt 0 ]
+              then exit 2
+              fi
         - *save
 
 workflows:
