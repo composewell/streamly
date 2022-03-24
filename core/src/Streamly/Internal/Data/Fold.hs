@@ -570,6 +570,8 @@ length = genericLength
 
 -- | Count non-duplicate elements in the stream.
 --
+-- Equivalent to using 'nub' followed by 'length' on a stream.
+--
 -- The memory used is proportional to the number of distinct elements in the
 -- stream, to guard against using too much memory use it as a scan and
 -- terminate if the count reaches more than a threshold.
