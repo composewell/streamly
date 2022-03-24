@@ -396,7 +396,9 @@ jobs:
               then exit 1
               fi
               echo "Checking 80 char column..."
+              echo "Before..."
               git diff master HEAD "*.hs" | grep '^+' | grep -v '^+++' > tmp_len
+              echo "Afterrrrr..."
               count2=$(awk '{ if (length($0) > 80) {print "Line length exceeds 80 : " length($0); print $0; } }' tmp_len | tee /dev/tty | wc -l)
               echo "count2=" $count2
               rm tmp_len
