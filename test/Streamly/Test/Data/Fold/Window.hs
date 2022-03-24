@@ -29,6 +29,7 @@ main = hspec $ do
                     $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
 
         describe "Sum" $ testFunc sum
+        describe "mean" $ testFunc mean
 
     describe "Correctness" $ do
         let winSize = 3
@@ -59,3 +60,7 @@ main = hspec $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]
             testFunc testCase2 sum scanInf scanWin
+        describe "mean" $ do
+            let scanInf = [1, 1, 1, 1, 1, 2] :: [Double]
+                scanWin = [1, 1, 1, 1, 1, 3] :: [Double]
+            testFunc testCase2 mean scanInf scanWin

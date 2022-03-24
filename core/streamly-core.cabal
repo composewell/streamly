@@ -244,7 +244,6 @@ library
                      , Streamly.Internal.Data.Fold.Step
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Fold.Type
-                     , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Stream.StreamD.Step
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamDK.Type
@@ -286,6 +285,7 @@ library
                      , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial

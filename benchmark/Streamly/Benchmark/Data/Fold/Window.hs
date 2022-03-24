@@ -89,9 +89,24 @@ main =
         , benchWithFold numElements "sum (window size 1000)"
             (Ring.slidingWindow 1000 Window.sum)
         , benchWithFold numElements "sum (entire stream)"
-            (Window.whole Window.sum)
+            (Window.cumulative Window.sum)
         , benchWithFold numElements "sum (Data.Fold)"
             Fold.sum
+
+        , benchWithFold numElements "mean (window size 100)"
+            (Ring.slidingWindow 100 Window.mean)
+        , benchWithFold numElements "mean (window size 1000)"
+            (Ring.slidingWindow 1000 Window.mean)
+        , benchWithFold numElements "mean (entire stream)"
+            (Window.cumulative Window.mean)
+        , benchWithFold numElements "mean (Data.Fold)"
+            Fold.mean
+
+        , benchWithFold numElements "powerSum 2 (window size 100)"
+            (Ring.slidingWindow 100 (Window.powerSum 2))
+        , benchWithFold numElements "powerSum 2 (entire stream)"
+            (Window.cumulative (Window.powerSum 2))
+
         ]
     , bgroup
         "scan"
@@ -111,5 +126,9 @@ main =
             (Ring.slidingWindow 100 Window.sum)
         , benchWithPostscan numElements "sum (window size 1000)"
             (Ring.slidingWindow 1000 Window.sum)
+        , benchWithPostscan numElements "mean (window size 100)"
+            (Ring.slidingWindow 100 Window.mean)
+        , benchWithPostscan numElements "mean (window size 1000)"
+            (Ring.slidingWindow 1000 Window.mean)
         ]
     ]
