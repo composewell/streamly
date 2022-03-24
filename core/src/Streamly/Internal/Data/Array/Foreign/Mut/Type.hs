@@ -624,8 +624,8 @@ modifyIndex i f arr@(Array{..}) = do
 --
 -- /Pre-release/
 {-# INLINE modifyIndices #-}
-modifyIndices :: forall m a. (MonadIO m, Storable a)
-    => (a -> a) -> Array a -> Fold m Int ()
+modifyIndices :: forall m a . (MonadIO m, Storable a)
+    => (Int -> a -> a) -> Array a -> Fold m Int ()
 modifyIndices f Array{..} = Fold step initial extract
 
     where
@@ -633,7 +633,7 @@ modifyIndices f Array{..} = Fold step initial extract
     initial = return $ FL.Partial ()
 
     step () i =
-        let f1 x = (f x, ())
+        let f1 x = (f i x, ())
          in FL.Partial <$> liftIO (modifyIndexPtr i f1 arrStart aEnd)
 
     extract () = liftIO $ touch arrContents
