@@ -145,6 +145,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Cont.hs
     core/src/Streamly/Internal/Foreign/Malloc.hs
     core/src/Streamly/Internal/System/IO.hs
+    core/src/Streamly/Internal/Data/IsMap.hs
     core/src/Streamly/Internal/Data/Tuple/Strict.hs
     core/src/Streamly/Internal/Data/Maybe/Strict.hs
     core/src/Streamly/Internal/Data/Either/Strict.hs

@@ -6,12 +6,18 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Map.Strict (Map)
+import Data.Hashable (Hashable)
+import Data.HashMap.Strict (HashMap)
+import Data.IntMap.Strict (IntMap)
 import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
 
@@ -211,8 +217,29 @@ classifyWith f = S.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE classifyScanWith #-}
 classifyScanWith ::
-       (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
-classifyScanWith f = S.drain . S.postscan (FL.classifyScanWith f FL.sum)
+       forall m k a. (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
+classifyScanWith f =
+    S.drain . S.postscan (g f FL.sum)
+
+    where
+        g =
+            FL.classifyScanWith ::
+                (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+
+{-# INLINE classifyMutWith #-}
+classifyMutWith ::
+       (MonadIO m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
+classifyMutWith f = S.fold (FL.classifyMutWith f FL.sum)
+
+{-# INLINE classifyMutWithInt #-}
+classifyMutWithInt ::
+       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
+classifyMutWithInt f = S.fold (FL.classifyMutWith f FL.sum)
+
+{-# INLINE classifyMutWithHash #-}
+classifyMutWithHash :: (MonadIO m, Ord k, Num a, Hashable k) =>
+    (a -> k) -> SerialT m a -> m (HashMap k a)
+classifyMutWithHash f = S.fold (FL.classifyMutWith f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
@@ -374,10 +401,17 @@ o_1_space_serial_composition value =
             , benchIOSink value "demuxDefaultWith [sum, length] sum"
                   $ demuxDefaultWith fn mp
             , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
-            , benchIOSink value "classifyWith sum" $ classifyWith (fst . fn)
+            , benchIOSink value "classifyWith sum"
+                $ classifyWith (fst . fn)
             , benchIOSink value "classifyScanWith sum"
                 $ classifyScanWith (fst . fn)
             , bench "unfoldMany" $ unfoldMany value
+            , benchIOSink value "classifyMutWith sum"
+                $ classifyMutWith (fst . fn)
+            , benchIOSink value "classifyMutWithHash sum"
+                $ classifyMutWithHash (fst . fn)
+            , benchIOSink value "classifyMutWithInt sum"
+                $ classifyMutWithInt (fst . fn)
             ]
       ]
 

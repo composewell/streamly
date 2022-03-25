@@ -214,6 +214,7 @@ module Streamly.Internal.Data.Fold
     -- in individual output buckets using the given fold.
     , classify
     , classifyWith
+    , classifyMutWith
     , classifyScanWith
     -- , classifyWithSel
     -- , classifyWithMin
@@ -260,14 +261,17 @@ where
 
 #include "inline.hs"
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
 import Streamly.Internal.Data.Either.Strict
     (Either'(..), fromLeft', fromRight', isLeft', isRight')
+import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -276,6 +280,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import qualified Data.IntSet as IntSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
@@ -1625,19 +1630,23 @@ demuxDefault :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
 demuxDefault = demuxDefaultWith id
 
+-- | Folds the values for each key using the supplied fold. When scanning, as
+-- soon as the fold is complete, its result is available in the second
+-- component of the tuple.  The first component of the tuple is a snapshot of
+-- the in-progress folds.
 {-# INLINE classifyScanWith #-}
-classifyScanWith :: (Monad m, Ord k) =>
+classifyScanWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- Note: we need to return the Map itself to display the in-progress values
     -- e.g. to implement top. We could possibly create a separate abstraction
     -- for that use case. We return an action because we want it to be lazy so
     -- that the downstream consumers can choose to process or discard it.
-    (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+    (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
 classifyScanWith f (Fold step1 initial1 extract1) =
     fmap extract $ foldlM' step initial
 
     where
 
-    initial = return $ Tuple3' Map.empty Set.empty Nothing
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
 
     {-# INLINE initFold #-}
     initFold kv set k a = do
@@ -1648,14 +1657,14 @@ classifyScanWith f (Fold step1 initial1 extract1) =
                 return
                     $ case r of
                           Partial s1 ->
-                            Tuple3' (Map.insert k s1 kv) set Nothing
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
                             Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
         let k = f a
-        case Map.lookup k kv of
+        case IsMap.mapLookup k kv of
             Nothing -> do
                 if Set.member k set
                 then return (Tuple3' kv set Nothing)
@@ -1665,16 +1674,69 @@ classifyScanWith f (Fold step1 initial1 extract1) =
                 return
                     $ case r of
                           Partial s1 ->
-                            Tuple3' (Map.insert k s1 kv) set Nothing
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
-                            let kv1 = Map.delete k kv
+                            let kv1 = IsMap.mapDelete k kv
                              in Tuple3' kv1 (Set.insert k set) (Just (k, b))
 
     extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
 
+-- The code is almost the same as classifyScanWith except the IORef operations.
+--
+-- | Same as classifyScanWith except that it uses mutable IORef cells in the
+-- Map providing better performance. Be aware that if this is used as a scan,
+-- the values in the intermediate Maps would be mutable.
+{-# INLINE classifyScanMutWith #-}
+classifyScanMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
+classifyScanMutWith f (Fold step1 initial1 extract1) =
+    fmap extract $ foldlM' step initial
+
+    where
+
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
+
+    {-# INLINE initFold #-}
+    initFold kv set k a = do
+        x <- initial1
+        case x of
+              Partial s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Done b ->
+                        return $ Tuple3' kv set (Just (k, b))
+              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
+
+    step (Tuple3' kv set _) a = do
+        let k = f a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else initFold kv set k a
+            Just ref -> do
+                s <- liftIO $ readIORef ref
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple3' kv set Nothing
+                      Done b ->
+                        let kv1 = IsMap.mapDelete k kv
+                         in return
+                                $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
+
+    extract (Tuple3' kv _ x) =
+        (Prelude.mapM (\ref -> liftIO (readIORef ref) >>= extract1) kv, x)
+
+-- | Fold a key value stream to a key-value container. If the same key appears
+-- multiple times, only the last value is retained.
 {-# INLINE toMap #-}
-toMap :: (Monad m, Ord k) => Fold m (k, a) (Map k a)
-toMap = foldl' (\kv (k, v) -> Map.insert k v kv) Map.empty
+toMap :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
+toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
@@ -1707,6 +1769,22 @@ classifyWith f fld =
         getMap (Just action) = action
         aggregator =
             teeWith Map.union
+                (rmapM getMap $ lmap fst last)
+                (lmap snd $ catMaybes toMap)
+    in postscan classifier aggregator
+
+-- | Like classifyWith but maybe faster because it uses mutable cells as fold
+-- accumulators in the Map.
+{-# INLINE classifyMutWith #-}
+classifyMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
+classifyMutWith f fld =
+    let
+        classifier = classifyScanMutWith f fld
+        getMap Nothing = pure IsMap.mapEmpty
+        getMap (Just action) = action
+        aggregator =
+            teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst last)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
