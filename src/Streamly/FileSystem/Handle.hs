@@ -89,7 +89,7 @@ module Streamly.FileSystem.Handle
     , write
     , writeWith
     , writeChunks
-    
+
      -- * Deprecated
     , readChunksWithBufferOf
     , readWithBufferOf
