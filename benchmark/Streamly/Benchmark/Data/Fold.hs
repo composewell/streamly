@@ -215,6 +215,11 @@ classifyWith ::
        (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
 classifyWith f = S.fold (FL.classifyWith f FL.sum)
 
+{-# INLINE classifyWithInt #-}
+classifyWithInt ::
+       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
+classifyWithInt f = S.fold (FL.classifyWith f FL.sum)
+
 {-# INLINE classifyScanWith #-}
 classifyScanWith ::
        forall m k a. (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
@@ -430,6 +435,8 @@ o_n_heap_serial value =
                 $ demuxWith (getKey 64) mp
             , benchIOSink value "classifyWith (64 buckets) sum"
                 $ classifyWith (fst . getKey 64)
+            , benchIOSink value "classifyWithInt (64 buckets) sum"
+                $ classifyWithInt (fst . getKey 64)
             , benchIOSink value "classifyScanWith (64 buckets) sum"
                 $ classifyScanWith (fst . getKey 64)
             , benchIOSink value "classifyMutWith (single bucket) sum"
@@ -438,14 +445,14 @@ o_n_heap_serial value =
                 $ classifyMutWith (fst . getKey 64)
             , benchIOSink value "classifyMutWith (max buckets) sum"
                 $ classifyMutWith (fst . getKey value)
+            , benchIOSink value "classifyMutWithInt (64 buckets) sum"
+                $ classifyMutWithInt (fst . getKey 64)
             , benchIOSink value "classifyMutWithHash (single bucket) sum"
                 $ classifyMutWithHash (fst . getKey 1)
             , benchIOSink value "classifyMutWithHash (64 buckets) sum"
                 $ classifyMutWithHash (fst . getKey 64)
             , benchIOSink value "classifyMutWithHash (max buckets) sum"
                 $ classifyMutWithHash (fst . getKey value)
-            , benchIOSink value "classifyMutWithInt (64 buckets) sum"
-                $ classifyMutWithInt (fst . getKey 64)
             ]
     ]
 

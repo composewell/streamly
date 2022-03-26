@@ -1752,9 +1752,11 @@ toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
 -- or for generating histograms.
 --
+-- >>> import Data.Map.Strict (Map)
 -- >>> :{
 --  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---   in Stream.fold (Fold.classifyWith fst (Fold.lmap snd Fold.toList)) input
+--      classify = Fold.classifyWith fst (Fold.lmap snd Fold.toList)
+--   in Stream.fold classify input :: IO (Map String [Double])
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
@@ -1770,15 +1772,15 @@ toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 -- /Pre-release/
 --
 {-# INLINE classifyWith #-}
-classifyWith :: (Monad m, Ord k) =>
-    (a -> k) -> Fold m a b -> Fold m a (Map k b)
+classifyWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
 classifyWith f fld =
     let
         classifier = classifyScanWith f fld
-        getMap Nothing = pure Map.empty
+        getMap Nothing = pure IsMap.mapEmpty
         getMap (Just action) = action
         aggregator =
-            teeWith Map.union
+            teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst last)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
