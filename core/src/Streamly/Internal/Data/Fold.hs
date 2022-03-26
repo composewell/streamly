@@ -1689,6 +1689,8 @@ classifyScanWith f (Fold step1 initial1 extract1) =
 
     extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
 
+-- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
+--
 -- The code is almost the same as classifyScanWith except the IORef operations.
 --
 -- | Same as classifyScanWith except that it uses mutable IORef cells in the
