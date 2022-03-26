@@ -212,6 +212,14 @@ module Streamly.Internal.Data.Fold
     -- ** Classifying
     -- | In an input stream of key value pairs fold values for different keys
     -- in individual output buckets using the given fold.
+    --
+    -- Different types of maps can be used with these combinators via the IsMap
+    -- type class. Hashmap performs better when there are more collisions, trie
+    -- Map performs better otherwise. Trie has an advantage of sorting the keys
+    -- at the same time.  For example if we want to store a dictionary of words
+    -- and their meanings then trie Map would be better if we also want to
+    -- display them in sorted order.
+
     , classify
     , classifyWith
     , classifyMutWith
