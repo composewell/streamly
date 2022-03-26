@@ -25,6 +25,7 @@ import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Fold (Fold(..))
 
 import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Unpacked as UIntMap
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -220,6 +221,11 @@ classifyWithInt ::
        (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
 classifyWithInt f = S.fold (FL.classifyWith f FL.sum)
 
+{-# INLINE classifyWithUMap #-}
+classifyWithUMap ::
+       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (UIntMap.Map a)
+classifyWithUMap f = S.fold (FL.classifyWith f FL.sum)
+
 {-# INLINE classifyScanWith #-}
 classifyScanWith ::
        forall m k a. (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
@@ -240,6 +246,11 @@ classifyMutWith f = S.fold (FL.classifyMutWith f FL.sum)
 classifyMutWithInt ::
        (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
 classifyMutWithInt f = S.fold (FL.classifyMutWith f FL.sum)
+
+{-# INLINE classifyMutWithUMap #-}
+classifyMutWithUMap ::
+       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (UIntMap.Map a)
+classifyMutWithUMap f = S.fold (FL.classifyMutWith f FL.sum)
 
 {-# INLINE classifyMutWithHash #-}
 classifyMutWithHash :: (MonadIO m, Ord k, Num a, Hashable k) =>
@@ -437,6 +448,8 @@ o_n_heap_serial value =
                 $ classifyWith (fst . getKey 64)
             , benchIOSink value "classifyWithInt (64 buckets) sum"
                 $ classifyWithInt (fst . getKey 64)
+            , benchIOSink value "classifyWithUIntMap (64 buckets) sum"
+                $ classifyWithUMap (fst . getKey 64)
             , benchIOSink value "classifyScanWith (64 buckets) sum"
                 $ classifyScanWith (fst . getKey 64)
             , benchIOSink value "classifyMutWith (single bucket) sum"
@@ -447,6 +460,8 @@ o_n_heap_serial value =
                 $ classifyMutWith (fst . getKey value)
             , benchIOSink value "classifyMutWithInt (64 buckets) sum"
                 $ classifyMutWithInt (fst . getKey 64)
+            , benchIOSink value "classifyMutWithUIntMap (64 buckets) sum"
+                $ classifyMutWithUMap (fst . getKey 64)
             , benchIOSink value "classifyMutWithHash (single bucket) sum"
                 $ classifyMutWithHash (fst . getKey 1)
             , benchIOSink value "classifyMutWithHash (64 buckets) sum"

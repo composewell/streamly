@@ -13,7 +13,10 @@ category:
     Streamly, Streaming, Dataflow, Pipes, List,
     Logic, Non-determinism, Parsing, Array, Time
 stability:           Stable
-build-type:          Configure
+-- build type Configure does not seem to work with backpack
+-- To workaround we can run configure build first and then change to Simple
+-- build-type:          Configure
+build-type:          Simple
 
 extra-source-files:
     configure
@@ -340,6 +343,9 @@ library
                      , deque             >= 0.4   && < 0.5
                      , hashable          >= 1.3   && < 1.5
                      , unordered-containers >= 0.2 && < 0.3
+                     , unpacked-containers == 0
+                     , unpacked-map-int
+    mixins: unpacked-containers (Map as Data.IntMap.Unpacked) requires (Key as KeyInt)
     if flag(use-unliftio)
       build-depends:   unliftio-core     >= 0.2 && < 0.3
     else

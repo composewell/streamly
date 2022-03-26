@@ -131,6 +131,9 @@ common bench-depends
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
     , ghc-prim          >= 0.4   && < 0.9
+    , unpacked-containers
+    , unpacked-map-int
+  mixins: unpacked-containers (Map as Data.IntMap.Unpacked) requires (Key as KeyInt)
 
   if flag(use-gauge)
     build-depends:  gauge >= 0.2.4 && < 0.3
