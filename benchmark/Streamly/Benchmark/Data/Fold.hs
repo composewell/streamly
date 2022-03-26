@@ -386,6 +386,7 @@ o_1_space_serial_composition value =
             , benchIOSink value "serial_ (all, any)" $ serial_ value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many
+            , bench "unfoldMany" $ unfoldMany value
             , benchIOSink value "shortest (sum, length)" shortest
             , benchIOSink value "longest (sum, length)" longest
             , benchIOSink value "tee (sum, length)" teeSumLength
@@ -398,29 +399,8 @@ o_1_space_serial_composition value =
             , benchIOSink value "unzip (sum, length)" unzip
             , benchIOSink value "unzipWithFstM (sum, length)" unzipWithFstM
             , benchIOSink value "unzipWithMinM (sum, length)" unzipWithMinM
-            , benchIOSink value "demuxDefaultWith [sum, length] sum"
-                  $ demuxDefaultWith fn mp
-            , benchIOSink value "demuxWith [sum, length]" $ demuxWith fn mp
-            , benchIOSink value "classifyWith sum"
-                $ classifyWith (fst . fn)
-            , benchIOSink value "classifyScanWith sum"
-                $ classifyScanWith (fst . fn)
-            , bench "unfoldMany" $ unfoldMany value
-            , benchIOSink value "classifyMutWith sum"
-                $ classifyMutWith (fst . fn)
-            , benchIOSink value "classifyMutWithHash sum"
-                $ classifyMutWithHash (fst . fn)
-            , benchIOSink value "classifyMutWithInt sum"
-                $ classifyMutWithInt (fst . fn)
             ]
       ]
-
-    where
-
-    -- We use three keys 0, 1, and 2. 0 and 1 are mapped and 3 is unmapped.
-    fn x = (x `mod` 3, x)
-
-    mp = Map.fromList [(0, FL.sum), (1, FL.length)]
 
 o_n_space_serial :: Int -> [Benchmark]
 o_n_space_serial value =
@@ -442,7 +422,38 @@ o_n_heap_serial value =
                 (S.fold FL.toStreamRev
                     :: SerialT IO a -> IO (SerialT Identity a))
             ]
+    , bgroup "key-value"
+            [
+              benchIOSink value "demuxDefaultWith (64 buckets) [sum, length] sum"
+                $ demuxDefaultWith (getKey 64) mp
+            , benchIOSink value "demuxWith (64 buckets) [sum, length]"
+                $ demuxWith (getKey 64) mp
+            , benchIOSink value "classifyWith (64 buckets) sum"
+                $ classifyWith (fst . getKey 64)
+            , benchIOSink value "classifyScanWith (64 buckets) sum"
+                $ classifyScanWith (fst . getKey 64)
+            , benchIOSink value "classifyMutWith (single bucket) sum"
+                $ classifyMutWith (fst . getKey 1)
+            , benchIOSink value "classifyMutWith (64 buckets) sum"
+                $ classifyMutWith (fst . getKey 64)
+            , benchIOSink value "classifyMutWith (max buckets) sum"
+                $ classifyMutWith (fst . getKey value)
+            , benchIOSink value "classifyMutWithHash (single bucket) sum"
+                $ classifyMutWithHash (fst . getKey 1)
+            , benchIOSink value "classifyMutWithHash (64 buckets) sum"
+                $ classifyMutWithHash (fst . getKey 64)
+            , benchIOSink value "classifyMutWithHash (max buckets) sum"
+                $ classifyMutWithHash (fst . getKey value)
+            , benchIOSink value "classifyMutWithInt (64 buckets) sum"
+                $ classifyMutWithInt (fst . getKey 64)
+            ]
     ]
+
+    where
+
+    getKey buckets x = (x `mod` buckets, x)
+
+    mp = Map.fromList [(0, FL.sum), (1, FL.length)]
 
 -------------------------------------------------------------------------------
 -- Driver
