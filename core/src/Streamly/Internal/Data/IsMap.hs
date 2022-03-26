@@ -15,6 +15,7 @@ import Data.Map.Strict (Map)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Unpacked as UIntMap
 
 -- XXX Try unpacked-containers
 
@@ -49,6 +50,16 @@ instance IsMap IntMap.IntMap where
     mapInsert = IntMap.insert
     mapDelete = IntMap.delete
     mapUnion = IntMap.union
+
+instance IsMap UIntMap.Map where
+    type Key UIntMap.Map = Int
+
+    mapEmpty = UIntMap.empty
+    mapAlterF = UIntMap.alterF
+    mapLookup = UIntMap.lookup
+    mapInsert = UIntMap.insert
+    mapDelete = UIntMap.delete
+    mapUnion = UIntMap.union
 
 instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
     type Key (HashMap.HashMap k) = k

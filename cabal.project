@@ -1,5 +1,6 @@
 packages:   streamly.cabal
           , core/streamly-core.cabal
+          , unpacked-map-int/unpacked-map-int.cabal
           , test/streamly-tests.cabal
           , benchmark/streamly-benchmarks.cabal
           , docs/streamly-docs.cabal
