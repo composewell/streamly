@@ -1770,15 +1770,15 @@ toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 -- /Pre-release/
 --
 {-# INLINE classifyWith #-}
-classifyWith :: (Monad m, Ord k) =>
-    (a -> k) -> Fold m a b -> Fold m a (Map k b)
+classifyWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
 classifyWith f fld =
     let
         classifier = classifyScanWith f fld
-        getMap Nothing = pure Map.empty
+        getMap Nothing = pure IsMap.mapEmpty
         getMap (Just action) = action
         aggregator =
-            teeWith Map.union
+            teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst last)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
