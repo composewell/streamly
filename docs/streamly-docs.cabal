@@ -16,17 +16,21 @@ build-type:         Simple
 -------------------------------------------------------------------------------
 
 extra-doc-files:
-  Roadmap.link
-  *.md
+  Tutorials/*.md
+  HowTo/*.md
+  Explanation/*.md
+  Explanation/streaming-pradigms.rst
+  ProjectRelated/*.md
+  ProjectRelated/Roadmap.link
 
 library
   default-language: Haskell2010
   ghc-options:      -Wall
   hs-source-dirs:    .
   exposed-modules:
-    Tutorial
-    ConcurrentStreams
-    ReactiveProgramming
+    Tutorials.Tutorial
+    Tutorials.ConcurrentStreams
+    Tutorials.ReactiveProgramming
 
   build-depends:
       base              >= 4.9   &&  < 4.17
