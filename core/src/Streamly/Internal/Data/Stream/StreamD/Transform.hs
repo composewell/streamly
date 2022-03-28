@@ -1265,6 +1265,12 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
             Skip s -> return $ Skip $ RollingMapGo s curr
             Stop   -> return Stop
 
+-- rollingMap is a special case of an incremental sliding fold. It can be
+-- written as:
+--
+-- > fld f = slidingWindow 1 (Fold.foldl' (\_ (x,y) -> f y x)
+-- > rollingMap f = Stream.postscan (fld f) undefined
+--
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
 rollingMap f = rollingMapM (\x y -> return $ f x y)
