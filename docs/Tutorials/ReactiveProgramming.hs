@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
--- Module      : ReactiveProgramming
+-- Module      : Tutorials.ReactiveProgramming
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -10,7 +10,7 @@
 -- programming.  Before you go through this tutorial we recommend that you take
 -- a look at the Streamly concurrent programming tutorial.
 
-module ReactiveProgramming
+module Tutorials.ReactiveProgramming
     (
     -- * Reactive Programming
     -- $reactive

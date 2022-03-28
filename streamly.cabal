@@ -223,11 +223,15 @@ extra-doc-files:
     dev/*.md
     dev/*.png
     dev/*.rst
-    docs/*.md
-    docs/*.link
-    docs/*.rst
-    docs/*.svg
-    docs/API-changelog.txt
+    docs/Tutorials/*.md
+    docs/Tutorials/*.hs
+    docs/HowTo/*.md
+    docs/HowTo/*.svg
+    docs/Explanation/*.md
+    docs/Explanation/streaming-pradigms.rst
+    docs/ProjectRelated/*.md
+    docs/ProjectRelated/Roadmap.link
+    docs/ProjectRelated/API-changelog.txt
     test/README.md
 
 extra-tmp-files:
