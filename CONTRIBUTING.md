@@ -222,7 +222,7 @@ copying does not have an associated license please do not use it.
 
 * Use https://streamly.composewell.com/ for searching in reference docs
 * Build haddock docs for latest reference docs
-* See [the dev directory](/dev) for design guidelines and dev documents.
+* See [the dev directory](/docs/Developer) for design guidelines and dev documents.
 
 ## Coding Guidelines
 

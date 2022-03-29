@@ -220,9 +220,12 @@ extra-doc-files:
     CHANGELOG.md
     README.md
     benchmark/README.md
-    dev/*.md
-    dev/*.png
-    dev/*.rst
+    docs/Developer/*.png
+    docs/Developer/*.md
+    docs/Developer/*.rst
+    docs/Developer/*.png
+    docs/Developer/*.md
+    docs/Developer/*.rst
     docs/Tutorials/*.md
     docs/Tutorials/*.hs
     docs/HowTo/*.md
