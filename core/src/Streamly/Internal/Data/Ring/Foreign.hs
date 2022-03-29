@@ -524,17 +524,20 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 {-# INLINE slidingWindow #-}
 slidingWindow :: forall m a b. (MonadIO m, Storable a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b
-slidingWindow n (Fold step1 initial1 extract1)= Fold step initial extract
+slidingWindow n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
 
     initial = do
-        r <- initial1
-        (rb, rh) <- liftIO $ new n
-        return $
-            case r of
-                Partial s -> Partial $ Tuple4' rb rh (0 :: Int) s
-                Done b -> Done b
+        if n <= 0
+        then error "Window size must be > 0"
+        else do
+            r <- initial1
+            (rb, rh) <- liftIO $ new n
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh (0 :: Int) s
+                    Done b -> Done b
 
     step (Tuple4' rb rh i st) a
         | i < n = do
