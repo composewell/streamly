@@ -220,6 +220,7 @@ extra-doc-files:
     CHANGELOG.md
     README.md
     benchmark/README.md
+    docs/Developer/Benchmarks.md
     docs/Developer/*.png
     docs/Developer/*.md
     docs/Developer/*.rst
@@ -236,6 +237,7 @@ extra-doc-files:
     docs/ProjectRelated/Roadmap.link
     docs/ProjectRelated/API-changelog.txt
     test/README.md
+    docs/Developer/Tests.md
 
 extra-tmp-files:
     config.log
