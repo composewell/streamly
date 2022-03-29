@@ -22,6 +22,9 @@ extra-doc-files:
   Explanation/streaming-pradigms.rst
   ProjectRelated/*.md
   ProjectRelated/Roadmap.link
+  Developer/*.png
+  Developer/*.md
+  Developer/*.rst
 
 library
   default-language: Haskell2010
