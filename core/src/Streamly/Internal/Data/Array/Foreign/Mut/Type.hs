@@ -142,6 +142,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , shuffleBy
     , divideBy
     , mergeBy
+    , bubbleAsc
 
     -- * Casting
     , cast
@@ -2334,3 +2335,31 @@ strip eq arr@Array{..} = do
             then getLast prev low
             else return cur
         else return cur
+
+-- | Given an array sorted in ascending order except the last element being out
+-- of order, use bubble sort to place the last element at the right place such
+-- that the array remains sorted in ascending order.
+--
+-- /Pre-release/
+{-# INLINE bubbleAsc #-}
+bubbleAsc :: (MonadIO m, Storable a) =>
+    (a -> a -> Ordering) -> Array a -> m ()
+bubbleAsc cmp0 arr =
+    when (l > 1) $ do
+        x <- getIndexUnsafe (l - 1) arr
+        go x (l - 2)
+
+        where
+
+        l = length arr
+
+        go x i =
+            if i >= 0
+            then do
+                x1 <- getIndexUnsafe i arr
+                case x1 `cmp0` x of
+                    GT -> do
+                        putIndexUnsafe (i + 1) x1 arr
+                        go x (i - 1)
+                    _ -> putIndexUnsafe (i + 1) x arr
+            else putIndexUnsafe (i + 1) x arr

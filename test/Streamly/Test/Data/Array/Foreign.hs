@@ -11,13 +11,16 @@ module Streamly.Test.Data.Array.Foreign (main) where
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
 import Data.Char (isLower)
+import Data.List (sort)
 import Data.Word(Word8)
+import Test.QuickCheck (chooseInt, listOf)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+
 type Array = A.Array
 
 moduleName :: String
@@ -131,6 +134,43 @@ unsafeSlice i n list =
         arr = A.toList $ A.getSliceUnsafe i n $ A.fromList list
      in arr == lst
 
+{-
+testAppend ::  Property
+testAppend =
+   forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
+        monadicIO $ action ls0
+
+        where
+
+        action ls = do
+            x <- S.fold
+                    (MA.append (MA.newArray 0))
+                    (S.fromList (ls::[Int]))
+            lst <- MA.toList x
+            assert (ls == lst)
+-}
+
+testBubbleAsc ::  Property
+testBubbleAsc =
+   forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
+        monadicIO $ action ls0
+
+        where
+
+        action ls = do
+            x <- S.fold (fldm ls) $ S.fromList ls
+            lst <- MA.toList x
+            assert (sort ls == lst)
+
+        fldm ls =
+            Fold.foldlM'
+                (\b a -> do
+                    arr <- MA.snoc b a
+                    MA.bubbleAsc compare arr
+                    return arr
+                )
+                (MA.newArray $ length ls)
+
 main :: IO ()
 main =
     hspec $
@@ -139,6 +179,9 @@ main =
       describe moduleName $ do
         commonMain
         describe "Construction" $ do
+            -- XXX There is an issue https://github.com/composewell/streamly/issues/1577
+            --prop "testAppend" testAppend
+            prop "testBubbleAsc" testBubbleAsc
             prop "length . fromStream === n" testLengthFromStream
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
