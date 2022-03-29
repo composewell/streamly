@@ -43,11 +43,11 @@ further reading.
 If you wish to follow along with this guide, you will need to have
 [Streamly][] installed.
 
-Please see the [Getting Started With The Streamly Package](/docs/getting-started.md)
+Please see the [Getting Started With The Streamly Package](/docs/Tutorials/getting-started.md)
 guide for instructions on how to install [Streamly][].
 
 If you wish to run benchmarks, please be sure to build your
-application using the instructions in the [Build Guide](/docs/Compiling.md).
+application using the instructions in the [Build Guide](/docs/HowTo/Compiling.md).
 
 ### An overview of the types used in these examples
 
@@ -595,7 +595,7 @@ significant way:
   * Gabriella Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
-Please see the [`credits`](/docs/Credits.md) directory for a full
+Please see the [`credits`](/docs/ProjectRelated/Credits.md) directory for a full
 list of contributors, credits and licenses.
 
 ## Licensing

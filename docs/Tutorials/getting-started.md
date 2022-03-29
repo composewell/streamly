@@ -279,11 +279,11 @@ streamly][streamly-github] on Github.
 If you got this far successfully, congratulations!
 
 * For an overview of the `streamly` package, please read the
-  [Streamly Quick Overview](/docs/Introduction.md).
+  [Streamly Quick Overview](/docs/Tutorials/Introduction.md).
 * Please browse the code examples in the
   [`Streamly examples repository`][streamly-examples].
 * If you would like to start on a real world project, please take a
-  look at the [Streamly Build Guide](/docs/Compiling.md).
+  look at the [Streamly Build Guide](/docs/HowTo/Compiling.md).
 * For comprehensive documentation please visit the
   [Streamly Homepage][Streamly].
 
