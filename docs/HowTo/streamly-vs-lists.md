@@ -66,7 +66,7 @@ case.
 
 `SerialT Identity a` can be used in place of `[a]` with equivalent or better
 performance and almost identical interface except a few differences. Use of
-`OverloadedLists` extension can make the difference even less significant. 
+`OverloadedLists` extension can make the difference even less significant.
 
 
 ### Construction
@@ -237,7 +237,7 @@ resources compared to streamly. We only show those operations that are at least
 shown in a sorted order, from list's worst performing ones on the left to its
 best ones on the right.
 
-![Streamly vs Lists (time) comparison](/docs/streamly-vs-list-time.svg)
+![Streamly vs Lists (time) comparison](/docs/HowTo/streamly-vs-list-time.svg)
 
 ## Why use streams instead of lists?
 
