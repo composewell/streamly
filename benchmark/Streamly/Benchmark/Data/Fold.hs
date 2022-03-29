@@ -24,7 +24,6 @@ import System.Random (randomRIO)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Fold (Fold(..))
 
-import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -193,22 +192,29 @@ partitionByMinM =
     IP.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
 
 {-# INLINE demuxWith  #-}
-demuxWith ::
-       (Monad m, Ord k)
-    => (a -> (k, a'))
-    -> Map k (Fold m a' b)
-    -> SerialT m a
-    -> m (Map k b)
-demuxWith f mp = S.fold (FL.demuxWith f mp)
+demuxWith :: (Monad m, Ord k) =>
+    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (Map k b)
+demuxWith f g = S.fold (FL.demuxWith f g)
 
-{-# INLINE demuxDefaultWith #-}
-demuxDefaultWith ::
-       (Monad m, Ord k, Num b)
-    => (a -> (k, b))
-    -> Map k (Fold m b b)
-    -> SerialT m a
-    -> m (Map k b, b)
-demuxDefaultWith f mp = S.fold (FL.demuxDefaultWith f mp (FL.lmap snd FL.sum))
+{-# INLINE demuxWithInt  #-}
+demuxWithInt :: Monad m =>
+    (a -> Int) -> (Int -> Fold m a b) -> SerialT m a -> m (IntMap b)
+demuxWithInt f g = S.fold (FL.demuxWith f g)
+
+{-# INLINE demuxWithHash  #-}
+demuxWithHash :: (Monad m, Ord k, Hashable k) =>
+    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (HashMap k b)
+demuxWithHash f g = S.fold (FL.demuxWith f g)
+
+{-# INLINE demuxMutWith  #-}
+demuxMutWith :: (MonadIO m, Ord k) =>
+    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (Map k b)
+demuxMutWith f g = S.fold (FL.demuxMutWith f g)
+
+{-# INLINE demuxMutWithHash  #-}
+demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
+    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (HashMap k b)
+demuxMutWithHash f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE classifyWith #-}
 classifyWith ::
@@ -219,17 +225,6 @@ classifyWith f = S.fold (FL.classifyWith f FL.sum)
 classifyWithInt ::
        (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
 classifyWithInt f = S.fold (FL.classifyWith f FL.sum)
-
-{-# INLINE classifyScanWith #-}
-classifyScanWith ::
-       forall m k a. (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m ()
-classifyScanWith f =
-    S.drain . S.postscan (g f FL.sum)
-
-    where
-        g =
-            FL.classifyScanWith ::
-                (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
 
 {-# INLINE classifyMutWith #-}
 classifyMutWith ::
@@ -433,38 +428,50 @@ o_n_heap_serial value =
             ]
     , bgroup "key-value"
             [
-              benchIOSink value "demuxDefaultWith (64 buckets) [sum, length] sum"
-                $ demuxDefaultWith (getKey 64) mp
-            , benchIOSink value "demuxWith (64 buckets) [sum, length]"
-                $ demuxWith (getKey 64) mp
+              benchIOSink value "demuxWith (64 buckets) [sum, length]"
+                $ demuxWith (getKey 64) getFold
+            , benchIOSink value "demuxWithInt (64 buckets) [sum, length]"
+                $ demuxWithInt (getKey 64) getFold
+            , benchIOSink value "demuxWithHash (64 buckets) [sum, length]"
+                $ demuxWithHash (getKey 64) getFold
+            , benchIOSink value "demuxMutWith (64 buckets) [sum, length]"
+                $ demuxMutWith (getKey 64) getFold
+            , benchIOSink value "demuxMutWithHash (64 buckets) [sum, length]"
+                $ demuxMutWithHash (getKey 64) getFold
+
+            -- classify: immutable
             , benchIOSink value "classifyWith (64 buckets) sum"
-                $ classifyWith (fst . getKey 64)
+                $ classifyWith (getKey 64)
             , benchIOSink value "classifyWithInt (64 buckets) sum"
-                $ classifyWithInt (fst . getKey 64)
-            , benchIOSink value "classifyScanWith (64 buckets) sum"
-                $ classifyScanWith (fst . getKey 64)
+                $ classifyWithInt (getKey 64)
+
+            -- classify: mutable cells
             , benchIOSink value "classifyMutWith (single bucket) sum"
-                $ classifyMutWith (fst . getKey 1)
+                $ classifyMutWith (getKey 1)
             , benchIOSink value "classifyMutWith (64 buckets) sum"
-                $ classifyMutWith (fst . getKey 64)
+                $ classifyMutWith (getKey 64)
             , benchIOSink value "classifyMutWith (max buckets) sum"
-                $ classifyMutWith (fst . getKey value)
+                $ classifyMutWith (getKey value)
             , benchIOSink value "classifyMutWithInt (64 buckets) sum"
-                $ classifyMutWithInt (fst . getKey 64)
+                $ classifyMutWithInt (getKey 64)
             , benchIOSink value "classifyMutWithHash (single bucket) sum"
-                $ classifyMutWithHash (fst . getKey 1)
+                $ classifyMutWithHash (getKey 1)
             , benchIOSink value "classifyMutWithHash (64 buckets) sum"
-                $ classifyMutWithHash (fst . getKey 64)
+                $ classifyMutWithHash (getKey 64)
             , benchIOSink value "classifyMutWithHash (max buckets) sum"
-                $ classifyMutWithHash (fst . getKey value)
+                $ classifyMutWithHash (getKey value)
             ]
     ]
 
     where
 
-    getKey buckets x = (x `mod` buckets, x)
+    getKey buckets = (`mod` buckets)
 
-    mp = Map.fromList [(0, FL.sum), (1, FL.length)]
+    getFold k =
+        case k of
+            0 -> FL.sum
+            1 -> FL.length
+            _ -> FL.length
 
 -------------------------------------------------------------------------------
 -- Driver

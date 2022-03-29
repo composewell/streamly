@@ -214,14 +214,18 @@ module Streamly.Internal.Data.Fold
 
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector. 'demux' is a generalization of 'classify' where each key
-    -- of the classifier can use a different fold.
-    , demux        -- XXX rename this to demux_
+    -- fold selector. 'demux' is a generalization of 'classify' (and
+    -- 'partition') where each key of the classifier can use a different fold.
+    , demux
     , demuxWith
-    , demuxDefault -- XXX rename this to demux
-    , demuxDefaultWith
-    -- , demuxWithSel
-    -- , demuxWithMin
+    , demuxScanWith
+    , demuxScanMutWith
+    , demuxMutWith
+
+    -- TODO: These can be implemented using the above operations
+    -- , demuxWithSel -- Stop when the fold for the specified key stops
+    -- , demuxWithMin -- Stop when any of the folds stop
+    -- , demuxWithAll -- Stop when all the folds stop (run once)
 
     -- ** Classifying
     -- | In an input stream of key value pairs fold values for different keys
@@ -281,8 +285,6 @@ import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
-import Streamly.Internal.Data.Either.Strict
-    (Either'(..), fromLeft', fromRight', isLeft', isRight')
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -290,7 +292,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.IntSet as IntSet
-import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Prelude
@@ -1467,201 +1468,213 @@ partition = partitionBy id
 -- partitionN fs = Fold step begin done
 -}
 
+------------------------------------------------------------------------------
+-- demux: in a key value stream fold each key sub-stream with a different fold
+------------------------------------------------------------------------------
+
 -- TODO Demultiplex an input element into a number of typed variants. We want
 -- to statically restrict the target values within a set of predefined types,
--- an enumeration of a GADT. We also want to make sure that the Map contains
--- only those types and the full set of those types.
---
--- TODO Instead of the input Map it should probably be a lookup-table using an
--- array and not in GC memory. The same applies to the output Map as well.
--- However, that would only be helpful if we have a very large data structure,
--- need to measure and see how it scales.
+-- an enumeration of a GADT.
 --
 -- This is the consumer side dual of the producer side 'mux' operation (XXX to
 -- be implemented).
+--
+-- XXX If we use Refold in it, it can perhaps fuse/be more efficient. For
+-- example we can store just the result rather than storing the whole fold in
+-- the Map.
 
--- | Split the input stream based on a key field and fold each split using a
--- specific fold collecting the results in a map from the keys to the results.
--- Useful for cases like protocol handlers to handle different type of packets
--- using different handlers.
+-- | In a key value stream, fold values corresponding to each key with a key
+-- specific fold. The fold returns the fold result as the second component of
+-- the output tuple whenever a fold terminates. The first component of the
+-- tuple is a container of in-progress folds. If a fold terminates, another
+-- instance of the fold is started upon receiving an input with that key.
 --
--- @
---
---                             |-------Fold m a b
--- -----stream m a-----Map-----|
---                             |-------Fold m a b
---                             |
---                                       ...
--- @
---
--- Any input that does not map to a fold in the input Map is silently ignored.
---
--- >>> demuxWith f kv = fmap fst $ Fold.demuxDefaultWith f kv Fold.drain
+-- This can be used to scan a stream and collect the results from the scan
+-- output.
 --
 -- /Pre-release/
 --
-{-# INLINE demuxWith #-}
-demuxWith :: (Monad m, Ord k)
-    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a (Map k b)
-demuxWith f kv = fmap fst $ demuxDefaultWith f kv drain
-
--- | Fold a stream of key value pairs using a map of specific folds for each
--- key into a map from keys to the results of fold outputs of the corresponding
--- values.
---
--- >>> import qualified Data.Map
--- >>> :{
---  let table = Data.Map.fromList [("SUM", Fold.sum), ("PRODUCT", Fold.product)]
---      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
---   in Stream.fold (Fold.demux table) input
--- :}
--- fromList [("PRODUCT",8),("SUM",4)]
---
--- >>> demux = Fold.demuxWith id
---
--- /Pre-release/
-{-# INLINE demux #-}
-demux :: (Monad m, Ord k)
-    => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
-demux = demuxWith id
-
-data DemuxState s b doneMap runMap =
-      DemuxMapAndDefault !s !doneMap !runMap
-    | DemuxOnlyMap b !doneMap !runMap
-    | DemuxOnlyDefault s !doneMap
-
--- | Like 'demuxWith' but uses a default catchall fold to handle inputs which
--- do not have a specific fold in the map to handle them.
---
--- If any fold in the map stops, inputs meant for that fold are sent to the
--- catchall fold. If the catchall fold stops then inputs that do not match any
--- fold are ignored.
---
--- Stops when all the folds, including the catchall fold, stop.
---
--- /Pre-release/
---
-{-# INLINE demuxDefaultWith #-}
-demuxDefaultWith :: (Monad m, Ord k)
-    => (a -> (k, a'))
-    -> Map k (Fold m a' b)
-    -> Fold m (k, a') c
-    -> Fold m a (Map k b, c)
-demuxDefaultWith f kv (Fold dstep dinitial dextract) =
-    Fold step initial extract
+{-# INLINE demuxScanWith #-}
+demuxScanWith :: (Monad m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> Fold m a b)
+    -> Fold m a (m (f b), Maybe (Key f, b))
+demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 
     where
 
-    initial = do
-        let runInit (Fold step1 initial1 done1) = do
-                r <- initial1
-                return
-                    $ case r of
-                          Partial _ -> Right' (Fold step1 (return r) done1)
-                          Done b -> Left' b
-
-        -- initialize folds in the kv map and separate the ones that are done
-        -- from running ones
-        kv1 <- Prelude.mapM runInit kv
-        let runMap = Map.map fromRight' $ Map.filter isRight' kv1
-            doneMap = Map.map fromLeft' $ Map.filter isLeft' kv1
-
-        -- Run the default fold, and decide the next state based on its result
-        dres <- dinitial
-        return
-            $ case dres of
-                  Partial s ->
-                      Partial
-                          $ if Map.size runMap > 0
-                            then DemuxMapAndDefault s doneMap runMap
-                            else DemuxOnlyDefault s doneMap
-                  Done b ->
-                      if Map.size runMap > 0
-                      then Partial $ DemuxOnlyMap b doneMap runMap
-                      else Done (doneMap, b)
+    initial = return $ Tuple' IsMap.mapEmpty Nothing
 
     {-# INLINE runFold #-}
-    runFold fPartial fDone doneMap runMap (Fold step1 initial1 done1) k a1 = do
-        resi <- initial1
-        case resi of
-            Partial st -> do
-                res <- step1 st a1
-                return $ case res of
-                    Partial s ->
-                        let fld = Fold step1 (return $ Partial s) done1
-                            runMap1 = Map.insert k fld runMap
-                         in Partial $ fPartial doneMap runMap1
-                    Done b -> do
-                        let runMap1 = Map.delete k runMap
-                            doneMap1 = Map.insert k b doneMap
-                        if Map.size runMap1 == 0
-                        then fDone doneMap1
-                        else Partial $ fPartial doneMap1 runMap1
-            Done _ -> error "Bug: demuxDefaultWith: Done fold"
-
-    step (DemuxMapAndDefault dacc doneMap runMap) a = do
-        let (k, a1) = f a
-        case Map.lookup k runMap of
-            Nothing -> do
-                res <- dstep dacc (k, a1)
+    runFold kv (Fold step1 initial1 extract1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
                 return
-                    $ Partial
-                    $ case res of
-                          Partial s -> DemuxMapAndDefault s doneMap runMap
-                          Done b -> DemuxOnlyMap b doneMap runMap
-            Just fld ->
-                runFold
-                    (DemuxMapAndDefault dacc)
-                    (Partial . DemuxOnlyDefault dacc)
-                    doneMap runMap fld k a1
+                    $ case res1 of
+                        Partial _ ->
+                            let fld = Fold step1 (return res1) extract1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+            Done b -> return $ Tuple' kv (Just (k, b))
 
-    step (DemuxOnlyMap dval doneMap runMap) a = do
-        let (k, a1) = f a
-        case Map.lookup k runMap of
-            Nothing -> return $ Partial $ DemuxOnlyMap dval doneMap runMap
-            Just fld ->
-                runFold
-                    (DemuxOnlyMap dval)
-                    (Done . (, dval))
-                    doneMap runMap fld k a1
-    step (DemuxOnlyDefault dacc doneMap) a = do
-        let (k, a1) = f a
-        res <- dstep dacc (k, a1)
-        return
-            $ case res of
-                  Partial s -> Partial $ DemuxOnlyDefault s doneMap
-                  Done b -> Done (doneMap, b)
+    step (Tuple' kv _) a = do
+        let k = getKey a
+        let fld = getFold k
+        case IsMap.mapLookup k kv of
+            Nothing -> runFold kv fld (k, a)
+            Just f -> runFold kv f (k, a)
 
-    runExtract (Fold _ initial1 done1) = do
-        res <- initial1
-        case res of
-            Partial s -> done1 s
-            Done b -> return b
+    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
 
-    extract (DemuxMapAndDefault dacc doneMap runMap) = do
-        b <- dextract dacc
-        runMap1 <- Prelude.mapM runExtract runMap
-        return (doneMap `Map.union` runMap1, b)
-    extract (DemuxOnlyMap dval doneMap runMap) = do
-        runMap1 <- Prelude.mapM runExtract runMap
-        return (doneMap `Map.union` runMap1, dval)
-    extract (DemuxOnlyDefault dacc doneMap) = do
-        b <- dextract dacc
-        return (doneMap, b)
+        where
 
--- |
--- >>> demuxDefault = Fold.demuxDefaultWith id
+        f (Fold _ i e) = do
+            r <- i
+            case r of
+                Partial s -> e s
+                Done b -> return b
+
+-- | This is specialized version of 'demuxScanWith' that uses mutable cells as
+-- fold accumulators for better performance.
+--
+-- >>> demuxScanMutWith = Fold.demuxScanWith
+--
+{-# INLINE demuxScanMutWith #-}
+demuxScanMutWith :: (MonadIO m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> Fold m a b)
+    -> Fold m a (m (f b), Maybe (Key f, b))
+demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
+
+    where
+
+    initial = return $ Tuple' IsMap.mapEmpty Nothing
+
+    {-# INLINE initFold #-}
+    initFold kv (Fold step1 initial1 extract1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial _ -> do
+                        let fld = Fold step1 (return res1) extract1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Done b -> return $ Tuple' kv (Just (k, b))
+            Done b -> return $ Tuple' kv (Just (k, b))
+
+    {-# INLINE runFold #-}
+    runFold kv ref (Fold step1 initial1 extract1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial _ -> do
+                            let fld = Fold step1 (return res1) extract1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Done b ->
+                            let kv1 = IsMap.mapDelete k kv
+                             in return $ Tuple' kv1 (Just (k, b))
+            Done _ -> error "demuxScanMutWith: unreachable"
+
+    step (Tuple' kv _) a = do
+        let k = getKey a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                let f = getFold k
+                initFold kv f (k, a)
+            Just ref -> do
+                f <- liftIO $ readIORef ref
+                runFold kv ref f (k, a)
+
+    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
+
+        where
+
+        f ref = do
+            (Fold _ i e) <- liftIO $ readIORef ref
+            r <- i
+            case r of
+                Partial s -> e s
+                Done b -> return b
+
+-- | This collects all the results of 'demuxScanWith' in a container.
+--
+{-# INLINE demuxWith #-}
+demuxWith :: (Monad m, IsMap f, Traversable f) =>
+    (a -> Key f) -> (Key f -> Fold m a b) -> Fold m a (f b)
+demuxWith getKey getFold =
+    let
+        classifier = demuxScanWith getKey getFold
+        getMap Nothing = pure IsMap.mapEmpty
+        getMap (Just action) = action
+        aggregator =
+            teeWith IsMap.mapUnion
+                (rmapM getMap $ lmap fst last)
+                (lmap snd $ catMaybes toMap)
+    in postscan classifier aggregator
+
+-- | Same as 'demuxWith' but uses 'demuxScanMutWith' for better performance.
+--
+-- >>> demuxMutWith = Fold.demuxWith
+--
+{-# INLINE demuxMutWith #-}
+demuxMutWith :: (MonadIO m, IsMap f, Traversable f) =>
+    (a -> Key f) -> (Key f -> Fold m a b) -> Fold m a (f b)
+demuxMutWith getKey getFold =
+    let
+        classifier = demuxScanMutWith getKey getFold
+        getMap Nothing = pure IsMap.mapEmpty
+        getMap (Just action) = action
+        aggregator =
+            teeWith IsMap.mapUnion
+                (rmapM getMap $ lmap fst last)
+                (lmap snd $ catMaybes toMap)
+    in postscan classifier aggregator
+
+-- | Fold a stream of key value pairs using a function that maps keys to folds.
+--
+-- >>> import Data.Map (Map)
+-- >>> :{
+--  let f "SUM" = Fold.sum
+--      f _ = Fold.product
+--      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
+--   in Stream.fold (Fold.demux f) input :: IO (Map String Int)
+-- :}
+-- fromList [("PRODUCT",8),("SUM",4)]
+--
+-- >>> demux f = Fold.demuxWith fst (Fold.lmap snd . f)
 --
 -- /Pre-release/
-{-# INLINE demuxDefault #-}
-demuxDefault :: (Monad m, Ord k)
-    => Map k (Fold m a b) -> Fold m (k, a) b -> Fold m (k, a) (Map k b, b)
-demuxDefault = demuxDefaultWith id
+{-# INLINE demux #-}
+demux :: (Monad m, IsMap f, Traversable f) =>
+    (Key f -> Fold m a b) -> Fold m (Key f, a) (f b)
+demux f = demuxWith fst (lmap snd . f)
+
+------------------------------------------------------------------------------
+-- Classify: Like demux but uses the same fold for all keys.
+------------------------------------------------------------------------------
+
+-- XXX Change these to make the behavior similar to demux* variants. We can
+-- implement this using classifyScanManyWith. Maintain a set of done folds in
+-- the underlying monad, and when initial is called look it up, if the fold is
+-- done then initial would set a flag in the state to ignore the input or
+-- return an error.
 
 -- | Folds the values for each key using the supplied fold. When scanning, as
 -- soon as the fold is complete, its result is available in the second
 -- component of the tuple.  The first component of the tuple is a snapshot of
 -- the in-progress folds.
+--
+-- Once the fold for a key is done, any future values of the key are ignored.
+--
+-- >>> classifyScanWith f fld = Fold.demuxScanWith f (const fld)
+--
 {-# INLINE classifyScanWith #-}
 classifyScanWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- Note: we need to return the Map itself to display the in-progress values
@@ -1716,6 +1729,10 @@ classifyScanWith f (Fold step1 initial1 extract1) =
 -- | Same as classifyScanWith except that it uses mutable IORef cells in the
 -- Map providing better performance. Be aware that if this is used as a scan,
 -- the values in the intermediate Maps would be mutable.
+--
+-- >>> classifyScanMutWith = classifyScanWith
+-- >>> classifyScanMutWith f fld = demuxScanMutWith f (const fld)
+--
 {-# INLINE classifyScanMutWith #-}
 classifyScanMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
@@ -1805,8 +1822,11 @@ classifyWith f fld =
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
 
--- | Like classifyWith but maybe faster because it uses mutable cells as fold
--- accumulators in the Map.
+-- | Same as 'classifyWith' but maybe faster because it uses mutable cells as
+-- fold accumulators in the Map.
+--
+-- >>> classifyMutWith = Fold.classifyWith
+--
 {-# INLINE classifyMutWith #-}
 classifyMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (f b)

@@ -558,88 +558,42 @@ headAndRest ls = monadicIO $ do
 
 demux :: Expectation
 demux =
-    let table = Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
+    let table "SUM" = FL.sum
+        table "PRODUCT" = FL.product
+        table _ = FL.length
         input = Stream.fromList (
                 [ ("SUM", 1)
+                , ("abc", 1)
                 , ("PRODUCT", 2)
+                , ("abc", 2)
                 , ("SUM",3)
+                , ("xyz", 1)
                 , ("PRODUCT", 4)
+                , ("xyz", 2)
+                , ("abc", 2)
                 ] :: [(String, Int)])
     in Stream.fold
         (F.demux table)
         input
         `shouldReturn`
-        Data.Map.fromList [("PRODUCT", 8),("SUM", 4)]
+        Data.Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
 
 
-demuxWithSum :: Expectation
-demuxWithSum =
-    let f x = ("SUM", x::Int)
-        table = Data.Map.fromList [("SUM", FL.sum)]
-        input = Stream.fromList [1, 4]
+demuxWith :: Expectation
+demuxWith =
+    let getKey x | even x = "SUM"
+                 | otherwise = "PRODUCT"
+
+        getFold "SUM" = FL.sum
+        getFold "PRODUCT" = FL.product
+        getFold _ = error "demuxWith: bug"
+
+        input = Stream.fromList [1, 2, 3, 4 :: Int]
     in Stream.fold
-        (F.demuxWith f table)
+        (F.demuxWith getKey getFold)
         input
         `shouldReturn`
-        Data.Map.fromList [("SUM", 5)]
-
-demuxWithProduct :: Expectation
-demuxWithProduct =
-    let f x = ("PRODUCT", x::Int)
-        table = Data.Map.fromList [("PRODUCT", FL.product)]
-        input = Stream.fromList [2, 4]
-    in Stream.fold
-        (F.demuxWith f table)
-        input
-        `shouldReturn`
-        Data.Map.fromList [("PRODUCT", 8)]
-
-demuxDefaultWithSum :: Expectation
-demuxDefaultWithSum =
-    let f x = ("SUM", x::Int)
-        table = Data.Map.fromList [("SUM", FL.sum)]
-        input = Stream.fromList [2, 4]
-    in Stream.fold
-        (F.demuxDefaultWith f table (FL.lmap snd FL.sum))
-        input
-        `shouldReturn`
-        (Data.Map.fromList [("SUM" , 6)] , 0)
-
-demuxDefaultWithProduct :: Expectation
-demuxDefaultWithProduct =
-    let f x = ("PRODUCT", x::Int)
-        table = Data.Map.fromList [("PRODUCT", FL.product)]
-        input = Stream.fromList [2, 4]
-    in Stream.fold
-        (F.demuxDefaultWith f table (FL.lmap snd FL.product))
-        input
-        `shouldReturn`
-        (Data.Map.fromList [("PRODUCT" , 8)] , 1)
-
-demuxDefault :: Expectation
-demuxDefault =
-    let table =  Data.Map.fromList [("SUM", FL.sum), ("PRODUCT", FL.product)]
-        input = Stream.fromList
-            [ ("SUM", 1::Int)
-            , ("PRODUCT", 2::Int)
-            , ("SUM",3)
-            , ("PRODUCT", 4::Int)
-            ]
-    in Stream.fold
-        (F.demuxDefault table (FL.lmap snd FL.product))
-        input
-        `shouldReturn`
-        (Data.Map.fromList [("PRODUCT", 8), ("SUM", 4)], 1)
-
-demuxDefaultEmpty :: Expectation
-demuxDefaultEmpty =
-    let table =  Data.Map.empty
-        input = Stream.fromList []
-    in Stream.fold
-        (F.demuxDefault table (FL.lmap snd FL.product))
-        input
-        `shouldReturn`
-        (Data.Map.fromList ([]::[(String, Int)]), 1)
+        Data.Map.fromList [("PRODUCT",3),("SUM",6)]
 
 classifyWith :: Expectation
 classifyWith =
@@ -716,12 +670,7 @@ main = hspec $ do
         prop "toList" toList
         prop "toListRev" toListRev
         prop "demux" demux
-        prop "demuxWithSum" demuxWithSum
-        prop "demuxWithProduct" demuxWithProduct
-        prop "demuxDefaultWithSum" demuxDefaultWithSum
-        prop "demuxDefaultWithProduct" demuxDefaultWithProduct
-        prop "demuxDefault" demuxDefault
-        prop "demuxDefaultEmpty" demuxDefaultEmpty
+        prop "demuxWith" demuxWith
         prop "classifyWith" classifyWith
         prop "classify" classify
 
