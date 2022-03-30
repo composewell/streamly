@@ -1,7 +1,13 @@
 # Changelog
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
+## Unreleased
 
+* Following APIs have been renamed in Streamly.Network.Socket module:
+    readWithBufferOf -> readWith
+    readChunksWithBufferOf -> readChunksWith
+    writeWithBufferOf -> writeWith
+    writeChunksWithBufferOf -> writeChunksWith
 ## 0.8.2 (Mar 2022)
 
 * Fix performance issues for GHC-9. These changes coupled with GHC changes

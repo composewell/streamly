@@ -42,7 +42,7 @@ testDataSource = concat $ replicate 1000 testData
 ------------------------------------------------------------------------------
 handlerChunksWithBuffer :: Socket -> IO ()
 handlerChunksWithBuffer sk =
-          Stream.unfold Socket.readChunksWithBufferOf (100, sk)
+          Stream.unfold Socket.readChunksWith (100, sk)
         & Stream.fold (Socket.writeChunks sk)
         & discard
 
@@ -54,8 +54,8 @@ handlerChunks sk =
 
 handlerwithbuffer :: Socket -> IO ()
 handlerwithbuffer sk =
-          Stream.unfold Socket.readWithBufferOf (100, sk)
-        & Stream.fold (Socket.writeWithBufferOf 100 sk)
+          Stream.unfold Socket.readWith (100, sk)
+        & Stream.fold (Socket.writeWith 100 sk)
         & discard
 
 handlerRW :: Socket -> IO ()
@@ -108,8 +108,8 @@ execute port size handler = do
                 & Stream.finally (killThread tid)
     return lst
 
-validateWithBufferOf :: Property
-validateWithBufferOf = monadicIO $ do
+validateWith :: Property
+validateWith = monadicIO $ do
     res <- run $ do
         ls2 <- execute basePort 45000 handlerwithbuffer
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
@@ -130,8 +130,8 @@ validateChunks = monadicIO $ do
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
-validateChunksWithBufferOf :: Property
-validateChunksWithBufferOf = monadicIO $ do
+validateChunksWith :: Property
+validateChunksWith = monadicIO $ do
     res <- run $ do
         ls2 <- execute (basePort + 3) 45000 handlerChunksWithBuffer
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
@@ -146,6 +146,6 @@ main = hspec $ do
       describe moduleName $ do
         describe "Read/Write" $ do
             prop "read/write" validateRW
-            prop "readWithBufferOf/writeWithBufferOf" validateWithBufferOf
+            prop "readWith/writeWith" validateWith
             prop "readChunks/writeChunks" validateChunks
-            prop "readChunksWithBufferOf" validateChunksWithBufferOf
+            prop "readChunksWith" validateChunksWith

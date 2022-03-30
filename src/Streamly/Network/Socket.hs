@@ -101,20 +101,26 @@ module Streamly.Network.Socket
 
     -- * Read
     , read
-    , readWithBufferOf
+    , readWith
     , readChunks
-    , readChunksWithBufferOf
+    , readChunksWith
     , readChunk
 
     -- * Write
     , write
-    , writeWithBufferOf
+    , writeWith
     , writeChunks
-    , writeChunksWithBufferOf
+    , writeChunksWith
     , writeChunk
 
     -- * Exceptions
     , forSocketM
+
+    -- * Deprecated
+    , readWithBufferOf
+    , readChunksWithBufferOf
+    , writeWithBufferOf
+    , writeChunksWithBufferOf
     )
 where
 
