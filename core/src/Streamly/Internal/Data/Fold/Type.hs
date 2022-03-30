@@ -360,9 +360,21 @@ module Streamly.Internal.Data.Fold.Type
     -- ** Trimming
     , take
 
-    -- ** Serial Append
+    -- ** Sequential application
     , serialWith -- rename to "append"
     , serial_
+
+    -- ** Repeated Application (Splitting)
+    , ManyState
+    , many
+    , manyPost
+    , chunksOf
+    , refoldMany
+    , refoldMany1
+
+    -- ** Nested Application
+    , concatMap
+    , refold
 
     -- ** Parallel Distribution
     , teeWith
@@ -372,18 +384,6 @@ module Streamly.Internal.Data.Fold.Type
     -- ** Parallel Alternative
     , shortest
     , longest
-
-    -- ** Splitting
-    , ManyState
-    , many
-    , manyPost
-    , chunksOf
-    , refoldMany
-    , refoldMany1
-
-    -- ** Nesting
-    , concatMap
-    , refold
 
     -- * Running A Fold
     , initialize
