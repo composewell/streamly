@@ -554,7 +554,7 @@ fromStreamK = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: Monad m => Unfold m (SerialT m a) a
+fromStream :: Applicative m => Unfold m (SerialT m a) a
 fromStream = lmap getSerialT fromStreamK
 
 -------------------------------------------------------------------------------
@@ -601,7 +601,7 @@ consM action unf = Unfold step inject
 -- /Since: 0.8.0/
 --
 {-# INLINE_LATE fromList #-}
-fromList :: Monad m => Unfold m [a] a
+fromList :: Applicative m => Unfold m [a] a
 fromList = Unfold step pure
 
     where
@@ -615,7 +615,7 @@ fromList = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE_LATE fromListM #-}
-fromListM :: Monad m => Unfold m [m a] a
+fromListM :: Applicative m => Unfold m [m a] a
 fromListM = Unfold step pure
 
     where
@@ -633,7 +633,7 @@ fromListM = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Unfold m (m a) a
+replicateM :: Applicative m => Int -> Unfold m (m a) a
 replicateM n = Unfold step inject
 
     where
@@ -651,7 +651,7 @@ replicateM n = Unfold step inject
 -- /Since: 0.8.0/
 --
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Unfold m (m a) a
+repeatM :: Applicative m => Unfold m (m a) a
 repeatM = Unfold step pure
 
     where
@@ -665,7 +665,7 @@ repeatM = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE iterateM #-}
-iterateM :: Monad m => (a -> m a) -> Unfold m (m a) a
+iterateM :: Applicative m => (a -> m a) -> Unfold m (m a) a
 iterateM f = Unfold step id
 
     where
@@ -703,7 +703,7 @@ fromIndicesM gen = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL take #-}
-take :: Monad m => Int -> Unfold m a b -> Unfold m a b
+take :: Applicative m => Int -> Unfold m a b -> Unfold m a b
 take n (Unfold step1 inject1) = Unfold step inject
 
     where
@@ -749,7 +749,7 @@ filter f = filterM (return . f)
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL drop #-}
-drop :: Monad m => Int -> Unfold m a b -> Unfold m a b
+drop :: Applicative m => Int -> Unfold m a b -> Unfold m a b
 drop n (Unfold step inject) = Unfold step' inject'
 
     where

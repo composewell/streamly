@@ -161,5 +161,5 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
+fromStream :: (IsStream t, Applicative m) => Unfold m (t m a) a
 fromStream = lmap IsStream.adapt Unfold.fromStream
