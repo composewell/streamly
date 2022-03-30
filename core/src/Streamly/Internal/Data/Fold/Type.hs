@@ -380,10 +380,10 @@ module Streamly.Internal.Data.Fold.Type
     , chunksOf
     , refoldMany
     , refoldMany1
-    , refold
 
     -- ** Nesting
     , concatMap
+    , refold
 
     -- * Running A Fold
     , initialize
@@ -1048,8 +1048,6 @@ data ConcatMapState m sa a c
     = B !sa
     | forall s. C (s -> a -> m (Step s c)) !s (s -> m c)
 
--- Compare with foldIterate.
---
 -- | Map a 'Fold' returning function on the result of a 'Fold' and run the
 -- returned fold. This operation can be used to express data dependencies
 -- between fold operations.
@@ -1063,9 +1061,11 @@ data ConcatMapState m sa a c
 -- >>> Stream.fold (Fold.concatMap total count) $ Stream.fromList [10,9..1]
 -- 45
 --
+-- This does not fuse completely, see 'refold' for a fusible alternative.
+--
 -- /Time: O(n^2) where @n@ is the number of compositions./
 --
--- See also: 'Streamly.Internal.Data.Stream.IsStream.foldIterateM'
+-- See also: 'Streamly.Internal.Data.Stream.IsStream.foldIterateM', 'refold'
 --
 -- @since 0.8.0
 --
@@ -1539,7 +1539,9 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
 
 -- | Extract the output of a fold and refold it using a 'Refold'.
 --
+-- A fusible alternative to 'concatMap'.
+--
 -- /Internal/
 {-# INLINE refold #-}
-refold :: Monad m => Fold m a b -> Refold m b a b -> Fold m a b
-refold f (Refold step inject extract) = Fold step (finish f >>= inject) extract
+refold :: Monad m => Refold m b a c -> Fold m a b -> Fold m a c
+refold (Refold step inject extract) f = Fold step (finish f >>= inject) extract
