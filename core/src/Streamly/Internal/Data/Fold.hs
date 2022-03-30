@@ -130,6 +130,10 @@ module Streamly.Internal.Data.Fold
     , postscan
     , indexed
 
+    -- ** Zipping Input
+    , zipWithM
+    , zip
+
     -- ** Filtering
     , filter
     , filterM
@@ -189,6 +193,14 @@ module Streamly.Internal.Data.Fold
     -- , distributeFst
     -- , distributeMin
 
+    -- ** Unzipping
+    , unzip
+    -- These two can be expressed using lmap/lmapM and unzip
+    , unzipWith
+    , unzipWithM
+    , unzipWithFstM
+    , unzipWithMinM
+
     -- ** Parallel Alternative
     , shortest
     , longest
@@ -230,18 +242,6 @@ module Streamly.Internal.Data.Fold
     , classifyScanWith
     -- , classifyWithSel
     -- , classifyWithMin
-
-    -- ** Unzipping
-    , unzip
-    -- These two can be expressed using lmap/lmapM and unzip
-    , unzipWith
-    , unzipWithM
-    , unzipWithFstM
-    , unzipWithMinM
-
-    -- ** Zipping
-    , zipWithM
-    , zip
 
     -- ** Splitting
     , many
@@ -1923,6 +1923,9 @@ unzip = unzipWith id
 -- Combining streams and folds - Zipping
 ------------------------------------------------------------------------------
 
+-- XXX These can be implemented using the fold scan, using the stream as a
+-- state.
+--
 -- | Zip a stream with the input of a fold using the supplied function.
 --
 -- /Unimplemented/
