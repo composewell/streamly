@@ -97,14 +97,14 @@
 @@@ Streamly.Data.Unfold
 # Added
 ++ crossWith :: Monad m => (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
-++ drop :: Monad m => Int -> Unfold m a b -> Unfold m a b
+++ drop :: Applicative m => Int -> Unfold m a b -> Unfold m a b
 ++ dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 ++ dropWhileM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
 ++ filter :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 ++ filterM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
-++ fromList :: Monad m => Unfold m [a] a
-++ fromListM :: Monad m => Unfold m [m a] a
-++ fromStream :: (IsStream t, Monad m) => Unfold m (t m a) a
+++ fromList :: Applicative m => Unfold m [a] a
+++ fromListM :: Applicative m => Unfold m [m a] a
+++ fromStream :: (IsStream t, Applicative m) => Unfold m (t m a) a
 ++ function :: Applicative m => (a -> b) -> Unfold m a b
 ++ functionM :: Applicative m => (a -> m b) -> Unfold m a b
 ++ iterateM :: Monad m => (a -> m a) -> Unfold m (m a) a
