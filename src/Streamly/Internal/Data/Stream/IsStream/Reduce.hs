@@ -1191,6 +1191,9 @@ data SessionEntry a b = LiveSession !a !b | ZombieSession
 --
 -- /Pre-release/
 
+-- XXX Use a proxy type for the map type to use.
+-- XXX Use mutable IORef in accumulator
+--
 -- XXX this fuses with INLINE but it may be too much work for the compiler.
 -- Maybe we can NOINLINE the heap processing stuff and then INLINE it to reduce
 -- the code bloat.
