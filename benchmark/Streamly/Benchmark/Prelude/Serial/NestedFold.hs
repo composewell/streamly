@@ -18,6 +18,8 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
+import Data.Proxy (Proxy(..))
+import Data.HashMap.Strict (HashMap)
 import GHC.Generics (Generic)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
@@ -219,11 +221,25 @@ classifySessionsOf =
     . Internal.timestamped
     . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
 
+{-# INLINE classifySessionsOfHash #-}
+classifySessionsOfHash :: (S.MonadAsync m) => SerialT m Int -> m ()
+classifySessionsOfHash =
+      S.drain
+    . Internal.classifySessionsByGeneric
+        (Proxy :: Proxy (HashMap k v))
+        1 False (const (return False)) 3 FL.drain
+    . Internal.timestamped
+    . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
+
 o_n_space_grouping :: Int -> [Benchmark]
 o_n_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
-        [ benchIOSink (value `div` 10) "classifySessionsOf" classifySessionsOf
+        -- We use 10 element stream per input, so div by 10 here
+        [ benchIOSink (value `div` 10) "classifySessionsOf"
+            classifySessionsOf
+        , benchIOSink (value `div` 10) "classifySessionsOfHash"
+            classifySessionsOfHash
         ]
     ]
 

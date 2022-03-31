@@ -29,6 +29,7 @@ class IsMap f where
     mapInsert :: Key f -> a -> f a -> f a
     mapDelete :: Key f -> f a -> f a
     mapUnion :: f a -> f a -> f a
+    mapNull :: f a -> Bool
 
 instance Ord k => IsMap (Map k) where
     type Key (Map k) = k
@@ -39,6 +40,7 @@ instance Ord k => IsMap (Map k) where
     mapInsert = Map.insert
     mapDelete = Map.delete
     mapUnion = Map.union
+    mapNull = Map.null
 
 instance IsMap IntMap.IntMap where
     type Key IntMap.IntMap = Int
@@ -49,6 +51,7 @@ instance IsMap IntMap.IntMap where
     mapInsert = IntMap.insert
     mapDelete = IntMap.delete
     mapUnion = IntMap.union
+    mapNull = IntMap.null
 
 instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
     type Key (HashMap.HashMap k) = k
@@ -59,3 +62,4 @@ instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
     mapInsert = HashMap.insert
     mapDelete = HashMap.delete
     mapUnion = HashMap.union
+    mapNull = HashMap.null
