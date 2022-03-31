@@ -1155,12 +1155,150 @@ data SessionState t m k a b = SessionState
 
 data SessionEntry a b = LiveSession !a !b | ZombieSession
 
+-- delete from map and output the fold accumulator
+ejectEntry :: (Monad m, IsStream t, IsMap f) =>
+    (acc -> m b)
+    -> heap
+    -> f entry
+    -> t m (Key f, b)
+    -> Int
+    -> acc
+    -> Key f
+    -> m (heap, f entry, t m (Key f, b), Int)
+ejectEntry extract hp mp out cnt acc key = do
+    sess <- extract acc
+    let out1 = (key, sess) `cons` out
+    let mp1 = IsMap.mapDelete key mp
+    return (hp, mp1, out1, cnt - 1)
+
+{-# NOINLINE flush #-}
+flush :: (Monad m, Ord k, IsStream t) =>
+       (s -> m b)
+    -> SessionState t m k (SessionEntry a s) b
+    -> m (SessionState t m k (SessionEntry a s) b)
+flush extract session@SessionState{..} = do
+    (hp', mp', out, count) <-
+        ejectAll
+            ( sessionTimerHeap
+            , sessionKeyValueMap
+            , IsStream.nil
+            , sessionCount
+            )
+    return $ session
+        { sessionCount = count
+        , sessionTimerHeap = hp'
+        , sessionKeyValueMap = mp'
+        , sessionOutputStream = out
+        }
+
+    where
+
+    ejectAll (hp, mp, out, !cnt) = do
+        let hres = H.uncons hp
+        case hres of
+            Just (Entry _ key, hp1) -> do
+                r <- case IsMap.mapLookup key mp of
+                    Nothing -> return (hp1, mp, out, cnt)
+                    Just ZombieSession ->
+                        return (hp1, IsMap.mapDelete key mp, out, cnt)
+                    Just (LiveSession _ acc) ->
+                        ejectEntry extract hp1 mp out cnt acc key
+                ejectAll r
+            Nothing -> do
+                assert (Map.null mp) (return ())
+                return (hp, mp, out, cnt)
+
+{-# NOINLINE ejectOne #-}
+ejectOne :: (IsMap f, IsStream t, Ord k, Monad m) =>
+       Bool
+    -> (acc -> m b)
+    -> ( H.Heap (Entry k (Key f))
+       , f (SessionEntry k acc)
+       , t m (Key f, b)
+       , Int
+       )
+    -> m ( H.Heap (Entry k (Key f))
+         , f (SessionEntry k acc)
+         , t m (Key f, b), Int
+         )
+ejectOne reset extract = go
+
+    where
+
+    go (hp, mp, out, !cnt) = do
+        let hres = H.uncons hp
+        case hres of
+            Just (Entry expiry key, hp1) ->
+                case IsMap.mapLookup key mp of
+                    Nothing -> go (hp1, mp, out, cnt)
+                    Just ZombieSession ->
+                        go (hp1, IsMap.mapDelete key mp, out, cnt)
+                    Just (LiveSession expiry1 acc) -> do
+                        if not reset || expiry1 <= expiry
+                        then ejectEntry extract hp1 mp out cnt acc key
+                        else
+                            -- reset the session timeout and continue
+                            let hp2 = H.insert (Entry expiry1 key) hp1
+                            in go (hp2, mp, out, cnt)
+            Nothing -> do
+                assert (IsMap.mapNull mp) (return ())
+                return (hp, mp, out, cnt)
+
+{-# NOINLINE ejectExpired #-}
+ejectExpired :: (Ord k, IsStream t, Monad m) =>
+       Bool
+    -> (Int -> m Bool)
+    -> (acc -> m b)
+    -> SessionState t m k (SessionEntry AbsTime acc) b
+    -> AbsTime
+    -> m (SessionState t m k (SessionEntry AbsTime acc) b)
+ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
+    (hp', mp', out, count) <-
+        ejectLoop
+            sessionTimerHeap sessionKeyValueMap IsStream.nil sessionCount
+    return $ session
+        { sessionCurTime = curTime
+        , sessionCount = count
+        , sessionTimerHeap = hp'
+        , sessionKeyValueMap = mp'
+        , sessionOutputStream = out
+        }
+
+    where
+
+    ejectLoop hp mp out !cnt = do
+        let hres = H.uncons hp
+        case hres of
+            Just (Entry expiry key, hp1) -> do
+                (eject, force) <-
+                    if curTime >= expiry
+                    then return (True, False)
+                    else do
+                        r <- ejectPred cnt
+                        return (r, r)
+                if eject
+                then
+                    case IsMap.mapLookup key mp of
+                        Nothing -> ejectLoop hp1 mp out cnt
+                        Just ZombieSession ->
+                            ejectLoop hp1 (IsMap.mapDelete key mp) out cnt
+                        Just (LiveSession expiry1 acc) -> do
+                            if expiry1 <= curTime || not reset || force
+                            then do
+                                (hp2,mp1,out1,cnt1) <-
+                                    ejectEntry extract hp1 mp out cnt acc key
+                                ejectLoop hp2 mp1 out1 cnt1
+                            else
+                                -- reset the session timeout and continue
+                                let hp2 = H.insert (Entry expiry1 key) hp1
+                                in ejectLoop hp2 mp out cnt
+                else return (hp, mp, out, cnt)
+            Nothing -> do
+                assert (IsMap.mapNull mp) (return ())
+                return (hp, mp, out, cnt)
+
 -- XXX Use mutable IORef in accumulator
---
--- XXX this fuses with INLINE but it may be too much work for the compiler.
--- Maybe we can NOINLINE the heap processing stuff and then INLINE it to reduce
--- the code bloat.
-{-# INLINABLE classifySessionsByGeneric #-}
+{-# INLINE classifySessionsByGeneric #-}
 classifySessionsByGeneric
     :: (IsStream t, MonadAsync m, Ord (Key f))
     => Proxy (f s)
@@ -1174,7 +1312,7 @@ classifySessionsByGeneric
 classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract) input =
     Expand.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
-        $ scanlMAfter' sstep (return szero) flush
+        $ scanlMAfter' sstep (return szero) (flush extract)
         $ interjectSuffix tick (return Nothing)
         $ map Just input
 
@@ -1279,7 +1417,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
                                 eject <- ejectPred sessionCount
                                 (hp, mp, out, cnt) <-
                                     if eject
-                                    then ejectOne vars
+                                    then ejectOne reset extract vars
                                     else return vars
 
                                 -- Insert the new session in heap
@@ -1315,108 +1453,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
     -- Got a timer tick event
     sstep sessionState@SessionState{..} Nothing =
         let curTime = addToAbsTime sessionCurTime tickMs
-        in ejectExpired sessionState curTime
-
-    flush session@SessionState{..} = do
-        (hp', mp', out, count) <-
-            ejectAll
-                ( sessionTimerHeap
-                , sessionKeyValueMap
-                , IsStream.nil
-                , sessionCount
-                )
-        return $ session
-            { sessionCount = count
-            , sessionTimerHeap = hp'
-            , sessionKeyValueMap = mp'
-            , sessionOutputStream = out
-            }
-
-    -- delete from map and output the fold accumulator
-    ejectEntry hp mp out cnt acc key = do
-        sess <- extract acc
-        let out1 = (key, sess) `cons` out
-        let mp1 = IsMap.mapDelete key mp
-        return (hp, mp1, out1, cnt - 1)
-
-    ejectAll (hp, mp, out, !cnt) = do
-        let hres = H.uncons hp
-        case hres of
-            Just (Entry _ key, hp1) -> do
-                r <- case IsMap.mapLookup key mp of
-                    Nothing -> return (hp1, mp, out, cnt)
-                    Just ZombieSession ->
-                        return (hp1, IsMap.mapDelete key mp, out, cnt)
-                    Just (LiveSession _ acc) ->
-                        ejectEntry hp1 mp out cnt acc key
-                ejectAll r
-            Nothing -> do
-                assert (Map.null mp) (return ())
-                return (hp, mp, out, cnt)
-
-    ejectOne (hp, mp, out, !cnt) = do
-        let hres = H.uncons hp
-        case hres of
-            Just (Entry expiry key, hp1) ->
-                case IsMap.mapLookup key mp of
-                    Nothing -> ejectOne (hp1, mp, out, cnt)
-                    Just ZombieSession ->
-                        ejectOne (hp1, IsMap.mapDelete key mp, out, cnt)
-                    Just (LiveSession expiry1 acc) -> do
-                        if not reset || expiry1 <= expiry
-                        then ejectEntry hp1 mp out cnt acc key
-                        else
-                            -- reset the session timeout and continue
-                            let hp2 = H.insert (Entry expiry1 key) hp1
-                            in ejectOne (hp2, mp, out, cnt)
-            Nothing -> do
-                assert (IsMap.mapNull mp) (return ())
-                return (hp, mp, out, cnt)
-
-    ejectExpired session@SessionState{..} curTime = do
-        (hp', mp', out, count) <-
-            ejectLoop
-                sessionTimerHeap sessionKeyValueMap IsStream.nil sessionCount
-        return $ session
-            { sessionCurTime = curTime
-            , sessionCount = count
-            , sessionTimerHeap = hp'
-            , sessionKeyValueMap = mp'
-            , sessionOutputStream = out
-            }
-
-        where
-
-        ejectLoop hp mp out !cnt = do
-            let hres = H.uncons hp
-            case hres of
-                Just (Entry expiry key, hp1) -> do
-                    (eject, force) <-
-                        if curTime >= expiry
-                        then return (True, False)
-                        else do
-                            r <- ejectPred cnt
-                            return (r, r)
-                    if eject
-                    then
-                        case IsMap.mapLookup key mp of
-                            Nothing -> ejectLoop hp1 mp out cnt
-                            Just ZombieSession ->
-                                ejectLoop hp1 (IsMap.mapDelete key mp) out cnt
-                            Just (LiveSession expiry1 acc) -> do
-                                if expiry1 <= curTime || not reset || force
-                                then do
-                                    (hp2,mp1,out1,cnt1) <-
-                                        ejectEntry hp1 mp out cnt acc key
-                                    ejectLoop hp2 mp1 out1 cnt1
-                                else
-                                    -- reset the session timeout and continue
-                                    let hp2 = H.insert (Entry expiry1 key) hp1
-                                    in ejectLoop hp2 mp out cnt
-                    else return (hp, mp, out, cnt)
-                Nothing -> do
-                    assert (IsMap.mapNull mp) (return ())
-                    return (hp, mp, out, cnt)
+        in ejectExpired reset ejectPred extract sessionState curTime
 
 -- | @classifySessionsBy tick keepalive predicate timeout fold stream@
 -- classifies an input event @stream@ consisting of  @(timestamp, (key,
