@@ -10,7 +10,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TupleSections #-}
 
 module Serial.NestedFold (benchmarks) where
 
@@ -214,34 +213,43 @@ o_n_heap_buffering value =
 -------------------------------------------------------------------------------
 
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: (S.MonadAsync m) => SerialT m Int -> m ()
-classifySessionsOf =
+classifySessionsOf :: S.MonadAsync m => (Int -> Int) -> SerialT m Int -> m ()
+classifySessionsOf getKey =
       S.drain
-    . Internal.classifySessionsOf (const (return False)) 3 FL.drain
+    . Internal.classifySessionsOf
+        (const (return False)) 3 (FL.take 10 FL.sum)
     . Internal.timestamped
-    . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
+    . S.map (\x -> (getKey x, x))
 
 {-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: (S.MonadAsync m) => SerialT m Int -> m ()
-classifySessionsOfHash =
+classifySessionsOfHash :: S.MonadAsync m =>
+    (Int -> Int) -> SerialT m Int -> m ()
+classifySessionsOfHash getKey =
       S.drain
     . Internal.classifySessionsByGeneric
         (Proxy :: Proxy (HashMap k))
-        1 False (const (return False)) 3 FL.drain
+        1 False (const (return False)) 3 (FL.take 10 FL.sum)
     . Internal.timestamped
-    . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
+    . S.map (\x -> (getKey x, x))
 
 o_n_space_grouping :: Int -> [Benchmark]
 o_n_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
-        -- We use 10 element stream per input, so div by 10 here
-        [ benchIOSink (value `div` 10) "classifySessionsOf"
-            classifySessionsOf
-        , benchIOSink (value `div` 10) "classifySessionsOfHash"
-            classifySessionsOfHash
+        [ benchIOSink value "classifySessionsOf (10000 buckets)"
+            (classifySessionsOf (getKey 10000))
+        , benchIOSink value "classifySessionsOf (64 buckets)"
+            (classifySessionsOf (getKey 64))
+        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
+            (classifySessionsOfHash (getKey 10000))
+        , benchIOSink value "classifySessionsOfHash (64 buckets)"
+            (classifySessionsOfHash (getKey 64))
         ]
     ]
+
+    where
+
+    getKey n = (`mod` n)
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation
