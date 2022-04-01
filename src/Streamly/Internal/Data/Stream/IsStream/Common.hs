@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     -- * Transformation
     , map
     , scanlMAfter'
+    , postscanlMAfter'
     , postscanlM'
     , smapM
     -- $smapM_Notes
@@ -353,6 +354,12 @@ scanlMAfter' :: (IsStream t, Monad m)
     => (b -> a -> m b) -> m b -> (b -> m b) -> t m a -> t m b
 scanlMAfter' step initial done stream =
     fromStreamD $ D.scanlMAfter' step initial done $ toStreamD stream
+
+{-# INLINE postscanlMAfter' #-}
+postscanlMAfter' :: (IsStream t, Monad m)
+    => (b -> a -> m b) -> m b -> (b -> m b) -> t m a -> t m b
+postscanlMAfter' step initial done stream =
+    fromStreamD $ D.postscanlMAfter' step initial done $ toStreamD stream
 
 -- XXX this needs to be concurrent
 -- | Like 'postscanl'' but with a monadic step function and a monadic seed.

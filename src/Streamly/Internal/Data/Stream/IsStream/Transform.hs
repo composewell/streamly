@@ -45,6 +45,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , scanl'
     , scanlM'
     , scanlMAfter'
+    , postscanlMAfter'
     , postscanl'
     , postscanlM'
     , prescanl'
@@ -236,6 +237,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , reverse
     , reverse'
     , scanlMAfter'
+    , postscanlMAfter'
     , smapM
     , take
     , takeWhile
