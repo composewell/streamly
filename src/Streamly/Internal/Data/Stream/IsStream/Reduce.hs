@@ -179,7 +179,6 @@ import Streamly.Internal.Data.Time.Units
        , toAbsTime)
 
 import qualified Data.Heap as H
-import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.IsMap as IsMap
@@ -1142,18 +1141,18 @@ classifyKeepAliveChunks
 classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -}
 
-data SessionState t m k a b = SessionState
+data SessionState t m f s b = SessionState
     { sessionCurTime :: !AbsTime  -- ^ time since last event
     , sessionEventTime :: !AbsTime -- ^ time as per last event
     -- We can use the Map size instead of maintaining a count, but if we have
     -- to switch to HashMap then it can be useful.
     , sessionCount :: !Int -- ^ total number of sessions in progress
-    , sessionTimerHeap :: H.Heap (H.Entry AbsTime k) -- ^ heap for timeouts
-    , sessionKeyValueMap :: Map.Map k a -- ^ Stored sessions for keys
-    , sessionOutputStream :: t (m :: Type -> Type) (k, b) -- ^ Completed sessions
+    , sessionTimerHeap :: H.Heap (H.Entry AbsTime (Key f)) -- ^ heap for timeouts
+    , sessionKeyValueMap :: f s -- ^ Stored sessions for keys
+    , sessionOutputStream :: t (m :: Type -> Type) (Key f, b) -- ^ Completed sessions
     }
 
-data SessionEntry a b = LiveSession !a !b | ZombieSession
+data SessionEntry s = LiveSession !AbsTime !s | ZombieSession
 
 -- delete from map and output the fold accumulator
 ejectEntry :: (Monad m, IsStream t, IsMap f) =>
@@ -1172,10 +1171,10 @@ ejectEntry extract hp mp out cnt acc key = do
     return (hp, mp1, out1, cnt - 1)
 
 {-# NOINLINE flush #-}
-flush :: (Monad m, Ord k, IsStream t) =>
+flush :: (Monad m, IsMap f, IsStream t) =>
        (s -> m b)
-    -> SessionState t m k (SessionEntry a s) b
-    -> m (SessionState t m k (SessionEntry a s) b)
+    -> SessionState t m f (SessionEntry s) b
+    -> m (SessionState t m f (SessionEntry s) b)
 flush extract session@SessionState{..} = do
     (hp', mp', out, count) <-
         ejectAll
@@ -1205,20 +1204,20 @@ flush extract session@SessionState{..} = do
                         ejectEntry extract hp1 mp out cnt acc key
                 ejectAll r
             Nothing -> do
-                assert (Map.null mp) (return ())
+                assert (IsMap.mapNull mp) (return ())
                 return (hp, mp, out, cnt)
 
 {-# NOINLINE ejectOne #-}
-ejectOne :: (IsMap f, IsStream t, Ord k, Monad m) =>
+ejectOne :: (IsMap f, IsStream t, Monad m) =>
        Bool
     -> (acc -> m b)
-    -> ( H.Heap (Entry k (Key f))
-       , f (SessionEntry k acc)
+    -> ( H.Heap (Entry AbsTime (Key f))
+       , f (SessionEntry acc)
        , t m (Key f, b)
        , Int
        )
-    -> m ( H.Heap (Entry k (Key f))
-         , f (SessionEntry k acc)
+    -> m ( H.Heap (Entry AbsTime (Key f))
+         , f (SessionEntry acc)
          , t m (Key f, b), Int
          )
 ejectOne reset extract = go
@@ -1245,13 +1244,13 @@ ejectOne reset extract = go
                 return (hp, mp, out, cnt)
 
 {-# NOINLINE ejectExpired #-}
-ejectExpired :: (Ord k, IsStream t, Monad m) =>
+ejectExpired :: (IsMap f, IsStream t, Monad m) =>
        Bool
     -> (Int -> m Bool)
     -> (acc -> m b)
-    -> SessionState t m k (SessionEntry AbsTime acc) b
+    -> SessionState t m f (SessionEntry acc) b
     -> AbsTime
-    -> m (SessionState t m k (SessionEntry AbsTime acc) b)
+    -> m (SessionState t m f (SessionEntry acc) b)
 ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
     (hp', mp', out, count) <-
         ejectLoop
@@ -1300,8 +1299,8 @@ ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
 -- XXX Use mutable IORef in accumulator
 {-# INLINE classifySessionsByGeneric #-}
 classifySessionsByGeneric
-    :: (IsStream t, MonadAsync m, Ord (Key f))
-    => Proxy (f s)
+    :: forall t m f a b. (IsStream t, MonadAsync m, IsMap f)
+    => Proxy (f :: (Type -> Type))
     -> Double         -- ^ timer tick in seconds
     -> Bool           -- ^ reset the timer when an event is received
     -> (Int -> m Bool) -- ^ predicate to eject sessions based on session count
@@ -1325,7 +1324,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
         , sessionEventTime = toAbsTime (0 :: MilliSecond64)
         , sessionCount = 0
         , sessionTimerHeap = H.empty
-        , sessionKeyValueMap = IsMap.mapEmpty
+        , sessionKeyValueMap = IsMap.mapEmpty :: f s
         , sessionOutputStream = IsStream.nil
         }
 
@@ -1505,7 +1504,7 @@ classifySessionsBy
     -> Fold m a b  -- ^ Fold to be applied to session data
     -> t m (AbsTime, (k, a)) -- ^ timestamp, (session key, session data)
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy = classifySessionsByGeneric (Proxy :: Proxy (Map k s))
+classifySessionsBy = classifySessionsByGeneric (Proxy :: Proxy (Map k))
 
 -- | Same as 'classifySessionsBy' with a timer tick of 1 second and keepalive
 -- option set to 'True'.

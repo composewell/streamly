@@ -226,7 +226,7 @@ classifySessionsOfHash :: (S.MonadAsync m) => SerialT m Int -> m ()
 classifySessionsOfHash =
       S.drain
     . Internal.classifySessionsByGeneric
-        (Proxy :: Proxy (HashMap k v))
+        (Proxy :: Proxy (HashMap k))
         1 False (const (return False)) 3 FL.drain
     . Internal.timestamped
     . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
