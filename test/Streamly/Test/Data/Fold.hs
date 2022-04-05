@@ -558,9 +558,9 @@ headAndRest ls = monadicIO $ do
 
 demux :: Expectation
 demux =
-    let table "SUM" = FL.sum
-        table "PRODUCT" = FL.product
-        table _ = FL.length
+    let table "SUM" = return FL.sum
+        table "PRODUCT" = return FL.product
+        table _ = return FL.length
         input = Stream.fromList (
                 [ ("SUM", 1)
                 , ("abc", 1)
@@ -584,8 +584,8 @@ demuxWith =
     let getKey x | even x = "SUM"
                  | otherwise = "PRODUCT"
 
-        getFold "SUM" = FL.sum
-        getFold "PRODUCT" = FL.product
+        getFold "SUM" = return FL.sum
+        getFold "PRODUCT" = return FL.product
         getFold _ = error "demuxWith: bug"
 
         input = Stream.fromList [1, 2, 3, 4 :: Int]
