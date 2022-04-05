@@ -74,6 +74,19 @@ extra-source-files:
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
+    benchmark_core/README.md
+    benchmark_core/Streamly/Benchmark/Data/Stream/StreamD.hs
+    benchmark_core/Streamly/Benchmark/Data/Stream/StreamK.hs
+    benchmark_core/bench-report/BenchReport.hs
+    benchmark_core/bench-report/bench-report.cabal
+    benchmark_core/bench-report/bin/bench-runner.sh
+    benchmark_core/bench-report/bin/build-lib.sh
+    benchmark_core/bench-report/cabal.project
+    benchmark_core/bench-report/default.nix
+    benchmark_core/cabal.project
+    benchmark_core/lib/Streamly/Benchmark/Common.hs
+    benchmark_core/lib/Streamly/Benchmark/Common/Handle.hs
+    benchmark_core/streamly-core-benchmarks.cabal
     bin/bench.sh
     bin/bench-config.sh
     bin/mk-hscope.sh
