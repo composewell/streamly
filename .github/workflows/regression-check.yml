@@ -27,9 +27,6 @@ jobs:
         Data.Parser.ParserD
         Data.Parser.ParserK
         Data.SmallArray
-        Data.Stream.StreamD
-        Data.Stream.StreamDK
-        Data.Stream.StreamK:6
         Data.Unfold
         FileSystem.Handle
         Prelude.Ahead
