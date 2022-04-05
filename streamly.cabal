@@ -48,6 +48,7 @@ stability:           Stable
 build-type:          Configure
 
 extra-source-files:
+    .github/workflows/regression-check-core.yml
     benchmark/*.hs
     benchmark/bench-report/BenchReport.hs
     benchmark/bench-report/bench-report.cabal
