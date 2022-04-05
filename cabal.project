@@ -2,4 +2,5 @@ packages:   streamly.cabal
           , core/streamly-core.cabal
           , test/streamly-tests.cabal
           , benchmark/streamly-benchmarks.cabal
+          , benchmark_core/streamly-core-benchmarks.cabal
           , docs/streamly-docs.cabal

@@ -1,0 +1,210 @@
+cabal-version:      2.2
+name:               streamly-core-benchmarks
+version:            0.0.0
+synopsis:           Benchmarks for streamly-core
+description: Benchmarks are separated from the main package because we
+  want to have a library for benchmarks to reuse the code across different
+  benchmark executables. For example, we have common benchmarking code for
+  different types of streams. We need different benchmarking executables
+  for serial, async, ahead style streams, therefore, we need to use
+  the common code in several benchmarks, just changing the type of
+  the stream. It takes a long time to compile this file and it gets
+  compiled for each benchmark once if we do not have a library.  Cabal
+  does not support internal libraries without per-component builds and
+  per-component builds are not supported with Configure, so we are not
+  left with any other choice.
+
+flag fusion-plugin
+  description: Use fusion plugin for benchmarks and executables
+  manual: True
+  default: False
+
+flag limit-build-mem
+  description: Limits memory when building the executables
+  manual: True
+  default: False
+
+flag inspection
+  description: Enable inspection testing
+  manual: True
+  default: False
+
+flag debug
+  description: Debug build with asserts enabled
+  manual: True
+  default: False
+
+flag dev
+  description: Development build
+  manual: True
+  default: False
+
+flag include-strict-utf8
+  description: Include strict utf8 input benchmarks
+  manual: True
+  default: False
+
+flag has-llvm
+  description: Use llvm backend for better performance
+  manual: True
+  default: False
+
+flag opt
+  description: off=-O0 (faster builds), on=-O2
+  manual: True
+  default: True
+
+flag use-gauge
+  description: Use gauge instead of tasty-bench for benchmarking
+  manual: True
+  default: False
+
+-------------------------------------------------------------------------------
+-- Common stanzas
+-------------------------------------------------------------------------------
+
+common compile-options
+    default-language: Haskell2010
+
+    if flag(dev)
+      cpp-options:    -DDEVBUILD
+
+    if flag(include-strict-utf8)
+      cpp-options:    -DINCLUDE_STRICT_UTF8
+
+    if flag(inspection)
+      cpp-options:    -DINSPECTION
+
+    ghc-options:      -Wall
+                      -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
+                      -Rghc-timing
+                      -Wmissing-export-lists
+
+    if flag(has-llvm)
+      ghc-options: -fllvm
+
+    if flag(dev)
+      ghc-options:    -Wmissed-specialisations
+                      -Wall-missed-specialisations
+
+    if flag(dev) || flag(debug)
+      ghc-options:    -fno-ignore-asserts
+
+common optimization-options
+  if flag(opt)
+    ghc-options: -O2
+                 -fdicts-strict
+                 -fspec-constr-recursive=16
+                 -fmax-worker-args=16
+    if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+      ghc-options: -fplugin Fusion.Plugin
+  else
+    ghc-options: -O0
+
+common lib-options
+  import: compile-options, optimization-options
+
+common bench-depends
+  build-depends:
+    -- Core libraries shipped with ghc, the min and max
+    -- constraints of these libraries should match with
+    -- the GHC versions we support
+      base                >= 4.9   && < 4.17
+    , deepseq             >= 1.4.1 && < 1.5
+    , mtl                 >= 2.2   && < 2.3
+
+    -- other libraries
+    , streamly-core
+    , random              >= 1.0   && < 2.0
+    , transformers        >= 0.4   && < 0.7
+    , containers          >= 0.5   && < 0.7
+    , hashable            >= 1.3   && < 1.5
+    , unordered-containers >= 0.2 && < 0.3
+    , process             >= 1.4 && < 1.7
+    , directory         >= 1.2.2 && < 1.4
+    , filepath          >= 1.4.1 && < 1.5
+    , ghc-prim          >= 0.4   && < 0.9
+
+  if flag(use-gauge)
+    build-depends:  gauge >= 0.2.4 && < 0.3
+  else
+    build-depends:    tasty-bench >= 0.3 && < 0.4
+                    , tasty     >= 1.4.1 && < 1.5
+    mixins: tasty-bench
+      (Test.Tasty.Bench as Gauge
+      , Test.Tasty.Bench as Gauge.Main
+      )
+
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    build-depends:
+        fusion-plugin     >= 0.2   && < 0.3
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.17
+                     , inspection-testing >= 0.4   && < 0.5
+                     , ghc-prim           >= 0.2   && < 0.9
+  -- Array uses a Storable constraint in dev build making several inspection
+  -- tests fail
+  if flag(dev) && flag(inspection)
+    build-depends: inspection-and-dev-flags-cannot-be-used-together
+
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
+library
+    import: lib-options, bench-depends
+    hs-source-dirs: lib
+    exposed-modules: Streamly.Benchmark.Common
+                   , Streamly.Benchmark.Common.Handle
+
+-------------------------------------------------------------------------------
+-- Benchmarks
+-------------------------------------------------------------------------------
+
+common bench-options
+  import: compile-options, optimization-options, bench-depends
+  include-dirs: .
+  ghc-options: -rtsopts
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M512M -RTS
+  build-depends: streamly-core-benchmarks == 0.0.0
+
+-- Some benchmarks are threaded some are not
+common bench-options-threaded
+  import: compile-options, optimization-options, bench-depends
+  -- -threaded and -N2 is important because some GC and space leak issues
+  -- trigger only with these options.
+  ghc-options: -threaded -rtsopts -with-rtsopts "-N2"
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M512M -RTS
+  build-depends: streamly-core-benchmarks == 0.0.0
+
+-------------------------------------------------------------------------------
+-- Raw Streams
+-------------------------------------------------------------------------------
+
+benchmark Data.Stream.StreamD
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamD.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.StreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True

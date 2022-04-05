@@ -1,0 +1,3 @@
+packages: streamly-core-benchmarks.cabal
+        , ../streamly.cabal
+        , ../core/streamly-core.cabal
