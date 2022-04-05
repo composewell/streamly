@@ -193,27 +193,27 @@ partitionByMinM =
 
 {-# INLINE demuxWith  #-}
 demuxWith :: (Monad m, Ord k) =>
-    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
 demuxWith f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithInt  #-}
 demuxWithInt :: Monad m =>
-    (a -> Int) -> (Int -> Fold m a b) -> SerialT m a -> m (IntMap b)
+    (a -> Int) -> (Int -> m (Fold m a b)) -> SerialT m a -> m (IntMap b)
 demuxWithInt f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithHash  #-}
 demuxWithHash :: (Monad m, Ord k, Hashable k) =>
-    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
 demuxWithHash f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxMutWith  #-}
 demuxMutWith :: (MonadIO m, Ord k) =>
-    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
 demuxMutWith f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE demuxMutWithHash  #-}
 demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
-    (a -> k) -> (k -> Fold m a b) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
 demuxMutWithHash f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE classifyWith #-}
@@ -468,7 +468,7 @@ o_n_heap_serial value =
     getKey buckets = (`mod` buckets)
 
     getFold k =
-        case k of
+        return $ case k of
             0 -> FL.sum
             1 -> FL.length
             _ -> FL.length

@@ -1497,7 +1497,7 @@ partition = partitionBy id
 {-# INLINE demuxScanWith #-}
 demuxScanWith :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> Fold m a b)
+    -> (Key f -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
 demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 
@@ -1521,7 +1521,7 @@ demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 
     step (Tuple' kv _) a = do
         let k = getKey a
-        let fld = getFold k
+        fld <- getFold k
         case IsMap.mapLookup k kv of
             Nothing -> runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
@@ -1544,7 +1544,7 @@ demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 {-# INLINE demuxScanMutWith #-}
 demuxScanMutWith :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> Fold m a b)
+    -> (Key f -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
 demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
 
@@ -1586,7 +1586,7 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                let f = getFold k
+                f <- getFold k
                 initFold kv f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
@@ -1607,7 +1607,7 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
 --
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (Key f -> Fold m a b) -> Fold m a (f b)
+    (a -> Key f) -> (Key f -> m (Fold m a b)) -> Fold m a (f b)
 demuxWith getKey getFold =
     let
         classifier = demuxScanWith getKey getFold
@@ -1625,7 +1625,7 @@ demuxWith getKey getFold =
 --
 {-# INLINE demuxMutWith #-}
 demuxMutWith :: (MonadIO m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (Key f -> Fold m a b) -> Fold m a (f b)
+    (a -> Key f) -> (Key f -> m (Fold m a b)) -> Fold m a (f b)
 demuxMutWith getKey getFold =
     let
         classifier = demuxScanMutWith getKey getFold
@@ -1641,8 +1641,8 @@ demuxMutWith getKey getFold =
 --
 -- >>> import Data.Map (Map)
 -- >>> :{
---  let f "SUM" = Fold.sum
---      f _ = Fold.product
+--  let f "SUM" = return Fold.sum
+--      f _ = return Fold.product
 --      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
 --   in Stream.fold (Fold.demux f) input :: IO (Map String Int)
 -- :}
@@ -1653,8 +1653,8 @@ demuxMutWith getKey getFold =
 -- /Pre-release/
 {-# INLINE demux #-}
 demux :: (Monad m, IsMap f, Traversable f) =>
-    (Key f -> Fold m a b) -> Fold m (Key f, a) (f b)
-demux f = demuxWith fst (lmap snd . f)
+    (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
+demux f = demuxWith fst (fmap (lmap snd) . f)
 
 ------------------------------------------------------------------------------
 -- Classify: Like demux but uses the same fold for all keys.
