@@ -32,9 +32,9 @@ module Streamly.Internal.Data.Unfold.Type
     , lmap
     , lmapM
     , map
-    , supply
-    , supplyFirst
-    , supplySecond
+    , both
+    , first
+    , second
 
     -- * Trimming
     , takeWhileMWithInput
@@ -190,42 +190,42 @@ lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
 -- @
--- supply a = Unfold.lmap (Prelude.const a)
+-- both a = Unfold.lmap (Prelude.const a)
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL supply #-}
-supply :: a -> Unfold m a b -> Unfold m Void b
-supply a = lmap (Prelude.const a)
+{-# INLINE_NORMAL both #-}
+both :: a -> Unfold m a b -> Unfold m Void b
+both a = lmap (Prelude.const a)
 
 -- | Supply the first component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the second component of the tuple
 -- as a seed.
 --
 -- @
--- supplyFirst a = Unfold.lmap (a, )
+-- first a = Unfold.lmap (a, )
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL supplyFirst #-}
-supplyFirst :: a -> Unfold m (a, b) c -> Unfold m b c
-supplyFirst a = lmap (a, )
+{-# INLINE_NORMAL first #-}
+first :: a -> Unfold m (a, b) c -> Unfold m b c
+first a = lmap (a, )
 
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
 -- as a seed.
 --
 -- @
--- supplySecond b = Unfold.lmap (, b)
+-- second b = Unfold.lmap (, b)
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL supplySecond #-}
-supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
-supplySecond b = lmap (, b)
+{-# INLINE_NORMAL second #-}
+second :: b -> Unfold m (a, b) c -> Unfold m a c
+second b = lmap (, b)
 
 ------------------------------------------------------------------------------
 -- Filter input

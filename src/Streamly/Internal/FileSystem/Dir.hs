@@ -172,7 +172,7 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Handle (Array Word8)
-readChunks = UF.supplyFirst readChunksWithBufferOf defaultChunkSize
+readChunks = UF.first readChunksWithBufferOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream

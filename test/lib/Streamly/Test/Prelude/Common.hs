@@ -1208,7 +1208,7 @@ transformCombineOpsCommon constr desc eq t = do
         forAll (choose (0, 100)) $ \n ->
             transform (concatMap (const [1..n]))
                 t (S.unfoldMany (UF.lmap (const undefined)
-                                   $ UF.supply [1..n] UF.fromList))
+                                   $ UF.both [1..n] UF.fromList))
 
 toListFL :: Monad m => FL.Fold m a [a]
 toListFL = FL.toList

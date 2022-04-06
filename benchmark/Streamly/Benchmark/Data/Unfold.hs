@@ -56,7 +56,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 -- generate numbers up to the argument value
 {-# INLINE source #-}
 source :: Monad m => Int -> Unfold m Int Int
-source n = UF.supplySecond n UF.enumerateFromToIntegral
+source n = UF.second n UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -75,7 +75,7 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.supplySecond to UF.enumerateFromToIntegral)
+    drainTransformation (UF.second to UF.enumerateFromToIntegral)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -98,7 +98,7 @@ drainProductDefault to = drainProduct src src
 
     where
 
-    src = UF.supplySecond to UF.enumerateFromToIntegral
+    src = UF.second to UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -114,26 +114,26 @@ lmapM :: Monad m => Int -> Int -> m ()
 lmapM size start =
     drainTransformationDefault (size + start) (UF.lmapM (return . (+) 1)) start
 
-{-# INLINE supply #-}
-supply :: Monad m => Int -> Int -> m ()
-supply size start =
-    drainTransformationDefault (size + start) (UF.supply start) undefined
+{-# INLINE both #-}
+both :: Monad m => Int -> Int -> m ()
+both size start =
+    drainTransformationDefault (size + start) (UF.both start) undefined
 
 
-{-# INLINE supplyFirst #-}
-supplyFirst :: Monad m => Int -> Int -> m ()
-supplyFirst size start =
+{-# INLINE first #-}
+first :: Monad m => Int -> Int -> m ()
+first size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
-        (UF.supplyFirst start)
+        (UF.first start)
         1
 
-{-# INLINE supplySecond #-}
-supplySecond :: Monad m => Int -> Int -> m ()
-supplySecond size start =
+{-# INLINE second #-}
+second :: Monad m => Int -> Int -> m ()
+second size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
-        (UF.supplySecond 1)
+        (UF.second 1)
         start
 
 {-# INLINE discardFirst #-}
@@ -256,7 +256,7 @@ enumerateFromThenIntegral size start =
 enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
 enumerateFromToIntegral size start =
     drainGeneration
-    ( UF.supplySecond
+    ( UF.second
       (size + start)
       UF.enumerateFromToIntegral
     ) start
@@ -280,7 +280,7 @@ enumerateFromToFractional :: Monad m => Int -> Int -> m ()
 enumerateFromToFractional size start =
     let intToDouble x = (fromInteger (fromIntegral x)) :: Double
      in drainGeneration
-            ( UF.supplySecond
+            ( UF.second
               (intToDouble $ start + size)
               UF.enumerateFromToFractional
             )
@@ -448,8 +448,8 @@ concatMapM value start =
     where
 
     val = nthRoot 2 value
-    unfoldInGen i = return (UF.supplySecond (i + val) UF.enumerateFromToIntegral)
-    unfoldOut = UF.supplySecond (start + val) UF.enumerateFromToIntegral
+    unfoldInGen i = return (UF.second (i + val) UF.enumerateFromToIntegral)
+    unfoldOut = UF.second (start + val) UF.enumerateFromToIntegral
 
 {-# INLINE toNull #-}
 toNull :: Monad m => Int -> Int -> m ()
@@ -619,9 +619,9 @@ o_1_space_transformation_input size =
           "transformation/input"
           [ benchIO "lmap" $ lmap size
           , benchIO "lmapM" $ lmapM size
-          , benchIO "supply" $ supply size
-          , benchIO "supplyFirst" $ supplyFirst size
-          , benchIO "supplySecond" $ supplySecond size
+          , benchIO "both" $ both size
+          , benchIO "first" $ first size
+          , benchIO "second" $ second size
           , benchIO "discardFirst" $ discardFirst size
           , benchIO "discardSecond" $ discardSecond size
           , benchIO "swap" $ swap size

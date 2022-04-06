@@ -185,9 +185,9 @@ module Streamly.Internal.Data.Unfold
     -- ** Mapping on Input
     , lmap
     , lmapM
-    , supply
-    , supplyFirst
-    , supplySecond
+    , both
+    , first
+    , second
     , discardFirst
     , discardSecond
     , swap

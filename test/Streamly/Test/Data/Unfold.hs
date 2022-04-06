@@ -71,19 +71,19 @@ lmapM =
     let unf = UF.lmapM (\x -> modify (+ 1) >> return x) (UF.function id)
      in testUnfoldMD unf 1 0 1 [1]
 
-supply :: Bool
-supply =
-    let unf = UF.supply 1 (UF.function id)
+both :: Bool
+both =
+    let unf = UF.both 1 (UF.function id)
      in testUnfold unf undefined ([1] :: [Int])
 
-supplyFirst :: Bool
-supplyFirst =
-    let unf = UF.supplyFirst 1 (UF.function id)
+first :: Bool
+first =
+    let unf = UF.first 1 (UF.function id)
      in testUnfold unf 2 ([(1, 2)] :: [(Int, Int)])
 
-supplySecond :: Bool
-supplySecond =
-    let unf = UF.supplySecond 1 (UF.function id)
+second :: Bool
+second =
+    let unf = UF.second 1 (UF.function id)
      in testUnfold unf 2 ([(2, 1)] :: [(Int, Int)])
 
 discardFirst :: Bool
@@ -589,9 +589,9 @@ testInputOps =
         $ do
             -- prop "lmap" lmap
             prop "lmapM" lmapM
-            prop "supply" supply
-            prop "supplyFirst" supplyFirst
-            prop "supplySecond" supplySecond
+            prop "both" both
+            prop "first" first
+            prop "second" second
             prop "discardFirst" discardFirst
             prop "discardSecond" discardSecond
             prop "swap" swap
