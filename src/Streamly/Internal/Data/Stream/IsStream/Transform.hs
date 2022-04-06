@@ -31,7 +31,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , tap
     , tapOffsetEvery
     , tapAsync
-    , tapAsyncK
     , distributeAsync_
     , tapRate
     , pollCounts
@@ -498,9 +497,8 @@ tapOffsetEvery offset n f xs =
 -- @
 --
 -- @
--- >>> Stream.drain $ Stream.tapAsync (Fold.drainBy print) (Stream.enumerateFromTo 1 2)
--- 1
--- 2
+-- >>> Stream.toList $ Stream.tapAsync (Stream.toList) (Stream.enumerateFromTo 1 2)
+-- [1,2]
 --
 -- @
 --
@@ -510,24 +508,14 @@ tapOffsetEvery offset n f xs =
 -- parent stream, but we guarantee that before the parent stream stops the tap
 -- finishes and all exceptions from it are drained.
 --
--- >>> tapAsync f = Stream.tapAsyncK (Stream.fold f . Stream.adapt)
+-- >>> tapAsync f = Stream.tapAsync (Stream.fold f . Stream.adapt)
 --
 -- Compare with 'tap'.
 --
 -- /Pre-release/
 {-# INLINE tapAsync #-}
-tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
-tapAsync f xs = fromStreamD $ Par.tapAsyncF f (toStreamD xs)
-
--- XXX We should keep only tapAsyncK as tapAsync can be implemented in terms
--- of tapAsyncK and it has better performance. Rename this to tapAsync.
-
--- | Like 'tapAsyncF' but uses a stream fold function instead of a 'Fold' type.
---
--- /Pre-release/
-{-# INLINE tapAsyncK #-}
-tapAsyncK :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
-tapAsyncK f m = fromStream $ Par.tapAsyncK (f . fromStream) (toStream m)
+tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
+tapAsync f m = fromStream $ Par.tapAsync (f . fromStream) (toStream m)
 
 -- XXX rename this to tapManyAsync_?
 --
@@ -552,7 +540,7 @@ tapAsyncK f m = fromStream $ Par.tapAsyncK (f . fromStream) (toStream m)
 {-# INLINE distributeAsync_ #-}
 distributeAsync_ :: (Foldable f, IsStream t, MonadAsync m)
     => f (t m a -> m b) -> t m a -> t m a
-distributeAsync_ = flip (Prelude.foldr tapAsyncK)
+distributeAsync_ = flip (Prelude.foldr tapAsync)
 
 -- | @pollCounts predicate transform fold stream@ counts those elements in the
 -- stream that pass the @predicate@. The resulting count stream is sent to

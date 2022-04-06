@@ -14,7 +14,6 @@ import Streamly.Prelude
        ( SerialT, fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
 
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Streamly.Benchmark.Common
@@ -69,13 +68,9 @@ parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
 -- Tapping
 -------------------------------------------------------------------------------
 
-{-# INLINE tapAsyncS #-}
-tapAsyncS :: S.MonadAsync m => Int -> SerialT m Int -> m ()
-tapAsyncS n = composeN n $ Internal.tapAsyncK S.sum
-
 {-# INLINE tapAsync #-}
 tapAsync :: S.MonadAsync m => Int -> SerialT m Int -> m ()
-tapAsync n = composeN n $ Internal.tapAsync FL.sum
+tapAsync n = composeN n $ Internal.tapAsync S.sum
 
 o_1_space_merge_app_tap :: Int -> [Benchmark]
 o_1_space_merge_app_tap value =
@@ -90,7 +85,6 @@ o_1_space_merge_app_tap value =
         , benchIOSink value "(|&)" (|&)
         , benchIOSink value "(|&.)" (|&.)
         , benchIOSink value "tapAsync" (tapAsync 1)
-        , benchIOSink value "tapAsyncS" (tapAsyncS 1)
         ]
     ]
 

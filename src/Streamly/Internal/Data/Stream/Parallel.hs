@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Stream.Parallel
     , mkParallelK
 
     -- * Tap Concurrently
-    , tapAsyncK
+    , tapAsync
     , tapAsyncF
 
     -- * Callbacks
@@ -337,9 +337,9 @@ mkParallelD m = D.Stream step Nothing
 -- Compare with 'tap'.
 --
 -- /Pre-release/
-{-# INLINE tapAsyncK #-}
-tapAsyncK :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
-tapAsyncK f m = K.mkStream $ \st yld sng stp -> do
+{-# INLINE tapAsync #-}
+tapAsync :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
+tapAsync f m = K.mkStream $ \st yld sng stp -> do
     sv <- SVar.newFoldSVar st (f . getSerialT)
     K.foldStreamShared st yld sng stp
         $ getSerialT (SVar.teeToSVar sv $ SerialT m)
