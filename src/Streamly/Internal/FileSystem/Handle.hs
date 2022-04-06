@@ -152,7 +152,7 @@ import qualified Streamly.Internal.Data.Unfold as UF
 -- >>> import qualified Streamly.Prelude as Stream
 --
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (supplyFirst)
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (first)
 -- >>> import qualified Streamly.Internal.FileSystem.Handle as Handle
 -- >>> import qualified Streamly.Internal.System.IO as IO (defaultChunkSize)
 
@@ -323,12 +323,12 @@ getChunks = getChunksWith defaultChunkSize
 -- size of arrays in the resulting stream are therefore less than or equal to
 -- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
 --
--- >>> readChunks = Unfold.supplyFirst IO.defaultChunkSize Handle.readChunksWith
+-- >>> readChunks = Unfold.first IO.defaultChunkSize Handle.readChunksWith
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Handle (Array Word8)
-readChunks = UF.supplyFirst defaultChunkSize readChunksWith
+readChunks = UF.first defaultChunkSize readChunksWith
 
 -------------------------------------------------------------------------------
 -- Read File to Stream

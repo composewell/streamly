@@ -406,7 +406,7 @@ readChunksWithBufferOf = readChunksWith
 -- @since 0.7.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Socket (Array Word8)
-readChunks = UF.supplyFirst defaultChunkSize readChunksWith
+readChunks = UF.first defaultChunkSize readChunksWith
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -461,7 +461,7 @@ readWithBufferOf = readWith
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Socket Word8
-read = UF.supplyFirst defaultChunkSize readWith
+read = UF.first defaultChunkSize readWith
 
 -------------------------------------------------------------------------------
 -- Writing

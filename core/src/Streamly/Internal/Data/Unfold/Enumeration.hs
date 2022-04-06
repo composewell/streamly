@@ -226,7 +226,7 @@ enumerateFromThenToIntegral =
 {-# INLINE enumerateFromIntegralBounded #-}
 enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) =>
     Unfold m a a
-enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
+enumerateFromIntegralBounded = second maxBound enumerateFromToIntegral
 
 {-# INLINE enumerateFromThenIntegralBounded #-}
 enumerateFromThenIntegralBounded :: (Monad m, Integral a, Bounded a ) =>
@@ -351,7 +351,7 @@ enumerateFromThenToSmall =
 --
 {-# INLINE enumerateFromSmallBounded #-}
 enumerateFromSmallBounded :: (Monad m, Enum a, Bounded a) => Unfold m a a
-enumerateFromSmallBounded = supplySecond maxBound enumerateFromToSmall
+enumerateFromSmallBounded = second maxBound enumerateFromToSmall
 
 -- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
 -- with stride of (fromEnum next - fromEnum from) till maxBound.
