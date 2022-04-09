@@ -231,8 +231,8 @@ extra-doc-files:
     docs/User/Tutorials/*.hs
     docs/User/HowTo/*.md
     docs/User/HowTo/*.svg
-    docs/User/Explanation/*.md
-    docs/User/Explanation/streaming-pradigms.rst
+    docs/User/Explanatory/*.md
+    docs/User/Explanatory/streaming-pradigms.rst
     docs/User/ProjectRelated/*.md
     docs/User/ProjectRelated/Roadmap.link
     docs/User/ProjectRelated/API-changelog.txt
