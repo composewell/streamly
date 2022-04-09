@@ -335,6 +335,18 @@ dependencies. May show additional ghc boot libraries.
 $ nix-shell --run "ghc-pkg dot | dot -Tpdf > streamly.pdf"
 ```
 
+## Checking for broken symlinks
+
+The following command - when run from the repository root - finds all the
+broken symlinks in the project.
+
+```
+find . -xtype l \
+    -not -path "./dist*" \
+    -not -path "./.stack*" \
+    -not -path "./benchmark/bench-report/dist*"
+```
+
 ## Checking for broken links in the markdown files
 
 You can use [markdown-link-check](https://github.com/tcort/markdown-link-check)
