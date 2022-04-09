@@ -227,6 +227,7 @@ extra-doc-files:
     docs/Developer/*.png
     docs/Developer/*.md
     docs/Developer/*.rst
+    docs/User/*.md
     docs/User/Tutorials/*.md
     docs/User/Tutorials/*.hs
     docs/User/HowTo/*.md
