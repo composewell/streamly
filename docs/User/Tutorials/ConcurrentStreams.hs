@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
--- Module      : Tutorials.ConcurrentStreams
+-- Module      : User.Tutorials.ConcurrentStreams
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -10,7 +10,7 @@
 -- declarative concurrent programming.  Before you go through this tutorial we
 -- recommend that you take a look at the Streamly serial streams tutorial.
 
-module Tutorials.ConcurrentStreams
+module User.Tutorials.ConcurrentStreams
     (
     -- * Concurrent Streams
     -- $concurrentStreams

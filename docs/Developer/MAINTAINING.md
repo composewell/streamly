@@ -138,7 +138,7 @@
     * Wait for final CI tests to pass:
 
         * Mask out the build status lines from the
-          [docs/Introduction.md](/docs/Tutorials/Introduction.md)
+          [docs/Introduction.md](/docs/User/Tutorials/Introduction.md)
         * Upload to hackage
           * Use a clean workspace to create source distribution
           by freshly cloning the git repository. The reason for
