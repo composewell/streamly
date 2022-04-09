@@ -16,12 +16,12 @@ build-type:         Simple
 -------------------------------------------------------------------------------
 
 extra-doc-files:
-  Tutorials/*.md
-  HowTo/*.md
-  Explanation/*.md
-  Explanation/streaming-pradigms.rst
-  ProjectRelated/*.md
-  ProjectRelated/Roadmap.link
+  User/Tutorials/*.md
+  User/HowTo/*.md
+  User/Explanation/*.md
+  User/Explanation/streaming-pradigms.rst
+  User/ProjectRelated/*.md
+  User/ProjectRelated/Roadmap.link
   Developer/*.png
   Developer/*.md
   Developer/*.rst
@@ -31,9 +31,9 @@ library
   ghc-options:      -Wall
   hs-source-dirs:    .
   exposed-modules:
-    Tutorials.Tutorial
-    Tutorials.ConcurrentStreams
-    Tutorials.ReactiveProgramming
+    User.Tutorials.Tutorial
+    User.Tutorials.ConcurrentStreams
+    User.Tutorials.ReactiveProgramming
 
   build-depends:
       base              >= 4.9   &&  < 4.17

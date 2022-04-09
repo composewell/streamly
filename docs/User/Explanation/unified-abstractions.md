@@ -8,7 +8,7 @@ ecosystem.
 This document discusses the related packages in the Haskell ecosystem
 and how streamly unifies, overlaps, or compares with those. We provide
 simple code snippets for illustrations, for a better overview of the
-library please see the [Streamly Quick Overview](/docs/Tutorials/Introduction.md) document.
+library please see the [Streamly Quick Overview](/docs/User/Tutorials/Introduction.md) document.
 
 ## Existing Haskell Libraries
 
@@ -94,7 +94,7 @@ uses a vector-like stream representation which is amenable to
 low-level code having performance comparable to C.
 
 To further understand the similarity with list API, please see [Streamly vs.
-lists](/docs/HowTo/streamly-vs-lists.md).
+lists](/docs/User/HowTo/streamly-vs-lists.md).
 For comparison of Streamly performance with other libraries see
 [streaming benchmarks](https://github.com/composewell/streaming-benchmarks).
 
@@ -161,7 +161,7 @@ The same combinators that are used for serial streams e.g. 'unfoldrM',
 'replicateM', 'repeatM' work concurrently when used at the appropriate type.
 It allows concurrent programs to be written declaratively and composed
 idiomatically. They are not much different than serial programs.  See
-[Streamly vs async](/docs/HowTo/streamly-vs-async.md)
+[Streamly vs async](/docs/User/HowTo/streamly-vs-async.md)
 for a comparison of Streamly with the `async` package.
 
 Streamly provides concurrent scheduling and looping similar to to
