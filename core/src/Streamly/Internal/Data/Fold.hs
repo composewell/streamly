@@ -1482,6 +1482,10 @@ partition = partitionBy id
 -- XXX If we use Refold in it, it can perhaps fuse/be more efficient. For
 -- example we can store just the result rather than storing the whole fold in
 -- the Map.
+--
+-- Note: There are separate functions to determine Key and Fold from the input
+-- because key is to be determined on each input whereas fold is to be
+-- determined only once for a key.
 
 -- | In a key value stream, fold values corresponding to each key with a key
 -- specific fold. The fold returns the fold result as the second component of
@@ -1497,7 +1501,7 @@ partition = partitionBy id
 {-# INLINE demuxScanWith #-}
 demuxScanWith :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
 demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 
@@ -1521,9 +1525,10 @@ demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 
     step (Tuple' kv _) a = do
         let k = getKey a
-        fld <- getFold k
         case IsMap.mapLookup k kv of
-            Nothing -> runFold kv fld (k, a)
+            Nothing -> do
+                fld <- getFold a
+                runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
 
     extract (Tuple' kv x) = (Prelude.mapM f kv, x)
@@ -1544,7 +1549,7 @@ demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
 {-# INLINE demuxScanMutWith #-}
 demuxScanMutWith :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
 demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
 
@@ -1586,7 +1591,7 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold k
+                f <- getFold a
                 initFold kv f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
@@ -1607,7 +1612,7 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
 --
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (Key f -> m (Fold m a b)) -> Fold m a (f b)
+    (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
 demuxWith getKey getFold =
     let
         classifier = demuxScanWith getKey getFold
@@ -1625,7 +1630,7 @@ demuxWith getKey getFold =
 --
 {-# INLINE demuxMutWith #-}
 demuxMutWith :: (MonadIO m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (Key f -> m (Fold m a b)) -> Fold m a (f b)
+    (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
 demuxMutWith getKey getFold =
     let
         classifier = demuxScanMutWith getKey getFold
@@ -1654,7 +1659,7 @@ demuxMutWith getKey getFold =
 {-# INLINE demux #-}
 demux :: (Monad m, IsMap f, Traversable f) =>
     (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
-demux f = demuxWith fst (fmap (lmap snd) . f)
+demux f = demuxWith fst (\(k, _) -> fmap (lmap snd) (f k))
 
 ------------------------------------------------------------------------------
 -- Classify: Like demux but uses the same fold for all keys.

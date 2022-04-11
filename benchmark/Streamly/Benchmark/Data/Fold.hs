@@ -193,27 +193,27 @@ partitionByMinM =
 
 {-# INLINE demuxWith  #-}
 demuxWith :: (Monad m, Ord k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
 demuxWith f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithInt  #-}
 demuxWithInt :: Monad m =>
-    (a -> Int) -> (Int -> m (Fold m a b)) -> SerialT m a -> m (IntMap b)
+    (a -> Int) -> (a -> m (Fold m a b)) -> SerialT m a -> m (IntMap b)
 demuxWithInt f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithHash  #-}
 demuxWithHash :: (Monad m, Ord k, Hashable k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
 demuxWithHash f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxMutWith  #-}
 demuxMutWith :: (MonadIO m, Ord k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
 demuxMutWith f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE demuxMutWithHash  #-}
 demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
 demuxMutWithHash f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE classifyWith #-}
@@ -429,15 +429,15 @@ o_n_heap_serial value =
     , bgroup "key-value"
             [
               benchIOSink value "demuxWith (64 buckets) [sum, length]"
-                $ demuxWith (getKey 64) getFold
+                $ demuxWith (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxWithInt (64 buckets) [sum, length]"
-                $ demuxWithInt (getKey 64) getFold
+                $ demuxWithInt (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxWithHash (64 buckets) [sum, length]"
-                $ demuxWithHash (getKey 64) getFold
+                $ demuxWithHash (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxMutWith (64 buckets) [sum, length]"
-                $ demuxMutWith (getKey 64) getFold
+                $ demuxMutWith (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxMutWithHash (64 buckets) [sum, length]"
-                $ demuxMutWithHash (getKey 64) getFold
+                $ demuxMutWithHash (getKey 64) (getFold . getKey 64)
 
             -- classify: immutable
             , benchIOSink value "classifyWith (64 buckets) sum"

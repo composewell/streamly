@@ -590,7 +590,7 @@ demuxWith =
 
         input = Stream.fromList [1, 2, 3, 4 :: Int]
     in Stream.fold
-        (F.demuxWith getKey getFold)
+        (F.demuxWith getKey (getFold . getKey))
         input
         `shouldReturn`
         Data.Map.fromList [("PRODUCT",3),("SUM",6)]
