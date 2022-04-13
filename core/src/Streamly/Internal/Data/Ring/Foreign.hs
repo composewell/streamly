@@ -66,6 +66,7 @@ module Streamly.Internal.Data.Ring.Foreign
     , unsafeEqArrayN
 
     , slidingWindow
+    , slidingWindowWith
     ) where
 
 #include "ArrayMacros.h"
@@ -81,7 +82,7 @@ import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
-import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -524,7 +525,12 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 {-# INLINE slidingWindow #-}
 slidingWindow :: forall m a b. (MonadIO m, Storable a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b
-slidingWindow n (Fold step1 initial1 extract1) = Fold step initial extract
+slidingWindow n f = slidingWindowWith n (lmap fst f)
+
+{-# INLINE slidingWindowWith #-}
+slidingWindowWith :: forall m a b. (MonadIO m, Storable a)
+    => Int -> Fold m ((a, Maybe a), (Ring a, Ptr a, Int)) b -> Fold m a b
+slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
 
@@ -543,7 +549,7 @@ slidingWindow n (Fold step1 initial1 extract1) = Fold step initial extract
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st (a, Nothing)
+            r <- step1 st ((a, Nothing), (rb, rh1, i + 1))
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
@@ -552,7 +558,7 @@ slidingWindow n (Fold step1 initial1 extract1) = Fold step initial extract
             old <- liftIO $ peek rh
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st (a, Just old)
+            r <- step1 st ((a, Just old),(rb, rh1, n) )
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
