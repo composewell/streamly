@@ -287,6 +287,8 @@ o_1_space_serial_elimination value =
         , benchIOSink value "drainN" (S.fold (FL.drainN value))
         , benchIOSink value "last" (S.fold FL.last)
         , benchIOSink value "length" (S.fold FL.length)
+        , benchIOSink value "top" (S.fold $ FL.top 10)
+        , benchIOSink value "bottom" (S.fold $ FL.bottom 10)
         , benchIOSink value "sum" (S.fold FL.sum)
         , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
         , benchIOSink value "product" (S.fold FL.product)

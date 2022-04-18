@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Data.List (sort)
 import Data.Semigroup (Sum(..), getSum)
 import Streamly.Test.Common (checkListEqual, listEquals)
 import Test.QuickCheck
@@ -13,13 +14,16 @@ import Test.QuickCheck
     , property
     , vectorOf
     , withMaxSuccess
+    , generate
     )
+import Control.Monad.IO.Class (liftIO)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Data.Fold as FL
 
@@ -640,6 +644,30 @@ scan = forAll (listOf (chooseInt (0, 100))) $ \lst ->
     let v2 = scanl (+) 0 lst
     assert (v1 == v2)
 
+topBy :: Bool -> Property
+topBy isTop = forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
+        monadicIO $ action ls0
+
+        where
+
+        action ls = do
+
+            let n0 = Prelude.length ls
+            n <- liftIO $ generate $ chooseInt (-2, n0 + 2)
+            if isTop
+            then do
+                lst <- S.fold (F.top n) (S.fromList ls) >>= MA.toList
+                assert ((Prelude.take n . Prelude.reverse . sort) ls ==  lst)
+            else do
+                lst <- S.fold (F.bottom n) (S.fromList ls) >>= MA.toList
+                assert ((Prelude.take n . sort) ls ==  lst)
+
+top :: Property
+top = topBy True
+
+bottom :: Property
+bottom = topBy False
+
 moduleName :: String
 moduleName = "Data.Fold"
 
@@ -688,6 +716,8 @@ main = hspec $ do
         prop "any" $ Main.any predicate
         prop "and" Main.and
         prop "or" Main.or
+        prop "top" Main.top
+        prop "bottom" Main.bottom
 
         -- Combinators
 

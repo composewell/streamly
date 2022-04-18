@@ -269,6 +269,8 @@ module Streamly.Internal.Data.Fold
     , snoc
     , duplicate
     , finish
+    , top
+    , bottom
 
     -- * Deprecated
     , sequence
@@ -286,6 +288,7 @@ import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
+import Foreign.Storable (Storable)
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -296,6 +299,7 @@ import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Prelude
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 
@@ -320,6 +324,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
+-- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
 ------------------------------------------------------------------------------
 -- hoist
@@ -2121,3 +2126,57 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
 
     {-# INLINE_LATE consume #-}
     consume s a = inject a >>= produce s
+
+{-# INLINE topBy #-}
+topBy :: (MonadIO m, Storable a) =>
+       (a -> a -> Ordering)
+    -> Int
+    -> Fold m a (MA.Array a)
+topBy cmp n = Fold step initial extract
+
+    where
+
+    initial = do
+        arr <- MA.newArray n
+        if n <= 0
+        then return $ Done arr
+        else return $ Partial (arr, 0)
+
+    step (arr, i) x =
+        if i < n
+        then do
+            arr' <- MA.snoc arr x
+            MA.bubble cmp arr'
+            return $ Partial (arr', i + 1)
+        else do
+            x1 <- MA.getIndexUnsafe (i - 1) arr
+            case x `cmp` x1 of
+                LT -> do
+                    MA.putIndexUnsafe (i - 1) x arr
+                    MA.bubble cmp arr
+                    return $ Partial (arr, i)
+                _ -> return $ Partial (arr, i)
+
+    extract = return . fst
+
+-- | Fold the input stream to top n elements.
+--
+-- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
+-- >>> Stream.fold (Fold.top 3) stream >>= MA.toList
+-- [17,11,9]
+--
+-- /Pre-release/
+{-# INLINE top #-}
+top :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
+top = topBy $ flip compare
+
+-- | Fold the input stream to bottom n elements.
+--
+-- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
+-- >>> Stream.fold (Fold.bottom 3) stream >>= MA.toList
+-- [1,2,3]
+--
+-- /Pre-release/
+{-# INLINE bottom #-}
+bottom :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
+bottom = topBy compare

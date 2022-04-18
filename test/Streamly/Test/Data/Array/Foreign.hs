@@ -150,8 +150,8 @@ testAppend =
             assert (ls == lst)
 -}
 
-testBubbleAsc ::  Property
-testBubbleAsc =
+testBubbleWith :: Bool -> Property
+testBubbleWith asc =
    forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
         monadicIO $ action ls0
 
@@ -160,16 +160,26 @@ testBubbleAsc =
         action ls = do
             x <- S.fold (fldm ls) $ S.fromList ls
             lst <- MA.toList x
-            assert (sort ls == lst)
+            if asc
+            then assert (sort ls == lst)
+            else assert (sort ls == reverse lst)
 
         fldm ls =
             Fold.foldlM'
                 (\b a -> do
                     arr <- MA.snoc b a
-                    MA.bubbleAsc compare arr
+                    if asc
+                    then MA.bubble compare arr
+                    else MA.bubble (flip compare) arr
                     return arr
                 )
                 (MA.newArray $ length ls)
+
+testBubbleAsc ::  Property
+testBubbleAsc = testBubbleWith True
+
+testBubbleDesc ::  Property
+testBubbleDesc = testBubbleWith False
 
 main :: IO ()
 main =
@@ -182,6 +192,7 @@ main =
             -- XXX There is an issue https://github.com/composewell/streamly/issues/1577
             --prop "testAppend" testAppend
             prop "testBubbleAsc" testBubbleAsc
+            prop "testBubbleDesc" testBubbleDesc
             prop "length . fromStream === n" testLengthFromStream
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold

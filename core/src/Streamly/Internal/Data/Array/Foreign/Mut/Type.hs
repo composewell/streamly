@@ -142,7 +142,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , shuffleBy
     , divideBy
     , mergeBy
-    , bubbleAsc
+    , bubble
 
     -- * Casting
     , cast
@@ -2341,10 +2341,9 @@ strip eq arr@Array{..} = do
 -- that the array remains sorted in ascending order.
 --
 -- /Pre-release/
-{-# INLINE bubbleAsc #-}
-bubbleAsc :: (MonadIO m, Storable a) =>
-    (a -> a -> Ordering) -> Array a -> m ()
-bubbleAsc cmp0 arr =
+{-# INLINE bubble #-}
+bubble :: (MonadIO m, Storable a) => (a -> a -> Ordering) -> Array a -> m ()
+bubble cmp0 arr =
     when (l > 1) $ do
         x <- getIndexUnsafe (l - 1) arr
         go x (l - 2)
@@ -2357,8 +2356,8 @@ bubbleAsc cmp0 arr =
             if i >= 0
             then do
                 x1 <- getIndexUnsafe i arr
-                case x1 `cmp0` x of
-                    GT -> do
+                case x `cmp0` x1 of
+                    LT -> do
                         putIndexUnsafe (i + 1) x1 arr
                         go x (i - 1)
                     _ -> putIndexUnsafe (i + 1) x arr
