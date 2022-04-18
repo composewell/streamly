@@ -117,8 +117,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        chmod +x $CI_BENCH_SH
-        $CI_BENCH_SH --benchmarks "$CI_BENCHMARKS" --raw --append
+        cabal run report --project-file=cabal.project.report -- --benchmarks "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare
@@ -126,12 +125,10 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        chmod +x $CI_BENCH_SH
-        $CI_BENCH_SH --no-measure
+        cabal run report --project-file=cabal.project.report -- --no-measure
 
     - name: Compare benchmarks
       run: |
-        chmod +x $CI_BENCH_SH
 
         EXIT_STATUS=0
 
@@ -146,7 +143,7 @@ jobs:
 
           echo
           echo "Checking $bname for regressions greater than $cutoff percent"
-          ! $CI_BENCH_SH --benchmarks "$bname" \
+          ! cabal run report --project-file=cabal.project.report -- --benchmarks "$bname" \
                       --fields "$CI_FIELDS" \
                       --no-measure --silent \
                       --diff-cutoff-percent $cutoff \
