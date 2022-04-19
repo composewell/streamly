@@ -593,6 +593,7 @@ library
                      , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial
