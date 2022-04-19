@@ -87,6 +87,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 
 import Prelude hiding (length, concat, read)
@@ -513,23 +514,12 @@ unsafeFoldRingNM count rh f z rb@Ring {..} =
 
 data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 
--- | @slidingWindow collector@ is an incremental sliding window
--- fold that does not require all the intermediate elements in a computation.
--- This maintains n elements in the window, when a new element comes it slides
--- out the oldest element and the new element along with the old element are
--- supplied to the collector fold.
---
--- The Maybe is for the case when initially the window is filling and
--- there is no old element.
---
-{-# INLINE slidingWindow #-}
-slidingWindow :: forall m a b. (MonadIO m, Storable a)
-    => Int -> Fold m (a, Maybe a) b -> Fold m a b
-slidingWindow n f = slidingWindowWith n (lmap fst f)
-
+-- | IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
+-- a))@ action depends on when it is executed. It does not capture the sanpshot
+-- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
 slidingWindowWith :: forall m a b. (MonadIO m, Storable a)
-    => Int -> Fold m ((a, Maybe a), (Ring a, Ptr a, Int)) b -> Fold m a b
+    => Int -> Fold m ((a, Maybe a), (m (Array a))) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
@@ -545,11 +535,16 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
                     Partial s -> Partial $ Tuple4' rb rh (0 :: Int) s
                     Done b -> Done b
 
+    toArray foldRing rb rh = do
+        arr <- liftIO $ MA.newArray n
+        let snoc' b a = liftIO $ MA.snocUnsafe b a
+        foldRing rh snoc' arr rb
+
     step (Tuple4' rb rh i st) a
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st ((a, Nothing), (rb, rh1, i + 1))
+            r <- step1 st ((a, Nothing), toArray unsafeFoldRingM rb rh)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
@@ -558,10 +553,24 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
             old <- liftIO $ peek rh
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st ((a, Just old),(rb, rh1, n) )
+            r <- step1 st ((a, Just old), toArray unsafeFoldRingFullM rb rh)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
                     Done b -> Done b
 
     extract (Tuple4' _ _ _ st) = extract1 st
+
+-- | @slidingWindow collector@ is an incremental sliding window
+-- fold that does not require all the intermediate elements in a computation.
+-- This maintains @n@ elements in the window, when a new element comes it slides
+-- out the oldest element and the new element along with the old element are
+-- supplied to the collector fold.
+--
+-- The 'Maybe' type is for the case when initially the window is filling and
+-- there is no old element.
+--
+{-# INLINE slidingWindow #-}
+slidingWindow :: forall m a b. (MonadIO m, Storable a)
+    => Int -> Fold m (a, Maybe a) b -> Fold m a b
+slidingWindow n f = slidingWindowWith n (lmap fst f)
