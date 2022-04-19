@@ -173,7 +173,7 @@ takeBetween =
                 in
                     case S.parseD (P.takeBetween m n FL.toList) (S.fromList ls) of
                         Right parsed_list ->
-                            if m <= list_length && n >= list_length
+                            if m <= list_length && n >= m
                             then
                                 let lpl = Prelude.length parsed_list
                                 in checkListEqual parsed_list (Prelude.take
