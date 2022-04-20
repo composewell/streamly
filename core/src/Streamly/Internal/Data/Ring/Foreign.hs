@@ -514,7 +514,11 @@ unsafeFoldRingNM count rh f z rb@Ring {..} =
 
 data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 
--- | IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
+-- | Like slidingWindow but also provides the entire ring contents as an Array.
+-- The array reflects the state of the ring after inserting the incoming
+-- element.
+--
+-- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
 -- a))@ action depends on when it is executed. It does not capture the sanpshot
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
@@ -544,7 +548,7 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st ((a, Nothing), toArray unsafeFoldRingM rb rh)
+            r <- step1 st ((a, Nothing), toArray unsafeFoldRingM rb rh1)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
@@ -553,7 +557,7 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
             old <- liftIO $ peek rh
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st ((a, Just old), toArray unsafeFoldRingFullM rb rh)
+            r <- step1 st ((a, Just old), toArray unsafeFoldRingFullM rb rh1)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
