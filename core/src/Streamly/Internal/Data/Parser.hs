@@ -678,8 +678,8 @@ groupBy :: MonadCatch m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy eq = D.toParserK . D.groupBy eq
 
 -- | Unlike 'groupBy' this combinator performs a rolling comparison of two
--- successive elements in the input stream.  Assuming the input stream to the
--- parser is @[a,b,c,...]@ and the comparison function is @cmp@, the parser
+-- successive elements in the input stream.  Assuming the input stream
+-- is @[a,b,c,...]@ and the comparison function is @cmp@, the parser
 -- first assigns the element @a@ to the first group, then if @a \`cmp` b@ is
 -- 'True' @b@ is also assigned to the same group.  If @b \`cmp` c@ is 'True'
 -- then @c@ is also assigned to the same group and so on. When the comparison

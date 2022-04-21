@@ -1265,7 +1265,7 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
             Skip s -> return $ Skip $ RollingMapGo s curr
             Stop   -> return Stop
 
--- rollingMap is a special case of an incremental sliding fold. It can be
+-- | rollingMap is a special case of an incremental sliding fold. It can be
 -- written as:
 --
 -- > fld f = slidingWindow 1 (Fold.foldl' (\_ (x,y) -> f y x)
