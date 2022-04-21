@@ -548,7 +548,8 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
             liftIO $ touchForeignPtr (ringStart rb)
-            r <- step1 st ((a, Nothing), toArray unsafeFoldRingM rb rh1)
+            let action = toArray unsafeFoldRingM rb (PTR_NEXT(rh, a))
+            r <- step1 st ((a, Nothing), action)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
