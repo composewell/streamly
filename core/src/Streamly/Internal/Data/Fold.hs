@@ -65,6 +65,7 @@ module Streamly.Internal.Data.Fold
     , rollingHashWithSalt
     , rollingHashFirstN
     -- , rollingHashLastN
+    , rollingMapM
 
     -- *** Saturating Reducers
     -- | 'product' terminates if it becomes 0. Other folds can theoretically
@@ -844,6 +845,29 @@ rollingHash = rollingHashWithSalt defaultSalt
 {-# INLINE rollingHashFirstN #-}
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
 rollingHashFirstN n = take n rollingHash
+
+-- | Apply a function on every two successive elements of a stream. The first
+-- argument of the map function is the previous element and the second argument
+-- is the current element. When processing the very first element in the
+-- stream, the previous element is 'Nothing'.
+--
+-- /Pre-release/
+--
+{-# INLINE rollingMapM #-}
+rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Fold m a b
+rollingMapM f = Fold step initial extract
+
+    where
+
+    -- XXX We need just a postscan. We do not need an initial result here.
+    -- Or we can supply a default initial result as an argument to rollingMapM.
+    initial = return $ Partial (Nothing, error "Empty stream")
+
+    step (prev, _) cur = do
+        x <- f prev cur
+        return $ Partial (Just cur, x)
+
+    extract = return . snd
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
