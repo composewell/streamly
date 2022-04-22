@@ -73,7 +73,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Prelude/Serial/*.hs
     benchmark/Streamly/Benchmark/Unicode/*.hs
     benchmark/lib/Streamly/Benchmark/*.hs
-    benchmark/lib/Streamly/Benchmark/Common/*.hs
+    --benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
     benchmark_core/README.md
     benchmark_core/Streamly/Benchmark/Data/Stream/StreamD.hs
