@@ -163,6 +163,7 @@ library
     exposed-modules: Streamly.Benchmark.Common
                    , Streamly.Benchmark.Common.Handle
 
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------

@@ -122,6 +122,7 @@ common bench-depends
     -- other libraries
     , streamly
     , streamly-core
+    , streamly-core-benchmarks
     , random              >= 1.0   && < 2.0
     , transformers        >= 0.4   && < 0.7
     , containers          >= 0.5   && < 0.7
@@ -161,9 +162,7 @@ common bench-depends
 library
     import: lib-options, bench-depends
     hs-source-dirs: lib
-    exposed-modules: Streamly.Benchmark.Common
-                   , Streamly.Benchmark.Common.Handle
-                   , Streamly.Benchmark.Prelude
+    exposed-modules: Streamly.Benchmark.Prelude
 
 -------------------------------------------------------------------------------
 -- Benchmarks
