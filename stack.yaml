@@ -1,6 +1,7 @@
 resolver: lts-18.27
 packages:
 - '.'
+- './benchmark_core'
 - './benchmark'
 - './test'
 - './core'
