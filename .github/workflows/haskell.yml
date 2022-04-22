@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.ignore_error }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         # The order is important to optimize fail-fast.
         name:
