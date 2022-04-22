@@ -31,15 +31,15 @@ import Prelude hiding (repeat, replicate, iterate)
 -------------------------------------------------------------------------------
 -- fromList
 -------------------------------------------------------------------------------
-{-
+
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
-sourceIsList value n = GHC.fromList [n..n+value]
+sourceIsList value n = S.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Int -> SerialT Identity Char
-sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
--}
+sourceIsString value n = S.replicate (n + value) 'a'
+
 
 {-# INLINE readInstance #-}
 readInstance :: String -> SerialT Identity Int
@@ -135,8 +135,8 @@ o_1_space_generation value =
         , benchIOSrc fromSerial "fracFromThenTo" (sourceFracFromThenTo value)
         , benchIOSrc fromSerial "fracFromTo" (sourceFracFromTo value)
         , benchIOSrc fromSerial "fromList" (sourceFromList value)
-      --  , benchPureSrc "IsList.fromList" (sourceIsList value)
-      --  , benchPureSrc "IsString.fromString" (sourceIsString value)
+        , benchPureSrc "IsList.fromList" (sourceIsList value)
+        , benchPureSrc "IsString.fromString" (sourceIsString value)
         , benchIOSrc fromSerial "fromListM" (sourceFromListM value)
         , benchIOSrc fromSerial "enumerateFrom" (enumerateFrom value)
         , benchIOSrc fromSerial "enumerateFromTo" (enumerateFromTo value)

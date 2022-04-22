@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module BenchReport where
+module Main where
 
 import Control.Exception (catch, ErrorCall(..))
 import Control.Monad (mzero)

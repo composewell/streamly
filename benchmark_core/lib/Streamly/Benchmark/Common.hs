@@ -55,9 +55,7 @@ import System.Random (randomRIO)
 
 import Gauge
 
-import qualified Streamly.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign as A
-type Stream = A.Array
+import qualified Streamly.Internal.Data.Stream.Serial as S
 
 -------------------------------------------------------------------------------
 -- Benchmark Prefixes
@@ -107,9 +105,8 @@ benchPureSink1 :: NFData b => String -> (Int -> Identity b) -> Benchmark
 benchPureSink1 name f =
     bench name $ nfIO $ randomRIO (1,1) >>= return . runIdentity . f
 
-{-# INLINE benchPureSrc #-}
-benchPureSrc :: String -> (Int -> Stream a) -> Benchmark
-benchPureSrc name src = benchPure name src id
+benchPureSrc :: String -> (Int -> S.SerialT Identity a) -> Benchmark
+benchPureSrc name src = benchPure name src (runIdentity . S.drain )
 
 -------------------------------------------------------------------------------
 -- String/List generation for read instances
