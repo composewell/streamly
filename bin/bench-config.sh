@@ -6,7 +6,7 @@ source $BENCH_CONFIG_DIR/targets.sh \
 
 # Customization options
 bench_config () {
-  BENCH_REPORT_DIR=benchmark_core/bench-report
+  BENCH_REPORT_DIR=benchmark/bench-report
   BENCHMARK_PACKAGE_NAME=streamly-benchmarks
   BENCHMARK_PACKAGE_VERSION=0.0.0
 
