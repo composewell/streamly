@@ -13,8 +13,8 @@ module Serial.Generation (benchmarks) where
 
 import Data.Functor.Identity (Identity)
 
-import qualified Prelude
-import qualified GHC.Exts as GHC
+--import qualified Prelude
+--import qualified GHC.Exts as GHC
 
 import qualified Streamly.Prelude  as S
 
@@ -31,7 +31,7 @@ import Prelude hiding (repeat, replicate, iterate)
 -------------------------------------------------------------------------------
 -- fromList
 -------------------------------------------------------------------------------
-
+{-
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
 sourceIsList value n = GHC.fromList [n..n+value]
@@ -39,6 +39,7 @@ sourceIsList value n = GHC.fromList [n..n+value]
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Int -> SerialT Identity Char
 sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
+-}
 
 {-# INLINE readInstance #-}
 readInstance :: String -> SerialT Identity Int
