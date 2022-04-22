@@ -66,6 +66,8 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
+    benchmark/bench-report/BenchReportRunner.hs
+    benchmark/bench-report/bench-report.cabal
     --benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
