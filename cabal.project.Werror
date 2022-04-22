@@ -1,5 +1,6 @@
 packages:
   ./
+  benchmark_core
   benchmark
   test
   core
