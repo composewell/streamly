@@ -23,3 +23,8 @@ default.nix
 examples/README.md
 hie.yaml
 stack.yaml
+benchmark/bench-report/BenchReportRunner.hs
+benchmark/bench-report/bench-report.cabal
+benchmark/bench-report/bin/bench-runner.sh
+benchmark/bench-report/bin/build-lib.sh
+benchmark/bench-report/cabal.project

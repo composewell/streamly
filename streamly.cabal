@@ -52,9 +52,9 @@ extra-source-files:
     benchmark/*.hs
     --benchmark/bench-report/BenchReport.hs
     --benchmark/bench-report/bench-report.cabal
-    benchmark/bench-report/bin/bench-runner.sh
-    benchmark/bench-report/bin/build-lib.sh
-    benchmark/bench-report/cabal.project
+    --benchmark/bench-report/bin/bench-runner.sh
+    --benchmark/bench-report/bin/build-lib.sh
+    --benchmark/bench-report/cabal.project
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
@@ -66,8 +66,8 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
-    benchmark/bench-report/BenchReportRunner.hs
-    benchmark/bench-report/bench-report.cabal
+    --benchmark/bench-report/BenchReportRunner.hs
+    --benchmark/bench-report/bench-report.cabal
     --benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
