@@ -68,7 +68,7 @@ jobs:
       with:
         path: |
             ~/.cabal
-            ./benchmark/bench-report/bin/bench-report
+            ./benchmark_core/bench-report/bin/bench-report
         # Bump the key version to clear the cache
         key: cache-v1
 
