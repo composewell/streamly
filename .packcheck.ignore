@@ -8,6 +8,7 @@
 .packcheck.ignore
 appveyor.yml
 benchmark/bench-report/default.nix
+benchmark/report/default.nix
 bin/ghc.sh
 bin/run-ci.sh
 bin/run-repl-quick.sh
