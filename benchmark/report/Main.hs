@@ -1,9 +1,9 @@
 module Main where
 
-import BuildLib (Quickness(..))
 import BenchRunner (mainWith)
-import Data.Map (Map)
+import BuildLib (Quickness(..))
 import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
+import Data.Map (Map)
 
 import qualified Data.Map as Map
 
@@ -15,8 +15,8 @@ groupTargets =
             , "Data.Stream.StreamK"
             , "Data.Stream.StreamDK"
             ])
-        , ("prelude_serial_grp", preudeSerialGrp)
-        , ("prelude_concurrent_grp", preudeConcurrentGrp)
+        , ("prelude_serial_grp", preludeSerialGrp)
+        , ("prelude_concurrent_grp", preludeConcurrentGrp)
         , ( "prelude_other_grp"
           , ["Prelude.Rate", "Prelude.Concurrent", "Prelude.Adaptive"])
         , ( "array_grp"
@@ -30,13 +30,13 @@ groupTargets =
         , ("parser_grp", ["Data.Fold", "Data.Parser"])
         , ("list_grp ", [])
         , ( "infinite_grp"
-          , preudeSerialGrp ++ preudeConcurrentGrp ++ ["Prelude.Rate"])
+          , preludeSerialGrp ++ preludeConcurrentGrp ++ ["Prelude.Rate"])
         ]
 
     where
 
-    preudeSerialGrp = ["Prelude.Serial", "Prelude.WSerial", "Prelude.ZipSerial"]
-    preudeConcurrentGrp =
+    preludeSerialGrp = ["Prelude.Serial", "Prelude.WSerial", "Prelude.ZipSerial"]
+    preludeConcurrentGrp =
         [ "Prelude.Async"
         , "Prelude.WAsync"
         , "Prelude.Ahead"
@@ -44,8 +44,8 @@ groupTargets =
         , "Prelude.ZipAsync"
         ]
 
-individualTargers :: [String]
-individualTargers =
+individualTargets :: [String]
+individualTargets =
     [ "Data.Unfold"
     , "Unicode.Stream"
     , "Unicode.Char"
@@ -53,8 +53,8 @@ individualTargers =
     , "FileSystem.Handle"
     ]
 
-comparisions :: Map String [String]
-comparisions =
+comparisons :: Map String [String]
+comparisons =
     Map.fromList
         [ ("base_stream_cmp", ["Data.Stream.StreamD", "Data.Stream.StreamK"])
         , ("serial_wserial_cmp", ["Prelude.Serial", "Prelude.WSerial"])
@@ -195,4 +195,4 @@ speedOpts exeName benchName0 = maybe benchSpecific Just exeSpecific
         | otherwise = Nothing
 
 main :: IO ()
-main = mainWith groupTargets individualTargers comparisions speedOpts rtsOpts
+main = mainWith groupTargets individualTargets comparisons speedOpts rtsOpts
