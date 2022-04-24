@@ -2,6 +2,7 @@ module Main where
 
 import BenchRunner (mainWith)
 import BuildLib (Quickness(..))
+import Control.Applicative ((<|>))
 import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Map (Map)
 
@@ -151,7 +152,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | otherwise = ""
 
 speedOpts :: String -> String -> Maybe Quickness
-speedOpts exeName benchName0 = maybe benchSpecific Just exeSpecific
+speedOpts exeName benchName0 = exeSpecific <|> benchSpecific
 
     where
 
