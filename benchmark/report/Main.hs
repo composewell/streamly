@@ -90,7 +90,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "o-n-sp" `isInfixOf` benchName = "-K1M -M32M"
         | otherwise = ""
     exeSpecific
-        | "Prelude.Concurrent" `isSuffixOf` exeName = "-K256K -M384M"
+        | "Prelude.Concurrent" `isSuffixOf` exeName = "-K512K -M384M"
         | otherwise = ""
     benchSpecific
         | "Data.Stream.StreamD/o-n-space.elimination.toList" == benchName =
@@ -101,13 +101,13 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Prelude.Parallel/o-n-heap.monad-outer-product."
              `isPrefixOf` benchName = "-M256M"
         | "Prelude.Parallel/o-n-space.monad-outer-product."
-             `isPrefixOf` benchName = "-M256M"
+             `isPrefixOf` benchName = "-K2M -M256M"
         | "Prelude.Rate/o-1-space." `isPrefixOf` benchName = "-K128K"
         | "Prelude.Rate/o-1-space.asyncly." `isPrefixOf` benchName = "-K128K"
         | "Prelude.Serial/o-1-space.mixed.sum-product-fold" == benchName =
             "-K64M"
-        | "Prelude.Serial/o-n-heap.grouping.classifySessionsOf" == benchName =
-            "-K1M -M32M"
+        | "Prelude.Serial/o-n-heap.grouping.classifySessionsOf"
+            `isPrefixOf` benchName = "-K1M -M32M"
         | "Prelude.Serial/o-n-heap.Functor." `isPrefixOf` benchName =
             "-K4M -M32M"
         | "Prelude.Serial/o-n-heap.transformer." `isPrefixOf` benchName =
