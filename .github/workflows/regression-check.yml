@@ -60,11 +60,14 @@ jobs:
         done
         echo "CI_BENCHMARKS=$CI_BENCHMARKS" >> $GITHUB_ENV
 
-    - name: Setup haskell
-      uses: actions/setup-haskell@v1
-      with:
-        ghc-version: 8.8.4
-        cabal-version: 3.2
+    - name: Download ghc
+      run: |
+        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/0.1.17.4/x86_64-linux-ghcup-0.1.17.4
+        chmod +x ./ghcup
+        GHCVER=8.10.7
+        ./ghcup install ghc $GHCVER
+        ./ghcup set ghc $GHCVER
+        cabal update
 
     - uses: actions/cache@v2
       name: Cache ~/.cabal and bench-report
