@@ -128,7 +128,7 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        cabal run report --project-file=cabal.project.report -- --no-measure
+        cabal run report --project-file=cabal.project.report -- --benchmarks "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks
       run: |
