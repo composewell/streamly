@@ -9,6 +9,7 @@
 appveyor.yml
 benchmark/bench-report/default.nix
 benchmark/report/default.nix
+benchmark/report/cabal.project
 bin/ghc.sh
 bin/run-ci.sh
 bin/run-repl-quick.sh
@@ -18,9 +19,12 @@ cabal.project.doctest
 cabal.project.ghc-head
 cabal.project.hpc-coveralls
 cabal.project.O0
+cabal.project.report
 cabal.project.Werror
 cabal.project.Werror-nocode
 default.nix
 examples/README.md
 hie.yaml
 stack.yaml
+targets/default.nix
+targets/cabal.project

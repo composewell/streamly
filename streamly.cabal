@@ -54,6 +54,8 @@ extra-source-files:
     benchmark/bench-report/bin/bench-runner.sh
     benchmark/bench-report/bin/build-lib.sh
     benchmark/bench-report/cabal.project
+    benchmark/report/Main.hs
+    benchmark/report/report.cabal
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
@@ -84,6 +86,8 @@ extra-source-files:
     configure.ac
     docs/*.hs
     docs/streamly-docs.cabal
+    targets/streamly-targets.cabal
+    targets/Targets.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs
@@ -214,9 +218,6 @@ extra-source-files:
     core/streamly-core.cabal
     core/jsbits/clock.js
     core/Setup.hs
-    benchmark/report/Main.hs
-    benchmark/report/report.cabal
-    cabal.project.report
 
 extra-doc-files:
     CONTRIBUTING.md

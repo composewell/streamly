@@ -1,4 +1,5 @@
 packages:
+  targets/streamly-targets.cabal
   benchmark/report/report.cabal
   streamly.cabal
   core/streamly-core.cabal

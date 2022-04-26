@@ -42,8 +42,7 @@ let haskellPackages =
             overrides = self: super:
                 with nixpkgs.haskell.lib;
                 {
-                    report = mkPackage super "report" ./. "" inShell;
-                    streamly-targets = mkPackage super "streamly-targets" ../../targets "" false;
+                    report = mkPackage super "streamly-targets" ./. "" inShell;
 
                     bench-report =
                       nixpkgs.haskell.lib.overrideCabal
@@ -161,4 +160,4 @@ let haskellPackages =
     };
 in if nixpkgs.lib.inNixShell
    then shell
-   else (mkHaskellPackages false).report
+   else (mkHaskellPackages false).streamly-targets

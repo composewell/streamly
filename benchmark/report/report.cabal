@@ -26,6 +26,7 @@ version:            0.1.0.0
 -- extra-source-files: CHANGELOG.md
 
 executable report
+    ghc-options: -Wall
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
@@ -36,5 +37,6 @@ executable report
     build-depends:    base
                     , bench-report
                     , containers
+                    , streamly-targets
     hs-source-dirs:   .
     default-language: Haskell2010
