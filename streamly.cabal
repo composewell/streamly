@@ -88,6 +88,8 @@ extra-source-files:
     docs/streamly-docs.cabal
     targets/streamly-targets.cabal
     targets/Targets.hs
+    test/report/Main.hs
+    test/report/streamly-test-report.cabal
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs

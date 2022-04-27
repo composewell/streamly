@@ -265,6 +265,7 @@ $RTS_OPTIONS \
   then
     # Escape "\" and double quotes in benchmark names
     BENCH_NAME_ESC=$(echo "$BENCH_NAME_ORIG" | sed -e 's/\\/\\\\/g' | sed -e 's/"/\\"/g')
+    echo "$BENCH_NAME_ESC"
     $BENCH_EXEC_PATH \
       -j 1 \
       $RTS_OPTIONS1 \

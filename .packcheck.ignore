@@ -28,3 +28,5 @@ hie.yaml
 stack.yaml
 targets/default.nix
 targets/cabal.project
+test/report/default.nix
+test/report/cabal.project

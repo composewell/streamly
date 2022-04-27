@@ -7,29 +7,7 @@ import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
 import Data.Map (Map)
 
 import qualified Data.Map as Map
-import Targets
-
-comparisons :: Map String [String]
-comparisons =
-    Map.fromList
-        [ ("base_stream_cmp", ["Data.Stream.StreamD", "Data.Stream.StreamK"])
-        , ("serial_wserial_cmp", ["Prelude.Serial", "Prelude.WSerial"])
-        , ("serial_async_cmp", ["Prelude.Serial", "Prelude.Async"])
-        , ( "concurrent_cmp"
-          , [ "Prelude.Async"
-            , "Prelude.WAsync"
-            , "Prelude.Ahead"
-            , "Prelude.Parallel"
-            ])
-        , ( "array_cmp"
-          , [ "Data.Array.Foreign"
-            , "Data.Array.Prim"
-            , "Data.Array"
-            , "Data.Array.Prim.Pinned"
-            ])
-        , ("pinned_array_cmp", ["Data.Array.Foreign", "Data.Array.Prim.Pinned"])
-        , ("base_parser_cmp", ["Data.Parser.ParserD", "Data.Parser.ParserK"])
-        ]
+import Targets (targets)
 
 rtsOpts :: String -> String -> String
 rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
@@ -151,4 +129,4 @@ speedOpts exeName benchName0 = exeSpecific <|> benchSpecific
         | otherwise = Nothing
 
 main :: IO ()
-main = mainWith groupTargets individualTargets comparisons speedOpts rtsOpts
+main = mainWith targets speedOpts rtsOpts
