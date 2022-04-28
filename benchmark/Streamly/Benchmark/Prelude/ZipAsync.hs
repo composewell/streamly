@@ -56,7 +56,13 @@ o_1_space_joining value =
                                                        (value `div` 2))
         , benchIOSrc fromSerial "zipAsyncAp (2,x/2)" (zipAsyncAp (value `div` 2))
         , benchIOSink value "fmap zipAsyncly" $ fmapN S.fromZipAsync 1
-        , fromZipAsyncTraverse "ZipAsync Applicative (x/100)" (value `div` 100)
+        ]
+    ]
+
+o_n_heap_joining :: Int -> [Benchmark]
+o_n_heap_joining value =
+    [ bgroup "joining"
+        [ fromZipAsyncTraverse "ZipAsync Applicative (x/100)" (value `div` 100)
         ]
     ]
 
@@ -85,4 +91,5 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
             [ o_1_space_joining size
             , o_1_space_outerProduct size
             ]
+        , bgroup (o_n_heap_prefix moduleName) $ o_n_heap_joining size
         ]
