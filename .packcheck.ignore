@@ -7,9 +7,8 @@
 .hlint.yaml
 .packcheck.ignore
 appveyor.yml
-benchmark/bench-report/default.nix
-benchmark/report/default.nix
-benchmark/report/cabal.project
+benchmark/bench-runner/default.nix
+benchmark/bench-runner/cabal.project
 bin/ghc.sh
 bin/run-ci.sh
 bin/run-repl-quick.sh
@@ -28,5 +27,5 @@ hie.yaml
 stack.yaml
 targets/default.nix
 targets/cabal.project
-test/report/default.nix
-test/report/cabal.project
+test/test-runner/default.nix
+test/test-runner/cabal.project

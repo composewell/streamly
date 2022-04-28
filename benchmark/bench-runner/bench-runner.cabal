@@ -1,5 +1,5 @@
 cabal-version:      2.4
-name:               streamly-test-report
+name:               bench-runner
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
@@ -25,7 +25,8 @@ version:            0.1.0.0
 -- category:
 -- extra-source-files: CHANGELOG.md
 
-executable test-report
+executable bench-runner
+    ghc-options: -Wall
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.

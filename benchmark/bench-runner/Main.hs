@@ -4,9 +4,7 @@ import BenchRunner (mainWith)
 import BuildLib (Quickness(..))
 import Control.Applicative ((<|>))
 import Data.List (isInfixOf, isPrefixOf, isSuffixOf)
-import Data.Map (Map)
 
-import qualified Data.Map as Map
 import Targets (targets)
 
 rtsOpts :: String -> String -> String

@@ -70,11 +70,10 @@ jobs:
         cabal update
 
     - uses: actions/cache@v2
-      name: Cache ~/.cabal and bench-report
+      name: Cache ~/.cabal
       with:
         path: |
             ~/.cabal
-            ./benchmark/bench-report/bin/bench-report
         # Bump the key version to clear the cache
         key: cache-v1
 
@@ -120,7 +119,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        cabal run report --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw --append
+        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare
@@ -128,7 +127,7 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        cabal run report --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --no-measure
+        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks
       run: |
@@ -146,7 +145,8 @@ jobs:
 
           echo
           echo "Checking $bname for regressions greater than $cutoff percent"
-          ! cabal run report --project-file=cabal.project.report -- --targets "$bname" \
+          ! cabal run bench-runner --project-file=cabal.project.report -- \
+                      --targets "$bname" \
                       --fields "$CI_FIELDS" \
                       --no-measure --silent \
                       --diff-cutoff-percent $cutoff \

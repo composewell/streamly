@@ -1,7 +1,7 @@
 packages:
   targets/streamly-targets.cabal
-  benchmark/report/report.cabal
-  test/report/streamly-test-report.cabal
+  benchmark/bench-runner/bench-runner.cabal
+  test/test-runner/test-runner.cabal
   streamly.cabal
   core/streamly-core.cabal
 
