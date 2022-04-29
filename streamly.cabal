@@ -49,11 +49,8 @@ build-type:          Configure
 
 extra-source-files:
     benchmark/*.hs
-    benchmark/bench-report/BenchReport.hs
-    benchmark/bench-report/bench-report.cabal
-    benchmark/bench-report/bin/bench-runner.sh
-    benchmark/bench-report/bin/build-lib.sh
-    benchmark/bench-report/cabal.project
+    benchmark/bench-runner/Main.hs
+    benchmark/bench-runner/bench-runner.cabal
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
@@ -74,16 +71,16 @@ extra-source-files:
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
-    bin/bench.sh
-    bin/bench-config.sh
     bin/mk-hscope.sh
     bin/mk-tags.sh
-    bin/targets.sh
-    bin/test.sh
     configure
     configure.ac
     docs/*.hs
     docs/streamly-docs.cabal
+    targets/streamly-targets.cabal
+    targets/Targets.hs
+    test/test-runner/Main.hs
+    test/test-runner/test-runner.cabal
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs
