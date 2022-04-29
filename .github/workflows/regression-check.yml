@@ -16,7 +16,6 @@ on: pull_request
 jobs:
   check-regressions:
     env:
-      CI_BENCH_SH: bin/bench.sh
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Foreign
@@ -98,8 +97,7 @@ jobs:
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
-        chmod +x $CI_BENCH_SH
-        $CI_BENCH_SH --benchmarks "$CI_BENCHMARKS" --raw
+        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
