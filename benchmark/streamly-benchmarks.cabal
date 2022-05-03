@@ -59,6 +59,11 @@ flag use-gauge
   manual: True
   default: False
 
+flag bench-core
+  description: Benchmark only core package
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -120,8 +125,6 @@ common bench-depends
     , mtl                 >= 2.2   && < 2.3
 
     -- other libraries
-    , streamly
-    , streamly-core
     , random              >= 1.0   && < 2.0
     , transformers        >= 0.4   && < 0.7
     , containers          >= 0.5   && < 0.7
@@ -131,6 +134,12 @@ common bench-depends
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
     , ghc-prim          >= 0.4   && < 0.9
+
+  if flag(bench-core)
+    build-depends: streamly-core
+  else
+    build-depends: streamly
+        , streamly-core
 
   if flag(use-gauge)
     build-depends:  gauge >= 0.2.4 && < 0.3
@@ -162,8 +171,12 @@ library
     import: lib-options, bench-depends
     hs-source-dirs: lib
     exposed-modules: Streamly.Benchmark.Common
-                   , Streamly.Benchmark.Common.Handle
-                   , Streamly.Benchmark.Prelude
+                    , Streamly.Benchmark.Common.Handle
+    if flag(bench-core)
+        exposed-modules:
+    else
+        exposed-modules: Streamly.Benchmark.Prelude
+
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -205,15 +218,15 @@ benchmark Prelude.Serial
       , Serial.Split
       , Serial.Exceptions
       , Serial.Lift
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
   if flag(limit-build-mem)
     if flag(dev)
-      ghc-options: +RTS -M3500M -RTS
+    ghc-options: +RTS -M3500M -RTS
     else
-      ghc-options: +RTS -M2000M -RTS
+    ghc-options: +RTS -M2000M -RTS
 
 
 benchmark Prelude.WSerial
@@ -221,7 +234,7 @@ benchmark Prelude.WSerial
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: WSerial.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -233,7 +246,7 @@ benchmark Prelude.Merge
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Merge.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -243,7 +256,7 @@ benchmark Prelude.ZipSerial
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: ZipSerial.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -253,20 +266,19 @@ benchmark Prelude.ZipAsync
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: ZipAsync.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
   if flag(limit-build-mem)
     ghc-options: +RTS -M1000M -RTS
 
-
 benchmark Prelude.Ahead
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Ahead.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -276,7 +288,7 @@ benchmark Prelude.Async
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Async.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -286,7 +298,7 @@ benchmark Prelude.WAsync
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: WAsync.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -296,7 +308,7 @@ benchmark Prelude.Parallel
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Parallel.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -309,7 +321,7 @@ benchmark Data.Unfold
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unfold.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -319,7 +331,7 @@ benchmark Data.Fold
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Fold.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -329,13 +341,17 @@ benchmark Data.Fold.Window
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Fold
   main-is: Window.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Data.Parser.ParserD
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserD.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -351,7 +367,7 @@ benchmark Data.Parser.ParserK
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserK.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -367,7 +383,7 @@ benchmark Data.Parser.FromParserK
   hs-source-dirs: Streamly/Benchmark/Data/Parser
   cpp-options: -DFROM_PARSERK
   main-is: ParserK.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -378,7 +394,7 @@ benchmark Data.Parser
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Parser.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -441,13 +457,17 @@ benchmark Prelude.Concurrent
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Concurrent.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Prelude.Adaptive
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Adaptive.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -457,7 +477,7 @@ benchmark Prelude.Rate
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Rate.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -471,27 +491,47 @@ benchmark Data.Array
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Array.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Data.Array.Prim
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/Prim.hs
   build-depends: primitive
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Data.SmallArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Data.Array.Prim.Pinned
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/Prim/Pinned.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Data.Array.Foreign
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/Foreign.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
   if flag(limit-build-mem)
     ghc-options: +RTS -M1000M -RTS
 
@@ -499,6 +539,10 @@ benchmark Data.Array.Foreign.Mut
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/Foreign/Mut.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 -------------------------------------------------------------------------------
 -- Array Stream Benchmarks
@@ -509,7 +553,7 @@ benchmark Data.Array.Stream.Foreign
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Array/Stream
   main-is: Foreign.hs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -527,6 +571,10 @@ benchmark FileSystem.Handle
   other-modules:
       Handle.Read
     , Handle.ReadWrite
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 -------------------------------------------------------------------------------
 -- Unicode Benchmarks
@@ -537,6 +585,10 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Unicode.Char
   import: bench-options
@@ -544,7 +596,7 @@ benchmark Unicode.Char
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Char.hs
   -- Takes too much memory for ghcjs
-  if impl(ghcjs)
+  if flag(bench-core) || impl(ghcjs)
     buildable: False
 
 benchmark Unicode.Utf8
@@ -552,3 +604,7 @@ benchmark Unicode.Utf8
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Utf8.hs
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
