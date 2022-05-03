@@ -56,31 +56,33 @@ module Streamly.Internal.Data.Parser.ParserD
     -- sliceSepByMax cond n p = sliceBy cond (take n p)
     -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
-    --
+
     -- Grab a sequence of input elements without inspecting them
     , takeBetween
     -- , take -- take   -- takeBetween 0 n
     -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
+    , takeP
 
     -- Grab a sequence of input elements by inspecting them
-    , takeP
     , lookAhead
     , takeWhile
     , takeWhile1
+
+    -- Separators
     , sliceSepByP
     -- , sliceSepByBetween
     , sliceBeginWith
     -- , sliceSepWith
-    --
-    -- , frameSepBy -- parse frames escaped by an escape char/sequence
-    -- , frameEndWith
-    --
+
+    -- Words and grouping
     , wordBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
+
+    -- Matching strings
     , eqBy
     , matchBy
     -- , prefixOf -- match any prefix of a given string
@@ -573,6 +575,10 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
                 $ "takeGE: Expecting at least " ++ show cnt
                     ++ " elements, input terminated on " ++ show i
 
+-------------------------------------------------------------------------------
+-- Conditional splitting
+-------------------------------------------------------------------------------
+
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
 -- /Pre-release/
@@ -642,6 +648,10 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     extract (Left _) = throwM $ ParseError "takeWhile1: end of input"
     extract (Right s) = fextract s
 
+-------------------------------------------------------------------------------
+-- Separators
+-------------------------------------------------------------------------------
+
 -- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
 --
 -- /Pre-release/
@@ -704,6 +714,10 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
 
     extract (Left' s) = fextract s
     extract (Right' s) = fextract s
+
+-------------------------------------------------------------------------------
+-- Grouping and words
+-------------------------------------------------------------------------------
 
 data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 

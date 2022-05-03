@@ -85,9 +85,9 @@ module Streamly.Internal.Data.Parser
     -- , take   -- takeBetween 0 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
+    , takeP
 
     -- Grab a sequence of input elements by inspecting them
-    , takeP
     , lookAhead
     , takeWhileP
     , takeWhile
@@ -95,16 +95,22 @@ module Streamly.Internal.Data.Parser
     , takeWhile1
     , drainWhile
 
+    -- Separators
     , sliceSepByP
     , sliceBeginWith
     , sliceSepWith
+
+    -- Quoting and Escaping
     , escapedSliceSepBy
     , escapedFrameBy
+
+    -- Words and grouping
     , wordBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
     , eqBy
+
     -- | Unimplemented
     --
     -- @
@@ -498,6 +504,10 @@ takeEQ n = D.toParserK . D.takeEQ n
 takeGE :: MonadCatch m => Int -> Fold m a b -> Parser m a b
 takeGE n = D.toParserK . D.takeGE n
 
+-------------------------------------------------------------------------------
+-- Take until a condition
+-------------------------------------------------------------------------------
+
 -- $takeWhile
 -- Note: This is called @takeWhileP@ and @munch@ in some parser libraries.
 
@@ -561,6 +571,10 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 {-# INLINE drainWhile #-}
 drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
 drainWhile p = takeWhile p FL.drain
+
+-------------------------------------------------------------------------------
+-- Separators
+-------------------------------------------------------------------------------
 
 -- | @sliceSepByP cond parser@ parses a slice of the input using @parser@ until
 -- @cond@ succeeds or the parser stops.
@@ -630,6 +644,10 @@ sliceBeginWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith cond = D.toParserK . D.sliceBeginWith cond
 
+-------------------------------------------------------------------------------
+-- Quoting and Escaping
+-------------------------------------------------------------------------------
+
 -- | Like 'sliceSepBy' but the separator elements can be escaped using an
 -- escape char determined by the second predicate.
 --
@@ -668,6 +686,10 @@ escapedFrameBy :: -- MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 escapedFrameBy _begin _end _escape _p = undefined
     -- D.toParserK . D.frameBy begin end escape p
+
+-------------------------------------------------------------------------------
+-- Grouping and words
+-------------------------------------------------------------------------------
 
 -- | Like 'splitOn' but strips leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ having '.' as the separator would be parsed as
