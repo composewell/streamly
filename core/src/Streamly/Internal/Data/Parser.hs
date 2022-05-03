@@ -165,7 +165,8 @@ module Streamly.Internal.Data.Parser
     --
     -- @
     -- , endBy
-    -- , sepBy
+    , sepBy1
+    , sepBy
     -- , sepEndBy
     -- , beginBy
     -- , sepBeginBy
@@ -206,6 +207,7 @@ module Streamly.Internal.Data.Parser
     )
 where
 
+import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Prelude hiding
     (any, all, take, takeWhile, sequence, concatMap, maybe, either, filter)
@@ -764,6 +766,8 @@ groupByRollingEither :: MonadCatch m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
+-- XXX Use a stream instead of a list so that we can use any container type.
+
 -- | Match the given sequence of elements using the given comparison function.
 --
 -- >>> Stream.parse (Parser.eqBy (==) "string") $ Stream.fromList "string"
@@ -955,42 +959,6 @@ takeP :: MonadCatch m => Int -> Parser m a b -> Parser m a b
 takeP i p = D.toParserK $ D.takeP i $ D.fromParserK p
 
 -------------------------------------------------------------------------------
--- Interleaving
--------------------------------------------------------------------------------
---
--- To deinterleave we can chain two parsers one behind the other. The input is
--- given to the first parser and the input definitively rejected by the first
--- parser is given to the second parser.
---
--- We can either have the parsers themselves buffer the input or use the shared
--- global buffer to hold it until none of the parsers need it. When the first
--- parser returns Skip (i.e. rewind) we let the second parser consume the
--- rejected input and when it is done we move the cursor forward to the first
--- parser again. This will require a "move forward" command as well.
---
--- To implement grep we can use three parsers, one to find the pattern, one
--- to store the context behind the pattern and one to store the context in
--- front of the pattern. When a match occurs we need to emit the accumulator of
--- all the three parsers. One parser can count the line numbers to provide the
--- line number info.
---
--- | Apply two parsers alternately to an input stream. The input stream is
--- considered an interleaving of two patterns. The two parsers represent the
--- two patterns.
---
--- This undoes a "gintercalate" of two streams.
---
--- /Unimplemented/
---
-{-# INLINE deintercalate #-}
-deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
-    -> Parser m x (y, z)
-deintercalate = undefined
-
--------------------------------------------------------------------------------
 -- Sequential Collection
 -------------------------------------------------------------------------------
 --
@@ -1167,6 +1135,59 @@ manyTill p1 p2 f =
 manyThen :: -- (Foldable t, MonadCatch m) =>
     Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
 manyThen _parser _recover _f = undefined
+
+-------------------------------------------------------------------------------
+-- Interleaving
+-------------------------------------------------------------------------------
+--
+-- To deinterleave we can chain two parsers one behind the other. The input is
+-- given to the first parser and the input definitively rejected by the first
+-- parser is given to the second parser.
+--
+-- We can either have the parsers themselves buffer the input or use the shared
+-- global buffer to hold it until none of the parsers need it. When the first
+-- parser returns Skip (i.e. rewind) we let the second parser consume the
+-- rejected input and when it is done we move the cursor forward to the first
+-- parser again. This will require a "move forward" command as well.
+--
+-- To implement grep we can use three parsers, one to find the pattern, one
+-- to store the context behind the pattern and one to store the context in
+-- front of the pattern. When a match occurs we need to emit the accumulator of
+-- all the three parsers. One parser can count the line numbers to provide the
+-- line number info.
+--
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns.
+--
+-- This undoes a "gintercalate" of two streams.
+--
+-- /Unimplemented/
+--
+{-# INLINE deintercalate #-}
+deintercalate ::
+    -- Monad m =>
+       Fold m a y -> Parser m x a
+    -> Fold m b z -> Parser m x b
+    -> Parser m x (y, z)
+deintercalate = undefined
+
+-- | Parse items separated by a separator parsed by the supplied parser. At
+-- least one item must be present for the parser to succeed.
+{-# INLINE sepBy1 #-}
+sepBy1 :: MonadCatch m =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy1 sink p sep = do
+    x <- p
+    f <- fromEffect $ FL.initialize sink
+    f1 <- fromEffect $ FL.snoc f x
+    many (sep >> p) f1
+
+-- | sepBy1 or empty, does not fail.
+{-# INLINE sepBy #-}
+sepBy :: (MonadCatch m, Monoid c) =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy sink p sep = sepBy1 sink p sep <|> return mempty
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
