@@ -77,6 +77,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , groupByRolling
     , groupByRollingEither
     , eqBy
+    , matchBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
@@ -176,9 +177,11 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span)
@@ -893,6 +896,7 @@ groupByRollingEither
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
+-- XXX rename to listBy?
 --
 -- | See 'Streamly.Internal.Data.Parser.eqBy'.
 --
@@ -904,6 +908,7 @@ eqBy cmp str = Parser step initial extract
 
     where
 
+    -- XXX Should return IDone in initial for [] case
     initial = return $ IPartial str
 
     step [] _ = return $ Done 0 ()
@@ -925,6 +930,45 @@ eqBy cmp str = Parser step initial extract
             $ ParseError
             $ "eqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
+
+-- XXX rename to streamBy?
+-- | Like eqBy but uses a stream instead of a list
+{-# INLINE matchBy #-}
+matchBy :: MonadThrow m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
+matchBy cmp (D.Stream sstep state) = Parser step initial extract
+
+    where
+
+    initial = do
+        r <- sstep defState state
+        case r of
+            D.Yield x s -> return $ IPartial (Just x, s)
+            D.Stop -> return $ IDone ()
+            -- Need Skip/Continue in initial to loop right here
+            D.Skip s -> return $ IPartial (Nothing, s)
+
+    step (Just x, st) a =
+        if x `cmp` a
+          then do
+            r <- sstep defState st
+            return
+                $ case r of
+                    D.Yield x1 s -> Continue 0 (Just x1, s)
+                    D.Stop -> Done 0 ()
+                    D.Skip s -> Continue 1 (Nothing, s)
+          else return $ Error "match: mismtach occurred"
+    step (Nothing, st) a = do
+        r <- sstep defState st
+        return
+            $ case r of
+                D.Yield x s -> do
+                    if x `cmp` a
+                    then Continue 0 (Nothing, s)
+                    else Error "match: mismatch occurred"
+                D.Stop -> Done 1 ()
+                D.Skip s -> Continue 1 (Nothing, s)
+
+    extract _ = throwM $ ParseError "match: end of input"
 
 --------------------------------------------------------------------------------
 --- Spanning
