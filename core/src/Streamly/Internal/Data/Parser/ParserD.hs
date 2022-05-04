@@ -174,6 +174,13 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , retryMax    -- try N times
     -- , retryUntil  -- try until successful
     -- , retryUntilN -- try until successful n times
+
+    -- ** Zipping Input
+    , zipWithM
+    , zip
+    , indexed
+    , makeIndexFilter
+    , sampleFromthen
     )
 where
 
@@ -187,9 +194,11 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 
 import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span)
+       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
+       , zip, filter)
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
 
@@ -974,6 +983,102 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Skip s -> Continue 1 (Nothing, s)
 
     extract _ = throwM $ ParseError "match: end of input"
+
+{-# INLINE zipWithM #-}
+zipWithM :: MonadThrow m =>
+    (a -> b -> m c) -> D.Stream m a -> Fold m c x -> Parser m b x
+zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        fres <- finitial
+        case fres of
+            FL.Partial fs -> do
+                r <- sstep defState state
+                case r of
+                    D.Yield x s -> return $ IPartial (Just x, s, fs)
+                    D.Stop -> do
+                        x <- fextract fs
+                        return $ IDone x
+                    -- Need Skip/Continue in initial to loop right here
+                    D.Skip s -> return $ IPartial (Nothing, s, fs)
+            FL.Done x -> return $ IDone x
+
+    step (Just a, st, fs) b = do
+        c <- zf a b
+        fres <- fstep fs c
+        case fres of
+            FL.Partial fs1 -> do
+                r <- sstep defState st
+                case r of
+                    D.Yield x1 s -> return $ Continue 0 (Just x1, s, fs1)
+                    D.Stop -> do
+                        x <- fextract fs1
+                        return $ Done 0 x
+                    D.Skip s -> return $ Continue 1 (Nothing, s, fs1)
+            FL.Done x -> return $ Done 0 x
+    step (Nothing, st, fs) b = do
+        r <- sstep defState st
+        case r of
+                D.Yield a s -> do
+                    c <- zf a b
+                    fres <- fstep fs c
+                    case fres of
+                        FL.Partial fs1 -> return $ Continue 0 (Nothing, s, fs1)
+                        FL.Done x -> return $ Done 0 x
+                D.Stop -> do
+                    x <- fextract fs
+                    return $ Done 1 x
+                D.Skip s -> return $ Continue 1 (Nothing, s, fs)
+
+    extract _ = throwM $ ParseError "zipWithM: end of input"
+
+-- | Zip the input of a fold with a stream.
+--
+-- /Pre-release/
+--
+{-# INLINE zip #-}
+zip :: MonadThrow m => D.Stream m a -> Fold m (a, b) x -> Parser m b x
+zip = zipWithM (curry return)
+
+-- | Pair each element of a fold input with its index, starting from index 0.
+--
+-- /Pre-release/
+{-# INLINE indexed #-}
+indexed :: forall m a b. MonadThrow m => Fold m (Int, a) b -> Parser m a b
+indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
+
+-- | @makeIndexFilter indexer filter predicate@ generates a fold filtering
+-- function using a fold indexing function that attaches an index to each input
+-- element and a filtering function that filters using @(index, element) ->
+-- Bool) as predicate.
+--
+-- For example:
+--
+-- @
+-- filterWithIndex = makeIndexFilter indexed filter
+-- filterWithAbsTime = makeIndexFilter timestamped filter
+-- filterWithRelTime = makeIndexFilter timeIndexed filter
+-- @
+--
+-- /Pre-release/
+{-# INLINE makeIndexFilter #-}
+makeIndexFilter ::
+       (Fold m (s, a) b -> Parser m a b)
+    -> (((s, a) -> Bool) -> Fold m (s, a) b -> Fold m (s, a) b)
+    -> (((s, a) -> Bool) -> Fold m a b -> Parser m a b)
+makeIndexFilter f comb g = f . comb g . FL.lmap snd
+
+-- | @sampleFromthen offset stride@ samples the element at @offset@ index and
+-- then every element at strides of @stride@.
+--
+-- /Pre-release/
+{-# INLINE sampleFromthen #-}
+sampleFromthen :: MonadThrow m => Int -> Int -> Fold m a b -> Parser m a b
+sampleFromthen offset size =
+    makeIndexFilter indexed FL.filter (\(i, _) -> (i + offset) `mod` size == 0)
 
 --------------------------------------------------------------------------------
 --- Spanning
