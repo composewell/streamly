@@ -23,8 +23,8 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 import System.Random (randomRIO)
-import Prelude
-       hiding (any, all, take, sequence, sequence_, sequenceA, takeWhile)
+import Prelude hiding
+    (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
@@ -88,9 +88,9 @@ takeBetween value =  IP.parse (PR.takeBetween 0 value FL.drain)
 takeEQ :: MonadCatch m => Int -> SerialT m a -> m ()
 takeEQ value = IP.parse (PR.takeEQ value FL.drain)
 
-{-# INLINE drainWhile #-}
-drainWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
-drainWhile value = IP.parse (PR.drainWhile (<= value))
+{-# INLINE dropWhile #-}
+dropWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
+dropWhile value = IP.parse (PR.dropWhile (<= value))
 
 {-# INLINE sliceBeginWith #-}
 sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
@@ -154,8 +154,8 @@ splitAp :: MonadCatch m
 splitAp value =
     IP.parse
         ((,)
-            <$> PR.drainWhile (<= (value `div` 2))
-            <*> PR.drainWhile (<= value)
+            <$> PR.dropWhile (<= (value `div` 2))
+            <*> PR.dropWhile (<= value)
         )
 
 {-# INLINE splitApBefore #-}
@@ -163,8 +163,8 @@ splitApBefore :: MonadCatch m
     => Int -> SerialT m Int -> m ()
 splitApBefore value =
     IP.parse
-        (  PR.drainWhile (<= (value `div` 2))
-        *> PR.drainWhile (<= value)
+        (  PR.dropWhile (<= (value `div` 2))
+        *> PR.dropWhile (<= value)
         )
 
 {-# INLINE splitApAfter #-}
@@ -172,8 +172,8 @@ splitApAfter :: MonadCatch m
     => Int -> SerialT m Int -> m ()
 splitApAfter value =
     IP.parse
-        (  PR.drainWhile (<= (value `div` 2))
-        <* PR.drainWhile (<= value)
+        (  PR.dropWhile (<= (value `div` 2))
+        <* PR.dropWhile (<= value)
         )
 
 {-# INLINE serialWith #-}
@@ -182,8 +182,8 @@ serialWith :: MonadCatch m
 serialWith value =
     IP.parse
         (PR.serialWith (,)
-            (PR.drainWhile (<= (value `div` 2)))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= (value `div` 2)))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE split_ #-}
@@ -192,8 +192,8 @@ split_ :: MonadCatch m
 split_ value =
     IP.parse
         (PR.split_
-            (PR.drainWhile (<= (value `div` 2)))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= (value `div` 2)))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE sliceSepByP #-}
@@ -207,8 +207,8 @@ teeAllAny :: MonadCatch m
 teeAllAny value =
     IP.parse
         (PR.teeWith (,)
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE teeFstAllAny #-}
@@ -217,8 +217,8 @@ teeFstAllAny :: MonadCatch m
 teeFstAllAny value =
     IP.parse
         (PR.teeWithFst (,)
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE shortestAllAny #-}
@@ -227,8 +227,8 @@ shortestAllAny :: MonadCatch m
 shortestAllAny value =
     IP.parse
         (PR.shortest
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE longestAllAny #-}
@@ -237,8 +237,8 @@ longestAllAny :: MonadCatch m
 longestAllAny value =
     IP.parse
         (PR.longest
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 parseManyChunksOfSum :: Int -> Handle -> IO Int
@@ -345,7 +345,7 @@ o_1_space_serial value =
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeP" $ takeP value
-    , benchIOSink value "drainWhile" $ drainWhile value
+    , benchIOSink value "dropWhile" $ dropWhile value
     , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling

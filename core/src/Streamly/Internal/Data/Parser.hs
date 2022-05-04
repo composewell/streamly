@@ -100,7 +100,7 @@ module Streamly.Internal.Data.Parser
     , takeWhile
     -- $takeWhile
     , takeWhile1
-    , drainWhile
+    , dropWhile
 
     -- Separators
     , sliceSepByP
@@ -223,7 +223,8 @@ import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Functor (($>))
 import Prelude hiding
-    (any, all, take, takeWhile, sequence, concatMap, maybe, either, filter)
+    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
+    , filter )
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
@@ -236,7 +237,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- $setup
 -- >>> :m
 -- >>> :set -package streamly
--- >>> import Prelude hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+-- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -634,9 +635,9 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 --
 -- /Pre-release/
 --
-{-# INLINE drainWhile #-}
-drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
-drainWhile p = takeWhile p FL.drain
+{-# INLINE dropWhile #-}
+dropWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
+dropWhile p = takeWhile p FL.drain
 
 -------------------------------------------------------------------------------
 -- Separators
