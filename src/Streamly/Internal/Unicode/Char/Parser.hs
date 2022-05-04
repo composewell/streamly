@@ -14,6 +14,8 @@ module Streamly.Internal.Unicode.Char.Parser
     (
     -- * Generic
       char
+    , dropSpace
+    , dropSpace1
 
     -- * Classes
     , alpha
@@ -137,6 +139,18 @@ CHAR_PARSER(asciiLower,isAsciiLower)
 {-# INLINE char #-}
 char :: MonadCatch m => Char -> Parser m Char Char
 char c = Parser.satisfy (== c)
+
+--------------------------------------------------------------------------------
+-- Character sequences
+--------------------------------------------------------------------------------
+
+-- | Drop /zero/ or more white space characters.
+dropSpace :: MonadCatch m => Parser m Char ()
+dropSpace = Parser.dropWhile Char.isSpace
+
+-- | Drop /one/ or more white space characters.
+dropSpace1 :: MonadCatch m => Parser m Char ()
+dropSpace1 = Parser.takeWhile1 Char.isSpace Fold.drain
 
 --------------------------------------------------------------------------------
 -- Numeric parsers
