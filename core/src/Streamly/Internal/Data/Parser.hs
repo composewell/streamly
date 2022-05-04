@@ -69,6 +69,7 @@ module Streamly.Internal.Data.Parser
 
     -- * Element parsers
     , peek
+    , one
     , eof
     , satisfy
     , next
@@ -391,6 +392,16 @@ eof = D.toParserK D.eof
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
+
+-- | Consume one element from the head of the stream.  Fails if it encounters
+-- end of input.
+--
+-- >>> one = satisfy $ const True
+--
+-- /Pre-release/
+--
+one :: MonadCatch m => Parser m a a
+one = satisfy $ const True
 
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
