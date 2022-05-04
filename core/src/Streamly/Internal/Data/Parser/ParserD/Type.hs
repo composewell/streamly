@@ -194,6 +194,11 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , alt
     , concatMap
 
+    -- * Input transformation
+    , lmap
+    , lmapM
+    , filter
+
     , noErrorUnsafeSplit_
     , noErrorUnsafeSplitWith
     , noErrorUnsafeConcatMap
@@ -216,7 +221,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
-import Prelude hiding (concatMap)
+import Prelude hiding (concatMap, filter)
 --
 -- $setup
 -- >>> :m
@@ -1399,3 +1404,31 @@ instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
 instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
+
+------------------------------------------------------------------------------
+-- Mapping on input
+------------------------------------------------------------------------------
+
+{-# INLINE lmap #-}
+lmap :: (a -> b) -> Parser m b r -> Parser m a r
+lmap f (Parser step begin done) = Parser step1 begin done
+
+    where
+
+    step1 x a = step x (f a)
+
+{-# INLINE lmapM #-}
+lmapM :: Monad m => (a -> m b) -> Parser m b r -> Parser m a r
+lmapM f (Parser step begin done) = Parser step1 begin done
+
+    where
+
+    step1 x a = f a >>= step x
+
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+filter f (Parser step initial extract) = Parser step1 initial extract
+
+    where
+
+    step1 x a = if f a then step x a else return $ Partial 0 x

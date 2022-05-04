@@ -33,6 +33,11 @@ module Streamly.Internal.Data.Parser.ParserD
     , die
     , dieM
 
+    -- * Map on input
+    , lmap
+    , lmapM
+    , filter
+
     -- * Element parsers
     , peek
     , eof

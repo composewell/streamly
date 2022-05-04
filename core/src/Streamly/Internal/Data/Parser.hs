@@ -62,6 +62,11 @@ module Streamly.Internal.Data.Parser
     , die
     , dieM
 
+    -- * Map on input
+    , lmap
+    , lmapM
+    , filter
+
     -- * Element parsers
     , peek
     , eof
@@ -202,8 +207,8 @@ module Streamly.Internal.Data.Parser
 where
 
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+import Prelude hiding
+    (any, all, take, takeWhile, sequence, concatMap, maybe, either, filter)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
@@ -301,6 +306,39 @@ die = D.toParserK . D.die
 {-# INLINE dieM #-}
 dieM :: MonadCatch m => m String -> Parser m a b
 dieM = D.toParserK . D.dieM
+
+-------------------------------------------------------------------------------
+-- Map on input
+-------------------------------------------------------------------------------
+
+-- | @lmap f parser@ maps the function @f@ on the input of the parser.
+--
+-- >>> Stream.parse (Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)) (Stream.enumerateFromTo 1 100)
+-- 338350
+--
+-- > lmap = Parser.lmapM return
+--
+-- /Internal/
+{-# INLINE lmap #-}
+lmap :: MonadCatch m => (a -> b) -> Parser m b r -> Parser m a r
+lmap f p = D.toParserK $ D.lmap f $ D.fromParserK p
+
+-- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
+--
+-- /Internal/
+{-# INLINE lmapM #-}
+lmapM :: MonadCatch m => (a -> m b) -> Parser m b r -> Parser m a r
+lmapM f p = D.toParserK $ D.lmapM f $ D.fromParserK p
+
+-- | Include only those elements that pass a predicate.
+--
+-- >>> Stream.parse (Parser.filter (> 5) (Parser.fromFold Fold.sum)) $ Stream.fromList [1..10]
+-- 40
+--
+-- /Internal/
+{-# INLINE filter #-}
+filter :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+filter f p = D.toParserK $ D.filter f $ D.fromParserK p
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
