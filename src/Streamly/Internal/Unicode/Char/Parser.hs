@@ -10,32 +10,39 @@
 -- "Streamly.Unicode.Stream" module to convert an input byte stream to a
 -- Unicode Char stream and then use these parsers on the Char stream.
 
--- XXX Add explicit export list.
 module Streamly.Internal.Unicode.Char.Parser
-    ( alpha
+    (
+    -- * Generic
+      char
+
+    -- * Classes
+    , alpha
     , alphaNum
+    , letter
     , ascii
     , asciiLower
     , asciiUpper
-    , char
-    , decimal
-    , digit
-    , double
-    , hexadecimal
-    , hexDigit
     , latin1
-    , letter
     , lower
+    , upper
     , mark
-    , number
-    , octDigit
     , print
     , punctuation
     , separator
-    , signed
     , space
     , symbol
-    , upper
+
+    -- digits
+    , digit
+    , octDigit
+    , hexDigit
+    , number
+
+    -- * Numeric
+    , signed
+    , double
+    , decimal
+    , hexadecimal
     )
 where
 
