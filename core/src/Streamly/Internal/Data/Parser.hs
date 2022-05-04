@@ -70,9 +70,13 @@ module Streamly.Internal.Data.Parser
     -- * Element parsers
     , peek
     , one
+    , next
+    , element
+    , except
+    , oneOf
+    , noneOf
     , eof
     , satisfy
-    , next
     , maybe
     , either
 
@@ -396,12 +400,61 @@ satisfy = D.toParserK . D.satisfy
 -- | Consume one element from the head of the stream.  Fails if it encounters
 -- end of input.
 --
--- >>> one = satisfy $ const True
+-- >>> one = Parser.satisfy $ const True
 --
 -- /Pre-release/
 --
+{-# INLINE one #-}
 one :: MonadCatch m => Parser m a a
 one = satisfy $ const True
+
+-- | Match a specific element.
+--
+-- >>> element x = Parser.satisfy (== x)
+--
+{-# INLINE element #-}
+element :: (MonadCatch m, Eq a) => a -> Parser m a a
+element x = satisfy (== x)
+
+-- | Match anything other than the supplied element.
+--
+-- >>> except x = Parser.satisfy (/= x)
+--
+{-# INLINE except #-}
+except :: (MonadCatch m, Eq a) => a -> Parser m a a
+except x = satisfy (/= x)
+
+-- | Match any one of the elements in the supplied list.
+--
+-- >>> oneOf xs = Parser.satisfy (`elem` xs)
+--
+-- When performance matters a pattern matching predicate could be more
+-- efficient than a list:
+--
+-- @
+-- let p x =
+--    case x of
+--       'a' -> True
+--       'e' -> True
+--        _  -> False
+-- in satisfy p
+-- @
+--
+-- GHC may use a binary search instead of linear search in the list.
+-- Alternatively, you can also use an array instead of list for storage and
+-- search.
+--
+{-# INLINE oneOf #-}
+oneOf :: (MonadCatch m, Eq a) => [a] -> Parser m a a
+oneOf xs = satisfy (`elem` xs)
+
+-- | See performance notes in 'oneOf'.
+--
+-- >>> noneOf xs = Parser.satisfy (`notElem` xs)
+--
+{-# INLINE noneOf #-}
+noneOf :: (MonadCatch m, Eq a) => [a] -> Parser m a a
+noneOf xs = satisfy (`notElem` xs)
 
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
