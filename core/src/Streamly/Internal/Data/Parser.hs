@@ -88,6 +88,8 @@ module Streamly.Internal.Data.Parser
     , takeP
 
     -- Grab a sequence of input elements by inspecting them
+    , eqBy
+    , list
     , lookAhead
     , takeWhileP
     , takeWhile
@@ -109,7 +111,6 @@ module Streamly.Internal.Data.Parser
     , groupBy
     , groupByRolling
     , groupByRollingEither
-    , eqBy
 
     -- | Unimplemented
     --
@@ -215,6 +216,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Data.Functor (($>))
 import Prelude hiding
     (any, all, take, takeWhile, sequence, concatMap, maybe, either, filter)
 
@@ -802,6 +804,14 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 {-# INLINE eqBy #-}
 eqBy :: MonadCatch m => (a -> a -> Bool) -> [a] -> Parser m a ()
 eqBy cmp = D.toParserK . D.eqBy cmp
+
+-- | Match the input sequence with the supplied list and return it if
+-- successful.
+--
+-- /Pre-release/
+{-# INLINE list #-}
+list :: (MonadCatch m, Eq a) => [a] -> Parser m a [a]
+list xs = eqBy (==) xs $> xs
 
 -------------------------------------------------------------------------------
 -- nested parsers
