@@ -119,9 +119,15 @@ groupByRolling = IP.parse (PR.groupByRolling (<=) FL.drain)
 wordBy :: MonadCatch m => Int -> SerialT m Int -> m ()
 wordBy value = IP.parse (PR.wordBy (>= value) FL.drain)
 
+{-# INLINE sepByWords #-}
+sepByWords :: MonadCatch m => Int -> SerialT m Int -> m ()
+sepByWords _ = IP.parse (wrds even FL.drain)
+    where
+    wrds p f = PR.sepBy f (PR.takeWhile (not . p) FL.drain) (PR.dropWhile p)
+
 {-# INLINE manyWordByEven #-}
 manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
-manyWordByEven = IP.parse (PR.many (PR.wordBy (Prelude.even) FL.drain) FL.drain)
+manyWordByEven = IP.parse (PR.many (PR.wordBy even FL.drain) FL.drain)
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
@@ -350,6 +356,7 @@ o_1_space_serial value =
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
+    , benchIOSink value "sepBy (words)" $ sepByWords value
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
