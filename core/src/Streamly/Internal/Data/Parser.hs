@@ -758,6 +758,11 @@ escapedFrameBy _begin _end _escape _p = undefined
 -- Grouping and words
 -------------------------------------------------------------------------------
 
+-- Note we can also get words using something like:
+-- sepBy FL.toList (takeWhile (not . p) Fold.toList) (dropWhile p)
+--
+-- But that won't be as efficient and ergonomic.
+--
 -- | Like 'splitOn' but strips leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ having '.' as the separator would be parsed as
 -- @["a","b"]@.  In other words, its like parsing words from whitespace
