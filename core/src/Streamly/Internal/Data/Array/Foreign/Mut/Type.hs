@@ -130,6 +130,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Size
     , length
     , byteLength
+    , isPower2
     -- , capacity
     , byteCapacity
     , bytesFree
