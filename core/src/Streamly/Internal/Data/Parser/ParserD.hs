@@ -111,6 +111,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    , sepBy
 
     -- ** Sequential Alternative
     , alt
@@ -1257,6 +1258,76 @@ deintercalate ::
     -> Fold m b z -> Parser m x b
     -> Parser m x (y, z)
 deintercalate = undefined
+
+data SepByState fs sp ss =
+      SepByInit fs sp
+    | SepBySeparator fs ss Bool
+
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy
+    (Fold fstep finitial fextract)
+    (Parser pstep pinitial pextract)
+    (Parser sstep sinitial _) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "sepBy: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                resP <- pinitial
+                case resP of
+                    IPartial sp -> return $ IPartial $ SepByInit fs sp
+                    IDone _ -> errMsg "content" "succeed"
+                    IError _ -> errMsg "content" "fail"
+            FL.Done b -> return $ IDone b
+
+    step (SepByInit fs sp) a = do
+        r <- pstep sp a
+        case r of
+            Partial n s -> return $ Partial n (SepByInit fs s)
+            Continue n s -> return $ Continue n (SepByInit fs s)
+            Done n b -> do
+                fres <- fstep fs b
+                case fres of
+                    FL.Partial fs1 -> do
+                        resS <- sinitial
+                        case resS of
+                            IPartial ss ->
+                                return $ Partial n (SepBySeparator fs1 ss False)
+                            IDone _ -> errMsg "separator" "succeed"
+                            IError _ -> errMsg "separator" "fail"
+                    FL.Done c -> return $ Done n c
+            Error err -> return $ Error err
+    step (SepBySeparator fs ss consumed) a = do
+        r <- sstep ss a
+        case r of
+            Partial n s -> return $ Partial n (SepBySeparator fs s True)
+            Continue n s -> return $ Continue n (SepBySeparator fs s True)
+            Done n _ ->
+                if consumed
+                then do
+                    resP <- pinitial
+                    case resP of
+                        IPartial sp -> return $ Partial n $ SepByInit fs sp
+                        IDone _ -> errMsg "content" "succeed"
+                        IError _ -> errMsg "content" "fail"
+                else return $ Error "sepBy: infinite loop"
+            Error err -> return $ Error err
+
+    extract (SepByInit fs sp) = do
+        r <- pextract sp
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
+    extract (SepBySeparator fs _ _) = fextract fs
 
 -------------------------------------------------------------------------------
 -- Sequential Collection

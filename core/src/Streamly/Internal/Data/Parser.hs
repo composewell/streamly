@@ -219,7 +219,6 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Control.Applicative ((<|>))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Functor (($>))
 import Prelude hiding
@@ -238,6 +237,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- >>> :m
 -- >>> :set -package streamly
 -- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
+-- >>> import Control.Applicative ((<|>))
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -1276,6 +1276,10 @@ deintercalate = undefined
 
 -- | Parse items separated by a separator parsed by the supplied parser. At
 -- least one item must be present for the parser to succeed.
+--
+-- Note that this can go in infinite loop if both the parsers fail on some
+-- input. Detection of that would make the implementation more complex.
+--
 {-# INLINE sepBy1 #-}
 sepBy1 :: MonadCatch m =>
     Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
@@ -1285,11 +1289,17 @@ sepBy1 sink p sep = do
     f1 <- fromEffect $ FL.snoc f x
     many (sep >> p) f1
 
--- | sepBy1 or empty, does not fail.
+-- | Run the content parser first, when it is done, the separator parser is
+-- run, when it is done content parser is run again and so on. If none of the
+-- parsers consumes an input then parser returns a failure.
+--
+-- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
+--
 {-# INLINE sepBy #-}
-sepBy :: (MonadCatch m, Monoid c) =>
+sepBy :: MonadCatch m =>
     Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-sepBy sink p sep = sepBy1 sink p sep <|> return mempty
+sepBy sink content sep =
+    D.toParserK $ D.sepBy sink (D.fromParserK content) (D.fromParserK sep)
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
