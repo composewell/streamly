@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Grab a sequence of input elements by inspecting them
     , lookAhead
     , takeWhile
+    , takeWhileP
     , takeWhile1
 
     -- Separators
@@ -579,6 +580,22 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 -------------------------------------------------------------------------------
 -- Conditional splitting
 -------------------------------------------------------------------------------
+
+-- | See 'Streamly.Internal.Data.Parser.takeWhileP'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeWhileP #-}
+takeWhileP :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP predicate (Parser pstep pinitial pextract) =
+    Parser step pinitial pextract
+
+    where
+
+    step s a =
+        if predicate a
+        then pstep s a
+        else Done 1 <$> pextract s
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --

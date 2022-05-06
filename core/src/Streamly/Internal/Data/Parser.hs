@@ -578,6 +578,8 @@ takeGE n = D.toParserK . D.takeGE n
 -- $takeWhile
 -- Note: This is called @takeWhileP@ and @munch@ in some parser libraries.
 
+-- XXX We should perhaps use only takeWhileP and rename it to takeWhile.
+--
 -- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. The combinator stops when the condition fails or if the collecting
 -- parser stops.
@@ -585,19 +587,16 @@ takeGE n = D.toParserK . D.takeGE n
 -- This is a generalized version of takeWhile, for example 'takeWhile1' can be
 -- implemented in terms of this:
 --
--- @
--- takeWhile1 cond p = takeWhile cond (takeBetween 1 maxBound p)
--- @
+-- >>> takeWhile1 cond p = takeWhile cond (takeBetween 1 maxBound p)
 --
 -- Stops: when the condition fails or the collecting parser stops.
 -- Fails: when the collecting parser fails.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE takeWhileP #-}
-takeWhileP :: -- MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
+takeWhileP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP cond p = D.toParserK $ D.takeWhileP cond (D.fromParserK p)
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -607,6 +606,8 @@ takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
 --
 -- >>> Stream.parse (Parser.takeWhile (== 0) Fold.toList) $ Stream.fromList [0,0,1,0,1]
 -- [0,0]
+--
+-- >>> takeWhile cond f = Parser.takeWhileP cond (Parser.fromFold f)
 --
 -- We can implement a @breakOn@ using 'takeWhile':
 --
@@ -619,19 +620,25 @@ takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile cond = D.toParserK . D.takeWhile cond
+-- takeWhile cond f = takeWhileP cond (fromFold f)
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
+--
+-- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
 --
 -- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 cond = D.toParserK . D.takeWhile1 cond
+-- takeWhile1 cond f = takeWhileP cond (takeBetween 1 maxBound f)
 
 -- | Drain the input as long as the predicate succeeds, running the effects and
 -- discarding the results.
 --
 -- This is also called @skipWhile@ in some parsing libraries.
+--
+-- >>> dropWhile p = Parser.takeWhile p Fold.drain
 --
 -- /Pre-release/
 --
