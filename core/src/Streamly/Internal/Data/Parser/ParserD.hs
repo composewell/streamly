@@ -53,16 +53,16 @@ module Streamly.Internal.Data.Parser.ParserD
     -- parsers but we can use Parsers instead of folds to make the composition
     -- more powerful. For example, we can do:
     --
-    -- sliceSepByMax cond n p = sliceBy cond (take n p)
-    -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
+    -- takeEndByOrMax cond n p = takeEndBy cond (take n p)
+    -- takeEndByBetween cond m n p = takeEndBy cond (takeBetween m n p)
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
 
     -- Grab a sequence of input elements without inspecting them
     , takeBetween
     -- , take -- take   -- takeBetween 0 n
-    -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
+    -- , takeGE1 -- take1 -- takeBetween 1 n
     , takeP
 
     -- Grab a sequence of input elements by inspecting them
@@ -72,10 +72,8 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile1
 
     -- Separators
-    , sliceSepByP
-    -- , sliceSepByBetween
-    , sliceBeginWith
-    -- , sliceSepWith
+    , takeEndBy_
+    , takeStartBy
 
     -- Words and grouping
     , wordBy
@@ -670,13 +668,13 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 -- Separators
 -------------------------------------------------------------------------------
 
--- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
+-- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
 --
 -- /Pre-release/
 --
-sliceSepByP :: MonadCatch m =>
+takeEndBy_ :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP cond (Parser pstep pinitial pextract) =
+takeEndBy_ cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
 
@@ -691,15 +689,15 @@ sliceSepByP cond (Parser pstep pinitial pextract) =
             return $ Done 0 res
         else pstep s a
 
--- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
+-- | See 'Streamly.Internal.Data.Parser.takeStartBy'.
 --
 -- /Pre-release/
 --
 data SliceBeginWithState s = Left' s | Right' s
 
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith cond (Fold fstep finitial fextract) =
+{-# INLINE takeStartBy #-}
+takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy cond (Fold fstep finitial fextract) =
 
     Parser step initial extract
 
@@ -710,7 +708,7 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
         return $
             case res of
                 FL.Partial s -> IPartial (Left' s)
-                FL.Done _ -> IError "sliceBeginWith : bad finitial"
+                FL.Done _ -> IError "takeStartBy : bad finitial"
 
     {-# INLINE process #-}
     process s a = do
@@ -723,7 +721,7 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
     step (Left' s) a =
         if cond a
         then process s a
-        else error $ "sliceBeginWith : slice begins with an element which "
+        else error $ "takeStartBy : token begins with an element which "
                         ++ "fails the predicate"
     step (Right' s) a =
         if not (cond a)

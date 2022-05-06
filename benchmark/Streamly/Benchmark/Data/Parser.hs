@@ -92,12 +92,12 @@ takeEQ value = IP.parse (PR.takeEQ value FL.drain)
 dropWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 dropWhile value = IP.parse (PR.dropWhile (<= value))
 
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceBeginWith value stream = do
+{-# INLINE takeStartBy #-}
+takeStartBy :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeStartBy value stream = do
     stream1 <- return . fromMaybe (S.fromPure (value + 1)) =<< S.tail stream
     let stream2 = value `S.cons` stream1
-    IP.parse (PR.sliceBeginWith (== value) FL.drain) stream2
+    IP.parse (PR.takeStartBy (== value) FL.drain) stream2
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
@@ -212,10 +212,10 @@ split_ value =
             (PR.dropWhile (<= value))
         )
 
-{-# INLINE sliceSepByP #-}
-sliceSepByP :: MonadCatch m
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: MonadCatch m
     => Int -> SerialT m Int -> m()
-sliceSepByP value = IP.parse (PR.sliceSepByP (>= value) (PR.fromFold FL.drain))
+takeEndBy_ value = IP.parse (PR.takeEndBy_ (>= value) (PR.fromFold FL.drain))
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadCatch m
@@ -362,7 +362,7 @@ o_1_space_serial value =
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "dropWhile" $ dropWhile value
-    , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
+    , benchIOSink value "takeStartBy" $ takeStartBy value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
@@ -372,7 +372,7 @@ o_1_space_serial value =
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
     , benchIOSink value "serialWith" $ serialWith value
-    , benchIOSink value "sliceSepByP" $ sliceSepByP value
+    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
