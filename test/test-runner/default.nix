@@ -42,18 +42,25 @@ let haskellPackages =
             overrides = self: super:
                 with nixpkgs.haskell.lib;
                 {
-                    report = mkPackage super "streamly-test-report" ./. "" inShell;
+                    test-runner = mkPackage super "test-runner" ./. "" inShell;
+                    streamly-targets = mkPackage super "streamly-targets" ../../targets "" false;
 
                     bench-report =
                       nixpkgs.haskell.lib.overrideCabal
                         (let src = fetchGit {
                             url = "git@github.com:composewell/bench-report.git";
-                            rev = "c11f79b202d812efe4d1785e0537f1ad4d947bfe";
+                            rev = "991b33e3b7bee63bd83e6dd94df001eef207d9b8";
                         }; in super.callCabal2nix "bench-report" src {})
                         (old:
                           { enableLibraryProfiling = false;
                             doHaddock = false;
                           });
+
+                    bench-show = super.callHackageDirect {
+                      pkg = "bench-show";
+                      ver = "0.3.2";
+                      sha256 = "16b8vyzdp9b5bh34kqmbfwjsyv8wgnxxwl8kjcpgxjsh52xzyaa0";
+                    } { };
 
 #                    streamly-coreutils = let
 #                      src = "git@github.com:composewell/streamly-coreutils.git";
@@ -141,7 +148,7 @@ let haskellPackages =
 
     shell = drv.shellFor {
         packages = p:
-          [ p.report
+          [ p.test-runner
           ];
         # Use a better prompt
         shellHook = ''
@@ -154,4 +161,4 @@ let haskellPackages =
     };
 in if nixpkgs.lib.inNixShell
    then shell
-   else (mkHaskellPackages false).streamly-test-report
+   else (mkHaskellPackages false).test-runner

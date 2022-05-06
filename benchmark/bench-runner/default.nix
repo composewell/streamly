@@ -42,7 +42,7 @@ let haskellPackages =
             overrides = self: super:
                 with nixpkgs.haskell.lib;
                 {
-                    report = mkPackage super "report" ./. "" inShell;
+                    bench-runner = mkPackage super "bench-runner" ./. "" inShell;
                     streamly-targets = mkPackage super "streamly-targets" ../../targets "" false;
 
                     bench-report =
@@ -148,7 +148,7 @@ let haskellPackages =
 
     shell = drv.shellFor {
         packages = p:
-          [ p.report
+          [ p.bench-runner
           ];
         # Use a better prompt
         shellHook = ''
@@ -161,4 +161,4 @@ let haskellPackages =
     };
 in if nixpkgs.lib.inNixShell
    then shell
-   else (mkHaskellPackages false).report
+   else (mkHaskellPackages false).bench-runner
