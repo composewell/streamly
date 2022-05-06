@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Elimination
     , toList
     , foldWith
+    , drain
 
     -- * Transformation
     , map
@@ -341,3 +342,7 @@ list = fromStreamD . D.fromList
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
 unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)
+
+{-# INLINE drain #-}
+drain :: Monad m => SerialT m a -> m ()
+drain (SerialT m) = P.drain m
