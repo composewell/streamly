@@ -356,6 +356,9 @@ module Streamly.Internal.Data.Fold.Type
     , filter
     , filterM
     , catMaybes
+    , lefts
+    , rights
+    , both
 
     -- ** Trimming
     , take
@@ -396,6 +399,7 @@ where
 #include "inline.hs"
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
+import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
@@ -1171,6 +1175,35 @@ filterM f (Fold step begin done) = Fold step' begin done
 {-# INLINE_NORMAL catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 catMaybes = filter isJust . lmap fromJust
+
+------------------------------------------------------------------------------
+-- Either streams
+------------------------------------------------------------------------------
+
+-- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
+--
+-- /Pre-release/
+--
+{-# INLINE lefts #-}
+lefts :: (Monad m) => Fold m a c -> Fold m (Either a b) c
+lefts = filter isLeft . lmap (fromLeft undefined)
+
+-- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
+--
+-- /Pre-release/
+--
+{-# INLINE rights #-}
+rights :: (Monad m) => Fold m b c -> Fold m (Either a b) c
+rights = filter isRight . lmap (fromRight undefined)
+
+-- | Remove the either wrapper and flatten both lefts and as well as rights in
+-- the output stream.
+--
+-- /Pre-release/
+--
+{-# INLINE both #-}
+both :: Fold m a b -> Fold m (Either a a) b
+both = lmap (either id id)
 
 ------------------------------------------------------------------------------
 -- Parsing

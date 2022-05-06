@@ -149,6 +149,11 @@ module Streamly.Internal.Data.Fold
     , mapMaybe
     -- , mapMaybeM
 
+    -- Either streams
+    , lefts
+    , rights
+    , both
+
     -- ** Scanning Filters
     , findIndices
     {-
