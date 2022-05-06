@@ -53,9 +53,8 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.Serial as S
 
-import Streamly.Prelude (SerialT)
 import Gauge
 
 -------------------------------------------------------------------------------
@@ -107,7 +106,7 @@ benchPureSink1 name f =
     bench name $ nfIO $ randomRIO (1,1) >>= return . runIdentity . f
 
 {-# INLINE benchPureSrc #-}
-benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
+benchPureSrc :: String -> (Int -> S.SerialT Identity a) -> Benchmark
 benchPureSrc name src = benchPure name src (runIdentity . S.drain)
 
 -------------------------------------------------------------------------------
