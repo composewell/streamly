@@ -504,17 +504,20 @@ wordBy =
 --         Right _ -> False
 --         Left _ -> True)
 
--- deintercalate :: Property
--- deintercalate =
---     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
---             Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
---             Left _ -> False
+deintercalate :: Property
+deintercalate =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
+        case S.parse p (S.fromList ls) of
+            Right evenOdd -> evenOdd == List.partition even ls
+            Left _ -> False
 
---         where
---             prsr_1 = (P.takeWhile (== 0) FL.toList)
---             prsr_2 = (P.takeWhile (== 1) FL.toList)
---             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+        where
+            p1 = P.takeWhile even FL.toList
+            p2 = P.takeWhile odd FL.toList
+            partition =
+                FL.tee (fmap concat $ FL.lefts FL.toList)
+                       (fmap concat $ FL.rights FL.toList)
+            p = P.deintercalate partition p1 p2
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -794,7 +797,7 @@ main =
         -- prop "" teeWithFailLeft
         -- prop "" teeWithFailRight
         -- prop "" teeWithFailBoth
-        -- prop "" deintercalate
+        prop "deintercalate" deintercalate
         -- prop "" shortestPass
         -- prop "" shortestFailLeft
         -- prop "" shortestFailRight
