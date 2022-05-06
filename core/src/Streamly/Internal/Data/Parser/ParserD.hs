@@ -1246,23 +1246,101 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -------------------------------------------------------------------------------
 -- Interleaving
 -------------------------------------------------------------------------------
---
+
+data DeintercalateState fs sp ss =
+      DeintercalateL fs sp
+    | DeintercalateR fs ss Bool
+
 -- | See 'Streamly.Internal.Data.Parser.deintercalate'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE deintercalate #-}
-deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
-    -> Parser m x (y, z)
-deintercalate = undefined
+deintercalate :: Monad m =>
+       Fold m (Either x y) z
+    -> Parser m a x
+    -> Parser m a y
+    -> Parser m a z
+deintercalate
+    (Fold fstep finitial fextract)
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR extractR) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "sepBy: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                resL <- initialL
+                case resL of
+                    IPartial sL -> return $ IPartial $ DeintercalateL fs sL
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ IDone c
+
+    step (DeintercalateL fs sL) a = do
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateL fs s)
+            Continue n s -> return $ Continue n (DeintercalateL fs s)
+            Done n b -> do
+                fres <- fstep fs (Left b)
+                case fres of
+                    FL.Partial fs1 -> do
+                        resR <- initialR
+                        case resR of
+                            IPartial sR ->
+                                return
+                                    $ Partial n (DeintercalateR fs1 sR False)
+                            IDone _ -> errMsg "right" "succeed"
+                            IError _ -> errMsg "right" "fail"
+                    FL.Done c -> return $ Done n c
+            Error err -> return $ Error err
+    step (DeintercalateR fs sR consumed) a = do
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateR fs s True)
+            Continue n s -> return $ Continue n (DeintercalateR fs s True)
+            Done n b ->
+                if consumed
+                then do
+                    fres <- fstep fs (Right b)
+                    case fres of
+                        FL.Partial fs1 -> do
+                            resL <- initialL
+                            case resL of
+                                IPartial sL ->
+                                    return $ Partial n $ DeintercalateL fs1 sL
+                                IDone _ -> errMsg "left" "succeed"
+                                IError _ -> errMsg "left" "fail"
+                        FL.Done c -> return $ Done n c
+                else return $ Error "sepBy: infinite loop"
+            Error err -> return $ Error err
+
+    extract (DeintercalateL fs sL) = do
+        r <- extractL sL
+        res <- fstep fs (Left r)
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
+    extract (DeintercalateR fs sR _) = do
+        r <- extractR sR
+        res <- fstep fs (Right r)
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
 
 data SepByState fs sp ss =
       SepByInit fs sp
     | SepBySeparator fs ss Bool
 
+-- This is a special case of deintercalate and can be easily implemented in
+-- terms of deintercalate.
 {-# INLINE sepBy #-}
 sepBy :: MonadCatch m =>
     Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c

@@ -240,7 +240,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- >>> import Control.Applicative ((<|>))
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
--- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
 -------------------------------------------------------------------------------
@@ -1257,22 +1257,26 @@ manyThen _parser _recover _f = undefined
 -- front of the pattern. When a match occurs we need to emit the accumulator of
 -- all the three parsers. One parser can count the line numbers to provide the
 -- line number info.
---
+
+-- XXX rename this to intercalate
 -- | Apply two parsers alternately to an input stream. The input stream is
 -- considered an interleaving of two patterns. The two parsers represent the
 -- two patterns.
 --
 -- This undoes a "gintercalate" of two streams.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE deintercalate #-}
-deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
-    -> Parser m x (y, z)
-deintercalate = undefined
+deintercalate :: MonadCatch m =>
+       Fold m (Either x y) z
+    -> Parser m a x
+    -> Parser m a y
+    -> Parser m a z
+deintercalate sink contentL contentR =
+    D.toParserK
+        $ D.deintercalate
+            sink (D.fromParserK contentL) (D.fromParserK contentR)
 
 -- | Parse items separated by a separator parsed by the supplied parser. At
 -- least one item must be present for the parser to succeed.
@@ -1293,6 +1297,7 @@ sepBy1 sink p sep = do
 -- run, when it is done content parser is run again and so on. If none of the
 -- parsers consumes an input then parser returns a failure.
 --
+-- >>> sepBy sink = Parser.deintercalate (Fold.lefts sink)
 -- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
 --
 {-# INLINE sepBy #-}
@@ -1300,6 +1305,7 @@ sepBy :: MonadCatch m =>
     Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 sepBy sink content sep =
     D.toParserK $ D.sepBy sink (D.fromParserK content) (D.fromParserK sep)
+-- sepBy sink = deintercalate (FL.lefts sink)
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
