@@ -195,6 +195,8 @@ import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (defState)
+import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -639,7 +641,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     initial = do
         res <- finitial
         return $ case res of
-            FL.Partial s -> IPartial (Left s)
+            FL.Partial s -> IPartial (Left' s)
             FL.Done _ ->
                 IError
                     $ "takeWhile1: fold terminated without consuming:"
@@ -650,22 +652,22 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
         res <- fstep s a
         return
             $ case res of
-                  FL.Partial s1 -> Partial 0 (Right s1)
+                  FL.Partial s1 -> Partial 0 (Right' s1)
                   FL.Done b -> Done 0 b
 
-    step (Left s) a =
+    step (Left' s) a =
         if predicate a
         then process s a
         else return $ Error "takeWhile1: predicate failed on first element"
-    step (Right s) a =
+    step (Right' s) a =
         if predicate a
         then process s a
         else do
             b <- fextract s
             return $ Done 1 b
 
-    extract (Left _) = throwM $ ParseError "takeWhile1: end of input"
-    extract (Right s) = fextract s
+    extract (Left' _) = throwM $ ParseError "takeWhile1: end of input"
+    extract (Right' s) = fextract s
 
 -------------------------------------------------------------------------------
 -- Separators
@@ -704,23 +706,23 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
     where
 
-    initial = first Left <$> pinitial
+    initial = first Left' <$> pinitial
 
-    step (Left s) a = do
+    step (Left' s) a = do
         if isEsc a
-        then return $ Partial 0 $ Right s
+        then return $ Partial 0 $ Right' s
         else do
             res <- pstep s a
             if not (isSep a)
-            then return $ mapStateStep Left res
+            then return $ mapStateStep Left' res
             else extractStep pextract res
 
-    step (Right s) a = do
+    step (Right' s) a = do
         res <- pstep s a
-        return $ mapStateStep Left res
+        return $ mapStateStep Left' res
 
-    extract (Left s) = pextract s
-    extract (Right _) =
+    extract (Left' s) = pextract s
+    extract (Right' _) =
         throwM $ ParseError "takeEndByEsc: trailing escape, end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
@@ -749,7 +751,6 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
 --
 -- /Pre-release/
 --
-data SliceBeginWithState s = Left' s | Right' s
 
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -1042,31 +1043,31 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
     initial = do
         r <- sstep defState state
         case r of
-            D.Yield x s -> return $ IPartial (Just x, s)
+            D.Yield x s -> return $ IPartial (Just' x, s)
             D.Stop -> return $ IDone ()
             -- Need Skip/Continue in initial to loop right here
-            D.Skip s -> return $ IPartial (Nothing, s)
+            D.Skip s -> return $ IPartial (Nothing', s)
 
-    step (Just x, st) a =
+    step (Just' x, st) a =
         if x `cmp` a
           then do
             r <- sstep defState st
             return
                 $ case r of
-                    D.Yield x1 s -> Continue 0 (Just x1, s)
+                    D.Yield x1 s -> Continue 0 (Just' x1, s)
                     D.Stop -> Done 0 ()
-                    D.Skip s -> Continue 1 (Nothing, s)
+                    D.Skip s -> Continue 1 (Nothing', s)
           else return $ Error "match: mismtach occurred"
-    step (Nothing, st) a = do
+    step (Nothing', st) a = do
         r <- sstep defState st
         return
             $ case r of
                 D.Yield x s -> do
                     if x `cmp` a
-                    then Continue 0 (Nothing, s)
+                    then Continue 0 (Nothing', s)
                     else Error "match: mismatch occurred"
                 D.Stop -> Done 1 ()
-                D.Skip s -> Continue 1 (Nothing, s)
+                D.Skip s -> Continue 1 (Nothing', s)
 
     extract _ = throwM $ ParseError "match: end of input"
 
@@ -1084,40 +1085,41 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
             FL.Partial fs -> do
                 r <- sstep defState state
                 case r of
-                    D.Yield x s -> return $ IPartial (Just x, s, fs)
+                    D.Yield x s -> return $ IPartial (Just' x, s, fs)
                     D.Stop -> do
                         x <- fextract fs
                         return $ IDone x
                     -- Need Skip/Continue in initial to loop right here
-                    D.Skip s -> return $ IPartial (Nothing, s, fs)
+                    D.Skip s -> return $ IPartial (Nothing', s, fs)
             FL.Done x -> return $ IDone x
 
-    step (Just a, st, fs) b = do
+    step (Just' a, st, fs) b = do
         c <- zf a b
         fres <- fstep fs c
         case fres of
             FL.Partial fs1 -> do
                 r <- sstep defState st
                 case r of
-                    D.Yield x1 s -> return $ Continue 0 (Just x1, s, fs1)
+                    D.Yield x1 s -> return $ Continue 0 (Just' x1, s, fs1)
                     D.Stop -> do
                         x <- fextract fs1
                         return $ Done 0 x
-                    D.Skip s -> return $ Continue 1 (Nothing, s, fs1)
+                    D.Skip s -> return $ Continue 1 (Nothing', s, fs1)
             FL.Done x -> return $ Done 0 x
-    step (Nothing, st, fs) b = do
+    step (Nothing', st, fs) b = do
         r <- sstep defState st
         case r of
                 D.Yield a s -> do
                     c <- zf a b
                     fres <- fstep fs c
                     case fres of
-                        FL.Partial fs1 -> return $ Continue 0 (Nothing, s, fs1)
+                        FL.Partial fs1 ->
+                            return $ Continue 0 (Nothing', s, fs1)
                         FL.Done x -> return $ Done 0 x
                 D.Stop -> do
                     x <- fextract fs
                     return $ Done 1 x
-                D.Skip s -> return $ Continue 1 (Nothing, s, fs)
+                D.Skip s -> return $ Continue 1 (Nothing', s, fs)
 
     extract _ = throwM $ ParseError "zipWithM: end of input"
 
@@ -1319,8 +1321,8 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -------------------------------------------------------------------------------
 
 data DeintercalateState fs sp ss =
-      DeintercalateL fs sp
-    | DeintercalateR fs ss Bool
+      DeintercalateL !fs !sp
+    | DeintercalateR !fs !ss !Bool
 
 -- | See 'Streamly.Internal.Data.Parser.deintercalate'.
 --
@@ -1407,8 +1409,8 @@ deintercalate
             FL.Done c -> return c
 
 data SepByState fs sp ss =
-      SepByInit fs sp
-    | SepBySeparator fs ss Bool
+      SepByInit !fs !sp
+    | SepBySeparator !fs !ss !Bool
 
 -- This is a special case of deintercalate and can be easily implemented in
 -- terms of deintercalate.
