@@ -125,8 +125,8 @@ module Streamly.Internal.Data.Parser
 
     -- ** Framing
     -- , takeFramedBy
-    -- , takeFramedBy_
-    , takeFramedByEsc
+    , takeFramedBy_
+    , takeFramedByEsc_
     -- , wordByQuoted
     -- , wordByQuotedEsc
 
@@ -741,34 +741,43 @@ takeEndByEsc :: MonadCatch m =>
 takeEndByEsc isEsc isSep p =
     D.toParserK $ D.takeEndByEsc isEsc isSep (D.fromParserK p)
 
--- | @takeFramedByEsc begin end escape@ parses a string framed using @begin@ and
--- @end@ as the frame begin and end marker elements and @escape@ as an escaping
--- element to escape the occurrence of the framing elements within the frame.
--- Nested frames are allowed, but nesting is removed when parsing.
+-- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
+-- begin and end predicate, and an escape character. The frame begin and end
+-- characters lose their special meaning if preceded by the escape character.
+--
+-- Nested frames are allowed if begin and end markers are different, nested
+-- frames must be balanced unless escaped, nested frame markers are emitted as
+-- it is.
 --
 -- For example,
 --
--- @
--- > Stream.parse (Parser.takeFramedByEsc (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello}"
+-- >>> p = Parser.takeFramedByEsc_ (== '\\') (== '{') (== '}') Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{hello}"
 -- "hello"
---
--- > Stream.parse (Parser.takeFramedByEsc (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}}"
--- "hello world"
---
--- > Stream.parse (Parser.takeFramedByEsc (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello \\{world\\}}"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}}"
 -- "hello {world}"
+-- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
+-- "hello {world"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}"
+-- *** Exception: ParseError "takeFramedByEsc_: missing frame end"
 --
--- > Stream.parse (Parser.takeFramedByEsc (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}"
--- ParseError "Unterminated '{'"
---
--- @
---
--- /Unimplemented/
-{-# INLINE takeFramedByEsc #-}
-takeFramedByEsc :: -- MonadCatch m =>
+-- /Pre-release/
+{-# INLINE takeFramedByEsc_ #-}
+takeFramedByEsc_ :: MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-takeFramedByEsc _begin _end _escape _p = undefined
-    -- D.toParserK . D.takeFramedByEsc begin end escape p
+takeFramedByEsc_ isEsc isBegin isEnd f =
+    D.toParserK $ D.takeFramedByEsc_ isEsc isBegin isEnd f
+
+-- | @takeFramedBy_ isBegin isEnd fold@ parses a token framed by a begin and an
+-- end predicate.
+--
+-- >>> takeFramedBy_ = Parser.takeFramedByEsc_ (const False)
+--
+{-# INLINE takeFramedBy_ #-}
+takeFramedBy_ :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedBy_ isBegin isEnd f = D.toParserK $ D.takeFramedBy_ isBegin isEnd f
+-- takeFramedBy_ = takeFramedByEsc_ (const False)
 
 -------------------------------------------------------------------------------
 -- Grouping and words

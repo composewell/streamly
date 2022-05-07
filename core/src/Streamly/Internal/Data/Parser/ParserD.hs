@@ -76,9 +76,12 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeEndBy_
     , takeEndByEsc
     , takeStartBy
+    , takeFramedBy_
+    , takeFramedByEsc_
 
     -- Words and grouping
     , wordBy
+    -- wordFramedBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
@@ -786,6 +789,101 @@ takeStartBy cond (Fold fstep finitial fextract) =
 
     extract (Left' s) = fextract s
     extract (Right' s) = fextract s
+
+data FramedEscState s =
+    FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
+
+{-# INLINE takeFramedByEsc_ #-}
+takeFramedByEsc_ :: MonadThrow m =>
+    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameEscInit s)
+                FL.Done _ ->
+                    error "takeFramedByEsc_: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameEscGo s1 n)
+                FL.Done b -> Done 0 b
+
+    step (FrameEscInit s) a =
+        if isBegin a
+        then return $ Partial 0 (FrameEscGo s 0)
+        else return $ Error "takeFramedByEsc_: missing frame start"
+    step (FrameEscGo s n) a =
+        if isEsc a
+        then return $ Partial 0 $ FrameEscEsc s n
+        else do
+            if not (isEnd a)
+            then
+                let n1 = if isBegin a then n + 1 else n
+                 in process s a n1
+            else
+                if n == 0
+                then Done 0 <$> fextract s
+                else process s a (n - 1)
+    step (FrameEscEsc s n) a = process s a n
+
+    err = throwM . ParseError
+
+    extract (FrameEscInit _) = err "takeFramedByEsc_: empty token"
+    extract (FrameEscGo _ _) = err "takeFramedByEsc_: missing frame end"
+    extract (FrameEscEsc _ _) = err "takeFramedByEsc_: trailing escape"
+
+data FramedState s = FrameInit !s | FrameGo !s Int
+
+{-# INLINE takeFramedBy_ #-}
+takeFramedBy_ :: MonadThrow m =>
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameInit s)
+                FL.Done _ ->
+                    error "takeFramedBy_: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameGo s1 n)
+                FL.Done b -> Done 0 b
+
+    step (FrameInit s) a =
+        if isBegin a
+        then return $ Continue 0 (FrameGo s 0)
+        else return $ Error "takeFramedBy_: missing frame start"
+    step (FrameGo s n) a
+        | not (isEnd a) =
+            let n1 = if isBegin a then n + 1 else n
+             in process s a n1
+        | n == 0 = Done 0 <$> fextract s
+        | otherwise = process s a (n - 1)
+
+    err = throwM . ParseError
+
+    extract (FrameInit _) = err "takeFramedBy_: empty token"
+    extract (FrameGo _ _) = err "takeFramedBy_: missing frame end"
 
 -------------------------------------------------------------------------------
 -- Grouping and words
