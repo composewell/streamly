@@ -729,14 +729,17 @@ takeStartBy cond = D.toParserK . D.takeStartBy cond
 -------------------------------------------------------------------------------
 
 -- | Like 'takeEndBy' but the separator elements can be escaped using an
--- escape char determined by the second predicate.
+-- escape char determined by the first predicate. The escape characters are
+-- removed.
 --
--- /Unimplemented/
+-- >>> takeEndBy = Parser.takeEndByEsc (const False)
+--
+-- /pre-release/
 {-# INLINE takeEndByEsc #-}
-takeEndByEsc :: -- MonadCatch m =>
-    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-takeEndByEsc _cond _esc = undefined
-    -- D.toParserK . D.takeEndByEsc cond esc
+takeEndByEsc :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndByEsc isEsc isSep p =
+    D.toParserK $ D.takeEndByEsc isEsc isSep (D.fromParserK p)
 
 -- | @takeFramedByEsc begin end escape@ parses a string framed using @begin@ and
 -- @end@ as the frame begin and end marker elements and @escape@ as an escaping

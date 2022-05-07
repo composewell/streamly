@@ -74,6 +74,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Separators
     , takeEndBy
     , takeEndBy_
+    , takeEndByEsc
     , takeStartBy
 
     -- Words and grouping
@@ -190,6 +191,7 @@ where
 import Control.Exception (assert, Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (defState)
@@ -687,12 +689,39 @@ takeEndBy cond (Parser pstep pinitial pextract) =
         res <- pstep s a
         if not (cond a)
         then return res
+        else extractStep pextract res
+
+-- | See 'Streamly.Internal.Data.Parser.takeEndByEsc'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndByEsc #-}
+takeEndByEsc :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial = first Left <$> pinitial
+
+    step (Left s) a = do
+        if isEsc a
+        then return $ Partial 0 $ Right s
         else do
-            case res of
-                Partial n s1 -> Done n <$> pextract s1
-                Done n b -> return $ Done n b
-                Continue n s1 -> Done n <$> pextract s1
-                Error _ -> return res
+            res <- pstep s a
+            if not (isSep a)
+            then return $ mapStateStep Left res
+            else extractStep pextract res
+
+    step (Right s) a = do
+        res <- pstep s a
+        return $ mapStateStep Left res
+
+    extract (Left s) = pextract s
+    extract (Right _) =
+        throwM $ ParseError "takeEndByEsc: trailing escape, end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
 --

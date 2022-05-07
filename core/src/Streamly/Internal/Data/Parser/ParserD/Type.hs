@@ -169,6 +169,8 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     -- * Types
       Initial (..)
     , Step (..)
+    , mapStateStep
+    , extractStep
     , Parser (..)
     , ParseError (..)
     , rmapM
@@ -366,6 +368,26 @@ instance Functor (Step s) where
     fmap _ (Continue n s) = Continue n s
     fmap f (Done n b) = Done n (f b)
     fmap _ (Error err) = Error err
+
+-- | Map an extract function over the state of Step
+--
+{-# INLINE extractStep #-}
+extractStep :: Monad m => (s -> m b) -> Step s b -> m (Step s1 b)
+extractStep f res =
+    case res of
+        Partial n s1 -> Done n <$> f s1
+        Done n b -> return $ Done n b
+        Continue n s1 -> Done n <$> f s1
+        Error err -> return $ Error err
+
+{-# INLINE mapStateStep #-}
+mapStateStep :: (s -> s1) -> Step s b -> (Step s1 b)
+mapStateStep f res =
+    case res of
+        Partial n s1 -> Partial n $ f s1
+        Done n b -> Done n b
+        Continue n s1 -> Continue n $ f s1
+        Error err -> Error err
 
 -- | Map a monadic function over the result @b@ in @Step s b@.
 --
