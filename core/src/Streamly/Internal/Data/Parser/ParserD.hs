@@ -72,6 +72,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile1
 
     -- Separators
+    , takeEndBy
     , takeEndBy_
     , takeStartBy
 
@@ -668,10 +669,36 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 -- Separators
 -------------------------------------------------------------------------------
 
+-- | See 'Streamly.Internal.Data.Parser.takeEndBy'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBy #-}
+takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy cond (Parser pstep pinitial pextract) =
+
+    Parser step initial pextract
+
+    where
+
+    initial = pinitial
+
+    step s a = do
+        res <- pstep s a
+        if not (cond a)
+        then return res
+        else do
+            case res of
+                Partial n s1 -> Done n <$> pextract s1
+                Done n b -> return $ Done n b
+                Continue n s1 -> Done n <$> pextract s1
+                Error _ -> return res
+
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
 --
 -- /Pre-release/
 --
+{-# INLINE takeEndBy_ #-}
 takeEndBy_ :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndBy_ cond (Parser pstep pinitial pextract) =

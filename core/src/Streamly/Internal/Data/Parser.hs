@@ -108,7 +108,7 @@ module Streamly.Internal.Data.Parser
     , dropWhile
 
     -- ** Separators
-    -- , takeEndBy
+    , takeEndBy
     , takeEndBy_
     , takeEndByEsc
     -- , takeEndByEsc_
@@ -661,13 +661,25 @@ dropWhile p = takeWhile p FL.drain
 -------------------------------------------------------------------------------
 
 -- | @takeEndBy_ cond parser@ parses a token that ends by a separator chosen by
--- the supplied predicate. The separator is dropped.
+-- the supplied predicate. The separator is also taken with the token.
 --
 -- This can be combined with other parsers to implement other interesting
 -- parsers as follows:
 --
--- >>> takeEndByOrMax cond n p = Parser.takeEndBy_ cond (Parser.fromFold $ Fold.take n p)
--- >>> takeEndByBetween cond m n p = Parser.takeEndBy_ cond (Parser.takeBetween m n p)
+-- >>> takeEndByLE cond n p = Parser.takeEndBy cond (Parser.fromFold $ Fold.take n p)
+-- >>> takeEndByBetween cond m n p = Parser.takeEndBy cond (Parser.takeBetween m n p)
+--
+-- See also "Streamly.Data.Fold.takeEndBy".
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBy #-}
+takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy cond = D.toParserK . D.takeEndBy cond . D.fromParserK
+
+-- | Like 'takeEndBy' but the separator is dropped.
+--
+-- See also "Streamly.Data.Fold.takeEndBy_".
 --
 -- /Pre-release/
 --
