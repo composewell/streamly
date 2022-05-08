@@ -103,6 +103,10 @@ takeStartBy value stream = do
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
+takeWhileP :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeWhileP value =
+    IP.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) FL.drain))
+
 {-# INLINE takeP #-}
 takeP :: MonadCatch m => Int -> SerialT m a -> m ()
 takeP value = IP.parse (PR.takeP value (PR.fromFold FL.drain))
@@ -360,6 +364,7 @@ o_1_space_serial value =
     , benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "dropWhile" $ dropWhile value
     , benchIOSink value "takeStartBy" $ takeStartBy value
