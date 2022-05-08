@@ -58,6 +58,46 @@ sourceUnfoldrM value n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+-- | Generates something like this: { { \{ \{ } }.  The stream consists of
+-- three parts, the first part is contains a sequence of `{`. The second part
+-- contains a sequence pf escaped values `\{`. The third part contains a
+-- sequence of `}`.
+{-# INLINE sourceEscapedFrames #-}
+sourceEscapedFrames ::
+    (S.IsStream t, S.MonadAsync m)
+    => Int
+    -> Int
+    -> t m Char
+sourceEscapedFrames value n = S.unfoldrM step n
+    where
+
+    bs = '\\'
+    cbOpen = '{'
+    cbClose = '}'
+    value1 = value `div` 4
+
+    step cnt
+        | cnt > 4 * value1 = return Nothing
+        | cnt <= value1 = return $ Just (cbOpen, cnt + 1)
+        | cnt > 3 * value1 = return $ Just (cbClose, cnt + 1)
+        | otherwise =
+            return
+                $ Just
+                $ if (cnt - value1) `mod` 2 == 1
+                  then (bs, cnt + 1)
+                  else (cbOpen, cnt + 1)
+
+{-# INLINE benchIOSrc #-}
+benchIOSrc
+    :: NFData b
+    => (Int -> Int -> t IO a)
+    -> Int
+    -> String
+    -> (t IO a -> IO b)
+    -> Benchmark
+benchIOSrc src value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . src value
+
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
@@ -98,6 +138,17 @@ takeStartBy value stream = do
     stream1 <- return . fromMaybe (S.fromPure (value + 1)) =<< S.tail stream
     let stream2 = value `S.cons` stream1
     IP.parse (PR.takeStartBy (== value) FL.drain) stream2
+
+takeFramedByEsc_ :: MonadCatch m => Int -> SerialT m Char -> m ()
+takeFramedByEsc_ _ = IP.parse parser
+
+    where
+
+    isEsc = (== '\\')
+    isBegin = (== '{')
+    isEnd = (== '}')
+
+    parser = PR.takeFramedByEsc_ isEsc isBegin isEnd FL.drain
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
@@ -368,6 +419,8 @@ o_1_space_serial value =
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "dropWhile" $ dropWhile value
     , benchIOSink value "takeStartBy" $ takeStartBy value
+    , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
+        $ takeFramedByEsc_ value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
