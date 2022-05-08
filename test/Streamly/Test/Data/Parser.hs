@@ -398,6 +398,27 @@ takeWhile1 =
         where
             predicate = (== 0)
 
+takeWhileP :: Property
+takeWhileP =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        forAll (chooseInt (min_value, max_value)) $ \n ->
+            let
+                predicate = (== 1)
+
+                prsr =
+                    P.takeWhileP predicate
+                        $ P.fromFold (FL.take n FL.toList)
+
+                takeWhileTillLen maxLen prd list =
+                    Prelude.take maxLen $ Prelude.takeWhile prd list
+            in
+                case S.parse prsr (S.fromList ls) of
+                    Right parsed_list ->
+                        checkListEqual
+                        parsed_list
+                        (takeWhileTillLen n predicate ls)
+                    Left _ -> property False
+
 choice :: Property
 choice =
     forAll
@@ -785,6 +806,7 @@ main =
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
                 ++ " else check why failed") takeWhile1
+        prop "takeWhileP prd P.take = takeWhileMaxLen prd" takeWhileP
         prop ("P.takeP = Prelude.take") takeP
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "many (P.wordBy ' ') = words'" wordBy
