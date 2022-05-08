@@ -78,6 +78,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeStartBy
     , takeFramedBy_
     , takeFramedByEsc_
+    , takeFramedByGeneric
 
     -- Words and grouping
     , wordBy
@@ -675,6 +676,103 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 -------------------------------------------------------------------------------
 -- Separators
 -------------------------------------------------------------------------------
+
+{-# INLINE takeFramedByGeneric #-}
+takeFramedByGeneric :: MonadThrow m =>
+       Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameEscInit s)
+                FL.Done _ ->
+                    error "takeFramedByGeneric: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameEscGo s1 n)
+                FL.Done b -> Done 0 b
+
+    {-# INLINE processNoEsc #-}
+    processNoEsc s a n =
+        case end of
+            Just isEnd ->
+                case begin of
+                    Just isBegin ->
+                        -- takeFramedBy case
+                        if isEnd a
+                        then
+                            if n == 0
+                            then Done 0 <$> fextract s
+                            else process s a (n - 1)
+                        else
+                            let n1 = if isBegin a then n + 1 else n
+                             in process s a n1
+                    Nothing -> -- takeEndBy case
+                        if isEnd a
+                        then Done 0 <$> fextract s
+                        else process s a n
+            Nothing -> -- takeStartBy case
+                case begin of
+                    Just isBegin ->
+                        if isBegin a
+                        then Done 0 <$> fextract s
+                        else process s a n
+                    Nothing ->
+                        error $ "takeFramedByGeneric: "
+                            ++ "Both begin and end frame predicate missing"
+
+    {-# INLINE processCheckEsc #-}
+    processCheckEsc s a n =
+        case esc of
+            Just isEsc ->
+                if isEsc a
+                then return $ Partial 0 $ FrameEscEsc s n
+                else processNoEsc s a n
+            Nothing -> processNoEsc s a n
+
+    step (FrameEscInit s) a =
+        case begin of
+            Just isBegin ->
+                if isBegin a
+                then return $ Partial 0 (FrameEscGo s 0)
+                else return $ Error "takeFramedByGeneric: missing frame start"
+            Nothing ->
+                case end of
+                    Just isEnd ->
+                        if isEnd a
+                        then Done 0 <$> fextract s
+                        else processCheckEsc s a 0
+                    Nothing ->
+                        error "Both begin and end frame predicate missing"
+    step (FrameEscGo s n) a = processCheckEsc s a n
+    step (FrameEscEsc s n) a = process s a n
+
+    err = throwM . ParseError
+
+    extract (FrameEscInit _) =
+        err "takeFramedByGeneric: empty token"
+    extract (FrameEscGo s _) =
+        case begin of
+            Just _ ->
+                case end of
+                    Nothing -> fextract s
+                    Just _ -> err "takeFramedByGeneric: missing frame end"
+            Nothing -> err "takeFramedByGeneric: missing closing frame"
+    extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
 
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy'.
 --

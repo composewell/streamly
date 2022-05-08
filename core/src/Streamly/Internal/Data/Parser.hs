@@ -127,6 +127,7 @@ module Streamly.Internal.Data.Parser
     -- , takeFramedBy
     , takeFramedBy_
     , takeFramedByEsc_
+    , takeFramedByGeneric
     -- , wordByQuoted
     -- , wordByQuotedEsc
 
@@ -660,7 +661,17 @@ dropWhile p = takeWhile p FL.drain
 -- Separators
 -------------------------------------------------------------------------------
 
--- | @takeEndBy_ cond parser@ parses a token that ends by a separator chosen by
+{-# INLINE takeFramedByGeneric #-}
+takeFramedByGeneric :: MonadCatch m =>
+       Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+takeFramedByGeneric esc begin end f =
+    D.toParserK $ D.takeFramedByGeneric esc begin end f
+
+-- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
 --
 -- This can be combined with other parsers to implement other interesting
@@ -669,6 +680,8 @@ dropWhile p = takeWhile p FL.drain
 -- >>> takeEndByLE cond n p = Parser.takeEndBy cond (Parser.fromFold $ Fold.take n p)
 -- >>> takeEndByBetween cond m n p = Parser.takeEndBy cond (Parser.takeBetween m n p)
 --
+-- >>> takeEndBy = Parser.takeEndByEsc (const False)
+--
 -- See also "Streamly.Data.Fold.takeEndBy".
 --
 -- /Pre-release/
@@ -676,6 +689,7 @@ dropWhile p = takeWhile p FL.drain
 {-# INLINE takeEndBy #-}
 takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndBy cond = D.toParserK . D.takeEndBy cond . D.fromParserK
+-- takeEndBy = takeEndByEsc (const False)
 
 -- | Like 'takeEndBy' but the separator is dropped.
 --
@@ -686,6 +700,10 @@ takeEndBy cond = D.toParserK . D.takeEndBy cond . D.fromParserK
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndBy_ cond = D.toParserK . D.takeEndBy_ cond . D.fromParserK
+{-
+takeEndBy_ isEnd p =
+    takeFramedByGeneric Nothing Nothing (Just isEnd) (toFold p)
+-}
 
 -- | Take either the separator or the token. Separator is a Left value and
 -- token is Right value.
@@ -724,6 +742,12 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 takeStartBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeStartBy cond = D.toParserK . D.takeStartBy cond
 
+{-
+{-# INLINE takeStartBy_ #-}
+takeStartBy_ :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
+-}
+
 -------------------------------------------------------------------------------
 -- Quoting and Escaping
 -------------------------------------------------------------------------------
@@ -732,14 +756,12 @@ takeStartBy cond = D.toParserK . D.takeStartBy cond
 -- escape char determined by the first predicate. The escape characters are
 -- removed.
 --
--- >>> takeEndBy = Parser.takeEndByEsc (const False)
---
 -- /pre-release/
 {-# INLINE takeEndByEsc #-}
 takeEndByEsc :: MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
-takeEndByEsc isEsc isSep p =
-    D.toParserK $ D.takeEndByEsc isEsc isSep (D.fromParserK p)
+takeEndByEsc isEsc isEnd p =
+    D.toParserK $ D.takeEndByEsc isEsc isEnd (D.fromParserK p)
 
 -- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
 -- begin and end predicate, and an escape character. The frame begin and end
@@ -767,6 +789,8 @@ takeFramedByEsc_ :: MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 takeFramedByEsc_ isEsc isBegin isEnd f =
     D.toParserK $ D.takeFramedByEsc_ isEsc isBegin isEnd f
+-- takeEndByEsc_ isEsc isEnd p =
+--    takeFramedByGeneric (Just isEsc) Nothing (Just isEnd) (toFold p)
 
 -- | @takeFramedBy_ isBegin isEnd fold@ parses a token framed by a begin and an
 -- end predicate.
@@ -777,7 +801,8 @@ takeFramedByEsc_ isEsc isBegin isEnd f =
 takeFramedBy_ :: MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 takeFramedBy_ isBegin isEnd f = D.toParserK $ D.takeFramedBy_ isBegin isEnd f
--- takeFramedBy_ = takeFramedByEsc_ (const False)
+-- takeFramedBy_ isBegin isEnd =
+--    takeFramedByGeneric (Just (const False)) (Just isBegin) (Just isEnd)
 
 -------------------------------------------------------------------------------
 -- Grouping and words
