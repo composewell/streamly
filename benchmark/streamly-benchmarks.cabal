@@ -172,10 +172,8 @@ library
     hs-source-dirs: lib
     exposed-modules: Streamly.Benchmark.Common
                     , Streamly.Benchmark.Common.Handle
-    if flag(bench-core)
-        exposed-modules:
-    else
-        exposed-modules: Streamly.Benchmark.Prelude
+    if !flag(bench-core)
+      exposed-modules: Streamly.Benchmark.Prelude
 
 
 -------------------------------------------------------------------------------
@@ -224,9 +222,9 @@ benchmark Prelude.Serial
     buildable: True
   if flag(limit-build-mem)
     if flag(dev)
-    ghc-options: +RTS -M3500M -RTS
+      ghc-options: +RTS -M3500M -RTS
     else
-    ghc-options: +RTS -M2000M -RTS
+      ghc-options: +RTS -M2000M -RTS
 
 
 benchmark Prelude.WSerial
