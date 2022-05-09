@@ -708,12 +708,12 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 --
 -- >>> p = Parser.takeStartBy (== ',') Fold.toList
 -- >>> leadingComma = Stream.parse p . Stream.fromList
--- >>> leadingComma "a,b,c,d"
--- *** Exception: takeStartBy : token begins with an element which fails the predicate
+-- >>> leadingComma "a,b"
+-- *** Exception: ParseError "takeStartBy: missing frame start"
 -- ...
 -- >>> leadingComma ",,"
 -- ","
--- >>> leadingComma ",a,b,c,d"
+-- >>> leadingComma ",a,b"
 -- ",a"
 -- >>> leadingComma ""
 -- ""

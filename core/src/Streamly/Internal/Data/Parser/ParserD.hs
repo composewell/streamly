@@ -723,7 +723,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
     extract (Left' s) = pextract s
     extract (Right' _) =
-        throwM $ ParseError "takeEndByEsc: trailing escape, end of input"
+        throwM $ ParseError "takeEndByEsc: trailing escape"
 
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
 --
@@ -765,7 +765,7 @@ takeStartBy cond (Fold fstep finitial fextract) =
         return $
             case res of
                 FL.Partial s -> IPartial (Left' s)
-                FL.Done _ -> IError "takeStartBy : bad finitial"
+                FL.Done _ -> IError "takeStartBy: fold done without input"
 
     {-# INLINE process #-}
     process s a = do
@@ -778,8 +778,7 @@ takeStartBy cond (Fold fstep finitial fextract) =
     step (Left' s) a =
         if cond a
         then process s a
-        else error $ "takeStartBy : token begins with an element which "
-                        ++ "fails the predicate"
+        else return $ Error "takeStartBy: missing frame start"
     step (Right' s) a =
         if not (cond a)
         then process s a
@@ -1342,7 +1341,7 @@ deintercalate
     where
 
     errMsg p status =
-        error $ "sepBy: " ++ p ++ " parser cannot "
+        error $ "deintercalate: " ++ p ++ " parser cannot "
                 ++ status ++ " without input"
 
     initial = do
@@ -1392,7 +1391,7 @@ deintercalate
                                 IDone _ -> errMsg "left" "succeed"
                                 IError _ -> errMsg "left" "fail"
                         FL.Done c -> return $ Done n c
-                else return $ Error "sepBy: infinite loop"
+                else error "deintercalate: infinite loop"
             Error err -> return $ Error err
 
     extract (DeintercalateL fs sL) = do
@@ -1469,7 +1468,7 @@ sepBy
                         IPartial sp -> return $ Partial n $ SepByInit fs sp
                         IDone _ -> errMsg "content" "succeed"
                         IError _ -> errMsg "content" "fail"
-                else return $ Error "sepBy: infinite loop"
+                else error "sepBy: infinite loop"
             Error err -> return $ Error err
 
     extract (SepByInit fs sp) = do
