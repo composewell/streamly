@@ -192,11 +192,11 @@ deintercalate _ = IP.parse (partition even)
 
 {-# INLINE manyWordByEven #-}
 manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
-manyWordByEven = IP.parse (PR.many (PR.wordBy even FL.drain) FL.drain)
+manyWordByEven = IP.parse (PR.many FL.drain (PR.wordBy even FL.drain))
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
-many = IP.parse (PR.many (PR.satisfy (> 0)) FL.length)
+many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
 
 {-# INLINE manyAlt #-}
 manyAlt :: MonadCatch m => SerialT m Int -> m Int
@@ -206,7 +206,7 @@ manyAlt xs = do
 
 {-# INLINE some #-}
 some :: MonadCatch m => SerialT m Int -> m Int
-some = IP.parse (PR.some (PR.satisfy (> 0)) FL.length)
+some = IP.parse (PR.some FL.length (PR.satisfy (> 0)))
 
 {-# INLINE someAlt #-}
 someAlt :: MonadCatch m => SerialT m Int -> m Int
