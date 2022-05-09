@@ -1125,7 +1125,7 @@ choice = foldl1 shortest
 -- /Pre-release/
 --
 {-# INLINE many #-}
-many :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 many = splitMany
 -- many = countBetween 0 maxBound
 
@@ -1134,7 +1134,7 @@ many = splitMany
 -- /Pre-release/
 --
 {-# INLINE some #-}
-some :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 some = splitSome
 -- some f p = many (takeGE 1 f) p
 -- many = countBetween 1 maxBound
@@ -1146,9 +1146,9 @@ some = splitSome
 {-# INLINE countBetween #-}
 countBetween ::
     -- MonadCatch m =>
-    Int -> Int -> Parser m a b -> Fold m b c -> Parser m a c
-countBetween _m _n _p = undefined
--- countBetween m n p f = many (takeBetween m n f) p
+    Int -> Int -> Fold m b c -> Parser m a b -> Parser m a c
+countBetween _m _n _f = undefined
+-- countBetween m n f p = many (takeBetween m n f) p
 
 -- | See 'Streamly.Internal.Data.Parser.count'.
 --
@@ -1157,7 +1157,7 @@ countBetween _m _n _p = undefined
 {-# INLINE count #-}
 count ::
     -- MonadCatch m =>
-    Int -> Parser m a b -> Fold m b c -> Parser m a c
+    Int -> Fold m b c -> Parser m a b -> Parser m a c
 count n = countBetween n n
 -- count n f p = many (takeEQ n f) p
 

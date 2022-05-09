@@ -333,7 +333,7 @@ sliceSepByP =
             Left _ -> property False
         where
             predicate = (>= 100)
-            prsr = P.many (P.satisfy (const True)) FL.toList
+            prsr = P.many FL.toList (P.satisfy (const True))
             tkwhl ls = Prelude.takeWhile (not . predicate) ls
 
 sliceBeginWith :: Property
@@ -441,7 +441,7 @@ wordBy =
     where
 
     predicate = (== ' ')
-    parser = P.many (P.wordBy predicate FL.toList) FL.toList
+    parser = P.many FL.toList (P.wordBy predicate FL.toList)
     words' lst =
         let wrds = words lst
          in if wrds == [] && length lst > 0 then [""] else wrds
@@ -552,7 +552,7 @@ many =
         let fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                flip P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+                P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> checkListEqual res_list
@@ -573,7 +573,7 @@ some =
             fldstp conL currL = return $ FL.Partial $ conL ++ currL
             concatFold = FL.Fold fldstp (return (FL.Partial [])) return
             prsr =
-                flip P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+                P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
         in
             case S.parse prsr (S.fromList ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls
@@ -713,7 +713,7 @@ manyEqParseMany =
     forAll (chooseInt (1, 100)) $ \i ->
         monadicIO $ do
             let strm = S.fromList lst
-            r1 <- run $ S.parse (P.many (split i) FL.toList) strm
+            r1 <- run $ S.parse (P.many FL.toList (split i)) strm
             r2 <- run $ S.toList $ S.parseMany (split i) strm
             assert $ r1 == r2
 

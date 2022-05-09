@@ -981,8 +981,8 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 -- /Pre-release/
 --
 {-# INLINE splitMany #-}
-splitMany :: MonadCatch m =>  Parser m a b -> Fold m b c -> Parser m a c
-splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitMany :: MonadCatch m =>  Fold m b c -> Parser m a b -> Parser m a c
+splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1)=
     Parser step initial extract
 
     where
@@ -1041,8 +1041,8 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 -- /Internal/
 --
 {-# INLINE splitManyPost #-}
-splitManyPost :: MonadCatch m =>  Parser m a b -> Fold m b c -> Parser m a c
-splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitManyPost :: MonadCatch m =>  Fold m b c -> Parser m a b -> Parser m a c
+splitManyPost (Fold fstep finitial fextract)(Parser step1 initial1 extract1) =
     Parser step initial extract
 
     where
@@ -1099,8 +1099,8 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE splitSome #-}
-splitSome :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
-splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitSome :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
+splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
     Parser step initial extract
 
     where
@@ -1225,10 +1225,10 @@ instance MonadCatch m => Alternative (Parser m a) where
     (<|>) = alt
 
     {-# INLINE many #-}
-    many = flip splitMany toList
+    many = splitMany toList
 
     {-# INLINE some #-}
-    some = flip splitSome toList
+    some = splitSome toList
 
 {-# ANN type ConcatParseState Fuse #-}
 data ConcatParseState sl m a b =

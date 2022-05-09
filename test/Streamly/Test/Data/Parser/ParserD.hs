@@ -377,7 +377,7 @@ wordBy =
     where
 
     predicate = (== ' ')
-    parser = P.many (P.wordBy predicate FL.toList) FL.toList
+    parser = P.many FL.toList (P.wordBy predicate FL.toList)
     words' lst =
         let wrds = words lst
          in if wrds == [] && length lst > 0 then [""] else wrds
@@ -515,7 +515,7 @@ many =
                 concatFold =
                     FL.Fold fldstp (return (FL.Partial [])) return
                 prsr =
-                    flip P.many concatFold
+                    P.many concatFold
                         $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
              in case S.parseD prsr (S.fromList ls) of
                     Right res_list ->
@@ -524,7 +524,7 @@ many =
 
 many_empty :: Property
 many_empty =
-    property (case S.parseD (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
         Right res_list -> checkListEqual res_list ([] :: [Int])
         Left _ -> property False)
 
@@ -535,7 +535,7 @@ some =
             let fldstp conL currL = return $ FL.Partial $ conL ++ currL
                 concatFold = FL.Fold fldstp (return (FL.Partial [])) return
                 prsr =
-                    flip P.some concatFold
+                    P.some concatFold
                         $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
              in case S.parseD prsr (S.fromList ls) of
                     Right res_list -> res_list == Prelude.filter (== 0) ls
@@ -543,7 +543,7 @@ some =
 
 someFail :: Property
 someFail =
-    property (case S.parseD (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.some FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 

@@ -16,6 +16,9 @@ cabal.project.local
 *.swo
 *~
 
+# Temp files created by VS Code
+.vscode/
+
 # Other
 .log
 _doctests/
