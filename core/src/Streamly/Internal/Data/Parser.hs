@@ -1343,7 +1343,7 @@ sepBy1 sink p sep = do
     x <- p
     f <- fromEffect $ FL.initialize sink
     f1 <- fromEffect $ FL.snoc f x
-    many (sep >> p) f1
+    many f1 (sep >> p)
 
 -- | Run the content parser first, when it is done, the separator parser is
 -- run, when it is done content parser is run again and so on. If none of the
