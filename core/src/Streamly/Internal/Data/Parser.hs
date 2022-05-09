@@ -113,7 +113,7 @@ module Streamly.Internal.Data.Parser
     , takeEndByEsc
     -- , takeEndByEsc_
     , takeStartBy
-    -- , takeStartBy_
+    , takeStartBy_
     , takeEitherSepBy
     , wordBy
     -- , wordByEsc
@@ -742,11 +742,13 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 takeStartBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeStartBy cond = D.toParserK . D.takeStartBy cond
 
-{-
+-- | Like 'takeStartBy' but drops the separator.
+--
+-- >>> takeStartBy_ isBegin = Parser.takeFramedByGeneric Nothing (Just isBegin) Nothing
+--
 {-# INLINE takeStartBy_ #-}
 takeStartBy_ :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
--}
 
 -------------------------------------------------------------------------------
 -- Quoting and Escaping
