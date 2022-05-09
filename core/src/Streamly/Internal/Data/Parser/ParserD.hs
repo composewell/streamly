@@ -82,7 +82,7 @@ module Streamly.Internal.Data.Parser.ParserD
 
     -- Words and grouping
     , wordBy
-    -- wordFramedBy
+    , wordFramedBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
@@ -1032,6 +1032,96 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
     extract (WBLeft s) = fextract s
     extract (WBWord s) = fextract s
     extract (WBRight b) = return b
+
+data WordFramedState s b =
+      WordFramedSkipPre !s
+    | WordFramedWord !s !Int
+    | WordFramedEsc !s !Int
+    | WordFramedSkipPost !b
+
+-- | See 'Streamly.Internal.Data.Parser.wordFramedBy'
+--
+{-# INLINE wordFramedBy #-}
+wordFramedBy :: MonadCatch m =>
+       (a -> Bool)  -- ^ Escape
+    -> (a -> Bool)  -- ^ left quote
+    -> (a -> Bool)  -- ^ right quote
+    -> (a -> Bool)  -- ^ word seperator
+    -> Fold m a b
+    -> Parser m a b
+wordFramedBy isEsc isBegin isEnd isSep
+    (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (WordFramedSkipPre s)
+                FL.Done _ ->
+                    error "wordFramedBy: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (WordFramedWord s1 n)
+                FL.Done b -> Done 0 b
+
+    step (WordFramedSkipPre s) a
+        | isEsc a = return $ Continue 0 $ WordFramedEsc s 0
+        | isSep a = return $ Partial 0 $ WordFramedSkipPre s
+        | isBegin a = return $ Continue 0 $ WordFramedWord s 1
+        | isEnd a =
+            return $ Error "wordFramedBy: missing frame start"
+        | otherwise = process s a 0
+    step (WordFramedWord s n) a
+        | isEsc a = return $ Continue 0 $ WordFramedEsc s n
+        | n == 0 && isSep a = do
+            b <- fextract s
+            return $ Partial 0 $ WordFramedSkipPost b
+        | otherwise = do
+            -- We need to use different order for checking begin and end for
+            -- the n == 0 and n == 1 case so that when the begin and end
+            -- character is the same we treat the one after begin as end.
+            if n == 0
+            then
+               -- Need to check isBegin first
+               if isBegin a
+               then return $ Continue 0 $ WordFramedWord s 1
+               else if isEnd a
+                    then return $ Error "wordFramedBy: missing frame start"
+                    else process s a n
+            else
+               -- Need to check isEnd first
+                if isEnd a
+                then
+                   if n == 1
+                   then return $ Continue 0 $ WordFramedWord s 0
+                   else process s a (n - 1)
+                else if isBegin a
+                     then process s a (n + 1)
+                     else process s a n
+    step (WordFramedEsc s n) a = process s a n
+    step (WordFramedSkipPost b) a =
+        return
+            $ if not (isSep a)
+              then Done 1 b
+              else Partial 0 $ WordFramedSkipPost b
+
+    err = throwM . ParseError
+
+    extract (WordFramedSkipPre s) = fextract s
+    extract (WordFramedWord s n) =
+        if n == 0
+        then fextract s
+        else err "wordFramedBy: missing frame end"
+    extract (WordFramedEsc _ _) =
+        err "wordFramedBy: trailing escape"
+    extract (WordFramedSkipPost b) = return b
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s

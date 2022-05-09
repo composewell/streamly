@@ -128,8 +128,7 @@ module Streamly.Internal.Data.Parser
     , takeFramedBy_
     , takeFramedByEsc_
     , takeFramedByGeneric
-    -- , wordByQuoted
-    -- , wordByQuotedEsc
+    , wordFramedBy
 
     -- | Unimplemented
     --
@@ -252,6 +251,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- >>> :set -package streamly
 -- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
 -- >>> import Control.Applicative ((<|>))
+-- >>> import Data.Char (isSpace)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
@@ -661,6 +661,7 @@ dropWhile p = takeWhile p FL.drain
 -- Separators
 -------------------------------------------------------------------------------
 
+-- XXX We can remove Maybe from esc
 {-# INLINE takeFramedByGeneric #-}
 takeFramedByGeneric :: MonadCatch m =>
        Maybe (a -> Bool)
@@ -823,6 +824,8 @@ takeFramedBy_ isBegin isEnd f = D.toParserK $ D.takeFramedBy_ isBegin isEnd f
 -- * Stops - when it finds a word separator after a non-word element
 -- * Fails - never.
 --
+-- >>> wordBy = Parser.wordFramedBy (const False) (const False) (const False)
+--
 -- @
 -- S.wordsBy pred f = S.parseMany (PR.wordBy pred f)
 -- @
@@ -830,6 +833,37 @@ takeFramedBy_ isBegin isEnd f = D.toParserK $ D.takeFramedBy_ isBegin isEnd f
 {-# INLINE wordBy #-}
 wordBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy f = D.toParserK . D.wordBy f
+
+-- | Like 'wordBy' but treats anything inside a pair of quotes as a single
+-- word, the quotes can be escaped by an escape character.  Recursive quotes
+-- are possible if quote begin and end characters are different, quotes must be
+-- balanced. Outermost quotes are stripped.
+--
+-- >>> braces = Parser.wordFramedBy (== '\\') (== '{') (== '}') isSpace Fold.toList
+-- >>> Stream.parse braces $ Stream.fromList "{ab} cd"
+-- "ab"
+-- >>> Stream.parse braces $ Stream.fromList "{ab}{cd}"
+-- "abcd"
+-- >>> Stream.parse braces $ Stream.fromList "a{b} cd"
+-- "ab"
+-- >>> Stream.parse braces $ Stream.fromList "a{{b}} cd"
+-- "a{b}"
+--
+-- >>> quotes = Parser.wordFramedBy (== '\\') (== '"') (== '"') isSpace Fold.toList
+-- >>> Stream.parse quotes $ Stream.fromList "\"a\"\"b\""
+-- "ab"
+--
+-- /Pre-release/
+{-# INLINE wordFramedBy #-}
+wordFramedBy :: MonadCatch m =>
+       (a -> Bool)  -- ^ Escape
+    -> (a -> Bool)  -- ^ left quote
+    -> (a -> Bool)  -- ^ right quote
+    -> (a -> Bool)  -- ^ word seperator
+    -> Fold m a b
+    -> Parser m a b
+wordFramedBy isEsc isBegin isEnd isSpc =
+    D.toParserK . D.wordFramedBy isEsc isBegin isEnd isSpc
 
 -- | Given an input stream @[a,b,c,...]@ and a comparison function @cmp@, the
 -- parser assigns the element @a@ to the first group, then if @a \`cmp` b@ is
