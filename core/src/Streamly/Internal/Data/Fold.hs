@@ -149,6 +149,11 @@ module Streamly.Internal.Data.Fold
     , mapMaybe
     -- , mapMaybeM
 
+    -- Either streams
+    , lefts
+    , rights
+    , both
+
     -- ** Scanning Filters
     , findIndices
     {-
@@ -1979,6 +1984,9 @@ unzip = unzipWith id
 
 -- XXX These can be implemented using the fold scan, using the stream as a
 -- state.
+-- XXX Stream Skip state cannot be efficiently handled in folds but can be
+-- handled in parsers using the Continue facility. See zipWithM in the Parser
+-- module.
 --
 -- | Zip a stream with the input of a fold using the supplied function.
 --

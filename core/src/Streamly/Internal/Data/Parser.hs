@@ -62,44 +62,75 @@ module Streamly.Internal.Data.Parser
     , die
     , dieM
 
+    -- * Map on input
+    , lmap
+    , lmapM
+    , filter
+
     -- * Element parsers
     , peek
+    , one
+    , next
+    , element
+    , except
+    , oneOf
+    , noneOf
     , eof
     , satisfy
-    , next
     , maybe
     , either
 
-    -- * Sequence parsers
+    -- * Sequence parsers (tokenizers)
     --
     -- | Parsers chained in series, if one parser terminates the composition
     -- terminates.
 
+    , lookAhead
+
+    -- ** By length
     -- | Grab a sequence of input elements without inspecting them
     , takeBetween
     -- , take   -- takeBetween 0 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
+    , takeP
 
     -- Grab a sequence of input elements by inspecting them
-    , takeP
-    , lookAhead
+    -- ** Exact match
+    , eqBy
+    , list
+
+    -- ** By predicate
     , takeWhileP
     , takeWhile
     -- $takeWhile
     , takeWhile1
-    , drainWhile
+    , dropWhile
 
-    , sliceSepByP
-    , sliceBeginWith
-    , sliceSepWith
-    , escapedSliceSepBy
-    , escapedFrameBy
+    -- ** Separators
+    , takeEndBy
+    , takeEndBy_
+    , takeEndByEsc
+    -- , takeEndByEsc_
+    , takeStartBy
+    , takeStartBy_
+    , takeEitherSepBy
     , wordBy
+    -- , wordByEsc
+
+    -- ** By comparing
     , groupBy
     , groupByRolling
     , groupByRollingEither
-    , eqBy
+
+    -- ** Framing
+    -- , takeFramedBy
+    , takeFramedBy_
+    , takeFramedByEsc_
+    , takeFramedByGeneric
+    -- , wordByQuoted
+    -- , wordByQuotedEsc
+
     -- | Unimplemented
     --
     -- @
@@ -126,6 +157,24 @@ module Streamly.Internal.Data.Parser
     -- secondary parser.
     , deintercalate
 
+    -- *** Special cases
+    -- | TODO: traditional implmentations of these may be of limited use. For
+    -- example, consider parsing lines separated by @\\r\\n@. The main parser
+    -- will have to detect and exclude the sequence @\\r\\n@ anyway so that we
+    -- can apply the "sep" parser.
+    --
+    -- We can instead implement these as special cases of deintercalate.
+    --
+    -- @
+    -- , endBy
+    -- , sepEndBy
+    -- , beginBy
+    -- , sepBeginBy
+    -- , sepAroundBy
+    -- @
+    , sepBy1
+    , sepBy
+
     -- ** Sequential Alternative
     , alt
 
@@ -149,23 +198,6 @@ module Streamly.Internal.Data.Parser
     , manyTillP
     , manyTill
     , manyThen
-
-    -- ** Special cases
-    -- | TODO: traditional implmentations of these may be of limited use. For
-    -- example, consider parsing lines separated by @\\r\\n@. The main parser
-    -- will have to detect and exclude the sequence @\\r\\n@ anyway so that we
-    -- can apply the "sep" parser.
-    --
-    -- We can instead implement these as special cases of deintercalate.
-    --
-    -- @
-    -- , endBy
-    -- , sepBy
-    -- , sepEndBy
-    -- , beginBy
-    -- , sepBeginBy
-    -- , sepAroundBy
-    -- @
 
     -- * Distribution
     --
@@ -202,8 +234,10 @@ module Streamly.Internal.Data.Parser
 where
 
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Prelude
-       hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+import Data.Functor (($>))
+import Prelude hiding
+    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
+    , filter )
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
@@ -216,10 +250,11 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- $setup
 -- >>> :m
 -- >>> :set -package streamly
--- >>> import Prelude hiding (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+-- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
+-- >>> import Control.Applicative ((<|>))
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
--- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
 -------------------------------------------------------------------------------
@@ -303,6 +338,39 @@ dieM :: MonadCatch m => m String -> Parser m a b
 dieM = D.toParserK . D.dieM
 
 -------------------------------------------------------------------------------
+-- Map on input
+-------------------------------------------------------------------------------
+
+-- | @lmap f parser@ maps the function @f@ on the input of the parser.
+--
+-- >>> Stream.parse (Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)) (Stream.enumerateFromTo 1 100)
+-- 338350
+--
+-- > lmap = Parser.lmapM return
+--
+-- /Internal/
+{-# INLINE lmap #-}
+lmap :: MonadCatch m => (a -> b) -> Parser m b r -> Parser m a r
+lmap f p = D.toParserK $ D.lmap f $ D.fromParserK p
+
+-- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
+--
+-- /Internal/
+{-# INLINE lmapM #-}
+lmapM :: MonadCatch m => (a -> m b) -> Parser m b r -> Parser m a r
+lmapM f p = D.toParserK $ D.lmapM f $ D.fromParserK p
+
+-- | Include only those elements that pass a predicate.
+--
+-- >>> Stream.parse (Parser.filter (> 5) (Parser.fromFold Fold.sum)) $ Stream.fromList [1..10]
+-- 40
+--
+-- /Internal/
+{-# INLINE filter #-}
+filter :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+filter f p = D.toParserK $ D.filter f $ D.fromParserK p
+
+-------------------------------------------------------------------------------
 -- Failing Parsers
 -------------------------------------------------------------------------------
 
@@ -343,6 +411,65 @@ eof = D.toParserK D.eof
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
+
+-- | Consume one element from the head of the stream.  Fails if it encounters
+-- end of input.
+--
+-- >>> one = Parser.satisfy $ const True
+--
+-- /Pre-release/
+--
+{-# INLINE one #-}
+one :: MonadCatch m => Parser m a a
+one = satisfy $ const True
+
+-- | Match a specific element.
+--
+-- >>> element x = Parser.satisfy (== x)
+--
+{-# INLINE element #-}
+element :: (MonadCatch m, Eq a) => a -> Parser m a a
+element x = satisfy (== x)
+
+-- | Match anything other than the supplied element.
+--
+-- >>> except x = Parser.satisfy (/= x)
+--
+{-# INLINE except #-}
+except :: (MonadCatch m, Eq a) => a -> Parser m a a
+except x = satisfy (/= x)
+
+-- | Match any one of the elements in the supplied list.
+--
+-- >>> oneOf xs = Parser.satisfy (`elem` xs)
+--
+-- When performance matters a pattern matching predicate could be more
+-- efficient than a list:
+--
+-- @
+-- let p x =
+--    case x of
+--       'a' -> True
+--       'e' -> True
+--        _  -> False
+-- in satisfy p
+-- @
+--
+-- GHC may use a binary search instead of linear search in the list.
+-- Alternatively, you can also use an array instead of list for storage and
+-- search.
+--
+{-# INLINE oneOf #-}
+oneOf :: (MonadCatch m, Eq a) => [a] -> Parser m a a
+oneOf xs = satisfy (`elem` xs)
+
+-- | See performance notes in 'oneOf'.
+--
+-- >>> noneOf xs = Parser.satisfy (`notElem` xs)
+--
+{-# INLINE noneOf #-}
+noneOf :: (MonadCatch m, Eq a) => [a] -> Parser m a a
+noneOf xs = satisfy (`notElem` xs)
 
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
@@ -411,12 +538,9 @@ either = D.toParserK . D.either
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
 --
--- @
--- take = takeBetween 0 n  -- equivalent of take
--- take1 = takeBetween 1 n -- equivalent of takeLE1
--- takeEQ = takeBetween n n
--- takeGE = takeBetween n maxBound
--- @
+-- >>> take n = Parser.takeBetween 0 n
+-- >>> takeEQ n = Parser.takeBetween n n
+-- >>> takeGE n = Parser.takeBetween n maxBound
 --
 -- /Pre-release/
 --
@@ -458,29 +582,32 @@ takeEQ n = D.toParserK . D.takeEQ n
 takeGE :: MonadCatch m => Int -> Fold m a b -> Parser m a b
 takeGE n = D.toParserK . D.takeGE n
 
+-------------------------------------------------------------------------------
+-- Take until a condition
+-------------------------------------------------------------------------------
+
 -- $takeWhile
 -- Note: This is called @takeWhileP@ and @munch@ in some parser libraries.
 
+-- XXX We should perhaps use only takeWhileP and rename it to takeWhile.
+--
 -- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
 -- input. The combinator stops when the condition fails or if the collecting
 -- parser stops.
 --
--- This is a generalized version of takeWhile, for example 'takeWhile1' can be
--- implemented in terms of this:
+-- Other interesting parsers can be implemented in terms of this parser:
 --
--- @
--- takeWhile1 cond p = takeWhile cond (takeBetween 1 maxBound p)
--- @
+-- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
+-- >>> takeWhileBetween cond m n p = Parser.takeWhileP cond (Parser.takeBetween m n p)
 --
 -- Stops: when the condition fails or the collecting parser stops.
 -- Fails: when the collecting parser fails.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE takeWhileP #-}
-takeWhileP :: -- MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
+takeWhileP :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP cond p = D.toParserK $ D.takeWhileP cond (D.fromParserK p)
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -490,6 +617,8 @@ takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
 --
 -- >>> Stream.parse (Parser.takeWhile (== 0) Fold.toList) $ Stream.fromList [0,0,1,0,1]
 -- [0,0]
+--
+-- >>> takeWhile cond f = Parser.takeWhileP cond (Parser.fromFold f)
 --
 -- We can implement a @breakOn@ using 'takeWhile':
 --
@@ -502,133 +631,190 @@ takeWhileP _cond = undefined -- D.toParserK . D.takeWhileP cond
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile cond = D.toParserK . D.takeWhile cond
+-- takeWhile cond f = takeWhileP cond (fromFold f)
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
+--
+-- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
 --
 -- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 cond = D.toParserK . D.takeWhile1 cond
+-- takeWhile1 cond f = takeWhileP cond (takeBetween 1 maxBound f)
 
 -- | Drain the input as long as the predicate succeeds, running the effects and
 -- discarding the results.
 --
 -- This is also called @skipWhile@ in some parsing libraries.
 --
--- /Pre-release/
---
-{-# INLINE drainWhile #-}
-drainWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
-drainWhile p = takeWhile p FL.drain
-
--- | @sliceSepByP cond parser@ parses a slice of the input using @parser@ until
--- @cond@ succeeds or the parser stops.
---
--- This is a generalized slicing parser which can be used to implement other
--- parsers e.g.:
---
--- @
--- sliceSepByMax cond n p = sliceSepByP cond (take n p)
--- sliceSepByBetween cond m n p = sliceSepByP cond (takeBetween m n p)
--- @
+-- >>> dropWhile p = Parser.takeWhile p Fold.drain
 --
 -- /Pre-release/
 --
-{-# INLINE sliceSepByP #-}
-sliceSepByP ::
-    MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP cond = D.toParserK . D.sliceSepByP cond . D.fromParserK
+{-# INLINE dropWhile #-}
+dropWhile :: MonadCatch m => (a -> Bool) -> Parser m a ()
+dropWhile p = takeWhile p FL.drain
 
--- | Like 'sliceSepBy' but does not drop the separator element, instead
--- separator is emitted as a separate element in the output.
+-------------------------------------------------------------------------------
+-- Separators
+-------------------------------------------------------------------------------
+
+{-# INLINE takeFramedByGeneric #-}
+takeFramedByGeneric :: MonadCatch m =>
+       Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+takeFramedByGeneric esc begin end f =
+    D.toParserK $ D.takeFramedByGeneric esc begin end f
+
+-- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
+-- the supplied predicate. The separator is also taken with the token.
+--
+-- This can be combined with other parsers to implement other interesting
+-- parsers as follows:
+--
+-- >>> takeEndByLE cond n p = Parser.takeEndBy cond (Parser.fromFold $ Fold.take n p)
+-- >>> takeEndByBetween cond m n p = Parser.takeEndBy cond (Parser.takeBetween m n p)
+--
+-- >>> takeEndBy = Parser.takeEndByEsc (const False)
+--
+-- See also "Streamly.Data.Fold.takeEndBy".
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBy #-}
+takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy cond = D.toParserK . D.takeEndBy cond . D.fromParserK
+-- takeEndBy = takeEndByEsc (const False)
+
+-- | Like 'takeEndBy' but the separator is dropped.
+--
+-- See also "Streamly.Data.Fold.takeEndBy_".
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy_ cond = D.toParserK . D.takeEndBy_ cond . D.fromParserK
+{-
+takeEndBy_ isEnd p =
+    takeFramedByGeneric Nothing Nothing (Just isEnd) (toFold p)
+-}
+
+-- | Take either the separator or the token. Separator is a Left value and
+-- token is Right value.
 --
 -- /Unimplemented/
-{-# INLINE sliceSepWith #-}
-sliceSepWith :: -- MonadCatch m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceSepWith _cond = undefined -- D.toParserK . D.sliceSepBy cond
+{-# INLINE takeEitherSepBy #-}
+takeEitherSepBy :: -- MonadCatch m =>
+    (a -> Bool) -> Fold m (Either a b) c -> Parser m a c
+takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 
--- | Collect stream elements until an elements passes the predicate, return the
--- last element on which the predicate succeeded back to the input stream.  If
--- the predicate succeeds on the first element itself then the parser does not
--- terminate there. The succeeding element in the leading position
--- is treated as a prefix separator which is kept in the output segment.
+-- | Parse a token that starts with an element chosen by the predicate.  The
+-- parser fails if the input does not start with the selected element.
 --
 -- * Stops - when the predicate succeeds in non-leading position.
--- * Fails - never.
+-- * Fails - when the predicate fails in the leading position.
 --
--- S.splitWithPrefix pred f = S.parseMany (PR.sliceBeginWith pred f)
+-- >>> splitWithPrefix p f = Stream.parseMany (Parser.takeStartBy p f)
 --
 -- Examples: -
 --
--- >>> :{
---  sliceBeginWithOdd ls = Stream.parse prsr (Stream.fromList ls)
---      where prsr = Parser.sliceBeginWith odd Fold.toList
--- :}
---
---
--- >>> sliceBeginWithOdd [2, 4, 6, 3]
--- *** Exception: sliceBeginWith : slice begins with an element which fails the predicate
+-- >>> p = Parser.takeStartBy (== ',') Fold.toList
+-- >>> leadingComma = Stream.parse p . Stream.fromList
+-- >>> leadingComma "a,b"
+-- *** Exception: ParseError "takeStartBy: missing frame start"
 -- ...
---
--- >>> sliceBeginWithOdd [3, 5, 7, 4]
--- [3]
---
--- >>> sliceBeginWithOdd [3, 4, 6, 8, 5]
--- [3,4,6,8]
---
--- >>> sliceBeginWithOdd []
--- []
+-- >>> leadingComma ",,"
+-- ","
+-- >>> leadingComma ",a,b"
+-- ",a"
+-- >>> leadingComma ""
+-- ""
 --
 -- /Pre-release/
 --
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith ::
-    MonadCatch m =>
-    (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith cond = D.toParserK . D.sliceBeginWith cond
+{-# INLINE takeStartBy #-}
+takeStartBy :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy cond = D.toParserK . D.takeStartBy cond
 
--- | Like 'sliceSepBy' but the separator elements can be escaped using an
--- escape char determined by the second predicate.
+-- | Like 'takeStartBy' but drops the separator.
 --
--- /Unimplemented/
-{-# INLINE escapedSliceSepBy #-}
-escapedSliceSepBy :: -- MonadCatch m =>
-    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-escapedSliceSepBy _cond _esc = undefined
-    -- D.toParserK . D.escapedSliceSepBy cond esc
+-- >>> takeStartBy_ isBegin = Parser.takeFramedByGeneric Nothing (Just isBegin) Nothing
+--
+{-# INLINE takeStartBy_ #-}
+takeStartBy_ :: MonadCatch m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
 
--- | @escapedFrameBy begin end escape@ parses a string framed using @begin@ and
--- @end@ as the frame begin and end marker elements and @escape@ as an escaping
--- element to escape the occurrence of the framing elements within the frame.
--- Nested frames are allowed, but nesting is removed when parsing.
+-------------------------------------------------------------------------------
+-- Quoting and Escaping
+-------------------------------------------------------------------------------
+
+-- | Like 'takeEndBy' but the separator elements can be escaped using an
+-- escape char determined by the first predicate. The escape characters are
+-- removed.
+--
+-- /pre-release/
+{-# INLINE takeEndByEsc #-}
+takeEndByEsc :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndByEsc isEsc isEnd p =
+    D.toParserK $ D.takeEndByEsc isEsc isEnd (D.fromParserK p)
+
+-- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
+-- begin and end predicate, and an escape character. The frame begin and end
+-- characters lose their special meaning if preceded by the escape character.
+--
+-- Nested frames are allowed if begin and end markers are different, nested
+-- frames must be balanced unless escaped, nested frame markers are emitted as
+-- it is.
 --
 -- For example,
 --
--- @
--- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello}"
+-- >>> p = Parser.takeFramedByEsc_ (== '\\') (== '{') (== '}') Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{hello}"
 -- "hello"
---
--- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}}"
--- "hello world"
---
--- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello \\{world\\}}"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}}"
 -- "hello {world}"
+-- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
+-- "hello {world"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}"
+-- *** Exception: ParseError "takeFramedByEsc_: missing frame end"
 --
--- > Stream.parse (Parser.escapedFrameBy (== '{') (== '}') (== '\\') Fold.toList) $ Stream.fromList "{hello {world}"
--- ParseError "Unterminated '{'"
---
--- @
---
--- /Unimplemented/
-{-# INLINE escapedFrameBy #-}
-escapedFrameBy :: -- MonadCatch m =>
+-- /Pre-release/
+{-# INLINE takeFramedByEsc_ #-}
+takeFramedByEsc_ :: MonadCatch m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
-escapedFrameBy _begin _end _escape _p = undefined
-    -- D.toParserK . D.frameBy begin end escape p
+takeFramedByEsc_ isEsc isBegin isEnd f =
+    D.toParserK $ D.takeFramedByEsc_ isEsc isBegin isEnd f
+-- takeEndByEsc_ isEsc isEnd p =
+--    takeFramedByGeneric (Just isEsc) Nothing (Just isEnd) (toFold p)
 
+-- | @takeFramedBy_ isBegin isEnd fold@ parses a token framed by a begin and an
+-- end predicate.
+--
+-- >>> takeFramedBy_ = Parser.takeFramedByEsc_ (const False)
+--
+{-# INLINE takeFramedBy_ #-}
+takeFramedBy_ :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedBy_ isBegin isEnd f = D.toParserK $ D.takeFramedBy_ isBegin isEnd f
+-- takeFramedBy_ isBegin isEnd =
+--    takeFramedByGeneric (Just (const False)) (Just isBegin) (Just isEnd)
+
+-------------------------------------------------------------------------------
+-- Grouping and words
+-------------------------------------------------------------------------------
+
+-- Note we can also get words using something like:
+-- sepBy FL.toList (takeWhile (not . p) Fold.toList) (dropWhile p)
+--
+-- But that won't be as efficient and ergonomic.
+--
 -- | Like 'splitOn' but strips leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ having '.' as the separator would be parsed as
 -- @["a","b"]@.  In other words, its like parsing words from whitespace
@@ -726,6 +912,8 @@ groupByRollingEither :: MonadCatch m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
+-- XXX Use a stream instead of a list so that we can use any container type.
+
 -- | Match the given sequence of elements using the given comparison function.
 --
 -- >>> Stream.parse (Parser.eqBy (==) "string") $ Stream.fromList "string"
@@ -738,6 +926,14 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 {-# INLINE eqBy #-}
 eqBy :: MonadCatch m => (a -> a -> Bool) -> [a] -> Parser m a ()
 eqBy cmp = D.toParserK . D.eqBy cmp
+
+-- | Match the input sequence with the supplied list and return it if
+-- successful.
+--
+-- /Pre-release/
+{-# INLINE list #-}
+list :: (MonadCatch m, Eq a) => [a] -> Parser m a [a]
+list xs = eqBy (==) xs $> xs
 
 -------------------------------------------------------------------------------
 -- nested parsers
@@ -917,42 +1113,6 @@ takeP :: MonadCatch m => Int -> Parser m a b -> Parser m a b
 takeP i p = D.toParserK $ D.takeP i $ D.fromParserK p
 
 -------------------------------------------------------------------------------
--- Interleaving
--------------------------------------------------------------------------------
---
--- To deinterleave we can chain two parsers one behind the other. The input is
--- given to the first parser and the input definitively rejected by the first
--- parser is given to the second parser.
---
--- We can either have the parsers themselves buffer the input or use the shared
--- global buffer to hold it until none of the parsers need it. When the first
--- parser returns Skip (i.e. rewind) we let the second parser consume the
--- rejected input and when it is done we move the cursor forward to the first
--- parser again. This will require a "move forward" command as well.
---
--- To implement grep we can use three parsers, one to find the pattern, one
--- to store the context behind the pattern and one to store the context in
--- front of the pattern. When a match occurs we need to emit the accumulator of
--- all the three parsers. One parser can count the line numbers to provide the
--- line number info.
---
--- | Apply two parsers alternately to an input stream. The input stream is
--- considered an interleaving of two patterns. The two parsers represent the
--- two patterns.
---
--- This undoes a "gintercalate" of two streams.
---
--- /Unimplemented/
---
-{-# INLINE deintercalate #-}
-deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
-    -> Parser m x (y, z)
-deintercalate = undefined
-
--------------------------------------------------------------------------------
 -- Sequential Collection
 -------------------------------------------------------------------------------
 --
@@ -1129,6 +1289,75 @@ manyTill p1 p2 f =
 manyThen :: -- (Foldable t, MonadCatch m) =>
     Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
 manyThen _parser _recover _f = undefined
+
+-------------------------------------------------------------------------------
+-- Interleaving
+-------------------------------------------------------------------------------
+--
+-- To deinterleave we can chain two parsers one behind the other. The input is
+-- given to the first parser and the input definitively rejected by the first
+-- parser is given to the second parser.
+--
+-- We can either have the parsers themselves buffer the input or use the shared
+-- global buffer to hold it until none of the parsers need it. When the first
+-- parser returns Skip (i.e. rewind) we let the second parser consume the
+-- rejected input and when it is done we move the cursor forward to the first
+-- parser again. This will require a "move forward" command as well.
+--
+-- To implement grep we can use three parsers, one to find the pattern, one
+-- to store the context behind the pattern and one to store the context in
+-- front of the pattern. When a match occurs we need to emit the accumulator of
+-- all the three parsers. One parser can count the line numbers to provide the
+-- line number info.
+
+-- XXX rename this to intercalate
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns.
+--
+-- This undoes a "gintercalate" of two streams.
+--
+-- /Pre-release/
+--
+{-# INLINE deintercalate #-}
+deintercalate :: MonadCatch m =>
+       Fold m (Either x y) z
+    -> Parser m a x
+    -> Parser m a y
+    -> Parser m a z
+deintercalate sink contentL contentR =
+    D.toParserK
+        $ D.deintercalate
+            sink (D.fromParserK contentL) (D.fromParserK contentR)
+
+-- | Parse items separated by a separator parsed by the supplied parser. At
+-- least one item must be present for the parser to succeed.
+--
+-- Note that this can go in infinite loop if both the parsers fail on some
+-- input. Detection of that would make the implementation more complex.
+--
+{-# INLINE sepBy1 #-}
+sepBy1 :: MonadCatch m =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy1 sink p sep = do
+    x <- p
+    f <- fromEffect $ FL.initialize sink
+    f1 <- fromEffect $ FL.snoc f x
+    many (sep >> p) f1
+
+-- | Run the content parser first, when it is done, the separator parser is
+-- run, when it is done content parser is run again and so on. If none of the
+-- parsers consumes an input then parser returns a failure.
+--
+-- >>> sepBy sink = Parser.deintercalate (Fold.lefts sink)
+-- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
+--
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy sink content sep =
+    D.toParserK $ D.sepBy sink (D.fromParserK content) (D.fromParserK sep)
+-- sepBy sink = deintercalate (FL.lefts sink)
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers

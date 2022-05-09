@@ -23,8 +23,8 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 import System.Random (randomRIO)
-import Prelude
-       hiding (any, all, take, sequence, sequence_, sequenceA, takeWhile)
+import Prelude hiding
+    (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
@@ -58,6 +58,46 @@ sourceUnfoldrM value n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+-- | Generates something like this: { { \{ \{ } }.  The stream consists of
+-- three parts, the first part is contains a sequence of `{`. The second part
+-- contains a sequence pf escaped values `\{`. The third part contains a
+-- sequence of `}`.
+{-# INLINE sourceEscapedFrames #-}
+sourceEscapedFrames ::
+    (S.IsStream t, S.MonadAsync m)
+    => Int
+    -> Int
+    -> t m Char
+sourceEscapedFrames value n = S.unfoldrM step n
+    where
+
+    bs = '\\'
+    cbOpen = '{'
+    cbClose = '}'
+    value1 = value `div` 4
+
+    step cnt
+        | cnt > 4 * value1 = return Nothing
+        | cnt <= value1 = return $ Just (cbOpen, cnt + 1)
+        | cnt > 3 * value1 = return $ Just (cbClose, cnt + 1)
+        | otherwise =
+            return
+                $ Just
+                $ if (cnt - value1) `mod` 2 == 1
+                  then (bs, cnt + 1)
+                  else (cbOpen, cnt + 1)
+
+{-# INLINE benchIOSrc #-}
+benchIOSrc
+    :: NFData b
+    => (Int -> Int -> t IO a)
+    -> Int
+    -> String
+    -> (t IO a -> IO b)
+    -> Benchmark
+benchIOSrc src value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . src value
+
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
@@ -88,20 +128,35 @@ takeBetween value =  IP.parse (PR.takeBetween 0 value FL.drain)
 takeEQ :: MonadCatch m => Int -> SerialT m a -> m ()
 takeEQ value = IP.parse (PR.takeEQ value FL.drain)
 
-{-# INLINE drainWhile #-}
-drainWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
-drainWhile value = IP.parse (PR.drainWhile (<= value))
+{-# INLINE dropWhile #-}
+dropWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
+dropWhile value = IP.parse (PR.dropWhile (<= value))
 
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceBeginWith value stream = do
+{-# INLINE takeStartBy #-}
+takeStartBy :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeStartBy value stream = do
     stream1 <- return . fromMaybe (S.fromPure (value + 1)) =<< S.tail stream
     let stream2 = value `S.cons` stream1
-    IP.parse (PR.sliceBeginWith (== value) FL.drain) stream2
+    IP.parse (PR.takeStartBy (== value) FL.drain) stream2
+
+takeFramedByEsc_ :: MonadCatch m => Int -> SerialT m Char -> m ()
+takeFramedByEsc_ _ = IP.parse parser
+
+    where
+
+    isEsc = (== '\\')
+    isBegin = (== '{')
+    isEnd = (== '}')
+
+    parser = PR.takeFramedByEsc_ isEsc isBegin isEnd FL.drain
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadCatch m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
+
+takeWhileP :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeWhileP value =
+    IP.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) FL.drain))
 
 {-# INLINE takeP #-}
 takeP :: MonadCatch m => Int -> SerialT m a -> m ()
@@ -119,9 +174,25 @@ groupByRolling = IP.parse (PR.groupByRolling (<=) FL.drain)
 wordBy :: MonadCatch m => Int -> SerialT m Int -> m ()
 wordBy value = IP.parse (PR.wordBy (>= value) FL.drain)
 
+{-# INLINE sepByWords #-}
+sepByWords :: MonadCatch m => Int -> SerialT m Int -> m ()
+sepByWords _ = IP.parse (wrds even FL.drain)
+    where
+    wrds p f = PR.sepBy f (PR.takeWhile (not . p) FL.drain) (PR.dropWhile p)
+
+{-# INLINE deintercalate #-}
+deintercalate :: MonadCatch m => Int -> SerialT m Int -> m ()
+deintercalate _ = IP.parse (partition even)
+
+    where
+
+    partition p =
+        PR.deintercalate
+            FL.drain (PR.takeWhile (not . p) FL.sum) (PR.takeWhile p FL.sum)
+
 {-# INLINE manyWordByEven #-}
 manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
-manyWordByEven = IP.parse (PR.many (PR.wordBy (Prelude.even) FL.drain) FL.drain)
+manyWordByEven = IP.parse (PR.many (PR.wordBy even FL.drain) FL.drain)
 
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
@@ -154,8 +225,8 @@ splitAp :: MonadCatch m
 splitAp value =
     IP.parse
         ((,)
-            <$> PR.drainWhile (<= (value `div` 2))
-            <*> PR.drainWhile (<= value)
+            <$> PR.dropWhile (<= (value `div` 2))
+            <*> PR.dropWhile (<= value)
         )
 
 {-# INLINE splitApBefore #-}
@@ -163,8 +234,8 @@ splitApBefore :: MonadCatch m
     => Int -> SerialT m Int -> m ()
 splitApBefore value =
     IP.parse
-        (  PR.drainWhile (<= (value `div` 2))
-        *> PR.drainWhile (<= value)
+        (  PR.dropWhile (<= (value `div` 2))
+        *> PR.dropWhile (<= value)
         )
 
 {-# INLINE splitApAfter #-}
@@ -172,8 +243,8 @@ splitApAfter :: MonadCatch m
     => Int -> SerialT m Int -> m ()
 splitApAfter value =
     IP.parse
-        (  PR.drainWhile (<= (value `div` 2))
-        <* PR.drainWhile (<= value)
+        (  PR.dropWhile (<= (value `div` 2))
+        <* PR.dropWhile (<= value)
         )
 
 {-# INLINE serialWith #-}
@@ -182,8 +253,8 @@ serialWith :: MonadCatch m
 serialWith value =
     IP.parse
         (PR.serialWith (,)
-            (PR.drainWhile (<= (value `div` 2)))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= (value `div` 2)))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE split_ #-}
@@ -192,14 +263,14 @@ split_ :: MonadCatch m
 split_ value =
     IP.parse
         (PR.split_
-            (PR.drainWhile (<= (value `div` 2)))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= (value `div` 2)))
+            (PR.dropWhile (<= value))
         )
 
-{-# INLINE sliceSepByP #-}
-sliceSepByP :: MonadCatch m
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: MonadCatch m
     => Int -> SerialT m Int -> m()
-sliceSepByP value = IP.parse (PR.sliceSepByP (>= value) (PR.fromFold FL.drain))
+takeEndBy_ value = IP.parse (PR.takeEndBy_ (>= value) (PR.fromFold FL.drain))
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadCatch m
@@ -207,8 +278,8 @@ teeAllAny :: MonadCatch m
 teeAllAny value =
     IP.parse
         (PR.teeWith (,)
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE teeFstAllAny #-}
@@ -217,8 +288,8 @@ teeFstAllAny :: MonadCatch m
 teeFstAllAny value =
     IP.parse
         (PR.teeWithFst (,)
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE shortestAllAny #-}
@@ -227,8 +298,8 @@ shortestAllAny :: MonadCatch m
 shortestAllAny value =
     IP.parse
         (PR.shortest
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 {-# INLINE longestAllAny #-}
@@ -237,8 +308,8 @@ longestAllAny :: MonadCatch m
 longestAllAny value =
     IP.parse
         (PR.longest
-            (PR.drainWhile (<= value))
-            (PR.drainWhile (<= value))
+            (PR.dropWhile (<= value))
+            (PR.dropWhile (<= value))
         )
 
 parseManyChunksOfSum :: Int -> Handle -> IO Int
@@ -344,17 +415,22 @@ o_1_space_serial value =
     , benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "takeP" $ takeP value
-    , benchIOSink value "drainWhile" $ drainWhile value
-    , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
+    , benchIOSink value "dropWhile" $ dropWhile value
+    , benchIOSink value "takeStartBy" $ takeStartBy value
+    , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
+        $ takeFramedByEsc_ value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
+    , benchIOSink value "sepBy (words)" $ sepByWords value
+    , benchIOSink value "deintercalate" $ deintercalate value
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
     , benchIOSink value "serialWith" $ serialWith value
-    , benchIOSink value "sliceSepByP" $ sliceSepByP value
+    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some

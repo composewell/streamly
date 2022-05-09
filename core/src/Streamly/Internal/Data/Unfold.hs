@@ -201,8 +201,11 @@ module Streamly.Internal.Data.Unfold
     , map
     , mapM
     , mapMWithInput
+
     , postscanlM'
     , postscan
+    , scan
+    , scanMany
     , foldMany
     -- pipe
 
@@ -506,6 +509,62 @@ postscan (Fold stepF initial extract) (Unfold stepU injectU) =
             Stop -> return Stop
 
     step Nothing = return Stop
+
+data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
+
+{-# INLINE_NORMAL scanWith #-}
+scanWith :: Monad m => Bool -> Fold m b c -> Unfold m a b -> Unfold m a c
+scanWith restart (Fold fstep initial extract) (Unfold stepU injectU) =
+    Unfold step inject
+
+    where
+
+    inject a = ScanInit <$> injectU a
+
+    {-# INLINE runStep #-}
+    runStep us action = do
+        r <- action
+        case r of
+            FL.Partial fs -> do
+                !b <- extract fs
+                return $ Yield b (ScanDo us fs)
+            FL.Done b ->
+                let next = if restart then ScanInit us else ScanDone
+                 in return $ Yield b next
+
+    {-# INLINE_LATE step #-}
+    step (ScanInit us) = runStep us initial
+    step (ScanDo us fs) = do
+        res <- stepU us
+        case res of
+            Yield x s -> runStep s (fstep fs x)
+            Skip s -> return $ Skip $ ScanDo s fs
+            Stop -> return Stop
+    step ScanDone = return Stop
+
+-- | Scan the output of an 'Unfold' to change it in a stateful manner.
+-- Once fold is done it will restart from its initial state.
+--
+-- >>> u = Unfold.scanMany (Fold.take 2 Fold.sum) Unfold.fromList
+-- >>> Unfold.fold Fold.toList u [1,2,3,4,5]
+-- [0,1,3,0,3,7,0,5]
+--
+-- /Pre-release/
+{-# INLINE_NORMAL scanMany #-}
+scanMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+scanMany = scanWith True
+
+-- | Scan the output of an 'Unfold' to change it in a stateful manner.
+-- Once fold is done it will stop.
+--
+-- >>> u = Unfold.scan (Fold.take 2 Fold.sum) Unfold.fromList
+-- >>> Unfold.fold Fold.toList u [1,2,3,4,5]
+-- [0,1,3]
+--
+-- /Pre-release/
+{-# INLINE_NORMAL scan #-}
+scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+scan = scanWith False
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --

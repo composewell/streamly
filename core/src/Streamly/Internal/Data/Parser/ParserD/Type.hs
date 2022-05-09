@@ -169,6 +169,8 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     -- * Types
       Initial (..)
     , Step (..)
+    , mapStateStep
+    , extractStep
     , Parser (..)
     , ParseError (..)
     , rmapM
@@ -194,6 +196,11 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , alt
     , concatMap
 
+    -- * Input transformation
+    , lmap
+    , lmapM
+    , filter
+
     , noErrorUnsafeSplit_
     , noErrorUnsafeSplitWith
     , noErrorUnsafeConcatMap
@@ -216,7 +223,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
-import Prelude hiding (concatMap)
+import Prelude hiding (concatMap, filter)
 --
 -- $setup
 -- >>> :m
@@ -361,6 +368,26 @@ instance Functor (Step s) where
     fmap _ (Continue n s) = Continue n s
     fmap f (Done n b) = Done n (f b)
     fmap _ (Error err) = Error err
+
+-- | Map an extract function over the state of Step
+--
+{-# INLINE extractStep #-}
+extractStep :: Monad m => (s -> m b) -> Step s b -> m (Step s1 b)
+extractStep f res =
+    case res of
+        Partial n s1 -> Done n <$> f s1
+        Done n b -> return $ Done n b
+        Continue n s1 -> Done n <$> f s1
+        Error err -> return $ Error err
+
+{-# INLINE mapStateStep #-}
+mapStateStep :: (s -> s1) -> Step s b -> (Step s1 b)
+mapStateStep f res =
+    case res of
+        Partial n s1 -> Partial n $ f s1
+        Done n b -> Done n b
+        Continue n s1 -> Continue n $ f s1
+        Error err -> Error err
 
 -- | Map a monadic function over the result @b@ in @Step s b@.
 --
@@ -1399,3 +1426,31 @@ instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
 instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
+
+------------------------------------------------------------------------------
+-- Mapping on input
+------------------------------------------------------------------------------
+
+{-# INLINE lmap #-}
+lmap :: (a -> b) -> Parser m b r -> Parser m a r
+lmap f (Parser step begin done) = Parser step1 begin done
+
+    where
+
+    step1 x a = step x (f a)
+
+{-# INLINE lmapM #-}
+lmapM :: Monad m => (a -> m b) -> Parser m b r -> Parser m a r
+lmapM f (Parser step begin done) = Parser step1 begin done
+
+    where
+
+    step1 x a = f a >>= step x
+
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+filter f (Parser step initial extract) = Parser step1 initial extract
+
+    where
+
+    step1 x a = if f a then step x a else return $ Partial 0 x

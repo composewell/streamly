@@ -10,32 +10,46 @@
 -- "Streamly.Unicode.Stream" module to convert an input byte stream to a
 -- Unicode Char stream and then use these parsers on the Char stream.
 
--- XXX Add explicit export list.
 module Streamly.Internal.Unicode.Char.Parser
-    ( alpha
+    (
+    -- * Generic
+      char
+    , charAnyCase
+
+    -- * Sequences
+    , string
+    , stringAnyCase
+    , dropSpace
+    , dropSpace1
+
+    -- * Classes
+    , alpha
     , alphaNum
+    , letter
     , ascii
     , asciiLower
     , asciiUpper
-    , char
-    , decimal
-    , digit
-    , double
-    , hexadecimal
-    , hexDigit
     , latin1
-    , letter
     , lower
+    , upper
     , mark
-    , number
-    , octDigit
     , print
     , punctuation
     , separator
-    , signed
     , space
     , symbol
-    , upper
+
+    -- digits
+    , digit
+    , octDigit
+    , hexDigit
+    , number
+
+    -- * Numeric
+    , signed
+    , double
+    , decimal
+    , hexadecimal
     )
 where
 
@@ -130,6 +144,33 @@ CHAR_PARSER(asciiLower,isAsciiLower)
 {-# INLINE char #-}
 char :: MonadCatch m => Char -> Parser m Char Char
 char c = Parser.satisfy (== c)
+
+-- XXX Case conversion may lead to change in number of chars
+-- | Match a specific character ignoring case.
+{-# INLINE charAnyCase #-}
+charAnyCase :: MonadCatch m => Char -> Parser m Char Char
+charAnyCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
+
+--------------------------------------------------------------------------------
+-- Character sequences
+--------------------------------------------------------------------------------
+
+-- | Match the input with the supplied string and return it if successful.
+string :: MonadCatch m => String -> Parser m Char String
+string = Parser.list
+
+-- XXX Not accurate unicode case conversion
+-- | Match the input with the supplied string and return it if successful.
+stringAnyCase :: MonadCatch m => String -> Parser m Char String
+stringAnyCase s = Parser.lmap Char.toLower (Parser.list (map Char.toLower s))
+
+-- | Drop /zero/ or more white space characters.
+dropSpace :: MonadCatch m => Parser m Char ()
+dropSpace = Parser.dropWhile Char.isSpace
+
+-- | Drop /one/ or more white space characters.
+dropSpace1 :: MonadCatch m => Parser m Char ()
+dropSpace1 = Parser.takeWhile1 Char.isSpace Fold.drain
 
 --------------------------------------------------------------------------------
 -- Numeric parsers

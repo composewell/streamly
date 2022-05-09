@@ -1,0 +1,32 @@
+packages:
+  targets/streamly-targets.cabal
+  benchmark/bench-runner/bench-runner.cabal
+  test/test-runner/test-runner.cabal
+  streamly.cabal
+  core/streamly-core.cabal
+
+package bench-report
+  flags: +no-charts
+
+package bench-show
+  flags: +no-charts
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/bench-report.git
+  tag: master
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-coreutils.git
+  tag: 8fa4a3ebedb3f970f64b7d78d8ab340b0f771abe
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-shell.git
+  tag: 7d77ddc0c06aec21fbbfd1b920ec4f58da654a1b
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-process.git
+  tag: 6a70b0a304cb47a725ff697eae01eaa5ea6fe833

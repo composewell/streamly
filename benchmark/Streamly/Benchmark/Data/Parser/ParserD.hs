@@ -79,12 +79,12 @@ benchIOSinkRandom value name f =
 drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
 drainWhile p = PR.takeWhile p FL.drain
 
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceBeginWith value stream = do
+{-# INLINE takeStartBy #-}
+takeStartBy :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeStartBy value stream = do
     stream1 <- return . fromMaybe (S.fromPure (value + 1)) =<< S.tail stream
     let stream2 = value `S.cons` stream1
-    IP.parseD (PR.sliceBeginWith (== value) FL.drain) stream2
+    IP.parseD (PR.takeStartBy (== value) FL.drain) stream2
 
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
@@ -135,9 +135,9 @@ someAlt xs = do
     x <- IP.parseD (AP.some (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
-{-#INLINE sliceSepByP #-}
-sliceSepByP :: MonadCatch m => Int -> SerialT m Int -> m ()
-sliceSepByP value = IP.parseD (PR.sliceSepByP (>= value) (PR.fromFold FL.drain))
+{-#INLINE takeEndBy_ #-}
+takeEndBy_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeEndBy_ value = IP.parseD (PR.takeEndBy_ (>= value) (PR.fromFold FL.drain))
 
 {-# INLINE manyTill #-}
 manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
@@ -323,7 +323,7 @@ o_1_space_serial value =
     [ benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "takeBetween" $ takeBetween value
-    , benchIOSink value "sliceBeginWith" $ sliceBeginWith value
+    , benchIOSink value "takeStartBy" $ takeStartBy value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
@@ -331,7 +331,7 @@ o_1_space_serial value =
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
-    , benchIOSink value "sliceSepByP" $ sliceSepByP value
+    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSink value "manyTill" $ manyTill value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value

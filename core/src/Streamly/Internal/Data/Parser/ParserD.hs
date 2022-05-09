@@ -33,6 +33,11 @@ module Streamly.Internal.Data.Parser.ParserD
     , die
     , dieM
 
+    -- * Map on input
+    , lmap
+    , lmapM
+    , filter
+
     -- * Element parsers
     , peek
     , eof
@@ -48,35 +53,43 @@ module Streamly.Internal.Data.Parser.ParserD
     -- parsers but we can use Parsers instead of folds to make the composition
     -- more powerful. For example, we can do:
     --
-    -- sliceSepByMax cond n p = sliceBy cond (take n p)
-    -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
+    -- takeEndByOrMax cond n p = takeEndBy cond (take n p)
+    -- takeEndByBetween cond m n p = takeEndBy cond (takeBetween m n p)
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
-    --
+
     -- Grab a sequence of input elements without inspecting them
     , takeBetween
     -- , take -- take   -- takeBetween 0 n
-    -- , takeLE1 -- take1 -- takeBetween 1 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
+    -- , takeGE1 -- take1 -- takeBetween 1 n
+    , takeP
 
     -- Grab a sequence of input elements by inspecting them
-    , takeP
     , lookAhead
     , takeWhile
+    , takeWhileP
     , takeWhile1
-    , sliceSepByP
-    -- , sliceSepByBetween
-    , sliceBeginWith
-    -- , sliceSepWith
-    --
-    -- , frameSepBy -- parse frames escaped by an escape char/sequence
-    -- , frameEndWith
-    --
+
+    -- Separators
+    , takeEndBy
+    , takeEndBy_
+    , takeEndByEsc
+    , takeStartBy
+    , takeFramedBy_
+    , takeFramedByEsc_
+    , takeFramedByGeneric
+
+    -- Words and grouping
     , wordBy
+    -- wordFramedBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
+
+    -- Matching strings
     , eqBy
+    , matchBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
@@ -103,6 +116,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    , sepBy
 
     -- ** Sequential Alternative
     , alt
@@ -168,20 +182,34 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , retryMax    -- try N times
     -- , retryUntil  -- try until successful
     -- , retryUntilN -- try until successful n times
+
+    -- ** Zipping Input
+    , zipWithM
+    , zip
+    , indexed
+    , makeIndexFilter
+    , sampleFromthen
     )
 where
 
 import Control.Exception (assert, Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.SVar.Type (defState)
+import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 
 import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span)
+       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
+       , zip, filter)
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
 
@@ -556,6 +584,26 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
                 $ "takeGE: Expecting at least " ++ show cnt
                     ++ " elements, input terminated on " ++ show i
 
+-------------------------------------------------------------------------------
+-- Conditional splitting
+-------------------------------------------------------------------------------
+
+-- | See 'Streamly.Internal.Data.Parser.takeWhileP'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeWhileP #-}
+takeWhileP :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP predicate (Parser pstep pinitial pextract) =
+    Parser step pinitial pextract
+
+    where
+
+    step s a =
+        if predicate a
+        then pstep s a
+        else Done 1 <$> pextract s
+
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
 -- /Pre-release/
@@ -597,7 +645,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     initial = do
         res <- finitial
         return $ case res of
-            FL.Partial s -> IPartial (Left s)
+            FL.Partial s -> IPartial (Left' s)
             FL.Done _ ->
                 IError
                     $ "takeWhile1: fold terminated without consuming:"
@@ -608,30 +656,184 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
         res <- fstep s a
         return
             $ case res of
-                  FL.Partial s1 -> Partial 0 (Right s1)
+                  FL.Partial s1 -> Partial 0 (Right' s1)
                   FL.Done b -> Done 0 b
 
-    step (Left s) a =
+    step (Left' s) a =
         if predicate a
         then process s a
         else return $ Error "takeWhile1: predicate failed on first element"
-    step (Right s) a =
+    step (Right' s) a =
         if predicate a
         then process s a
         else do
             b <- fextract s
             return $ Done 1 b
 
-    extract (Left _) = throwM $ ParseError "takeWhile1: end of input"
-    extract (Right s) = fextract s
+    extract (Left' _) = throwM $ ParseError "takeWhile1: end of input"
+    extract (Right' s) = fextract s
 
--- | See 'Streamly.Internal.Data.Parser.sliceSepByP'.
+-------------------------------------------------------------------------------
+-- Separators
+-------------------------------------------------------------------------------
+
+{-# INLINE takeFramedByGeneric #-}
+takeFramedByGeneric :: MonadThrow m =>
+       Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Maybe (a -> Bool)
+    -> Fold m a b
+    -> Parser m a b
+takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameEscInit s)
+                FL.Done _ ->
+                    error "takeFramedByGeneric: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameEscGo s1 n)
+                FL.Done b -> Done 0 b
+
+    {-# INLINE processNoEsc #-}
+    processNoEsc s a n =
+        case end of
+            Just isEnd ->
+                case begin of
+                    Just isBegin ->
+                        -- takeFramedBy case
+                        if isEnd a
+                        then
+                            if n == 0
+                            then Done 0 <$> fextract s
+                            else process s a (n - 1)
+                        else
+                            let n1 = if isBegin a then n + 1 else n
+                             in process s a n1
+                    Nothing -> -- takeEndBy case
+                        if isEnd a
+                        then Done 0 <$> fextract s
+                        else process s a n
+            Nothing -> -- takeStartBy case
+                case begin of
+                    Just isBegin ->
+                        if isBegin a
+                        then Done 0 <$> fextract s
+                        else process s a n
+                    Nothing ->
+                        error $ "takeFramedByGeneric: "
+                            ++ "Both begin and end frame predicate missing"
+
+    {-# INLINE processCheckEsc #-}
+    processCheckEsc s a n =
+        case esc of
+            Just isEsc ->
+                if isEsc a
+                then return $ Partial 0 $ FrameEscEsc s n
+                else processNoEsc s a n
+            Nothing -> processNoEsc s a n
+
+    step (FrameEscInit s) a =
+        case begin of
+            Just isBegin ->
+                if isBegin a
+                then return $ Partial 0 (FrameEscGo s 0)
+                else return $ Error "takeFramedByGeneric: missing frame start"
+            Nothing ->
+                case end of
+                    Just isEnd ->
+                        if isEnd a
+                        then Done 0 <$> fextract s
+                        else processCheckEsc s a 0
+                    Nothing ->
+                        error "Both begin and end frame predicate missing"
+    step (FrameEscGo s n) a = processCheckEsc s a n
+    step (FrameEscEsc s n) a = process s a n
+
+    err = throwM . ParseError
+
+    extract (FrameEscInit _) =
+        err "takeFramedByGeneric: empty token"
+    extract (FrameEscGo s _) =
+        case begin of
+            Just _ ->
+                case end of
+                    Nothing -> fextract s
+                    Just _ -> err "takeFramedByGeneric: missing frame end"
+            Nothing -> err "takeFramedByGeneric: missing closing frame"
+    extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
+
+-- | See 'Streamly.Internal.Data.Parser.takeEndBy'.
 --
 -- /Pre-release/
 --
-sliceSepByP :: MonadCatch m =>
+{-# INLINE takeEndBy #-}
+takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy cond (Parser pstep pinitial pextract) =
+
+    Parser step initial pextract
+
+    where
+
+    initial = pinitial
+
+    step s a = do
+        res <- pstep s a
+        if not (cond a)
+        then return res
+        else extractStep pextract res
+
+-- | See 'Streamly.Internal.Data.Parser.takeEndByEsc'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndByEsc #-}
+takeEndByEsc :: MonadCatch m =>
+    (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial = first Left' <$> pinitial
+
+    step (Left' s) a = do
+        if isEsc a
+        then return $ Partial 0 $ Right' s
+        else do
+            res <- pstep s a
+            if not (isSep a)
+            then return $ mapStateStep Left' res
+            else extractStep pextract res
+
+    step (Right' s) a = do
+        res <- pstep s a
+        return $ mapStateStep Left' res
+
+    extract (Left' s) = pextract s
+    extract (Right' _) =
+        throwM $ ParseError "takeEndByEsc: trailing escape"
+
+-- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
-sliceSepByP cond (Parser pstep pinitial pextract) =
+takeEndBy_ cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
 
@@ -646,15 +848,14 @@ sliceSepByP cond (Parser pstep pinitial pextract) =
             return $ Done 0 res
         else pstep s a
 
--- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
+-- | See 'Streamly.Internal.Data.Parser.takeStartBy'.
 --
 -- /Pre-release/
 --
-data SliceBeginWithState s = Left' s | Right' s
 
-{-# INLINE sliceBeginWith #-}
-sliceBeginWith :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-sliceBeginWith cond (Fold fstep finitial fextract) =
+{-# INLINE takeStartBy #-}
+takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy cond (Fold fstep finitial fextract) =
 
     Parser step initial extract
 
@@ -665,7 +866,7 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
         return $
             case res of
                 FL.Partial s -> IPartial (Left' s)
-                FL.Done _ -> IError "sliceBeginWith : bad finitial"
+                FL.Done _ -> IError "takeStartBy: fold done without input"
 
     {-# INLINE process #-}
     process s a = do
@@ -678,8 +879,7 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
     step (Left' s) a =
         if cond a
         then process s a
-        else error $ "sliceBeginWith : slice begins with an element which "
-                        ++ "fails the predicate"
+        else return $ Error "takeStartBy: missing frame start"
     step (Right' s) a =
         if not (cond a)
         then process s a
@@ -687,6 +887,105 @@ sliceBeginWith cond (Fold fstep finitial fextract) =
 
     extract (Left' s) = fextract s
     extract (Right' s) = fextract s
+
+data FramedEscState s =
+    FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
+
+{-# INLINE takeFramedByEsc_ #-}
+takeFramedByEsc_ :: MonadThrow m =>
+    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameEscInit s)
+                FL.Done _ ->
+                    error "takeFramedByEsc_: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameEscGo s1 n)
+                FL.Done b -> Done 0 b
+
+    step (FrameEscInit s) a =
+        if isBegin a
+        then return $ Partial 0 (FrameEscGo s 0)
+        else return $ Error "takeFramedByEsc_: missing frame start"
+    step (FrameEscGo s n) a =
+        if isEsc a
+        then return $ Partial 0 $ FrameEscEsc s n
+        else do
+            if not (isEnd a)
+            then
+                let n1 = if isBegin a then n + 1 else n
+                 in process s a n1
+            else
+                if n == 0
+                then Done 0 <$> fextract s
+                else process s a (n - 1)
+    step (FrameEscEsc s n) a = process s a n
+
+    err = throwM . ParseError
+
+    extract (FrameEscInit _) = err "takeFramedByEsc_: empty token"
+    extract (FrameEscGo _ _) = err "takeFramedByEsc_: missing frame end"
+    extract (FrameEscEsc _ _) = err "takeFramedByEsc_: trailing escape"
+
+data FramedState s = FrameInit !s | FrameGo !s Int
+
+{-# INLINE takeFramedBy_ #-}
+takeFramedBy_ :: MonadThrow m =>
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
+
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (FrameInit s)
+                FL.Done _ ->
+                    error "takeFramedBy_: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (FrameGo s1 n)
+                FL.Done b -> Done 0 b
+
+    step (FrameInit s) a =
+        if isBegin a
+        then return $ Continue 0 (FrameGo s 0)
+        else return $ Error "takeFramedBy_: missing frame start"
+    step (FrameGo s n) a
+        | not (isEnd a) =
+            let n1 = if isBegin a then n + 1 else n
+             in process s a n1
+        | n == 0 = Done 0 <$> fextract s
+        | otherwise = process s a (n - 1)
+
+    err = throwM . ParseError
+
+    extract (FrameInit _) = err "takeFramedBy_: empty token"
+    extract (FrameGo _ _) = err "takeFramedBy_: missing frame end"
+
+-------------------------------------------------------------------------------
+-- Grouping and words
+-------------------------------------------------------------------------------
 
 data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 
@@ -893,6 +1192,7 @@ groupByRollingEither
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
+-- XXX rename to listBy?
 --
 -- | See 'Streamly.Internal.Data.Parser.eqBy'.
 --
@@ -904,6 +1204,7 @@ eqBy cmp str = Parser step initial extract
 
     where
 
+    -- XXX Should return IDone in initial for [] case
     initial = return $ IPartial str
 
     step [] _ = return $ Done 0 ()
@@ -925,6 +1226,142 @@ eqBy cmp str = Parser step initial extract
             $ ParseError
             $ "eqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
+
+-- XXX rename to streamBy?
+-- | Like eqBy but uses a stream instead of a list
+{-# INLINE matchBy #-}
+matchBy :: MonadThrow m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
+matchBy cmp (D.Stream sstep state) = Parser step initial extract
+
+    where
+
+    initial = do
+        r <- sstep defState state
+        case r of
+            D.Yield x s -> return $ IPartial (Just' x, s)
+            D.Stop -> return $ IDone ()
+            -- Need Skip/Continue in initial to loop right here
+            D.Skip s -> return $ IPartial (Nothing', s)
+
+    step (Just' x, st) a =
+        if x `cmp` a
+          then do
+            r <- sstep defState st
+            return
+                $ case r of
+                    D.Yield x1 s -> Continue 0 (Just' x1, s)
+                    D.Stop -> Done 0 ()
+                    D.Skip s -> Continue 1 (Nothing', s)
+          else return $ Error "match: mismtach occurred"
+    step (Nothing', st) a = do
+        r <- sstep defState st
+        return
+            $ case r of
+                D.Yield x s -> do
+                    if x `cmp` a
+                    then Continue 0 (Nothing', s)
+                    else Error "match: mismatch occurred"
+                D.Stop -> Done 1 ()
+                D.Skip s -> Continue 1 (Nothing', s)
+
+    extract _ = throwM $ ParseError "match: end of input"
+
+{-# INLINE zipWithM #-}
+zipWithM :: MonadThrow m =>
+    (a -> b -> m c) -> D.Stream m a -> Fold m c x -> Parser m b x
+zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        fres <- finitial
+        case fres of
+            FL.Partial fs -> do
+                r <- sstep defState state
+                case r of
+                    D.Yield x s -> return $ IPartial (Just' x, s, fs)
+                    D.Stop -> do
+                        x <- fextract fs
+                        return $ IDone x
+                    -- Need Skip/Continue in initial to loop right here
+                    D.Skip s -> return $ IPartial (Nothing', s, fs)
+            FL.Done x -> return $ IDone x
+
+    step (Just' a, st, fs) b = do
+        c <- zf a b
+        fres <- fstep fs c
+        case fres of
+            FL.Partial fs1 -> do
+                r <- sstep defState st
+                case r of
+                    D.Yield x1 s -> return $ Continue 0 (Just' x1, s, fs1)
+                    D.Stop -> do
+                        x <- fextract fs1
+                        return $ Done 0 x
+                    D.Skip s -> return $ Continue 1 (Nothing', s, fs1)
+            FL.Done x -> return $ Done 0 x
+    step (Nothing', st, fs) b = do
+        r <- sstep defState st
+        case r of
+                D.Yield a s -> do
+                    c <- zf a b
+                    fres <- fstep fs c
+                    case fres of
+                        FL.Partial fs1 ->
+                            return $ Continue 0 (Nothing', s, fs1)
+                        FL.Done x -> return $ Done 0 x
+                D.Stop -> do
+                    x <- fextract fs
+                    return $ Done 1 x
+                D.Skip s -> return $ Continue 1 (Nothing', s, fs)
+
+    extract _ = throwM $ ParseError "zipWithM: end of input"
+
+-- | Zip the input of a fold with a stream.
+--
+-- /Pre-release/
+--
+{-# INLINE zip #-}
+zip :: MonadThrow m => D.Stream m a -> Fold m (a, b) x -> Parser m b x
+zip = zipWithM (curry return)
+
+-- | Pair each element of a fold input with its index, starting from index 0.
+--
+-- /Pre-release/
+{-# INLINE indexed #-}
+indexed :: forall m a b. MonadThrow m => Fold m (Int, a) b -> Parser m a b
+indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
+
+-- | @makeIndexFilter indexer filter predicate@ generates a fold filtering
+-- function using a fold indexing function that attaches an index to each input
+-- element and a filtering function that filters using @(index, element) ->
+-- Bool) as predicate.
+--
+-- For example:
+--
+-- @
+-- filterWithIndex = makeIndexFilter indexed filter
+-- filterWithAbsTime = makeIndexFilter timestamped filter
+-- filterWithRelTime = makeIndexFilter timeIndexed filter
+-- @
+--
+-- /Pre-release/
+{-# INLINE makeIndexFilter #-}
+makeIndexFilter ::
+       (Fold m (s, a) b -> Parser m a b)
+    -> (((s, a) -> Bool) -> Fold m (s, a) b -> Fold m (s, a) b)
+    -> (((s, a) -> Bool) -> Fold m a b -> Parser m a b)
+makeIndexFilter f comb g = f . comb g . FL.lmap snd
+
+-- | @sampleFromthen offset stride@ samples the element at @offset@ index and
+-- then every element at strides of @stride@.
+--
+-- /Pre-release/
+{-# INLINE sampleFromthen #-}
+sampleFromthen :: MonadThrow m => Int -> Int -> Fold m a b -> Parser m a b
+sampleFromthen offset size =
+    makeIndexFilter indexed FL.filter (\(i, _) -> (i + offset) `mod` size == 0)
 
 --------------------------------------------------------------------------------
 --- Spanning
@@ -1077,18 +1514,166 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -------------------------------------------------------------------------------
 -- Interleaving
 -------------------------------------------------------------------------------
---
+
+data DeintercalateState fs sp ss =
+      DeintercalateL !fs !sp
+    | DeintercalateR !fs !ss !Bool
+
 -- | See 'Streamly.Internal.Data.Parser.deintercalate'.
 --
--- /Unimplemented/
+-- /Internal/
 --
 {-# INLINE deintercalate #-}
-deintercalate ::
-    -- Monad m =>
-       Fold m a y -> Parser m x a
-    -> Fold m b z -> Parser m x b
-    -> Parser m x (y, z)
-deintercalate = undefined
+deintercalate :: Monad m =>
+       Fold m (Either x y) z
+    -> Parser m a x
+    -> Parser m a y
+    -> Parser m a z
+deintercalate
+    (Fold fstep finitial fextract)
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR extractR) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "deintercalate: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                resL <- initialL
+                case resL of
+                    IPartial sL -> return $ IPartial $ DeintercalateL fs sL
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ IDone c
+
+    step (DeintercalateL fs sL) a = do
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateL fs s)
+            Continue n s -> return $ Continue n (DeintercalateL fs s)
+            Done n b -> do
+                fres <- fstep fs (Left b)
+                case fres of
+                    FL.Partial fs1 -> do
+                        resR <- initialR
+                        case resR of
+                            IPartial sR ->
+                                return
+                                    $ Partial n (DeintercalateR fs1 sR False)
+                            IDone _ -> errMsg "right" "succeed"
+                            IError _ -> errMsg "right" "fail"
+                    FL.Done c -> return $ Done n c
+            Error err -> return $ Error err
+    step (DeintercalateR fs sR consumed) a = do
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateR fs s True)
+            Continue n s -> return $ Continue n (DeintercalateR fs s True)
+            Done n b ->
+                if consumed
+                then do
+                    fres <- fstep fs (Right b)
+                    case fres of
+                        FL.Partial fs1 -> do
+                            resL <- initialL
+                            case resL of
+                                IPartial sL ->
+                                    return $ Partial n $ DeintercalateL fs1 sL
+                                IDone _ -> errMsg "left" "succeed"
+                                IError _ -> errMsg "left" "fail"
+                        FL.Done c -> return $ Done n c
+                else error "deintercalate: infinite loop"
+            Error err -> return $ Error err
+
+    extract (DeintercalateL fs sL) = do
+        r <- extractL sL
+        res <- fstep fs (Left r)
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
+    extract (DeintercalateR fs sR _) = do
+        r <- extractR sR
+        res <- fstep fs (Right r)
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
+
+data SepByState fs sp ss =
+      SepByInit !fs !sp
+    | SepBySeparator !fs !ss !Bool
+
+-- This is a special case of deintercalate and can be easily implemented in
+-- terms of deintercalate.
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m =>
+    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+sepBy
+    (Fold fstep finitial fextract)
+    (Parser pstep pinitial pextract)
+    (Parser sstep sinitial _) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "sepBy: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                resP <- pinitial
+                case resP of
+                    IPartial sp -> return $ IPartial $ SepByInit fs sp
+                    IDone _ -> errMsg "content" "succeed"
+                    IError _ -> errMsg "content" "fail"
+            FL.Done b -> return $ IDone b
+
+    step (SepByInit fs sp) a = do
+        r <- pstep sp a
+        case r of
+            Partial n s -> return $ Partial n (SepByInit fs s)
+            Continue n s -> return $ Continue n (SepByInit fs s)
+            Done n b -> do
+                fres <- fstep fs b
+                case fres of
+                    FL.Partial fs1 -> do
+                        resS <- sinitial
+                        case resS of
+                            IPartial ss ->
+                                return $ Partial n (SepBySeparator fs1 ss False)
+                            IDone _ -> errMsg "separator" "succeed"
+                            IError _ -> errMsg "separator" "fail"
+                    FL.Done c -> return $ Done n c
+            Error err -> return $ Error err
+    step (SepBySeparator fs ss consumed) a = do
+        r <- sstep ss a
+        case r of
+            Partial n s -> return $ Partial n (SepBySeparator fs s True)
+            Continue n s -> return $ Continue n (SepBySeparator fs s True)
+            Done n _ ->
+                if consumed
+                then do
+                    resP <- pinitial
+                    case resP of
+                        IPartial sp -> return $ Partial n $ SepByInit fs sp
+                        IDone _ -> errMsg "content" "succeed"
+                        IError _ -> errMsg "content" "fail"
+                else error "sepBy: infinite loop"
+            Error err -> return $ Error err
+
+    extract (SepByInit fs sp) = do
+        r <- pextract sp
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fextract fs1
+            FL.Done c -> return c
+    extract (SepBySeparator fs _ _) = fextract fs
 
 -------------------------------------------------------------------------------
 -- Sequential Collection

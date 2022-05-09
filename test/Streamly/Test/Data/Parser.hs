@@ -324,10 +324,10 @@ takeProperties =
 --                         where
 --                             list_length = Prelude.length ls
 
-sliceSepByP :: Property
-sliceSepByP =
+takeEndBy_ :: Property
+takeEndBy_ =
     forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
-        case S.parse (P.sliceSepByP predicate prsr) (S.fromList ls) of
+        case S.parse (P.takeEndBy_ predicate prsr) (S.fromList ls) of
             Right parsed_list ->
                 checkListEqual parsed_list (tkwhl ls)
             Left _ -> property False
@@ -336,8 +336,8 @@ sliceSepByP =
             prsr = P.many FL.toList (P.satisfy (const True))
             tkwhl ls = Prelude.takeWhile (not . predicate) ls
 
-sliceBeginWith :: Property
-sliceBeginWith =
+takeStartBy :: Property
+takeStartBy =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let ls1 = 1:ls
         in
@@ -354,7 +354,7 @@ sliceBeginWith =
                 Left _ -> property False
             where
                 predicate = odd
-                parser = P.sliceBeginWith predicate FL.toList
+                parser = P.takeStartBy predicate FL.toList
 
 takeWhile :: Property
 takeWhile =
@@ -397,6 +397,27 @@ takeWhile1 =
                 (x : _) -> property (not $ predicate x)
         where
             predicate = (== 0)
+
+takeWhileP :: Property
+takeWhileP =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        forAll (chooseInt (min_value, max_value)) $ \n ->
+            let
+                predicate = (== 1)
+
+                prsr =
+                    P.takeWhileP predicate
+                        $ P.fromFold (FL.take n FL.toList)
+
+                takeWhileTillLen maxLen prd list =
+                    Prelude.take maxLen $ Prelude.takeWhile prd list
+            in
+                case S.parse prsr (S.fromList ls) of
+                    Right parsed_list ->
+                        checkListEqual
+                        parsed_list
+                        (takeWhileTillLen n predicate ls)
+                    Left _ -> property False
 
 choice :: Property
 choice =
@@ -504,17 +525,20 @@ wordBy =
 --         Right _ -> False
 --         Left _ -> True)
 
--- deintercalate :: Property
--- deintercalate =
---     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
---             Right parsed_list_tuple -> parsed_list_tuple == (partition (== 0) ls)
---             Left _ -> False
+deintercalate :: Property
+deintercalate =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
+        case S.parse p (S.fromList ls) of
+            Right evenOdd -> evenOdd == List.partition even ls
+            Left _ -> False
 
---         where
---             prsr_1 = (P.takeWhile (== 0) FL.toList)
---             prsr_2 = (P.takeWhile (== 1) FL.toList)
---             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+        where
+            p1 = P.takeWhile even FL.toList
+            p2 = P.takeWhile odd FL.toList
+            partition =
+                FL.tee (fmap concat $ FL.lefts FL.toList)
+                       (fmap concat $ FL.rights FL.toList)
+            p = P.deintercalate partition p1 p2
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -776,12 +800,13 @@ main =
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
-        prop "P.sliceSepByP test" Main.sliceSepByP
-        prop ("P.sliceBeginWith pred = head : Prelude.takeWhile (not . pred)"
-                ++ " tail") sliceBeginWith
+        prop "P.takeEndBy_ test" Main.takeEndBy_
+        prop ("P.takeStartBy pred = head : Prelude.takeWhile (not . pred)"
+                ++ " tail") takeStartBy
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
                 ++ " else check why failed") takeWhile1
+        prop "takeWhileP prd P.take = takeWhileMaxLen prd" takeWhileP
         prop ("P.takeP = Prelude.take") takeP
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "many (P.wordBy ' ') = words'" wordBy
@@ -794,7 +819,7 @@ main =
         -- prop "" teeWithFailLeft
         -- prop "" teeWithFailRight
         -- prop "" teeWithFailBoth
-        -- prop "" deintercalate
+        prop "deintercalate" deintercalate
         -- prop "" shortestPass
         -- prop "" shortestFailLeft
         -- prop "" shortestFailRight

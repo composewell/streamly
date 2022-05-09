@@ -38,6 +38,7 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
 
     -- * Scanning By 'Fold'
     , scan
+    , scanMany
     , postscan
 
     -- * Scanning
@@ -659,8 +660,15 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
--- scan = P.scanOnce
 scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
+
+-- | Like 'scan' but restarts scanning afresh when the scanning fold
+-- terminates.
+--
+-- /Pre-release/
+{-# INLINE scanMany #-}
+scanMany :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
+scanMany fld m = fromStreamD $ D.scanMany fld $ toStreamD m
 
 -- | Postscan a stream using the given monadic fold.
 --
