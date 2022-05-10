@@ -684,7 +684,9 @@ takeFramedByGeneric esc begin end f =
 --
 -- >>> takeEndBy = Parser.takeEndByEsc (const False)
 --
--- See also "Streamly.Data.Fold.takeEndBy".
+-- See also "Streamly.Data.Fold.takeEndBy". Unlike the fold, the collecting
+-- parser in the takeEndBy parser can decide whether to fail or not if the
+-- stream does not end with separator.
 --
 -- /Pre-release/
 --
