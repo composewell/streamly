@@ -129,6 +129,7 @@ module Streamly.Internal.Data.Parser
     , takeFramedByEsc_
     , takeFramedByGeneric
     , wordFramedBy
+    , wordQuotedBy
 
     -- | Unimplemented
     --
@@ -864,6 +865,34 @@ wordFramedBy :: MonadCatch m =>
     -> Parser m a b
 wordFramedBy isEsc isBegin isEnd isSpc =
     D.toParserK . D.wordFramedBy isEsc isBegin isEnd isSpc
+
+-- | Like 'wordFramedBy' but the closing quote is determined by the opening
+-- quote. The first quote begin starts a quote that is closed by its
+-- corresponding closing quote.
+--
+-- 'wordFramedBy' and 'wordQuotedBy' both allow multiple quote characters based
+-- on the predicates but 'wordQuotedBy' always fixes the quote at the first
+-- occurrence and then it is closed only by the corresponding closing quote.
+-- Therefore, other quoting characters can be embedded inside it as normal
+-- characters. On the other hand, 'wordFramedBy' would close the quote as soon
+-- as it encounters any of the closing quotes.
+--
+-- >>> q = (`elem` ['"', '\''])
+-- >>> p = Parser.wordQuotedBy (== '\\') q q id isSpace Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "a\"b'c\";'d\"e'f"
+-- "ab'c;d\"ef"
+--
+{-# INLINE wordQuotedBy #-}
+wordQuotedBy :: (MonadCatch m, Eq a) =>
+       (a -> Bool)  -- ^ Escape
+    -> (a -> Bool)  -- ^ left quote
+    -> (a -> Bool)  -- ^ right quote
+    -> (a -> a)     -- ^ get right quote from left quote
+    -> (a -> Bool)  -- ^ word seperator
+    -> Fold m a b
+    -> Parser m a b
+wordQuotedBy isEsc isBegin isEnd toRight isSpc =
+    D.toParserK . D.wordQuotedBy isEsc isBegin isEnd toRight isSpc
 
 -- | Given an input stream @[a,b,c,...]@ and a comparison function @cmp@, the
 -- parser assigns the element @a@ to the first group, then if @a \`cmp` b@ is

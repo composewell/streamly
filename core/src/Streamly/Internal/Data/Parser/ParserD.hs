@@ -83,6 +83,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Words and grouping
     , wordBy
     , wordFramedBy
+    , wordQuotedBy
     , groupBy
     , groupByRolling
     , groupByRollingEither
@@ -1122,6 +1123,107 @@ wordFramedBy isEsc isBegin isEnd isSep
     extract (WordFramedEsc _ _) =
         err "wordFramedBy: trailing escape"
     extract (WordFramedSkipPost b) = return b
+
+data WordQuotedState s b a =
+      WordQuotedSkipPre !s
+    | WordUnquotedWord !s
+    | WordQuotedWord !s !Int a
+    | WordUnquotedEsc !s
+    | WordQuotedEsc !s !Int a
+    | WordQuotedSkipPost !b
+
+{-# INLINE wordQuotedBy #-}
+wordQuotedBy :: (MonadCatch m, Eq a) =>
+       (a -> Bool)  -- ^ Escape
+    -> (a -> Bool)  -- ^ left quote
+    -> (a -> Bool)  -- ^ right quote
+    -> (a -> a)     -- ^ get right quote from the left quote
+    -> (a -> Bool)  -- ^ word seperator
+    -> Fold m a b
+    -> Parser m a b
+wordQuotedBy isEsc isBegin isEnd toRight isSep
+    (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial =  do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (WordQuotedSkipPre s)
+                FL.Done _ ->
+                    error "wordQuotedBy: fold done without input"
+
+    {-# INLINE process #-}
+    process s a n q = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (WordQuotedWord s1 n q)
+                FL.Done b -> Done 0 b
+
+    {-# INLINE processUnquoted #-}
+    processUnquoted s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (WordUnquotedWord s1)
+                FL.Done b -> Done 0 b
+
+    step (WordQuotedSkipPre s) a
+        | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
+        | isSep a = return $ Partial 0 $ WordQuotedSkipPre s
+        | isBegin a = return $ Continue 0 $ WordQuotedWord s 1 a
+        | isEnd a =
+            return $ Error "wordQuotedBy: missing frame start"
+        | otherwise = processUnquoted s a
+    step (WordUnquotedWord s) a
+        | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
+        | isSep a = do
+            b <- fextract s
+            return $ Partial 0 $ WordQuotedSkipPost b
+        | otherwise = do
+               if isBegin a
+               then return $ Continue 0 $ WordQuotedWord s 1 a
+               else if isEnd a
+                    then return $ Error "wordQuotedBy: missing frame start"
+                    else processUnquoted s a
+    step (WordQuotedWord s n q) a
+        | isEsc a = return $ Continue 0 $ WordQuotedEsc s n q
+        | n == 0 && isSep a = do
+            b <- fextract s
+            return $ Partial 0 $ WordQuotedSkipPost b
+        | otherwise = do
+                if a == toRight q
+                then
+                   if n == 1
+                   then return $ Continue 0 $ WordUnquotedWord s
+                   else process s a (n - 1) q
+                else if a == q
+                     then process s a (n + 1) q
+                     else process s a n q
+    step (WordUnquotedEsc s) a = processUnquoted s a
+    step (WordQuotedEsc s n q) a = process s a n q
+    step (WordQuotedSkipPost b) a =
+        return
+            $ if not (isSep a)
+              then Done 1 b
+              else Partial 0 $ WordQuotedSkipPost b
+
+    err = throwM . ParseError
+
+    extract (WordQuotedSkipPre s) = fextract s
+    extract (WordUnquotedWord s) = fextract s
+    extract (WordQuotedWord s n _) =
+        if n == 0
+        then fextract s
+        else err "wordQuotedBy: missing frame end"
+    extract WordQuotedEsc {} =
+        err "wordQuotedBy: trailing escape"
+    extract (WordUnquotedEsc _) =
+        err "wordQuotedBy: trailing escape"
+    extract (WordQuotedSkipPost b) = return b
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s
