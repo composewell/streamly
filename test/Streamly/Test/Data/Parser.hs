@@ -745,6 +745,306 @@ manyEqParseMany =
 
     split i = P.fromFold (FL.take i FL.toList)
 
+
+takeEndBy1 :: Property
+takeEndBy1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.takeEndBy predicate prsr) (S.fromList ls) of
+            Right parsed_list ->
+                checkListEqual
+                parsed_list
+                (takeWhileAndFirstFail (not . predicate) ls)
+            Left _ -> property False
+        where
+            prsr = P.many (P.satisfy (const True)) FL.toList
+
+            predicate = (== 1)
+
+            takeWhileAndFirstFail prd (x : xs) =
+                if prd x
+                then x : takeWhileAndFirstFail prd xs
+                else [x]
+            takeWhileAndFirstFail _ [] = []
+
+takeEndBy2 :: Property
+takeEndBy2 =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let
+            strm = S.fromList ls
+
+            predicate = (==0)
+
+            eitherParsedList =
+                S.toList $
+                    S.parseMany (P.takeEndBy predicate prsr) strm
+
+                    where
+
+                    prsr = P.many (P.satisfy (const True)) FL.toList
+
+            eitherSplitList =
+                case ls of
+                    [] -> return []
+                    _ ->
+                        if last ls == 0
+                        then S.toList $ S.append strm1 (S.fromList [])
+                        else S.toList strm1
+
+                        where
+
+                        strm1 = S.splitWithSuffix predicate FL.toList strm
+        in
+            case eitherParsedList of
+                Left _ -> property False
+                Right parsedList ->
+                    case eitherSplitList of
+                        Left _ -> property False
+                        Right splitList -> checkListEqual parsedList splitList
+
+takeEndByEsc :: Property
+takeEndByEsc =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let
+            msg = "takeEndByEsc: trailing escape"
+
+            isSep = even
+
+            isEsc x = x `mod` 6 == 0
+
+            prsr = P.takeEndByEsc isEsc isSep prsr0
+
+                where
+
+                prsr0 = P.many (P.satisfy (const True)) FL.toList
+
+            escapeSep maybePrevEsc [] =
+                case maybePrevEsc of
+                    Nothing -> []
+                    Just prevEsc -> [prevEsc]
+            escapeSep maybePrevEsc (x : xs) =
+                 case maybePrevEsc of
+                    Nothing ->
+                        if isEsc x
+                        then escapeSep (Just x) xs
+                        else
+                            if isSep x
+                            then [x]
+                            else x : escapeSep Nothing xs
+                    Just _ ->
+                            x : escapeSep Nothing xs
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
+                Left err -> property (displayException err == msg)
+
+takeFramedByEsc_ :: Property
+takeFramedByEsc_ =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let
+            isBegin = (== 0)
+
+            isEnd = (== 1)
+
+            isEsc = (== 2)
+
+            prsr = P.takeFramedByEsc_ isEsc isBegin isEnd  FL.toList
+
+            checkPass (x : xs) maybePrevEsc openMinusClose =
+                case maybePrevEsc of
+                    Nothing ->
+                        if isEsc x
+                        then checkPass xs (Just x) openMinusClose
+                        else
+                            if isBegin x
+                            then checkPass xs Nothing (openMinusClose + 1)
+                            else
+                                if isEnd x
+                                then
+                                    case openMinusClose of
+                                        0 -> False
+                                        1 -> True
+                                        _ ->
+                                            checkPass
+                                            xs
+                                            Nothing
+                                            (openMinusClose - 1)
+                                else
+                                    checkPass xs Nothing openMinusClose
+                    Just _ -> checkPass xs Nothing openMinusClose
+            checkPass [] _ _ = False
+
+            escapeFrame begin end escape l =
+                let
+                    helper (x : xs) maybePrevEsc openMinusClose =
+                        case maybePrevEsc of
+                            Nothing ->
+                                if escape x
+                                then helper xs (Just x) openMinusClose
+                                else
+                                    if begin x
+                                    then helper xs Nothing (openMinusClose + 1)
+                                    else
+                                        if end x
+                                        then
+                                            if openMinusClose - 1 == 0
+                                            then []
+                                            else
+                                                helper
+                                                xs
+                                                Nothing
+                                                (openMinusClose - 1)
+                                        else
+                                            x : helper xs Nothing openMinusClose
+                            Just prevEsc ->
+                                if escape x || begin x || end x
+                                then x : helper xs Nothing openMinusClose
+                                else
+                                    prevEsc : x : helper xs Nothing openMinusClose
+                    helper [] _ _ = error "Cannot Reach Here"
+                in
+                    helper l Nothing (0 :: Int)
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list ->
+                    if checkPass ls Nothing (0 :: Int)
+                    then checkListEqual parsed_list $
+                        escapeFrame isBegin isEnd isEsc ls
+                    else property False
+                Left _ ->
+                    if checkPass ls Nothing (0 :: Int)
+                    then property False
+                    else property True
+
+takeFramedByEsc_Pass :: Property
+takeFramedByEsc_Pass =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \list ->
+        let
+            ls = (0 : list) ++ (Prelude.replicate (Prelude.length list + 1) 1)
+
+            isBegin = (== 0)
+
+            isEnd = (== 1)
+
+            isEsc = (== 2)
+
+            prsr = P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList
+
+            escapeFrame begin end escape l =
+                let
+                    helper (x : xs) maybePrevEsc openMinusClose =
+                        case maybePrevEsc of
+                            Nothing ->
+                                if escape x
+                                then helper xs (Just x) openMinusClose
+                                else
+                                    if begin x
+                                    then
+                                        if openMinusClose == 0
+                                        then helper xs Nothing (openMinusClose + 1)
+                                        else x : helper xs Nothing (openMinusClose + 1)
+                                    else
+                                        if end x
+                                        then
+                                            if openMinusClose - 1 == 0
+                                            then []
+                                            else
+                                                x :
+                                                helper
+                                                xs
+                                                Nothing
+                                                (openMinusClose - 1)
+                                        else
+                                            x : helper xs Nothing openMinusClose
+                            Just _ ->
+                                if escape x || begin x || end x
+                                then helper xs Nothing openMinusClose
+                                else
+                                    x : helper xs Nothing openMinusClose
+                    helper [] _ _ = error "Cannot Reach Here"
+                in
+                    helper l Nothing (0 :: Int)
+        in
+            case S.parse prsr (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list $ escapeFrame isBegin isEnd isEsc ls
+                _ -> property False
+
+takeFramedByEsc_Fail1 :: Property
+takeFramedByEsc_Fail1 =
+    let
+        msg = "takeFramedByEsc_: missing frame end"
+
+        isBegin = (== 0)
+
+        isEnd = (== 0)
+
+        isEsc = (== 2)
+
+        prsr = P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList
+
+        ls = [0 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property (displayException err == msg)
+
+takeFramedByEsc_Fail2 :: Property
+takeFramedByEsc_Fail2 =
+    let
+        msg = "takeFramedByEsc_: missing frame start"
+
+        isBegin = (== 0)
+
+        isEnd = (== 1)
+
+        isEsc = (== 1)
+
+        prsr = P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList
+
+        ls = [1 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property (displayException err == msg)
+
+takeFramedByEsc_Fail3 :: Property
+takeFramedByEsc_Fail3 =
+    let
+        msg = "takeFramedByEsc_: missing frame end"
+
+        isBegin = (== 2)
+
+        isEnd = (== 1)
+
+        isEsc = (== 2)
+
+        prsr = P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList
+
+        ls = [2 :: Int]
+    in
+        case S.parse prsr (S.fromList ls) of
+            Right _ -> property False
+            Left err -> property $ (displayException err == msg)
+
+takeStartBy_ :: Property
+takeStartBy_ =
+     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+        let ls1 = 1:ls
+            msg = "takeFramedByGeneric: empty token"
+        in
+            case S.parse parser (S.fromList ls1) of
+                Right parsed_list ->
+                  if not $ Prelude.null ls1
+                  then
+                    let tls = Prelude.takeWhile (not . predicate) (tail ls1)
+                    in checkListEqual parsed_list $
+                      if predicate (head ls1)
+                      then tls
+                      else Prelude.takeWhile (not . predicate) ls1
+                  else property $ Prelude.null parsed_list
+                Left err -> property (displayException err == msg)
+            where
+                predicate = odd
+                parser = P.takeStartBy_ predicate FL.toList
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -763,7 +1063,6 @@ main =
         prop "applicative" applicative
         prop "monad" monad
         prop "sequence" sequence
-
     describe "Stream parsing" $ do
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
@@ -831,4 +1130,16 @@ main =
                 ++ "Prelude.filter (== 0)") some
         -- prop "fail due to parser being die" someFail
         prop "P.many == S.parseMany" manyEqParseMany
+
+        prop "takeEndBy_" takeEndBy_
+        prop "takeEndBy1" takeEndBy1
+        prop "takeEndBy2" takeEndBy2
+        prop "takeEndByEsc" takeEndByEsc
+        prop "takeFramedByEsc_" takeFramedByEsc_
+        prop "takeFramedByEsc_Pass" takeFramedByEsc_Pass
+        prop "takeFramedByEsc_Fail1" takeFramedByEsc_Fail1
+        prop "takeFramedByEsc_Fail2" takeFramedByEsc_Fail2
+        prop "takeFramedByEsc_Fail3" takeFramedByEsc_Fail3
+        prop "takeStartBy_" takeStartBy_
+
     takeProperties
