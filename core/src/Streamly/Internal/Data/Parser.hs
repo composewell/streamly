@@ -1226,11 +1226,6 @@ choice ps = D.toParserK $ D.choice $ D.fromParserK <$> ps
 -------------------------------------------------------------------------------
 -- Sequential Repetition
 -------------------------------------------------------------------------------
---
--- $many
--- TODO "many" is essentially a Fold because it cannot fail. So it can be
--- downgraded to a Fold. Or we can make the return type a Fold instead and
--- upgrade that to a parser when needed.
 
 -- | Like 'many' but uses a 'Parser' instead of a 'Fold' to collect the
 -- results. Parsing stops or fails if the collecting parser stops or fails.
@@ -1248,6 +1243,8 @@ manyP _p _f = undefined -- D.toParserK $ D.manyP (D.fromParserK p) f
 --  Stops: when the downstream fold stops or the parser fails.
 --  Fails: never, produces zero or more results.
 --
+-- >>> many = Parser.countBetween 0 maxBound
+--
 -- Compare with 'Control.Applicative.many'.
 --
 -- /Pre-release/
@@ -1255,7 +1252,6 @@ manyP _p _f = undefined -- D.toParserK $ D.manyP (D.fromParserK p) f
 {-# INLINE many #-}
 many :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
 many p f = D.toParserK $ D.many (D.fromParserK p) f
--- many = countBetween 0 maxBound
 
 -- Note: many1 would perhaps be a better name for this and consistent with
 -- other names like takeWhile1. But we retain the name "some" for
@@ -1267,7 +1263,8 @@ many p f = D.toParserK $ D.many (D.fromParserK p) f
 --  Stops: when the downstream fold stops or the parser fails.
 --  Fails: if it stops without producing a single result.
 --
--- @some fld parser = manyP (takeGE 1 fld) parser@
+-- >>> some p f = Parser.manyP p (Parser.takeGE 1 f)
+-- >>> some = Parser.countBetween 1 maxBound
 --
 -- Compare with 'Control.Applicative.some'.
 --
@@ -1277,33 +1274,36 @@ many p f = D.toParserK $ D.many (D.fromParserK p) f
 some :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
 some p f = D.toParserK $ D.some (D.fromParserK p) f
 -- some p f = manyP p (takeGE 1 f)
--- many = countBetween 1 maxBound
+-- some = countBetween 1 maxBound
 
 -- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
 -- parser @p@ using the fold @f@. Stop after collecting @n@ results. Fails if
 -- the input ends or the parser fails before @m@ results are collected.
 --
+-- >>> countBetween m n p f = Parser.manyP p (Parser.takeBetween m n f)
+--
 -- /Unimplemented/
 --
 {-# INLINE countBetween #-}
-countBetween ::
-    -- MonadCatch m =>
+countBetween :: -- MonadCatch m =>
     Int -> Int -> Parser m a b -> Fold m b c -> Parser m a c
 countBetween _m _n _p = undefined
--- countBetween m n p f = manyP (takeBetween m n f) p
+-- countBetween m n p f = manyP p (takeBetween m n f)
 
 -- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
 -- the fold @f@.  Fails if the input ends or the parser fails before @n@
 -- results are collected.
 --
+-- >>> count n = Parser.countBetween n n
+-- >>> count n p f = Parser.manyP p (Parser.takeEQ n f)
+--
 -- /Unimplemented/
 --
 {-# INLINE count #-}
-count ::
-    -- MonadCatch m =>
+count :: -- MonadCatch m =>
     Int -> Parser m a b -> Fold m b c -> Parser m a c
 count n = countBetween n n
--- count n p f = manyP (takeEQ n f) p
+-- count n p f = manyP p (takeEQ n f)
 
 -- | Like 'manyTill' but uses a 'Parser' to collect the results instead of a
 -- 'Fold'.  Parsing stops or fails if the collecting parser stops or fails.

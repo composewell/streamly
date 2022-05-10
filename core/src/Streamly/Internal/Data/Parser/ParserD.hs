@@ -138,6 +138,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , countBetweenTill
 
     , many
+    , manyP
     , some
     , manyTill
 
@@ -1896,7 +1897,12 @@ choice = foldl1 shortest
 -------------------------------------------------------------------------------
 -- Sequential Repetition
 -------------------------------------------------------------------------------
---
+
+{-# INLINE manyP #-}
+manyP :: -- MonadCatch m =>
+    Parser m a b -> Parser m b c -> Parser m a c
+manyP _p _f = undefined
+
 -- | See 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Pre-release/
@@ -1913,30 +1919,28 @@ many = splitMany
 {-# INLINE some #-}
 some :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
 some = splitSome
--- some f p = many (takeGE 1 f) p
--- many = countBetween 1 maxBound
+-- some p f = manyP p (takeGE 1 f)
+-- some = countBetween 1 maxBound
 
 -- | See 'Streamly.Internal.Data.Parser.countBetween'.
 --
 -- /Unimplemented/
 --
 {-# INLINE countBetween #-}
-countBetween ::
-    -- MonadCatch m =>
+countBetween :: -- MonadCatch m =>
     Int -> Int -> Parser m a b -> Fold m b c -> Parser m a c
 countBetween _m _n _p = undefined
--- countBetween m n p f = many (takeBetween m n f) p
+-- countBetween m n p f = manyP p (takeBetween m n f)
 
 -- | See 'Streamly.Internal.Data.Parser.count'.
 --
 -- /Unimplemented/
 --
 {-# INLINE count #-}
-count ::
-    -- MonadCatch m =>
+count :: -- MonadCatch m =>
     Int -> Parser m a b -> Fold m b c -> Parser m a c
 count n = countBetween n n
--- count n f p = many (takeEQ n f) p
+-- count n p f = manyP p (takeEQ n f)
 
 data ManyTillState fs sr sl
     = ManyTillR Int fs sr
