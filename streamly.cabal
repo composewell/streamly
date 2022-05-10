@@ -473,6 +473,7 @@ library
 
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.String
                      , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Unicode.Char.Parser
@@ -652,6 +653,7 @@ library
                      , mtl               >= 2.2   && < 2.3
                      , transformers      >= 0.4   && < 0.7
                      , filepath          >= 1.2.0.0 && < 1.5
+                     , template-haskell  >= 2.13 && < 2.19
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
