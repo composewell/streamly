@@ -156,6 +156,8 @@ module Streamly.Internal.Data.Parser
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    -- , deintercalatePrefix
+    -- , deintercalateSuffix
 
     -- *** Special cases
     -- | TODO: traditional implmentations of these may be of limited use. For
