@@ -139,9 +139,63 @@ sampleIntervalStart :: (IsStream t, MonadAsync m, Functor (t m)) =>
     Double -> t m a -> t m a
 sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
 
+data BurstState t x =
+      BurstNone
+    | BurstWait !t !x
+    | BurstDone !x
+    | BurstDoneNext !x !t !x
+
+{-# INLINE sampleBurst #-}
+sampleBurst :: (IsStream t, MonadAsync m, Functor (t m)) =>
+    Bool -> Double -> t m a -> t m a
+sampleBurst sampleAtEnd gap xs =
+    -- XXX Ideally we should schedule a timer event exactly after gap time,
+    -- but the tick stream should work well as long as the timer
+    -- granularity is small enough compared to the gap.
+    Stream.mapMaybe extract
+        $ Stream.scanl' step BurstNone
+        $ Stream.timeIndexed
+        $ Stream.interjectSuffix 0.01 (return Nothing) (Stream.map Just xs)
+
+    where
+
+    gap1 = toRelTime64 (NanoSecond64 (round (gap * 10^(9::Int))))
+
+    {-# INLINE step #-}
+    step BurstNone (t1, Just x1) = BurstWait t1 x1
+    step BurstNone _ = BurstNone
+
+    step (BurstDone _) (t1, Just x1) = BurstWait t1 x1
+    step (BurstDone _) _ = BurstNone
+
+    step old@(BurstWait t0 x0) (t1, Nothing)
+        | t1 - t0 >= gap1 = BurstDone x0
+        | otherwise = old
+    -- This can happen due to scheduling delays, if we received back to
+    -- back events spaced by more than the timeout without an
+    -- intervening timeout event then we emit the old event instead of
+    -- replacing it by the new.
+    step (BurstWait t0 x0) (t1, Just x1)
+        | t1 - t0 >= gap1 = BurstDoneNext x0 t1 x1
+        | sampleAtEnd = BurstWait t1 x1
+        | otherwise = BurstWait t1 x0
+
+    step (BurstDoneNext _ t0 x0) (t1, Nothing)
+        | t1 - t0 >= gap1 = BurstDone x0
+        | otherwise =  BurstWait t0 x0
+    step (BurstDoneNext _ t0 x0) (t1, Just x1)
+        | t1 - t0 >= gap1 = BurstDoneNext x0 t1 x1
+        | sampleAtEnd = BurstWait t1 x1
+        | otherwise = BurstWait t1 x0
+
+    {-# INLINE extract #-}
+    extract (BurstDoneNext x _ _) = Just x
+    extract (BurstDone x) = Just x
+    extract _ = Nothing
+
 -- | Sample one event at the end of each burst of events.  A burst is a group
 -- of events close together in time, it ends when an event is spaced by more
--- than the specified time interval from the previous event.
+-- than the specified time interval (in seconds) from the previous event.
 --
 -- This is known as @debounce@ in some libraries.
 --
@@ -152,13 +206,7 @@ sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
 {-# INLINE sampleBurstEnd #-}
 sampleBurstEnd :: (IsStream t, MonadAsync m, Functor (t m)) =>
     Double -> t m a -> t m a
-sampleBurstEnd gap =
-    let f (t1, _) (t2, _) =
-            t2 - t1 >= toRelTime64 (NanoSecond64 (round (gap * 10^(9::Int))))
-    in Stream.map snd
-        . Stream.catMaybes
-        . Stream.groupsByRolling f Fold.last
-        . Stream.timeIndexed
+sampleBurstEnd = sampleBurst True
 
 -- | Like 'sampleBurstEnd' but samples the event at the beginning of the burst
 -- instead of at the end of it.
@@ -168,13 +216,7 @@ sampleBurstEnd gap =
 {-# INLINE sampleBurstStart #-}
 sampleBurstStart :: (IsStream t, MonadAsync m, Functor (t m)) =>
     Double -> t m a -> t m a
-sampleBurstStart gap =
-    let f (t1, _) (t2, _) =
-            t2 - t1 >= toRelTime64 (NanoSecond64 (round (gap * 10^(9::Int))))
-    in Stream.map snd
-        . Stream.catMaybes
-        . Stream.groupsByRolling f Fold.head
-        . Stream.timeIndexed
+sampleBurstStart = sampleBurst False
 
 ------------------------------------------------------------------------------
 -- Reordering
