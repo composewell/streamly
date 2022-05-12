@@ -199,6 +199,7 @@ library
     include-dirs:
           src
         , src/Streamly/Internal/Data/Array
+        , src/Streamly/Internal/Data/Stream
 
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
@@ -255,6 +256,11 @@ library
                      , Streamly.Internal.Data.Parser.ParserK.Type
                      , Streamly.Internal.Data.Parser.ParserD.Type
                      , Streamly.Internal.Data.Pipe.Type
+                     --  Serial Modules
+                     , Streamly.Internal.Data.Stream.Serial.Eliminate
+                     , Streamly.Internal.Data.Stream.Serial.Generate
+                     , Streamly.Internal.Data.Stream.Serial.Transform
+                     , Streamly.Internal.Data.Stream.Serial.Type
 
                      -- streamly-core-array-types
                     -- Unboxed IORef
