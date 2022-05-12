@@ -521,6 +521,7 @@ library
 
                      -- streamly-base
                        Streamly.Internal.BaseCompat
+                     , Streamly.Internal.Data.Stream.ToStream
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
