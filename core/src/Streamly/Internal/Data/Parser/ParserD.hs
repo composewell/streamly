@@ -36,6 +36,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- * Map on input
     , lmap
     , lmapM
+    , postscan
     , filter
 
     -- * Element parsers
@@ -1458,6 +1459,24 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Skip s -> Continue 1 (Nothing', s)
 
     extract _ = throwM $ ParseError "match: end of input"
+
+-------------------------------------------------------------------------------
+-- Transformations on input
+-------------------------------------------------------------------------------
+
+-- Initial needs a "Continue" constructor to implement scans on parsers. As a
+-- parser can always return a Continue in initial when we feed the fold's
+-- initial result to it. We can work this around for postscan by introducing an
+-- initial state and calling "initial" only on the first input.
+--
+-- | Stateful scan on the input of a parser using a Fold.
+--
+-- /Unimplemented/
+--
+{-# INLINE postscan #-}
+postscan :: -- Monad m =>
+    Fold m a b -> Parser m b c -> Parser m a c
+postscan = undefined
 
 {-# INLINE zipWithM #-}
 zipWithM :: MonadThrow m =>
