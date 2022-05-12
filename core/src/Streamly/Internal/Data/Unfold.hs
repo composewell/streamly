@@ -687,6 +687,12 @@ fromListM = Unfold step pure
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
+-- XXX If the count depends on the input e.g. when we have to resample (see
+-- resample in streamly-statistics) an array and we have to iterate as many
+-- times as the array then we need the count to be passed via unfold i.e. it
+-- should be Unfold m (Int, m a) a. We can use concatMap to pass the count
+-- argument to replicateM but that won't perform well.
+--
 -- | Generates a stream replicating the seed @n@ times.
 --
 -- /Since: 0.8.0/
