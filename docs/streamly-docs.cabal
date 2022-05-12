@@ -18,13 +18,16 @@ build-type:         Simple
 extra-doc-files:
   User/*.md
   User/Tutorials/*.md
+  User/Tutorials/*.link
   User/HowTo/*.md
+  User/HowTo/*.link
   User/Explanatory/*.md
   User/Explanatory/streaming-pradigms.rst
   User/ProjectRelated/*.md
-  User/ProjectRelated/Roadmap.link
+  User/ProjectRelated/*.link
   Developer/*.png
   Developer/*.md
+  Developer/*.link
   Developer/*.rst
 
 library

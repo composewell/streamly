@@ -224,15 +224,18 @@ extra-doc-files:
     docs/Developer/*.png
     docs/Developer/*.md
     docs/Developer/*.rst
+    docs/Developer/*.link
     docs/User/*.md
     docs/User/Tutorials/*.md
+    docs/User/Tutorials/*.link
     docs/User/Tutorials/*.hs
     docs/User/HowTo/*.md
+    docs/User/HowTo/*.link
     docs/User/HowTo/*.svg
     docs/User/Explanatory/*.md
     docs/User/Explanatory/streaming-pradigms.rst
     docs/User/ProjectRelated/*.md
-    docs/User/ProjectRelated/Roadmap.link
+    docs/User/ProjectRelated/*.link
     docs/User/ProjectRelated/API-changelog.txt
     test/README.md
     docs/Developer/Tests.md
