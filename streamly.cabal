@@ -212,6 +212,11 @@ extra-source-files:
     core/jsbits/clock.js
     core/Setup.hs
 
+    core/src/Streamly/Internal/Data/Stream/Serial/Eliminate.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Generate.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Transform.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Type.hs
+
 extra-doc-files:
     CONTRIBUTING.md
     CHANGELOG.md
@@ -617,6 +622,12 @@ library
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
+
+                    --  Serial Modules
+                     , Streamly.Internal.Data.Stream.Serial.Eliminate
+                     , Streamly.Internal.Data.Stream.Serial.Generate
+                     , Streamly.Internal.Data.Stream.Serial.Transform
+                     , Streamly.Internal.Data.Stream.Serial.Type
 
     other-modules:
                        Streamly.Data.Array

@@ -19,26 +19,10 @@ module Streamly.Internal.Data.Stream.Serial.Type
     -- * Serial appending stream
       SerialT(..)
     , Serial
-    , serial
-
-    -- * Construction
-    , cons
-    , consM
-    , repeat
-    , unfoldrM
-    , fromList
-    , list
-
-    -- * Elimination
-    , toList
+    , fromStreamD
+    , toStreamD
     , foldWith
-    , drain
-
-    -- * Transformation
-    , map
-    , mapM
-    , filter
-    , foldFilter
+    , list
     )
 where
 
@@ -126,34 +110,6 @@ newtype SerialT m a = SerialT {getSerialT :: Stream m a}
 type Serial = SerialT IO
 
 ------------------------------------------------------------------------------
--- Generation
-------------------------------------------------------------------------------
-
-{-# INLINE cons #-}
-cons :: a -> SerialT m a -> SerialT m a
-cons x (SerialT ms) = SerialT $ K.cons x ms
-
-{-# INLINE consM #-}
-{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
-consM :: Monad m => m a -> SerialT m a -> SerialT m a
-consM m (SerialT ms) = SerialT $ K.consM m ms
-
--- |
--- Generate an infinite stream by repeating a pure value.
---
-{-# INLINE_NORMAL repeat #-}
-repeat :: Monad m => a -> SerialT m a
-repeat = SerialT . D.toStreamK . D.repeat
-
-------------------------------------------------------------------------------
--- Combining
-------------------------------------------------------------------------------
-
-{-# INLINE serial #-}
-serial :: SerialT m a -> SerialT m a -> SerialT m a
-serial = (<>)
-
-------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -179,27 +135,6 @@ instance Monad m => Monad (SerialT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
-
-{-# INLINE mapM #-}
-mapM :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
-mapM f (SerialT m) = SerialT $ D.toStreamK $ D.mapM f $ D.fromStreamK m
-
--- |
--- @
--- map = fmap
--- @
---
--- Same as 'fmap'.
---
--- @
--- > S.toList $ S.map (+1) $ S.fromList [1,2,3]
--- [2,3,4]
--- @
---
--- @since 0.4.0
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> SerialT m a -> SerialT m b
-map f = mapM (return . f)
 
 {-# INLINE apSerial #-}
 apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
@@ -242,31 +177,6 @@ LIST_INSTANCES(SerialT)
 NFDATA1_INSTANCE(SerialT)
 FOLDABLE_INSTANCE(SerialT)
 TRAVERSABLE_INSTANCE(SerialT)
-
-{-# INLINE toStreamD #-}
-toStreamD :: Applicative m => SerialT m a -> D.Stream m a
-toStreamD (SerialT m) = D.fromStreamK m
-
-{-# INLINE fromStreamD #-}
-fromStreamD :: Monad m => D.Stream m a -> SerialT m a
-fromStreamD m = SerialT $ D.toStreamK m
-
--- XXX We should only export generation and combinators from this module.
---
--- | Include only those elements that pass a predicate.
---
-{-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> SerialT m a -> SerialT m a
-filter p = fromStreamD . D.filter p . toStreamD
-
--- | Use a filtering fold on a stream.
---
--- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
--- 40
---
-{-# INLINE foldFilter #-}
-foldFilter :: Monad m => Fold m a (Maybe b) -> SerialT m a -> SerialT m b
-foldFilter p = fromStreamD . D.foldFilter p . toStreamD
 
 -- XXX Renamed to foldWith because SerialT has a Foldable instance having
 -- method fold.
@@ -314,35 +224,10 @@ list = fromStreamD . D.fromList
 {-# RULES "list fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
 
-------------------------------------------------------------------------------
--- Construction
-------------------------------------------------------------------------------
+{-# INLINE toStreamD #-}
+toStreamD :: Applicative m => SerialT m a -> D.Stream m a
+toStreamD (SerialT m) = D.fromStreamK m
 
--- | Build a stream by unfolding a /monadic/ step function starting from a
--- seed.  The step function returns the next element in the stream and the next
--- seed value. When it is done it returns 'Nothing' and the stream ends. For
--- example,
---
--- @
--- let f b =
---         if b > 3
---         then return Nothing
---         else print b >> return (Just (b, b + 1))
--- in drain $ unfoldrM f 0
--- @
--- @
---  0
---  1
---  2
---  3
--- @
---
--- /Pre-release/
---
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)
-
-{-# INLINE drain #-}
-drain :: Monad m => SerialT m a -> m ()
-drain (SerialT m) = P.drain m
+{-# INLINE fromStreamD #-}
+fromStreamD :: Monad m => D.Stream m a -> SerialT m a
+fromStreamD m = SerialT $ D.toStreamK m
