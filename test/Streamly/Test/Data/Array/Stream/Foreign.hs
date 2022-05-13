@@ -9,7 +9,7 @@ import Test.QuickCheck.Monadic (monadicIO, run)
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Test.Hspec as Hspec
 
@@ -33,8 +33,8 @@ chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
 maxTestCount :: Int
 maxTestCount = 100
 
-parse :: Property
-parse = do
+parseBreak :: Property
+parseBreak = do
     let len = 200
     -- ls = input list (stream)
     -- clen = chunk size
@@ -50,8 +50,8 @@ parse = do
                     let input =
                             Stream.chunksOf
                                 clen (Array.writeN clen) (Stream.fromList ls)
-                        parser = ParserD.fromFold (Fold.take tlen Fold.toList)
-                     in run $ ArrayStream.parse parser input
+                        parser = Parser.fromFold (Fold.take tlen Fold.toList)
+                     in run $ ArrayStream.parseBreak parser input
                 ls2 <- run $ Stream.toList $ ArrayStream.concat str
                 listEquals (==) (ls1 ++ ls2) ls
 
@@ -69,4 +69,4 @@ main =
     modifyMaxSuccess (const maxTestCount) $ do
         describe moduleName $ do
             describe "Stream parsing" $ do
-                prop "parse" parse
+                prop "parseBreak" parseBreak

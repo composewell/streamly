@@ -611,10 +611,10 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
 {-# INLINE_NORMAL parse #-}
 parse ::
        (MonadIO m, MonadThrow m, Storable a)
-    => PRD.Parser m a b
+    => PR.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-parse p s = fmap fromStreamD <$> parseD p (toStreamD s)
+parse p s = fmap fromStreamD <$> parseD (PRD.fromParserK p) (toStreamD s)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers

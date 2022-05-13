@@ -22,9 +22,9 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , relTimesWith
 
     -- * Elimination
-    , foldOn
+    , foldContinue
     , fold
-    , fold_
+    , foldBreak
 
     -- * Transformation
     , map
@@ -270,18 +270,18 @@ relTimesWith = fmap snd . timesWith
 -- Elimination - Running a Fold
 ------------------------------------------------------------------------------
 
--- | We can create higher order folds using 'foldOn'. We can fold a number of
--- streams to a given fold efficiently with full stream fusion. For example, to
--- fold a list of streams on the same sum fold:
+-- | We can create higher order folds using 'foldContinue'. We can fold a
+-- number of streams to a given fold efficiently with full stream fusion. For
+-- example, to fold a list of streams on the same sum fold:
 --
--- >>> concatFold = Prelude.foldl Stream.foldOn Fold.sum
+-- >>> concatFold = Prelude.foldl Stream.foldContinue Fold.sum
 --
--- >>> fold f = Fold.finish . Stream.foldOn f
+-- >>> fold f = Fold.finish . Stream.foldContinue f
 --
 -- /Internal/
-{-# INLINE foldOn #-}
-foldOn :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
-foldOn f s = D.foldOn f $ IsStream.toStreamD s
+{-# INLINE foldContinue #-}
+foldContinue :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
+foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A
@@ -308,13 +308,13 @@ foldOn f s = D.foldOn f $ IsStream.toStreamD s
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SerialT m a -> m b
 fold fl strm = do
-    (b, _) <- fold_ fl strm
+    (b, _) <- foldBreak fl strm
     return $! b
 
-{-# INLINE fold_ #-}
-fold_ :: Monad m => Fold m a b -> SerialT m a -> m (b, SerialT m a)
-fold_ fl strm = do
-    (b, str) <- D.fold_ fl $ IsStream.toStreamD strm
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => Fold m a b -> SerialT m a -> m (b, SerialT m a)
+foldBreak fl strm = do
+    (b, str) <- D.foldBreak fl $ IsStream.toStreamD strm
     return $! (b, IsStream.fromStreamD str)
 
 ------------------------------------------------------------------------------

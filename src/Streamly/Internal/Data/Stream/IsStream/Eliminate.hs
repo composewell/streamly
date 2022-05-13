@@ -23,16 +23,16 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- * Running a 'Fold'
     --  See "Streamly.Internal.Data.Fold".
       fold
-    , fold_
-    , foldOn
+    , foldBreak
+    , foldContinue
 
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".
     , parse
     , parseK
     , parseD
-    , parse_
-    , parseD_
+    , parseBreak
+    , parseBreakD
 
     -- * Stream Deconstruction
     -- | foldr and foldl do not provide the remaining stream.  'uncons' is more
@@ -162,8 +162,8 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    ( fold, fold_, foldOn, drop, findIndices, reverse, splitOnSeq, take
-    , takeWhile, mkParallel)
+    ( fold, foldBreak, foldContinue, drop, findIndices, reverse, splitOnSeq
+    , take , takeWhile, mkParallel)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, toStreamS, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -405,19 +405,19 @@ parseK = parse
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
 parse = parseD . PRD.fromParserK
 
-{-# INLINE_NORMAL parseD_ #-}
-parseD_ :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m (b, SerialT m a)
-parseD_ parser strm = do
-    (b, strmD) <- D.parse_ parser (toStreamD strm)
+{-# INLINE_NORMAL parseBreakD #-}
+parseBreakD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m (b, SerialT m a)
+parseBreakD parser strm = do
+    (b, strmD) <- D.parseBreak parser (toStreamD strm)
     return $! (b, fromStreamD strmD)
 
 -- | Parse a stream using the supplied 'Parser'.
 --
 -- /Internal/
 --
-{-# INLINE [3] parse_ #-}
-parse_ :: MonadThrow m => Parser m a b -> SerialT m a -> m (b, SerialT m a)
-parse_ = parseD_ . PRD.fromParserK
+{-# INLINE [3] parseBreak #-}
+parseBreak :: MonadThrow m => Parser m a b -> SerialT m a -> m (b, SerialT m a)
+parseBreak = parseBreakD . PRD.fromParserK
 
 ------------------------------------------------------------------------------
 -- Specific Fold Functions

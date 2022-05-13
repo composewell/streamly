@@ -42,8 +42,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 
     -- * Running a 'Fold'
     , fold
-    , fold_
-    , foldOn
+    , foldBreak
+    , foldContinue
 
     -- * Right Folds
     , foldrT
@@ -268,12 +268,12 @@ toStreamK (Stream step state) = go state
 {-# INLINE_NORMAL fold #-}
 fold :: Monad m => Fold m a b -> Stream m a -> m b
 fold fld strm = do
-    (b, _) <- fold_ fld strm
+    (b, _) <- foldBreak fld strm
     return b
 
-{-# INLINE_NORMAL fold_ #-}
-fold_ :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
-fold_ (Fold fstep begin done) (Stream step state) = do
+{-# INLINE_NORMAL foldBreak #-}
+foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
+foldBreak (Fold fstep begin done) (Stream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
@@ -295,9 +295,9 @@ fold_ (Fold fstep begin done) (Stream step state) = do
                 b <- done fs
                 return $! (b, Stream (\ _ _ -> return Stop) ())
 
-{-# INLINE_NORMAL foldOn #-}
-foldOn :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-foldOn (Fold fstep finitial fextract) (Stream sstep state) =
+{-# INLINE_NORMAL foldContinue #-}
+foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
+foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
     Fold fstep initial fextract
 
     where

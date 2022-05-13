@@ -17,7 +17,7 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
 
     -- -- * Running a 'Parser'
     , parse
-    , parse_
+    , parseBreak
 
     -- * Stream Deconstruction
     , uncons
@@ -141,17 +141,17 @@ parse
     -> Stream m a
     -> m b
 parse parser strm = do
-    (b, _) <- parse_ parser strm
+    (b, _) <- parseBreak parser strm
     return b
 
 -- | Run a 'Parse' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parse_ #-}
-parse_
+{-# INLINE_NORMAL parseBreak #-}
+parseBreak
     :: MonadThrow m
     => PRD.Parser m a b
     -> Stream m a
     -> m (b, Stream m a)
-parse_ (PRD.Parser pstep initial extract) stream@(Stream step state) = do
+parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
