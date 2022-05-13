@@ -211,9 +211,10 @@ build f = fold (Fold.duplicate f)
 -- Definitions:
 --
 -- >>> fold f = fmap fst . Stream.foldBreak f
+-- >>> fold f = Stream.parse (Parser.fromFold f)
+-- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
 -- >>> fold f = Fold.extractM . Stream.buildl f
 -- >>> fold f = Fold.extractM <=< Stream.build f
--- >>> fold f = Stream.parse (Parser.fromFold f)
 --
 -- Example:
 --
@@ -594,16 +595,32 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 concatM :: Monad m => m (Stream m a) -> Stream m a
 concatM generator = concatMapM (\() -> generator) (fromPure ())
 
--- | Like 'foldMany' but appends empty fold output if the fold and stream
--- termination aligns:
+-- XXX Need a more intuitive name, and need to reconcile the names
+-- foldMany/fold/parse/parseMany/parseManyPost etc.
+
+-- | Like 'foldMany' but evaluates the fold before the stream, and yields its
+-- output even if the stream is empty, therefore, always results in a non-empty
+-- output even on an empty stream (default result of the fold).
+--
+-- Example, empty stream:
 --
 -- >>> f = Fold.take 2 Fold.sum
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList []
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldManyPost f
+-- >>> fmany $ Stream.fromList []
 -- [0]
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
--- [3,7,11,15,9]
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
--- [3,7,11,15,19,0]
+--
+-- Example, last fold empty:
+--
+-- >>> fmany $ Stream.fromList [1..4]
+-- [3,7,0]
+--
+-- Example, last fold non-empty:
+--
+-- >>> fmany $ Stream.fromList [1..5]
+-- [3,7,5]
+--
+-- Note that using a closed fold e.g. @Fold.take 0@, would result in an
+-- infinite stream without consuming the input.
 --
 -- /Pre-release/
 --

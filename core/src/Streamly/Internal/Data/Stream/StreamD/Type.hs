@@ -895,14 +895,7 @@ data FoldManyPost s fs b a
     | FoldManyPostYield b (FoldManyPost s fs b a)
     | FoldManyPostDone
 
--- | Like foldMany but with the following differences:
---
--- * If the stream is empty the default value of the fold would still be
--- emitted in the output.
--- * At the end of the stream if the last application of the fold did not
--- receive any input it would still yield the default fold accumulator as the
--- last value.
---
+-- | 'Streamly.Internal.Data.Stream.foldManyPost'.
 {-# INLINE_NORMAL foldManyPost #-}
 foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldManyPost (Fold fstep initial extract) (Stream step state) =
@@ -941,23 +934,14 @@ foldManyPost (Fold fstep initial extract) (Stream step state) =
 {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
     = FoldManyStart s
-    | FoldManyFirst fs s
+    | FoldManyFirst a s
     | FoldManyLoop s fs
     | FoldManyYield b (FoldMany s fs b a)
     | FoldManyDone
 
 -- XXX Nested foldMany does not fuse.
---
--- | Apply a fold multiple times until the stream ends. If the stream is empty
--- the output would be empty.
---
--- @foldMany f = parseMany (fromFold f)@
---
--- A terminating fold may terminate even without accepting a single input. So
--- we run the fold's initial action before evaluating the stream. However, this
--- means that if later the stream does not yield anything we have to discard
--- the fold's initial result which could have generated an effect.
---
+
+-- | 'Streamly.Internal.Data.Stream.foldMany'.
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
@@ -975,19 +959,17 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                   FL.Partial ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
-    step' _ (FoldManyStart st) = do
-        r <- initial
-        return
-            $ Skip
-            $ case r of
-                  FL.Done b -> FoldManyYield b (FoldManyStart st)
-                  FL.Partial fs -> FoldManyFirst fs st
-    step' gst (FoldManyFirst fs st) = do
+    step' gst (FoldManyStart st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> consume x s fs
-            Skip s -> return $ Skip (FoldManyFirst fs s)
+            Yield x s -> return $ Skip (FoldManyFirst x s)
+            Skip s -> return $ Skip (FoldManyStart s)
             Stop -> return Stop
+    step' _ (FoldManyFirst x st) = do
+        r <- initial
+        case r of
+            FL.Done b -> return $ Skip $ FoldManyYield b (FoldManyFirst x st)
+            FL.Partial fs -> consume x st fs
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -1003,8 +985,8 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
 chunksOf n f = foldMany (FL.take n f)
 
--- Keep the argument order consistent with consumeIterateM.
---
+-- Keep the argument order consistent with refoldIterateM.
+
 -- | Like 'foldMany' but for the 'Refold' type.  The supplied action is used as
 -- the initial value for each refold.
 --
@@ -1026,19 +1008,17 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
                   FL.Partial ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
-    step' _ (FoldManyStart st) = do
-        r <- action >>= inject
-        return
-            $ Skip
-            $ case r of
-                  FL.Done b -> FoldManyYield b (FoldManyStart st)
-                  FL.Partial fs -> FoldManyFirst fs st
-    step' gst (FoldManyFirst fs st) = do
+    step' gst (FoldManyStart st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> consume x s fs
-            Skip s -> return $ Skip (FoldManyFirst fs s)
+            Yield x s -> return $ Skip (FoldManyFirst x s)
+            Skip s -> return $ Skip (FoldManyStart s)
             Stop -> return Stop
+    step' _ (FoldManyFirst x st) = do
+        r <- action >>= inject
+        case r of
+            FL.Done b -> return $ Skip $ FoldManyYield b (FoldManyFirst x st)
+            FL.Partial fs -> consume x st fs
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of

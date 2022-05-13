@@ -125,31 +125,33 @@ dropSuffix = error "Not implemented yet!"
 -- Folding
 ------------------------------------------------------------------------------
 
--- Splitting operations that take a predicate and a Fold can be
--- expressed using parseMany. Operations like chunksOf, intervalsOf, split*,
--- can be expressed using parseMany when used with an appropriate Parser.
+-- | Apply a 'Fold' repeatedly on a stream and emit the results in the
+-- output stream. Unlike 'foldManyPost' it evaluates the fold after the stream,
+-- therefore, an empty input stream results in an empty output stream.
 --
--- XXX We need takeGE/takeBetween to implement "some" using "many".
-
--- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
--- output stream.
+-- Definition:
 --
--- To sum every two contiguous elements in a stream:
+-- >>> foldMany f = Stream.parseMany (Parser.fromFold f)
+--
+-- Example, empty stream:
 --
 -- >>> f = Fold.take 2 Fold.sum
--- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.fromList [1..10]
--- [3,7,11,15,19]
---
--- On an empty stream the output is empty:
---
--- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.fromList []
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldMany f
+-- >>> fmany $ Stream.fromList []
 -- []
 --
--- Note @Stream.foldMany (Fold.take 0)@ would result in an infinite loop in a
--- non-empty stream.
+-- Example, last fold empty:
 --
--- Note 'foldMany' on an empty stream results in an empty stream. Therefore,
--- @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany f@.
+-- >>> fmany $ Stream.fromList [1..4]
+-- [3,7]
+--
+-- Example, last fold non-empty:
+--
+-- >>> fmany $ Stream.fromList [1..5]
+-- [3,7,5]
+--
+-- Note that using a closed fold e.g. @Fold.take 0@, would result in an
+-- infinite stream on a non-empty input stream.
 --
 {-# INLINE foldMany #-}
 foldMany
