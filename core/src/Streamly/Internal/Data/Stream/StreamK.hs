@@ -82,6 +82,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldlx'
     , foldlMx'
     , fold
+    , parseBreak
 
     -- ** Specialized Folds
     , drain
@@ -173,17 +174,21 @@ module Streamly.Internal.Data.Stream.StreamK
     )
 where
 
+import Control.Exception (assert)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
+import qualified Prelude
 
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1, (!!), replicate, reverse, concatMap, iterate)
+               foldr1, (!!), replicate, reverse, concatMap, iterate, splitAt)
 
 import Streamly.Internal.Data.Stream.StreamK.Type
 
@@ -954,3 +959,95 @@ withCatchError m h =
             yieldk a r = yld a (withCatchError r h)
         in handle $ run m
 -}
+
+-------------------------------------------------------------------------------
+-- Parsing
+-------------------------------------------------------------------------------
+
+-- Inlined definition.
+{-# INLINE splitAt #-}
+splitAt :: Int -> [a] -> ([a],[a])
+splitAt n ls
+  | n <= 0 = ([], ls)
+  | otherwise          = splitAt' n ls
+    where
+        splitAt' :: Int -> [a] -> ([a], [a])
+        splitAt' _  []     = ([], [])
+        splitAt' 1  (x:xs) = ([x], xs)
+        splitAt' m  (x:xs) = (x:xs', xs'')
+          where
+            (xs', xs'') = splitAt' (m - 1) xs
+
+-- | Run a 'Parser' over a stream and return rest of the Stream.
+{-# INLINE_NORMAL parseBreak #-}
+parseBreak
+    :: MonadThrow m
+    => PR.Parser m a b
+    -> Stream m a
+    -> m (b, Stream m a)
+parseBreak (PR.Parser pstep initial extract) stream = do
+    res <- initial
+    case res of
+        PR.IPartial s -> goStream stream [] s
+        PR.IDone b -> return (b, stream)
+        PR.IError err -> throwM $ PR.ParseError err
+
+    where
+
+    -- "buf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    goStream st buf !pst =
+        let stop = do
+                b <- extract pst
+                return (b, fromList buf)
+            single x = yieldk x nil
+            yieldk x r = do
+                res <- pstep pst x
+                case res of
+                    PR.Partial 0 s -> goStream r [] s
+                    PR.Partial n s -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        goBuf r [] src s
+                    PR.Continue 0 s -> goStream r (x:buf) s
+                    PR.Continue n s -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:buf)
+                            src = Prelude.reverse src0
+                        goBuf r buf1 src s
+                    PR.Done 0 b -> return (b, r)
+                    PR.Done n b -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        return (b, serial (fromList src) r)
+                    PR.Error err -> throwM $ PR.ParseError err
+         in foldStream defState yieldk single stop st
+
+    goBuf st buf [] !pst = goStream st buf pst
+    goBuf st buf (x:xs) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 s -> goBuf st [] xs s
+            PR.Partial n s -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goBuf st [] src s
+            PR.Continue 0 s -> goBuf st (x:buf) xs s
+            PR.Continue n s -> do
+                assert (n <= length (x:buf)) (return ())
+                let (src0, buf1) = splitAt n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goBuf st buf1 src s
+            PR.Done n b -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0
+                return (b, serial (fromList src) st)
+            PR.Error err -> throwM $ PR.ParseError err

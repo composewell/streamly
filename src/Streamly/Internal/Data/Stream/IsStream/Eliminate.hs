@@ -173,6 +173,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified System.IO as IO
@@ -415,9 +416,14 @@ parseBreakD parser strm = do
 --
 -- /Internal/
 --
-{-# INLINE [3] parseBreak #-}
+{-# INLINE parseBreak #-}
 parseBreak :: MonadThrow m => Parser m a b -> SerialT m a -> m (b, SerialT m a)
-parseBreak = parseBreakD . PRD.fromParserK
+parseBreak p (SerialT strm) = fmap f $ K.parseBreak (PRD.fromParserK p) strm
+
+    where
+
+    f (b, str) = (b, SerialT str)
+
 
 ------------------------------------------------------------------------------
 -- Specific Fold Functions
