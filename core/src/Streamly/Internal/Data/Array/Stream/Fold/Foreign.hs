@@ -28,13 +28,13 @@
 --
 module Streamly.Internal.Data.Array.Stream.Fold.Foreign
     (
-      Fold (..)
+      ArrayFold (..)
 
     -- * Construction
     , fromFold
+    , adaptFold
     , fromParser
     , fromParserD
-    , fromArrayFold
 
     -- * Mapping
     , rmapM
@@ -47,7 +47,7 @@ module Streamly.Internal.Data.Array.Stream.Fold.Foreign
     -- * Monad
     , concatMap
 
-    -- * Transformation
+    -- * Combinators
     , take
     )
 where
@@ -86,7 +86,7 @@ import Prelude hiding (concatMap, take)
 --
 -- /Pre-release/
 --
-newtype Fold m a b = Fold (ParserD.Parser m (Array a) b)
+newtype ArrayFold m a b = ArrayFold (ParserD.Parser m (Array a) b)
 
 -------------------------------------------------------------------------------
 -- Constructing array stream folds from element folds and parsers
@@ -97,9 +97,9 @@ newtype Fold m a b = Fold (ParserD.Parser m (Array a) b)
 -- /Pre-release/
 {-# INLINE fromFold #-}
 fromFold :: forall m a b. (MonadIO m, Storable a) =>
-    Fold.Fold m a b -> Fold m a b
+    Fold.Fold m a b -> ArrayFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
-    Fold (ParserD.Parser step initial fextract)
+    ArrayFold (ParserD.Parser step initial fextract)
 
     where
 
@@ -136,9 +136,9 @@ fromFold (Fold.Fold fstep finitial fextract) =
 -- /Pre-release/
 {-# INLINE fromParserD #-}
 fromParserD :: forall m a b. (MonadIO m, Storable a) =>
-    ParserD.Parser m a b -> Fold m a b
+    ParserD.Parser m a b -> ArrayFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
-    Fold (ParserD.Parser step initial1 extract1)
+    ArrayFold (ParserD.Parser step initial1 extract1)
 
     where
 
@@ -172,22 +172,22 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
                     partial arrRem cur next elemSize Continue n fs1
                 Error err -> return $ Error err
 
--- | Convert an element 'Parser.Parser' into an array stream fold. If the parser
--- fails the fold would throw an exception.
+-- | Convert an element 'Parser.Parser' into an array stream fold. If the
+-- parser fails the fold would throw an exception.
 --
 -- /Pre-release/
 {-# INLINE fromParser #-}
 fromParser :: forall m a b. (MonadThrow m, MonadIO m, Storable a) =>
-    Parser.Parser m a b -> Fold m a b
+    Parser.Parser m a b -> ArrayFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 
 -- | Adapt an array stream fold.
 --
 -- /Pre-release/
-{-# INLINE fromArrayFold #-}
-fromArrayFold :: forall m a b. (MonadIO m) =>
-    Fold.Fold m (Array a) b -> Fold m a b
-fromArrayFold f = Fold $ ParserD.fromFold f
+{-# INLINE adaptFold #-}
+adaptFold :: forall m a b. (MonadIO m) =>
+    Fold.Fold m (Array a) b -> ArrayFold m a b
+adaptFold f = ArrayFold $ ParserD.fromFold f
 
 -------------------------------------------------------------------------------
 -- Functor
@@ -196,16 +196,16 @@ fromArrayFold f = Fold $ ParserD.fromFold f
 -- | Maps a function over the result of fold.
 --
 -- /Pre-release/
-instance Functor m => Functor (Fold m a) where
+instance Functor m => Functor (ArrayFold m a) where
     {-# INLINE fmap #-}
-    fmap f (Fold p) = Fold $ fmap f p
+    fmap f (ArrayFold p) = ArrayFold $ fmap f p
 
 -- | Map a monadic function on the output of a fold.
 --
 -- /Pre-release/
 {-# INLINE rmapM #-}
-rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
-rmapM f (Fold p) = Fold $ ParserD.rmapM f p
+rmapM :: Monad m => (b -> m c) -> ArrayFold m a b -> ArrayFold m a c
+rmapM f (ArrayFold p) = ArrayFold $ ParserD.rmapM f p
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -216,8 +216,8 @@ rmapM f (Fold p) = Fold $ ParserD.rmapM f p
 -- /Pre-release/
 --
 {-# INLINE fromPure #-}
-fromPure :: Monad m => b -> Fold m a b
-fromPure = Fold . ParserD.fromPure
+fromPure :: Monad m => b -> ArrayFold m a b
+fromPure = ArrayFold . ParserD.fromPure
 
 -- | A fold that always yields the result of an effectful action without
 -- consuming any input.
@@ -225,16 +225,18 @@ fromPure = Fold . ParserD.fromPure
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => m b -> Fold m a b
-fromEffect = Fold . ParserD.fromEffect
+fromEffect :: Monad m => m b -> ArrayFold m a b
+fromEffect = ArrayFold . ParserD.fromEffect
 
 -- | Applies two folds sequentially on the input stream and combines their
 -- results using the supplied function.
 --
 -- /Pre-release/
 {-# INLINE serial_ #-}
-serial_ :: MonadThrow m => Fold m x a -> Fold m x b -> Fold m x b
-serial_ (Fold p1) (Fold p2) = Fold $ ParserD.noErrorUnsafeSplit_ p1 p2
+serial_ :: MonadThrow m =>
+    ArrayFold m x a -> ArrayFold m x b -> ArrayFold m x b
+serial_ (ArrayFold p1) (ArrayFold p2) =
+    ArrayFold $ ParserD.noErrorUnsafeSplit_ p1 p2
 
 -- | Applies two folds sequentially on the input stream and combines their
 -- results using the supplied function.
@@ -242,13 +244,13 @@ serial_ (Fold p1) (Fold p2) = Fold $ ParserD.noErrorUnsafeSplit_ p1 p2
 -- /Pre-release/
 {-# INLINE serialWith #-}
 serialWith :: MonadThrow m
-    => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-serialWith f (Fold p1) (Fold p2) =
-    Fold $ ParserD.noErrorUnsafeSplitWith f p1 p2
+    => (a -> b -> c) -> ArrayFold m x a -> ArrayFold m x b -> ArrayFold m x c
+serialWith f (ArrayFold p1) (ArrayFold p2) =
+    ArrayFold $ ParserD.noErrorUnsafeSplitWith f p1 p2
 
 -- | 'Applicative' form of 'serialWith'.
 -- > (<*>) = serialWith id
-instance MonadThrow m => Applicative (Fold m a) where
+instance MonadThrow m => Applicative (ArrayFold m a) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -265,6 +267,8 @@ instance MonadThrow m => Applicative (Fold m a) where
 -- Monad
 -------------------------------------------------------------------------------
 
+-- XXX This should be implemented using CPS
+--
 -- | Applies a fold on the input stream, generates the next fold from the
 -- output of the previously applied fold and then applies that fold.
 --
@@ -272,15 +276,16 @@ instance MonadThrow m => Applicative (Fold m a) where
 --
 {-# INLINE concatMap #-}
 concatMap :: MonadThrow m =>
-    (b -> Fold m a c) -> Fold m a b -> Fold m a c
-concatMap func (Fold p) =
-    Fold $ ParserD.noErrorUnsafeConcatMap (\x -> let Fold y = func x in y) p
+    (b -> ArrayFold m a c) -> ArrayFold m a b -> ArrayFold m a c
+concatMap func (ArrayFold p) =
+    let f x = let ArrayFold y = func x in y
+     in ArrayFold $ ParserD.noErrorUnsafeConcatMap f p
 
 -- | Monad instance applies folds sequentially. Next fold can depend on the
 -- output of the previous fold. See 'concatMap'.
 --
 -- > (>>=) = flip concatMap
-instance MonadThrow m => Monad (Fold m a) where
+instance MonadThrow m => Monad (ArrayFold m a) where
     {-# INLINE return #-}
     return = pure
 
@@ -294,10 +299,12 @@ instance MonadThrow m => Monad (Fold m a) where
 -- Array to Array folds
 -------------------------------------------------------------------------------
 
+-- | Take @n@ array elements (@a@) from a stream of arrays (@Array a@).
 {-# INLINE take #-}
-take :: forall m a b. (Monad m, Storable a) => Int -> Fold m a b -> Fold m a b
-take n (Fold (ParserD.Parser step1 initial1 extract1)) =
-    Fold $ ParserD.Parser step initial extract
+take :: forall m a b. (Monad m, Storable a) =>
+    Int -> ArrayFold m a b -> ArrayFold m a b
+take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
+    ArrayFold $ ParserD.Parser step initial extract
 
     where
 

@@ -70,6 +70,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
     (arrayToFptrContents, fptrToArrayContents, touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -84,7 +85,6 @@ import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
-import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as ASF
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
@@ -704,8 +704,8 @@ parseArr p s = fmap fromStreamD <$> parseD p (toStreamD s)
 --
 {-# INLINE foldArr #-}
 foldArr :: (MonadIO m, MonadThrow m, Storable a) =>
-    ASF.Fold m a b -> SerialT m (A.Array a) -> m b
-foldArr (ASF.Fold p) s = fst <$> parseArrD p (toStreamD s)
+    ArrayFold m a b -> SerialT m (A.Array a) -> m b
+foldArr (ArrayFold p) s = fst <$> parseArrD p (toStreamD s)
 
 -- | Like 'fold' but also returns the remaining stream.
 --
@@ -713,8 +713,8 @@ foldArr (ASF.Fold p) s = fst <$> parseArrD p (toStreamD s)
 --
 {-# INLINE foldArr_ #-}
 foldArr_ :: (MonadIO m, MonadThrow m, Storable a) =>
-    ASF.Fold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
-foldArr_ (ASF.Fold p) s = second fromStreamD <$> parseArrD p (toStreamD s)
+    ArrayFold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
+foldArr_ (ArrayFold p) s = second fromStreamD <$> parseArrD p (toStreamD s)
 
 {-# ANN type ParseChunksState Fuse #-}
 data ParseChunksState x inpBuf st pst =
@@ -727,10 +727,10 @@ data ParseChunksState x inpBuf st pst =
 {-# INLINE_NORMAL foldArrManyD #-}
 foldArrManyD
     :: (MonadThrow m, Storable a)
-    => ASF.Fold m a b
+    => ArrayFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m b
-foldArrManyD (ASF.Fold (PRD.Parser pstep initial extract)) (D.Stream step state) =
+foldArrManyD (ArrayFold (PRD.Parser pstep initial extract)) (D.Stream step state) =
     D.Stream stepOuter (ParseChunksInit [] state)
 
     where
@@ -853,7 +853,7 @@ foldArrManyD (ASF.Fold (PRD.Parser pstep initial extract)) (D.Stream step state)
 {-# INLINE foldArrMany #-}
 foldArrMany
     :: (IsStream t, MonadThrow m, Storable a)
-    => ASF.Fold m a b
+    => ArrayFold m a b
     -> t m (Array a)
     -> t m b
 foldArrMany p m = fromStreamD $ foldArrManyD p (toStreamD m)
