@@ -23,6 +23,13 @@ module Streamly.Internal.Data.Stream.Serial.Type
     , toStreamD
     , foldWith
     , list
+    , cons
+    , consM
+    , (.:)
+    , nil
+    , nilM
+    , fromPure
+    , fromEffect
     )
 where
 
@@ -231,3 +238,34 @@ toStreamD (SerialT m) = D.fromStreamK m
 {-# INLINE fromStreamD #-}
 fromStreamD :: Monad m => D.Stream m a -> SerialT m a
 fromStreamD m = SerialT $ D.toStreamK m
+
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+consM :: Monad m => m a -> SerialT m a -> SerialT m a
+consM m (SerialT ms) = SerialT $ K.consM m ms
+
+{-# INLINE_NORMAL cons #-}
+cons :: a -> SerialT m a -> SerialT m a
+cons x (SerialT m) = SerialT $ K.cons x m
+
+infixr 5 .:
+
+{-# INLINE (.:) #-}
+(.:) :: a -> SerialT m a -> SerialT m a
+(.:) = cons
+
+{-# INLINE_NORMAL nil #-}
+nil :: SerialT m a
+nil = SerialT K.nil
+
+{-# INLINE_NORMAL nilM #-}
+nilM :: (Monad m) => m b -> SerialT m a
+nilM = SerialT . K.nilM
+
+{-# INLINE_NORMAL fromPure #-}
+fromPure :: a -> SerialT m a
+fromPure = SerialT . K.fromPure
+
+{-# INLINE_NORMAL fromEffect #-}
+fromEffect :: (Monad m) => m a -> SerialT m a
+fromEffect = SerialT . K.fromEffect

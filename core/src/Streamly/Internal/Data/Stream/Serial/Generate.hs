@@ -1,10 +1,18 @@
 module Streamly.Internal.Data.Stream.Serial.Generate
     (
-      cons
-    , consM
-    , repeat
+      repeat
+    , replicate
+    , replicateM
     , serial
+    , unfold
     , unfoldrM
+    , fromIndices
+    , fromIndicesM
+    , iterate
+    , iterateM
+    , fromFoldable
+    , fromFoldableM
+    , mfix
     )
 where
 
@@ -16,30 +24,22 @@ import Data.Semigroup (Semigroup(..))
 #endif
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as DG
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (map, mapM, repeat, filter)
+import Prelude hiding (iterate, map, mapM, repeat, filter, replicate)
 
 import Streamly.Internal.Data.Stream.Serial.Type
+import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 #include "inline.hs"
-
-{-# INLINE cons #-}
-cons :: a -> SerialT m a -> SerialT m a
-cons x (SerialT ms) = SerialT $ K.cons x ms
-
-{-# INLINE consM #-}
-{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
-consM :: Monad m => m a -> SerialT m a -> SerialT m a
-consM m (SerialT ms) = SerialT $ K.consM m ms
 
 -- |
 -- Generate an infinite stream by repeating a pure value.
 --
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> SerialT m a
-repeat = SerialT . D.toStreamK . D.repeat
+repeat = SerialT . D.toStreamK . DG.repeat
 
 ------------------------------------------------------------------------------
 -- Combining
@@ -72,4 +72,44 @@ serial = (<>)
 --
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)
+unfoldrM step seed = SerialT $ D.toStreamK (DG.unfoldrM step seed)
+
+{-# INLINE unfold #-}
+unfold :: Monad m => Unfold m a b -> a -> SerialT m b
+unfold unf x = SerialT $ D.toStreamK $ D.unfold unf x
+
+{-# INLINE_NORMAL replicate #-}
+replicate :: Monad m => Int -> a -> SerialT m a
+replicate n = SerialT . D.toStreamK . DG.replicate n
+
+{-# INLINE_EARLY replicateM #-}
+replicateM :: Monad m => Int -> m a -> SerialT m a
+replicateM count = SerialT . D.toStreamK . DG.replicateM count
+
+{-# INLINE fromIndices #-}
+fromIndices :: Monad m => (Int -> a) -> SerialT m a
+fromIndices =  SerialT . D.toStreamK . DG.fromIndices
+
+{-# INLINE_EARLY fromIndicesM #-}
+fromIndicesM ::  Monad m => (Int -> m a) -> SerialT m a
+fromIndicesM = SerialT . D.toStreamK . DG.fromIndicesM
+
+{-# INLINE_NORMAL iterate #-}
+iterate :: Monad m => (a -> a) -> a -> SerialT m a
+iterate step = SerialT . D.toStreamK . DG.iterate step
+
+{-# INLINE_NORMAL iterateM #-}
+iterateM :: Monad m => (a -> m a) -> m a -> SerialT m a
+iterateM step = SerialT . D.toStreamK . DG.iterateM step
+
+{-# INLINE mfix #-}
+mfix :: Monad m => (m a -> SerialT m a) -> SerialT m a
+mfix f = SerialT $ K.mfix (getSerialT . f)
+
+{-# INLINE fromFoldable #-}
+fromFoldable :: Foldable f => f a -> SerialT m a
+fromFoldable = SerialT . K.fromFoldable
+
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: (Monad m, Foldable f) => f (m a) -> SerialT m a
+fromFoldableM = Prelude.foldr consM nil
