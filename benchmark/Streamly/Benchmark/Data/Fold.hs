@@ -12,6 +12,7 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Map.Strict (Map)
@@ -139,6 +140,12 @@ shortest = IP.fold (FL.shortest FL.sum FL.length)
 {-# INLINE longest #-}
 longest :: Monad m => SerialT m Int -> m (Either Int Int)
 longest = IP.fold (FL.longest FL.sum FL.length)
+
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => SerialT m Int -> m ()
+foldBreak s = do
+    (r, s1) <- IP.foldBreak (FL.take 1 FL.length) s
+    when (r /= 0) $ foldBreak s1
 
 -------------------------------------------------------------------------------
 -- Distributing by parallel application
@@ -388,6 +395,7 @@ o_1_space_serial_composition value =
             [ benchIOSink value "filter even" $ filter value
             , benchIOSink value "foldFilter even" $ foldFilter value
             , benchIOSink value "foldFilter even, odd" $ foldFilter2 value
+            , benchIOSink value "foldBreak (recursive)" foldBreak
             , benchIOSink value "serialWith (all, any)" $ splitAllAny value
             , benchIOSink value "serial_ (all, any)" $ serial_ value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
