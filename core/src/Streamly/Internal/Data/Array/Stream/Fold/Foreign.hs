@@ -23,7 +23,9 @@
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (arraysOf)
 -- >>> import qualified Streamly.Prelude as Stream
 --
--- >>> ArrayStream.foldArr (ArrayFold.fromFold (Fold.take 7 Fold.toList)) $ Stream.arraysOf 5 $ Stream.fromList "hello world"
+-- >>> f = ArrayFold.fromFold (Fold.take 7 Fold.toList)
+-- >>> s = Stream.arraysOf 5 $ Stream.fromList "hello world"
+-- >>> ArrayStream.arrayFold f s
 -- "hello w"
 --
 module Streamly.Internal.Data.Array.Stream.Fold.Foreign

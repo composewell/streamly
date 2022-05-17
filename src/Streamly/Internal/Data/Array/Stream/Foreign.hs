@@ -23,16 +23,16 @@ module Streamly.Internal.Data.Array.Stream.Foreign
 
     -- * Elimination
     -- ** Element Folds
-    , fold
-    , parse
-    , parseD
+    , foldBreak
+    , parseBreak
+    , parseBreakD
 
     -- ** Array Folds
-    , foldArr
-    , foldArr_
+    , runArrayFold
+    , runArrayFoldBreak
     -- , parseArr
-    , parseArrD
-    , foldArrMany
+    , runArrayParserDBreak
+    , runArrayFoldMany
 
     , toArray
 
@@ -82,6 +82,8 @@ import Streamly.Internal.Data.Array.Foreign.Mut.Type
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign as Array
+-- import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign
+--      as ArrayFold
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
@@ -359,15 +361,20 @@ foldD (Fold fstep initial extract) stream@(D.Stream step state) = do
 -- | Fold an array stream using the supplied 'Fold'. Returns the fold result
 -- and the unconsumed stream.
 --
+-- > foldBreak f = runArrayFoldBreak (ArrayFold.fromFold f)
+--
 -- /Internal/
 --
-{-# INLINE_NORMAL fold #-}
-fold ::
+{-# INLINE_NORMAL foldBreak #-}
+foldBreak ::
        (MonadIO m, Storable a)
     => FL.Fold m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-fold f s = fmap fromStreamD <$> foldD f (toStreamD s)
+foldBreak f s = fmap fromStreamD <$> foldD f (toStreamD s)
+-- If fold performs better than runArrayFoldBreak we can rewrite runArrayFoldBreak to
+-- fold.
+-- fold f = runArrayFoldBreak (ArrayFold.fromFold f)
 
 -------------------------------------------------------------------------------
 -- Fold to a single Array
@@ -524,13 +531,15 @@ newtype List a = List {getList :: [a]}
 --
 -- XXX This should be written using CPS (as parseK) if we want it to scale wrt
 -- to the number of times it can be called on the same stream.
-{-# INLINE_NORMAL parseD #-}
-parseD ::
+{-# INLINE_NORMAL parseBreakD #-}
+parseBreakD ::
        forall m a b. (MonadIO m, MonadThrow m, Storable a)
     => PRD.Parser m a b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
-parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
+parseBreakD
+    (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
+
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
@@ -608,25 +617,36 @@ parseD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL parse #-}
-parse ::
+{-# INLINE_NORMAL parseBreak #-}
+parseBreak ::
        (MonadIO m, MonadThrow m, Storable a)
     => PR.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-parse p s = fmap fromStreamD <$> parseD (PRD.fromParserK p) (toStreamD s)
+parseBreak p s =
+    fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL parseArrD #-}
-parseArrD ::
+-- | Note that this is not the same as using a @Parser m (Array a) b@ with the
+-- regular "Streamly.Internal.Data.IsStream.parse" function. The regular parse
+-- would consume the input arrays as single unit. This parser parses in the way
+-- as described in the ArrayFold module. The input arrays are treated as @n@
+-- element units and can be consumed partially. The remaining elements are
+-- inserted in the source stream as an array.
+--
+{-# INLINE_NORMAL runArrayParserDBreak #-}
+runArrayParserDBreak ::
        forall m a b. (MonadIO m, MonadThrow m, Storable a)
     => PRD.Parser m (Array a) b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
-parseArrD (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
+runArrayParserDBreak
+    (PRD.Parser pstep initial extract)
+    stream@(D.Stream step state) = do
+
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
@@ -695,26 +715,27 @@ parseArr ::
     => ASF.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-parseArr p s = fmap fromStreamD <$> parseD p (toStreamD s)
+parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 -}
 
 -- | Fold an array stream using the supplied array stream 'Fold'.
 --
 -- /Pre-release/
 --
-{-# INLINE foldArr #-}
-foldArr :: (MonadIO m, MonadThrow m, Storable a) =>
+{-# INLINE runArrayFold #-}
+runArrayFold :: (MonadIO m, MonadThrow m, Storable a) =>
     ArrayFold m a b -> SerialT m (A.Array a) -> m b
-foldArr (ArrayFold p) s = fst <$> parseArrD p (toStreamD s)
+runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 
 -- | Like 'fold' but also returns the remaining stream.
 --
 -- /Pre-release/
 --
-{-# INLINE foldArr_ #-}
-foldArr_ :: (MonadIO m, MonadThrow m, Storable a) =>
+{-# INLINE runArrayFoldBreak #-}
+runArrayFoldBreak :: (MonadIO m, MonadThrow m, Storable a) =>
     ArrayFold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
-foldArr_ (ArrayFold p) s = second fromStreamD <$> parseArrD p (toStreamD s)
+runArrayFoldBreak (ArrayFold p) s =
+    second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
 
 {-# ANN type ParseChunksState Fuse #-}
 data ParseChunksState x inpBuf st pst =
@@ -724,13 +745,15 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
-{-# INLINE_NORMAL foldArrManyD #-}
-foldArrManyD
+{-# INLINE_NORMAL runArrayFoldManyD #-}
+runArrayFoldManyD
     :: (MonadThrow m, Storable a)
     => ArrayFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m b
-foldArrManyD (ArrayFold (PRD.Parser pstep initial extract)) (D.Stream step state) =
+runArrayFoldManyD
+    (ArrayFold (PRD.Parser pstep initial extract)) (D.Stream step state) =
+
     D.Stream stepOuter (ParseChunksInit [] state)
 
     where
@@ -844,16 +867,16 @@ foldArrManyD (ArrayFold (PRD.Parser pstep initial extract)) (D.Stream step state
 
     stepOuter _ (ParseChunksYield a next) = return $ D.Yield a next
 
--- | Apply an array stream 'Fold' repeatedly on an array stream and emit the
+-- | Apply an 'ArrayFold' repeatedly on an array stream and emit the
 -- fold outputs in the output stream.
 --
 -- See "Streamly.Prelude.foldMany" for more details.
 --
 -- /Pre-release/
-{-# INLINE foldArrMany #-}
-foldArrMany
+{-# INLINE runArrayFoldMany #-}
+runArrayFoldMany
     :: (IsStream t, MonadThrow m, Storable a)
     => ArrayFold m a b
     -> t m (Array a)
     -> t m b
-foldArrMany p m = fromStreamD $ foldArrManyD p (toStreamD m)
+runArrayFoldMany p m = fromStreamD $ runArrayFoldManyD p (toStreamD m)
