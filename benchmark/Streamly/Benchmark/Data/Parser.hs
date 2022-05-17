@@ -7,6 +7,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main
   (
@@ -14,7 +15,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, try, SomeException)
 import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
@@ -404,6 +405,14 @@ parseIterate n =
     . IP.parseIterate (PR.fromFold . FL.take n . FL.sconcat) (Sum 0)
     . S.map Sum
 
+{-# INLINE parseBreak #-}
+parseBreak :: MonadCatch m => SerialT m Int -> m ()
+parseBreak s = do
+    r <- try $ IP.parseBreak PR.one s
+    case r of
+        Left (_ :: SomeException) -> return ()
+        Right (_, s1) -> parseBreak s1
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -441,6 +450,7 @@ o_1_space_serial value =
     , benchIOSink value "teeFst" $ teeFstAllAny value
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
+    , benchIOSink value "parseBreak (recursive)" parseBreak
     , benchIOSink value "parseMany (take 1)" (parseMany 1)
     , benchIOSink value "parseMany (take all)" (parseMany value)
     , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
