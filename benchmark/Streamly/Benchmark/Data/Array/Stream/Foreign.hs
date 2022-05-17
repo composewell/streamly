@@ -25,7 +25,7 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (void)
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import System.IO (Handle)
@@ -36,7 +36,7 @@ import qualified Streamly.Prelude  as Stream
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream (arraysOf)
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -218,8 +218,8 @@ o_1_space_copy_toChunks_group_ungroup env =
 -------------------------------------------------------------------------------
 
 {-# INLINE drainWhile #-}
-drainWhile :: MonadThrow m => (a -> Bool) -> ParserD.Parser m a ()
-drainWhile p = ParserD.takeWhile p Fold.drain
+drainWhile :: MonadCatch m => (a -> Bool) -> Parser.Parser m a ()
+drainWhile p = Parser.takeWhile p Fold.drain
 
 -------------------------------------------------------------------------------
 -- Folds and parsers
@@ -227,11 +227,11 @@ drainWhile p = ParserD.takeWhile p Fold.drain
 
 {-# INLINE fold #-}
 fold :: SerialT IO (Array.Array Int) -> IO ()
-fold s = void $ ArrayStream.fold Fold.drain s
+fold s = void $ ArrayStream.foldBreak Fold.drain s
 
-{-# INLINE parseArray #-}
-parseArray :: Int -> SerialT IO (Array.Array Int) -> IO ()
-parseArray value s = void $ ArrayStream.parse (drainWhile (< value)) s
+{-# INLINE parse #-}
+parse :: Int -> SerialT IO (Array.Array Int) -> IO ()
+parse value s = void $ ArrayStream.parseBreak (drainWhile (< value)) s
 
 o_1_space_serial_array ::
     Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
@@ -239,9 +239,9 @@ o_1_space_serial_array bound arraysSmall arraysBig =
     [ benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold
     , benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold
     , benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
-        $ parseArray bound
+        $ parse bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
-        $ parseArray bound
+        $ parse bound
     ]
 
 -------------------------------------------------------------------------------
