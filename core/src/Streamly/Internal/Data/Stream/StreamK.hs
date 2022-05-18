@@ -82,6 +82,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldlx'
     , foldlMx'
     , fold
+    , foldBreak
 
     -- ** Specialized Folds
     , drain
@@ -325,6 +326,30 @@ fold (FL.Fold step begin done) m = do
               >>= \case
                         FL.Partial s -> go s r
                         FL.Done b1 -> return b1
+         in foldStream defState yieldk single stop m1
+
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => FL.Fold m a b -> Stream m a -> m (b, Stream m a)
+foldBreak (FL.Fold step begin done) m = do
+    res <- begin
+    case res of
+        FL.Partial fs -> go fs m
+        FL.Done fb -> return (fb, m)
+
+    where
+
+    go !acc m1 =
+        let stop = (, nil) <$> done acc
+            single a =
+                step acc a
+                  >>= \case
+                    FL.Partial s -> (, nil) <$> done s
+                    FL.Done b1 -> return (b1, nil)
+            yieldk a r =
+                step acc a
+                  >>= \case
+                    FL.Partial s -> go s r
+                    FL.Done b1 -> return (b1, r)
          in foldStream defState yieldk single stop m1
 
 -- | Like 'foldl'' but with a monadic step function.
