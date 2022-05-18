@@ -29,6 +29,7 @@ import Prelude hiding (tail, mapM_, foldl, last, map, mapM, concatMap, zip)
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Fold as FL
 
 import Streamly.Benchmark.Common
 
@@ -124,6 +125,12 @@ uncons s = do
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
+
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => Stream m Int -> m ()
+foldBreak s = do
+    (r, s1) <- S.foldBreak (FL.take 1 FL.length) s
+    when (r /= 0) $ foldBreak s1
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
@@ -439,6 +446,7 @@ o_1_space =
         [ benchFold "toNull"   toNull   sourceUnfoldrM
         , benchFold "mapM_"    mapM_    sourceUnfoldrM
         , benchFold "uncons"   uncons   sourceUnfoldrM
+        , benchFold "foldBreak" foldBreak sourceUnfoldrM
         , benchFold "foldl'" foldl    sourceUnfoldrM
         , benchFold "last"   last     sourceUnfoldrM
         ]
