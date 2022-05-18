@@ -155,18 +155,18 @@ satisfy =
         where
             predicate = (>= mid_value)
 
-nextPass :: Property
-nextPass =
+onePass :: Property
+onePass =
     forAll (chooseInt (1, max_value)) $ \int ->
-        property (case S.parse P.next (S.fromList [int]) of
-            Right (Just i) -> i  == int
-            _ -> False)
+        property (case S.parse P.one (S.fromList [int]) of
+            Right i -> i  == int
+            Left _ -> False)
 
-next :: Property
-next =
-    property (case S.parse P.next (S.fromList []) of
-        Right Nothing -> True
-        _ -> False)
+one :: Property
+one =
+    property (case S.parse P.one (S.fromList []) of
+        Left _ -> True
+        Right _ -> False)
 
 -- Sequence Parsers Tests
 takeBetweenPass :: Property
@@ -1081,8 +1081,8 @@ main =
         prop "eof pass on []" eofPass
         prop "eof fail on non-empty list" eofFail
         prop "first element exists and >= mid_value" satisfyPass
-        prop "next pass on [Int]" nextPass
-        prop "next fail on []" next
+        prop "one pass on [Int]" onePass
+        prop "one fail on []" one
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do

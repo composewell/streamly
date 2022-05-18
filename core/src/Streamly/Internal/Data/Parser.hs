@@ -70,7 +70,6 @@ module Streamly.Internal.Data.Parser
     -- * Element parsers
     , peek
     , one
-    , next
     , element
     , except
     , oneOf
@@ -232,6 +231,9 @@ module Streamly.Internal.Data.Parser
     , retryMaxTotal
     , retryMaxSuccessive
     , retry
+
+     -- * Deprecated
+    , next
     )
 where
 
@@ -419,8 +421,6 @@ eof = D.toParserK D.eof
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
 
--- XXX Change this to "next".
---
 -- | Consume one element from the head of the stream.  Fails if it encounters
 -- end of input.
 --
@@ -485,6 +485,7 @@ noneOf xs = satisfy (`notElem` xs)
 --
 -- /Pre-release/
 --
+{-# DEPRECATED next "Please use \"fromFold Fold.one\" instead" #-}
 {-# INLINE next #-}
 next :: MonadCatch m => Parser m a (Maybe a)
 next = D.toParserK D.next
