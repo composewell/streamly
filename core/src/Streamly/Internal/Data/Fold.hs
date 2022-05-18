@@ -96,6 +96,7 @@ module Streamly.Internal.Data.Fold
     , genericIndex
     , index
     , head
+    , one
     -- , findM
     , find
     , lookup
@@ -1010,12 +1011,48 @@ genericIndex i = mkFold step (Partial 0) (const Nothing)
 index :: Monad m => Int -> Fold m a (Maybe a)
 index = genericIndex
 
+-- Naming notes:
+--
+-- "head" and "next" are two alternative names for the same API. head sounds
+-- apt in the context of lists but next sounds more apt in the context of
+-- streams where we think in terms of generating and consuming the next element
+-- rather than taking the head of some static/persistent structure.
+--
+-- We also want to keep the nomenclature consistent across folds and parsers,
+-- "head" becomes even more unintuitive for parsers because there are two
+-- possible variants viz. peek and next.
+--
+-- Also, the "head" fold creates confusion in situations like
+-- https://github.com/composewell/streamly/issues/1404 where intuitive
+-- expectation from head is to consume the entire stream and just give us the
+-- head. There we want to convey the notion that we consume one element from
+-- the stream and stop. The name "one" already being used in parsers for this
+-- purpose sounds more apt from this perspective.
+--
+-- The source of confusion is perhaps due to the fact that some folds consume
+-- the entire stream and others terminate early. It may have been clearer if we
+-- had separate abstractions for the two use cases.
+
+-- XXX We can possibly use "head" for the purposes of reducing the entire
+-- stream to the head element i.e. take the head and drain the rest.
+
+-- | Take one element from the stream and stop.
+--
+-- /Pre-release/
+--
+{-# INLINE one #-}
+one :: Monad m => Fold m a (Maybe a)
+one = mkFold_ (const (Done . Just)) (Partial Nothing)
+
 -- | Extract the first element of the stream, if any.
 --
+-- >>> head = Fold.one
+--
 -- @since 0.7.0
+-- {-# DEPRECATED head "Please use \"one\" instead" #-}
 {-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
-head = mkFold_ (const (Done . Just)) (Partial Nothing)
+head = one
 
 -- | Returns the first element that satisfies the given predicate.
 --
