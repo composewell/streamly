@@ -255,6 +255,7 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 -- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Char (isSpace)
+-- >>> import qualified Data.Maybe as Maybe
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
@@ -409,12 +410,17 @@ eof = D.toParserK D.eof
 -- >>> Stream.parse (Parser.satisfy (== 1)) $ Stream.fromList [1,0,1]
 -- 1
 --
+-- >>> toMaybe f x = if f x then Just x else Nothing
+-- >>> satisfy f = Parser.maybe (toMaybe f)
+--
 -- /Pre-release/
 --
 {-# INLINE satisfy #-}
 satisfy :: MonadCatch m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
 
+-- XXX Change this to "next".
+--
 -- | Consume one element from the head of the stream.  Fails if it encounters
 -- end of input.
 --
@@ -486,6 +492,9 @@ next = D.toParserK D.next
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
 -- value.
+--
+-- >>> toEither = Maybe.maybe (Left "maybe: predicate failed") Right
+-- >>> maybe f = Parser.either (toEither . f)
 --
 -- /Pre-release/
 --

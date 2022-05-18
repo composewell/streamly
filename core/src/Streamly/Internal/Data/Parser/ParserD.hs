@@ -221,6 +221,7 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- >>> :m
 -- >>> :set -package streamly
 -- >>> import Prelude hiding ()
+-- >>> import qualified Data.Maybe as Maybe
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -330,25 +331,6 @@ eof = Parser step initial return
 
     step () _ = return $ Error "eof: not at end of input"
 
--- | See 'Streamly.Internal.Data.Parser.satisfy'.
---
--- /Pre-release/
---
-{-# INLINE satisfy #-}
-satisfy :: MonadThrow m => (a -> Bool) -> Parser m a a
-satisfy predicate = Parser step initial extract
-
-    where
-
-    initial = return $ IPartial ()
-
-    step () a = return $
-        if predicate a
-        then Done 0 a
-        else Error "satisfy: predicate failed"
-
-    extract _ = throwM $ ParseError "satisfy: end of input"
-
 -- | See 'Streamly.Internal.Data.Parser.next'.
 --
 -- /Pre-release/
@@ -361,12 +343,35 @@ next = Parser step initial extract
   step _ a = pure $ Done 0 (Just a)
   extract _ = pure Nothing
 
+-- | See 'Streamly.Internal.Data.Parser.either'.
+--
+-- /Pre-release/
+--
+{-# INLINE either #-}
+either :: MonadThrow m => (a -> Either String b) -> Parser m a b
+either f = Parser step initial extract
+
+    where
+
+    initial = return $ IPartial ()
+
+    step () a = return $
+        case f a of
+            Right b -> Done 0 b
+            Left err -> Error err
+
+    extract _ = throwM $ ParseError "end of input"
+
 -- | See 'Streamly.Internal.Data.Parser.maybe'.
+--
+-- >>> toEither = Maybe.maybe (Left "maybe: predicate failed") Right
+-- >>> maybe f = Parser.either (toEither . f)
 --
 -- /Pre-release/
 --
 {-# INLINE maybe #-}
 maybe :: MonadThrow m => (a -> Maybe b) -> Parser m a b
+-- maybe f = either (Maybe.maybe (Left "maybe: predicate failed") Right . f)
 maybe parserF = Parser step initial extract
 
     where
@@ -380,24 +385,28 @@ maybe parserF = Parser step initial extract
 
     extract _ = throwM $ ParseError "maybe: end of input"
 
--- | See 'Streamly.Internal.Data.Parser.either'.
+-- | See 'Streamly.Internal.Data.Parser.satisfy'.
+--
+-- >>> toMaybe f x = if f x then Just x else Nothing
+-- >>> satisfy f = Parser.maybe (toMaybe f)
 --
 -- /Pre-release/
 --
-{-# INLINE either #-}
-either :: MonadThrow m => (a -> Either String b) -> Parser m a b
-either parserF = Parser step initial extract
+{-# INLINE satisfy #-}
+satisfy :: MonadThrow m => (a -> Bool) -> Parser m a a
+-- satisfy predicate = maybe (\a -> if predicate a then Just a else Nothing)
+satisfy predicate = Parser step initial extract
 
     where
 
     initial = return $ IPartial ()
 
     step () a = return $
-        case parserF a of
-            Right b -> Done 0 b
-            Left err -> Error $ "either: " ++ err
+        if predicate a
+        then Done 0 a
+        else Error "satisfy: predicate failed"
 
-    extract _ = throwM $ ParseError "either: end of input"
+    extract _ = throwM $ ParseError "satisfy: end of input"
 
 -------------------------------------------------------------------------------
 -- Taking elements
