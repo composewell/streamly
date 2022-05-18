@@ -120,6 +120,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 data Stream m a =
     forall s. UnStream (State K.Stream m a -> s -> m (Step s a)) s
 
+-- XXX This causes perf trouble when pattern matching with "Stream"  in a
+-- recursive way, e.g. in uncons, foldBreak, concatMap. We need to get rid of
+-- this.
 unShare :: Stream m a -> Stream m a
 unShare (UnStream step state) = UnStream step' state
     where step' gst = step (adaptState gst)
@@ -273,7 +276,7 @@ fold fld strm = do
 
 {-# INLINE_NORMAL foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
-foldBreak (Fold fstep begin done) (Stream step state) = do
+foldBreak (Fold fstep begin done) (UnStream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
