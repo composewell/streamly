@@ -131,7 +131,7 @@ import Streamly.Internal.Data.Array.Foreign.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -156,8 +156,8 @@ import qualified Streamly.Internal.Data.Ring.Foreign as RB
 --
 -- /Pre-release/
 {-# INLINE fromStreamN #-}
-fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-fromStreamN n (SerialT m) = do
+fromStreamN :: (MonadIO m, Storable a) => Int -> Stream m a -> m (Array a)
+fromStreamN n (Stream m) = do
     when (n < 0) $ error "writeN: negative write count specified"
     A.fromStreamDN n $ D.fromStreamK m
 
@@ -171,8 +171,8 @@ fromStreamN n (SerialT m) = do
 --
 -- /Pre-release/
 {-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-fromStream (SerialT m) = P.fold A.write m
+fromStream :: (MonadIO m, Storable a) => Stream m a -> m (Array a)
+fromStream (Stream m) = P.fold A.write m
 -- write m = A.fromStreamD $ D.fromStreamK m
 
 -------------------------------------------------------------------------------
@@ -387,9 +387,9 @@ getSliceUnsafe index len (Array contents start e) =
 -- /Pre-release/
 {-# INLINE splitOn #-}
 splitOn :: (Monad m, Storable a) =>
-    (a -> Bool) -> Array a -> SerialT m (Array a)
+    (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
-    SerialT $ D.toStreamK
+    Stream $ D.toStreamK
         $ fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
@@ -454,8 +454,8 @@ getIndex i arr =
 --
 -- /Pre-release/
 {-# INLINE getIndices #-}
-getIndices :: (Monad m, Storable a) => SerialT m Int -> Unfold m (Array a) a
-getIndices (SerialT stream) =
+getIndices :: (Monad m, Storable a) => Stream m Int -> Unfold m (Array a) a
+getIndices (Stream stream) =
     let unf = MA.getIndicesD (return . unsafeInlineIO) $ D.fromStreamK stream
      in Unfold.lmap A.unsafeThaw unf
 
@@ -505,7 +505,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -- /Pre-release/
 {-# INLINE streamTransform #-}
 streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
-    => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
+    => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
     P.fold (A.writeWith (length arr)) $ getSerialT $ f (A.toStream arr)
 
@@ -577,5 +577,5 @@ fold f arr = P.fold f (getSerialT (A.toStream arr))
 --
 -- /Pre-release/
 {-# INLINE streamFold #-}
-streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+streamFold :: (MonadIO m, Storable a) => (Stream m a -> m b) -> Array a -> m b
 streamFold f arr = f (A.toStream arr)

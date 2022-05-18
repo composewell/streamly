@@ -141,8 +141,8 @@
  + concatMapWith :: IsStream t => (t m b -> t m b -> t m b) -> (a -> t m b) -> t m a -> t m b
  - finally :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
  + finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
- - foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
- + foldlM' :: Monad m => (b -> a -> m b) -> m b -> SerialT m a -> m b
+ - foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
+ + foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
  - postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
  + postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
  - scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
@@ -177,8 +177,8 @@
 ++ fromAsync :: IsStream t => AsyncT m a -> t m a
 ~~ parallely :: IsStream t => ParallelT m a -> t m a
 ++ fromParallel :: IsStream t => ParallelT m a -> t m a
-~~ serially :: IsStream t => SerialT m a -> t m a
-++ fromSerial :: IsStream t => SerialT m a -> t m a
+~~ serially :: IsStream t => Stream m a -> t m a
+++ fromSerial :: IsStream t => Stream m a -> t m a
 ~~ wAsyncly :: IsStream t => WAsyncT m a -> t m a
 ++ fromWAsync :: IsStream t => WAsyncT m a -> t m a
 ~~ wSerially :: IsStream t => WSerialT m a -> t m a
@@ -193,7 +193,7 @@
 ++ data AsyncT m a
 ++ data ParallelT m a
 ++ data Rate Rate :: Double -> Double -> Double -> Int -> Rate
-++ data SerialT m a
+++ data Stream m a
 ++ data WAsyncT m a
 ++ data WSerialT m a
 ++ data ZipAsyncM m a

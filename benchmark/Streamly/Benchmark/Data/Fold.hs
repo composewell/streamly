@@ -62,15 +62,15 @@ benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source va
 -------------------------------------------------------------------------------
 
 {-# INLINE any #-}
-any :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+any :: (Monad m, Ord a) => a -> Stream m a -> m Bool
 any value = IP.fold (FL.any (> value))
 
 {-# INLINE all #-}
-all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+all :: (Monad m, Ord a) => a -> Stream m a -> m Bool
 all value = IP.fold (FL.all (<= value))
 
 {-# INLINE take #-}
-take :: Monad m => Int -> SerialT m a -> m ()
+take :: Monad m => Int -> Stream m a -> m ()
 take value = IP.fold (FL.take value FL.drain)
 
 {-# INLINE sequence_ #-}
@@ -149,7 +149,7 @@ teeSumLength :: Monad m => SerialT m Int -> m (Int, Int)
 teeSumLength = IP.fold (FL.teeWith (,) FL.sum FL.length)
 
 {-# INLINE teeAllAny #-}
-teeAllAny :: (Monad m, Ord a) => a -> SerialT m a -> m (Bool, Bool)
+teeAllAny :: (Monad m, Ord a) => a -> Stream m a -> m (Bool, Bool)
 teeAllAny value = IP.fold (FL.teeWith (,) all_ any_)
 
     where
@@ -193,52 +193,52 @@ partitionByMinM =
 
 {-# INLINE demuxWith  #-}
 demuxWith :: (Monad m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
 demuxWith f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithInt  #-}
 demuxWithInt :: Monad m =>
-    (a -> Int) -> (a -> m (Fold m a b)) -> SerialT m a -> m (IntMap b)
+    (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
 demuxWithInt f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithHash  #-}
 demuxWithHash :: (Monad m, Ord k, Hashable k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
 demuxWithHash f g = S.fold (FL.demuxWith f g)
 
 {-# INLINE demuxMutWith  #-}
 demuxMutWith :: (MonadIO m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
 demuxMutWith f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE demuxMutWithHash  #-}
 demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
 demuxMutWithHash f g = S.fold (FL.demuxMutWith f g)
 
 {-# INLINE classifyWith #-}
 classifyWith ::
-       (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
+       (Monad m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
 classifyWith f = S.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE classifyWithInt #-}
 classifyWithInt ::
-       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
+       (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
 classifyWithInt f = S.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE classifyMutWith #-}
 classifyMutWith ::
-       (MonadIO m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
+       (MonadIO m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
 classifyMutWith f = S.fold (FL.classifyMutWith f FL.sum)
 
 {-# INLINE classifyMutWithInt #-}
 classifyMutWithInt ::
-       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
+       (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
 classifyMutWithInt f = S.fold (FL.classifyMutWith f FL.sum)
 
 {-# INLINE classifyMutWithHash #-}
 classifyMutWithHash :: (MonadIO m, Ord k, Num a, Hashable k) =>
-    (a -> k) -> SerialT m a -> m (HashMap k a)
+    (a -> k) -> Stream m a -> m (HashMap k a)
 classifyMutWithHash f = S.fold (FL.classifyMutWith f FL.sum)
 
 -------------------------------------------------------------------------------

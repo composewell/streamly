@@ -40,15 +40,15 @@
 -- allows high performance combinatorial programming even when using byte level
 -- streams.  Streamly API is similar to Haskell lists.
 --
--- The basic stream type is 'SerialT'. The type @SerialT IO a@ is an effectful
+-- The basic stream type is 'Stream'. The type @Stream IO a@ is an effectful
 -- equivalent of a list @[a]@ using the IO monad.  Streams can be constructed
 -- like lists, except that they use 'nil' instead of '[]' and 'cons' instead of
 -- ':'.
 --
 -- `cons` constructs a pure stream which is more or less the same as a list:
 --
--- >>> import Streamly.Prelude (SerialT, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: SerialT IO Int
+-- >>> import Streamly.Prelude (Stream, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
 -- >>> Stream.toList stream -- IO [Int]
 -- [1,2]
 --
@@ -72,8 +72,8 @@
 --
 -- @
 -- > :{
---  Stream.repeatM getLine      -- SerialT IO String
---      & Stream.mapM putStrLn  -- SerialT IO ()
+--  Stream.repeatM getLine      -- Stream IO String
+--      & Stream.mapM putStrLn  -- Stream IO ()
 --      & Stream.drain          -- IO ()
 -- :}
 -- @
@@ -92,7 +92,7 @@
 --
 -- == Polymorphic Combinators
 --
--- Streamly has several stream types, 'SerialT' is one type of stream with
+-- Streamly has several stream types, 'Stream' is one type of stream with
 -- serial execution of actions, 'AsyncT' is another with concurrent execution.
 -- The combinators in this module are polymorphic in stream type. For example,
 --
@@ -103,13 +103,13 @@
 -- @t@ is the stream type, @m@ is the underlying 'Monad' of the stream (e.g.
 -- IO) and @a@ is the type of elements in the stream (e.g. Int).
 --
--- Stream elimination combinators accept a 'SerialT' type instead of a
+-- Stream elimination combinators accept a 'Stream' type instead of a
 -- polymorphic type to force a concrete monomorphic type by default, reducing
 -- type errors. That's why in the console echo example above the stream type is
--- 'SerialT'.
+-- 'Stream'.
 --
 -- @
--- drain :: Monad m => SerialT m a -> m ()
+-- drain :: Monad m => Stream m a -> m ()
 -- @
 --
 -- We can force a certain stream type in polymorphic code by using "Stream Type
@@ -163,7 +163,7 @@
 --
 -- == Concurrent Nested Loops
 --
--- The Monad instance of 'SerialT' is an example of nested looping. It is in
+-- The Monad instance of 'Stream' is an example of nested looping. It is in
 -- fact a list transformer. Different stream types provide different variants
 -- of nested looping.  For example, the 'Monad' instance of 'ParallelT' uses
 -- @concatMapWith parallel@ as its bind operation. Therefore, each iteration of
@@ -176,9 +176,9 @@
 -- Streamly has several stream types. These types differ in three fundamental
 -- operations, 'consM' ('IsStream' instance), '<>' ('Semigroup' instance) and
 -- '>>=' ('Monad' instance).  Below we will see how 'consM' behaves for
--- 'SerialT', 'AsyncT' and 'AheadT' stream types.
+-- 'Stream', 'AsyncT' and 'AheadT' stream types.
 --
--- 'SerialT' executes actions serially, so the total delay in the following
+-- 'Stream' executes actions serially, so the total delay in the following
 -- example is @2 + 1 = 3@ seconds:
 --
 -- >>> stream = delay 2 `consM` delay 1 `consM` nil
@@ -214,11 +214,11 @@
 -- actions from different streams are scheduled for execution when two streams
 -- are combined together.
 --
--- For example, both 'SerialT' and 'WSerialT' execute actions within the stream
+-- For example, both 'Stream' and 'WSerialT' execute actions within the stream
 -- serially, however, they differ in how actions from individual streams are
 -- executed when two streams are combined with '<>' (the 'Semigroup' instance).
 --
--- For 'SerialT', '<>' has an appending behavior i.e. it executes the actions
+-- For 'Stream', '<>' has an appending behavior i.e. it executes the actions
 -- from the second stream after executing actions from the first stream:
 --
 -- >>> stream1 = Stream.fromListM [delay 1, delay 2]
@@ -241,7 +241,7 @@
 -- 4 sec
 -- [1,3,2,4]
 --
--- The '<>' operation of 'SerialT' and 'WSerialT' is the same as 'serial' and
+-- The '<>' operation of 'Stream' and 'WSerialT' is the same as 'serial' and
 -- 'wSerial' respectively. The 'serial' combinator combines two streams of any
 -- type in the same way as a serial stream combines.
 --
@@ -251,7 +251,7 @@
 -- execution behavior depends on the stream type, they all follow behavior
 -- similar to 'consM'.
 --
--- By default, folds like 'drain' force the stream type to be 'SerialT', so
+-- By default, folds like 'drain' force the stream type to be 'Stream', so
 -- 'replicateM' in the following code runs serially, and takes 10 seconds:
 --
 -- >>> Stream.drain $ Stream.replicateM 10 $ delay 1
@@ -281,7 +281,7 @@
 --
 -- == Automatic Concurrency Control
 --
--- 'SerialT' (and 'WSerialT') runs all tasks serially whereas 'ParallelT' runs
+-- 'Stream' (and 'WSerialT') runs all tasks serially whereas 'ParallelT' runs
 -- all tasks concurrently i.e. one thread per task. The stream types 'AsyncT',
 -- 'WAsyncT', and 'AheadT' provide demand driven concurrency. It means that
 -- based on the rate at which the consumer is consuming the stream, it
@@ -868,12 +868,12 @@ module Streamly.Prelude
     , runStateT
 
     -- * Stream Types
-    -- | Stream types that end with a @T@ (e.g. 'SerialT') are monad
+    -- | Stream types that end with a @T@ (e.g. 'Stream') are monad
     -- transformers.
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    , Stream
     , WSerialT
 
     -- ** Speculative Streams
@@ -953,7 +953,7 @@ import Streamly.Internal.Data.Stream.IsStream
 -- Serial streams are /spatially ordered/, they execute the actions in the
 -- stream strictly one after the other.
 --
--- There are two serial stream types 'SerialT' and 'WSerialT'.  They differ
+-- There are two serial stream types 'Stream' and 'WSerialT'.  They differ
 -- only in the 'Semigroup' and 'Monad' instance behavior.
 
 -- $ahead
@@ -1230,7 +1230,7 @@ import Streamly.Internal.Data.Stream.IsStream
 -- combinators provided below are used for conversions.
 --
 -- To adapt from one monomorphic type (e.g. 'AsyncT') to another monomorphic
--- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
+-- type (e.g. 'Stream') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
 -- use the type specific combinators e.g. 'fromAsync' or 'fromWSerial'. You
 -- cannot adapt polymorphic code to polymorphic code, as the compiler would not know

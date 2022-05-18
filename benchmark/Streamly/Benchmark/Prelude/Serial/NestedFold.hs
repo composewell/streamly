@@ -392,7 +392,7 @@ iterateDropWhileTrue :: S.MonadAsync m
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
 {-# INLINE tail #-}
-tail :: Monad m => SerialT m a -> m ()
+tail :: Monad m => Stream m a -> m ()
 tail s = S.tail s >>= mapM_ tail
 
 {-# INLINE nullHeadTail #-}

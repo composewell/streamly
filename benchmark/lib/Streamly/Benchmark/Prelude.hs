@@ -186,7 +186,7 @@ absTimes value _ = S.take value Internal.absTimes
 -------------------------------------------------------------------------------
 
 {-# INLINE mkAsync #-}
-mkAsync :: (S.MonadAsync m, S.IsStream t) => (t m a -> S.SerialT m a) -> t m a -> m ()
+mkAsync :: (S.MonadAsync m, S.IsStream t) => (t m a -> S.Stream m a) -> t m a -> m ()
 mkAsync adapter = S.drain . adapter . S.mkAsync
 
 -------------------------------------------------------------------------------
@@ -194,7 +194,7 @@ mkAsync adapter = S.drain . adapter . S.mkAsync
 -------------------------------------------------------------------------------
 
 {-# INLINE toNull #-}
-toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
+toNull :: Monad m => (t m a -> S.Stream m a) -> t m a -> m ()
 toNull t = S.drain . t
 
 -- We need a monadic bind here to make sure that the function f does not get
@@ -423,7 +423,7 @@ concatPairsWith op outer inner n =
 -------------------------------------------------------------------------------
 
 {-# INLINE runToList #-}
-runToList :: Monad m => S.SerialT m a -> m [a]
+runToList :: Monad m => S.Stream m a -> m [a]
 runToList = S.toList
 
 {-# INLINE apDiscardFst #-}

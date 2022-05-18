@@ -28,8 +28,7 @@ import Data.Int (Int64)
 
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, foldStreamShared)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 
 import Streamly.Internal.Data.SVar
 
@@ -60,7 +59,7 @@ maxThreads n m = mkStream $ \st stp sng yld ->
 
 {-
 {-# RULES "maxThreadsSerial serial" maxThreads = maxThreadsSerial #-}
-maxThreadsSerial :: Int -> SerialT m a -> SerialT m a
+maxThreadsSerial :: Int -> Stream m a -> Stream m a
 maxThreadsSerial _ = id
 -}
 
@@ -87,7 +86,7 @@ maxBuffer n m = mkStream $ \st stp sng yld ->
 
 {-
 {-# RULES "maxBuffer serial" maxBuffer = maxBufferSerial #-}
-maxBufferSerial :: Int -> SerialT m a -> SerialT m a
+maxBufferSerial :: Int -> Stream m a -> Stream m a
 maxBufferSerial _ = id
 -}
 
@@ -122,7 +121,7 @@ rate r m = mkStream $ \st stp sng yld ->
 
 {-
 {-# RULES "rate serial" rate = yieldRateSerial #-}
-yieldRateSerial :: Double -> SerialT m a -> SerialT m a
+yieldRateSerial :: Double -> Stream m a -> Stream m a
 yieldRateSerial _ = id
 -}
 
@@ -201,7 +200,7 @@ _serialLatency n m = mkStream $ \st stp sng yld ->
 
 {-
 {-# RULES "serialLatency serial" _serialLatency = serialLatencySerial #-}
-serialLatencySerial :: Int -> SerialT m a -> SerialT m a
+serialLatencySerial :: Int -> Stream m a -> Stream m a
 serialLatencySerial _ = id
 -}
 
@@ -215,7 +214,7 @@ maxYields n m = mkStream $ \st stp sng yld ->
     foldStreamShared (setYieldLimit n st) stp sng yld m
 
 {-# RULES "maxYields serial" maxYields = maxYieldsSerial #-}
-maxYieldsSerial :: Maybe Int64 -> SerialT m a -> SerialT m a
+maxYieldsSerial :: Maybe Int64 -> Stream m a -> Stream m a
 maxYieldsSerial _ = id
 
 printState :: MonadIO m => State Stream m a -> m ()

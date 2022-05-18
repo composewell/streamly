@@ -98,7 +98,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
@@ -324,7 +324,7 @@ readShared = undefined
 
 {-# INLINE fromChunksMode #-}
 fromChunksMode :: (MonadAsync m, MonadCatch m)
-    => IOMode -> FilePath -> SerialT m (Array a) -> m ()
+    => IOMode -> FilePath -> Stream m (Array a) -> m ()
 fromChunksMode mode file xs = S.drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
 
@@ -333,7 +333,7 @@ fromChunksMode mode file xs = S.drain $
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
 fromChunks :: (MonadAsync m, MonadCatch m)
-    => FilePath -> SerialT m (Array a) -> m ()
+    => FilePath -> Stream m (Array a) -> m ()
 fromChunks = fromChunksMode WriteMode
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
@@ -351,7 +351,7 @@ fromChunks = fromChunksMode WriteMode
 -- @since 0.9.0
 {-# INLINE fromBytesWith #-}
 fromBytesWith :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> SerialT m Word8 -> m ()
+    => Int -> FilePath -> Stream m Word8 -> m ()
 fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
 
 -- > write = 'writeWith' defaultChunkSize
@@ -363,12 +363,12 @@ fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
 --
 -- /Pre-release/
 {-# INLINE fromBytes #-}
-fromBytes :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
+fromBytes :: (MonadAsync m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
 fromBytes = fromBytesWith defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
@@ -424,7 +424,7 @@ write = writeWith defaultChunkSize
 -- @since 0.7.0
 {-# INLINE appendChunks #-}
 appendChunks :: (MonadAsync m, MonadCatch m)
-    => FilePath -> SerialT m (Array a) -> m ()
+    => FilePath -> Stream m (Array a) -> m ()
 appendChunks = fromChunksMode AppendMode
 
 -- | Like 'append' but provides control over the write buffer. Output will
@@ -434,7 +434,7 @@ appendChunks = fromChunksMode AppendMode
 -- @since 0.9.0
 {-# INLINE appendWith #-}
 appendWith :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> SerialT m Word8 -> m ()
+    => Int -> FilePath -> Stream m Word8 -> m ()
 appendWith n file xs = appendChunks file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
@@ -444,7 +444,7 @@ appendWith n file xs = appendChunks file $ AS.arraysOf n xs
 --
 -- @since 0.7.0
 {-# INLINE append #-}
-append :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
+append :: (MonadAsync m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
 append = appendWith defaultChunkSize
 
 {-
@@ -452,7 +452,7 @@ append = appendWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE appendShared #-}
-appendShared :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+appendShared :: MonadIO m => Handle -> Stream m Word8 -> m ()
 appendShared = undefined
 -}
 
@@ -479,7 +479,7 @@ readUtf8 = decodeUtf8 . read
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8 #-}
-writeUtf8 :: MonadIO m => Handle -> SerialT m Char -> m ()
+writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8 h s = write h $ encodeUtf8 s
 
 -- | Write a stream of unicode characters after encoding to UTF-8 in chunks

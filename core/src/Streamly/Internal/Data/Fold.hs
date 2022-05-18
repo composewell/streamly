@@ -299,7 +299,7 @@ import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
@@ -328,7 +328,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+-- >>> import Streamly.Internal.Data.Stream.Serial (Stream)
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 -- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
@@ -2048,7 +2048,7 @@ zip = zipWithM (curry return)
 {-# INLINE indexed #-}
 indexed :: -- forall m a b. Monad m =>
     Fold m (Int, a) b -> Fold m a b
-indexed = undefined -- zip (Stream.enumerateFrom 0 :: SerialT m Int)
+indexed = undefined -- zip (Stream.enumerateFrom 0 :: Stream m Int)
 
 -- | Change the predicate function of a Fold from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an
@@ -2114,12 +2114,12 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- >>> toStream = fmap SerialT Fold.toStreamK
+-- >>> toStream = fmap Stream Fold.toStreamK
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
-toStream :: Monad m => Fold m a (SerialT n a)
-toStream = fmap SerialT toStreamK
+toStream :: Monad m => Fold m a (Stream n a)
+toStream = fmap Stream toStreamK
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -2127,7 +2127,7 @@ toStream = fmap SerialT toStreamK
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- >>> toStreamRev = fmap SerialT Fold.toStreamKRev
+-- >>> toStreamRev = fmap Stream Fold.toStreamKRev
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
@@ -2136,8 +2136,8 @@ toStream = fmap SerialT toStreamK
 
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamRev #-}
-toStreamRev :: Monad m => Fold m a (SerialT n a)
-toStreamRev = fmap SerialT toStreamKRev
+toStreamRev :: Monad m => Fold m a (Stream n a)
+toStreamRev = fmap Stream toStreamKRev
 
 -- XXX This does not fuse. It contains a recursive step function. We will need
 -- a Skip input constructor in the fold type to make it fuse.

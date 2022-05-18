@@ -30,8 +30,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , foldStream
 
     -- * Stream Types
-    , SerialT
-    , Serial
+    , Serial.Serial
     , fromSerial
 
     , WSerialT
@@ -105,7 +104,7 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..), Serial)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
@@ -455,24 +454,24 @@ foldStream st yld sng stp m =
 -- Serial
 -------------------------------------------------------------------------------
 
--- | Fix the type of a polymorphic stream as 'SerialT'.
+-- | Fix the type of a polymorphic stream as 'Stream'.
 --
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-fromSerial :: IsStream t => SerialT m a -> t m a
+fromSerial :: IsStream t => Stream m a -> t m a
 fromSerial = adapt
 
-instance IsStream SerialT where
+instance IsStream Stream where
     toStream = getSerialT
-    fromStream = SerialT
+    fromStream = Serial.Stream
 
     {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+    {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
     consM = Serial.consM
 
     {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
+    {-# SPECIALIZE (|:) :: IO a -> Stream IO a -> Stream IO a #-}
     (|:) = Serial.consM
 
 -- | Fix the type of a polymorphic stream as 'WSerialT'.

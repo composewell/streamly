@@ -100,7 +100,7 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -227,7 +227,7 @@ connectFrom spec local = connectCommon spec (Just local)
 
 {-# INLINE recvConnectionTuplesWith #-}
 recvConnectionTuplesWith :: MonadAsync m
-    => Int -> SockSpec -> SockAddr -> SerialT m (Socket, SockAddr)
+    => Int -> SockSpec -> SockAddr -> Stream m (Socket, SockAddr)
 recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
     where
     step Nothing = do
@@ -246,7 +246,7 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 --
 -- /Pre-release/
 {-# INLINE connections #-}
-connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> SerialT m Socket
+connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> Stream m Socket
 connections tcpListenQ spec addr =
     fst <$> recvConnectionTuplesWith tcpListenQ spec addr
 
@@ -472,7 +472,7 @@ read = UF.first defaultChunkSize readWith
 -- @since 0.7.0
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Storable a)
-    => Socket -> SerialT m (Array a) -> m ()
+    => Socket -> Stream m (Array a) -> m ()
 putChunks h = S.mapM_ (liftIO . writeChunk h)
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
@@ -518,7 +518,7 @@ writeChunksWithBufferOf = writeChunksWith
 --
 -- @since 0.9.0
 {-# INLINE putBytesWith #-}
-putBytesWith :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+putBytesWith :: MonadIO m => Int -> Socket -> Stream m Word8 -> m ()
 putBytesWith n h m = putChunks h $ AS.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
@@ -558,7 +558,7 @@ writeMaybesWith n h =
 --
 -- @since 0.7.0
 {-# INLINE putBytes #-}
-putBytes :: MonadIO m => Socket -> SerialT m Word8 -> m ()
+putBytes :: MonadIO m => Socket -> Stream m Word8 -> m ()
 putBytes = putBytesWith defaultChunkSize
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
@@ -575,7 +575,7 @@ write = writeWith defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
 write = toHandleWith defaultChunkSize
 -}
 
@@ -602,7 +602,7 @@ readUtf8 = decodeUtf8 . read
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8 #-}
-writeUtf8 :: MonadIO m => Handle -> SerialT m Char -> m ()
+writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8 h s = write h $ encodeUtf8 s
 
 -- | Write a stream of unicode characters after encoding to UTF-8 in chunks

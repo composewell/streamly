@@ -38,7 +38,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
@@ -88,7 +88,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toSVar :: MonadAsync m => SVar SerialT m a -> SerialT m a -> m ()
+toSVar :: MonadAsync m => SVar Stream m a -> Stream m a -> m ()
 toSVar sv m = do
     runIn <- askRunInIO
     liftIO $ enqueue sv (runIn, m)
@@ -185,9 +185,9 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
 -- combinators.
 --
 {-# INLINE fromSVar #-}
-fromSVar :: MonadAsync m => SVar K.Stream m a -> SerialT m a
+fromSVar :: MonadAsync m => SVar K.Stream m a -> Stream m a
 fromSVar sv =
-    SerialT $ K.mkStream $ \st yld sng stp -> do
+    Stream $ K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref hook
         -- We pass a copy of sv to fromStreamVar, so that we know that it has

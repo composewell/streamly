@@ -93,7 +93,7 @@
 -- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
 -- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
 -- use a function of the shape @a -> t m b@. However, working with stream types
--- like t'Streamly.SerialT' does not allow the compiler to perform stream fusion
+-- like t'Streamly.Stream' does not allow the compiler to perform stream fusion
 -- optimization when merging, appending or concatenating multiple streams.
 -- Even though stream based combinator have excellent performance, they are
 -- much less efficient when compared to combinators using 'Unfold'.  For
@@ -263,8 +263,8 @@ import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunIn
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC
@@ -278,6 +278,7 @@ import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile, either)
+
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -578,16 +579,16 @@ postscanlM' f z = postscan (FL.foldlM' f z)
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL fromStreamD #-}
-fromStreamD :: Applicative m => Unfold m (Stream m a) a
+fromStreamD :: Applicative m => Unfold m (D.Stream m a) a
 fromStreamD = Unfold step pure
 
     where
 
     {-# INLINE_LATE step #-}
-    step (UnStream step1 state1) =
+    step (D.UnStream step1 state1) =
         (\case
-            Yield x s -> Yield x (Stream step1 s)
-            Skip s    -> Skip (Stream step1 s)
+            Yield x s -> Yield x (D.Stream step1 s)
+            Skip s    -> Skip (D.Stream step1 s)
             Stop      -> Stop) <$> step1 defState state1
 
 {-# INLINE_NORMAL fromStreamK #-}
@@ -613,7 +614,7 @@ fromStreamK = Unfold step pure
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL fromStream #-}
-fromStream :: Applicative m => Unfold m (SerialT m a) a
+fromStream :: Applicative m => Unfold m (Stream m a) a
 fromStream = lmap getSerialT fromStreamK
 
 -------------------------------------------------------------------------------
@@ -646,10 +647,10 @@ consM action unf = Unfold step inject
 
     {-# INLINE_LATE step #-}
     step (Left a) = (`Yield` Right (D.unfold unf a)) <$> action a
-    step (Right (UnStream step1 st)) = do
+    step (Right (D.UnStream step1 st)) = do
         (\case
-            Yield x s -> Yield x (Right (Stream step1 s))
-            Skip s -> Skip (Right (Stream step1 s))
+            Yield x s -> Yield x (Right (D.Stream step1 s))
+            Skip s -> Skip (Right (D.Stream step1 s))
             Stop -> Stop) <$> step1 defState st
 
 -- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use

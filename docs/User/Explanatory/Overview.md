@@ -86,7 +86,7 @@ similar to the answer to - "Where to use Haskell lists or the IO monad?".
 Streamly simplifies streaming and makes it as intuitive as plain lists. Unlike
 other streaming libraries, no fancy types are required.  Streamly is simply a
 generalization of Haskell lists to monadic streaming optionally with concurrent
-composition. The basic stream type in streamly `SerialT m a` can be considered
+composition. The basic stream type in streamly `Stream m a` can be considered
 as a list type `[a]` parameterized by the monad `m`. For example, `SerialT IO
 a` is a moral equivalent of `[a]` in the IO monad. `SerialT Identity a`, is
 equivalent to pure lists.  Streams are constructed very much like lists, except

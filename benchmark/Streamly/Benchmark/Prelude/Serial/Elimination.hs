@@ -266,7 +266,7 @@ uncons s = do
         Just (_, t) -> uncons t
 
 {-# INLINE init #-}
-init :: Monad m => SerialT m a -> m ()
+init :: Monad m => Stream m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
 
 {-# INLINE mapM_ #-}
@@ -563,7 +563,7 @@ o_n_space_elimination_toList value =
 -------------------------------------------------------------------------------
 
 {-# INLINE eqBy' #-}
-eqBy' :: (Monad m, Eq a) => SerialT m a -> m Bool
+eqBy' :: (Monad m, Eq a) => Stream m a -> m Bool
 eqBy' src = S.eqBy (==) src src
 
 {-# INLINE eqByPure #-}
@@ -585,7 +585,7 @@ eqInstanceNotEq :: SerialT Identity Int -> Bool
 eqInstanceNotEq src = src /= src
 
 {-# INLINE cmpBy' #-}
-cmpBy' :: (Monad m, Ord a) => SerialT m a -> m Ordering
+cmpBy' :: (Monad m, Ord a) => Stream m a -> m Ordering
 cmpBy' src = S.cmpBy compare src src
 
 {-# INLINE cmpByPure #-}

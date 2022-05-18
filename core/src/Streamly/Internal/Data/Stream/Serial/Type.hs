@@ -13,7 +13,9 @@
 module Streamly.Internal.Data.Stream.Serial.Type
     (
     -- * Serial appending stream
-      SerialT(..)
+
+      SerialT
+    , Stream(..)
     , Serial
     , fromStreamD
     , toStreamD
@@ -45,7 +47,6 @@ import Text.Read
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
@@ -62,10 +63,10 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- >>> import qualified Streamly.Prelude as Stream
 
 ------------------------------------------------------------------------------
--- SerialT
+-- Stream
 ------------------------------------------------------------------------------
 
--- | For 'SerialT' streams:
+-- | For 'Stream' streams:
 --
 -- @
 -- (<>) = 'Streamly.Prelude.serial'                       -- 'Semigroup'
@@ -94,29 +95,31 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype SerialT m a = SerialT {getSerialT :: Stream m a}
+newtype Stream m a = Stream {getSerialT :: K.Stream m a}
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid, MonadTrans)
 
--- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
+type SerialT = Stream
+
+-- | A serial IO stream of elements of type @a@. See 'Stream' documentation
 -- for more details.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-type Serial = SerialT IO
+type Serial = Stream IO
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (SerialT m) where
+instance Monad m => Monad (Stream m) where
     return = pure
 
     -- Benchmarks better with StreamD bind and pure:
     -- toList, filterAllout, *>, *<, >> (~2x)
     --
-    -- pure = SerialT . D.fromStreamD . D.fromPure
+    -- pure = Stream . D.fromStreamD . D.fromPure
     -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
 
     -- Benchmarks better with CPS bind and pure:
@@ -124,7 +127,7 @@ instance Monad m => Monad (SerialT m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) (SerialT m) f = SerialT $ K.bindWith K.serial m (getSerialT . f)
+    (>>=) (Stream m) f = Stream $ K.bindWith K.serial m (getSerialT . f)
 
     {-# INLINE (>>) #-}
     (>>)  = (*>)
@@ -134,25 +137,25 @@ instance Monad m => Monad (SerialT m) where
 ------------------------------------------------------------------------------
 
 {-# INLINE apSerial #-}
-apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
-apSerial (SerialT m1) (SerialT m2) =
-    SerialT $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
+apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
+apSerial (Stream m1) (Stream m2) =
+    Stream $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
 
 {-# INLINE apSequence #-}
-apSequence :: Monad m => SerialT m a -> SerialT m b -> SerialT m b
-apSequence (SerialT m1) (SerialT m2) =
-    SerialT $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
+apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
+apSequence (Stream m1) (Stream m2) =
+    Stream $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
 
 {-# INLINE apDiscardSnd #-}
-apDiscardSnd :: Monad m => SerialT m a -> SerialT m b -> SerialT m a
-apDiscardSnd (SerialT m1) (SerialT m2) =
-    SerialT $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
+apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
+apDiscardSnd (Stream m1) (Stream m2) =
+    Stream $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
-instance Monad m => Applicative (SerialT m) where
+instance Monad m => Applicative (Stream m) where
     {-# INLINE pure #-}
-    pure = SerialT . K.fromPure
+    pure = Stream . K.fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = apSerial
@@ -169,13 +172,13 @@ instance Monad m => Applicative (SerialT m) where
     (<*) = apDiscardSnd
     -- (<*)  = K.apSerialDiscardSnd
 
-MONAD_COMMON_INSTANCES(SerialT,)
-LIST_INSTANCES(SerialT)
-NFDATA1_INSTANCE(SerialT)
-FOLDABLE_INSTANCE(SerialT)
-TRAVERSABLE_INSTANCE(SerialT)
+MONAD_COMMON_INSTANCES(Stream,)
+LIST_INSTANCES(Stream)
+NFDATA1_INSTANCE(Stream)
+FOLDABLE_INSTANCE(Stream)
+TRAVERSABLE_INSTANCE(Stream)
 
--- XXX Renamed to foldWith because SerialT has a Foldable instance having
+-- XXX Renamed to foldWith because Stream has a Foldable instance having
 -- method fold.
 --
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
@@ -201,7 +204,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 --
 -- /Pre-release/
 {-# INLINE foldWith #-}
-foldWith :: Monad m => Fold m a b -> SerialT m a -> m b
+foldWith :: Monad m => Fold m a b -> Stream m a -> m b
 foldWith fld m = D.fold fld $ toStreamD m
 
 -- XXX Renamed to "list" because fromList is present in IsList instance.
@@ -216,7 +219,7 @@ foldWith fld m = D.fold fld $ toStreamD m
 --
 -- @since 0.4.0
 {-# INLINE_EARLY list #-}
-list :: Monad m => [a] -> SerialT m a
+list :: Monad m => [a] -> Stream m a
 list = fromStreamD . D.fromList
 {-# RULES "list fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
@@ -247,9 +250,9 @@ list = fromStreamD . D.fromList
 -- /Pre-release/
 --
 {-# INLINE toStreamD #-}
-toStreamD :: Applicative m => SerialT m a -> D.Stream m a
-toStreamD (SerialT m) = D.fromStreamK m
+toStreamD :: Applicative m => Stream m a -> D.Stream m a
+toStreamD (Stream m) = D.fromStreamK m
 
 {-# INLINE fromStreamD #-}
-fromStreamD :: Monad m => D.Stream m a -> SerialT m a
-fromStreamD m = SerialT $ D.toStreamK m
+fromStreamD :: Monad m => D.Stream m a -> Stream m a
+fromStreamD m = Stream $ D.toStreamK m

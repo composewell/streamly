@@ -134,7 +134,7 @@ import Streamly.Internal.Data.Array.Foreign.Type
     (Array(..), byteLength, unsafeFreeze, asPtrUnsafe)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
 #if !defined(mingw32_HOST_OS)
@@ -351,7 +351,7 @@ read = AS.concat . readArrays
 --
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
+writeArrays :: (MonadIO m, Storable a) => Handle -> Stream m (Array a) -> m ()
 writeArrays h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
@@ -362,7 +362,7 @@ writeArrays h = S.mapM_ (liftIO . writeArray h)
 -- @since 0.7.0
 {-# INLINE writeArraysPackedUpto #-}
 writeArraysPackedUpto :: (MonadIO m, Storable a)
-    => Int -> Handle -> SerialT m (Array a) -> m ()
+    => Int -> Handle -> Stream m (Array a) -> m ()
 writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
 #if !defined(mingw32_HOST_OS)
@@ -371,7 +371,7 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 --
 -- @since 0.7.0
 {-# INLINE writev #-}
-writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
+writev :: MonadIO m => Handle -> Stream m (Array RawIO.IOVec) -> m ()
 writev h = S.mapM_ (liftIO . writeIOVec h)
 
 -- XXX this is incomplete
@@ -383,7 +383,7 @@ writev h = S.mapM_ (liftIO . writeIOVec h)
 -- @since 0.7.0
 {-# INLINE _writevArraysPackedUpto #-}
 _writevArraysPackedUpto :: MonadIO m
-    => Int -> Handle -> SerialT m (Array a) -> m ()
+    => Int -> Handle -> Stream m (Array a) -> m ()
 _writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
 #endif
@@ -402,7 +402,7 @@ _writevArraysPackedUpto n h xs =
 --
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
-writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
 writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
@@ -413,12 +413,12 @@ writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+write :: MonadIO m => Handle -> Stream m Word8 -> m ()
 write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
@@ -445,7 +445,7 @@ readUtf8 = decodeUtf8 . read
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8 #-}
-writeUtf8 :: MonadIO m => Handle -> SerialT m Char -> m ()
+writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8 h s = write h $ encodeUtf8 s
 
 -- | Write a stream of unicode characters after encoding to UTF-8 in chunks

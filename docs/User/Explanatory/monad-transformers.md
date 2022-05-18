@@ -1,7 +1,7 @@
 # Monad Transformers
 
 In the stream tutorials we mostly used streams in the IO monad.  In
-general, the type `SerialT` is a monad transformer, @SerialT m a@
+general, the type `SerialT` is a monad transformer, @Stream m a@
 represents a stream of values of type 'a' in some underlying monad
 'm'. For example, @SerialT IO Int@ is a stream of 'Int' in 'IO'
 monad. Similarly, `SerialT Identity Int` would be a pure stream

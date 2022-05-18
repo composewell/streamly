@@ -66,7 +66,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.Internal.Data.Array.Foreign.Type
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
 --         lpackArraysChunksOf)
--- import Streamly.Internal.Data.Stream.Serial (SerialT)
+-- import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 

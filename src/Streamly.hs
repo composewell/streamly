@@ -10,7 +10,7 @@
 -- Streamly is a general purpose programming framework using cocnurrent data
 -- flow programming paradigm.  It can be considered as a generalization of
 -- Haskell lists to monadic streaming with concurrent composition capability.
--- The serial stream type in streamly @SerialT m a@ is like the list type @[a]@
+-- The serial stream type in streamly @Stream m a@ is like the list type @[a]@
 -- parameterized by the monad @m@. For example, @SerialT IO a@ is a moral
 -- equivalent of @[a]@ in the IO monad.  Streams are constructed very much like
 -- lists, except that they use 'nil' and 'cons' instead of '[]' and ':'.
@@ -104,7 +104,7 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    --, SerialT
     , WSerialT
 
     -- ** Speculative Streams
@@ -156,7 +156,7 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
     -- $adapters
     , IsStream ()
 
-    , serially
+    --, serially
     , wSerially
     , asyncly
     , aheadly
@@ -202,9 +202,11 @@ import Streamly.Internal.Data.Stream.IsStream.Combinators
 import Streamly.Internal.Data.Stream.IsStream.Expand
 import Streamly.Internal.Data.Stream.IsStream.Type
 
+
 import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 -- XXX provide good succinct examples of pipelining, merging, splitting etc.
 -- below.
@@ -343,7 +345,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 -- | Same as "Streamly.Prelude.runStream".
 --
 {-# DEPRECATED runStream "Please use Streamly.Prelude.drain instead." #-}
-runStream :: Monad m => SerialT m a -> m ()
+runStream :: Monad m => Serial.Stream m a -> m ()
 runStream = P.drain
 
 {-
@@ -590,9 +592,11 @@ foldMapWith = P.concatMapFoldableWith
 forEachWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
 forEachWith = P.concatForFoldableWith
 
+{-
 {-# DEPRECATED serially "Please use 'Streamly.Prelude.fromSerial' instead." #-}
-serially :: IsStream t => SerialT m a -> t m a
+serially :: IsStream t => Stream m a -> t m a
 serially = fromSerial
+-}
 
 {-# DEPRECATED wSerially "Please use 'Streamly.Prelude.fromWSerial' instead." #-}
 wSerially :: IsStream t => WSerialT m a -> t m a

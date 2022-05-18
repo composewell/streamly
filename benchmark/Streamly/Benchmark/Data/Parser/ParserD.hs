@@ -91,11 +91,11 @@ takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
 
 {-# INLINE takeP #-}
-takeP :: MonadThrow m => Int -> SerialT m a -> m ()
+takeP :: MonadThrow m => Int -> Stream m a -> m ()
 takeP value = IP.parseD (PR.takeP value (PR.fromFold FL.drain))
 
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> SerialT m a -> m ()
+takeBetween :: MonadCatch m => Int -> Stream m a -> m ()
 takeBetween value =  IP.parseD (PR.takeBetween 0 value FL.drain)
 
 {-# INLINE groupBy #-}

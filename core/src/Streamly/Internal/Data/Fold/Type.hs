@@ -1255,7 +1255,7 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- We can append a stream to a fold as follows:
 --
 -- >>> :{
--- foldAppend :: Monad m => Fold m a b -> SerialT m a -> m (Fold m a b)
+-- foldAppend :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
 -- foldAppend f = Stream.fold (Fold.duplicate f)
 -- :}
 --

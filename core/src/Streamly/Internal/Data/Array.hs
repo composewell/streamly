@@ -62,7 +62,7 @@ import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
@@ -151,14 +151,14 @@ fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
 fromStreamD = D.fold write
 
 {-# INLINE fromStreamN #-}
-fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
-fromStreamN n (SerialT m) = do
+fromStreamN :: MonadIO m => Int -> Stream m a -> m (Array a)
+fromStreamN n (Stream m) = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
     fromStreamDN n $ D.fromStreamK m
 
 {-# INLINE fromStream #-}
-fromStream :: MonadIO m => SerialT m a -> m (Array a)
-fromStream (SerialT m) = fromStreamD $ D.fromStreamK m
+fromStream :: MonadIO m => Stream m a -> m (Array a)
+fromStream (Stream m) = fromStreamD $ D.fromStreamK m
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -217,12 +217,12 @@ toStreamDRev arr = D.Stream step (length arr - 1)
             (# x #) -> D.Yield x (I# i - 1)
 
 {-# INLINE_EARLY toStream #-}
-toStream :: Monad m => Array a -> SerialT m a
-toStream = SerialT . D.toStreamK . toStreamD
+toStream :: Monad m => Array a -> Stream m a
+toStream = Stream . D.toStreamK . toStreamD
 
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: Monad m => Array a -> SerialT m a
-toStreamRev = SerialT . D.toStreamK . toStreamDRev
+toStreamRev :: Monad m => Array a -> Stream m a
+toStreamRev = Stream . D.toStreamK . toStreamDRev
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds
@@ -247,7 +247,7 @@ fold :: Monad m => Fold m a b -> Array a -> m b
 fold f arr = D.fold f (toStreamD arr)
 
 {-# INLINE streamFold #-}
-streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
+streamFold :: Monad m => (Stream m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
 
 -------------------------------------------------------------------------------
