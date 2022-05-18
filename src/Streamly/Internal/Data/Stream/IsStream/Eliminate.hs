@@ -194,7 +194,7 @@ import Prelude hiding
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -204,14 +204,25 @@ import Prelude hiding
 -- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
 -- the head of the stream and @ma@ its tail.
 --
--- This is a brute force primitive. Avoid using it as long as possible, use it
--- when no other combinator can do the job. This can be used to do pretty much
--- anything in an imperative manner, as it just breaks down the stream into
--- individual elements and we can loop over them as we deem fit. For example,
--- this can be used to convert a streamly stream into other stream types.
+-- This can be used to do pretty much anything in an imperative manner, as it
+-- just breaks down the stream into individual elements and we can loop over
+-- them as we deem fit. For example, this can be used to convert a streamly
+-- stream into other stream types.
 --
--- All the folds in this module can be expressed in terms of 'uncons', however
--- the specific implementations are generally more efficient.
+-- All the folds in this module can be expressed in terms of 'uncons', however,
+-- this is generally less efficient than specific folds because it takes apart
+-- the stream one element at a time, therefore, does not take adavantage of
+-- stream fusion.
+--
+-- 'foldBreak' is a more general way of consuming a stream piecemeal.
+--
+-- >>> :{
+-- uncons xs = do
+--     r <- Stream.foldBreak Fold.one xs
+--     return $ case r of
+--         (Nothing, _) -> Nothing
+--         (Just h, t) -> Just (h, Stream.fromSerial t)
+-- :}
 --
 -- @since 0.1.0
 {-# INLINE uncons #-}
