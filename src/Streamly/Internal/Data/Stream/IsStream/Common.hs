@@ -75,7 +75,7 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, fromStreamS, toStreamS)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -307,15 +307,17 @@ foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 -- @since 0.7.0
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SerialT m a -> m b
-fold fl strm = do
-    (b, _) <- foldBreak fl strm
-    return $! b
+fold fl (SerialT strm) = D.fold fl $ D.fromStreamK strm
 
+-- XXX This shows quadratic performance when used recursively perhaps because
+-- of StreamK to StreamD conversions not getting eliminated sue to recursion.
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> SerialT m a -> m (b, SerialT m a)
-foldBreak fl strm = do
-    (b, str) <- D.foldBreak fl $ IsStream.toStreamD strm
-    return $! (b, IsStream.fromStreamD str)
+foldBreak fl (SerialT strm) = fmap f $ D.foldBreak fl $ D.fromStreamK strm
+
+    where
+
+    f (b, str) = (b, SerialT (D.toStreamK str))
 
 ------------------------------------------------------------------------------
 -- Transformation
