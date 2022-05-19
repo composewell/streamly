@@ -321,10 +321,10 @@ splitOnSuffix byte s =
 -- XXX This should be written using CPS (as foldK) if we want it to scale wrt
 -- to the number of times it can be called on the same stream.
 --
-{-# INLINE_NORMAL foldD #-}
-foldD :: forall m a b. (MonadIO m, Storable a) =>
+{-# INLINE_NORMAL foldBreakD #-}
+foldBreakD :: forall m a b. (MonadIO m, Storable a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))
-foldD (Fold fstep initial extract) stream@(D.Stream step state) = do
+foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
     res <- initial
     case res of
         FL.Partial fs -> go SPEC state fs
@@ -371,7 +371,7 @@ foldBreak ::
     => FL.Fold m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-foldBreak f s = fmap fromStreamD <$> foldD f (toStreamD s)
+foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
 -- If fold performs better than runArrayFoldBreak we can rewrite runArrayFoldBreak to
 -- fold.
 -- fold f = runArrayFoldBreak (ArrayFold.fromFold f)
