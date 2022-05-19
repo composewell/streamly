@@ -30,6 +30,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , foldStream
 
     -- * Stream Types
+    , Serial.SerialT
     , Serial.Serial
     , fromSerial
 

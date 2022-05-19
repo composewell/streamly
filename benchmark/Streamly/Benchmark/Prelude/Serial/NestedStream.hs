@@ -36,7 +36,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, serial)
+import Streamly.Prelude (fromSerial, serial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (concatMap)

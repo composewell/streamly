@@ -11,7 +11,8 @@ import Prelude hiding (mapM)
 
 import Data.Function ((&))
 import Streamly.Prelude
-       ( SerialT, fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
+       (fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL

@@ -34,7 +34,8 @@ import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
+import Streamly.Prelude (MonadAsync, IsStream)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
@@ -91,11 +92,11 @@ takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
 
 {-# INLINE takeP #-}
-takeP :: MonadThrow m => Int -> Stream m a -> m ()
+takeP :: MonadThrow m => Int -> SerialT m a -> m ()
 takeP value = IP.parseD (PR.takeP value (PR.fromFold FL.drain))
 
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> Stream m a -> m ()
+takeBetween :: MonadCatch m => Int -> SerialT m a -> m ()
 takeBetween value =  IP.parseD (PR.takeBetween 0 value FL.drain)
 
 {-# INLINE groupBy #-}

@@ -417,7 +417,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> :set -package streamly
 -- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Prelude hiding (concatMap, filter, map)
--- >>> import Streamly.Prelude (SerialT)
+-- >>> import Streamly.Internal.Data.Stream.Serial (Stream(..))
 -- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold

@@ -10,9 +10,10 @@
 import Control.Concurrent
 import Control.Monad (when, replicateM)
 import Streamly.Prelude
-    ( IsStream, SerialT, serial, async, fromAsync, ahead, fromAhead, wAsync
+    ( IsStream, serial, async, fromAsync, ahead, fromAhead, wAsync
     , fromWAsync, parallel, fromParallel
     )
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 
 import Gauge
 import qualified Streamly.Prelude as S

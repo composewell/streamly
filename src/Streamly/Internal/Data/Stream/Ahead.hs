@@ -52,7 +52,6 @@ import qualified Data.Heap as H
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Stream.Serial (Stream(..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

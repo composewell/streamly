@@ -19,7 +19,8 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial)
+import Streamly.Prelude (fromSerial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (reverse, tail)

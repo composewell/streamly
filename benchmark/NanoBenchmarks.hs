@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Data.Array.Foreign as A

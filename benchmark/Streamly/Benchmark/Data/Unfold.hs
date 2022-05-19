@@ -23,6 +23,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Exception (SomeException, ErrorCall, try)
 import Data.Char (ord)
 import Data.Word (Word8)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
 import System.Random (randomRIO)
@@ -161,7 +162,7 @@ swap size start =
 {-# INLINE fromStream #-}
 fromStream :: Int -> Int -> IO ()
 fromStream size start =
-    drainGeneration UF.fromStream (S.replicate size start :: S.SerialT IO Int)
+    drainGeneration UF.fromStream (S.replicate size start :: SerialT IO Int)
 
 -- XXX INVESTIGATE: Although the performance of this should be equivalant to
 -- fromStream, this is considerably worse. More than 4x worse.

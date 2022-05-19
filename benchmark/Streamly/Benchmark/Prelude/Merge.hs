@@ -20,7 +20,8 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Streamly.Internal.Data.Stream.IsStream (SerialT)
+--import Streamly.Internal.Data.Stream.IsStream (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import qualified Data.List as List
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- import qualified Streamly.Internal.Data.Unfold as Unfold

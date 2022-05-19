@@ -4,6 +4,7 @@ import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Prelude  as S
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)

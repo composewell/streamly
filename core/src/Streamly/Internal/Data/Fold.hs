@@ -328,7 +328,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import Streamly.Internal.Data.Stream.Serial (Stream)
+-- >>> import Streamly.Internal.Data.Stream.Serial (Stream(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 -- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 

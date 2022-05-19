@@ -38,7 +38,8 @@ import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
 import Gauge
-import Streamly.Prelude (SerialT, IsStream, fromSerial)
+import Streamly.Prelude (IsStream, fromSerial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
@@ -60,76 +61,76 @@ repeat count = S.take count . S.repeat
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Int -> Int -> Int
 foldableFoldl' value n =
-    F.foldl' (+) 0 (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.foldl' (+) 0 (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableFoldrElem #-}
 foldableFoldrElem :: Int -> Int -> Bool
 foldableFoldrElem value n =
     F.foldr (\x xs -> x == value || xs)
             False
-            (sourceUnfoldr value n :: S.SerialT Identity Int)
+            (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableSum #-}
 foldableSum :: Int -> Int -> Int
 foldableSum value n =
-    Prelude.sum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.sum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableProduct #-}
 foldableProduct :: Int -> Int -> Int
 foldableProduct value n =
-    Prelude.product (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.product (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE _foldableNull #-}
 _foldableNull :: Int -> Int -> Bool
 _foldableNull value n =
-    Prelude.null (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.null (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableElem #-}
 foldableElem :: Int -> Int -> Bool
 foldableElem value n =
-    value `Prelude.elem` (sourceUnfoldr value n :: S.SerialT Identity Int)
+    value `Prelude.elem` (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableNotElem #-}
 foldableNotElem :: Int -> Int -> Bool
 foldableNotElem value n =
-    value `Prelude.notElem` (sourceUnfoldr value n :: S.SerialT Identity Int)
+    value `Prelude.notElem` (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableFind #-}
 foldableFind :: Int -> Int -> Maybe Int
 foldableFind value n =
-    F.find (== (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.find (== (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAll #-}
 foldableAll :: Int -> Int -> Bool
 foldableAll value n =
-    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAny #-}
 foldableAny :: Int -> Int -> Bool
 foldableAny value n =
-    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAnd #-}
 foldableAnd :: Int -> Int -> Bool
 foldableAnd value n =
     Prelude.and $ S.map
-        (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+        (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableOr #-}
 foldableOr :: Int -> Int -> Bool
 foldableOr value n =
     Prelude.or $ S.map
-        (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+        (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableLength #-}
 foldableLength :: Int -> Int -> Int
 foldableLength value n =
-    Prelude.length (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.length (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMin #-}
 foldableMin :: Int -> Int -> Int
 foldableMin value n =
-    Prelude.minimum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.minimum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE ordInstanceMin #-}
 ordInstanceMin :: SerialT Identity Int -> SerialT Identity Int
@@ -138,12 +139,12 @@ ordInstanceMin src = min src src
 {-# INLINE foldableMax #-}
 foldableMax :: Int -> Int -> Int
 foldableMax value n =
-    Prelude.maximum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.maximum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMinBy #-}
 foldableMinBy :: Int -> Int -> Int
 foldableMinBy value n =
-    F.minimumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.minimumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableListMinBy #-}
 foldableListMinBy :: Int -> Int -> Int
@@ -152,27 +153,27 @@ foldableListMinBy value n = F.minimumBy compare [1..value+n]
 {-# INLINE foldableMaxBy #-}
 foldableMaxBy :: Int -> Int -> Int
 foldableMaxBy value n =
-    F.maximumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.maximumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableToList #-}
 foldableToList :: Int -> Int -> [Int]
 foldableToList value n =
-    F.toList (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.toList (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMapM_ #-}
 foldableMapM_ :: Monad m => Int -> Int -> m ()
 foldableMapM_ value n =
-    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableSequence_ #-}
 foldableSequence_ :: Int -> Int -> IO ()
 foldableSequence_ value n =
-    F.sequence_ (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+    F.sequence_ (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
 
 {-# INLINE _foldableMsum #-}
 _foldableMsum :: Int -> Int -> IO Int
 _foldableMsum value n =
-    F.msum (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+    F.msum (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
 
 {-# INLINE showInstance #-}
 showInstance :: SerialT Identity Int -> String
@@ -266,7 +267,7 @@ uncons s = do
         Just (_, t) -> uncons t
 
 {-# INLINE init #-}
-init :: Monad m => Stream m a -> m ()
+init :: Monad m => SerialT m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
 
 {-# INLINE mapM_ #-}
@@ -563,7 +564,7 @@ o_n_space_elimination_toList value =
 -------------------------------------------------------------------------------
 
 {-# INLINE eqBy' #-}
-eqBy' :: (Monad m, Eq a) => Stream m a -> m Bool
+eqBy' :: (Monad m, Eq a) => SerialT m a -> m Bool
 eqBy' src = S.eqBy (==) src src
 
 {-# INLINE eqByPure #-}
@@ -585,7 +586,7 @@ eqInstanceNotEq :: SerialT Identity Int -> Bool
 eqInstanceNotEq src = src /= src
 
 {-# INLINE cmpBy' #-}
-cmpBy' :: (Monad m, Ord a) => Stream m a -> m Ordering
+cmpBy' :: (Monad m, Ord a) => SerialT m a -> m Ordering
 cmpBy' src = S.cmpBy compare src src
 
 {-# INLINE cmpByPure #-}

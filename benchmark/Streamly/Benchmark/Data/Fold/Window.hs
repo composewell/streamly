@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.DeepSeq (NFData)
 import Streamly.Data.Fold (Fold)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold

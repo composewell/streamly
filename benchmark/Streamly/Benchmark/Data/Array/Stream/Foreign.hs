@@ -42,7 +42,8 @@ import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Gauge hiding (env)
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
+import Streamly.Prelude (MonadAsync, IsStream)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 

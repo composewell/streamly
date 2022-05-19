@@ -19,7 +19,8 @@ import qualified GHC.Exts as GHC
 import qualified Streamly.Prelude  as S
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
+import Streamly.Prelude (fromSerial, MonadAsync)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (repeat, replicate, iterate)

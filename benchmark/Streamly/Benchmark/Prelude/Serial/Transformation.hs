@@ -38,7 +38,8 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Prelude
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
+import Streamly.Prelude (fromSerial, MonadAsync)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Streamly.Internal.Data.Time.Units
@@ -130,7 +131,7 @@ postscan n = composeN n $ S.postscan FL.sum
 {-# INLINE sequence #-}
 sequence ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> SerialT m Int)
     -> t m (m Int)
     -> m ()
 sequence t = S.drain . t . S.sequence

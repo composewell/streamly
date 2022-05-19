@@ -27,7 +27,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Prelude  as S
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial)
+import Streamly.Prelude (fromSerial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 import Prelude hiding (reverse, tail)
@@ -392,7 +393,7 @@ iterateDropWhileTrue :: S.MonadAsync m
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
 {-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m ()
+tail :: Monad m => SerialT m a -> m ()
 tail s = S.tail s >>= mapM_ tail
 
 {-# INLINE nullHeadTail #-}

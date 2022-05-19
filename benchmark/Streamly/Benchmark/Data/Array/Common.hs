@@ -1,5 +1,3 @@
-
-
 -------------------------------------------------------------------------------
 -- Benchmark helpers
 -------------------------------------------------------------------------------
@@ -68,7 +66,7 @@ scanl' , scanl1', map
 
 {-# INLINE onArray #-}
 onArray
-    :: MonadIO m => Int -> (S.SerialT m Int -> S.SerialT m Int)
+    :: MonadIO m => Int -> (SerialT m Int -> SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
 onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.read arr

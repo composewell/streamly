@@ -190,7 +190,7 @@ import Prelude hiding
 
 -- $setup
 -- >>> :m
--- >>> import Streamly.Prelude (Stream)
+-- >>> import Streamly.Internal.Data.Stream.Serial (Stream)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser

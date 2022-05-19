@@ -39,7 +39,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
 
 import Gauge hiding (env)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
@@ -123,11 +123,11 @@ one value = IP.parse p
           Nothing -> pure Nothing
 
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> Stream m a -> m ()
+takeBetween :: MonadCatch m => Int -> SerialT m a -> m ()
 takeBetween value =  IP.parse (PR.takeBetween 0 value FL.drain)
 
 {-# INLINE takeEQ #-}
-takeEQ :: MonadCatch m => Int -> Stream m a -> m ()
+takeEQ :: MonadCatch m => Int -> SerialT m a -> m ()
 takeEQ value = IP.parse (PR.takeEQ value FL.drain)
 
 {-# INLINE dropWhile #-}
@@ -161,7 +161,7 @@ takeWhileP value =
     IP.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) FL.drain))
 
 {-# INLINE takeP #-}
-takeP :: MonadCatch m => Int -> Stream m a -> m ()
+takeP :: MonadCatch m => Int -> SerialT m a -> m ()
 takeP value = IP.parse (PR.takeP value (PR.fromFold FL.drain))
 
 {-# INLINE groupBy #-}

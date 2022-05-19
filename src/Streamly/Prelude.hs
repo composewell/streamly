@@ -47,8 +47,8 @@
 --
 -- `cons` constructs a pure stream which is more or less the same as a list:
 --
--- >>> import Streamly.Prelude (Stream, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
+-- >>> import Streamly.Prelude (SerialT, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: SerialT IO Int
 -- >>> Stream.toList stream -- IO [Int]
 -- [1,2]
 --
@@ -919,6 +919,7 @@ module Streamly.Prelude
     , adapt
 
     -- * Deprecated
+    , SerialT
     , yield
     , yieldM
     , scanx

@@ -20,7 +20,8 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
-import Streamly.Prelude (MonadAsync, SerialT, IsStream)
+import Streamly.Prelude (MonadAsync, IsStream)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import System.Random (randomRIO)
 
 import qualified Streamly.Prelude as Stream

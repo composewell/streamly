@@ -29,7 +29,8 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 
 import Gauge
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
+import Streamly.Prelude (MonadAsync, IsStream)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
