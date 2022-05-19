@@ -24,9 +24,10 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.Catch (MonadCatch)
 import Data.Functor.Identity (runIdentity)
+import Data.Maybe (isJust)
 import Data.Word (Word8)
 import System.IO (Handle)
 import System.Random (randomRIO)
@@ -233,11 +234,21 @@ fold s = void $ ArrayStream.foldBreak Fold.drain s
 parse :: Int -> SerialT IO (Array.Array Int) -> IO ()
 parse value s = void $ ArrayStream.parseBreak (drainWhile (< value)) s
 
+{-# INLINE foldBreak #-}
+foldBreak :: SerialT IO (Array.Array Int) -> IO ()
+foldBreak s = do
+    (r, s1) <- ArrayStream.foldBreak Fold.one s
+    when (isJust r) $ foldBreak s1
+
 o_1_space_serial_array ::
     Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
 o_1_space_serial_array bound arraysSmall arraysBig =
     [ benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold
     , benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold
+    , benchIO
+        "foldBreak (recursive, small arrays)"
+        (\_ -> Stream.fromList arraysSmall)
+        foldBreak
     , benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
         $ parse bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
