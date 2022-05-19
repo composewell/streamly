@@ -39,7 +39,8 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
-import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
+import Streamly.Prelude (IsStream, serial, fromSerial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif

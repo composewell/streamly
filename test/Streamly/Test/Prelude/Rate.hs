@@ -13,7 +13,8 @@ import qualified Streamly.Prelude as S
 
 import Streamly.Prelude
     ( fromAhead, fromAsync, fromWAsync, avgRate, maxBuffer, maxThreads, rate,
-      SerialT, IsStream )
+      IsStream )
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Internal.Data.Time.Clock (getTime, Clock(..))
 import Streamly.Internal.Data.Time.Units
     (NanoSecond64, diffAbsTime64, fromRelTime64)

@@ -16,7 +16,7 @@ import Data.Word (Word8)
 import Network.Socket (Socket, PortNumber)
 import Streamly.Internal.Control.Monad (discard)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 

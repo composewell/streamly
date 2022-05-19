@@ -18,6 +18,8 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
+
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 
 import Streamly.Prelude hiding (repeat)

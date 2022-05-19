@@ -47,6 +47,7 @@ import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
 import Streamly.Data.Array.Foreign (Array)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import System.Directory
     ( createDirectory
     , createDirectoryIfMissing
@@ -93,7 +94,7 @@ type EventChecker =
     -> MVar ()   -- mvar to sync file system ops and the watch
     -> [(String, Event -> Bool)] -- expected events
     -> IO ()
-type EventWatcher = NonEmpty (Array Word8) -> Stream.SerialT IO Event.Event
+type EventWatcher = NonEmpty (Array Word8) -> SerialT IO Event.Event
 
 eventMatches :: Event -> (String, Event -> Bool) -> Bool
 eventMatches ev (expectedPath, f) =

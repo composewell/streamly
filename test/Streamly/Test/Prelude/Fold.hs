@@ -26,7 +26,7 @@ import System.Mem (performMajorGC)
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
 import qualified Streamly.Prelude as S
 
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 #ifdef DEVBUILD
 import Streamly.Prelude (IsStream)
 #endif

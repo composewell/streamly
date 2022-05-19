@@ -11,7 +11,7 @@ import qualified GHC.Exts as GHC
 import Data.Functor.Identity
 import Streamly.Internal.Data.List (List(..), pattern Cons, pattern Nil, ZipList(..),
                      fromZipList, toZipList)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import qualified Streamly.Prelude as S
 #else
 import Prelude -- to suppress compiler warning

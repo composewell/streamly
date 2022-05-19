@@ -124,7 +124,8 @@ import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, listOf, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
+import Streamly.Prelude (IsStream, (.:), nil, (|&), fromSerial)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 #endif

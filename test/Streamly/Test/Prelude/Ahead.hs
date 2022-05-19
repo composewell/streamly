@@ -17,7 +17,8 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import Streamly.Prelude (IsStream, SerialT, AheadT)
+import Streamly.Prelude (IsStream, AheadT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import qualified Streamly.Prelude as S
 
 import Streamly.Test.Common

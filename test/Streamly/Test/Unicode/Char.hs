@@ -21,7 +21,8 @@ import Streamly.Internal.Unicode.Char
     ( NormalizationMode(NFC, NFD, NFKC, NFKD)
     , normalize
     )
-import Streamly.Internal.Data.Stream.IsStream (SerialT)
+--import Streamly.Internal.Data.Stream.IsStream (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Text.Printf (printf)
 import System.FilePath.Posix ((</>))
 

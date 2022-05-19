@@ -28,6 +28,7 @@ import Test.QuickCheck
        (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Streamly.Prelude hiding (fold, replicate, replicateM, reverse, runStateT)
 import qualified Streamly.Prelude as S
 

@@ -22,7 +22,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
 import Prelude hiding (const, take, drop, concat, mapM)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

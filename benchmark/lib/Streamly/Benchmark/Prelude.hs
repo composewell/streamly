@@ -186,7 +186,7 @@ absTimes value _ = S.take value Internal.absTimes
 -------------------------------------------------------------------------------
 
 {-# INLINE mkAsync #-}
-mkAsync :: (S.MonadAsync m, S.IsStream t) => (t m a -> S.Stream m a) -> t m a -> m ()
+mkAsync :: (S.MonadAsync m, S.IsStream t) => (t m a -> Serial.SerialT m a) -> t m a -> m ()
 mkAsync adapter = S.drain . adapter . S.mkAsync
 
 -------------------------------------------------------------------------------
@@ -194,7 +194,7 @@ mkAsync adapter = S.drain . adapter . S.mkAsync
 -------------------------------------------------------------------------------
 
 {-# INLINE toNull #-}
-toNull :: Monad m => (t m a -> S.Stream m a) -> t m a -> m ()
+toNull :: Monad m => (t m a -> Serial.SerialT m a) -> t m a -> m ()
 toNull t = S.drain . t
 
 -- We need a monadic bind here to make sure that the function f does not get
@@ -211,7 +211,7 @@ benchIOSink value name f =
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
 benchIOSrc
-    :: (t IO a -> S.SerialT IO a)
+    :: (t IO a -> Serial.SerialT IO a)
     -> String
     -> (Int -> t IO a)
     -> Benchmark
@@ -240,7 +240,7 @@ sourceUnfoldrAction value n = S.fromSerial $ S.unfoldr step n
 composeN ::
        (S.IsStream t, Monad m)
     => Int
-    -> (t m Int -> S.SerialT m Int)
+    -> (t m Int -> Serial.SerialT m Int)
     -> t m Int
     -> m ()
 composeN n f =
@@ -254,7 +254,7 @@ composeN n f =
 {-# INLINE fmapN #-}
 fmapN ::
        (S.IsStream t, S.MonadAsync m, Functor (t m))
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -263,7 +263,7 @@ fmapN t n = composeN n $ t . fmap (+ 1)
 {-# INLINE mapN #-}
 mapN ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -272,7 +272,7 @@ mapN t n = composeN n $ t . S.map (+ 1)
 {-# INLINE mapM #-}
 mapM ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -285,7 +285,7 @@ mapM t n = composeN n $ t . S.mapM return
 {-# INLINE transformMapM #-}
 transformMapM ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -294,7 +294,7 @@ transformMapM t n = composeN n $ t . Internal.transform (Pipe.mapM return)
 {-# INLINE transformComposeMapM #-}
 transformComposeMapM ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -308,7 +308,7 @@ transformComposeMapM t n =
 {-# INLINE transformTeeMapM #-}
 transformTeeMapM ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -322,7 +322,7 @@ transformTeeMapM t n =
 {-# INLINE transformZipMapM #-}
 transformZipMapM ::
        (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
+    => (t m Int -> Serial.SerialT m Int)
     -> Int
     -> t m Int
     -> m ()
@@ -369,7 +369,7 @@ concatFoldableWith value n =
 sourceFoldMapWithStream :: (S.IsStream t, Semigroup (t m Int))
     => Int -> Int -> t m Int
 sourceFoldMapWithStream value n = S.concatMapFoldableWith (<>) S.fromPure
-    $ (S.enumerateFromTo n (n + value) :: S.SerialT Identity Int)
+    $ (S.enumerateFromTo n (n + value) :: Serial.SerialT Identity Int)
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: (S.IsStream t, Monad m, Semigroup (t m Int))
@@ -396,7 +396,7 @@ sourceConcatMapId value n =
 
 {-# INLINE concatStreamsWith #-}
 concatStreamsWith
-    :: (S.SerialT IO Int -> S.SerialT IO Int -> S.SerialT IO Int)
+    :: (Serial.SerialT IO Int -> Serial.SerialT IO Int -> Serial.SerialT IO Int)
     -> Int
     -> Int
     -> Int
@@ -408,7 +408,7 @@ concatStreamsWith op outer inner n =
 
 {-# INLINE concatPairsWith #-}
 concatPairsWith
-    :: (S.SerialT IO Int -> S.SerialT IO Int -> S.SerialT IO Int)
+    :: (Serial.SerialT IO Int -> Serial.SerialT IO Int -> Serial.SerialT IO Int)
     -> Int
     -> Int
     -> Int
@@ -423,13 +423,13 @@ concatPairsWith op outer inner n =
 -------------------------------------------------------------------------------
 
 {-# INLINE runToList #-}
-runToList :: Monad m => S.Stream m a -> m [a]
+runToList :: Monad m => Serial.SerialT m a -> m [a]
 runToList = S.toList
 
 {-# INLINE apDiscardFst #-}
 apDiscardFst
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 apDiscardFst linearCount t start = S.drain . t $
     S.fromSerial (sourceUnfoldrM nestedCount2 start)
         *> S.fromSerial (sourceUnfoldrM nestedCount2 start)
@@ -441,7 +441,7 @@ apDiscardFst linearCount t start = S.drain . t $
 {-# INLINE apDiscardSnd #-}
 apDiscardSnd
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 apDiscardSnd linearCount t start = S.drain . t $
     S.fromSerial (sourceUnfoldrM nestedCount2 start)
         <* S.fromSerial (sourceUnfoldrM nestedCount2 start)
@@ -453,7 +453,7 @@ apDiscardSnd linearCount t start = S.drain . t $
 {-# INLINE apLiftA2 #-}
 apLiftA2
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 apLiftA2 linearCount t start = S.drain . t $
     liftA2 (+) (S.fromSerial (sourceUnfoldrM nestedCount2 start))
         (S.fromSerial (sourceUnfoldrM nestedCount2 start))
@@ -465,7 +465,7 @@ apLiftA2 linearCount t start = S.drain . t $
 {-# INLINE toNullAp #-}
 toNullAp
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 toNullAp linearCount t start = S.drain . t $
     (+) <$> S.fromSerial (sourceUnfoldrM nestedCount2 start)
         <*> S.fromSerial (sourceUnfoldrM nestedCount2 start)
@@ -477,7 +477,7 @@ toNullAp linearCount t start = S.drain . t $
 {-# INLINE monadThen #-}
 monadThen
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 monadThen linearCount t start = S.drain . t $ do
     (S.fromSerial $ sourceUnfoldrM nestedCount2 start) >>
         (S.fromSerial $ sourceUnfoldrM nestedCount2 start)
@@ -489,7 +489,7 @@ monadThen linearCount t start = S.drain . t $ do
 {-# INLINE toNullM #-}
 toNullM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 toNullM linearCount t start = S.drain . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -502,7 +502,7 @@ toNullM linearCount t start = S.drain . t $ do
 {-# INLINE toNullM3 #-}
 toNullM3
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 toNullM3 linearCount t start = S.drain . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount3 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount3 start
@@ -514,7 +514,7 @@ toNullM3 linearCount t start = S.drain . t $ do
 {-# INLINE toListM #-}
 toListM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m [Int]
 toListM linearCount t start = runToList . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -527,7 +527,7 @@ toListM linearCount t start = runToList . t $ do
 {-# INLINE toListSome #-}
 toListSome
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m [Int]
 toListSome linearCount t start =
     runToList . t $ S.take 10000 $ do
         x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -539,7 +539,7 @@ toListSome linearCount t start =
 {-# INLINE filterAllOutM #-}
 filterAllOutM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 filterAllOutM linearCount t start = S.drain . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -553,7 +553,7 @@ filterAllOutM linearCount t start = S.drain . t $ do
 {-# INLINE filterAllInM #-}
 filterAllInM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 filterAllInM linearCount t start = S.drain . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -567,7 +567,7 @@ filterAllInM linearCount t start = S.drain . t $ do
 {-# INLINE filterSome #-}
 filterSome
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
-    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => Int -> (t m Int -> Serial.SerialT m Int) -> Int -> m ()
 filterSome linearCount t start = S.drain . t $ do
     x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
     y <- S.fromSerial $ sourceUnfoldrM nestedCount2 start
@@ -581,7 +581,7 @@ filterSome linearCount t start = S.drain . t $ do
 {-# INLINE breakAfterSome #-}
 breakAfterSome
     :: (S.IsStream t, Monad (t IO))
-    => Int -> (t IO Int -> S.SerialT IO Int) -> Int -> IO ()
+    => Int -> (t IO Int -> Serial.SerialT IO Int) -> Int -> IO ()
 breakAfterSome linearCount t start = do
     (_ :: Either ErrorCall ()) <- try $ S.drain . t $ do
         x <- S.fromSerial $ sourceUnfoldrM nestedCount2 start

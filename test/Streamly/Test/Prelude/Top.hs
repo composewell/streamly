@@ -2,7 +2,6 @@ module Main (main) where
 
 import Data.List (elem, intersect, nub, sort)
 import Data.Maybe (isNothing)
-import Streamly.Prelude (SerialT)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -10,7 +9,9 @@ import Test.QuickCheck
     , forAll
     , listOf
     )
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
+
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Top as Top
 

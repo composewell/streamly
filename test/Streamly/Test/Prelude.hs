@@ -19,7 +19,8 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Test.Hspec as H
 
-import Streamly.Prelude (SerialT, IsStream)
+import Streamly.Prelude (IsStream)
+import Streamly.Internal.Data.Stream.Serial.Type (SerialT)
 
 import qualified Streamly.Prelude as S
 
