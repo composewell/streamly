@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Array.Stream.Foreign
     -- * Elimination
     -- ** Element Folds
     , foldBreak
+    , foldBreakD
     , parseBreak
     , parseBreakD
 
@@ -73,7 +74,7 @@ import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
@@ -92,6 +93,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
@@ -358,6 +360,40 @@ foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
                 return $! (b, D.cons arr (D.Stream step st))
             FL.Partial fs1 -> goArray SPEC st fp next fs1
 
+{-# INLINE_NORMAL foldBreakK #-}
+foldBreakK :: forall m a b. (MonadIO m, Storable a) =>
+    Fold m a b -> K.Stream m (Array a) -> m (b, K.Stream m (Array a))
+foldBreakK (Fold fstep initial extract) stream = do
+    res <- initial
+    case res of
+        FL.Partial fs -> go fs stream
+        FL.Done fb -> return (fb, stream)
+
+    where
+
+    {-# INLINE go #-}
+    go !fs st = do
+        let stop = (, K.nil) <$> extract fs
+            single a = yieldk a K.nil
+            yieldk (Array contents start (Ptr end)) r =
+                let fp = ForeignPtr end (arrayToFptrContents contents)
+                 in goArray fs r fp start
+         in K.foldStream defState yieldk single stop st
+
+    goArray !fs st fp@(ForeignPtr end _) !cur
+        | cur == Ptr end = do
+            liftIO $ touchForeignPtr fp
+            go fs st
+    goArray !fs st fp@(ForeignPtr end contents) !cur = do
+        x <- liftIO $ peek cur
+        res <- fstep fs x
+        let next = PTR_NEXT(cur,a)
+        case res of
+            FL.Done b -> do
+                let arr = Array (fptrToArrayContents contents) next (Ptr end)
+                return $! (b, K.cons arr st)
+            FL.Partial fs1 -> goArray fs1 st fp next
+
 -- | Fold an array stream using the supplied 'Fold'. Returns the fold result
 -- and the unconsumed stream.
 --
@@ -371,10 +407,11 @@ foldBreak ::
     => FL.Fold m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
-foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
--- If fold performs better than runArrayFoldBreak we can rewrite runArrayFoldBreak to
--- fold.
--- fold f = runArrayFoldBreak (ArrayFold.fromFold f)
+-- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
+foldBreak f (SerialT s) = fmap (fmap SerialT) $ foldBreakK f s
+-- If foldBreak performs better than runArrayFoldBreak we can use a rewrite
+-- rule to rewrite runArrayFoldBreak to fold.
+-- foldBreak f = runArrayFoldBreak (ArrayFold.fromFold f)
 
 -------------------------------------------------------------------------------
 -- Fold to a single Array
