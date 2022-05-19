@@ -34,10 +34,54 @@ import Streamly.Internal.Data.Stream.Serial.Type
 
 #include "inline.hs"
 
+-- $setup
+-- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Data.IORef
+-- >>> import Prelude hiding (zipWith, concatMap, concat)
+-- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> :{
+--  delay n = do
+--      threadDelay (n * 1000000)   -- sleep for n seconds
+--      putStrLn (show n ++ " sec") -- print "n sec"
+--      return n                    -- IO Int
+-- :}
+--
+
+-- | Construct a stream by adding a pure value at the head of an existing
+-- stream. This is the same as @(return a) \`consM` r@ but
+-- more efficient. For concurrent streams this is not concurrent whereas
+-- 'consM' is concurrent. For example:
+--
+-- @
+-- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil
+-- [1,2,3]
+-- @
+--
+-- /Pre-release/
+--
 {-# INLINE cons #-}
 cons :: a -> SerialT m a -> SerialT m a
 cons x (SerialT ms) = SerialT $ K.cons x ms
 
+-- | Constructs a stream by adding a monadic action at the head of an
+-- existing stream. For example:
+--
+-- @
+-- > toList $ getLine \`consM` getLine \`consM` nil
+-- hello
+-- world
+-- ["hello","world"]
+-- @
+--
+-- /Pre-release/
+--
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
 consM :: Monad m => m a -> SerialT m a -> SerialT m a
@@ -45,6 +89,8 @@ consM m (SerialT ms) = SerialT $ K.consM m ms
 
 -- |
 -- Generate an infinite stream by repeating a pure value.
+--
+-- /Pre-release/
 --
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> SerialT m a
@@ -54,6 +100,19 @@ repeat = SerialT . D.toStreamK . D.repeat
 -- Combining
 ------------------------------------------------------------------------------
 
+-- | Appends two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> import Streamly.Internal.Data.Stream.Serial (serial)
+-- >>> stream1 = Stream.fromList [1,2]
+-- >>> stream2 = Stream.fromList [3,4]
+-- >>> Stream.toList $ stream1 `serial` stream2
+-- [1,2,3,4]
+--
+-- This operation can be used to fold an infinite lazy container of streams.
+--
+-- /Pre-release/
+--
 {-# INLINE serial #-}
 serial :: SerialT m a -> SerialT m a -> SerialT m a
 serial = (<>)

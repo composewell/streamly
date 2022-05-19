@@ -29,11 +29,10 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- > drain = mapM_ (\_ -> return ())
 -- > drain = Stream.fold Fold.drain
 --
--- Run a stream, discarding the results. By default it interprets the stream
--- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @Stream.drain . 'fromAsync'@.
+-- Run a stream serially, discarding the results.
 --
--- @since 0.7.0
+-- /Pre-release/
+--
 {-# INLINE drain #-}
 drain :: Monad m => SerialT m a -> m ()
 drain (SerialT m) = P.drain m

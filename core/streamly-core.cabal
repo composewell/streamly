@@ -256,11 +256,6 @@ library
                      , Streamly.Internal.Data.Parser.ParserK.Type
                      , Streamly.Internal.Data.Parser.ParserD.Type
                      , Streamly.Internal.Data.Pipe.Type
-                     --  Serial Modules
-                     , Streamly.Internal.Data.Stream.Serial.Eliminate
-                     , Streamly.Internal.Data.Stream.Serial.Generate
-                     , Streamly.Internal.Data.Stream.Serial.Transform
-                     , Streamly.Internal.Data.Stream.Serial.Type
 
                      -- streamly-core-array-types
                     -- Unboxed IORef
@@ -296,6 +291,10 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Serial.Eliminate
+                     , Streamly.Internal.Data.Stream.Serial.Generate
+                     , Streamly.Internal.Data.Stream.Serial.Transform
+                     , Streamly.Internal.Data.Stream.Serial.Type
                      , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List

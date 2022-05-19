@@ -192,6 +192,10 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Parser.hs
     core/src/Streamly/Internal/Data/Pipe.hs
     core/src/Streamly/Internal/Data/Stream/Serial.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Eliminate.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Generate.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Transform.hs
+    core/src/Streamly/Internal/Data/Stream/Serial/Type.hs
     core/src/Streamly/Internal/Data/Stream/WSerial.hs
     core/src/Streamly/Internal/Data/Stream/Zip.hs
     core/src/Streamly/Internal/Data/List.hs
@@ -211,11 +215,6 @@ extra-source-files:
     core/streamly-core.cabal
     core/jsbits/clock.js
     core/Setup.hs
-
-    core/src/Streamly/Internal/Data/Stream/Serial/Eliminate.hs
-    core/src/Streamly/Internal/Data/Stream/Serial/Generate.hs
-    core/src/Streamly/Internal/Data/Stream/Serial/Transform.hs
-    core/src/Streamly/Internal/Data/Stream/Serial/Type.hs
 
 extra-doc-files:
     CONTRIBUTING.md
@@ -600,6 +599,10 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Serial.Eliminate
+                     , Streamly.Internal.Data.Stream.Serial.Generate
+                     , Streamly.Internal.Data.Stream.Serial.Transform
+                     , Streamly.Internal.Data.Stream.Serial.Type
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
 
@@ -622,12 +625,6 @@ library
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
-
-                    --  Serial Modules
-                     , Streamly.Internal.Data.Stream.Serial.Eliminate
-                     , Streamly.Internal.Data.Stream.Serial.Generate
-                     , Streamly.Internal.Data.Stream.Serial.Transform
-                     , Streamly.Internal.Data.Stream.Serial.Type
 
     other-modules:
                        Streamly.Data.Array

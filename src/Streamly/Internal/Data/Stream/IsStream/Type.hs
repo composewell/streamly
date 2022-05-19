@@ -606,8 +606,8 @@ instance IsStream ZipSerialM where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
-    consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
     consM = Zip.consMZip
+    consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
