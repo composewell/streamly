@@ -176,7 +176,7 @@ module Streamly.Internal.Data.Fold
     -- By elements
     , takeEndBy
     , takeEndBy_
-    -- , takeEndBySeq
+    , takeEndBySeq
     {-
     , drop
     , dropWhile
@@ -285,16 +285,19 @@ module Streamly.Internal.Data.Fold
 where
 
 #include "inline.hs"
+#include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
+import Data.Bits (shiftL, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
-import Foreign.Storable (Storable)
+import Data.Word (Word32)
+import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -303,10 +306,12 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
-import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Ring.Foreign as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 
 import Prelude hiding
@@ -327,6 +332,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Data.Array.Foreign as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
@@ -1339,21 +1345,160 @@ takeEndBy predicate (Fold fstep finitial fextract) =
 -- Binary splitting on a separator
 ------------------------------------------------------------------------------
 
-{-
--- | Find the first occurrence of the specified sequence in the input stream
--- and break the input stream into two parts, the first part consisting of the
--- stream before the sequence and the second part consisting of the sequence
--- and the rest of the stream.
+data SplitOnSeqState acc a rb rh w ck =
+      SplitOnSeqEmpty !acc
+    | SplitOnSeqSingle !acc !a
+    | SplitOnSeqWord !acc !Int !w
+    | SplitOnSeqWordLoop !acc !w
+    | SplitOnSeqKR !acc !Int !rb !rh
+    | SplitOnSeqKRLoop !acc !ck !rb !rh
+
+-- XXX Need to add tests for takeEndBySeq, we have tests for takeEndBySeq_ .
+
+-- | Continue taking the input until the input sequence matches the supplied
+-- sequence, taking the supplied sequence as well. If the pattern is empty this
+-- acts as an identity fold.
 --
--- > let breakOn_ pat xs = S.fold (S.breakOn pat FL.toList FL.toList) $ S.fromList xs
+-- >>> s = Stream.fromList "hello there. How are you?"
+-- >>> f = Fold.takeEndBySeq (Array.fromList "re") Fold.toList
+-- >>> Stream.fold f s
+-- "hello there"
 --
--- >>> breakOn_ "dear" "Hello dear world!"
--- > ("Hello ","dear world!")
+-- >>> Stream.toList $ Stream.foldMany f s
+-- ["hello there",". How are"," you?"]
 --
-{-# INLINE breakOn #-}
-breakOn :: Monad m => Array a -> Fold m a b -> Fold m a c -> Fold m a (b,c)
-breakOn pat f m = undefined
--}
+-- /Pre-release/
+{-# INLINE takeEndBySeq #-}
+takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a) =>
+       Array.Array a
+    -> Fold m a b
+    -> Fold m a b
+takeEndBySeq patArr (Fold fstep finitial fextract) =
+    Fold step initial extract
+
+    where
+
+    patLen = Array.length patArr
+
+    initial = do
+        res <- finitial
+        case res of
+            Partial acc
+                | patLen == 0 ->
+                    -- XXX Should we match nothing or everything on empty
+                    -- pattern?
+                    -- Done <$> fextract acc
+                    return $ Partial $ SplitOnSeqEmpty acc
+                | patLen == 1 -> do
+                    pat <- liftIO $ Array.unsafeIndexIO 0 patArr
+                    return $ Partial $ SplitOnSeqSingle acc pat
+                | SIZE_OF(a) * patLen <= sizeOf (undefined :: Word) ->
+                    return $ Partial $ SplitOnSeqWord acc 0 0
+                | otherwise -> do
+                    (rb, rhead) <- liftIO $ Ring.new patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 rb rhead
+            Done b -> return $ Done b
+
+    -- Word pattern related
+    maxIndex = patLen - 1
+
+    elemBits = SIZE_OF(a) * 8
+
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    -- For Rabin-Karp search
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    -- XXX shall we use a random starting hash or 1 instead of 0?
+    -- XXX Need to keep this cached across fold calls in foldmany
+    -- XXX We may need refold to inject the cached state instead of
+    -- initializing the state every time.
+    -- XXX Allocation of ring buffer should also be done once
+    patHash = Array.foldl' addCksum 0 patArr
+
+    step (SplitOnSeqEmpty s) x = do
+        res <- fstep s x
+        case res of
+            Partial s1 -> return $ Partial $ SplitOnSeqEmpty s1
+            Done b -> return $ Done b
+    step (SplitOnSeqSingle s pat) x = do
+        res <- fstep s x
+        case res of
+            Partial s1
+                | pat /= x -> return $ Partial $ SplitOnSeqSingle s1 pat
+                | otherwise -> Done <$> fextract s1
+            Done b -> return $ Done b
+    step (SplitOnSeqWord s idx wrd) x = do
+        res <- fstep s x
+        let wrd1 = addToWord wrd x
+        case res of
+            Partial s1
+                | idx == maxIndex -> do
+                    if wrd1 .&. wordMask == wordPat
+                    then Done <$> fextract s1
+                    else return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWord s1 (idx + 1) wrd1
+            Done b -> return $ Done b
+    step (SplitOnSeqWordLoop s wrd) x = do
+        res <- fstep s x
+        let wrd1 = addToWord wrd x
+        case res of
+            Partial s1
+                | wrd1 .&. wordMask == wordPat ->
+                    Done <$> fextract s1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+            Done b -> return $ Done b
+    step (SplitOnSeqKR s idx rb rh) x = do
+        res <- fstep s x
+        case res of
+            Partial s1 -> do
+                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                if idx == maxIndex
+                then do
+                    let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
+                    let !ringHash = fld addCksum 0 rb
+                    if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                    then Done <$> fextract s1
+                    else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+                else
+                    return $ Partial $ SplitOnSeqKR s1 (idx + 1) rb rh1
+            Done b -> return $ Done b
+    step (SplitOnSeqKRLoop s cksum rb rh) x = do
+        res <- fstep s x
+        case res of
+            Partial s1 -> do
+                old <- liftIO $ peek rh
+                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                let ringHash = deltaCksum cksum old x
+                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                then Done <$> fextract s1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+            Done b -> return $ Done b
+
+    extract state =
+        let st =
+                case state of
+                    SplitOnSeqEmpty s -> s
+                    SplitOnSeqSingle s _ -> s
+                    SplitOnSeqWord s _ _ -> s
+                    SplitOnSeqWordLoop s _ -> s
+                    SplitOnSeqKR s _ _ _ -> s
+                    SplitOnSeqKRLoop s _ _ _ -> s
+         in fextract st
 
 ------------------------------------------------------------------------------
 -- Distributing
