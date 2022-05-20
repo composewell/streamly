@@ -25,7 +25,7 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (void, when)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, try, SomeException)
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (isJust)
 import Data.Word (Word8)
@@ -240,6 +240,14 @@ foldBreak s = do
     (r, s1) <- ArrayStream.foldBreak Fold.one s
     when (isJust r) $ foldBreak s1
 
+{-# INLINE parseBreak #-}
+parseBreak :: SerialT IO (Array.Array Int) -> IO ()
+parseBreak s = do
+    r <- try $ ArrayStream.parseBreak Parser.one s
+    case r of
+        Left (_ :: SomeException) -> return ()
+        Right (_, s1) -> parseBreak s1
+
 o_1_space_serial_array ::
     Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
 o_1_space_serial_array bound arraysSmall arraysBig =
@@ -253,6 +261,10 @@ o_1_space_serial_array bound arraysSmall arraysBig =
         $ parse bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
         $ parse bound
+    , benchIO
+        "parseBreak (recursive, small arrays)"
+        (\_ -> Stream.fromList arraysSmall)
+        parseBreak
     ]
 
 -------------------------------------------------------------------------------
