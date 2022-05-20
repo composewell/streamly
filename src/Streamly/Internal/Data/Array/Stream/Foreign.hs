@@ -649,6 +649,81 @@ parseBreakD
                 return (b, str)
             PR.Error err -> throwM $ ParseError err
 
+{-# INLINE_NORMAL parseBreakK #-}
+parseBreakK ::
+       forall m a b. (MonadIO m, MonadThrow m, Storable a)
+    => PRD.Parser m a b
+    -> K.Stream m (Array.Array a)
+    -> m (b, K.Stream m (Array.Array a))
+parseBreakK (PRD.Parser pstep initial extract) stream = do
+    res <- initial
+    case res of
+        PRD.IPartial s -> go s stream []
+        PRD.IDone b -> return (b, stream)
+        PRD.IError err -> throwM $ ParseError err
+
+    where
+
+    -- "backBuf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    go !pst st backBuf = do
+        let stop = (, K.nil) <$> extract pst
+            single a = yieldk a K.nil
+            yieldk (Array contents start (Ptr end)) r =
+                let fp = ForeignPtr end (arrayToFptrContents contents)
+                 in goArray pst backBuf r fp start
+         in K.foldStream defState yieldk single stop st
+
+    -- Use strictness on "cur" to keep it unboxed
+    goArray !pst backBuf st fp@(ForeignPtr end _) !cur
+        | cur == Ptr end = do
+            liftIO $ touchForeignPtr fp
+            go pst st backBuf
+    goArray !pst backBuf st fp@(ForeignPtr end contents) !cur = do
+        x <- liftIO $ peek cur
+        pRes <- pstep pst x
+        let next = PTR_NEXT(cur,a)
+        case pRes of
+            PR.Partial 0 s ->
+                 goArray s [] st fp next
+            PR.Partial n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let src0 = Prelude.take n (x:backBuf)
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
+                    src = arr0 <> arr1
+                let !(Array cont1 start (Ptr end1)) = src
+                    fp1 = ForeignPtr end1 (arrayToFptrContents cont1)
+                goArray s [] st fp1 start
+            PR.Continue 0 s ->
+                goArray s (x:backBuf) st fp next
+            PR.Continue n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let (src0, buf1) = splitAt n (x:backBuf)
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
+                    src = arr0 <> arr1
+                let !(Array cont1 start (Ptr end1)) = src
+                    fp1 = ForeignPtr end1 (arrayToFptrContents cont1)
+                goArray s buf1 st fp1 start
+            PR.Done 0 b -> do
+                let arr = Array (fptrToArrayContents contents) next (Ptr end)
+                return (b, K.cons arr st)
+            PR.Done n b -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let src0 = Prelude.take n (x:backBuf)
+                    -- XXX Use fromListRevN once implemented
+                    -- arr0 = A.fromListRevN n src0
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array (fptrToArrayContents contents) next (Ptr end)
+                    str = K.cons arr0 (K.cons arr1 st)
+                return (b, str)
+            PR.Error err -> throwM $ ParseError err
+
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
 --
@@ -660,8 +735,12 @@ parseBreak ::
     => PR.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
+{-
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
+-}
+parseBreak p (SerialT s) =
+    fmap (fmap SerialT) $ parseBreakK (PRD.fromParserK p) s
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
