@@ -531,7 +531,7 @@ benchmark Data.Array.Foreign
   else
     buildable: True
   if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
+    ghc-options: +RTS -M1500M -RTS
 
 benchmark Data.Array.Foreign.Mut
   import: bench-options
