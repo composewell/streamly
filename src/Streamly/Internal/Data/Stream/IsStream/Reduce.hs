@@ -170,6 +170,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , intersperseM
     , map
     , scanlMAfter'
+    , foldManyPost
     , splitOnSeq
     , fromPure)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -250,27 +251,6 @@ dropSuffix = error "Not implemented yet!"
 -- can be expressed using parseMany when used with an appropriate Parser.
 --
 -- XXX We need takeGE/takeBetween to implement "some" using "many".
-
--- | Like 'foldMany' but appends empty fold output if the fold and stream
--- termination aligns:
---
--- >>> f = Fold.take 2 Fold.sum
--- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList []
--- [0]
--- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
--- [3,7,11,15,9]
--- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
--- [3,7,11,15,19,0]
---
--- /Pre-release/
---
-{-# INLINE foldManyPost #-}
-foldManyPost
-    :: (IsStream t, Monad m)
-    => Fold m a b
-    -> t m a
-    -> t m b
-foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 
 -- | Apply a 'Fold' repeatedly on a stream and emit the fold outputs in the
 -- output stream.
@@ -889,6 +869,8 @@ splitBySeq patt f m =
 --
 -- > splitSuffixOn . intercalateSuffix == id
 --
+-- >>> splitOnSuffixSeq pat f = Stream.foldMany (Fold.takeEndBySeq_ pat f)
+--
 -- /Pre-release/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
@@ -896,6 +878,11 @@ splitOnSuffixSeq
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq False patt f (toStreamD m)
+-- XXX This may have a problem if the stream terminates and we start extracting
+-- the fold and then the fold terminates before consuming all the buffered
+-- input.  We have no way to supply the buffered input back to the driver.
+-- splitOnSuffixSeq patt f =
+--     foldMany (FL.takeEndBySeq_ patt f)
 
 -- | Like 'splitOn' but drops any empty splits.
 --
@@ -934,6 +921,8 @@ wordsOn _subseq _f _m =
 -- >>> splitWithSuffixSeq' "." "a..b.."
 -- ["a.",".","b.","."]
 --
+-- >>> splitWithSuffixSeq pat f = Stream.foldMany (Fold.takeEndBySeq pat f)
+--
 -- /Pre-release/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
@@ -941,6 +930,8 @@ splitWithSuffixSeq
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq True patt f (toStreamD m)
+-- splitWithSuffixSeq patt f =
+--     foldMany (FL.takeEndBySeq patt f)
 
 -- This can be implemented easily using Rabin Karp
 -- | Split post any one of the given patterns.

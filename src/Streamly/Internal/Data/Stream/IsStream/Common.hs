@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common
     , postscanlMAfter'
     , postscanlM'
     , smapM
+    , foldManyPost
     -- $smapM_Notes
     , take
     , takeWhile
@@ -641,6 +642,27 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 concatM :: (IsStream t, Monad m) => m (t m a) -> t m a
 concatM generator = concatMapM (\() -> generator) (fromPure ())
 
+-- | Like 'foldMany' but appends empty fold output if the fold and stream
+-- termination aligns:
+--
+-- >>> f = Fold.take 2 Fold.sum
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList []
+-- [0]
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
+-- [3,7,11,15,9]
+-- >>> Stream.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
+-- [3,7,11,15,19,0]
+--
+-- /Pre-release/
+--
+{-# INLINE foldManyPost #-}
+foldManyPost
+    :: (IsStream t, Monad m)
+    => Fold m a b
+    -> t m a
+    -> t m b
+foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
+
 ------------------------------------------------------------------------------
 -- Split stream and fold
 ------------------------------------------------------------------------------
@@ -692,6 +714,8 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 --
 -- > splitOnSeq . intercalate == id
 --
+-- >>> splitOnSeq pat f = Stream.foldManyPost (Fold.takeEndBySeq_ pat f)
+--
 -- /Pre-release/
 
 -- XXX We can use a polymorphic vector implemented by Array# to represent the
@@ -705,6 +729,11 @@ splitOnSeq
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m =
     IsStream.fromStreamD $ D.splitOnSeq patt f (IsStream.toStreamD m)
+-- XXX This may have a problem if the stream terminates and we start extracting
+-- the fold and then the fold terminates before consuming all the buffered
+-- input.  We have no way to supply the buffered input back to the driver.
+-- splitOnSeq patt f =
+    -- foldManyPost (Fold.takeEndBySeq_ patt f)
 
 ------------------------------------------------------------------------------
 -- Zipping
