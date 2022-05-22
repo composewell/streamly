@@ -38,8 +38,7 @@ import Text.Read
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 
 import qualified Streamly.Internal.Data.Stream.Common as P
     (cmpBy, eqBy, foldl', foldr, fromList, toList)
@@ -63,13 +62,13 @@ import Prelude hiding (map, repeat, zipWith)
 
 {-# INLINE zipWithMK #-}
 zipWithMK :: Monad m =>
-    (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+    (a -> b -> m c) -> K.Stream m a -> K.Stream m b -> K.Stream m c
 zipWithMK f m1 m2 =
     D.toStreamK $ D.zipWithM f (D.fromStreamK m1) (D.fromStreamK m2)
 
 {-# INLINE zipWithK #-}
 zipWithK :: Monad m
-    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+    => (a -> b -> c) -> K.Stream m a -> K.Stream m b -> K.Stream m c
 zipWithK f = zipWithMK (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
@@ -94,7 +93,7 @@ zipWithK f = zipWithMK (\a b -> return (f a b))
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
+newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: K.Stream m a}
         deriving (Semigroup, Monoid)
 
 -- | An IO stream whose applicative instance zips streams serially.
@@ -112,7 +111,7 @@ NFDATA1_INSTANCE(ZipSerialM)
 
 instance Monad m => Functor (ZipSerialM m) where
     {-# INLINE fmap #-}
-    fmap f (ZipSerialM m) = ZipSerialM $ getSerialT $ fmap f (SerialT m)
+    fmap f (ZipSerialM m) = ZipSerialM $ getSerialT $ fmap f (Stream m)
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . getSerialT . Serial.repeat

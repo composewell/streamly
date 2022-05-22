@@ -48,7 +48,7 @@ where
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Array.Foreign (Array)
-import Streamly.Prelude (SerialT)
+import Streamly.Prelude (SerialT(..))
 
 #if defined(CABAL_OS_DARWIN)
 import Streamly.Internal.FileSystem.Event.Darwin (Event)
@@ -117,9 +117,9 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 --
 watch :: NonEmpty (Array Word8) -> SerialT IO Event
 #if defined(CABAL_OS_DARWIN)
-watch = Event.watchRecursive
+watch = SerialT . Event.watchRecursive
 #else
-watch = Event.watch
+watch = SerialT . Event.watch
 #endif
 
 -- | Like 'watch' except that if a watched path is a directory the whole
@@ -130,7 +130,7 @@ watch = Event.watch
 -- /Pre-release/
 --
 _watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
-_watchRecursive = Event.watchRecursive
+_watchRecursive = SerialT . Event.watchRecursive
 
 -------------------------------------------------------------------------------
 -- Handling Events

@@ -97,7 +97,6 @@ import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents, touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD, adapt)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -975,7 +974,7 @@ encodeUtf8Lax = encodeUtf8
 -- /Internal/
 {-# INLINE encodeObject #-}
 encodeObject :: MonadIO m =>
-       (SerialT m Char -> SerialT m Word8)
+       (Serial.Stream m Char -> Serial.Stream m Word8)
     -> Unfold m a Char
     -> a
     -> m (Array Word8)
@@ -987,7 +986,7 @@ encodeObject encode u = S.fold Array.write . encode . S.unfold u
 -- /Internal/
 {-# INLINE encodeObjects #-}
 encodeObjects :: (MonadIO m, IsStream t) =>
-       (SerialT m Char -> SerialT m Word8)
+       (Serial.Stream m Char -> Serial.Stream m Word8)
     -> Unfold m a Char
     -> t m a
     -> t m (Array Word8)
@@ -999,7 +998,7 @@ encodeObjects encode u = adapt . Serial.mapM (encodeObject encode u) . adapt
 -- @since 0.8.0
 {-# INLINE encodeStrings #-}
 encodeStrings :: (MonadIO m, IsStream t) =>
-    (SerialT m Char -> SerialT m Word8) -> t m String -> t m (Array Word8)
+    (Serial.Stream m Char -> Serial.Stream m Word8) -> t m String -> t m (Array Word8)
 encodeStrings encode = encodeObjects encode Unfold.fromList
 
 {-

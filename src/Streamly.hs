@@ -104,7 +104,8 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    , SerialT(..)
+    , Stream(..)
     , WSerialT
 
     -- ** Speculative Streams
@@ -205,6 +206,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 -- XXX provide good succinct examples of pipelining, merging, splitting etc.
 -- below.
@@ -343,7 +345,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 -- | Same as "Streamly.Prelude.runStream".
 --
 {-# DEPRECATED runStream "Please use Streamly.Prelude.drain instead." #-}
-runStream :: Monad m => SerialT m a -> m ()
+runStream :: Monad m => Serial.Stream m a -> m ()
 runStream = P.drain
 
 {-
@@ -591,7 +593,7 @@ forEachWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> f a -> (
 forEachWith = P.concatForFoldableWith
 
 {-# DEPRECATED serially "Please use 'Streamly.Prelude.fromSerial' instead." #-}
-serially :: IsStream t => SerialT m a -> t m a
+serially :: IsStream t => Serial.Stream m a -> t m a
 serially = fromSerial
 
 {-# DEPRECATED wSerially "Please use 'Streamly.Prelude.fromWSerial' instead." #-}

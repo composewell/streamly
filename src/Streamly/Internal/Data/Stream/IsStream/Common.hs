@@ -75,7 +75,7 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, fromStreamS, toStreamS)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
@@ -198,7 +198,7 @@ repeatM = K.repeatMWith IsStream.consM
 
 {-# RULES "repeatM serial" repeatM = repeatMSerial #-}
 {-# INLINE repeatMSerial #-}
-repeatMSerial :: MonadAsync m => m a -> SerialT m a
+repeatMSerial :: MonadAsync m => m a -> Stream m a
 repeatMSerial = fromStreamS . S.repeatM
 
 ------------------------------------------------------------------------------
@@ -280,7 +280,7 @@ relTimesWith = fmap snd . timesWith
 --
 -- /Internal/
 {-# INLINE foldContinue #-}
-foldContinue :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
+foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
 foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
@@ -306,13 +306,13 @@ foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 --
 -- @since 0.7.0
 {-# INLINE fold #-}
-fold :: Monad m => Fold m a b -> SerialT m a -> m b
+fold :: Monad m => Fold m a b -> Stream m a -> m b
 fold fl strm = do
     (b, _) <- foldBreak fl strm
     return $! b
 
 {-# INLINE foldBreak #-}
-foldBreak :: Monad m => Fold m a b -> SerialT m a -> m (b, SerialT m a)
+foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
 foldBreak fl strm = do
     (b, str) <- D.foldBreak fl $ IsStream.toStreamD strm
     return $! (b, IsStream.fromStreamD str)

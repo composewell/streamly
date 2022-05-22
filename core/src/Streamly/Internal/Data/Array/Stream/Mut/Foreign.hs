@@ -34,7 +34,7 @@ import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (Stream(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
@@ -52,9 +52,9 @@ import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 -- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Storable a)
-    => Int -> SerialT m a -> SerialT m (Array a)
-arraysOf n (SerialT xs) =
-    SerialT $ D.toStreamK $ MArray.arraysOf n $ D.fromStreamK xs
+    => Int -> Stream m a -> Stream m (Array a)
+arraysOf n (Stream xs) =
+    Stream $ D.toStreamK $ MArray.arraysOf n $ D.fromStreamK xs
 
 -------------------------------------------------------------------------------
 -- Compact
@@ -192,9 +192,9 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 -- /Internal/
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
-    => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compact n (SerialT xs) =
-    SerialT $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+compact n (Stream xs) =
+    Stream $ D.toStreamK $ packArraysChunksOf n (D.fromStreamK xs)
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
@@ -300,9 +300,9 @@ compactGEFold n = Fold step initial extract
 --
 -- /Internal/
 compactLE :: (MonadThrow m, MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactLE n (SerialT xs) =
-    SerialT $ D.toStreamK $ D.parseMany (compactLEParserD n) (D.fromStreamK xs)
+    Int -> Stream m (Array a) -> Stream m (Array a)
+compactLE n (Stream xs) =
+    Stream $ D.toStreamK $ D.parseMany (compactLEParserD n) (D.fromStreamK xs)
 
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
@@ -310,7 +310,7 @@ compactLE n (SerialT xs) =
 -- /Unimplemented/
 {-# INLINE compactEQ #-}
 compactEQ :: -- (MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
+    Int -> Stream m (Array a) -> Stream m (Array a)
 compactEQ _n _xs = undefined
     -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
 
@@ -321,6 +321,6 @@ compactEQ _n _xs = undefined
 {-# INLINE compactGE #-}
 compactGE ::
        (MonadIO m, Storable a)
-    => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compactGE n (SerialT xs) =
-     SerialT $ D.toStreamK $ D.foldMany (compactGEFold n) (D.fromStreamK xs)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+compactGE n (Stream xs) =
+     Stream $ D.toStreamK $ D.foldMany (compactGEFold n) (D.fromStreamK xs)

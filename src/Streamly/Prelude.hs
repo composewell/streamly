@@ -873,7 +873,7 @@ module Streamly.Prelude
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    , SerialT(..)
     , WSerialT
 
     -- ** Speculative Streams

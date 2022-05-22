@@ -76,8 +76,8 @@ import Streamly.Internal.Data.Stream.Serial.Type
 -- /Pre-release/
 --
 {-# INLINE mapM #-}
-mapM :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
-mapM f (SerialT m) = SerialT $ D.toStreamK $ D.mapM f $ D.fromStreamK m
+mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
+mapM f (Stream m) = Stream $ D.toStreamK $ D.mapM f $ D.fromStreamK m
 
 -- |
 -- @
@@ -94,13 +94,13 @@ mapM f (SerialT m) = SerialT $ D.toStreamK $ D.mapM f $ D.fromStreamK m
 -- /Pre-release/
 --
 {-# INLINE map #-}
-map :: Monad m => (a -> b) -> SerialT m a -> SerialT m b
+map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = mapM (return . f)
 
 -- | Include only those elements that pass a predicate.
 --
 {-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> SerialT m a -> SerialT m a
+filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 filter p = fromStreamD . D.filter p . toStreamD
 
 -- | Use a filtering fold on a stream.
@@ -111,5 +111,5 @@ filter p = fromStreamD . D.filter p . toStreamD
 -- /Pre-release/
 --
 {-# INLINE foldFilter #-}
-foldFilter :: Monad m => Fold m a (Maybe b) -> SerialT m a -> SerialT m b
+foldFilter :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
 foldFilter p = fromStreamD . D.foldFilter p . toStreamD

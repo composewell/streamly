@@ -67,8 +67,8 @@ import Streamly.Internal.Data.Stream.Serial.Type
 -- /Pre-release/
 --
 {-# INLINE cons #-}
-cons :: a -> SerialT m a -> SerialT m a
-cons x (SerialT ms) = SerialT $ K.cons x ms
+cons :: a -> Stream m a -> Stream m a
+cons x (Stream ms) = Stream $ K.cons x ms
 
 -- | Constructs a stream by adding a monadic action at the head of an
 -- existing stream. For example:
@@ -83,9 +83,9 @@ cons x (SerialT ms) = SerialT $ K.cons x ms
 -- /Pre-release/
 --
 {-# INLINE consM #-}
-{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
-consM :: Monad m => m a -> SerialT m a -> SerialT m a
-consM m (SerialT ms) = SerialT $ K.consM m ms
+{-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m (Stream ms) = Stream $ K.consM m ms
 
 -- |
 -- Generate an infinite stream by repeating a pure value.
@@ -93,8 +93,8 @@ consM m (SerialT ms) = SerialT $ K.consM m ms
 -- /Pre-release/
 --
 {-# INLINE_NORMAL repeat #-}
-repeat :: Monad m => a -> SerialT m a
-repeat = SerialT . D.toStreamK . D.repeat
+repeat :: Monad m => a -> Stream m a
+repeat = Stream . D.toStreamK . D.repeat
 
 ------------------------------------------------------------------------------
 -- Combining
@@ -114,7 +114,7 @@ repeat = SerialT . D.toStreamK . D.repeat
 -- /Pre-release/
 --
 {-# INLINE serial #-}
-serial :: SerialT m a -> SerialT m a -> SerialT m a
+serial :: Stream m a -> Stream m a -> Stream m a
 serial = (<>)
 
 -- | Build a stream by unfolding a /monadic/ step function starting from a
@@ -139,5 +139,5 @@ serial = (<>)
 -- /Pre-release/
 --
 {-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
+unfoldrM step seed = Stream $ D.toStreamK (D.unfoldrM step seed)

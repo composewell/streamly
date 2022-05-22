@@ -34,5 +34,5 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- /Pre-release/
 --
 {-# INLINE drain #-}
-drain :: Monad m => SerialT m a -> m ()
-drain (SerialT m) = P.drain m
+drain :: Monad m => Stream m a -> m ()
+drain (Stream m) = P.drain m

@@ -43,7 +43,7 @@ import System.IO (stdin, stdout, stderr)
 import Prelude hiding (read)
 
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Fold (Fold)
 
@@ -72,7 +72,7 @@ read = Unfold.lmap (\() -> stdin) Handle.read
 -- /Pre-release/
 --
 {-# INLINE getBytes #-}
-getBytes :: MonadIO m => SerialT m Word8
+getBytes :: MonadIO m => Stream m Word8
 getBytes = Handle.getBytes stdin
 
 -- | Read a character stream from Utf8 encoded standard input.
@@ -82,7 +82,7 @@ getBytes = Handle.getBytes stdin
 -- /Pre-release/
 --
 {-# INLINE getChars #-}
-getChars :: MonadIO m => SerialT m Char
+getChars :: MonadIO m => Stream m Char
 getChars = Unicode.decodeUtf8 getBytes
 
 -- | Unfolds standard input into a stream of 'Word8' arrays.
@@ -102,7 +102,7 @@ readChunks = Unfold.lmap (\() -> stdin) Handle.readChunks
 -- /Pre-release/
 --
 {-# INLINE getChunks #-}
-getChunks :: MonadIO m => SerialT m (Array Word8)
+getChunks :: MonadIO m => Stream m (Array Word8)
 getChunks = Handle.getChunks stdin
 
 {-
@@ -114,7 +114,7 @@ getChunks = Handle.getChunks stdin
 -- /Pre-release/
 --
 {-# INLINE getChunksLn #-}
-getChunksLn :: MonadIO m => SerialT m (Array Word8)
+getChunksLn :: MonadIO m => Stream m (Array Word8)
 getChunksLn = (Stream.splitWithSuffix (== '\n') f) getChars
 
     -- XXX Need to implement Fold.unfoldMany, should be easy for
@@ -149,7 +149,7 @@ writeErr = Handle.write stderr
 -- /Pre-release/
 --
 {-# INLINE putBytes #-}
-putBytes :: MonadIO m => SerialT m Word8 -> m ()
+putBytes :: MonadIO m => Stream m Word8 -> m ()
 putBytes = Handle.putBytes stdout
 
 -- | Encode a character stream to Utf8 and write it to standard output.
@@ -159,7 +159,7 @@ putBytes = Handle.putBytes stdout
 -- /Pre-release/
 --
 {-# INLINE putChars #-}
-putChars :: MonadIO m => SerialT m Char -> m ()
+putChars :: MonadIO m => Stream m Char -> m ()
 putChars = putBytes . Unicode.encodeUtf8
 
 -- | Fold a stream of @Array Word8@ to standard output.
@@ -184,7 +184,7 @@ writeErrChunks = Handle.writeChunks stderr
 -- /Pre-release/
 --
 {-# INLINE putChunks #-}
-putChunks :: MonadIO m => SerialT m (Array Word8) -> m ()
+putChunks :: MonadIO m => Stream m (Array Word8) -> m ()
 putChunks = Handle.putChunks stdout
 
 -------------------------------------------------------------------------------
@@ -203,7 +203,7 @@ putChunks = Handle.putChunks stdout
 --
 {-# INLINE putStringsWith #-}
 putStringsWith :: MonadIO m
-    => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
+    => (Stream m Char -> Stream m Word8) -> Stream m String -> m ()
 putStringsWith encode = putChunks . Unicode.encodeStrings encode
 
 -- | Write a stream of strings to standard output using UTF8 encoding.  Output
@@ -212,7 +212,7 @@ putStringsWith encode = putChunks . Unicode.encodeStrings encode
 -- /Pre-release/
 --
 {-# INLINE putStrings #-}
-putStrings :: MonadIO m => SerialT m String -> m ()
+putStrings :: MonadIO m => Stream m String -> m ()
 putStrings = putStringsWith Unicode.encodeUtf8
 
 -- | Like 'putStrings' but adds a newline at the end of each string.
@@ -222,7 +222,7 @@ putStrings = putStringsWith Unicode.encodeUtf8
 -- /Pre-release/
 --
 {-# INLINE putStringsLn #-}
-putStringsLn :: MonadIO m => SerialT m String -> m ()
+putStringsLn :: MonadIO m => Stream m String -> m ()
 putStringsLn =
       putChunks
     . Stream.intersperseSuffix (return $ Array.fromList [10])

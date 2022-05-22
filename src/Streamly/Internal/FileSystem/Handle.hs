@@ -128,7 +128,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
@@ -426,7 +426,7 @@ putChunk h Array{..} =
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}
-putChunks :: MonadIO m => Handle -> SerialT m (Array a) -> m ()
+putChunks :: MonadIO m => Handle -> Stream m (Array a) -> m ()
 putChunks h = S.mapM_ (putChunk h)
 
 -- XXX AS.compact can be written idiomatically in terms of foldMany, just like
@@ -441,7 +441,7 @@ putChunks h = S.mapM_ (putChunk h)
 -- @since 0.9.0
 {-# INLINE putChunksWith #-}
 putChunksWith :: (MonadIO m, Storable a)
-    => Int -> Handle -> SerialT m (Array a) -> m ()
+    => Int -> Handle -> Stream m (Array a) -> m ()
 putChunksWith n h xs = putChunks h $ AS.compact n xs
 
 -- | @putBytesWith bufsize handle stream@ writes @stream@ to @handle@
@@ -452,7 +452,7 @@ putChunksWith n h xs = putChunks h $ AS.compact n xs
 --
 -- @since 0.9.0
 {-# INLINE putBytesWith #-}
-putBytesWith :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
 putBytesWith n h m = putChunks h $ S.arraysOf n m
 
 -- putBytesWith n h m = putChunks h $ AS.arraysOf n m
@@ -467,7 +467,7 @@ putBytesWith n h m = putChunks h $ S.arraysOf n m
 --
 -- @since 0.7.0
 {-# INLINE putBytes #-}
-putBytes :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+putBytes :: MonadIO m => Handle -> Stream m Word8 -> m ()
 putBytes = putBytesWith defaultChunkSize
 
 -- | Write a stream of arrays to a handle. Each array in the stream is written
@@ -580,7 +580,7 @@ consumer = consumerWith defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
@@ -611,7 +611,7 @@ readUtf8 = decodeUtf8 . read
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8 #-}
-writeUtf8 :: MonadIO m => Handle -> SerialT m Char -> m ()
+writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8 h s = write h $ encodeUtf8 s
 
 -- | Write a stream of unicode characters after encoding to UTF-8 in chunks
@@ -664,13 +664,13 @@ writeByFrames = undefined
 -- gets exceeded.
 {-# INLINE writeByChunksOrSessionsOf #-}
 writeByChunksOrSessionsOf :: MonadIO m
-    => Int -> Double -> Handle -> SerialT m Word8 -> m ()
+    => Int -> Double -> Handle -> Stream m Word8 -> m ()
 writeByChunksOrSessionsOf chunkSize sessionSize h m = undefined
 
 -- | Write collecting the input in sessions of n seconds or if defaultChunkSize
 -- gets exceeded.
 {-# INLINE writeBySessionsOf #-}
-writeBySessionsOf :: MonadIO m => Double -> Handle -> SerialT m Word8 -> m ()
+writeBySessionsOf :: MonadIO m => Double -> Handle -> Stream m Word8 -> m ()
 writeBySessionsOf n = writeByChunksOrSessionsOf defaultChunkSize n
 
 -------------------------------------------------------------------------------

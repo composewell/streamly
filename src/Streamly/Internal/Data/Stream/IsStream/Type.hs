@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , foldStream
 
     -- * Stream Types
-    , SerialT
+    , SerialT(..)
     , Serial
     , fromSerial
 
@@ -460,19 +460,19 @@ foldStream st yld sng stp m =
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-fromSerial :: IsStream t => SerialT m a -> t m a
+fromSerial :: IsStream t => Serial.Stream m a -> t m a
 fromSerial = adapt
 
-instance IsStream SerialT where
-    toStream = getSerialT
-    fromStream = SerialT
+instance IsStream Serial.Stream where
+    toStream = Serial.getSerialT
+    fromStream = Serial.Stream
 
     {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+    {-# SPECIALIZE consM :: IO a -> Serial.Stream IO a -> Serial.Stream IO a #-}
     consM = Serial.consM
 
     {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
+    {-# SPECIALIZE (|:) :: IO a -> Serial.Stream IO a -> Serial.Stream IO a #-}
     (|:) = Serial.consM
 
 -- | Fix the type of a polymorphic stream as 'WSerialT'.
