@@ -177,6 +177,7 @@ module Streamly.Internal.Data.Fold
     , takeEndBy
     , takeEndBy_
     , takeEndBySeq
+    , takeEndBySeq_
     {-
     , drop
     , dropWhile
@@ -289,7 +290,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
-import Data.Bits (shiftL, (.|.), (.&.))
+import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -1499,6 +1500,163 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                     SplitOnSeqKR s _ _ _ -> s
                     SplitOnSeqKRLoop s _ _ _ -> s
          in fextract st
+
+-- | Like 'takeEndBySeq' but discards the matched sequence.
+--
+-- /Pre-release/
+--
+{-# INLINE takeEndBySeq_ #-}
+takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a) =>
+       Array.Array a
+    -> Fold m a b
+    -> Fold m a b
+takeEndBySeq_ patArr (Fold fstep finitial fextract) =
+    Fold step initial extract
+
+    where
+
+    patLen = Array.length patArr
+
+    initial = do
+        res <- finitial
+        case res of
+            Partial acc
+                | patLen == 0 ->
+                    -- XXX Should we match nothing or everything on empty
+                    -- pattern?
+                    -- Done <$> fextract acc
+                    return $ Partial $ SplitOnSeqEmpty acc
+                | patLen == 1 -> do
+                    pat <- liftIO $ Array.unsafeIndexIO 0 patArr
+                    return $ Partial $ SplitOnSeqSingle acc pat
+                -- XXX Need to add tests for this case
+                | SIZE_OF(a) * patLen <= sizeOf (undefined :: Word) ->
+                    return $ Partial $ SplitOnSeqWord acc 0 0
+                | otherwise -> do
+                    (rb, rhead) <- liftIO $ Ring.new patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 rb rhead
+            Done b -> return $ Done b
+
+    -- Word pattern related
+    maxIndex = patLen - 1
+
+    elemBits = SIZE_OF(a) * 8
+
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    -- For Rabin-Karp search
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    -- XXX shall we use a random starting hash or 1 instead of 0?
+    -- XXX Need to keep this cached across fold calls in foldMany
+    -- XXX We may need refold to inject the cached state instead of
+    -- initializing the state every time.
+    -- XXX Allocation of ring buffer should also be done once
+    patHash = Array.foldl' addCksum 0 patArr
+
+    step (SplitOnSeqEmpty s) x = do
+        res <- fstep s x
+        case res of
+            Partial s1 -> return $ Partial $ SplitOnSeqEmpty s1
+            Done b -> return $ Done b
+    step (SplitOnSeqSingle s pat) x = do
+        if pat /= x
+        then do
+            res <- fstep s x
+            case res of
+                Partial s1 -> return $ Partial $ SplitOnSeqSingle s1 pat
+                Done b -> return $ Done b
+        else Done <$> fextract s
+    step (SplitOnSeqWord s idx wrd) x = do
+        let wrd1 = addToWord wrd x
+        if idx == maxIndex
+        then do
+            if wrd1 .&. wordMask == wordPat
+            then Done <$> fextract s
+            else return $ Partial $ SplitOnSeqWordLoop s wrd1
+        else return $ Partial $ SplitOnSeqWord s (idx + 1) wrd1
+    step (SplitOnSeqWordLoop s wrd) x = do
+        let wrd1 = addToWord wrd x
+            old = (wordMask .&. wrd)
+                    `shiftR` (elemBits * (patLen - 1))
+        res <- fstep s (toEnum $ fromIntegral old)
+        case res of
+            Partial s1
+                | wrd1 .&. wordMask == wordPat ->
+                    Done <$> fextract s1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+            Done b -> return $ Done b
+    step (SplitOnSeqKR s idx rb rh) x = do
+        rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+        if idx == maxIndex
+        then do
+            let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
+            let !ringHash = fld addCksum 0 rb
+            if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+            then Done <$> fextract s
+            else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
+        else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
+    step (SplitOnSeqKRLoop s cksum rb rh) x = do
+        old <- liftIO $ peek rh
+        res <- fstep s old
+        case res of
+            Partial s1 -> do
+                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                let ringHash = deltaCksum cksum old x
+                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                then Done <$> fextract s1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+            Done b -> return $ Done b
+
+    -- XXX extract should return backtrack count as well. If the fold
+    -- terminates early inside extract, we may still have buffered data
+    -- remaining which will be lost if we do not communicate that to the
+    -- driver.
+    extract state = do
+        let consumeWord s n wrd = do
+                if n == 0
+                then fextract s
+                else do
+                    let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+                    r <- fstep s (toEnum $ fromIntegral old)
+                    case r of
+                        Partial s1 -> consumeWord s1 (n - 1) wrd
+                        Done b -> return b
+
+        let consumeRing s n rb rh =
+                if n == 0
+                then fextract s
+                else do
+                    old <- liftIO $ peek rh
+                    let rh1 = Ring.advance rb rh
+                    r <- fstep s old
+                    case r of
+                        Partial s1 -> consumeRing s1 (n - 1) rb rh1
+                        Done b -> return b
+
+        case state of
+            SplitOnSeqEmpty s -> fextract s
+            SplitOnSeqSingle s _ -> fextract s
+            SplitOnSeqWord s idx wrd -> consumeWord s idx wrd
+            SplitOnSeqWordLoop s wrd -> consumeWord s patLen wrd
+            SplitOnSeqKR s idx rb _ -> consumeRing s idx rb (Ring.startOf rb)
+            SplitOnSeqKRLoop s _ rb rh -> consumeRing s patLen rb rh
 
 ------------------------------------------------------------------------------
 -- Distributing
