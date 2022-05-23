@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- First order parsers
     -- * Accumulators
     , fromFold
+    , fromFoldMaybe
     , fromPure
     , fromEffect
     , die
@@ -296,6 +297,43 @@ fromFold (Fold fstep finitial fextract) = Parser step initial fextract
             $ case res of
                   FL.Partial s1 -> Partial 0 s1
                   FL.Done b -> Done 0 b
+
+-- | Convert Maybe returning folds to error returning parsers.
+--
+-- /Pre-release/
+--
+{-# INLINE fromFoldMaybe #-}
+fromFoldMaybe :: MonadThrow m => Fold m a (Maybe b) -> Parser m a b
+fromFoldMaybe (Fold fstep finitial fextract) = Parser step initial extract
+    where
+
+    errMsg = "Parse Error!"
+
+    initial = do
+        res <- finitial
+        return
+            $ case res of
+                  FL.Partial s1 -> IPartial s1
+                  FL.Done b ->
+                        case b of
+                            Just x -> IDone x
+                            Nothing -> IError errMsg
+
+    step s a = do
+        res <- fstep s a
+        return
+            $ case res of
+                  FL.Partial s1 -> Partial 0 s1
+                  FL.Done b ->
+                        case b of
+                            Just x -> Done 0 x
+                            Nothing -> Error errMsg
+
+    extract s = do
+        res <- fextract s
+        case res of
+            Just x -> return x
+            Nothing -> throwM $ ParseError errMsg
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
