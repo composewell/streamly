@@ -45,6 +45,9 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , foldBreak
     , foldContinue
 
+    -- * Running a 'Parser'
+    , parseContinue
+
     -- * Right Folds
     , foldrT
     , foldrM
@@ -108,6 +111,7 @@ import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Parser.ParserD.Type as PD
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 ------------------------------------------------------------------------------
@@ -322,6 +326,34 @@ foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
             Stop -> return $ FL.Partial fs
+
+{-# INLINE_NORMAL parseContinue #-}
+parseContinue :: Monad m => PD.Parser m a b -> Stream m a -> PD.Parser m a b
+parseContinue (PD.Parser stepL initialL extractL) (Stream sstep state) =
+    PD.Parser stepL initial extractL
+
+    where
+
+    initial = do
+        res <- initialL
+        case res of
+            PD.IPartial ps -> go SPEC ps state 0
+            PD.IDone b -> return $ PD.IDone b
+            PD.IError s -> return $ PD.IError s
+
+    {-# INLINE go #-}
+    go !_ !ps st i = do
+        r <- sstep defState st
+        case r of
+            Yield x s -> do
+                res <- stepL ps x
+                case res of
+                    PD.Continue n ps1 -> go SPEC ps1 s n
+                    PD.Partial n ps1 -> go SPEC ps1 s n
+                    PD.Done _n b -> return $ PD.IDone b
+                    PD.Error msg -> return $ PD.IError msg
+            Skip s -> go SPEC ps s i
+            Stop -> return $ PD.IPartial ps
 
 ------------------------------------------------------------------------------
 -- Right Folds
