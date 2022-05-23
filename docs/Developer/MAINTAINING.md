@@ -112,23 +112,26 @@
 
 * _Copyrights and Contibutors_
 
-    * Make sure contributors to the release are listed in
-      `docs/CONTRIBUTORS.md`.
-    * Bump the release version in `docs/CONTRIBUTORS.md`.
+    * Make sure contributors to the release are listed in `docs/CONTRIBUTORS.md`
+      under the current release title.
     * Make sure any third party code included in the release has been listed in
       `docs/Credits.md` and the license is added to the repo.
 
 * _Update changelog & Version_:
 
-    * Find API changes using `cabal-diff streamly 0.8.2 .` and record
-      them in docs/API-changelog.txt.
+    * Find API changes using `cabal-diff streamly <previous-release-version> .`
+      and record them in docs/API-changelog.txt.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
-    * Bump the package version in configure.ac and run autoreconf
+    * Make sure the package version in configure.ac has the correct release
+      version, else set the version correctly and run autoreconf. This might
+      need to be done on a minor release.
     * Change the `Unreleased` section at the top of changelog file to the new
       release version number and the month/year of publishing.
-    * Bump the package version in cabal file or package.yaml
+    * Make sure the package version in the cabal file and package.yaml has the
+      correct release version, else set the version correctly. This might need
+      to be done on a minor release.
     * Bump the package version in any docs/links, use something like
       `rg '0\.8\.'|grep -v -i since` to find any remaining occurrences of the
       old release.  Check `rg -i unreleased` for any remaining todos.
@@ -166,6 +169,14 @@
         * Check https://matrix.hackage.haskell.org/package/streamly
         * Check haddocks on Hackage, upload if not built
         * Announce to haskell-cafe@haskell.org
+
+### Post Release Tasks
+
+* _Bump package version_:
+    * After a major release, bump the package version in cabal file or
+      package.yaml to the next major release target.
+    * Bump the package version in configure.ac to the next major release target
+      and run autoreconf.
 
 ## Breaking Changes
 
