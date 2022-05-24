@@ -156,6 +156,12 @@ splitOnSuffixSeq str inh =
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
 #endif
 
+-- | Split on suffix sequence.
+splitWithSuffixSeq :: String -> Handle -> IO Int
+splitWithSuffixSeq str inh =
+    S.length $ IP.splitWithSuffixSeq (toarr str) FL.drain
+        $ S.unfold FH.read inh -- >>= print
+
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
     [ bgroup "split"
@@ -185,6 +191,8 @@ o_1_space_reduce_read_split env =
             splitOnSeq "\r\n" inh
         , mkBench "S.splitOnSuffixSeq \"\\r\\n\" FL.drain" env $ \inh _ ->
             splitOnSuffixSeq "\r\n" inh
+        , mkBench "S.splitWithSuffixSeq \"\\r\\n\" FL.drain" env $ \inh _ ->
+            splitWithSuffixSeq "\r\n" inh
         , mkBench "S.splitOnSeq \"aa\" FL.drain" env $ \inh _ ->
             splitOnSeq "aa" inh
         , mkBench "S.splitOnSeq \"aaaa\" FL.drain" env $ \inh _ ->
@@ -201,6 +209,8 @@ o_1_space_reduce_read_split env =
             env $ \inh _ -> splitOnSeq100k inh
         , mkBenchSmall "S.splitOnSuffixSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
             env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBenchSmall "S.splitWithSuffixSeq \"abcdefghijklmnopqrstuvwxyz\" FL.drain"
+            env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
 
