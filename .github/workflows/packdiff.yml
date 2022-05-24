@@ -1,0 +1,38 @@
+name: Packdiff
+
+on: pull_request
+
+jobs:
+  packdiff:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Download ghc
+      run: |
+        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/0.1.17.4/x86_64-linux-ghcup-0.1.17.4
+        chmod +x ./ghcup
+        GHCVER=8.10.7
+        ./ghcup install ghc $GHCVER
+        ./ghcup set ghc $GHCVER
+        cabal update
+
+    - uses: actions/cache@v2
+      name: Cache ~/.cabal
+      with:
+        path: |
+            ~/.cabal
+        # Bump the key version to clear the cache
+        key: cache-v1
+
+    - name: Checkout the current branch
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Run packdiff on streamly-core
+      run: cabal run packdiff --project-file=cabal.project.packdiff -- streamly-core $(git rev-parse origin/master) $(git rev-parse HEAD)
+
+    - name: Run packdiff on streamly
+      run: cabal run packdiff --project-file=cabal.project.packdiff -- streamly $(git rev-parse origin/master) $(git rev-parse HEAD)
