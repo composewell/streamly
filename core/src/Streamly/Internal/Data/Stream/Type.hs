@@ -15,6 +15,41 @@ module Streamly.Internal.Data.Stream.Type
     , toStreamK
     , fromStreamD
     , toStreamD
+
+    -- * Construction
+    , cons
+    , consM
+    , (.:)
+    , nil
+    , nilM
+    , fromPure
+    , fromEffect
+    , append
+
+    -- * Bind/Concat
+    , bindWith
+    , concatMapWith
+
+    -- * Fold Utilities
+    , concatFoldableWith
+    , concatMapFoldableWith
+    , concatForFoldableWith
+
+    -- * Fold operations
+    , foldrM
+    , foldrMx
+    , foldr
+
+    , foldlx'
+    , foldlMx'
+    , foldl'
+
+    -- * Conversion operations
+    , fromList
+    , toList
+    -- * Zip style operations
+    , eqBy
+    , cmpBy
     )
 where
 
@@ -44,12 +79,14 @@ import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
+import Prelude hiding (repeat)
+
 #include "Instances.hs"
 #include "inline.hs"
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
@@ -177,3 +214,253 @@ LIST_INSTANCES(Stream)
 NFDATA1_INSTANCE(Stream)
 FOLDABLE_INSTANCE(Stream)
 TRAVERSABLE_INSTANCE(Stream)
+
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
+
+infixr 5 `cons`
+
+-- | Construct a stream by adding a pure value at the head of an existing
+-- stream. Same as the following but more efficient:
+--
+-- For example:
+--
+-- >> s = 1 `Stream.cons` 2 `Stream.cons` 3 `Stream.cons` Stream.nil
+-- >> Stream.fold Fold.toList s
+-- >[1,2,3]
+--
+-- >>> cons x xs = return x `Stream.consM` xs
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL cons #-}
+cons ::  a -> Stream m a -> Stream m a
+cons x = fromStreamK . K.cons x . toStreamK
+
+-- | Constructs a stream by adding a monadic action at the head of an
+-- existing stream. For example:
+--
+-- @
+-- > toList $ getLine \`consM` getLine \`consM` nil
+-- hello
+-- world
+-- ["hello","world"]
+-- @
+--
+-- > consM x xs = fromEffect x `append` xs
+--
+-- /Pre-release/
+--
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m = fromStreamK . K.consM m . toStreamK
+
+infixr 5 .:
+
+-- | Operator equivalent of 'cons'.
+--
+-- @
+-- > toList $ 1 .: 2 .: 3 .: nil
+-- [1,2,3]
+-- @
+--
+-- @since 0.1.1
+{-# INLINE (.:) #-}
+(.:) ::  a -> Stream m a -> Stream m a
+(.:) = cons
+
+{-# INLINE_NORMAL nil #-}
+nil ::  Stream m a
+nil = Stream K.nil
+
+{-# INLINE_NORMAL nilM #-}
+nilM :: (Monad m) => m b -> Stream m a
+nilM = Stream . K.nilM
+
+{-# INLINE_NORMAL fromPure #-}
+fromPure :: a -> Stream m a
+fromPure = Stream . K.fromPure
+
+{-# INLINE_NORMAL fromEffect #-}
+fromEffect :: Monad m => m a -> Stream m a
+fromEffect = Stream . K.fromEffect
+
+-------------------------------------------------------------------------------
+-- Bind/Concat
+-------------------------------------------------------------------------------
+
+{-# INLINE bindWith #-}
+bindWith
+    :: (Stream m b -> Stream m b -> Stream m b)
+    -> Stream m a
+    -> (a -> Stream m b)
+    -> Stream m b
+bindWith par m1 f =
+    Stream
+        $ K.bindWith
+            (\s1 s2 -> toStreamK $ par (Stream s1) (Stream s2))
+            (toStreamK m1)
+            (toStreamK . f)
+
+-- | @concatMapWith mixer generator stream@ is a two dimensional looping
+-- combinator.  The @generator@ function is used to generate streams from the
+-- elements in the input @stream@ and the @mixer@ function is used to merge
+-- those streams.
+--
+-- Note we can merge streams concurrently by using a concurrent merge function.
+--
+-- /Since: 0.7.0/
+--
+-- /Since: 0.8.0 (signature change)/
+{-# INLINE concatMapWith #-}
+concatMapWith
+    :: (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> Stream m a
+    -> Stream m b
+concatMapWith par f xs = bindWith par xs f
+
+-- | A variant of 'foldMap' that allows you to map a monadic streaming action
+-- on a 'Foldable' container and then fold it using the specified stream merge
+-- operation.
+--
+-- @concatMapFoldableWith 'async' return [1..3]@
+--
+-- Equivalent to:
+--
+-- @
+-- concatMapFoldableWith f g = Prelude.foldr (f . g) K.nil
+-- concatMapFoldableWith f g xs = K.concatMapWith f g (K.fromFoldable xs)
+-- @
+--
+-- /Since: 0.8.0 (Renamed foldMapWith to concatMapFoldableWith)/
+--
+-- /Since: 0.1.0 ("Streamly")/
+{-# INLINE concatMapFoldableWith #-}
+concatMapFoldableWith :: Foldable f
+    => (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> f a
+    -> Stream m b
+concatMapFoldableWith f g = Prelude.foldr (f . g) nil
+
+-- | Like 'concatMapFoldableWith' but with the last two arguments reversed i.e. the
+-- monadic streaming function is the last argument.
+--
+-- Equivalent to:
+--
+-- @
+-- concatForFoldableWith f xs g = Prelude.foldr (f . g) K.nil xs
+-- concatForFoldableWith f = flip (K.concatMapFoldableWith f)
+-- @
+--
+-- /Since: 0.8.0 (Renamed forEachWith to concatForFoldableWith)/
+--
+-- /Since: 0.1.0 ("Streamly")/
+{-# INLINE concatForFoldableWith #-}
+concatForFoldableWith :: Foldable f
+    => (Stream m b -> Stream m b -> Stream m b)
+    -> f a
+    -> (a -> Stream m b)
+    -> Stream m b
+concatForFoldableWith f = flip (concatMapFoldableWith f)
+
+-- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
+-- container of streams using the specified stream sum operation.
+--
+-- @concatFoldableWith 'async' $ map return [1..3]@
+--
+-- Equivalent to:
+--
+-- @
+-- concatFoldableWith f = Prelude.foldr f K.nil
+-- concatFoldableWith f = K.concatMapFoldableWith f id
+-- @
+--
+-- /Since: 0.8.0 (Renamed foldWith to concatFoldableWith)/
+--
+-- /Since: 0.1.0 ("Streamly")/
+{-# INLINE concatFoldableWith #-}
+concatFoldableWith :: Foldable f
+    => (Stream m a -> Stream m a -> Stream m a)
+    -> f (Stream m a)
+    -> Stream m a
+concatFoldableWith f = concatMapFoldableWith f id
+
+------------------------------------------------------------------------------
+-- Folds
+------------------------------------------------------------------------------
+
+{-# INLINE foldrM #-}
+foldrM ::  (a -> m b -> m b) -> m b -> Stream m a -> m b
+foldrM step acc m = K.foldrM step acc $ toStreamK m
+
+{-# INLINE foldrMx #-}
+foldrMx :: (Monad m)
+    => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
+foldrMx step final project m = D.foldrMx step final project $ toStreamD m
+
+-- | Like 'foldlx'', but with a monadic step function.
+--
+-- @since 0.7.0
+{-# INLINE foldlMx' #-}
+foldlMx' ::
+    (Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
+foldlMx' step begin done m = P.foldlMx' step begin done $ toStreamK m
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- @since 0.7.0
+{-# INLINE foldlx' #-}
+foldlx' ::
+    (Monad m) => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
+foldlx' step begin done m = K.foldlx' step begin done $ toStreamK m
+
+------------------------------------------------------------------------------
+-- Comparison
+------------------------------------------------------------------------------
+
+-- | Compare two streams for equality
+--
+-- @since 0.5.3
+{-# INLINE eqBy #-}
+eqBy :: (Monad m) =>
+    (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
+eqBy f m1 m2 = D.eqBy f (toStreamD m1) (toStreamD m2)
+
+-- | Compare two streams
+--
+-- @since 0.5.3
+{-# INLINE cmpBy #-}
+cmpBy
+    :: (Monad m)
+    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
+cmpBy f m1 m2 = D.cmpBy f (toStreamD m1) (toStreamD m2)
+
+------------------------------------------------------------------------------
+-- Combining
+------------------------------------------------------------------------------
+
+infixr 6 `append`
+
+-- | Appends two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> s1 = Stream.unfold Unfold.fromList [1,2]
+-- >>> s2 = Stream.unfold Unfold.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
+-- [1,2,3,4]
+--
+-- This operation can be used to fold an infinite lazy container of streams.
+--
+-- /Pre-release/
+--
+{-# INLINE append #-}
+append :: Stream m a -> Stream m a -> Stream m a
+append = (<>)

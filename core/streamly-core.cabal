@@ -308,6 +308,12 @@ library
                      , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
+                     , Streamly.Internal.Data.Stream.Bottom
+                     , Streamly.Internal.Data.Stream.Exception
+                     , Streamly.Internal.Data.Stream.Expand
+                     , Streamly.Internal.Data.Stream.Lift
+                     , Streamly.Internal.Data.Stream.Reduce
+
 
                      -- streamly-core-data-arrays
                      -- XXX Depends on primitive
