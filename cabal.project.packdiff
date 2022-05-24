@@ -1,0 +1,23 @@
+packages:
+    streamly.cabal
+    core/streamly-core.cabal
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/packdiff.git
+  tag: master
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-shell.git
+  tag: master
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-coreutils.git
+  tag: master
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-process.git
+  tag: master
