@@ -192,6 +192,11 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Parser.hs
     core/src/Streamly/Internal/Data/Pipe.hs
     core/src/Streamly/Internal/Data/Stream/Serial.hs
+    core/src/Streamly/Internal/Data/Stream.hs
+    core/src/Streamly/Internal/Data/Stream/Eliminate.hs
+    core/src/Streamly/Internal/Data/Stream/Generate.hs
+    core/src/Streamly/Internal/Data/Stream/Transform.hs
+    core/src/Streamly/Internal/Data/Stream/Type.hs
     core/src/Streamly/Internal/Data/Stream/WSerial.hs
     core/src/Streamly/Internal/Data/Stream/Zip.hs
     core/src/Streamly/Internal/Data/List.hs
@@ -600,6 +605,11 @@ library
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
+                     , Streamly.Internal.Data.Stream
+                     , Streamly.Internal.Data.Stream.Eliminate
+                     , Streamly.Internal.Data.Stream.Generate
+                     , Streamly.Internal.Data.Stream.Transform
+                     , Streamly.Internal.Data.Stream.Type
 
                      -- streamly-core-data-arrays
                      -- XXX Depends on primitive

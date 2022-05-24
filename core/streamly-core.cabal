@@ -199,6 +199,7 @@ library
     include-dirs:
           src
         , src/Streamly/Internal/Data/Array
+        , src/Streamly/Internal/Data/Stream
 
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
@@ -293,6 +294,11 @@ library
                      , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
+                     , Streamly.Internal.Data.Stream
+                     , Streamly.Internal.Data.Stream.Eliminate
+                     , Streamly.Internal.Data.Stream.Generate
+                     , Streamly.Internal.Data.Stream.Transform
+                     , Streamly.Internal.Data.Stream.Type
 
                      -- streamly-core-data-arrays
                      -- XXX Depends on primitive
