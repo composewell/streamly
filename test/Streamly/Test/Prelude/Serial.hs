@@ -16,6 +16,7 @@ import Data.IORef ( newIORef, readIORef, writeIORef, modifyIORef' )
 import Data.Int (Int64)
 import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
+import Data.Word (Word8)
 import Foreign.Storable (Storable)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
@@ -290,6 +291,21 @@ splitterProperties sep desc = do
             listEquals (==) lys xss
             listEquals (==) sys xss
 
+intercalateSplitOnId ::
+       forall a. (Arbitrary a, Eq a, Show a, Num a) =>
+       a -> String -> Spec
+intercalateSplitOnId x desc =
+    prop (desc <> " intercalate [x] . splitOn (== x) == id") $
+        forAll listWithZeroes $ \xs -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    ys <- S.toList $ S.splitOn (== x) toListFL (S.fromList xs)
+                    listEquals (==) (intercalate [x] ys) xs
+
+    where
+
+    listWithZeroes :: Gen [a]
+    listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
 
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
@@ -299,20 +315,9 @@ groupSplitOps desc = do
 
     -- splitting properties
     splitterProperties (0 :: Int) desc
-    -- XXX This will fail
-    -- splitterProperties (0 :: Word8) desc
-
-    prop (desc <> " intercalate [x] . splitOn (== x) == id") $
-        forAll listWithZeroes $ \xs -> do
-            withMaxSuccess maxTestCount $
-                monadicIO $ do
-                    ys <- S.toList $ S.splitOn (== 0) toListFL (S.fromList xs)
-                    listEquals (==) (intercalate [0] ys) xs
-
-    where
-
-    listWithZeroes :: Gen [Int]
-    listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
+    splitterProperties (0 :: Word8) desc
+    intercalateSplitOnId (0 :: Int) desc
+    intercalateSplitOnId (0 :: Word8) desc
 
 -- |
 -- After grouping (and folding) Int stream using @>@ operation,
