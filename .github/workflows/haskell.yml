@@ -185,7 +185,12 @@ jobs:
         chmod +x ./ghcup
         if test "$GHCVER" = "head"
         then
-          ./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-deb10-linux-integer-simple.tar.xz?job=validate-x86_64-linux-deb10-integer-simple head
+          # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
+          # Find a debian10 job, click on a passed/failed job, at the
+          # end of the output you will find the tar.xz name, put that after
+          # "raw/", and put the job name after "job=".
+          # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
+          ./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate head
         else
           ./ghcup install ghc $GHCVER
         fi
