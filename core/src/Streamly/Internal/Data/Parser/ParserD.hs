@@ -1901,14 +1901,79 @@ sepBy
 -------------------------------------------------------------------------------
 --
 -- | See 'Streamly.Internal.Data.Parser.sequence'.
---
--- /Unimplemented/
---
 {-# INLINE sequence #-}
-sequence ::
-    -- Foldable t =>
-    Fold m b c -> t (Parser m a b) -> Parser m a c
-sequence _f _p = undefined
+sequence :: MonadThrow m =>
+    Fold m b c -> D.Stream m (Parser m a b) -> Parser m a c
+sequence (Fold fstep finitial fextract) (D.Stream sstep sstate) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        fres <- finitial
+        case fres of
+            FL.Partial fs -> return $ IPartial (Nothing', sstate, fs)
+            FL.Done c -> return $ IDone c
+
+    -- state does not contain any parser
+    -- yield a new parser from the stream
+    step (Nothing', ss, fs) _ = do
+        sres <- sstep defState ss
+        case sres of
+            D.Yield p ss1 -> return $ Continue 1 (Just' p, ss1, fs)
+            D.Stop -> do
+                c <- fextract fs
+                return $ Done 1 c
+            D.Skip ss1 -> return $ Continue 1 (Nothing', ss1, fs)
+
+    -- state holds a parser that may or may not have been
+    -- initialized. pinit holds the initial parser state
+    -- or modified parser state respectively
+    step (Just' (Parser pstep pinit pextr), ss, fs) a = do
+        ps <- pinit
+        case ps of
+            IPartial ps1 -> do
+                pres <- pstep ps1 a
+                case pres of
+                    Partial n ps2 ->
+                        let newP =
+                              Just' $ Parser pstep (return $ IPartial ps2) pextr
+                        in return $ Partial n (newP, ss, fs)
+                    Continue n ps2 ->
+                        let newP =
+                              Just' $ Parser pstep (return $ IPartial ps2) pextr
+                        in return $ Continue n (newP, ss, fs)
+                    Done n b -> do
+                        fres <- fstep fs b
+                        case fres of
+                            FL.Partial fs1 ->
+                                return $ Partial n (Nothing', ss, fs1)
+                            FL.Done c -> return $ Done n c
+                    Error msg -> return $ Error msg
+            IDone b -> do
+                fres <- fstep fs b
+                case fres of
+                    FL.Partial fs1 ->
+                        return $ Partial 1 (Nothing', ss, fs1)
+                    FL.Done c -> return $ Done 1 c
+            IError err -> return $ Error err
+
+    extract (Nothing', _, fs) = fextract fs
+    extract (Just' (Parser _ pinit pextr), _, fs) = do
+        ps <- pinit
+        case ps of
+            IPartial ps1 ->  do
+                b <- pextr ps1
+                fres <- fstep fs b
+                case fres of
+                    FL.Partial fs1 -> fextract fs1
+                    FL.Done c -> return c
+            IDone b -> do
+                fres <- fstep fs b
+                case fres of
+                    FL.Partial fs1 -> fextract fs1
+                    FL.Done c -> return c
+            IError err -> throwM $ ParseError err
 
 -------------------------------------------------------------------------------
 -- Alternative Collection

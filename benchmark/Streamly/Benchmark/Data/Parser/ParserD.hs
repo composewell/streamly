@@ -32,6 +32,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Gauge
 import Streamly.Prelude (SerialT, MonadAsync, IsStream)
@@ -196,6 +197,10 @@ longestAllAny value =
             (drainWhile (<= value))
         )
 
+{-# INLINE sequenceParser #-}
+sequenceParser :: MonadCatch m => SerialT m Int -> m ()
+sequenceParser = IP.parseD (PR.sequence FL.drain (D.repeat (PR.satisfy $ const True)))
+
 -------------------------------------------------------------------------------
 -- Spanning
 -------------------------------------------------------------------------------
@@ -337,6 +342,7 @@ o_1_space_serial value =
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
+    , benchIOSink value "sequenceParser" sequenceParser
     ]
 
 o_1_space_serial_spanning :: Int -> [Benchmark]

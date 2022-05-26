@@ -245,10 +245,12 @@ import Prelude hiding
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
+import Streamly.Internal.Data.Stream.Serial (SerialT(getSerialT))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as SD
 
 --
 -- $setup
@@ -1193,19 +1195,22 @@ takeP i p = D.toParserK $ D.takeP i $ D.fromParserK p
 -- Sequential Collection
 -------------------------------------------------------------------------------
 --
--- | @concatSequence f t@ collects sequential parses of parsers in the
--- container @t@ using the fold @f@. Fails if the input ends or any of the
--- parsers fail.
+-- | @concatSequence f p@ collects sequential parses of parsers in a
+-- serial stream @p@ using the fold @f@. Fails if the input ends or any
+-- of the parsers fail.
 --
--- This is same as 'Data.Traversable.sequence' but more efficient.
+-- An even more efficient implementation can use ParserD type Parser in
+-- the SerialT stream.
 --
--- /Unimplemented/
+-- /Pre-release/
 --
 {-# INLINE concatSequence #-}
 concatSequence ::
-    -- Foldable t =>
-    Fold m b c -> t (Parser m a b) -> Parser m a c
-concatSequence _f _p = undefined
+    MonadCatch m =>
+    Fold m b c -> SerialT m (Parser m a b) -> Parser m a c
+concatSequence f p =
+    let sp = fmap D.fromParserK $ SD.fromStreamK $ getSerialT p
+        in D.toParserK $ D.sequence f sp
 
 -- | Map a 'Parser' returning function on the result of a 'Parser'.
 --

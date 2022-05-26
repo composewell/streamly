@@ -413,6 +413,10 @@ parseBreak s = do
         Left (_ :: SomeException) -> return ()
         Right (_, s1) -> parseBreak s1
 
+{-# INLINE concatSequence #-}
+concatSequence :: MonadCatch m => SerialT m Int -> m ()
+concatSequence = IP.parse $ PR.concatSequence FL.drain $ S.repeat PR.one
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -455,6 +459,7 @@ o_1_space_serial value =
     , benchIOSink value "parseMany (take all)" (parseMany value)
     , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
     , benchIOSink value "parseIterate (take all)" (parseIterate value)
+    , benchIOSink value "concatSequence" concatSequence
     ]
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]

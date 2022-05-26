@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Exception (SomeException(..))
 import Data.Word (Word8, Word32, Word64)
-import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
+import Streamly.Test.Common (listEquals, checkListEqual, chooseInt, equals)
 import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -18,6 +18,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
 
@@ -635,6 +636,18 @@ parseUnfold = do
 
             listEquals (==) xs ls
 
+parserSequence :: Property
+parserSequence =
+  forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
+    monadicIO $ do
+      let parsers = D.fromList
+                $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
+      let sequencedParser = P.sequence FL.sum parsers
+      outs <-
+        run $
+          S.parseD sequencedParser $ S.concatMap S.fromList (S.fromList ins)
+      equals (==) outs (sum $ map sum ins)
+
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
 -------------------------------------------------------------------------------
@@ -720,6 +733,7 @@ main =
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
         prop "parseUnfold" parseUnfold
+        prop "parserSequence" parserSequence
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
