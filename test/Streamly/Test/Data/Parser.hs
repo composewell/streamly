@@ -956,10 +956,7 @@ takeFramedByEsc_Pass =
                                         else
                                             x : helper xs Nothing openMinusClose
                             Just _ ->
-                                if escape x || begin x || end x
-                                then helper xs Nothing openMinusClose
-                                else
-                                    x : helper xs Nothing openMinusClose
+                                x : helper xs Nothing openMinusClose
                     helper [] _ _ = error "Cannot Reach Here"
                 in
                     helper l Nothing (0 :: Int)
