@@ -90,12 +90,14 @@ module Streamly.Internal.Data.Fold
     , toMap
 
     -- ** Terminating Folds
-    -- Element folds
+    -- Element folds. Terminate after inspecting one element. All these can be
+    -- implemented in terms of the 'maybe' fold.
     , head
     , one
     , null
+    , maybe
 
-    -- Sequence folds
+    -- Sequence folds. Terminate after inspecting a sequence of elements.
     , drainN
     -- , lastN
     -- , (!!)
@@ -324,7 +326,7 @@ import Prelude hiding
        , notElem, maximum, minimum, head, last, tail, length, null
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
-       , span, splitAt, break, mapM, zip)
+       , span, splitAt, break, mapM, zip, maybe)
 import Streamly.Internal.Data.Fold.Type
 
 -- $setup
@@ -1021,6 +1023,14 @@ genericIndex i = mkFold step (Partial 0) (const Nothing)
 index :: Monad m => Int -> Fold m a (Maybe a)
 index = genericIndex
 
+-- | Map a 'Maybe' returning function on the next element in the stream.
+--
+-- /Pre-release/
+--
+{-# INLINE maybe #-}
+maybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
+maybe f = mkFold_ (const (Done . f)) (Partial Nothing)
+
 -- Naming notes:
 --
 -- "head" and "next" are two alternative names for the same API. head sounds
@@ -1052,7 +1062,7 @@ index = genericIndex
 --
 {-# INLINE one #-}
 one :: Monad m => Fold m a (Maybe a)
-one = mkFold_ (const (Done . Just)) (Partial Nothing)
+one = maybe Just
 
 -- | Extract the first element of the stream, if any.
 --
