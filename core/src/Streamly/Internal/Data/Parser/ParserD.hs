@@ -303,11 +303,10 @@ fromFold (Fold fstep finitial fextract) = Parser step initial fextract
 -- /Pre-release/
 --
 {-# INLINE fromFoldMaybe #-}
-fromFoldMaybe :: MonadThrow m => Fold m a (Maybe b) -> Parser m a b
-fromFoldMaybe (Fold fstep finitial fextract) = Parser step initial extract
-    where
+fromFoldMaybe :: MonadThrow m => String -> Fold m a (Maybe b) -> Parser m a b
+fromFoldMaybe errMsg (Fold fstep finitial fextract) = Parser step initial extract
 
-    errMsg = "Parse Error!"
+    where
 
     initial = do
         res <- finitial
