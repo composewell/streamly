@@ -90,19 +90,22 @@ module Streamly.Internal.Data.Fold
     , toMap
 
     -- ** Terminating Folds
+    -- Element folds
+    , head
+    , one
+    , null
+
+    -- Sequence folds
     , drainN
     -- , lastN
     -- , (!!)
     , genericIndex
     , index
-    , head
-    , one
     -- , findM
     , find
     , lookup
     , findIndex
     , elemIndex
-    , null
     , elem
     , notElem
     , all
