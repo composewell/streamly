@@ -70,6 +70,8 @@ module Streamly.Internal.Data.Parser
 
     -- * Element parsers
     , peek
+
+    -- All of these can be expressed in terms of either
     , one
     , element
     , except
