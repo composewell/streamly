@@ -57,6 +57,7 @@ module Streamly.Internal.Data.Parser
     -- First order parsers
     -- * Accumulators
     , fromFold
+    , fromFoldMaybe
     , fromPure
     , fromEffect
     , die
@@ -294,6 +295,16 @@ toFold p = D.toFold $ D.fromParserK p
 fromFold :: MonadCatch m => Fold m a b -> Parser m a b
 fromFold = D.toParserK . D.fromFold
 
+-- | Convert a Maybe returning fold to an error returning parser. The first
+-- argument is the error message that the parser would return when the fold
+-- returns Nothing.
+--
+-- /Pre-release/
+--
+{-# INLINE fromFoldMaybe #-}
+fromFoldMaybe :: MonadCatch m => String -> Fold m a (Maybe b) -> Parser m a b
+fromFoldMaybe err = D.toParserK . D.fromFoldMaybe err
+
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
 -------------------------------------------------------------------------------
@@ -498,6 +509,8 @@ next = D.toParserK D.next
 --
 -- >>> toEither = Maybe.maybe (Left "maybe: predicate failed") Right
 -- >>> maybe f = Parser.either (toEither . f)
+--
+-- >>> maybe f = Parser.fromFoldMaybe "maybe: predicate failed" (Fold.maybe f)
 --
 -- /Pre-release/
 --
