@@ -26,42 +26,23 @@ import Prelude hiding (map, mapM, filter)
 --
 -- $setup
 -- >>> :m
--- >>> import Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
---
--- >>> hSetBuffering stdout LineBuffering
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
 ------------------------------------------------------------------------------
 
 -- |
--- @
--- mapM f = sequence . map f
--- @
+-- >> mapM f = Stream.sequence . Stream.map f
 --
 -- Apply a monadic function to each element of the stream and replace it with
 -- the output of the resulting action.
 --
--- @
--- > drain $ Stream.mapM putStr $ Stream.fromList ["a", "b", "c"]
+-- >>> s = Stream.unfold Unfold.fromList ["a", "b", "c"]
+-- >>> Stream.fold Fold.drain $ Stream.mapM putStr s
 -- abc
---
--- > :{
---    drain $ Stream.replicateM 10 (return 1)
---      & (fromSerial . Stream.mapM (\x -> threadDelay 1000000 >> print x))
--- :}
--- 1
--- ...
--- 1
---
--- > drain $ Stream.replicateM 10 (return 1)
---  & (fromAsync . Stream.mapM (\x -> threadDelay 1000000 >> print x))
--- @
---
--- /Concurrent (do not use with 'fromParallel' on infinite streams)/
 --
 -- /Pre-release/
 --
@@ -70,16 +51,13 @@ mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f = Stream.fromStreamD . StreamD.mapM f . Stream.toStreamD
 
 -- |
--- @
--- map = fmap
--- @
+-- >>> map = fmap
 --
 -- Same as 'fmap'.
 --
--- @
--- > S.toList $ S.map (+1) $ S.fromList [1,2,3]
+-- >>> s = Stream.unfold Unfold.fromList [1,2,3]
+-- >>> Stream.fold Fold.toList $ Stream.map (+1) s
 -- [2,3,4]
--- @
 --
 -- /Pre-release/
 --
@@ -95,8 +73,12 @@ filter p = Stream.fromStreamD . StreamD.filter p . Stream.toStreamD
 
 -- | Use a filtering fold on a stream.
 --
--- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
--- 40
+-- >>> :{
+--    Stream.fold Fold.sum
+--  $ Stream.foldFilter (Fold.maybe (\x -> if x > 5 then Just x else Nothing))
+--  $ Stream.unfold Unfold.fromList [1..10]
+--  :}
+--40
 --
 -- /Pre-release/
 --

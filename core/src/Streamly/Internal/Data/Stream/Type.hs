@@ -48,24 +48,28 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #include "inline.hs"
 
 -- $setup
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- Stream
 ------------------------------------------------------------------------------
 
--- | For 'Stream' streams:
+-- | Semigroup instance appends two streams:
 --
--- @
--- (<>) = 'Streamly.Prelude.serial'                       -- 'Semigroup'
--- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.serial' -- 'Monad'
--- @
+-- > (<>) = Stream.append
 --
--- A single 'Monad' bind behaves like a @for@ loop:
+-- Monad bind maps a stream generator function on the stream and flattens the
+-- resulting stream:
+--
+-- > (>>=) = flip . Stream.concatMapWith Stream.append
+--
+-- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.toList $ do
---      x <- Stream.fromList [1,2] -- foreach x in stream
+-- Stream.fold Fold.toList $ do
+--      x <- Stream.unfold Unfold.fromList [1,2] -- foreach x in stream
 --      return x
 -- :}
 -- [1,2]
@@ -73,16 +77,14 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.toList $ do
---     x <- Stream.fromList [1,2] -- foreach x in stream
---     y <- Stream.fromList [3,4] -- foreach y in stream
+-- Stream.fold Fold.toList $ do
+--     x <- Stream.unfold Unfold.fromList [1,2] -- foreach x in stream
+--     y <- Stream.unfold Unfold.fromList [3,4] -- foreach y in stream
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
+-- @since 0.9.0
 newtype Stream m a = Stream (K.Stream m a)
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid, MonadTrans)
