@@ -1,32 +1,27 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Transform
 -- Copyright   : (c) 2017 Composewell Technologies
---
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Stream.Transform
-(
-  filter
-, foldFilter
-, map
-, mapM
-)
+    (
+      filter
+    , foldFilter
+    , map
+    , mapM
+    )
 where
 
 import Streamly.Internal.Data.Fold.Type (Fold)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as StreamD
 
-import Prelude hiding (map, mapM, repeat, filter)
-
-import Streamly.Internal.Data.Stream.Type
-
-#include "Instances.hs"
-#include "inline.hs"
+import Prelude hiding (map, mapM, filter)
 
 --
 -- $setup
@@ -72,7 +67,7 @@ import Streamly.Internal.Data.Stream.Type
 --
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
-mapM f (Stream m) = Stream $ D.toStreamK $ D.mapM f $ D.fromStreamK m
+mapM f = Stream.fromStreamD . StreamD.mapM f . Stream.toStreamD
 
 -- |
 -- @
@@ -96,7 +91,7 @@ map f = mapM (return . f)
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-filter p = fromStreamD . D.filter p . toStreamD
+filter p = Stream.fromStreamD . StreamD.filter p . Stream.toStreamD
 
 -- | Use a filtering fold on a stream.
 --
@@ -107,4 +102,4 @@ filter p = fromStreamD . D.filter p . toStreamD
 --
 {-# INLINE foldFilter #-}
 foldFilter :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
-foldFilter p = fromStreamD . D.foldFilter p . toStreamD
+foldFilter p = Stream.fromStreamD . StreamD.foldFilter p . Stream.toStreamD

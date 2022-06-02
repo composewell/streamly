@@ -1,7 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Generate
 -- Copyright   : (c) 2017 Composewell Technologies
---
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -11,9 +10,7 @@ module Streamly.Internal.Data.Stream.Generate
     (
       cons
     , consM
-    , repeat
-    , serial
-    , unfoldrM
+    , append
     )
 where
 
@@ -23,16 +20,10 @@ import Data.Semigroup (Semigroup(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
+import Streamly.Internal.Data.Stream.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-
-import Prelude hiding (map, mapM, repeat, filter)
-
-import Streamly.Internal.Data.Stream.Type
-
-#include "inline.hs"
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as StreamK
 
 -- $setup
 -- >>> :m
@@ -56,7 +47,7 @@ import Streamly.Internal.Data.Stream.Type
 --
 {-# INLINE cons #-}
 cons :: a -> Stream m a -> Stream m a
-cons x (Stream ms) = Stream $ K.cons x ms
+cons x = Stream.fromStreamK . StreamK.cons x . Stream.toStreamK
 
 -- | Constructs a stream by adding a monadic action at the head of an
 -- existing stream. For example:
@@ -68,21 +59,14 @@ cons x (Stream ms) = Stream $ K.cons x ms
 -- ["hello","world"]
 -- @
 --
+-- > consM x xs = fromEffect x `append` xs
+--
 -- /Pre-release/
 --
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
 consM :: Monad m => m a -> Stream m a -> Stream m a
-consM m (Stream ms) = Stream $ K.consM m ms
-
--- |
--- Generate an infinite stream by repeating a pure value.
---
--- /Pre-release/
---
-{-# INLINE_NORMAL repeat #-}
-repeat :: Monad m => a -> Stream m a
-repeat = Stream . D.toStreamK . D.repeat
+consM m = Stream.fromStreamK . StreamK.consM m . Stream.toStreamK
 
 ------------------------------------------------------------------------------
 -- Combining
@@ -91,41 +75,16 @@ repeat = Stream . D.toStreamK . D.repeat
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
--- >>> import Streamly.Internal.Data.Stream (serial)
+-- >>> import Streamly.Internal.Data.Stream (append)
 -- >>> stream1 = Stream.fromList [1,2]
 -- >>> stream2 = Stream.fromList [3,4]
--- >>> Stream.toList $ stream1 `serial` stream2
+-- >>> Stream.toList $ stream1 `append` stream2
 -- [1,2,3,4]
 --
 -- This operation can be used to fold an infinite lazy container of streams.
 --
 -- /Pre-release/
 --
-{-# INLINE serial #-}
-serial :: Stream m a -> Stream m a -> Stream m a
-serial = (<>)
-
--- | Build a stream by unfolding a /monadic/ step function starting from a
--- seed.  The step function returns the next element in the stream and the next
--- seed value. When it is done it returns 'Nothing' and the stream ends. For
--- example,
---
--- @
--- let f b =
---         if b > 3
---         then return Nothing
---         else print b >> return (Just (b, b + 1))
--- in drain $ unfoldrM f 0
--- @
--- @
---  0
---  1
---  2
---  3
--- @
---
--- /Pre-release/
---
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
-unfoldrM step seed = Stream $ D.toStreamK (D.unfoldrM step seed)
+{-# INLINE append #-}
+append :: Stream m a -> Stream m a -> Stream m a
+append = (<>)

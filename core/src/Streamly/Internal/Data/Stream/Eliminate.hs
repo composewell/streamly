@@ -1,7 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Eliminate
 -- Copyright   : (c) 2017 Composewell Technologies
---
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -9,30 +8,38 @@
 --
 module Streamly.Internal.Data.Stream.Eliminate
     (
-      drain
+     fold
     )
 where
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
+import Streamly.Internal.Data.Fold.Type (Fold)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.Common as P
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 
-import Streamly.Internal.Data.Stream.Type
-
-import Prelude hiding (map, mapM, repeat, filter)
-
-#include "inline.hs"
-
--- |
--- > drain = mapM_ (\_ -> return ())
--- > drain = Stream.fold Fold.drain
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
 --
--- Run a stream serially, discarding the results.
+-- >>> Stream.foldWith Fold.sum (Stream.enumerateFromTo 1 100)
+-- 5050
+--
+-- Folds never fail, therefore, they produce a default value even when no input
+-- is provided. It means we can always fold an empty stream and get a valid
+-- result.  For example:
+--
+-- >>> Stream.fold Fold.sum Stream.nil
+-- 0
+--
+-- However, 'foldMany' on an empty stream results in an empty stream.
+-- Therefore, @Stream.foldWith f@ is not the same as @Stream.head . Stream.foldMany
+-- f@.
+--
+-- @fold f = Stream.parse (Parser.fromFold f)@
 --
 -- /Pre-release/
---
-{-# INLINE drain #-}
-drain :: Monad m => Stream m a -> m ()
-drain (Stream m) = P.drain m
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> Stream m a -> m b
+fold fld = StreamD.fold fld . Stream.toStreamD
