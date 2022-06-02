@@ -77,6 +77,7 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , fromFoldableM
     , fromCallback
     , fromPrimIORef
+    , fromStorableIORef
 
     -- * Deprecated
     , yield
@@ -91,6 +92,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Primitive.Types (Prim)
 import Data.Void (Void)
+import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 import Streamly.Internal.Data.SVar (Rate (..))
@@ -107,6 +109,7 @@ import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Storable as Storable
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
@@ -661,3 +664,12 @@ fromCallback setCallback = concatM $ do
 {-# INLINE fromPrimIORef #-}
 fromPrimIORef :: (IsStream t, MonadIO m, Prim a) => Prim.IORef a -> t m a
 fromPrimIORef = fromStreamD . Prim.toStreamD
+
+-- | Construct a stream by reading a 'Storable' 'IORef' repeatedly.
+--
+-- /Pre-release/
+--
+{-# INLINE fromStorableIORef #-}
+fromStorableIORef ::
+       (IsStream t, MonadIO m, Storable a) => Storable.IORef a -> t m a
+fromStorableIORef = fromStreamD . Storable.toStreamD
