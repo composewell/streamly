@@ -41,6 +41,7 @@ where
 
 #include "inline.hs"
 
+import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable, peekByteOff, pokeByteOff, sizeOf)
 import GHC.Exts ( MutableByteArray#, Ptr(..), RealWorld
@@ -56,6 +57,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 -- | An 'IORef' holds a single 'Storable' value.
 data IORef a = IORef (MutableByteArray# RealWorld)
 
+instance NFData (IORef a) where
+    rnf (IORef _) = ()
 
 {-# INLINE toPtr #-}
 toPtr :: IORef a -> Ptr a

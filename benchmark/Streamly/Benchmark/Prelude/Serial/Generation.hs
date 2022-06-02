@@ -12,11 +12,15 @@
 module Serial.Generation (benchmarks) where
 
 import Data.Functor.Identity (Identity)
+import System.Random (randomRIO)
 
 import qualified Prelude
 import qualified GHC.Exts as GHC
 
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Generate
+import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Storable as Storable
 
 import Gauge
 import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
@@ -115,6 +119,22 @@ fromIndices value n = S.take value $ S.fromIndices (+ n)
 fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 
+{-# INLINE fromPrimIORef #-}
+fromPrimIORef :: Int -> Benchmark
+fromPrimIORef size =
+    env (Prim.newIORef (1 :: Int)) $ \ref ->
+        bench "fromPrimIORef" $ nfIO $ do
+            val <- randomRIO (size, size)
+            S.drain $ S.take val $ Generate.fromPrimIORef ref
+
+{-# INLINE fromStorableIORef #-}
+fromStorableIORef :: Int -> Benchmark
+fromStorableIORef size =
+    env (Storable.newIORef (1 :: Int)) $ \ref ->
+        bench "fromStorableIORef" $ nfIO $ do
+            val <- randomRIO (size, size)
+            S.drain $ S.take val $ Generate.fromStorableIORef ref
+
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
@@ -149,6 +169,8 @@ o_1_space_generation value =
         , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
 
         , benchIOSrc fromSerial "absTimes" $ absTimes value
+        , fromPrimIORef value
+        , fromStorableIORef value
         ]
     ]
 

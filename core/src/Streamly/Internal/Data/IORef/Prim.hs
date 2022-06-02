@@ -41,6 +41,7 @@ where
 
 #include "inline.hs"
 
+import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Primitive (primitive_)
 import Data.Primitive.Types (Prim, sizeOf#, readByteArray#, writeByteArray#)
@@ -51,6 +52,9 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | An 'IORef' holds a single 'Prim' value.
 data IORef a = IORef (MutableByteArray# RealWorld)
+
+instance NFData (IORef a) where
+    rnf (IORef _) = ()
 
 -- | Create a new 'IORef'.
 --
