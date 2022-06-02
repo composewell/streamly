@@ -258,6 +258,7 @@ library
 
                      -- streamly-core-array-types
                     -- Unboxed IORef
+                     , Streamly.Internal.Data.IORef.Storable
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.IORef.Prim
                      -- May depend on streamly-core-stream
