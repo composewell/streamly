@@ -257,10 +257,8 @@ library
                      , Streamly.Internal.Data.Pipe.Type
 
                      -- streamly-core-array-types
-                    -- Unboxed IORef
+                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Storable
-                     -- XXX Depends on primitive
-                     , Streamly.Internal.Data.IORef.Prim
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Foreign.Mut.Type
                      , Streamly.Internal.Data.Array.Foreign.Mut

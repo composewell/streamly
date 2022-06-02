@@ -19,7 +19,6 @@ import qualified GHC.Exts as GHC
 
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Generate
-import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.IORef.Storable as Storable
 
 import Gauge
@@ -119,14 +118,6 @@ fromIndices value n = S.take value $ S.fromIndices (+ n)
 fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 
-{-# INLINE fromPrimIORef #-}
-fromPrimIORef :: Int -> Benchmark
-fromPrimIORef size =
-    env (Prim.newIORef (1 :: Int)) $ \ref ->
-        bench "fromPrimIORef" $ nfIO $ do
-            val <- randomRIO (size, size)
-            S.drain $ S.take val $ Generate.fromPrimIORef ref
-
 {-# INLINE fromStorableIORef #-}
 fromStorableIORef :: Int -> Benchmark
 fromStorableIORef size =
@@ -169,7 +160,6 @@ o_1_space_generation value =
         , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
 
         , benchIOSrc fromSerial "absTimes" $ absTimes value
-        , fromPrimIORef value
         , fromStorableIORef value
         ]
     ]
