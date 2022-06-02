@@ -149,7 +149,7 @@ import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Storable as Storable
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 
 import Prelude hiding
@@ -350,17 +350,17 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
         -- As long as we are using an "Int" for counts lockfree reads from
         -- Var should work correctly on both 32-bit and 64-bit machines.
         -- However, an Int on a 32-bit machine may overflow quickly.
-        countVar <- liftIO $ Prim.newIORef (0 :: Int)
+        countVar <- liftIO $ Storable.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ fold fld
-            $ transf $ Prim.toStreamD countVar
+            $ transf $ Storable.toStreamD countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                when (predicate x) $ liftIO $ Prim.modifyIORef' countVar (+ 1)
+                when (predicate x) $ liftIO $ Storable.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
             Stop -> do
@@ -381,12 +381,12 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
         i <-
             MC.catch
                 (do liftIO $ threadDelay (round $ samplingRate * 1000000)
-                    i <- liftIO $ Prim.readIORef countVar
+                    i <- liftIO $ Storable.readIORef countVar
                     let !diff = i - prev
                     void $ action diff
                     return i)
                 (\(e :: AsyncException) -> do
-                     i <- liftIO $ Prim.readIORef countVar
+                     i <- liftIO $ Storable.readIORef countVar
                      let !diff = i - prev
                      void $ action diff
                      throwM (MC.toException e))
@@ -394,7 +394,7 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        countVar <- liftIO $ Prim.newIORef 0
+        countVar <- liftIO $ Storable.newIORef 0
         tid <- fork $ loop countVar 0
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref (killThread tid)
@@ -404,7 +404,7 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
         r <- step gst st
         case r of
             Yield x s -> do
-                liftIO $ Prim.modifyIORef' countVar (+ 1)
+                liftIO $ Storable.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s, ref))
             Skip s -> return $ Skip (Just (countVar, tid, s, ref))
             Stop -> do
