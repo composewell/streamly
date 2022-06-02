@@ -23,7 +23,6 @@ module Serial.Transformation (benchmarks) where
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
-import Data.IORef (newIORef, modifyIORef')
 import System.Random (randomRIO)
 
 #ifdef INSPECTION
@@ -139,12 +138,6 @@ sequence t = S.drain . t . S.sequence
 tap :: MonadIO m => Int -> SerialT m Int -> m ()
 tap n = composeN n $ S.tap FL.sum
 
-{-# INLINE tapRate #-}
-tapRate :: Int -> SerialT IO Int -> IO ()
-tapRate n str = do
-    cref <- newIORef 0
-    composeN n (Internal.tapRate 1 (\c -> modifyIORef' cref (c +))) str
-
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> SerialT IO Int -> IO ()
 pollCounts n =
@@ -196,7 +189,6 @@ o_1_space_mapping value =
               sequence fromSerial (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM fromSerial 1)
         , benchIOSink value "tap" (tap 1)
-        , benchIOSink value "tapRate 1 second" (tapRate 1)
         , benchIOSink value "pollCounts 1 second" (pollCounts 1)
         , benchIOSink value "timestamped" timestamped
 

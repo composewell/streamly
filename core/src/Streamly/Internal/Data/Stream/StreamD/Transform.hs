@@ -27,7 +27,6 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Mapping Effects
     , tap
     , tapOffsetEvery
-    , tapRate
     , pollCounts
 
     -- * Folding
@@ -126,21 +125,17 @@ where
 
 #include "inline.hs"
 
-import Control.Concurrent (killThread, threadDelay)
-import Control.Exception (AsyncException)
+import Control.Concurrent (killThread)
 import Control.Monad (void, when)
-import Control.Monad.Catch (MonadCatch, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.IORef (newIORef, mkWeakIORef)
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
-import qualified Control.Monad.Catch as MC
 import qualified Data.Set as Set
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Control.ForkLifted (fork, forkManaged)
+import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
@@ -363,50 +358,6 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
                 when (predicate x) $ liftIO $ Prim.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
-            Stop -> do
-                liftIO $ killThread tid
-                return Stop
-
-{-# INLINE_NORMAL tapRate #-}
-tapRate ::
-       (MonadAsync m, MonadCatch m)
-    => Double
-    -> (Int -> m b)
-    -> Stream m a
-    -> Stream m a
-tapRate samplingRate action (Stream step state) = Stream step' Nothing
-  where
-    {-# NOINLINE loop #-}
-    loop countVar prev = do
-        i <-
-            MC.catch
-                (do liftIO $ threadDelay (round $ samplingRate * 1000000)
-                    i <- liftIO $ Prim.readIORef countVar
-                    let !diff = i - prev
-                    void $ action diff
-                    return i)
-                (\(e :: AsyncException) -> do
-                     i <- liftIO $ Prim.readIORef countVar
-                     let !diff = i - prev
-                     void $ action diff
-                     throwM (MC.toException e))
-        loop countVar i
-
-    {-# INLINE_LATE step' #-}
-    step' _ Nothing = do
-        countVar <- liftIO $ Prim.newIORef 0
-        tid <- fork $ loop countVar 0
-        ref <- liftIO $ newIORef ()
-        _ <- liftIO $ mkWeakIORef ref (killThread tid)
-        return $ Skip (Just (countVar, tid, state, ref))
-
-    step' gst (Just (countVar, tid, st, ref)) = do
-        r <- step gst st
-        case r of
-            Yield x s -> do
-                liftIO $ Prim.modifyIORef' countVar (+ 1)
-                return $ Yield x (Just (countVar, tid, s, ref))
-            Skip s -> return $ Skip (Just (countVar, tid, s, ref))
             Stop -> do
                 liftIO $ killThread tid
                 return Stop

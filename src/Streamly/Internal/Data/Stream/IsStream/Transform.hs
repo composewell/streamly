@@ -33,7 +33,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , tapAsync
     , tapAsyncK
     , distributeAsync_
-    , tapRate
     , pollCounts
 
     -- * Scanning By 'Fold'
@@ -217,7 +216,6 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
@@ -584,33 +582,6 @@ pollCounts predicate transf f xs =
       fromStreamD
     $ D.pollCounts predicate (toStreamD . transf . fromStreamD) f
     $ toStreamD xs
-
--- | Calls the supplied function with the number of elements consumed
--- every @n@ seconds. The given function is run in a separate thread
--- until the end of the stream. In case there is an exception in the
--- stream the thread is killed during the next major GC.
---
--- Note: The action is not guaranteed to run if the main thread exits.
---
--- @
--- > delay n = threadDelay (round $ n * 1000000) >> return n
--- > Stream.toList $ Stream.tapRate 2 (\n -> print $ show n ++ " elements processed") (delay 1 Stream.|: delay 0.5 Stream.|: delay 0.5 Stream.|: Stream.nil)
--- "2 elements processed"
--- [1.0,0.5,0.5]
--- "1 elements processed"
--- @
---
--- Note: This may not work correctly on 32-bit machines.
---
--- /Pre-release/
-{-# INLINE tapRate #-}
-tapRate ::
-       (IsStream t, MonadAsync m, MonadCatch m)
-    => Double
-    -> (Int -> m b)
-    -> t m a
-    -> t m a
-tapRate n f xs = fromStreamD $ D.tapRate n f $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.
