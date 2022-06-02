@@ -1,17 +1,6 @@
 # Benchmarking
 
-## Benchmark Drivers
-
-Two benchmark drivers are supported:
-
-* `tasty-bench` (default)
-* `gauge` (enabled by `--use-gauge` build flag)
-
 ## Build and run benchmarks directly
-
-The benchmark executables are `tasty-bench` executables unless you have
-passed `--use-gauge` cabal flag when building in which case it is a
-`gauge` executable.
 
 ```
 $ cabal run bench:Prelude.Serial  # run selected
@@ -26,53 +15,68 @@ $ cabal build --enable-benchmarks all # build all, alternate method
 $ cabal build --flag "-opt" ... # disable optimization, faster build
 ```
 
-## Building and Running Benchmarks with bench.sh
+## Building and Running Benchmarks with bench-runner
 
-`<streamly repo>/bin/bench.sh` script is the top level driver for
+The executable `bench-runner` is the top level driver for
 running benchmarks. It runs the requested benchmarks and then creates a
 report from the results using the `bench-show` package.
 
-IMPORTANT NOTE:  The first time you run this script it may take a long
+IMPORTANT NOTE:  The first time you run this executable it may take a long
 time because it has to build the `bench-report` executable which has a
-lot of dependencies.  If you are using nix then use `--use-nix` flag
-for the first time so that the `bench-report` executable is built using
-nix. That can save a lot of time compiling it. However, once it is built
-it will be cached in the `bin` directory of the repo and used from
-there every time. You can also build it manually from the cabal file in
-`benchmark/bench-report` and install it in the `bin` directory.
+lot of dependencies.
+
+If you are using nix then use `benchmark/bench-runner/default.nix`. Build it
+manually and install it in the root of the repository like so,
+```
+$ cd benchmark/bench-runner
+$ nix-shell --run 'cabal install bench-runner --installdir=../../  --overwrite-policy=always'
+$ cd ../../
+```
+
+You can also use `cabal.project.report` to directly build an run the `bench-runner` like so,
+```
+$ cabal run bench-runner --project-file=cabal.project.report -- <bench-runner-args>
+```
 
 ## bench.sh: Quick start
+
+Assuming `bench-runner` is the executable. You can replace `bench-runner` with
+`cabal run bench-runner --project-file=cabal.project.report --`
 
 Useful commands:
 
 ```
-$ bin/bench.sh --help
-$ bin/bench.sh --quick # run all the benchmark suites
-$ bin/bench.sh --benchmarks help # Show available benchmark suites
-$ bin/bench.sh --benchmarks serial_grp # Run all serial benchmark suites
-$ bin/bench.sh --benchmarks "Prelude.Serial Data.Parser" # run selected suites
-$ bin/bench.sh --no-measure # don't run benchmarks just show previous results
+$ ./bench-runner --help
+$ ./bench-runner --quick # run all the benchmark suites
+$ ./bench-runner --targets help # Show available benchmark suites
+$ ./bench-runner --targets serial_grp # Run all serial benchmark suites
+$ ./bench-runner --targets "Prelude.Serial Data.Parser" # run selected suites
+$ ./bench-runner --no-measure # don't run benchmarks just show previous results
 
 # Run all O(1) space complexity benchmarks in `Prelude.Serial` suite
-$ bin/bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space
+$ ./bench-runner --targets Prelude.Serial --prefix Prelude.Serial/o-1-space
 
 # Run a specific benchmark in `Prelude.Serial` suite
-$ bin/bench.sh --benchmarks Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
+$ ./bench-runner --targets Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
 ```
 
-Note: `bench.sh` enables fusion-plugin by default.
+Note: `bench-runner` enables fusion-plugin by default.
 
 ## Comparing results with baseline
 
 ```
 # Checkout baseline commit
-$ bin/bench.sh --quick
+$ ./bench-runner --quick
 
 # Checkout commit with new changes
-$ bin/bench.sh --quick --append
+$ ./bench-runner --quick --append
 
 # To add another result to comparisons just repeat the above command on
 # desired commit
+
+# To display the current results without running the benchmarks.
+# See "Reporting without measuring" for more info.
+$ ./bench-runner --no-measure
 ```
 
 ## Comparing benchmark suites
@@ -80,7 +84,7 @@ $ bin/bench.sh --quick --append
 First see the available benchmark suites:
 
 ```
-$ bin/bench.sh --benchmarks help
+$ ./bench-runner --targets help
 ```
 
 You will see some benchmark suites end with `_cmp`, these are comparison
@@ -89,7 +93,7 @@ benchmark suites in that group will be shown in the end. For example to compare
 all array benchmark suites:
 
 ```
-$ bin/bench.sh --benchmarks array_cmp
+$ ./bench-runner --targets array_cmp
 ```
 
 ## Reporting without measuring
@@ -102,7 +106,7 @@ results file, for example the `Prelude.Serial` benchmark has the results file at
 
 You can also manually edit the file to remove a set of results if you like or
 to append results from previously saved results or from some other results
-file. After editing you can run `bench.sh` with the `--no-measure` option to
+file. After editing you can run `bench-runner` with the `--no-measure` option to
 see the reports corresponding to the results.
 
 ## Additional benchmark configuration
@@ -134,7 +138,7 @@ a unicode text file manually.
 To run the unicode benchmarks on valid utf8 input, you can do the following,
 
 ```
-$ Benchmark_FileSystem_Handle_InputFile=<valid-unicode-filepath> bin/bench.sh --benchmarks Unicode.Stream --cabal-build-options "-f include-strict-utf8"
+$ Benchmark_FileSystem_Handle_InputFile=<valid-unicode-filepath> ./bench-runner --benchmarks Unicode.Stream --cabal-build-options "-f include-strict-utf8"
 ```
 
 ## Benchmarking notes
@@ -145,7 +149,8 @@ benchmark.
 
 ### Gotchas
 
-Gauge forces a GC before and after the measurement. However, we have observed
+The benchmark driver forces a GC before and after the measurement.
+However, we have observed
 that sometimes the GC stats may not be accurate when the number of iterations
 in the measurement is small (e.g. 1 iteration).  In such cases usually the
 number of GCs and GC times would also be 0.
@@ -168,10 +173,10 @@ freeze file so that the versions of all libraries are pinned.
 
 There are two ways to find problematic code:
 
-1. Run performance benchmarks using `bench.sh`, select the benchmarks
+1. Run performance benchmarks using `bench-runner`, select the benchmarks
    that are taking more than expected time.
 2. When making a new change, compare with the baseline and select benchmarks
-   with the most regression reported by `bench.sh`.
+   with the most regression reported by `bench-runner`.
 
 Number of allocations are the most stable measure that do not vary from
 run to run. `cpuTime` and `bytesCopied` may vary. When comparing two
