@@ -98,9 +98,14 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- ** To streams
     , ReadUState(..)
     , read
+    , readRev_
     , readRev
 
     -- ** To containers
+    , toStreamD_
+    , toStreamDRev_
+    , toStreamK_
+    , toStreamKRev_
     , toStreamD
     , toStreamDRev
     , toStreamK
@@ -1536,12 +1541,11 @@ producer = Producer step (return . toReadUState) extract
 read :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
 read = Producer.simplify producer
 
--- | Unfold an array into a stream in reverse order.
---
--- /Pre-release/
-{-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
-readRev = Unfold step inject
+{-# INLINE_NORMAL readRev_ #-}
+readRev_ ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Unfold m (Array a) a
+readRev_ liftio = Unfold step inject
     where
 
     inject (Array contents start end _) =
@@ -1550,11 +1554,23 @@ readRev = Unfold step inject
 
     {-# INLINE_LATE step #-}
     step (ReadUState contents start p) | p < start = do
-        liftIO $ touch contents
+        -- Is the following replicated properly?
+        -- let x = unsafeInlineIO $ touch contents
+        -- in x `seq` return D.Stop
+        liftio $ touch contents
         return D.Stop
+        -- unit <- liftio $ touch contents
+        -- unit `seq` return D.Stop
     step (ReadUState contents start p) = do
-        x <- liftIO $ peek p
+        x <- liftio $ peek p
         return $ D.Yield x (ReadUState contents start (PTR_PREV(p,a)))
+
+-- | Unfold an array into a stream in reverse order.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL readRev #-}
+readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
+readRev = readRev_ liftIO
 
 -------------------------------------------------------------------------------
 -- to Lists and streams
@@ -1600,6 +1616,21 @@ toList Array{..} = liftIO $ go arrStart
         touch arrContents
         (:) x <$> go (PTR_NEXT(p,a))
 
+{-# INLINE_NORMAL toStreamD_ #-}
+toStreamD_ ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Array a -> D.Stream m a
+toStreamD_ liftio Array{..} = D.Stream step arrStart
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
+    step _ p = liftio $ do
+        r <- peek p
+        touch arrContents
+        return $ D.Yield r (PTR_NEXT(p,a))
+
 -- | Use the 'read' unfold instead.
 --
 -- @toStreamD = D.unfold read@
@@ -1607,20 +1638,13 @@ toList Array{..} = liftIO $ go arrStart
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
-toStreamD Array{..} = D.Stream step arrStart
+toStreamD arr = toStreamD_ liftIO arr
 
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
-    step _ p = liftIO $ do
-        r <- peek p
-        touch arrContents
-        return $ D.Yield r (PTR_NEXT(p,a))
-
-{-# INLINE toStreamK #-}
-toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
-toStreamK Array{..} = go arrStart
+{-# INLINE toStreamK_ #-}
+toStreamK_ ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Array a -> K.Stream m a
+toStreamK_ liftio Array{..} = go arrStart
 
     where
 
@@ -1630,7 +1654,28 @@ toStreamK Array{..} = go arrStart
               r <- peek p
               touch arrContents
               return r
-        in liftIO elemM `K.consM` go (PTR_NEXT(p,a))
+        in liftio elemM `K.consM` go (PTR_NEXT(p,a))
+
+{-# INLINE toStreamK #-}
+toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
+toStreamK arr = toStreamK_ liftIO arr
+
+{-# INLINE_NORMAL toStreamDRev_ #-}
+toStreamDRev_ ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Array a -> D.Stream m a
+toStreamDRev_ liftio Array{..} =
+    let p = PTR_PREV(aEnd,a)
+    in D.Stream step p
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | p < arrStart = return D.Stop
+    step _ p = liftio $ do
+        r <- peek p
+        touch arrContents
+        return $ D.Yield r (PTR_PREV(p,a))
 
 -- | Use the 'readRev' unfold instead.
 --
@@ -1639,22 +1684,13 @@ toStreamK Array{..} = go arrStart
 -- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
-toStreamDRev Array{..} =
-    let p = PTR_PREV(aEnd,a)
-    in D.Stream step p
+toStreamDRev arr = toStreamDRev_ liftIO arr
 
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | p < arrStart = return D.Stop
-    step _ p = liftIO $ do
-        r <- peek p
-        touch arrContents
-        return $ D.Yield r (PTR_PREV(p,a))
-
-{-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
-toStreamKRev Array {..} =
+{-# INLINE toStreamKRev_ #-}
+toStreamKRev_ ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Array a -> K.Stream m a
+toStreamKRev_ liftio Array {..} =
     let p = PTR_PREV(aEnd,a)
     in go p
 
@@ -1666,7 +1702,11 @@ toStreamKRev Array {..} =
               r <- peek p
               touch arrContents
               return r
-        in liftIO elemM `K.consM` go (PTR_PREV(p,a))
+        in liftio elemM `K.consM` go (PTR_PREV(p,a))
+
+{-# INLINE toStreamKRev #-}
+toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
+toStreamKRev arr = toStreamKRev_ liftIO arr
 
 -------------------------------------------------------------------------------
 -- Folding
