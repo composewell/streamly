@@ -140,6 +140,7 @@ import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Mut as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -181,28 +182,9 @@ fromStream (SerialT m) = P.fold A.write m
 
 {-# INLINE_NORMAL producer #-}
 producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
-producer = Producer step inject extract
-    where
-
-    {-# INLINE inject #-}
-    inject (Array contents start end) = return $ ReadUState contents end start
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState contents end cur)
-        | assert (cur <= end) (cur == end) =
-            let x = unsafeInlineIO $ touch contents
-            in x `seq` return D.Stop
-    step (ReadUState contents end cur) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek cur
-            return $ D.Yield x (ReadUState contents end (PTR_NEXT(cur,a)))
-
-    extract (ReadUState contents end cur) = return $ Array contents cur end
+producer =
+    Producer.lmap2 A.unsafeThaw A.unsafeFreeze
+        $ MA.producerWith (return . unsafeInlineIO)
 
 -- | Unfold an array into a stream.
 --

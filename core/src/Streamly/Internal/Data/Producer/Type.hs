@@ -23,7 +23,7 @@ module Streamly.Internal.Data.Producer.Type
     -- * Mapping
     , translate
     , lmap
-    , lmap_
+    , lmap2
 
     -- * Nesting
     , NestedLoop (..)
@@ -116,9 +116,9 @@ lmap f (Producer step inject extract) = Producer step (inject . f) extract
 -- | Map the producer input using the provided translation functions
 --
 -- /Pre-release/
-{-# INLINE_NORMAL lmap_ #-}
-lmap_ :: Functor m => (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
-lmap_ f g (Producer step inject extract) = Producer step (inject . f) (fmap g . extract)
+{-# INLINE_NORMAL lmap2 #-}
+lmap2 :: Functor m => (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
+lmap2 f g (Producer step inject extract) = Producer step (inject . f) (fmap g . extract)
 
 ------------------------------------------------------------------------------
 -- Functor
