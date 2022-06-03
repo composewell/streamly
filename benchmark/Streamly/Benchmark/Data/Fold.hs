@@ -294,6 +294,7 @@ o_1_space_serial_elimination value =
         , benchIOSink value "drainBy" (S.fold (FL.drainBy return))
         , benchIOSink value "drainN" (S.fold (FL.drainN value))
         , benchIOSink value "last" (S.fold FL.last)
+        , benchIOSink value "nub" (S.fold FL.nub)
         , benchIOSink value "length" (S.fold FL.length)
         , benchIOSink value "top" (S.fold $ FL.top 10)
         , benchIOSink value "bottom" (S.fold $ FL.bottom 10)

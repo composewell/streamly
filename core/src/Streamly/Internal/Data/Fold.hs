@@ -280,6 +280,7 @@ module Streamly.Internal.Data.Fold
     , finish
     , top
     , bottom
+    , nub
 
     -- * Deprecated
     , sequence
@@ -335,7 +336,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> :set -package streamly
 -- >>> import Prelude hiding (break, map, span, splitAt)
 -- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, foldMany)
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (catMaybes, parse, foldMany)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -2562,3 +2563,26 @@ top = topBy $ flip compare
 {-# INLINE bottom #-}
 bottom :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
 bottom = topBy compare
+
+-- | Delete the duplicate elements from the stream while scanning.
+-- It returns (Just a) for new element and Nothing for duplicates ones.
+--
+-- >>> stream = Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
+-- >>> Stream.toList $ Stream.catMaybes $ Stream.postscan Fold.nub stream
+-- [1,2,3,4,5,7]
+--
+-- /Pre-release/
+{-# INLINE nub #-}
+nub :: (MonadIO m, Ord a) => Fold m a (Maybe a)
+nub = Fold step initial extract
+
+    where
+
+    initial = return $ Partial (Set.empty, Nothing)
+
+    step (set, _) x = do
+        if Set.member x set
+        then return $ Partial (set, Nothing)
+        else return $ Partial (Set.insert x set, Just x)
+
+    extract = return . snd

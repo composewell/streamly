@@ -670,6 +670,14 @@ top = topBy True
 bottom :: Property
 bottom = topBy False
 
+nub :: Property
+nub = monadicIO $ do
+    vals <- Stream.toList
+            $ Stream.catMaybes
+            $ Stream.postscan F.nub
+            $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
+    assert (vals == [1, 2, 3, 4, 5, 7])
+
 moduleName :: String
 moduleName = "Data.Fold"
 
@@ -720,6 +728,7 @@ main = hspec $ do
         prop "or" Main.or
         prop "top" Main.top
         prop "bottom" Main.bottom
+        prop "nub" Main.nub
 
         -- Combinators
 
