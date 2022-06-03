@@ -98,14 +98,14 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- ** To streams
     , ReadUState(..)
     , read
-    , readRev_
+    , readRevWith
     , readRev
 
     -- ** To containers
-    , toStreamD_
-    , toStreamDRev_
-    , toStreamK_
-    , toStreamKRev_
+    , toStreamDWith
+    , toStreamDRevWith
+    , toStreamKWith
+    , toStreamKRevWith
     , toStreamD
     , toStreamDRev
     , toStreamK
@@ -113,6 +113,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , toList
 
     -- experimental
+    , producerWith
     , producer
 
     -- ** Random reads
@@ -202,6 +203,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , c_memchr
     )
 where
+
+-- Notes:
+-- When we use a purely lazy Monad like Identity, we need to force ordering of
+-- some actions for correctness.
 
 #include "inline.hs"
 #include "ArrayMacros.h"
@@ -1516,23 +1521,35 @@ data ReadUState a = ReadUState
 toReadUState :: Array a -> ReadUState a
 toReadUState (Array contents start end _) = ReadUState contents end start
 
--- | Resumable unfold of an array.
---
-{-# INLINE_NORMAL producer #-}
-producer :: forall m a. (MonadIO m, Storable a) => Producer m (Array a) a
-producer = Producer step (return . toReadUState) extract
+{-# INLINE_NORMAL producerWith #-}
+producerWith ::
+       forall m a. (Monad m, Storable a)
+    => (forall b. IO b -> m b) -> Producer m (Array a) a
+producerWith liftio = Producer step (return . toReadUState) extract
     where
 
     {-# INLINE_LATE step #-}
     step (ReadUState contents end cur)
-        | assert (cur <= end) (cur == end) = do
-            liftIO $ touch contents
+        | assert (cur <= end) (cur == end) = liftio $ do
+            -- We bind it strictly here as we don't want this to be optimized
+            -- out in a purely lazy monad like Identity.
+            !_ <- touch contents
             return D.Stop
     step (ReadUState contents end cur) = do
-            !x <- liftIO $ peek cur
+            -- When we use a purely lazy Monad like Identity, we need to force a
+            -- few actions for correctness and execution order sanity. We want
+            -- the peek to occur right here and not lazily at some later point
+            -- because we want the peek to be ordered with respect to the touch.
+            !x <- liftio $ peek cur
             return $ D.Yield x (ReadUState contents end (PTR_NEXT(cur,a)))
 
     extract (ReadUState contents end cur) = return $ Array contents cur end end
+
+-- | Resumable unfold of an array.
+--
+{-# INLINE_NORMAL producer #-}
+producer :: forall m a. (MonadIO m, Storable a) => Producer m (Array a) a
+producer = producerWith liftIO
 
 -- | Unfold an array into a stream.
 --
@@ -1541,11 +1558,11 @@ producer = Producer step (return . toReadUState) extract
 read :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
 read = Producer.simplify producer
 
-{-# INLINE_NORMAL readRev_ #-}
-readRev_ ::
+{-# INLINE_NORMAL readRevWith #-}
+readRevWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Unfold m (Array a) a
-readRev_ liftio = Unfold step inject
+readRevWith liftio = Unfold step inject
     where
 
     inject (Array contents start end _) =
@@ -1553,16 +1570,11 @@ readRev_ liftio = Unfold step inject
          in return $ ReadUState contents start p
 
     {-# INLINE_LATE step #-}
-    step (ReadUState contents start p) | p < start = do
-        -- Is the following replicated properly?
-        -- let x = unsafeInlineIO $ touch contents
-        -- in x `seq` return D.Stop
-        liftio $ touch contents
+    step (ReadUState contents start p) | p < start = liftio $ do
+        !_ <- touch contents
         return D.Stop
-        -- unit <- liftio $ touch contents
-        -- unit `seq` return D.Stop
     step (ReadUState contents start p) = do
-        x <- liftio $ peek p
+        !x <- liftio $ peek p
         return $ D.Yield x (ReadUState contents start (PTR_PREV(p,a)))
 
 -- | Unfold an array into a stream in reverse order.
@@ -1570,7 +1582,7 @@ readRev_ liftio = Unfold step inject
 -- /Pre-release/
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
-readRev = readRev_ liftIO
+readRev = readRevWith liftIO
 
 -------------------------------------------------------------------------------
 -- to Lists and streams
@@ -1616,11 +1628,11 @@ toList Array{..} = liftIO $ go arrStart
         touch arrContents
         (:) x <$> go (PTR_NEXT(p,a))
 
-{-# INLINE_NORMAL toStreamD_ #-}
-toStreamD_ ::
+{-# INLINE_NORMAL toStreamDWith #-}
+toStreamDWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
-toStreamD_ liftio Array{..} = D.Stream step arrStart
+toStreamDWith liftio Array{..} = D.Stream step arrStart
 
     where
 
@@ -1638,13 +1650,13 @@ toStreamD_ liftio Array{..} = D.Stream step arrStart
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
-toStreamD arr = toStreamD_ liftIO arr
+toStreamD = toStreamDWith liftIO
 
-{-# INLINE toStreamK_ #-}
-toStreamK_ ::
+{-# INLINE toStreamKWith #-}
+toStreamKWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
-toStreamK_ liftio Array{..} = go arrStart
+toStreamKWith liftio Array{..} = go arrStart
 
     where
 
@@ -1658,13 +1670,13 @@ toStreamK_ liftio Array{..} = go arrStart
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
-toStreamK arr = toStreamK_ liftIO arr
+toStreamK = toStreamKWith liftIO
 
-{-# INLINE_NORMAL toStreamDRev_ #-}
-toStreamDRev_ ::
+{-# INLINE_NORMAL toStreamDRevWith #-}
+toStreamDRevWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
-toStreamDRev_ liftio Array{..} =
+toStreamDRevWith liftio Array{..} =
     let p = PTR_PREV(aEnd,a)
     in D.Stream step p
 
@@ -1684,13 +1696,13 @@ toStreamDRev_ liftio Array{..} =
 -- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
-toStreamDRev arr = toStreamDRev_ liftIO arr
+toStreamDRev = toStreamDRevWith liftIO
 
-{-# INLINE toStreamKRev_ #-}
-toStreamKRev_ ::
+{-# INLINE toStreamKRevWith #-}
+toStreamKRevWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
-toStreamKRev_ liftio Array {..} =
+toStreamKRevWith liftio Array {..} =
     let p = PTR_PREV(aEnd,a)
     in go p
 
@@ -1706,7 +1718,7 @@ toStreamKRev_ liftio Array {..} =
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
-toStreamKRev arr = toStreamKRev_ liftIO arr
+toStreamKRev = toStreamKRevWith liftIO
 
 -------------------------------------------------------------------------------
 -- Folding

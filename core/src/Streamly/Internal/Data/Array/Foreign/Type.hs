@@ -474,23 +474,25 @@ length arr = MA.length (unsafeThaw arr)
 -- @since 0.8.0
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-readRev = Unfold.lmap unsafeThaw $ MA.readRev_ (return . unsafeInlineIO)
+readRev = Unfold.lmap unsafeThaw $ MA.readRevWith (return . unsafeInlineIO)
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
-toStreamD arr = MA.toStreamD_ (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamD arr = MA.toStreamDWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
-toStreamK arr = MA.toStreamK_ (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamK arr = MA.toStreamKWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
-toStreamDRev arr = MA.toStreamDRev_ (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamDRev arr =
+    MA.toStreamDRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
-toStreamKRev arr = MA.toStreamKRev_ (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamKRev arr =
+    MA.toStreamKRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 -- | Convert an 'Array' into a stream.
 --
