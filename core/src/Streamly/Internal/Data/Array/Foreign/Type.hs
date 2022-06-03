@@ -92,7 +92,7 @@ import GHC.ForeignPtr (ForeignPtr)
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ArrayContents, ReadUState(..), touch)
+    (ArrayContents, touch)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -103,6 +103,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified GHC.Exts as Exts
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
@@ -121,9 +122,6 @@ import qualified Data.Foldable as F
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
 -- >>> import Streamly.Internal.Data.Array.Foreign as Array
-
--- XXX Since these are immutable arrays MonadIO constraint can be removed from
--- most places.
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -476,94 +474,23 @@ length arr = MA.length (unsafeThaw arr)
 -- @since 0.8.0
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-readRev = Unfold step inject
-    where
-
-    inject (Array contents start end) =
-        let p = PTR_PREV(end,a)
-         in return $ ReadUState contents start p
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState contents start p) | p < start =
-        let x = unsafeInlineIO $ touch contents
-        in x `seq` return D.Stop
-    step (ReadUState contents start p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x (ReadUState contents start (PTR_PREV(p,a)))
-
+readRev = Unfold.lmap unsafeThaw $ MA.readRev_ (return . unsafeInlineIO)
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
-toStreamD Array{..} = D.Stream step arrStart
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
-    step _ p = do
-        -- unsafeInlineIO allows us to run this in Identity monad for pure
-        -- toList/foldr case which makes them much faster due to not
-        -- accumulating the list and fusing better with the pure consumers.
-        --
-        -- This should be safe as the array contents are guaranteed to be
-        -- evaluated/written to before we peek at them.
-        --
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        return $ D.Yield x (PTR_NEXT(p,a))
+toStreamD arr = MA.toStreamD_ (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. Storable a => Array a -> K.Stream m a
-toStreamK Array{..} = go arrStart
-
-    where
-
-    go p | assert (p <= aEnd) (p == aEnd) = K.nil
-         | otherwise =
-        -- See Note in toStreamD.
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        in x `K.cons` go (PTR_NEXT(p,a))
+toStreamK :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
+toStreamK arr = MA.toStreamK_ (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
-toStreamDRev Array{..} = D.Stream step (PTR_PREV(aEnd,a))
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ p | p < arrStart = return D.Stop
-    step _ p = do
-        -- See comments in toStreamD for why we use unsafeInlineIO
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        return $ D.Yield x (PTR_PREV(p,a))
+toStreamDRev arr = MA.toStreamDRev_ (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. Storable a => Array a -> K.Stream m a
-toStreamKRev Array {..} = go (PTR_PREV(aEnd,a))
-
-    where
-
-    go p | p < arrStart = K.nil
-         | otherwise =
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        in x `K.cons` go (PTR_PREV(p,a))
+toStreamKRev :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
+toStreamKRev arr = MA.toStreamKRev_ (return . unsafeInlineIO) (unsafeThaw arr)
 
 -- | Convert an 'Array' into a stream.
 --
