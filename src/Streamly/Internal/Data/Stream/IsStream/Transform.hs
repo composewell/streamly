@@ -574,13 +574,12 @@ distributeAsync_ = flip (Prelude.foldr tapAsyncK)
 pollCounts ::
        (IsStream t, MonadAsync m)
     => (a -> Bool)
-    -> (t m Int -> t m Int)
-    -> Fold m Int b
+    -> (t m Int -> m b)
     -> t m a
     -> t m a
-pollCounts predicate transf f xs =
+pollCounts predicate f xs =
       fromStreamD
-    $ D.pollCounts predicate (toStreamD . transf . fromStreamD) f
+    $ D.pollCounts predicate (f . fromStreamD)
     $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and

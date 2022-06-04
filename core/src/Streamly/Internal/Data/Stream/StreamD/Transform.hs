@@ -333,11 +333,10 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 pollCounts
     :: MonadAsync m
     => (a -> Bool)
-    -> (Stream m Int -> Stream m Int)
-    -> Fold m Int b
+    -> (Stream m Int -> m b)
     -> Stream m a
     -> Stream m a
-pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
+pollCounts predicate fld (Stream step state) = Stream step' Nothing
   where
 
     {-# INLINE_LATE step' #-}
@@ -347,8 +346,8 @@ pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
         -- However, an Int on a 32-bit machine may overflow quickly.
         countVar <- liftIO $ Prim.newIORef (0 :: Int)
         tid <- forkManaged
-            $ void $ fold fld
-            $ transf $ Prim.toStreamD countVar
+            $ void $ fld
+            $ Prim.toStreamD countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do

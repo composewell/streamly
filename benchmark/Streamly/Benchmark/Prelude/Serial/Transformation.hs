@@ -141,11 +141,11 @@ tap n = composeN n $ S.tap FL.sum
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> SerialT IO Int -> IO ()
 pollCounts n =
-    composeN n (Internal.pollCounts (const True) f FL.drain)
+    composeN n (Internal.pollCounts (const True) f)
 
     where
 
-    f = Internal.rollingMap2 (-) . Internal.delayPost 1
+    f = S.drain . Internal.rollingMap2 (-) . Internal.delayPost 1
 
 {-# INLINE timestamped #-}
 timestamped :: (S.MonadAsync m) => SerialT m Int -> m ()
