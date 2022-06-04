@@ -35,6 +35,7 @@ module Streamly.Internal.Data.Fold.Window
     --
       lmap
     , cumulative
+    , nub
 
     -- ** Sums
     , length
@@ -59,10 +60,12 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
-import Prelude hiding (length, sum, minimum, maximum)
-
+import qualified Data.Map as Map
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+
+import Prelude hiding (length, sum, minimum, maximum)
+
 
 -- $setup
 -- >>> import Data.Bifunctor(bimap)
@@ -309,3 +312,39 @@ maximum n = fmap (fmap snd) $ range n
 {-# INLINE mean #-}
 mean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
 mean = Fold.teeWith (/) sum length
+
+-- | Drop repeated elements within the specified
+-- tumbling window in the stream.
+-- /Pre-release/
+--
+-- >>> import qualified Streamly.Prelude as S
+-- >>> S.fold nub $ S.fromList [(1, Nothing), (1, Nothing), (3, Nothing), (4, Just 1)]
+-- fromList [(1,1),(3,1),(4,1)]
+--
+{-# INLINE nub #-}
+nub :: (Monad m, Ord a) => Fold m (a, Maybe a) (Map.Map a Int)
+nub = Fold step initial extract
+
+    where
+
+    initial =
+        return $ Partial Map.empty
+
+    updateRefCounts new map0 = return $ Map.insertWith (+) new (1::Int) map0
+
+    alter a m1 (Just v) =
+        if v == 1
+        then do
+            _ <- return $ Map.delete a m1
+            return Nothing
+        else return $ Just (v -1)
+    alter _ _ Nothing = error "Invalid old element"
+
+    step map0 (new, mOld) = do
+        m1 <- updateRefCounts new map0
+        Partial <$>
+            case mOld of
+                Just a -> Map.alterF (alter a m1) a m1
+                Nothing -> return m1
+
+    extract = return

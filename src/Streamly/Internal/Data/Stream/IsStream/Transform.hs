@@ -78,7 +78,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , uniq
     , uniqBy
     , nubBy
-    , nubWindowBy
     , prune
     , repeated
 
@@ -941,17 +940,6 @@ repeated = undefined
 nubBy :: -- (IsStream t, Monad m) =>
     (a -> a -> Bool) -> t m a -> t m a
 nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
-
--- | Drop repeated elements within the specified tumbling window in the stream.
---
--- @nubBy = nubWindowBy maxBound@
---
--- /Unimplemented/
---
-{-# INLINE nubWindowBy #-}
-nubWindowBy :: -- (IsStream t, Monad m) =>
-    Int -> (a -> a -> Bool) -> t m a -> t m a
-nubWindowBy = undefined -- fromStreamD . D.nubWithinBy . toStreamD
 
 -- | Deletes the first occurrence of the element in the stream that satisfies
 -- the given equality predicate.
