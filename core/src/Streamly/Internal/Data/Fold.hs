@@ -59,8 +59,6 @@ module Streamly.Internal.Data.Fold
     , countDistinct
     , countDistinctInt
     , mean
-    , variance
-    , stdDev
     , rollingHash
     , rollingHashWithSalt
     , rollingHashFirstN
@@ -287,6 +285,8 @@ module Streamly.Internal.Data.Fold
     -- * Deprecated
     , sequence
     , mapM
+    , variance
+    , stdDev
     )
 where
 
@@ -796,6 +796,7 @@ mean = fmap done $ foldl' step begin
 -- the input stream.
 --
 -- @since 0.7.0
+{-# DEPRECATED variance "Use the streamly-statistics package instead" #-}
 {-# INLINE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
 variance = fmap done $ foldl' step begin
@@ -819,6 +820,7 @@ variance = fmap done $ foldl' step begin
 -- elements in the input stream.
 --
 -- @since 0.7.0
+{-# DEPRECATED stdDev "Use the streamly-statistics package instead" #-}
 {-# INLINE stdDev #-}
 stdDev :: (Monad m, Floating a) => Fold m a a
 stdDev = sqrt <$> variance

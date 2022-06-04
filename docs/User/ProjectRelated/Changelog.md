@@ -8,6 +8,13 @@
     readChunksWithBufferOf -> readChunksWith
     writeWithBufferOf -> writeWith
     writeChunksWithBufferOf -> writeChunksWith
+
+### Deprecations
+
+* In `Streamly.Data.Fold`:
+  * `variance`, and `stdDev` have been deprecated. Please use the
+    `streamly-statistics` package instead.
+
 ## 0.8.2 (Mar 2022)
 
 * Fix performance issues for GHC-9. These changes coupled with GHC changes
