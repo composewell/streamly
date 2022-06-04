@@ -61,7 +61,7 @@ import Streamly.Internal.Data.Tuple.Strict
 
 import Prelude hiding (length, sum, minimum, maximum)
 
-import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
 
 -- $setup

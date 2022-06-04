@@ -315,6 +315,7 @@ import qualified Data.Set as Set
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
@@ -338,6 +339,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -683,12 +685,17 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- > sum = fmap getSum $ Fold.foldMap Sum
+-- >>> sum = FoldW.cumulative FoldW.sum
+--
+-- Same as following but numerically stable:
+--
+-- >>> sum = Fold.foldl' (+) 0
+-- >>> sum = fmap Data.Monoid.getSum $ Fold.foldMap Data.Monoid.Sum
 --
 -- @since 0.7.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum =  foldl' (+) 0
+sum = FoldW.cumulative FoldW.sum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
