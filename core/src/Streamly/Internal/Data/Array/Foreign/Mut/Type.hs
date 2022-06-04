@@ -575,13 +575,13 @@ putIndex i x arr =
 {-# INLINE putIndices #-}
 putIndices :: forall m a. (MonadIO m, Storable a)
     => Array a -> Fold m (Int, a) ()
-putIndices Array{..} = FL.mkFoldM step initial extract
+putIndices Array{..} = FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
-    initial = return $ FL.Partial ()
+    initial = return ()
 
-    step () (i, x) = FL.Partial <$> liftIO (putIndexPtr arrStart aEnd i x)
+    step () (i, x) = liftIO (putIndexPtr arrStart aEnd i x)
 
     extract () = liftIO $ touch arrContents
 
