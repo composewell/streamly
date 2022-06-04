@@ -162,8 +162,6 @@ module Streamly.Data.Fold
     , minimumBy
     , minimum
     , mean
-    , variance
-    , stdDev
     , rollingHash
     , rollingHashWithSalt
 
@@ -270,6 +268,8 @@ module Streamly.Data.Fold
     -- * Deprecated
     , sequence
     , mapM
+    , variance
+    , stdDev
     )
 where
 
