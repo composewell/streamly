@@ -31,12 +31,10 @@ module Streamly.Internal.Data.Fold
     , foldl'
     , foldlM'
     , foldl1'
+    , foldt'
+    , foldtM'
     , foldr
     , foldrM
-    , mkFold
-    , mkFold_
-    , mkFoldM
-    , mkFoldM_
 
     -- * Folds
     -- ** Identity
@@ -700,7 +698,7 @@ sum =  foldl' (+) 0
 -- /Since 0.8.0 (Added 'Eq' constraint)/
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Fold m a a
-product =  mkFold_ step (Partial 1)
+product =  foldt' step (Partial 1) id
 
     where
 
@@ -1005,7 +1003,7 @@ drainN n = take n drain
 -- /Pre-release/
 {-# INLINE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
-genericIndex i = mkFold step (Partial 0) (const Nothing)
+genericIndex i = foldt' step (Partial 0) (const Nothing)
 
     where
 
@@ -1029,7 +1027,7 @@ index = genericIndex
 --
 {-# INLINE maybe #-}
 maybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
-maybe f = mkFold_ (const (Done . f)) (Partial Nothing)
+maybe f = foldt' (const (Done . f)) (Partial Nothing) id
 
 -- Naming notes:
 --
@@ -1079,7 +1077,7 @@ head = one
 -- @since 0.7.0
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-find predicate = mkFold step (Partial ()) (const Nothing)
+find predicate = foldt' step (Partial ()) (const Nothing)
 
     where
 
@@ -1096,7 +1094,7 @@ find predicate = mkFold step (Partial ()) (const Nothing)
 -- @since 0.7.0
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
-lookup a0 = mkFold step (Partial ()) (const Nothing)
+lookup a0 = foldt' step (Partial ()) (const Nothing)
 
     where
 
@@ -1110,7 +1108,7 @@ lookup a0 = mkFold step (Partial ()) (const Nothing)
 -- @since 0.7.0
 {-# INLINE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
-findIndex predicate = mkFold step (Partial 0) (const Nothing)
+findIndex predicate = foldt' step (Partial 0) (const Nothing)
 
     where
 
@@ -1156,7 +1154,7 @@ elemIndex a = findIndex (a ==)
 -- @since 0.7.0
 {-# INLINE null #-}
 null :: Monad m => Fold m a Bool
-null = mkFold (\() _ -> Done False) (Partial ()) (const True)
+null = foldt' (\() _ -> Done False) (Partial ()) (const True)
 
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
 --
@@ -1168,7 +1166,7 @@ null = mkFold (\() _ -> Done False) (Partial ()) (const True)
 -- @since 0.7.0
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Fold m a Bool
-any predicate = mkFold_ step initial
+any predicate = foldt' step initial id
 
     where
 
@@ -1198,7 +1196,7 @@ elem a = any (a ==)
 -- @since 0.7.0
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Fold m a Bool
-all predicate = mkFold_ step initial
+all predicate = foldt' step initial id
 
     where
 

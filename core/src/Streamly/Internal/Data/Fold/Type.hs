@@ -327,12 +327,10 @@ module Streamly.Internal.Data.Fold.Type
     , foldl'
     , foldlM'
     , foldl1'
+    , foldt'
+    , foldtM'
     , foldr
     , foldrM
-    , mkFold
-    , mkFold_
-    , mkFoldM
-    , mkFoldM_
 
     -- * Folds
     , fromPure
@@ -597,23 +595,10 @@ foldrM g z =
 --
 -- /Pre-release/
 --
-{-# INLINE mkFold #-}
-mkFold :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
-mkFold step initial extract =
+{-# INLINE foldt' #-}
+foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
+foldt' step initial extract =
     Fold (\s a -> return $ step s a) (return initial) (return . extract)
-
--- | Similar to 'mkFold' but the final state extracted is identical to the
--- intermediate state.
---
--- @
--- mkFold_ step initial = mkFold step initial id
--- @
---
--- /Pre-release/
---
-{-# INLINE mkFold_ #-}
-mkFold_ :: Monad m => (b -> a -> Step b b) -> Step b b -> Fold m a b
-mkFold_ step initial = mkFold step initial id
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -624,22 +609,9 @@ mkFold_ step initial = mkFold step initial id
 --
 -- /Pre-release/
 --
-{-# INLINE mkFoldM #-}
-mkFoldM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
-mkFoldM = Fold
-
--- | Similar to 'mkFoldM' but the final state extracted is identical to the
--- intermediate state.
---
--- @
--- mkFoldM_ step initial = mkFoldM step initial return
--- @
---
--- /Pre-release/
---
-{-# INLINE mkFoldM_ #-}
-mkFoldM_ :: Monad m => (b -> a -> m (Step b b)) -> m (Step b b) -> Fold m a b
-mkFoldM_ step initial = mkFoldM step initial return
+{-# INLINE foldtM' #-}
+foldtM' :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
+foldtM' = Fold
 
 ------------------------------------------------------------------------------
 -- Refold
