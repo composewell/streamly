@@ -570,12 +570,12 @@ asCStringUnsafe arr act = do
 --
 -- /Pre-release/
 {-# INLINE fold #-}
-fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
+fold :: forall m a b. (Monad m, Storable a) => Fold m a b -> Array a -> m b
 fold f arr = P.fold f (getSerialT (A.toStream arr))
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Pre-release/
 {-# INLINE streamFold #-}
-streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+streamFold :: (Monad m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (A.toStream arr)
