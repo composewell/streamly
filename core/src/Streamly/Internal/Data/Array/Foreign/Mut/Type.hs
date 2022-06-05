@@ -20,6 +20,8 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , ArrayContents
     , nilArrayContents
     , touch
+    , pin
+    , unpin
 
     -- * Constructing and Writing
     -- ** Construction
@@ -242,7 +244,6 @@ import GHC.Base
     )
 import GHC.Base (noinline)
 import GHC.Exts (unsafeCoerce#)
-
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -261,6 +262,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Prelude
 
 import Prelude hiding
@@ -352,6 +354,22 @@ data Array a =
     }
 
 -------------------------------------------------------------------------------
+-- Pinning & Unpinning
+-------------------------------------------------------------------------------
+
+{-# INLINE pin #-}
+pin :: Array a -> IO (Array a)
+pin arr@(Array{..}) = do
+    contents <- Unboxed.pin arrContents
+    return $ arr {arrContents = contents}
+
+{-# INLINE unpin #-}
+unpin :: Array a -> IO (Array a)
+unpin arr@(Array{..}) = do
+    contents <- Unboxed.unpin arrContents
+    return $ arr {arrContents = contents}
+
+-------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
 
@@ -388,6 +406,9 @@ newArrayWith alloc alignSize count = do
         , aBound = size
         }
 
+-- XXX Move this to Unboxed and rename this to newPinnedAlignedBytes?
+-- XXX Similarly have newUnpinnedBytes
+{-# INLINE newAlignedArrayContents #-}
 newAlignedArrayContents :: Int -> Int -> IO (ArrayContents a)
 newAlignedArrayContents nbytes _align | nbytes < 0 =
   errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
@@ -417,6 +438,8 @@ nil = Array nilArrayContents 0 0 0
 newArrayAligned :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
 newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 
+-- XXX Intead of newArray, make newPinnedArray and newUnpinnedArray. Make it
+-- more explicit.
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
 -- | Allocates an empty array that can hold 'count' items.  The memory of the

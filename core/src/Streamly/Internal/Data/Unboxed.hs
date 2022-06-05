@@ -12,6 +12,8 @@ module Streamly.Internal.Data.Unboxed
     , castContents
     , touch
     , getMutableByteArray#
+    , pin
+    , unpin
     ) where
 
 #include "MachDeps.h"
@@ -44,6 +46,52 @@ castContents (ArrayContents mbarr) = ArrayContents mbarr
 touch :: ArrayContents a -> IO ()
 touch (ArrayContents contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
+
+-------------------------------------------------------------------------------
+-- Pinning & Unpinning
+-------------------------------------------------------------------------------
+
+{-# INLINE isPinned #-}
+isPinned :: ArrayContents a -> Bool
+isPinned (ArrayContents arr#) =
+    let pinnedInt = I# (isMutableByteArrayPinned# arr#)
+     in pinnedInt == 1
+
+
+{-# INLINE cloneMutableArrayWith# #-}
+cloneMutableArrayWith#
+    :: (Int# -> State# RealWorld -> (# State# RealWorld
+                                     , MutableByteArray# RealWorld #))
+    -> MutableByteArray# RealWorld
+    -> State# RealWorld
+    -> (# State# RealWorld, MutableByteArray# RealWorld #)
+cloneMutableArrayWith# alloc# arr# s# =
+    case getSizeofMutableByteArray# arr# s# of
+        (# s1#, i# #) ->
+            case alloc# i# s1# of
+                (# s2#, arr1# #) ->
+                    case copyMutableByteArray# arr# 0# arr1# 0# i# s2# of
+                        s3# -> (# s3#, arr1# #)
+
+{-# INLINE pin #-}
+pin :: ArrayContents a -> IO (ArrayContents a)
+pin arr@(ArrayContents marr#) =
+    if isPinned arr
+    then return arr
+    else IO
+             $ \s# ->
+                   case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
+                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
+
+{-# INLINE unpin #-}
+unpin :: ArrayContents a -> IO (ArrayContents a)
+unpin arr@(ArrayContents marr#) =
+    if not (isPinned arr)
+    then return arr
+    else IO
+             $ \s# ->
+                   case cloneMutableArrayWith# newByteArray# marr# s# of
+                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
 
 --------------------------------------------------------------------------------
 -- The Unboxed type class
