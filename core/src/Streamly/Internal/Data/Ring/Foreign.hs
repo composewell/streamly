@@ -84,6 +84,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -304,13 +305,31 @@ bytesFree = undefined
 -- Unfolds
 -------------------------------------------------------------------------------
 
--- | Unfold a ring array into a stream.
+-- XXX We can read the ring in a loop and use "take" to restrict the number of
+-- elements to be taken.
 --
--- /Unimplemented/
+-- | Read n elements from the ring starting at the supplied ring head. If n is
+-- more than the ring size it keeps reading the ring in a circular fashion.
+--
+-- If the ring is not full the user must ensure than n is less than or equal to
+-- the number of valid elements in the ring.
+--
+-- /Internal/
 {-# INLINE_NORMAL read #-}
-read :: -- forall m a. (MonadIO m, Storable a) =>
-    Unfold m (Ring a) a
-read = undefined
+read :: forall m a. (MonadIO m, Storable a) => Unfold m (Ring a, Ptr a, Int) a
+read = Unfold step return
+
+    where
+
+    step (rb, rh, n) = do
+        if n <= 0
+        then do
+            liftIO $ touchForeignPtr (ringStart rb)
+            return Stop
+        else do
+            x <- liftIO $ peek rh
+            let rh1 = advance rb rh
+            return $ Yield x (rb, rh1, n - 1)
 
 -- | Unfold a ring array into a stream in reverse order.
 --
