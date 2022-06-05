@@ -21,6 +21,10 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , unsafeFreezeWithShrink
     , unsafeThaw
 
+    -- * Pinning and Unpinning
+    , pin
+    , unpin
+
     -- * Construction
     , splice
 
@@ -194,6 +198,18 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MA.Array a
 unsafeThaw (Array ac as ae) = MA.Array ac as ae ae
+
+-------------------------------------------------------------------------------
+-- Pinning & Unpinning
+-------------------------------------------------------------------------------
+
+{-# INLINE pin #-}
+pin :: Array a -> IO (Array a)
+pin = fmap unsafeFreeze . MA.pin . unsafeThaw
+
+{-# INLINE unpin #-}
+unpin :: Array a -> IO (Array a)
+unpin = fmap unsafeFreeze . MA.unpin . unsafeThaw
 
 -------------------------------------------------------------------------------
 -- Construction
