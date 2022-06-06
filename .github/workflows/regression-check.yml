@@ -99,6 +99,7 @@ jobs:
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
+        cat cabal.project.report
         cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
