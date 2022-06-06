@@ -105,7 +105,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -118,7 +118,7 @@ import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S

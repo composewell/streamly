@@ -216,7 +216,7 @@ Similarly, the immutable Array modules would go in:
 * `Streamly.Data.Array`                  -- unpinned, native memory arrays
 * `Streamly.Data.Array.Storable`         -- unpinned, unboxed, native memory arrays
 * `Streamly.Data.Array.Storable.Pinned`  -- pinned, unboxed, native memory arrays
-* `Streamly.Data.Array.Foreign` -- pinned, unboxed, foreign capable arrays
+* `Streamly.Data.Array.Unboxed` -- pinned, unboxed, foreign capable arrays
 
 Unboxed arrays, based on `Prim` type class:
 

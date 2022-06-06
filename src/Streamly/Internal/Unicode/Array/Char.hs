@@ -20,11 +20,11 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Prelude (MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
-import Streamly.Data.Array.Foreign (Array)
+import Streamly.Data.Array.Unboxed (Array)
 import Streamly.Internal.Data.Stream.IsStream (IsStream)
 
 import qualified Streamly.Internal.Unicode.Stream as S
-import qualified Streamly.Data.Array.Foreign as A
+import qualified Streamly.Data.Array.Unboxed as A
 
 -- $setup
 -- >>> :m

@@ -313,8 +313,8 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
@@ -338,11 +338,11 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
--- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 
 ------------------------------------------------------------------------------
 -- hoist

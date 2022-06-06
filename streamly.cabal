@@ -55,8 +55,8 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
     benchmark/Streamly/Benchmark/Data/Array/SmallArray.hs
-    benchmark/Streamly/Benchmark/Data/Array/Foreign.hs
-    benchmark/Streamly/Benchmark/Data/Array/Foreign/Mut.hs
+    benchmark/Streamly/Benchmark/Data/Array/Unboxed.hs
+    benchmark/Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
     benchmark/Streamly/Benchmark/Data/Array/Prim.hs
     benchmark/Streamly/Benchmark/Data/Array/Prim/Pinned.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
@@ -97,7 +97,7 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Common.hs
     test/Streamly/Test/Data/Array/Prim.hs
     test/Streamly/Test/Data/Array/Prim/Pinned.hs
-    test/Streamly/Test/Data/Array/Foreign.hs
+    test/Streamly/Test/Data/Array/Unboxed.hs
     test/Streamly/Test/Data/Array/Stream/Foreign.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
@@ -169,9 +169,9 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Parser/ParserD/Type.hs
     core/src/Streamly/Internal/Data/Pipe/Type.hs
     core/src/Streamly/Internal/Data/IORef/Prim.hs
-    core/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
-    core/src/Streamly/Internal/Data/Array/Foreign/Mut.hs
-    core/src/Streamly/Internal/Data/Array/Foreign/Type.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Mut/Type.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Mut.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Type.hs
     core/src/Streamly/Internal/Data/Array/Mut/Type.hs
     core/src/Streamly/Internal/Data/Stream/StreamD/Generate.hs
     core/src/Streamly/Internal/Data/Stream/StreamD/Eliminate.hs
@@ -196,7 +196,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Stream/Zip.hs
     core/src/Streamly/Internal/Data/List.hs
     core/src/Streamly/Internal/Data/Array.hs
-    core/src/Streamly/Internal/Data/Array/Foreign.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed.hs
     core/src/Streamly/Internal/Data/Array/Stream/Mut/Foreign.hs
     core/src/Streamly/Internal/Data/Array/Stream/Fold/Foreign.hs
     core/src/Streamly/Internal/Data/Ring/Foreign.hs
@@ -205,7 +205,7 @@ extra-source-files:
     core/src/Streamly/Data/Fold.hs
     core/src/Streamly/Data/Fold/Tee.hs
     core/src/Streamly/Internal/Data/Fold/Window.hs
-    core/src/Streamly/Data/Array/Foreign.hs
+    core/src/Streamly/Data/Array/Unboxed.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
     core/src/Streamly/Internal/Data/Time/Clock/Windows.c
     core/streamly-core.cabal
@@ -570,9 +570,9 @@ library
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.IORef.Prim
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
-                     , Streamly.Internal.Data.Array.Foreign.Mut
-                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut
+                     , Streamly.Internal.Data.Array.Unboxed.Type
                      , Streamly.Internal.Data.Array.Mut.Type
 
                      -- streamly-core-streams
@@ -604,7 +604,7 @@ library
                      -- streamly-core-data-arrays
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
@@ -619,7 +619,7 @@ library
                      -- streamly-core exposed modules
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
-                     , Streamly.Data.Array.Foreign
+                     , Streamly.Data.Array.Unboxed
 
     other-modules:
                        Streamly.Data.Array

@@ -174,14 +174,14 @@ import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Prelude (SerialT)
 import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..), byteLength)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), byteLength)
 import System.Directory (doesDirectoryExist)
 import System.IO (Handle, hClose, IOMode(ReadMode))
 import GHC.IO.Handle.FD (handleToFd)
 
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S

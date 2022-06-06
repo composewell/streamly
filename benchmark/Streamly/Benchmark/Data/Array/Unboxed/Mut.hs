@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Array.Foreign.Mut
+-- Module      : Streamly.Benchmark.Data.Array.Unboxed.Mut
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -24,8 +24,8 @@ import Streamly.Prelude (MonadAsync, SerialT, IsStream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Prelude as Stream
-import qualified Streamly.Internal.Data.Array.Foreign as Array
-import qualified Streamly.Internal.Data.Array.Foreign.Mut as MArray
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
@@ -75,7 +75,7 @@ o_1_space_serial_marray value ~(array, indices) =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Array.Foreign.Mut"
+moduleName = "Data.Array.Unboxed.Mut"
 
 main :: IO ()
 main = do

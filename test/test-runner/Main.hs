@@ -21,7 +21,7 @@ rtsOpts relaxMem exeName target =
     targetSpecific =
         case target of
             -- XXX Data.Array.* heap requirement increased for GHC-8.10
-            "Data.Array.Foreign" -> "-M128M"
+            "Data.Array.Unboxed" -> "-M128M"
             "Data.Array.Prim" -> "-M128M"
             "Data.Array.Prim.Pinned" -> "-M128M"
             "Prelude.Rate" -> "-M512M"

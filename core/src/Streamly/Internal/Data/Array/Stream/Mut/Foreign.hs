@@ -32,12 +32,12 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Foreign.Storable (Storable(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
@@ -92,7 +92,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -139,7 +139,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
 
         r <- initial1

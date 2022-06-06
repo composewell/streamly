@@ -121,13 +121,13 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Foreign.Type
+import Streamly.Internal.Data.Array.Unboxed.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
@@ -135,7 +135,7 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
@@ -145,7 +145,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Unfold as UF
 
 -- $setup
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.FileSystem.Handle as Handle
@@ -319,9 +319,9 @@ getChunks = getChunksWith defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- >>> readChunks = Unfold.first IO.defaultChunkSize Handle.readChunksWith
 --
@@ -372,7 +372,7 @@ getBytesWith size h = AS.concat $ getChunksWith size h
 --
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- >>> read = Unfold.many Handle.readChunks Array.read
 --
@@ -458,7 +458,7 @@ putBytesWith n h m = putChunks h $ S.arraysOf n m
 -- putBytesWith n h m = putChunks h $ AS.arraysOf n m
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
@@ -561,7 +561,7 @@ consumerWith n =
     FL.refoldMany (FL.take n $ writeNUnsafe n) consumeChunks
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- >>> write = Handle.writeWith IO.defaultChunkSize

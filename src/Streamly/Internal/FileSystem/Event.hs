@@ -47,7 +47,7 @@ where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Array.Foreign (Array)
+import Streamly.Internal.Data.Array.Unboxed (Array)
 import Streamly.Prelude (SerialT)
 
 #if defined(CABAL_OS_DARWIN)

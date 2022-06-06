@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Data.Array.Foreign
+-- Module      : Streamly.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -30,11 +30,11 @@
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Data.Array.Foreign as Array
+-- > import qualified Streamly.Data.Array.Unboxed as Array
 --
--- For experimental APIs see "Streamly.Internal.Data.Array.Foreign".
+-- For experimental APIs see "Streamly.Internal.Data.Array.Unboxed".
 
-module Streamly.Data.Array.Foreign
+module Streamly.Data.Array.Unboxed
     (
       A.Array
 
@@ -75,4 +75,4 @@ module Streamly.Data.Array.Foreign
     )
 where
 
-import Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Internal.Data.Array.Unboxed as A

@@ -272,7 +272,7 @@ fromStreamDArraysOf n (D.Stream step state) = D.Stream step' (GroupStart state)
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
             error $
-            "Streamly.Internal.Data.Array.Foreign.Mut.Type.fromStreamDArraysOf: the size of " ++
+            "Streamly.Internal.Data.Array.Unboxed.Mut.Type.fromStreamDArraysOf: the size of " ++
             "arrays [" ++ show n ++ "] must be a natural number"
         arr <- newArray n
         return $ D.Skip (GroupBuffer st arr 0)
@@ -325,7 +325,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -370,7 +370,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         when (n <= 0)
             -- XXX we can pass the module string from the higher level API
           $ error
-          $ "Streamly.Internal.Data.Array.Foreign.Mut.Type."
+          $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type."
               ++ "packArraysChunksOf: the size of arrays ["
               ++ show n
               ++ "] must be a natural number"

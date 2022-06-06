@@ -76,8 +76,8 @@ cradle:
           cabal:
             - path: "./test/Streamly/Test/Data/Array.hs"
               component: "test:Data.Array"
-            - path: "./test/Streamly/Test/Data/Array/Foreign.hs"
-              component: "test:Data.Array.Foreign"
+            - path: "./test/Streamly/Test/Data/Array/Unboxed.hs"
+              component: "test:Data.Array.Unboxed"
             - path: "./test/Streamly/Test/Data/Array/Stream/Foreign.hs"
               component: "test:Data.Array.Stream.Foreign"
             - path: "./test/Streamly/Test/Data/Fold.hs"

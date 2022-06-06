@@ -93,9 +93,9 @@ import qualified Network.Socket as Net
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type
     (fromForeignPtrUnsafe, touch)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -105,8 +105,8 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -399,9 +399,9 @@ readChunksWithBufferOf = readChunksWith
 
 -- | Unfolds a socket into a stream of 'Word8' arrays. Requests to the socket
 -- are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -456,7 +456,7 @@ readWithBufferOf = readWith
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}

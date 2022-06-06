@@ -27,12 +27,12 @@ where
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (length)
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (length)
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (Array(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
@@ -64,11 +64,11 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
     step' gst (GatherInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.groupIOVecsOf: the size of "
+            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.groupIOVecsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         when (maxIOVLen <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Foreign.Mut.Type.groupIOVecsOf: the number of "
+            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.groupIOVecsOf: the number of "
                  ++ "IOVec entries [" ++ show n ++ "] must be a natural number"
         r <- step (adaptState gst) st
         case r of

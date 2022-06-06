@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign.Mut
+-- Module      : Streamly.Internal.Data.Array.Unboxed.Mut
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -22,9 +22,9 @@
 -- Stream and Fold APIs allow easy, efficient and convenient operations on
 -- arrays.
 
-module Streamly.Internal.Data.Array.Foreign.Mut
+module Streamly.Internal.Data.Array.Unboxed.Mut
     (
-      module Streamly.Internal.Data.Array.Foreign.Mut.Type
+      module Streamly.Internal.Data.Array.Unboxed.Mut.Type
     , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 -- import qualified Streamly.Internal.Data.Stream.Common as P
 
 import Prelude hiding (foldr, length, read, splitAt)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.

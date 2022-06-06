@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Test.Data.Array.Foreign
+-- Module      : Streamly.Test.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Array.Foreign (main) where
+module Streamly.Test.Data.Array.Unboxed (main) where
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
@@ -16,15 +16,15 @@ import Data.Word(Word8)
 import Test.QuickCheck (chooseInt, listOf)
 
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 
 type Array = A.Array
 
 moduleName :: String
-moduleName = "Data.Array.Foreign"
+moduleName = "Data.Array.Unboxed"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 
@@ -40,7 +40,7 @@ testFromList =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromList list
-                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    xs <- run $ S.toList $ S.unfold A.read arr
                     assert (xs == list)
 
 testLengthFromStream :: Property
@@ -130,7 +130,7 @@ concatArrayW8 =
 
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
-    let lst = take n $ drop i $ list
+    let lst = take n $ drop i list
         arr = A.toList $ A.getSliceUnsafe i n $ A.fromList list
      in arr == lst
 
@@ -199,7 +199,7 @@ main =
             prop "fromList" testFromList
             prop "foldMany with writeNUnsafe concats to original"
                 (foldManyWith (\n -> Fold.take n (A.writeNUnsafe n)))
-            prop "AS.concat . (A.fromList . (:[]) <$>) === id" $ concatArrayW8
+            prop "AS.concat . (A.fromList . (:[]) <$>) === id" concatArrayW8
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]
@@ -209,7 +209,7 @@ main =
             it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
             it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
         describe "Fold" $ do
-            prop "writeLastN : 0 <= n <= len" $ testLastN
+            prop "writeLastN : 0 <= n <= len" testLastN
             describe "writeLastN boundary conditions" $ do
                 it "writeLastN -1" (testLastN_LN 10 (-1) `shouldReturn` True)
                 it "writeLastN 0" (testLastN_LN 10 0 `shouldReturn` True)

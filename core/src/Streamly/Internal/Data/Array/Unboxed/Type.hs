@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign.Type
+-- Module      : Streamly.Internal.Data.Array.Unboxed.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD3-3-Clause
@@ -7,9 +7,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See notes in "Streamly.Internal.Data.Array.Foreign.Mut.Type"
+-- See notes in "Streamly.Internal.Data.Array.Unboxed.Mut.Type"
 --
-module Streamly.Internal.Data.Array.Foreign.Type
+module Streamly.Internal.Data.Array.Unboxed.Type
     (
     -- $arrayNotes
       Array (..)
@@ -91,7 +91,7 @@ import GHC.ForeignPtr (ForeignPtr)
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type
     (ArrayContents, ReadUState(..), touch)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
@@ -100,7 +100,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified GHC.Exts as Exts
@@ -120,7 +120,7 @@ import qualified Data.Foldable as F
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
--- >>> import Streamly.Internal.Data.Array.Foreign as Array
+-- >>> import Streamly.Internal.Data.Array.Unboxed as Array
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.

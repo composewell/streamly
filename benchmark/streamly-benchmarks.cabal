@@ -522,10 +522,10 @@ benchmark Data.Array.Prim.Pinned
   else
     buildable: True
 
-benchmark Data.Array.Foreign
+benchmark Data.Array.Unboxed
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Foreign.hs
+  main-is: Streamly/Benchmark/Data/Array/Unboxed.hs
   if flag(bench-core)
     buildable: False
   else
@@ -533,10 +533,10 @@ benchmark Data.Array.Foreign
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
-benchmark Data.Array.Foreign.Mut
+benchmark Data.Array.Unboxed.Mut
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Foreign/Mut.hs
+  main-is: Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
   if flag(bench-core)
     buildable: False
   else

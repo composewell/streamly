@@ -68,7 +68,7 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream

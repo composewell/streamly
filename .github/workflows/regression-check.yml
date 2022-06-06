@@ -18,7 +18,7 @@ jobs:
     env:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
-        Data.Array.Foreign
+        Data.Array.Unboxed
         Data.Array.Prim
         Data.Array.Prim.Pinned
         Data.Fold

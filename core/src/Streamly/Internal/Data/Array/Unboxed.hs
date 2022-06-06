@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign
+-- Module      : Streamly.Internal.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -28,7 +28,7 @@
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
 
-module Streamly.Internal.Data.Array.Foreign
+module Streamly.Internal.Data.Array.Unboxed
     (
       Array
 
@@ -126,8 +126,8 @@ import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
-import Streamly.Internal.Data.Array.Foreign.Type
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (ReadUState(..), touch)
+import Streamly.Internal.Data.Array.Unboxed.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
@@ -136,9 +136,9 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Foreign.Mut as MA
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Common as P
@@ -249,7 +249,7 @@ unsafeRead = Unfold step inject
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 -- >>> null arr = Array.byteLength arr == 0
 --
 -- /Pre-release/
@@ -273,7 +273,7 @@ getIndexRev i arr =
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed as Array
 -- >>> last arr = Array.getIndexRev arr 0
 --
 -- /Pre-release/
