@@ -100,6 +100,12 @@ targets =
             , "pinned_array_cmp"
             ]
       )
+    , ("Data.Array.Foreign.Mut",
+            [ "array_grp"
+            , "array_cmp"
+            , "noTest"
+            ]
+      )
     , ("Data.Array.Prim",
             [ "array_grp"
             , "array_cmp"
