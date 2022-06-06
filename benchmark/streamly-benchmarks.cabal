@@ -537,6 +537,8 @@ benchmark Data.Array.Foreign.Mut
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/Foreign/Mut.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
   if flag(bench-core)
     buildable: False
   else
