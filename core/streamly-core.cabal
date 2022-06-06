@@ -263,7 +263,9 @@ library
                      , Streamly.Internal.Data.IORef.Prim
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut.Type
                      , Streamly.Internal.Data.Array.Foreign.Mut
+                     , Streamly.Internal.Data.Array.Unboxed.Mut
                      , Streamly.Internal.Data.Array.Foreign.Type
                      , Streamly.Internal.Data.Array.Mut.Type
 

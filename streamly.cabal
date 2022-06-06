@@ -171,6 +171,8 @@ extra-source-files:
     core/src/Streamly/Internal/Data/IORef/Prim.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Mut.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Mut/Type.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Mut.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Type.hs
     core/src/Streamly/Internal/Data/Array/Mut/Type.hs
     core/src/Streamly/Internal/Data/Stream/StreamD/Generate.hs
@@ -576,7 +578,9 @@ library
                      , Streamly.Internal.Data.IORef.Prim
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Foreign.Mut.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut.Type
                      , Streamly.Internal.Data.Array.Foreign.Mut
+                     , Streamly.Internal.Data.Array.Unboxed.Mut
                      , Streamly.Internal.Data.Array.Foreign.Type
                      , Streamly.Internal.Data.Array.Mut.Type
 
