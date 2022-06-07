@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Exception (SomeException(..), displayException)
+import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Test.Hspec (Spec, hspec, describe)
@@ -466,6 +467,68 @@ wordBy =
     words' lst =
         let wrds = words lst
          in if wrds == [] && length lst > 0 then [""] else wrds
+
+parseManyWordQuotedBy :: H.SpecWith ()
+parseManyWordQuotedBy =
+    describe "parseMany wordQuotedBy"
+        $ for_ testCases
+        $ \c@(kQ, lQ, rQ, fromLQ, input, expected) -> do
+              let inpStrm = S.fromList input
+
+                  esc '\\' = True
+                  esc _ = False
+
+                  spc ' ' = True
+                  spc _ = False
+
+                  parser = P.wordQuotedBy kQ esc lQ rQ fromLQ spc FL.toList
+              result <- H.runIO $ S.toList $ S.parseMany parser inpStrm
+              H.it (showCase c) $ result `H.shouldBe` expected
+
+    where
+
+    showCase (kQ, _, _, _, input, expected) =
+        show kQ ++ ", " ++ input ++ " -> " ++ show expected
+
+    testCases =
+        [ ( True
+          , (== '\'')
+          , (== '\'')
+          , id
+          , "The quick brown fox"
+          , ["The", "quick", "brown", "fox"])
+        , ( True
+          , (== '\'')
+          , (== '\'')
+          , id
+          , "The' quick brown' fox"
+          , ["The' quick brown'", "fox"])
+        , ( False
+          , (== '\'')
+          , (== '\'')
+          , id
+          , "The' quick brown' fox"
+          , ["The quick brown", "fox"])
+        , ( True
+          , (== '[')
+          , (== '[')
+          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , "The[ quick brown] fox"
+          , ["The[ quick brown]", "fox"])
+        , ( True
+          , (== '[')
+          , (== '[')
+          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , "The[ qui[ck] brown] \\ f[  ox]"
+          , ["The[ qui[ck] brown]", " f[  ox]"])
+        , ( False
+          , (== '[')
+          , (== '[')
+          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , "The[ qui[ck] brown] fox"
+          , ["The qui[ck] brown", "fox"])
+        ]
+
 
 -- splitWithPass :: Property
 -- splitWithPass =
@@ -1106,6 +1169,7 @@ main =
         prop ("P.takeP = Prelude.take") takeP
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "many (P.wordBy ' ') = words'" wordBy
+        parseManyWordQuotedBy
         prop "choice" choice
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft

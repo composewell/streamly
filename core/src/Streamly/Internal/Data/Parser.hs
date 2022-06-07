@@ -909,21 +909,26 @@ wordFramedBy isEsc isBegin isEnd isSpc =
 -- as it encounters any of the closing quotes.
 --
 -- >>> q = (`elem` ['"', '\''])
--- >>> p = Parser.wordQuotedBy (== '\\') q q id isSpace Fold.toList
--- >>> Stream.parse p $ Stream.fromList "a\"b'c\";'d\"e'f"
+-- >>> p kQ = Parser.wordQuotedBy kQ (== '\\') q q id isSpace Fold.toList
+--
+-- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
 -- "ab'c;d\"ef"
+--
+-- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- "a\"b'c\";'d\"e'f"
 --
 {-# INLINE wordQuotedBy #-}
 wordQuotedBy :: (MonadCatch m, Eq a) =>
-       (a -> Bool)  -- ^ Escape
+       Bool         -- ^ keep the quotes in the output
+    -> (a -> Bool)  -- ^ Escape
     -> (a -> Bool)  -- ^ left quote
     -> (a -> Bool)  -- ^ right quote
     -> (a -> a)     -- ^ get right quote from left quote
     -> (a -> Bool)  -- ^ word seperator
     -> Fold m a b
     -> Parser m a b
-wordQuotedBy isEsc isBegin isEnd toRight isSpc =
-    D.toParserK . D.wordQuotedBy isEsc isBegin isEnd toRight isSpc
+wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSpc =
+    D.toParserK . D.wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSpc
 
 -- | Given an input stream @[a,b,c,...]@ and a comparison function @cmp@, the
 -- parser assigns the element @a@ to the first group, then if @a \`cmp` b@ is

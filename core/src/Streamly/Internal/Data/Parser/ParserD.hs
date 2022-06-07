@@ -1182,14 +1182,15 @@ data WordQuotedState s b a =
 
 {-# INLINE wordQuotedBy #-}
 wordQuotedBy :: (MonadCatch m, Eq a) =>
-       (a -> Bool)  -- ^ Escape
+       Bool         -- ^ keep the quotes in the output
+    -> (a -> Bool)  -- ^ Escape
     -> (a -> Bool)  -- ^ left quote
     -> (a -> Bool)  -- ^ right quote
     -> (a -> a)     -- ^ get right quote from the left quote
     -> (a -> Bool)  -- ^ word seperator
     -> Fold m a b
     -> Parser m a b
-wordQuotedBy isEsc isBegin isEnd toRight isSep
+wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1222,7 +1223,10 @@ wordQuotedBy isEsc isBegin isEnd toRight isSep
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = return $ Partial 0 $ WordQuotedSkipPre s
-        | isBegin a = return $ Continue 0 $ WordQuotedWord s 1 a
+        | isBegin a =
+              if keepQuotes
+              then process s a 1 a
+              else return $ Continue 0 $ WordQuotedWord s 1 a
         | isEnd a =
             return $ Error "wordQuotedBy: missing frame start"
         | otherwise = processUnquoted s a
@@ -1233,12 +1237,15 @@ wordQuotedBy isEsc isBegin isEnd toRight isSep
             return $ Partial 0 $ WordQuotedSkipPost b
         | otherwise = do
                if isBegin a
-               then return $ Continue 0 $ WordQuotedWord s 1 a
+               then if keepQuotes
+                    then process s a 1 a
+                    else return $ Continue 0 $ WordQuotedWord s 1 a
                else if isEnd a
                     then return $ Error "wordQuotedBy: missing frame start"
                     else processUnquoted s a
     step (WordQuotedWord s n q) a
         | isEsc a = return $ Continue 0 $ WordQuotedEsc s n q
+        -- XXX Will this ever occur? Will n ever be 0?
         | n == 0 && isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
@@ -1246,7 +1253,9 @@ wordQuotedBy isEsc isBegin isEnd toRight isSep
                 if a == toRight q
                 then
                    if n == 1
-                   then return $ Continue 0 $ WordUnquotedWord s
+                   then if keepQuotes
+                        then processUnquoted s a
+                        else return $ Continue 0 $ WordUnquotedWord s
                    else process s a (n - 1) q
                 else if a == q
                      then process s a (n + 1) q
