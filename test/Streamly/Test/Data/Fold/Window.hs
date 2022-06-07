@@ -33,7 +33,9 @@ main = hspec $ do
 
     describe "Correctness" $ do
         let winSize = 3
-            testCase1 = [31, 41, 59, 26, 53, 58, 97] :: [Double]
+            testCase1 =
+                [1.0, 4.0, 3.0, 2.1, -5.1, -2.0, 7.0, 3.0, -2.5] :: [Double]
+
             testCase2 = replicate 5 1.0 ++ [7.0]
 
             testFunc tc f sI sW = do
@@ -44,18 +46,17 @@ main = hspec $ do
                 it "Infinite" $ a  == sI
                 it ("Finite " ++ show winSize) $ b == sW
 
+            testFunc2 tc expec f = do
+                let c = S.fromList tc
+                a <- runIO $ S.fold (f winSize) c
+                it (show tc) $ a == expec
+
         describe "minimum" $ do
-            let scanInf = [31, 31, 31, 26, 26, 26, 26] :: [Double]
-                scanWin = [31, 31, 31, 26, 26, 26, 53] :: [Double]
-            testFunc testCase1 minimum scanInf scanWin
+            testFunc2 testCase1 (Just (-2.5)) minimum
         describe "maximum" $ do
-            let scanInf = [31, 41, 59, 59, 59, 59, 97] :: [Double]
-                scanWin = [31, 41, 59, 59, 59, 58, 97] :: [Double]
-            testFunc testCase1 maximum scanInf scanWin
+            testFunc2 testCase1 (Just 7.0) maximum
         describe "range" $ do
-            let scanInf = [0, 10, 28, 33, 33, 33, 71] :: [Double]
-                scanWin = [0, 10, 28, 33, 33, 32, 44] :: [Double]
-            testFunc testCase1 range scanInf scanWin
+            testFunc2 testCase1 (Just (-2.5, 7.0)) range
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]
