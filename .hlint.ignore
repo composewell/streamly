@@ -16,6 +16,7 @@ test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Array/Prim.hs
 test/Streamly/Test/Data/Array/Prim/Pinned.hs
 test/Streamly/Test/Data/Array/Foreign.hs
+test/Streamly/Test/Data/Array/Unboxed.hs
 test/Streamly/Test/Data/Parser.hs
 test/Streamly/Test/Data/Parser/ParserD.hs
 test/Streamly/Test/Data/SmallArray.hs
