@@ -310,8 +310,9 @@ library
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
-                    -- Ring Arrays
+                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Foreign
+                     , Streamly.Internal.Data.Ring.Unboxed
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Ring
 
