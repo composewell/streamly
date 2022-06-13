@@ -267,6 +267,7 @@ library
                      , Streamly.Internal.Data.Array.Foreign.Mut
                      , Streamly.Internal.Data.Array.Unboxed.Mut
                      , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Type
                      , Streamly.Internal.Data.Array.Mut.Type
 
                      -- streamly-core-streams
