@@ -205,6 +205,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/List.hs
     core/src/Streamly/Internal/Data/Array.hs
     core/src/Streamly/Internal/Data/Array/Foreign.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed.hs
     core/src/Streamly/Internal/Data/Array/Stream/Mut/Foreign.hs
     core/src/Streamly/Internal/Data/Array/Stream/Fold/Foreign.hs
     core/src/Streamly/Internal/Data/Ring/Foreign.hs
@@ -622,6 +623,7 @@ library
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 

@@ -307,6 +307,7 @@ library
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
