@@ -544,6 +544,17 @@ benchmark Data.Array.Foreign.Mut
   else
     buildable: True
 
+benchmark Data.Array.Unboxed.Mut
+  import: bench-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+  if flag(bench-core)
+    buildable: False
+  else
+    buildable: True
+
 -------------------------------------------------------------------------------
 -- Array Stream Benchmarks
 -------------------------------------------------------------------------------

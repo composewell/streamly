@@ -106,6 +106,12 @@ targets =
             , "noTest"
             ]
       )
+    , ("Data.Array.Unboxed.Mut",
+            [ "array_grp"
+            , "array_cmp"
+            , "noTest"
+            ]
+      )
     , ("Data.Array.Prim",
             [ "array_grp"
             , "array_cmp"

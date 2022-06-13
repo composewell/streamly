@@ -57,6 +57,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/SmallArray.hs
     benchmark/Streamly/Benchmark/Data/Array/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Array/Foreign/Mut.hs
+    benchmark/Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
     benchmark/Streamly/Benchmark/Data/Array/Prim.hs
     benchmark/Streamly/Benchmark/Data/Array/Prim/Pinned.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
