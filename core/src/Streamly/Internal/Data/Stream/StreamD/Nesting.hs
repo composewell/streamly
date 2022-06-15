@@ -155,7 +155,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity ( Identity )
 import Data.Word (Word32)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 

@@ -35,7 +35,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict

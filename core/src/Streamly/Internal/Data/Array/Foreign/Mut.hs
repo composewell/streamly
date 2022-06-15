@@ -33,7 +33,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 

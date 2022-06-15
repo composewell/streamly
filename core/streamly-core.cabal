@@ -82,6 +82,11 @@ flag use-unliftio
   manual: True
   default: False
 
+flag use-storable
+  description: Use Storable for unboxed arrays
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -100,6 +105,9 @@ common compile-options
 
     if flag(use-c-malloc)
       cpp-options:    -DUSE_C_MALLOC
+
+    if flag(use-storable)
+      cpp-options:    -DUSE_STORABLE
 
     ghc-options:      -Wall
                       -Wcompat
@@ -258,6 +266,7 @@ library
                      , Streamly.Internal.Data.Pipe.Type
 
                      -- streamly-core-array-types
+                     , Streamly.Internal.Data.Unboxed
                     -- Unboxed IORef
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.IORef.Prim

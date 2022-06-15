@@ -78,7 +78,9 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed
+    ( Storable, alignment, peek, poke, sizeOf
+    )
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
