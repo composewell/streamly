@@ -121,7 +121,7 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (Storable)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 -- import System.IO (Handle, hGetBufSome, hPutBuf)
 import System.IO (IOMode)
@@ -138,10 +138,12 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
 #if !defined(mingw32_HOST_OS)
+{-
 import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
 import Streamly.Internal.System.IOVec (groupIOVecsOf)
 import qualified Streamly.Internal.FileSystem.FDIO as RawIO hiding (write)
 import qualified Streamly.Internal.System.IOVec.Type as RawIO
+-}
 #endif
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
@@ -258,6 +260,7 @@ writeArray (Handle fd) arr =
     aLen = byteLength arr
 
 #if !defined(mingw32_HOST_OS)
+{-
 -- | Write an array of 'IOVec' to a file handle.
 --
 -- @since 0.7.0
@@ -267,6 +270,7 @@ writeIOVec _ iov | A.length iov == 0 = return ()
 writeIOVec (Handle fd) iov =
     asPtrUnsafe iov $ \p ->
         RawIO.writevAll fd p (A.length iov)
+-}
 #endif
 
 -------------------------------------------------------------------------------
@@ -366,6 +370,7 @@ writeArraysPackedUpto :: (MonadIO m, Storable a)
 writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
 #if !defined(mingw32_HOST_OS)
+{-
 -- XXX this is incomplete
 -- | Write a stream of 'IOVec' arrays to a handle.
 --
@@ -386,6 +391,7 @@ _writevArraysPackedUpto :: MonadIO m
     => Int -> Handle -> SerialT m (Array a) -> m ()
 _writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
+-}
 #endif
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.

@@ -157,7 +157,7 @@ where
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (defState)

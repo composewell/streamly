@@ -1,5 +1,5 @@
 
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (sizeOf)
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)

@@ -10,7 +10,7 @@ module Streamly.Test.FileSystem.Handle (main) where
 
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (sizeOf)
 import Streamly.Internal.Data.Stream.IsStream (IsStream, SerialT)
 import System.FilePath ((</>))
 import System.IO

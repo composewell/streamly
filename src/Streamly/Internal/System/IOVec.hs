@@ -15,8 +15,10 @@ module Streamly.Internal.System.IOVec
     , c_writev
     , c_safe_writev
 #if !defined(mingw32_HOST_OS)
+{-
     , groupIOVecsOf
     , groupIOVecsOfMut
+-}
 #endif
     )
 where
@@ -24,6 +26,7 @@ where
 #include "inline.hs"
 
 #if !defined(mingw32_HOST_OS)
+{-
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (castPtr)
@@ -34,6 +37,7 @@ import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+-}
 #endif
 
 import Streamly.Internal.System.IOVec.Type
@@ -41,6 +45,7 @@ import Streamly.Internal.System.IOVec.Type
 import Prelude hiding (length)
 
 #if !defined(mingw32_HOST_OS)
+{-
 data GatherState s arr
     = GatherInitial s
     | GatherBuffering s arr Int
@@ -123,4 +128,5 @@ groupIOVecsOf n maxIOVLen str =
     D.map Array.unsafeFreeze
         $ groupIOVecsOfMut n maxIOVLen
         $ D.map Array.unsafeThaw str
+-}
 #endif

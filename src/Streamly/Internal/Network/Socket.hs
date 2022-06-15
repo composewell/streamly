@@ -76,7 +76,7 @@ import Control.Monad (forM_, when)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (Storable)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),

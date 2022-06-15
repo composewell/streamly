@@ -123,7 +123,7 @@ import Data.Functor.Identity (Identity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (plusPtr, castPtr)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)

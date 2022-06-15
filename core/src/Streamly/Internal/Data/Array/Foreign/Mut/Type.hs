@@ -233,7 +233,9 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Marshal.Alloc (mallocBytes)
 #endif
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
-import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.Unboxed
+    ( Storable, alignment, peek, poke, sizeOf
+    )
 import GHC.Base
     ( touch#, IO(..), byteArrayContents#
     , Int(..), newAlignedPinnedByteArray#

@@ -69,7 +69,7 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))

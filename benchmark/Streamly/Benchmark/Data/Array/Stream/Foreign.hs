@@ -48,7 +48,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Test.Inspection
 #endif
