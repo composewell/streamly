@@ -2596,3 +2596,23 @@ nub = Fold step initial extract
         else return $ Partial (Set.insert x set, Just x)
 
     extract = return . snd
+
+{-# INLINE the #-}
+the :: (Eq a, Monad m) => Fold m a (Maybe a)
+the = Fold step initial extract
+
+    where
+
+    initial =
+        return $ Partial Nothing
+
+    step Nothing x =
+        return $ Partial (Just x)
+
+    step old@(Just x0) x =
+        return $
+            if x0 == x
+            then  Partial old
+            else  Done Nothing
+
+    extract = return
