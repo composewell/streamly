@@ -102,6 +102,13 @@ jobs:
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.6
             ignore_error: false
+          - name: 8.10.7-storable-serialization
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.6
+            cabal_project: cabal.project.storable
+            disable_sdist_build: "y"
+            ignore_error: false
           - name: 8.10.7-macos
             ghc_version: 8.10.7
             runner: macos-latest
