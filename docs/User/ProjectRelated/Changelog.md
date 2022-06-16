@@ -3,6 +3,11 @@
 <!-- See rendered changelog at https://streamly.composewell.com -->
 ## Unreleased
 
+* The unboxed arrays now require `Prim` instance for the stored type instead of
+  `Storable`.
+  *Note*: The primitive package does not provide a prim instance of `Bool`. A
+  `Prim` instance for `Bool` can be found in `Streamly.Internal.Data.Unboxed`.
+
 * Following APIs have been renamed in Streamly.Network.Socket module:
     readWithBufferOf -> readWith
     readChunksWithBufferOf -> readChunksWith
