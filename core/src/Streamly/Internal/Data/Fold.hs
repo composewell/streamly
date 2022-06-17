@@ -132,6 +132,7 @@ module Streamly.Internal.Data.Fold
     , scanMany
     , postscan
     , indexed
+    , trace
 
     -- ** Zipping Input
     , zipWithM
@@ -291,6 +292,7 @@ where
 #include "inline.hs"
 #include "ArrayMacros.h"
 
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Bits (shiftL, shiftR, (.|.), (.&.))
@@ -400,6 +402,18 @@ mapMaybe f = lmap f . filter isJust . lmap fromJust
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
+
+-- | Apply a monadic function to each element flowing through and discard the
+-- results.
+--
+-- >>> Stream.fold (Fold.trace print Fold.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
+-- 1
+-- 2
+--
+-- /Pre-release/
+{-# INLINE trace #-}
+trace :: Monad m => (a -> m b) -> Fold m a r -> Fold m a r
+trace f = lmapM (\x -> void (f x) >> return x)
 
 -- rename to lpipe?
 --
