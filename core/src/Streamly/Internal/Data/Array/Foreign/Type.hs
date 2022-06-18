@@ -349,19 +349,14 @@ fromCString# addr# = do
 fromListN :: Storable a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 
--- XXX We can possibly have a direction flag in the array to reverse it without
--- actually doing anything. With that we can just do "reverse . fromList". But
--- it may complicate all the APIs as all reads of the array will have to handle
--- the flag.
---
 -- | Create an 'Array' from the first N elements of a list in reverse order.
 -- The array is allocated to size N, if the list terminates before N elements
 -- then the array may hold less than N elements.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINABLE fromListRevN #-}
-fromListRevN :: {- Storable a => -} Int -> [a] -> Array a
-fromListRevN _n _xs = undefined
+fromListRevN :: Storable a => Int -> [a] -> Array a
+fromListRevN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRevN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
@@ -375,10 +370,10 @@ fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 -- | Create an 'Array' from a list in reverse order. The list must be of finite
 -- size.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINABLE fromListRev #-}
-fromListRev :: {- Storable a => -} [a] -> Array a
-fromListRev _xs = undefined
+fromListRev :: Storable a => [a] -> Array a
+fromListRev xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRev xs
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)

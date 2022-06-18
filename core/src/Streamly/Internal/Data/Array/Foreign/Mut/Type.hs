@@ -48,13 +48,15 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , writeWith
     , write
 
-    -- , writeRevN
+    , writeRevN
     -- , writeRev
 
     -- ** From containers
     , fromForeignPtrUnsafe
     , fromListN
     , fromList
+    , fromListRevN
+    , fromListRev
     , fromStreamDN
     , fromStreamD
 
@@ -265,6 +267,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 #ifdef USE_FOREIGN_PTR
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 #endif
+import qualified Prelude
 
 import Prelude hiding
     (length, foldr, read, unlines, splitAt, reverse, truncate)
@@ -1901,6 +1904,43 @@ writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
 writeN = writeNWith newArray
 
+-- | Like writeNWithUnsafe but writes the array in reverse order.
+--
+-- /Internal/
+{-# INLINE_NORMAL writeRevNWithUnsafe #-}
+writeRevNWithUnsafe :: forall m a. (MonadIO m, Storable a)
+    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+writeRevNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
+
+    where
+
+    toArrayUnsafeRev (Array contents _ _ bound) =
+         ArrayUnsafe contents bound bound
+
+    initial = FL.Partial . toArrayUnsafeRev <$> alloc (max n 0)
+
+    step (ArrayUnsafe contents start end) x = do
+        let ptr = PTR_PREV(start,a)
+        liftIO $ poke ptr x >> touch contents
+        return
+          $ FL.Partial
+          $ ArrayUnsafe contents ptr end
+
+-- | Like writeNWith but writes the array in reverse order.
+--
+-- /Internal/
+{-# INLINE_NORMAL writeRevNWith #-}
+writeRevNWith :: forall m a. (MonadIO m, Storable a)
+    => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
+
+-- | Like writeN but writes the array in reverse order.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL writeRevN #-}
+writeRevN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeRevN = writeRevNWith newArray
+
 -- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
@@ -2052,6 +2092,13 @@ fromStreamDN limit str = do
 fromListN :: (MonadIO m, Storable a) => Int -> [a] -> m (Array a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
 
+-- | Like fromListN but writes the array in reverse order.
+--
+-- /Pre-release/
+{-# INLINE fromListRevN #-}
+fromListRevN :: (MonadIO m, Storable a) => Int -> [a] -> m (Array a)
+fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
+
 -------------------------------------------------------------------------------
 -- convert stream to a single array
 -------------------------------------------------------------------------------
@@ -2093,6 +2140,14 @@ fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 {-# INLINE fromList #-}
 fromList :: (MonadIO m, Storable a) => [a] -> m (Array a)
 fromList xs = fromStreamD $ D.fromList xs
+
+-- XXX We are materializing the whole list first for getting the length. Check
+-- if the 'fromList' like chunked implementation would fare better.
+
+-- | Like 'fromList' but writes the contents of the list in reverse order.
+{-# INLINE fromListRev #-}
+fromListRev :: (MonadIO m, Storable a) => [a] -> m (Array a)
+fromListRev xs = fromListRevN (Prelude.length xs) xs
 
 -------------------------------------------------------------------------------
 -- Combining
