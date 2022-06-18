@@ -183,7 +183,7 @@ fromStream (SerialT m) = P.fold A.write m
 {-# INLINE_NORMAL producer #-}
 producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
 producer =
-    Producer.lmap2 A.unsafeThaw A.unsafeFreeze
+    Producer.translate A.unsafeThaw A.unsafeFreeze
         $ MA.producerWith (return . unsafeInlineIO)
 
 -- | Unfold an array into a stream.
