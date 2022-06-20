@@ -3,6 +3,94 @@
 This document is yet to be written. It is supposed to provide an overall
 design overview for developers.
 
+## Types
+
+Basic producer and consumer types:
+
+```
+Stream m a
+Fold m a b
+```
+
+`Stream m a` generates a stream consisting of values of type `a`. `Fold m a b`
+consumes a stream consisting of values of type `a`. These two are duals of each
+other.
+
+The types do not look of dual shapes, the asymmetry is because of the fact that
+folds have to return a value and streams have to consume a value. Folds make
+the return type explicit in the type whereas streams encode that in the
+generator function signature.
+
+```
+fromList :: [a] -> Stream m a
+toList :: Fold m a [a]
+```
+
+Both folds and streams have an opaque internal state. In case of streams the
+function argument automatically gets injected into the state. In case of folds
+we need to explictly extract the output from the state.
+
+Unfolds are a variation over stream where we make a component of the state as
+global/static over the whole computation rather than keeping it dynamic via the
+function argument. Similarly, refolds make a component of the fold state
+global/static.
+
+Returning the remaining seed value from the Stream type is like taking a
+starting value of accumulator in each fold. That is equivalent to like the sum
+fold being written as `sum :: Int -> Fold m a b` and all other folds also
+written like that. But we do not do that.
+
+Unfolds are a variation on stream that extend only the nature of the initial
+value of state, making it static, it does not return the remaining seed.
+Producer extends it to return the remaining seed. Refold on the other hand
+introduces two things at the same time, we can now supply the initial value of
+the accumulator (which we did not do before) and we make it static at the same
+time. Refold and Producer are dual. What is the dual of Unfold? It would be
+making the nature of "extract" static in the Fold? Basically exposing the state
+type?
+
+What is the duality in Folds and Streams in terms of the Monad instance? Folds
+use a Result monad whereas Streams use a monad to compose stream elements.
+ConcatMap starts another stream when one stream finishes, it then starts
+generating another stream from the next seed. In folds, one fold finishes and
+then the next fold starts taking previous fold's result into account.
+
+Using stream concat if the previous seed has a leftover we cannot take that
+into account in the next stream generation because streams do not return the
+leftover state in the end. But we can use foldBreak in the base monad to be
+able to achieve that. Or we can use Producer in the base monad.
+
+However, foldBreak only gives you the leftover output stream. Sometimes we have
+leftover input which may have to be combined with the next input. That can only
+be done by the producer or "Stream a m r" monad. For example if we have a
+stream of arrays and we are parsing it using Word8 folds then we may have some
+leftover array that has to be combined with the next array. But we can combine
+the leftover stream with the next stream instead of combining inputs.
+
+With "Stream a m r" we can extract the residual seed at any point of time from
+the stream.  We can extract it from a partially consumed stream e.g. from the
+one returned by foldBreak. Extracting the residual seed gives us freedom to use
+it in a different way, rather than using it in a specific type fo stream. For
+example we may generate a Word8 stream from an Array and consume it using some
+Word8 folds. But then we may want to extract the residue and generate an Array
+chunks stream from it to consume via Array folds.
+
+-- Without the result
+Source m a <=> Sink m a (ListT)
+  Source => Unfold m a b  (Unsink?)
+  Sink m a => Resink m a b (static starting accum)
+
+-- With result
+-- fromList/fromFoldable seem to be the only generator functions that can
+-- possibly return a result. And unfold from a Producer. Basically only the
+-- functions that generate from a functor.
+Stream a m r <=> Fold a m r
+  Stream => ... m c a b  (Unfold?) (ReUnfold/ReStream? - resumable unfold/stream)
+  Fold => Refold m c a b
+
+Parser a m r -- error and backtracking (random access)
+Generator a m r -- error and backtracking (random access)
+
 ## Tricky Parts
 
 The state-passing through each API is currently fragile. Every time we run a
