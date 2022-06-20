@@ -15,30 +15,35 @@ module Streamly.Internal.Data.Stream.Bottom
       fromPure
     , fromEffect
 
-    -- * Elimination
+    -- * Folds
+    , fold
     , foldContinue
     , foldBreak
 
-    -- * Transformation
-    , map
-    , scanlMAfter'
-    , postscanlMAfter'
-    , postscanlM'
+    -- * Scans
     , smapM
     -- $smapM_Notes
+    , postscan
     , take
     , takeWhile
     , takeEndBy
     , drop
     , findIndices
+
+    -- * Merge
     , intersperseM
+
+    -- * Fold and Unfold
     , reverse
     , reverse'
 
-    -- * Nesting
+    -- * Expand
     , concatM
     , concatMapM
     , concatMap
+
+    -- * Reduce
+    , foldManyPost
 
     -- * Zipping
     , zipWithM
@@ -49,11 +54,12 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -65,7 +71,6 @@ import Streamly.Internal.Data.Stream.Type
 --
 -- $setup
 -- >>> :m
--- >>> import Control.Concurrent (threadDelay)
 -- >>> import Control.Monad (join)
 -- >>> import Control.Monad.Trans.Class (lift)
 -- >>> import Data.Function (fix, (&))
@@ -74,9 +79,9 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Array.Foreign as Array
--- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
 -- Elimination - Running a Fold
@@ -100,6 +105,26 @@ foldContinue f s = D.foldContinue f $ toStreamD s
 -- 'Fold' can terminate early without consuming the full stream. See the
 -- documentation of individual 'Fold's for termination behavior.
 --
+-- >>> Stream.fold Fold.sum (Stream.unfold Unfold.enumerateFromTo (1, 100))
+-- 5050
+--
+-- Folds never fail, therefore, they produce a default value even when no input
+-- is provided. It means we can always fold an empty stream and get a valid
+-- result.  For example:
+--
+-- >>> Stream.fold Fold.sum Stream.nil
+-- 0
+--
+-- However, 'foldMany' on an empty stream results in an empty stream.
+-- Therefore, @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany
+-- f@.
+--
+-- >>> fold f = Stream.parse (Parser.fromFold f)
+--
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> Stream m a -> m b
+fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
+
 -- | Like 'fold' but also returns the remaining stream.
 --
 -- /Inhibits stream fusion/
@@ -125,57 +150,39 @@ foldBreak fl strm = fmap f $ K.foldBreak fl (toStreamK strm)
 -- Transformation
 ------------------------------------------------------------------------------
 
+{-
 -- |
--- @
--- map = fmap
--- @
+-- >>> map = fmap
 --
 -- Same as 'fmap'.
 --
--- @
--- > K.toList $ K.map (+1) $ K.fromList [1,2,3]
+-- >>> Stream.fold Fold.toList $ fmap (+1) $ Stream.unfold Unfold.fromList [1,2,3]
 -- [2,3,4]
--- @
 --
--- @since 0.4.0
 {-# INLINE map #-}
-map :: (Monad m) => (a -> b) -> Stream m a -> Stream m b
+map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = fromStreamD . D.map f . toStreamD
+-}
 
--- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
--- that it provides an additional @done@ function to be applied on the
--- accumulator when the stream stops. The result of @done@ is also emitted in
--- the stream.
+-- | Postscan a stream using the given monadic fold.
 --
--- This function can be used to allocate a resource in the beginning of the
--- scan and release it when the stream ends or to flush the internal state of
--- the scan at the end.
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
 --
--- /Pre-release/
+-- >>> import Data.Maybe (fromJust)
+-- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> s = Stream.unfold Unfold.enumerateFromTo (1.0, 100.0)
+-- >>> :{
+--  Stream.fold Fold.toList
+--   $ fmap (fromJust . fst)
+--   $ Stream.takeWhile (\(_,x) -> x <= 10)
+--   $ Stream.postscan (Fold.tee Fold.last avg) s
+-- :}
+-- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
-{-# INLINE scanlMAfter' #-}
-scanlMAfter' :: (Monad m)
-    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
-scanlMAfter' step initial done stream =
-    fromStreamD $ D.scanlMAfter' step initial done $ toStreamD stream
-
-{-# INLINE postscanlMAfter' #-}
-postscanlMAfter' :: (Monad m)
-    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
-postscanlMAfter' step initial done stream =
-    fromStreamD $ D.postscanlMAfter' step initial done $ toStreamD stream
-
--- XXX this needs to be concurrent
--- | Like 'postscanl'' but with a monadic step function and a monadic seed.
---
--- >>> postscanlM' f z xs = Stream.drop 1 $ Stream.scanlM' f z xs
---
--- /Since: 0.7.0/
---
--- /Since: 0.8.0 (signature change)/
-{-# INLINE postscanlM' #-}
-postscanlM' :: (Monad m) => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
-postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
+{-# INLINE postscan #-}
+postscan :: Monad m => Fold m a b -> Stream m a -> Stream m b
+postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
 
 -- $smapM_Notes
 --
@@ -200,28 +207,22 @@ postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 -- the output makes it easier to think in terms of a shared state, and also
 -- makes it easier to keep the state fully strict and the output lazy.
 --
--- See also: 'scanlM''
+-- See also: 'postscan'
 --
 -- /Pre-release/
 --
 {-# INLINE smapM #-}
-smapM :: (Monad m) =>
+smapM :: Monad m =>
        (s -> a -> m (s, b))
     -> m s
     -> Stream m a
     -> Stream m b
 smapM step initial stream =
-    -- XXX implement this directly instead of using scanlM'
-    -- Once we have postscanlM' with monadic initial we can use this code
-    -- let r = postscanlM'
-    --              (\(s, _) a -> step s a)
-    --              (fmap (,undefined) initial)
-    --              stream
-    let r = postscanlM'
+    -- XXX implement this directly instead of using postscan
+    let f = Fold.foldlM'
                 (\(s, _) a -> step s a)
                 (fmap (,undefined) initial)
-                stream
-     in map snd r
+     in fmap snd $ postscan f stream
 
 ------------------------------------------------------------------------------
 -- Transformation - Trimming
@@ -229,27 +230,24 @@ smapM step initial stream =
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
--- @since 0.1.0
 {-# INLINE take #-}
-take :: (Monad m) => Int -> Stream m a -> Stream m a
+take :: Monad m => Int -> Stream m a -> Stream m a
 take n m = fromStreamD $ D.take n $ toStreamD m
 
 -- | End the stream as soon as the predicate fails on an element.
 --
--- @since 0.1.0
 {-# INLINE takeWhile #-}
-takeWhile :: (Monad m) => (a -> Bool) -> Stream m a -> Stream m a
+takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
 
 {-# INLINE takeEndBy #-}
-takeEndBy :: (Monad m) => (a -> Bool) -> Stream m a -> Stream m a
+takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
--- @since 0.1.0
 {-# INLINE drop #-}
-drop :: (Monad m) => Int -> Stream m a -> Stream m a
+drop :: Monad m => Int -> Stream m a -> Stream m a
 drop n m = fromStreamD $ D.drop n $ toStreamD m
 
 ------------------------------------------------------------------------------
@@ -259,11 +257,10 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
--- > findIndices = fold Fold.findIndices
+-- >>> findIndices p = Stream.fold (Fold.findIndices p)
 --
--- @since 0.5.0
 {-# INLINE findIndices #-}
-findIndices :: (Monad m) => (a -> Bool) -> Stream m a -> Stream m Int
+findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
 findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 
 ------------------------------------------------------------------------------
@@ -275,19 +272,19 @@ findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 -- | Insert an effect and its output before consuming an element of a stream
 -- except the first one.
 --
--- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') input
 -- h.,e.,l.,l.,o"h,e,l,l,o"
 --
 -- Be careful about the order of effects. In the above example we used trace
 -- after the intersperse, if we use it before the intersperse the output would
 -- be he.l.l.o."h,e,l,l,o".
 --
--- >>> Stream.fold Fold.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar $ Stream.unfold Unfold.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar input
 -- he.l.l.o."h,e,l,l,o"
 --
--- @since 0.5.0
 {-# INLINE intersperseM #-}
-intersperseM :: (Monad m) => m a -> Stream m a -> Stream m a
+intersperseM :: Monad m => m a -> Stream m a -> Stream m a
 intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 
 ------------------------------------------------------------------------------
@@ -305,11 +302,8 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 --
 -- >>> reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 --
--- /Since 0.7.0 (Monad m constraint)/
---
--- /Since: 0.1.1/
 {-# INLINE reverse #-}
-reverse :: (Monad m) => Stream m a -> Stream m a
+reverse :: Monad m => Stream m a -> Stream m a
 reverse s = fromStreamD $ D.reverse $ toStreamD s
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
@@ -336,9 +330,8 @@ reverse' =
 -- generation function is monadic, unlike 'concatMap', it can produce an
 -- effect at the beginning of each iteration of the inner loop.
 --
--- @since 0.6.0
 {-# INLINE concatMapM #-}
-concatMapM :: (Monad m) => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 
 -- | Map a stream producing function on each element of the stream and then
@@ -346,12 +339,11 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 --
 -- >>> concatMap f = Stream.concatMapM (return . f)
 -- >>> concatMap f = Stream.concatMapWith Stream.append f
--- >>> concatMap f = Stream.concat . Stream.map f
+-- >>> concatMap f = Stream.concat . fmap f
 -- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
 --
--- @since 0.6.0
 {-# INLINE concatMap #-}
-concatMap ::(Monad m) => (a -> Stream m b) -> Stream m a -> Stream m b
+concatMap ::Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 
 -- | Given a stream value in the underlying monad, lift and join the underlying
@@ -366,8 +358,29 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 --  /Internal/
 --
 {-# INLINE concatM #-}
-concatM :: (Monad m) => m (Stream m a) -> Stream m a
+concatM :: Monad m => m (Stream m a) -> Stream m a
 concatM generator = concatMapM (\() -> generator) (fromPure ())
+
+-- | Like 'foldMany' but appends empty fold output if the fold and stream
+-- termination aligns:
+--
+-- >>> f = Fold.take 2 Fold.sum
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList []
+-- [0]
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList [1..9]
+-- [3,7,11,15,9]
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList [1..10]
+-- [3,7,11,15,19,0]
+--
+-- /Pre-release/
+--
+{-# INLINE foldManyPost #-}
+foldManyPost
+    :: Monad m
+    => Fold m a b
+    -> Stream m a
+    -> Stream m b
+foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Zipping
@@ -375,12 +388,10 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 
 -- | Like 'zipWith' but using a monadic zipping function.
 --
--- @since 0.4.0
 {-# INLINE zipWithM #-}
-zipWithM :: (Monad m) => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f m1 m2 =
-    fromStreamD
-        $ D.zipWithM f (toStreamD m1) (toStreamD m2)
+zipWithM :: Monad m =>
+    (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 
 -- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
 -- elements @a@ and @b@ are then zipped using the supplied zip function and the
@@ -389,14 +400,11 @@ zipWithM f m1 m2 =
 -- If stream @a@ or stream @b@ ends, the zipped stream ends. If stream @b@ ends
 -- first, the element @a@ from previous evaluation of stream @a@ is discarded.
 --
--- @
--- > K.toList $ K.zipWith (+) (K.fromList [1,2,3]) (K.fromList [4,5,6])
+-- >>> s1 = Stream.unfold Unfold.fromList [1,2,3]
+-- >>> s2 = Stream.unfold Unfold.fromList [4,5,6]
+-- >>> Stream.fold Fold.toList $ Stream.zipWith (+) s1 s2
 -- [5,7,9]
--- @
 --
--- @since 0.1.0
 {-# INLINE zipWith #-}
-zipWith :: (Monad m) => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWith f m1 m2 =
-    fromStreamD
-        $ D.zipWith f (toStreamD m1) (toStreamD m2)
+zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipWith f m1 m2 = fromStreamD $ D.zipWith f (toStreamD m1) (toStreamD m2)

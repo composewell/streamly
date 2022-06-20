@@ -308,6 +308,7 @@ instance Functor m => Functor (Unfold m a) where
 -- Applicative
 ------------------------------------------------------------------------------
 
+-- XXX Shouldn't this be Unfold m (m a) a ?
 -- | The unfold discards its input and generates a function stream using the
 -- supplied monadic action.
 --
@@ -323,6 +324,9 @@ fromEffect m = Unfold step inject
     step False = (`Yield` True) <$> m
     step True = pure Stop
 
+-- XXX Shouldn't this be Unfold m a a ? Which is identity. Should this function
+-- even exist for Unfolds. Should we have applicative/Monad for unfolds?
+--
 -- | Discards the unfold input and always returns the argument of 'fromPure'.
 --
 -- > fromPure = fromEffect . pure

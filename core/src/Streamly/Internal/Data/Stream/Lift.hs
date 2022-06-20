@@ -34,6 +34,10 @@ import Streamly.Internal.Data.Stream.Type
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
+-- $setup
+-- >>> :m
+-- >>> import Streamly.Internal.Data.Stream as Stream
+
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad
 ------------------------------------------------------------------------------
@@ -52,7 +56,7 @@ hoist f xs = fromStreamK $ K.hoist f (toStreamK xs)
 -- / Internal/
 --
 {-# INLINE generally #-}
-generally :: (Monad m) => Stream Identity a -> Stream m a
+generally :: Monad m => Stream Identity a -> Stream m a
 generally xs = fromStreamK $ K.hoist (return . runIdentity) (toStreamK xs)
 
 ------------------------------------------------------------------------------
@@ -61,8 +65,6 @@ generally xs = fromStreamK $ K.hoist (return . runIdentity) (toStreamK xs)
 
 -- | Lift the inner monad @m@ of a stream @Stream m a@ to @tr m@ using the monad
 -- transformer @tr@.
---
--- @since 0.8.0
 --
 {-# INLINE liftInner #-}
 liftInner :: (Monad m, MonadTrans tr, Monad (tr m))
@@ -75,10 +77,8 @@ liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 
 -- | Evaluate the inner monad of a stream as 'ReaderT'.
 --
--- @since 0.8.0
---
 {-# INLINE runReaderT #-}
-runReaderT :: (Monad m) => m s -> Stream (ReaderT s m) a -> Stream m a
+runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
 runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
 
 -- | Run a stream transformation using a given environment.
@@ -89,7 +89,7 @@ runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
 --
 {-# INLINE usingReaderT #-}
 usingReaderT
-    :: (Monad m)
+    :: Monad m
     => m r
     -> (Stream (ReaderT r m) a -> Stream (ReaderT r m) a)
     -> Stream m a
@@ -102,10 +102,7 @@ usingReaderT r f xs = runReaderT r $ f $ liftInner xs
 
 -- | Evaluate the inner monad of a stream as 'StateT'.
 --
--- This is supported only for 'Stream' as concurrent state updation may not be
--- safe.
---
--- > evalStateT s = Stream.map snd . Stream.runStateT s
+-- >>> evalStateT s = fmap snd . Stream.runStateT s
 --
 -- / Internal/
 --
@@ -116,12 +113,9 @@ evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 
 -- | Run a stateful (StateT) stream transformation using a given state.
 --
--- This is supported only for 'Stream' as concurrent state updation may not be
--- safe.
+-- >>> usingStateT s f = Stream.evalStateT s . f . Stream.liftInner
 --
--- > usingStateT s f = evalStateT s . f . liftInner
---
--- See also: 'scanl''
+-- See also: 'scan'
 --
 -- / Internal/
 --
@@ -136,11 +130,6 @@ usingStateT s f = evalStateT s . f . liftInner
 
 -- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
 -- state and value pair after each step.
---
--- This is supported only for 'Stream' as concurrent state updation may not be
--- safe.
---
--- @since 0.8.0
 --
 {-# INLINE runStateT #-}
 runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)

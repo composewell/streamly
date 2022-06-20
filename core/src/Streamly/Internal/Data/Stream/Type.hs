@@ -10,7 +10,10 @@
 --
 module Streamly.Internal.Data.Stream.Type
     (
+    -- * Stream Type
       Stream
+
+    -- * Type Conversion
     , fromStreamK
     , toStreamK
     , fromStreamD
@@ -19,35 +22,16 @@ module Streamly.Internal.Data.Stream.Type
     -- * Construction
     , cons
     , consM
-    , (.:)
     , nil
     , nilM
     , fromPure
     , fromEffect
-    , append
 
     -- * Bind/Concat
     , bindWith
     , concatMapWith
 
-    -- * Fold Utilities
-    , concatFoldableWith
-    , concatMapFoldableWith
-    , concatForFoldableWith
-
-    -- * Fold operations
-    , foldrM
-    , foldrMx
-    , foldr
-
-    , foldlx'
-    , foldlMx'
-    , foldl'
-
-    -- * Conversion operations
-    , fromList
-    , toList
-    -- * Zip style operations
+    -- * Double folds
     , eqBy
     , cmpBy
     )
@@ -79,8 +63,6 @@ import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (repeat)
-
 #include "Instances.hs"
 #include "inline.hs"
 
@@ -95,12 +77,12 @@ import Prelude hiding (repeat)
 
 -- | Semigroup instance appends two streams:
 --
--- > (<>) = Stream.append
+-- >>> (<>) = Stream.append
 --
 -- Monad bind maps a stream generator function on the stream and flattens the
 -- resulting stream:
 --
--- > (>>=) = flip . Stream.concatMapWith Stream.append
+-- >>> (>>=) = flip (Stream.concatMapWith Stream.append)
 --
 -- A 'Monad' bind behaves like a @for@ loop:
 --
@@ -138,13 +120,34 @@ fromStreamK = Stream
 toStreamK :: Stream m a -> K.Stream m a
 toStreamK (Stream k) = k
 
+{-# INLINE fromStreamD #-}
+fromStreamD :: Monad m => D.Stream m a -> Stream m a
+fromStreamD = fromStreamK . D.toStreamK
+
 {-# INLINE toStreamD #-}
 toStreamD :: Applicative m => Stream m a -> D.Stream m a
 toStreamD = D.fromStreamK . toStreamK
 
-{-# INLINE fromStreamD #-}
-fromStreamD :: Monad m => D.Stream m a -> Stream m a
-fromStreamD = fromStreamK . D.toStreamK
+------------------------------------------------------------------------------
+-- Comparison
+------------------------------------------------------------------------------
+
+-- | Compare two streams for equality
+--
+-- @since 0.9.0
+{-# INLINE eqBy #-}
+eqBy :: Monad m =>
+    (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
+eqBy f m1 m2 = D.eqBy f (toStreamD m1) (toStreamD m2)
+
+-- | Compare two streams
+--
+-- @since 0.9.0
+{-# INLINE cmpBy #-}
+cmpBy
+    :: Monad m
+    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
+cmpBy f m1 m2 = D.cmpBy f (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -164,7 +167,7 @@ instance Monad m => Monad (Stream m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) (Stream m) f = Stream $ K.bindWith K.serial m (toStreamK . f)
+    (>>=) m f = fromStreamK $ K.bindWith K.serial (toStreamK m) (toStreamK . f)
 
     {-# INLINE (>>) #-}
     (>>)  = (*>)
@@ -176,23 +179,23 @@ instance Monad m => Monad (Stream m) where
 {-# INLINE apSerial #-}
 apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
 apSerial (Stream m1) (Stream m2) =
-    Stream $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
+    fromStreamK $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
 
 {-# INLINE apSequence #-}
 apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
 apSequence (Stream m1) (Stream m2) =
-    Stream $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
+    fromStreamK $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
 
 {-# INLINE apDiscardSnd #-}
 apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
 apDiscardSnd (Stream m1) (Stream m2) =
-    Stream $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
+    fromStreamK $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
 instance Monad m => Applicative (Stream m) where
     {-# INLINE pure #-}
-    pure = Stream . K.fromPure
+    pure = fromStreamK . K.fromPure
 
     {-# INLINE (<*>) #-}
     (<*>) = apSerial
@@ -226,9 +229,9 @@ infixr 5 `cons`
 --
 -- For example:
 --
--- >> s = 1 `Stream.cons` 2 `Stream.cons` 3 `Stream.cons` Stream.nil
--- >> Stream.fold Fold.toList s
--- >[1,2,3]
+-- >>> s = 1 `Stream.cons` 2 `Stream.cons` 3 `Stream.cons` Stream.nil
+-- >>> Stream.fold Fold.toList s
+-- [1,2,3]
 --
 -- >>> cons x xs = return x `Stream.consM` xs
 --
@@ -238,17 +241,17 @@ infixr 5 `cons`
 cons ::  a -> Stream m a -> Stream m a
 cons x = fromStreamK . K.cons x . toStreamK
 
+infixr 5 `consM`
+
 -- | Constructs a stream by adding a monadic action at the head of an
 -- existing stream. For example:
 --
--- @
--- > toList $ getLine \`consM` getLine \`consM` nil
+-- >>> s = putStrLn "hello" `consM` putStrLn "world" `consM` Stream.nil
+-- >>> Stream.fold Fold.drain s
 -- hello
 -- world
--- ["hello","world"]
--- @
 --
--- > consM x xs = fromEffect x `append` xs
+-- >>> consM x xs = Stream.fromEffect x `Stream.append` xs
 --
 -- /Pre-release/
 --
@@ -257,35 +260,46 @@ cons x = fromStreamK . K.cons x . toStreamK
 consM :: Monad m => m a -> Stream m a -> Stream m a
 consM m = fromStreamK . K.consM m . toStreamK
 
-infixr 5 .:
-
--- | Operator equivalent of 'cons'.
+-- | A pure empty stream with no result and no side-effect.
 --
--- @
--- > toList $ 1 .: 2 .: 3 .: nil
--- [1,2,3]
--- @
+-- >>> Stream.fold Fold.toList Stream.nil
+-- []
 --
--- @since 0.1.1
-{-# INLINE (.:) #-}
-(.:) ::  a -> Stream m a -> Stream m a
-(.:) = cons
-
 {-# INLINE_NORMAL nil #-}
 nil ::  Stream m a
-nil = Stream K.nil
+nil = fromStreamK K.nil
 
+-- | An empty stream producing the supplied side effect.
+--
+-- >>> Stream.fold Fold.toList (Stream.nilM (print "nil"))
+-- "nil"
+-- []
+--
+-- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
-nilM :: (Monad m) => m b -> Stream m a
-nilM = Stream . K.nilM
+nilM :: Monad m => m b -> Stream m a
+nilM = fromStreamK . K.nilM
 
+-- | Create a singleton stream from a pure value.
+--
+-- >>> fromPure a = a `cons` Stream.nil
+-- >>> fromPure = pure
+-- >>> fromPure = fromEffect . pure
+--
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: a -> Stream m a
-fromPure = Stream . K.fromPure
+fromPure = fromStreamK . K.fromPure
 
+-- | Create a singleton stream from a monadic action.
+--
+-- >>> fromEffect m = m `consM` Stream.nil
+--
+-- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
+-- hello
+--
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Monad m => m a -> Stream m a
-fromEffect = Stream . K.fromEffect
+fromEffect = fromStreamK . K.fromEffect
 
 -------------------------------------------------------------------------------
 -- Bind/Concat
@@ -298,9 +312,9 @@ bindWith
     -> (a -> Stream m b)
     -> Stream m b
 bindWith par m1 f =
-    Stream
+    fromStreamK
         $ K.bindWith
-            (\s1 s2 -> toStreamK $ par (Stream s1) (Stream s2))
+            (\s1 s2 -> toStreamK $ par (fromStreamK s1) (fromStreamK s2))
             (toStreamK m1)
             (toStreamK . f)
 
@@ -311,9 +325,6 @@ bindWith par m1 f =
 --
 -- Note we can merge streams concurrently by using a concurrent merge function.
 --
--- /Since: 0.7.0/
---
--- /Since: 0.8.0 (signature change)/
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (Stream m b -> Stream m b -> Stream m b)
@@ -321,146 +332,3 @@ concatMapWith
     -> Stream m a
     -> Stream m b
 concatMapWith par f xs = bindWith par xs f
-
--- | A variant of 'foldMap' that allows you to map a monadic streaming action
--- on a 'Foldable' container and then fold it using the specified stream merge
--- operation.
---
--- @concatMapFoldableWith 'async' return [1..3]@
---
--- Equivalent to:
---
--- @
--- concatMapFoldableWith f g = Prelude.foldr (f . g) K.nil
--- concatMapFoldableWith f g xs = K.concatMapWith f g (K.fromFoldable xs)
--- @
---
--- /Since: 0.8.0 (Renamed foldMapWith to concatMapFoldableWith)/
---
--- /Since: 0.1.0 ("Streamly")/
-{-# INLINE concatMapFoldableWith #-}
-concatMapFoldableWith :: Foldable f
-    => (Stream m b -> Stream m b -> Stream m b)
-    -> (a -> Stream m b)
-    -> f a
-    -> Stream m b
-concatMapFoldableWith f g = Prelude.foldr (f . g) nil
-
--- | Like 'concatMapFoldableWith' but with the last two arguments reversed i.e. the
--- monadic streaming function is the last argument.
---
--- Equivalent to:
---
--- @
--- concatForFoldableWith f xs g = Prelude.foldr (f . g) K.nil xs
--- concatForFoldableWith f = flip (K.concatMapFoldableWith f)
--- @
---
--- /Since: 0.8.0 (Renamed forEachWith to concatForFoldableWith)/
---
--- /Since: 0.1.0 ("Streamly")/
-{-# INLINE concatForFoldableWith #-}
-concatForFoldableWith :: Foldable f
-    => (Stream m b -> Stream m b -> Stream m b)
-    -> f a
-    -> (a -> Stream m b)
-    -> Stream m b
-concatForFoldableWith f = flip (concatMapFoldableWith f)
-
--- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
--- container of streams using the specified stream sum operation.
---
--- @concatFoldableWith 'async' $ map return [1..3]@
---
--- Equivalent to:
---
--- @
--- concatFoldableWith f = Prelude.foldr f K.nil
--- concatFoldableWith f = K.concatMapFoldableWith f id
--- @
---
--- /Since: 0.8.0 (Renamed foldWith to concatFoldableWith)/
---
--- /Since: 0.1.0 ("Streamly")/
-{-# INLINE concatFoldableWith #-}
-concatFoldableWith :: Foldable f
-    => (Stream m a -> Stream m a -> Stream m a)
-    -> f (Stream m a)
-    -> Stream m a
-concatFoldableWith f = concatMapFoldableWith f id
-
-------------------------------------------------------------------------------
--- Folds
-------------------------------------------------------------------------------
-
-{-# INLINE foldrM #-}
-foldrM ::  (a -> m b -> m b) -> m b -> Stream m a -> m b
-foldrM step acc m = K.foldrM step acc $ toStreamK m
-
-{-# INLINE foldrMx #-}
-foldrMx :: (Monad m)
-    => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
-foldrMx step final project m = D.foldrMx step final project $ toStreamD m
-
--- | Like 'foldlx'', but with a monadic step function.
---
--- @since 0.7.0
-{-# INLINE foldlMx' #-}
-foldlMx' ::
-    (Monad m)
-    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
-foldlMx' step begin done m = P.foldlMx' step begin done $ toStreamK m
-
--- | Strict left fold with an extraction function. Like the standard strict
--- left fold, but applies a user supplied extraction function (the third
--- argument) to the folded value at the end. This is designed to work with the
--- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
---
--- @since 0.7.0
-{-# INLINE foldlx' #-}
-foldlx' ::
-    (Monad m) => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
-foldlx' step begin done m = K.foldlx' step begin done $ toStreamK m
-
-------------------------------------------------------------------------------
--- Comparison
-------------------------------------------------------------------------------
-
--- | Compare two streams for equality
---
--- @since 0.5.3
-{-# INLINE eqBy #-}
-eqBy :: (Monad m) =>
-    (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
-eqBy f m1 m2 = D.eqBy f (toStreamD m1) (toStreamD m2)
-
--- | Compare two streams
---
--- @since 0.5.3
-{-# INLINE cmpBy #-}
-cmpBy
-    :: (Monad m)
-    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
-cmpBy f m1 m2 = D.cmpBy f (toStreamD m1) (toStreamD m2)
-
-------------------------------------------------------------------------------
--- Combining
-------------------------------------------------------------------------------
-
-infixr 6 `append`
-
--- | Appends two streams sequentially, yielding all elements from the first
--- stream, and then all elements from the second stream.
---
--- >>> s1 = Stream.unfold Unfold.fromList [1,2]
--- >>> s2 = Stream.unfold Unfold.fromList [3,4]
--- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
--- [1,2,3,4]
---
--- This operation can be used to fold an infinite lazy container of streams.
---
--- /Pre-release/
---
-{-# INLINE append #-}
-append :: Stream m a -> Stream m a -> Stream m a
-append = (<>)

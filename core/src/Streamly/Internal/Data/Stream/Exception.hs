@@ -33,8 +33,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (nilM)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- Exceptions
@@ -47,9 +46,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- >>> before action xs = Stream.nilM action <> xs
 -- >>> before action xs = Stream.concatMap (const xs) (Stream.fromEffect action)
 --
--- @since 0.7.0
 {-# INLINE before #-}
-before :: (Monad m) => m b -> Stream m a -> Stream m a
+before :: Monad m => m b -> Stream m a -> Stream m a
 before action xs = fromStreamD $ D.before action $ toStreamD xs
 
 -- | Like 'after', with following differences:
@@ -61,26 +59,24 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 --
 -- Same as the following, but with stream fusion:
 --
--- > after_ action xs = xs <> 'nilM' action
+-- >>> after_ action xs = xs <> Stream.nilM action
 --
 -- /Pre-release/
 --
 {-# INLINE after_ #-}
-after_ :: (Monad m) => m b -> Stream m a -> Stream m a
+after_ :: Monad m => m b -> Stream m a -> Stream m a
 after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 
--- | Run the action @m b@ whenever the stream @Stream m a@ stops normally, or if it
--- is garbage collected after a partial lazy evaluation.
+-- | Run the action @m b@ whenever the stream @Stream m a@ stops normally, or
+-- if it is garbage collected after a partial lazy evaluation.
 --
 -- The semantics of the action @m b@ are similar to the semantics of cleanup
 -- action in 'bracket'.
 --
 -- /See also 'after_'/
 --
--- @since 0.7.0
---
 {-# INLINE after #-}
-after :: (MonadAsync m)
+after :: MonadAsync m
     => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ D.after action $ toStreamD xs
 
@@ -89,9 +85,8 @@ after action xs = fromStreamD $ D.after action $ toStreamD xs
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.7.0
 {-# INLINE onException #-}
-onException :: (MonadCatch m) => m b -> Stream m a -> Stream m a
+onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 
 -- | Like 'finally' with following differences:
@@ -106,25 +101,21 @@ onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 -- /Pre-release/
 --
 {-# INLINE finally_ #-}
-finally_ :: (MonadCatch m) => m b -> Stream m a -> Stream m a
+finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
 finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 
--- | Run the action @m b@ whenever the stream @Stream m a@ stops normally, aborts
--- due to an exception or if it is garbage collected after a partial lazy
--- evaluation.
+-- | Run the action @m b@ whenever the stream @Stream m a@ stops normally,
+-- aborts due to an exception or if it is garbage collected after a partial
+-- lazy evaluation.
 --
 -- The semantics of running the action @m b@ are similar to the cleanup action
 -- semantics described in 'bracket'.
 --
--- @
--- finally release = bracket (return ()) (const release)
--- @
+-- >>> finally release = Stream.bracket (return ()) (const release)
 --
 -- /See also 'finally_'/
 --
 -- /Inhibits stream fusion/
---
--- @since 0.7.0
 --
 {-# INLINE finally #-}
 finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
@@ -143,7 +134,7 @@ finally action xs = fromStreamD $ D.finally action $ toStreamD xs
 -- /Pre-release/
 --
 {-# INLINE bracket_ #-}
-bracket_ :: (MonadCatch m)
+bracket_ :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket_ bef aft bet = fromStreamD $
     D.bracket_ bef aft (toStreamD . bet)
@@ -169,8 +160,6 @@ bracket_ bef aft bet = fromStreamD $
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.7.0
---
 {-# INLINE bracket #-}
 bracket :: (MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
@@ -179,7 +168,7 @@ bracket bef aft = bracket' bef aft aft aft
 -- For a use case of this see the "streamly-process" package. It needs to kill
 -- the process in case of exception or garbage collection, but waits for the
 -- process to terminate in normal cases.
---
+
 -- | Like 'bracket' but can use separate cleanup actions depending on the mode
 -- of termination.  @bracket' before onStop onGC onException action@ runs
 -- @action@ using the result of @before@. If the stream stops, @onStop@ action
@@ -189,7 +178,12 @@ bracket bef aft = bracket' bef aft aft aft
 -- /Pre-release/
 {-# INLINE bracket' #-}
 bracket' :: (MonadAsync m, MonadCatch m)
-    => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> Stream m a) -> Stream m a
+    => m b
+    -> (b -> m c)
+    -> (b -> m d)
+    -> (b -> m e)
+    -> (b -> Stream m a)
+    -> Stream m a
 bracket' bef aft gc exc bet = fromStreamD $
     D.bracket' bef aft exc gc (toStreamD . bet)
 
@@ -218,7 +212,6 @@ ghandle handler =
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.7.0
 {-# INLINE handle #-}
 handle :: (MonadCatch m, Exception e)
     => (e -> Stream m a) -> Stream m a -> Stream m a
