@@ -406,6 +406,24 @@ benchmark Data.Parser
 -- Raw Streams
 -------------------------------------------------------------------------------
 
+benchmark Data.Stream
+   import: bench-options
+   type: exitcode-stdio-1.0
+   hs-source-dirs: Streamly/Benchmark/Data
+   main-is: Stream.hs
+   other-modules:
+         Stream.Elimination
+         Stream.Common
+   if flag(bench-core) || impl(ghcjs)
+     buildable: False
+   else
+     buildable: True
+   if flag(limit-build-mem)
+     if flag(dev)
+       ghc-options: +RTS -M3500M -RTS
+     else
+       ghc-options: +RTS -M2000M -RTS
+
 benchmark Data.Stream.StreamD
   import: bench-options
   type: exitcode-stdio-1.0
