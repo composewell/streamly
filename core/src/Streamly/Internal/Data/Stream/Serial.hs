@@ -343,6 +343,8 @@ list = fromStreamD . D.fromList
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
 unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)
 
-{-# INLINE drain #-}
+{-# INLINE_EARLY drain #-}
 drain :: Monad m => SerialT m a -> m ()
-drain (SerialT m) = P.drain m
+drain (SerialT m) = D.drain $ D.fromStreamK m
+{-# RULES "drain fallback to CPS" [1]
+    forall a. D.drain (D.fromStreamK a) = K.drain a #-}

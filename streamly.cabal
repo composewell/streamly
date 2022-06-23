@@ -194,8 +194,13 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Pipe.hs
     core/src/Streamly/Internal/Data/Stream/Serial.hs
     core/src/Streamly/Internal/Data/Stream.hs
+    core/src/Streamly/Internal/Data/Stream/Bottom.hs
     core/src/Streamly/Internal/Data/Stream/Eliminate.hs
+    core/src/Streamly/Internal/Data/Stream/Exception.hs
+    core/src/Streamly/Internal/Data/Stream/Expand.hs
     core/src/Streamly/Internal/Data/Stream/Generate.hs
+    core/src/Streamly/Internal/Data/Stream/Lift.hs
+    core/src/Streamly/Internal/Data/Stream/Reduce.hs
     core/src/Streamly/Internal/Data/Stream/Transform.hs
     core/src/Streamly/Internal/Data/Stream/Type.hs
     core/src/Streamly/Internal/Data/Stream/WSerial.hs
@@ -613,9 +618,14 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Type
-                     , Streamly.Internal.Data.Stream.Eliminate
+                     , Streamly.Internal.Data.Stream.Bottom
                      , Streamly.Internal.Data.Stream.Generate
+                     , Streamly.Internal.Data.Stream.Eliminate
+                     , Streamly.Internal.Data.Stream.Expand
+                     , Streamly.Internal.Data.Stream.Reduce
                      , Streamly.Internal.Data.Stream.Transform
+                     , Streamly.Internal.Data.Stream.Exception
+                     , Streamly.Internal.Data.Stream.Lift
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip

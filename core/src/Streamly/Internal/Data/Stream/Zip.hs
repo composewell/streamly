@@ -53,13 +53,6 @@ import Prelude hiding (map, repeat, zipWith)
 
 -- $setup
 -- >>> import qualified Streamly.Prelude as Stream
--- >>> import Control.Concurrent (threadDelay)
--- >>> :{
---  delay n = do
---      threadDelay (n * 1000000)   -- sleep for n seconds
---      putStrLn (show n ++ " sec") -- print "n sec"
---      return n                    -- IO Int
--- :}
 
 {-# INLINE zipWithMK #-}
 zipWithMK :: Monad m =>
