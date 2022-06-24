@@ -412,8 +412,9 @@ benchmark Data.Stream
    hs-source-dirs: Streamly/Benchmark/Data
    main-is: Stream.hs
    other-modules:
-         Stream.Elimination
-         Stream.Common
+        Stream.Elimination
+        Stream.Generate
+        Stream.Common
    if flag(bench-core) || impl(ghcjs)
      buildable: False
    else

@@ -9,15 +9,22 @@ module Stream.Common
     , sourceUnfoldrM
     , sourceUnfoldrAction
     , benchIOSink
+    , benchIOSrc
     )
 where
 
-import Streamly.Internal.Data.Stream.Type (Stream, fromStreamK)
+import Streamly.Internal.Data.Stream (Stream, fromStreamK)
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import Control.DeepSeq (NFData)
 import Gauge
 import Prelude hiding (mapM)
 import System.Random (randomRIO)
+
+{-# INLINE toNull #-}
+toNull :: Monad m => Stream m a -> m ()
+toNull = Stream.fold Fold.drain
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (Monad m) => Int -> Int -> Stream m Int
@@ -27,7 +34,6 @@ sourceUnfoldrM count start = fromStreamK $ K.unfoldrMWith K.consM step start
         if cnt > start + count
         then return Nothing
         else return (Just (cnt, cnt + 1))
-
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: Int -> Int -> Stream m Int
@@ -39,8 +45,7 @@ sourceUnfoldr count start = fromStreamK $ K.unfoldr step start
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrAction #-}
-sourceUnfoldrAction :: (Monad m, Monad m1)
-    => Int -> Int -> Stream m (m1 Int)
+sourceUnfoldrAction :: Monad m1 => Int -> Int -> Stream m (m1 Int)
 sourceUnfoldrAction value n = fromStreamK $ K.unfoldr step n
     where
     step cnt =
@@ -54,3 +59,12 @@ benchIOSink
     => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
+
+-- | Takes a source, and uses it with a default drain/fold method.
+{-# INLINE benchIOSrc #-}
+benchIOSrc
+    :: String
+    -> (Int -> Stream IO a)
+    -> Benchmark
+benchIOSrc name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
