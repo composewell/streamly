@@ -414,6 +414,7 @@ benchmark Data.Stream
    other-modules:
         Stream.Elimination
         Stream.Generate
+        Stream.Lift
         Stream.Common
    if flag(bench-core) || impl(ghcjs)
      buildable: False
