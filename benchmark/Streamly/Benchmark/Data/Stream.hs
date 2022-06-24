@@ -18,6 +18,7 @@ import qualified Stream.Exceptions as Exceptions
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
 import qualified Stream.Reduce as Reduce
+import qualified Stream.Transformation as Transformation
 
 import Streamly.Benchmark.Common
 
@@ -45,3 +46,5 @@ main = do
         ++ Exceptions.benchmarks moduleName env size
         ++ Lift.benchmarks moduleName size
         ++ Reduce.benchmarks moduleName size
+        ++ Transformation.benchmarks moduleName size
+    

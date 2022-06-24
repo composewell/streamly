@@ -418,6 +418,7 @@ benchmark Data.Stream
       , Stream.Generate
       , Stream.Lift
       , Stream.Reduce
+      , Stream.Transformation
       , Stream.Common
    if flag(bench-core) || impl(ghcjs)
      buildable: False
