@@ -122,8 +122,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
-import Foreign.Ptr (plusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
+import Foreign.Ptr (castPtr)
+import Streamly.Internal.Data.Unboxed (Storable, peekWith)
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
@@ -223,10 +223,10 @@ unsafeRead = Unfold step inject
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ do
-                        r <- peek p
+                        r <- peekWith contents p
                         touch contents
                         return r
-            let !p1 = PTR_NEXT(p,a)
+            let !p1 = INDEX_NEXT(p)
             return $ D.Yield x (ReadUState contents end p1)
 
 -- |
@@ -237,21 +237,18 @@ unsafeRead = Unfold step inject
 -- /Pre-release/
 {-# INLINE null #-}
 null :: Array a -> Bool
-null arr = A.byteLength arr == 0
+null arr = A.length arr == 0
 
 -- | Like 'getIndex' but indexes the array in reverse from the end.
 --
 -- /Pre-release/
 {-# INLINE getIndexRev #-}
 getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
-getIndexRev i arr =
-    unsafeInlineIO
-        $ asPtrUnsafe arr
-            $ \ptr -> do
-                let elemPtr = PTR_RINDEX(aEnd arr,i,a)
-                if i >= 0 && elemPtr >= ptr
-                then Just <$> peek elemPtr
-                else return Nothing
+getIndexRev i arr = unsafeInlineIO $ do
+    let elemPtr = RINDEX_OF(aEnd arr, i)
+    if i >= 0 && elemPtr >= arrStart arr
+    then Just <$> peekWith (arrContents arr) elemPtr
+    else return Nothing
 
 -- |
 --
@@ -352,15 +349,13 @@ find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
 -- /Pre-release/
 {-# INLINE getSliceUnsafe #-}
 getSliceUnsafe ::
-       forall a. Storable a
-    => Int -- ^ starting index
+       Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
 getSliceUnsafe index len (Array contents start e) =
-    let size = SIZE_OF(a)
-        fp1 = start `plusPtr` (index * size)
-        end = fp1 `plusPtr` (len * size)
+    let fp1 = start + index
+        end = fp1 + len
      in assert (end <= e) (Array contents fp1 end)
 
 -- | Split the array into a stream of slices using a predicate. The element
@@ -376,7 +371,7 @@ splitOn predicate arr =
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
 {-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Storable a)
+genSlicesFromLen :: forall m a. Monad m
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
@@ -389,7 +384,7 @@ genSlicesFromLen from len =
 --
 -- /Pre-release//
 {-# INLINE getSlicesFromLen #-}
-getSlicesFromLen :: forall m a. (Monad m, Storable a)
+getSlicesFromLen :: forall m a. Monad m
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
@@ -409,14 +404,11 @@ getSlicesFromLen from len =
 -- @since 0.8.0
 {-# INLINE getIndex #-}
 getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
-getIndex i arr =
-    unsafeInlineIO
-        $ asPtrUnsafe arr
-            $ \ptr -> do
-                let elemPtr = PTR_INDEX(ptr,i,a)
-                if i >= 0 && PTR_VALID(elemPtr,aEnd arr,a)
-                then Just <$> peek elemPtr
-                else return Nothing
+getIndex i arr = unsafeInlineIO $ do
+    let elemPtr = INDEX_OF(arrStart arr, i)
+    if i >= 0 && INDEX_VALID(elemPtr, aEnd arr)
+    then Just <$> peekWith (arrContents arr) elemPtr
+    else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from
 -- the supplied Array. An exception is thrown if an index is out of bounds.
@@ -502,20 +494,15 @@ streamTransform f arr =
 --
 -- /Pre-release/
 --
-castUnsafe ::
-#ifdef DEVBUILD
-    Storable b =>
-#endif
-    Array a -> Array b
-castUnsafe (Array contents start end) =
-    Array contents (castPtr start) (castPtr end)
+castUnsafe :: (Storable a, Storable b) => Array a -> Array b
+castUnsafe = A.unsafeFreeze . MA.castUnsafe . A.unsafeThaw
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
 -- @since 0.8.0
 --
-asBytes :: Array a -> Array Word8
-asBytes = castUnsafe
+asBytes :: Storable a => Array a -> Array Word8
+asBytes = A.unsafeFreeze . MA.asBytes . A.unsafeThaw
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
@@ -523,13 +510,8 @@ asBytes = castUnsafe
 --
 -- @since 0.8.0
 --
-cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
-cast arr =
-    let len = A.byteLength arr
-        r = len `mod` SIZE_OF(b)
-     in if r /= 0
-        then Nothing
-        else Just $ castUnsafe arr
+cast :: forall a b. (Storable a, Storable b) => Array a -> Maybe (Array b)
+cast = fmap A.unsafeFreeze . MA.cast . A.unsafeThaw
 
 -- | Convert an array of any type into a null terminated CString Ptr.
 --
@@ -539,7 +521,7 @@ cast arr =
 --
 -- /Pre-release/
 --
-asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
+asCStringUnsafe :: Storable a => Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
     let arr1 = asBytes arr <> A.fromList [0]
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)

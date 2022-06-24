@@ -100,6 +100,8 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
+import Streamly.Internal.Data.Unboxed (Storable)
+
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -197,14 +199,14 @@ usingFile3 = UF.bracket before after
 --
 -- @since 0.7.0
 {-# INLINABLE putChunk #-}
-putChunk :: FilePath -> Array a -> IO ()
+putChunk :: Storable a => FilePath -> Array a -> IO ()
 putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
 {-# INLINABLE appendArray #-}
-appendArray :: FilePath -> Array a -> IO ()
+appendArray :: Storable a => FilePath -> Array a -> IO ()
 appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
@@ -323,7 +325,7 @@ readShared = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE fromChunksMode #-}
-fromChunksMode :: (MonadAsync m, MonadCatch m)
+fromChunksMode :: (MonadAsync m, MonadCatch m, Storable a)
     => IOMode -> FilePath -> SerialT m (Array a) -> m ()
 fromChunksMode mode file xs = S.drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
@@ -332,7 +334,7 @@ fromChunksMode mode file xs = S.drain $
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadAsync m, MonadCatch m)
+fromChunks :: (MonadAsync m, MonadCatch m, Storable a)
     => FilePath -> SerialT m (Array a) -> m ()
 fromChunks = fromChunksMode WriteMode
 
@@ -377,7 +379,7 @@ write = toHandleWith A.defaultChunkSize
 --
 -- /Pre-release/
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, MonadCatch m)
+writeChunks :: (MonadIO m, MonadCatch m, Storable a)
     => FilePath -> Fold m (Array a) ()
 writeChunks path = Fold step initial extract
     where
@@ -423,7 +425,7 @@ write = writeWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE appendChunks #-}
-appendChunks :: (MonadAsync m, MonadCatch m)
+appendChunks :: (MonadAsync m, MonadCatch m, Storable a)
     => FilePath -> SerialT m (Array a) -> m ()
 appendChunks = fromChunksMode AppendMode
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE UnboxedTuples #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Foreign.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -62,7 +63,6 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , writeNUnsafe
     , MA.ArrayUnsafe (..)
     , writeNAligned
-    , writeNAlignedUnmanaged
     , write
 
     -- * Streams of arrays
@@ -83,10 +83,13 @@ import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..))
-import Foreign.Ptr (plusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
-import GHC.Base (Addr#, nullAddr#, build)
-import GHC.Exts (IsList, IsString(..))
+import Foreign.Ptr (castPtr)
+import Streamly.Internal.Data.Unboxed
+    (Storable, peekWith, sizeOf, getInternalMutableByteArray, alignment)
+import GHC.Base (Addr#, build)
+import GHC.Exts (IsList, IsString(..), copyAddrToByteArray#)
+import GHC.Int (Int(..))
+import GHC.IO (IO(..))
 import GHC.ForeignPtr (ForeignPtr)
 
 import GHC.IO (unsafePerformIO)
@@ -140,14 +143,16 @@ data Array a =
 #ifdef DEVBUILD
     Storable a =>
 #endif
+    -- All offsets are from the start of arraycontents
+    -- The offsets are in terms of number of array elements and not bytes
     Array
     { arrContents ::
 #ifndef USE_FOREIGN_PTR
         {-# UNPACK #-}
 #endif
-            !ArrayContents -- ^ first address
-    , arrStart :: {-# UNPACK #-} !(Ptr a) -- start address
-    , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused addres
+            !(ArrayContents a)
+    , arrStart :: {-# UNPACK #-} !Int -- offset
+    , aEnd   :: {-# UNPACK #-} !Int   -- offset + len
     }
 
 -------------------------------------------------------------------------------
@@ -163,11 +168,8 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 --
 -- /Pre-release/
 --
-asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe Array{..} f = do
-  r <- f arrStart
-  liftIO $ touch arrContents
-  return r
+asPtrUnsafe :: (Storable a, MonadIO m) => Array a -> (Ptr a -> m b) -> m b
+asPtrUnsafe arr f = MA.asPtrUnsafe (unsafeThaw arr) f
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing
@@ -220,6 +222,7 @@ splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
     unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
 
+-- XXX The docs need to be updated
 -- | Create an 'Array' of the given number of elements of type @a@ from a read
 -- only pointer @Ptr a@.  The pointer is not freed when the array is garbage
 -- collected. This API is unsafe for the following reasons:
@@ -236,16 +239,17 @@ splice arr1 arr2 =
 --
 {-# INLINE fromPtr #-}
 fromPtr ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
+    forall a. Storable a =>
     Int -> Ptr a -> Array a
-fromPtr n ptr = unsafeInlineIO $ do
-    let end = ptr `plusPtr` n
+fromPtr n@(I# n#) (Ptr addr#) = unsafeInlineIO $ do
+    let alignment_ = alignment (undefined :: a)
+    !(arr, !i@(I# i#)) <- MA.newAlignedArrayContents n alignment_
+    IO $ \s# -> (# copyAddrToByteArray# addr# (getInternalMutableByteArray arr) i# n# s#, () #)
+    let len = n `div` SIZE_OF(a)
     return $ Array
-        { arrContents = MA.nilArrayContents
-        , arrStart = ptr
-        , aEnd = end
+        { arrContents = arr
+        , arrStart = i
+        , aEnd = i + len
         }
 
 -- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
@@ -260,12 +264,11 @@ fromPtr n ptr = unsafeInlineIO $ do
 --
 {-# INLINE fromForeignPtrUnsafe #-}
 fromForeignPtrUnsafe ::
-#ifdef DEVBUILD
     Storable a =>
-#endif
     ForeignPtr a -> Ptr a -> Array a
 fromForeignPtrUnsafe fp end = unsafeFreeze $ MA.fromForeignPtrUnsafe fp end end
 
+-- XXX The documentation needs to be changed
 -- XXX when converting an array of Word8 from a literal string we can simply
 -- refer to the literal string. Is it possible to write rules such that
 -- fromList Word8 can be rewritten so that GHC does not first convert the
@@ -301,12 +304,11 @@ fromForeignPtrUnsafe fp end = unsafeFreeze $ MA.fromForeignPtrUnsafe fp end end
 --
 {-# INLINE fromAddr# #-}
 fromAddr# ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
+    forall a. Storable a =>
     Int -> Addr# -> Array a
 fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
 
+-- XXX The documentation needs to be changed
 -- | Generate a byte array from an 'Addr#' that contains a sequence of NUL
 -- (@0@) terminated bytes. The array would not include the NUL byte. The
 -- address must be in static read-only memory and must be legally accessible up
@@ -451,7 +453,7 @@ unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
 --
 -- @since 0.7.0
 {-# INLINE byteLength #-}
-byteLength :: Array a -> Int
+byteLength :: forall a. Storable a => Array a -> Int
 byteLength = MA.byteLength . unsafeThaw
 
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
@@ -461,7 +463,7 @@ byteLength = MA.byteLength . unsafeThaw
 --
 -- @since 0.8.0
 {-# INLINE length #-}
-length :: forall a. Storable a => Array a -> Int
+length :: Array a -> Int
 length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
@@ -522,7 +524,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- specified index @i@ is the first index of the second slice.
 --
 -- @since 0.7.0
-splitAt :: forall a. Storable a => Int -> Array a -> (Array a, Array a)
+splitAt :: Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
   where
     (a, b) = MA.splitAt i (unsafeThaw arr)
@@ -541,12 +543,12 @@ toListFB c n Array{..} = go arrStart
         -- accumulating the list and fusing better with the pure consumers.
         --
         -- This should be safe as the array contents are guaranteed to be
-        -- evaluated/written to before we peek at them.
+        -- evaluated/written to before we peekWith at them.
         let !x = unsafeInlineIO $ do
-                    r <- peek p
+                    r <- peekWith arrContents p
                     touch arrContents
                     return r
-        in c x (go (PTR_NEXT(p,a)))
+        in c x (go (INDEX_NEXT(p)))
 
 -- | Convert an 'Array' into a list.
 --
@@ -581,6 +583,7 @@ writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 
+{-
 -- | @writeNAlignedUnmanaged n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size and using unmanaged memory.
 -- This could be useful to allocate memory that we need to allocate only once
@@ -593,6 +596,7 @@ writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAlignedUnmanaged alignSize =
     fmap unsafeFreeze . MA.writeNAlignedUnmanaged alignSize
+-}
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -705,7 +709,7 @@ toStreamD_ size Array{..} = D.Stream step arrStart
     {-# INLINE_LATE step #-}
     step _ p | p == aEnd = return D.Stop
     step _ p = liftIO $ do
-        x <- peek p
+        x <- peekWith arrContents p
         touch arrContents
         return $ D.Yield x (p `plusPtr` size)
 
@@ -740,7 +744,7 @@ nil ::
     Storable a =>
 #endif
     Array a
-nil = Array MA.nilArrayContents (Ptr nullAddr#) (Ptr nullAddr#)
+nil = Array MA.nilArrayContents 0 0
 
 instance Storable a => Monoid (Array a) where
     mempty = nil

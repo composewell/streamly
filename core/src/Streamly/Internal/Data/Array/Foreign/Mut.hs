@@ -63,7 +63,7 @@ splitOn predicate arr =
 --
 -- /Pre-release/
 {-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Storable a)
+genSlicesFromLen :: forall m a. Monad m
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
@@ -80,7 +80,7 @@ genSlicesFromLen from len =
 --
 -- /Pre-release/
 {-# INLINE getSlicesFromLen #-}
-getSlicesFromLen :: forall m a. (Monad m, Storable a)
+getSlicesFromLen :: forall m a. Monad m
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)

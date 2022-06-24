@@ -60,8 +60,7 @@ import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Ptr (minusPtr, plusPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
+import Streamly.Internal.Data.Unboxed (Storable, peekWith)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
@@ -119,16 +118,14 @@ fromFold (Fold.Fold fstep finitial fextract) =
 
         goArray !_ !cur !fs | cur >= end = do
             assert (cur == end) (return ())
-            liftIO $ touch contents
             return $ Partial 0 fs
         goArray !_ !cur !fs = do
-            x <- liftIO $ peek cur
+            x <- liftIO $ peekWith contents cur
             res <- fstep fs x
-            let elemSize = SIZE_OF(a)
-                next = PTR_NEXT(cur,a)
+            let next = INDEX_NEXT(cur)
             case res of
                 Fold.Done b ->
-                    return $ Done ((end `minusPtr` next) `div` elemSize) b
+                    return $ Done (end - next) b
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
 
@@ -152,26 +149,25 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
         where
 
         {-# INLINE partial #-}
-        partial arrRem cur next elemSize st n fs1 = do
-            let next1 = next `plusPtr` negate (n * elemSize)
+        partial arrRem cur next st n fs1 = do
+            let next1 = next - n
             if next1 >= start && cur < end
             then goArray SPEC next1 fs1
             else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
-            x <- liftIO $ peek cur
+            x <- liftIO $ peekWith contents cur
             liftIO $ touch contents
             res <- step1 fs x
-            let elemSize = SIZE_OF(a)
-                next = PTR_NEXT(cur,a)
-                arrRem = (end `minusPtr` next) `div` elemSize
+            let next = INDEX_NEXT(cur)
+                arrRem = end - next
             case res of
                 ParserD.Done n b -> do
                     return $ Done (arrRem + n) b
                 ParserD.Partial n fs1 ->
-                    partial arrRem cur next elemSize Partial n fs1
+                    partial arrRem cur next Partial n fs1
                 ParserD.Continue n fs1 -> do
-                    partial arrRem cur next elemSize Continue n fs1
+                    partial arrRem cur next Continue n fs1
                 Error err -> return $ Error err
 
 -- | Convert an element 'Parser.Parser' into an array stream fold. If the
@@ -303,7 +299,7 @@ instance MonadThrow m => Monad (ArrayFold m a) where
 
 -- | Take @n@ array elements (@a@) from a stream of arrays (@Array a@).
 {-# INLINE take #-}
-take :: forall m a b. (Monad m, Storable a) =>
+take :: forall m a b. Monad m =>
     Int -> ArrayFold m a b -> ArrayFold m a b
 take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
     ArrayFold $ ParserD.Parser step initial extract
@@ -340,7 +336,7 @@ take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
                 Error err -> return $ Error err
         else do
             let !(Array contents start _) = arr
-                end = PTR_INDEX(start,i,a)
+                end = INDEX_OF(start,i)
                 arr1 = Array contents start end
                 remaining = negate i1
             res <- step1 r arr1

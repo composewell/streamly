@@ -79,11 +79,18 @@ import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Streamly.Internal.Data.Unboxed
-    ( Storable, alignment, peek, poke, sizeOf
+    ( ArrayContents
+    , Storable
+    , alignment
+    , castContents
+    , peek
+    , peekWith
+    , poke
+    , sizeOf
     )
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
@@ -400,23 +407,30 @@ cast arr =
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
-unsafeEqArrayN Ring{..} rh A.Array{..} n =
-    let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
-                as = arrStart
-            assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs) (return ())
-            let len = ringBound `minusPtr` rh
-            r1 <- memcmp (castPtr rh) (castPtr as) (min len n)
-            r2 <- if n > len
-                then memcmp (castPtr rs) (castPtr (as `plusPtr` len))
-                              (min (rh `minusPtr` rs) (n - len))
-                else return True
-            -- XXX enable these, check perf impact
-            -- touchForeignPtr ringStart
-            -- touchForeignPtr aStart
-            return (r1 && r2)
-    in res
+unsafeEqArrayN :: forall a. Storable a => Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN Ring{..} rh (A.Array {..}) n
+    | n < 0 = error "unsafeEqArrayN: n should be >= 0"
+    | n == 0 = True
+    | otherwise = unsafeInlineIO $ check (castPtr rh) 0
+
+    where
+
+    w8Contents = castContents arrContents :: ArrayContents Word8
+    nW8 = n * SIZE_OF(a)
+
+    check p i = do
+        relem <- peek p
+        aelem <- peekWith w8Contents i
+        if relem == aelem
+        then go (p `plusPtr` 1) (i + 1)
+        else return False
+
+    go p i
+        | i == nW8 = return True
+        | (castPtr p) == ringBound =
+            go (castPtr (unsafeForeignPtrToPtr ringStart)) i
+        | (castPtr p) == rh = touchForeignPtr ringStart >> return True
+        | otherwise = check p i
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ringHead pointer.  Returns true if the Array and
@@ -427,21 +441,25 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
 unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
-unsafeEqArray Ring{..} rh A.Array{..} =
-    let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
-            let as = arrStart
-            assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs)
-                   (return ())
-            let len = ringBound `minusPtr` rh
-            r1 <- memcmp (castPtr rh) (castPtr as) len
-            r2 <- memcmp (castPtr rs) (castPtr (as `plusPtr` len))
-                           (rh `minusPtr` rs)
-            -- XXX enable these, check perf impact
-            -- touchForeignPtr ringStart
-            -- touchForeignPtr aStart
-            return (r1 && r2)
-    in res
+unsafeEqArray Ring{..} rh (A.Array{..}) =
+    unsafeInlineIO $ check (castPtr rh) 0
+
+    where
+
+    w8Contents = castContents arrContents :: ArrayContents Word8
+
+    check p i = do
+        relem <- peek p
+        aelem <- peekWith w8Contents i
+        if relem == aelem
+        then go (p `plusPtr` 1) (i + 1)
+        else return False
+
+    go p i
+        | (castPtr p) ==
+              ringBound = go (castPtr (unsafeForeignPtrToPtr ringStart)) i
+        | (castPtr p) == rh = touchForeignPtr ringStart >> return True
+        | otherwise = check p i
 
 -------------------------------------------------------------------------------
 -- Folding

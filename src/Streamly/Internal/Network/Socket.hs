@@ -75,7 +75,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
+import Foreign.Ptr (plusPtr, Ptr, castPtr)
 import Streamly.Internal.Data.Unboxed (Storable)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.Socket
@@ -312,12 +312,12 @@ writeArrayWith :: Storable a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h Array{..} =
-    f h (castPtr arrStart) aLen >> touch arrContents
+writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr ->
+    f h (castPtr ptr) aLen >> touch (arrContents arr)
 
     where
 
-    aLen = aEnd `minusPtr` arrStart
+    aLen = A.byteLength arr
 
 -- | Write an Array to a file handle.
 --

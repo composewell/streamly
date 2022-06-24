@@ -115,7 +115,7 @@ import Data.Function ((&))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (minusPtr, plusPtr)
+import Foreign.Ptr ( plusPtr)
 import Streamly.Internal.Data.Unboxed (Storable)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
@@ -136,6 +136,7 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
@@ -224,7 +225,7 @@ _getChunksWith size h = go
         then stp
         else yld arr go
 
--- | @getChunksWith size handle@ reads a stream of arrays from the file
+-- | @getChunksWit hsize handle@ reads a stream of arrays from the file
 -- handle @handle@.  The maximum size of a single array is limited to @size@.
 -- The actual size read may be less than or equal to @size@.
 --
@@ -402,14 +403,14 @@ getBytes = AS.concat . getChunks
 --
 -- @since 0.8.1
 {-# INLINABLE putChunk #-}
-putChunk :: MonadIO m => Handle -> Array a -> m ()
+putChunk :: (Storable a, MonadIO m) => Handle -> Array a -> m ()
 putChunk _ arr | byteLength arr == 0 = return ()
-putChunk h Array{..} =
-    liftIO $ hPutBuf h arrStart aLen >> touch arrContents
+putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
+    liftIO $ hPutBuf h ptr aLen >> touch (arrContents arr)
 
     where
 
-    aLen = aEnd `minusPtr` arrStart
+    aLen = A.byteLength arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -426,7 +427,7 @@ putChunk h Array{..} =
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}
-putChunks :: MonadIO m => Handle -> SerialT m (Array a) -> m ()
+putChunks :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
 putChunks h = S.mapM_ (putChunk h)
 
 -- XXX AS.compact can be written idiomatically in terms of foldMany, just like
@@ -477,14 +478,14 @@ putBytes = putBytesWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: MonadIO m => Handle -> Fold m (Array a) ()
+writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
 
 -- | Like writeChunks but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE consumeChunks #-}
-consumeChunks :: MonadIO m => Refold m Handle (Array a) ()
+consumeChunks :: (MonadIO m, Storable a) => Refold m Handle (Array a) ()
 consumeChunks = Refold.drainBy putChunk
 
 -- XXX lpackArraysChunksOf should be written idiomatically
