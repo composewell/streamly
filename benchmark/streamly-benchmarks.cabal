@@ -414,10 +414,11 @@ benchmark Data.Stream
    main-is: Stream.hs
    other-modules:
         Stream.Elimination
-        Stream.Generate
-        Stream.Lift
-        Stream.Reduce
-        Stream.Common
+      , Stream.Exceptions
+      , Stream.Generate
+      , Stream.Lift
+      , Stream.Reduce
+      , Stream.Common
    if flag(bench-core) || impl(ghcjs)
      buildable: False
    else
