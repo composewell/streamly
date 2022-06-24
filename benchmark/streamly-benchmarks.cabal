@@ -134,6 +134,7 @@ common bench-depends
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
     , ghc-prim          >= 0.4   && < 0.10
+    , exceptions        >= 0.10.4 && < 0.11
 
   if flag(bench-core)
     build-depends: streamly-core
@@ -415,6 +416,7 @@ benchmark Data.Stream
         Stream.Elimination
         Stream.Generate
         Stream.Lift
+        Stream.Reduce
         Stream.Common
    if flag(bench-core) || impl(ghcjs)
      buildable: False
