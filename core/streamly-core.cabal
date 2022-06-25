@@ -304,6 +304,7 @@ library
                      , Streamly.Internal.Data.Stream.Generate
                      , Streamly.Internal.Data.Stream.Transform
                      , Streamly.Internal.Data.Stream.Bottom
+                     , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream.Exception
                      , Streamly.Internal.Data.Stream.Expand
                      , Streamly.Internal.Data.Stream.Lift

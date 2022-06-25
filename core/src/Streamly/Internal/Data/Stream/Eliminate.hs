@@ -49,6 +49,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- Lazy left folds are useful only for reversing the stream
     , foldlS
     , foldlT
+    , foldl'
 
     -- * Multi-Stream folds
     -- Full equivalence
@@ -171,6 +172,10 @@ foldr f z = foldrM (\a b -> f a <$> b) (return z)
 ------------------------------------------------------------------------------
 -- Left Folds
 ------------------------------------------------------------------------------
+
+{-# INLINE foldl' #-}
+foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
+foldl' step acc = D.foldl' step acc . toStreamD
 
 -- | Lazy left fold to a stream.
 {-# INLINE foldlS #-}
