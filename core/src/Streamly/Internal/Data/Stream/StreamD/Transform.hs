@@ -85,6 +85,8 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , dropByTime
     , dropWhile
     , dropWhileM
+    , initStream
+    , tailStream
 
     -- * Inserting Elements
     -- | Produce a superset of the stream.
@@ -149,7 +151,7 @@ import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
-       , scanl, scanl1, sequence, take, takeWhile)
+       , scanl, scanl1, sequence, take, takeWhile, init, tail)
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
@@ -1261,3 +1263,48 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 {-# INLINE catMaybes #-}
 catMaybes :: (Monad m) => Stream m (Maybe a) -> Stream m a
 catMaybes = fmap fromJust . filter isJust
+
+{-# INLINE initStream #-}
+initStream :: Monad m => Stream m a -> Stream m a
+initStream (Stream step1 state1) = Stream step (Nothing, state1)
+
+    where
+
+    step gst (Nothing, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Skip (Just x, s)
+                Skip s -> Skip (Nothing, s)
+                Stop -> error "empty Stream"
+
+    step gst (Just a, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Yield a (Just x, s)
+                Skip s -> Skip (Just a, s)
+                Stop -> Stop
+
+{-# INLINE tailStream #-}
+tailStream :: Monad m => Stream m a -> Stream m a
+tailStream (Stream step1 state1) = Stream step (Nothing, state1)
+
+    where
+
+    step gst (Nothing, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Skip (Just x, s)
+                Skip s -> Skip (Nothing, s)
+                Stop -> error "empty Stream"
+
+    step gst (Just a, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Yield x (Just x, s)
+                Skip s -> Skip (Just a, s)
+                Stop -> Stop
+

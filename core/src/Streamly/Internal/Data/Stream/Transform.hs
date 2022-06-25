@@ -58,6 +58,8 @@ module Streamly.Internal.Data.Stream.Transform
     , drop
     , dropWhile
     , dropWhileM
+    , init
+    , tail
 
     -- * Inserting Elements
     -- | Produce a superset of the stream. This is the opposite of
@@ -144,7 +146,7 @@ import Streamly.Internal.Data.Stream.Type
 
 import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence
-       , reverse, foldr1 , repeat, scanl, scanl1, zipWith)
+       , reverse, foldr1 , repeat, scanl, scanl1, zipWith, init, tail)
 
 --
 -- $setup
@@ -888,3 +890,11 @@ rights = fmap (fromRight undefined) . filter isRight
 {-# INLINE both #-}
 both :: Monad m => Stream m (Either a a) -> Stream m a
 both = fmap (either id id)
+
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> Stream m a
+init = fromStreamD . D.initStream . toStreamD
+
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> Stream m a
+tail = fromStreamD . D.tailStream . toStreamD
