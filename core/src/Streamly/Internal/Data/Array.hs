@@ -62,7 +62,7 @@ import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 

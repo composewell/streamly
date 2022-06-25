@@ -315,6 +315,7 @@ library
                      , Streamly.Internal.Data.Stream.Expand
                      , Streamly.Internal.Data.Stream.Lift
                      , Streamly.Internal.Data.Stream.Reduce
+                     , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.WSerial

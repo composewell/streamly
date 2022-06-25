@@ -196,6 +196,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Stream/Generate.hs
     core/src/Streamly/Internal/Data/Stream/Lift.hs
     core/src/Streamly/Internal/Data/Stream/Reduce.hs
+    core/src/Streamly/Internal/Data/Stream/Top.hs
     core/src/Streamly/Internal/Data/Stream/Transform.hs
     core/src/Streamly/Internal/Data/Stream/Type.hs
     core/src/Streamly/Internal/Data/Stream/WSerial.hs
@@ -607,6 +608,7 @@ library
                      , Streamly.Internal.Data.Stream.Transform
                      , Streamly.Internal.Data.Stream.Exception
                      , Streamly.Internal.Data.Stream.Lift
+                     , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip
