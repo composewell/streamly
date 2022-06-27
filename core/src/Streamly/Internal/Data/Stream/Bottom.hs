@@ -14,6 +14,9 @@ module Streamly.Internal.Data.Stream.Bottom
     -- * Generation
       fromPure
     , fromEffect
+    , timesWith
+    , absTimesWith
+    , relTimesWith
 
     -- * Folds
     , fold
@@ -55,12 +58,12 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -83,6 +86,69 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+
+------------------------------------------------------------------------------
+-- Generation - Time related
+------------------------------------------------------------------------------
+
+-- | @timesWith g@ returns a stream of time value tuples. The first component
+-- of the tuple is an absolute time reference (epoch) denoting the start of the
+-- stream and the second component is a time relative to the reference.
+--
+-- The argument @g@ specifies the granularity of the relative time in seconds.
+-- A lower granularity clock gives higher precision but is more expensive in
+-- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
+--
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Streamly.Internal.Data.Stream.Generate as Stream (timesWith)
+-- >>> Stream.mapM_ (\x -> print x >> threadDelay 1000000) $ Stream.take 3 $ Stream.timesWith 0.01
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE timesWith #-}
+timesWith :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
+timesWith g = fromStreamD $ D.times g
+
+-- | @absTimesWith g@ returns a stream of absolute timestamps using a clock of
+-- granularity @g@ specified in seconds. A low granularity clock is more
+-- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
+-- as 1 ms.
+--
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimesWith 0.01
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE absTimesWith #-}
+absTimesWith :: MonadIO m => Double -> Stream m AbsTime
+absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
+
+-- | @relTimesWith g@ returns a stream of relative time values starting from 0,
+-- using a clock of granularity @g@ specified in seconds. A low granularity
+-- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
+-- ms is treated as 1 ms.
+--
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE relTimesWith #-}
+relTimesWith :: MonadIO m => Double -> Stream m RelTime64
+relTimesWith = fmap snd . timesWith
 
 ------------------------------------------------------------------------------
 -- Elimination - Running a Fold

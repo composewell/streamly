@@ -21,6 +21,13 @@ module Streamly.Internal.Data.Stream.Generate
     , Stream.fromPure
     , Stream.fromEffect
 
+    -- * Time Enumeration
+    , times
+    , absTimes
+    , absTimesWith
+    , relTimes
+    , relTimesWith
+
     -- * Cyclic Elements
     , mfix
 
@@ -40,7 +47,10 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Word (Word8)
 import Foreign.Storable (Storable)
 import GHC.Exts (Addr#, Ptr (Ptr))
+import Streamly.Internal.Data.Stream.Bottom
+    (absTimesWith, relTimesWith, timesWith)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamK, toStreamK)
+import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -49,11 +59,13 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 -- $setup
 -- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Data.Function (fix)
+-- >>> import Prelude hiding (take)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import GHC.Exts (Ptr (Ptr))
-
 
 ------------------------------------------------------------------------------
 -- From Unfold
@@ -71,6 +83,60 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 {-# INLINE unfold #-}
 unfold :: Monad m => Unfold m a b -> a -> Stream m b
 unfold unf = Stream.fromStreamD . D.unfold unf
+
+------------------------------------------------------------------------------
+-- Time Enumeration
+------------------------------------------------------------------------------
+
+-- | @times@ returns a stream of time value tuples with clock of 10 ms
+-- granularity. The first component of the tuple is an absolute time reference
+-- (epoch) denoting the start of the stream and the second component is a time
+-- relative to the reference.
+--
+-- >>> Stream.mapM_ (\x -> print x >> threadDelay 1000000) $ Stream.take 3 $ Stream.times
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE times #-}
+times :: MonadIO m => Stream m (AbsTime, RelTime64)
+times = timesWith 0.01
+
+-- | @absTimes@ returns a stream of absolute timestamps using a clock of 10 ms
+-- granularity.
+--
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimes
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE absTimes #-}
+absTimes :: MonadIO m => Stream m AbsTime
+absTimes = fmap (uncurry addToAbsTime64) times
+
+-- | @relTimes@ returns a stream of relative time values starting from 0,
+-- using a clock of granularity 10 ms.
+--
+-- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimes
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE relTimes #-}
+relTimes ::  MonadIO m => Stream m RelTime64
+relTimes = fmap snd times
 
 -- | We can define cyclic structures using @let@:
 --
