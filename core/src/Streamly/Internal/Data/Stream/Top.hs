@@ -38,6 +38,7 @@ module Streamly.Internal.Data.Stream.Top
     , mergeLeftJoin
     , joinLeftMap
     , mergeOuterJoin
+    , joinOuter
     , joinOuterMap
     )
 where
@@ -48,7 +49,9 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict (get, put)
+import Data.Function ((&))
 import Data.IORef (newIORef, readIORef, modifyIORef')
+import Data.Maybe (isJust)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Common
 import Streamly.Internal.Data.Stream
@@ -56,6 +59,8 @@ import Streamly.Internal.Data.Stream
 
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -96,6 +101,19 @@ sampleFromThen offset stride =
 ------------------------------------------------------------------------------
 -- Reordering
 ------------------------------------------------------------------------------
+--
+-- We could possibly choose different algorithms depending on whether the
+-- input stream is almost sorted (ascending/descending) or random. We could
+-- serialize the stream to an array and use quicksort.
+--
+-- | Sort the input stream using a supplied comparison function.
+--
+-- /O(n) space/
+--
+-- Note: this is not the fastest possible implementation as of now.
+--
+-- /Pre-release/
+--
 {-# INLINE sortBy #-}
 sortBy :: MonadCatch m => (a -> a -> Ordering) -> Stream m a -> Stream m a
 sortBy cmp =
@@ -318,12 +336,80 @@ joinLeftMap s1 s2 =
 --
 -- Time: O(m + n)
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE mergeLeftJoin #-}
 mergeLeftJoin :: -- Monad m =>
     (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
 mergeLeftJoin _eq _s1 _s2 = undefined
 
+-- XXX We can do this concurrently.
+--
+-- | For all elements in @t m a@, for all elements in @t m b@ if @a@ and @b@
+-- are equal by the given equality pedicate then return the tuple (Just a, Just
+-- b).  If @a@ is not found in @t m b@ then return (a, Nothing), return
+-- (Nothing, b) for vice-versa.
+--
+-- For space efficiency use the smaller stream as the second stream.
+--
+-- Space: O(n)
+--
+-- Time: O(m x n)
+--
+-- /Pre-release/
+{-# INLINE joinOuter #-}
+joinOuter :: MonadIO m =>
+       (a -> b -> Bool)
+    -> Stream m a
+    -> Stream m b
+    -> Stream m (Maybe a, Maybe b)
+joinOuter eq s1 s =
+    Stream.concatM $ do
+        inputArr <- Array.fromStreamD (Stream.toStreamD s)
+        let len = length inputArr
+        foundArr <-
+            Stream.fold
+            (MA.writeN len)
+            (Stream.unfold Unfold.fromList (Prelude.replicate len False))
+        return $ go inputArr foundArr <> leftOver inputArr foundArr
+
+    where
+
+    leftOver inputArr foundArr =
+            let stream1 = Stream.fromStreamD $ Array.toStreamD inputArr
+                stream2 = Stream.unfold MA.read foundArr
+            in Stream.filter
+                    isJust
+                    ( Stream.zipWith (\x y ->
+                        if y
+                        then Nothing
+                        else Just (Nothing, Just x)
+                        ) stream1 stream2
+                    ) & Stream.catMaybes
+
+    go inputArr foundArr = Stream.evalStateT (return False) $ do
+        a <- Stream.liftInner s1
+        -- XXX should we use StreamD monad here?
+        -- XXX Is there a better way to perform some action at the end of a loop
+        -- iteration?
+        lift $ put False
+        let final = do
+                r <- lift get
+                if r
+                then Stream.nil
+                else Stream.fromPure Nothing
+        (i, b) <-
+            let stream = Stream.fromStreamD $ Array.toStreamD inputArr
+             in Stream.indexed $ fmap Just (Stream.liftInner stream) <> final
+
+        case b of
+            Just b1 ->
+                if a `eq` b1
+                then do
+                    lift $ put True
+                    MA.putIndex i True foundArr
+                    return (Just a, Just b1)
+                else Stream.nil
+            Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set
 -- a flag. At the end go through @Stream m b@ and find those that are not in that
