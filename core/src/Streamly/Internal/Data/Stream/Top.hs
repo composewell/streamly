@@ -17,7 +17,7 @@ module Streamly.Internal.Data.Stream.Top
       sampleFromThen
 
     -- ** Reordering
-
+    , sortBy
     -- * Nesting
     -- ** Set like operations
     -- | These are not exactly set operations because streams are not
@@ -44,6 +44,7 @@ where
 
 #include "inline.hs"
 
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict (get, put)
@@ -56,6 +57,8 @@ import Streamly.Internal.Data.Stream
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
@@ -93,7 +96,16 @@ sampleFromThen offset stride =
 ------------------------------------------------------------------------------
 -- Reordering
 ------------------------------------------------------------------------------
-
+{-# INLINE sortBy #-}
+sortBy :: MonadCatch m => (a -> a -> Ordering) -> Stream m a -> Stream m a
+sortBy cmp =
+    let p =
+            Parser.groupByRollingEither
+                (\x -> (< GT) . cmp x)
+                (fmap Stream.fromStreamK Fold.toStreamKRev)
+                (fmap Stream.fromStreamK Fold.toStreamK)
+     in Stream.concatPairsWith (Stream.mergeBy cmp) id
+        . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins
