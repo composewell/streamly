@@ -232,6 +232,9 @@ module Streamly.Internal.Data.Unfold
     , cross
     , apply
 
+    -- ** Timed related
+    , times
+
     -- ** Nesting
     , ConcatState (..)
     , many
@@ -259,13 +262,16 @@ import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Functor (($>))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
+import Streamly.Internal.Control.Concurrent
+    (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (defState)
+import Streamly.Internal.Data.Time.Units
+    (AbsTime, RelTime64, toAbsTime, toRelTime64, MicroSecond64)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
@@ -275,9 +281,15 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
+
+import Streamly.Internal.Data.Time.Clock
+
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile, either)
+import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Concurrent (ThreadId)
+import Streamly.Internal.Data.IORef.Prim
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -1269,3 +1281,25 @@ handle :: (MonadCatch m, Exception e)
     => Unfold m e b -> Unfold m a b -> Unfold m a b
 handle exc =
     gbracket_ return MC.try (\_ -> return ()) (discardFirst exc)
+
+{-# INLINE_NORMAL times #-}
+times :: MonadIO m =>
+       Double
+    -> Unfold m
+        (Maybe ((ThreadId, IORef MicroSecond64), MicroSecond64))
+        (AbsTime, RelTime64)
+times g = Unfold step pure
+
+    where
+
+    step Nothing = do
+        clock <- liftIO $ asyncClock Monotonic g
+        t0 <- liftIO $ readClock clock
+        return $ Yield (toAbsTime t0, toRelTime64 t0) (Just (clock, t0))
+
+    step s@(Just (clock, t0)) = do
+        a <- liftIO $ readClock clock
+        -- XXX we can perhaps use an AbsTime64 using a 64 bit Int for
+        -- efficiency.  or maybe we can use a representation using Double for
+        -- floating precision time
+        return $ Yield (toAbsTime t0, toRelTime64 (a - t0)) s
