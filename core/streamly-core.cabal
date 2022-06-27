@@ -334,6 +334,9 @@ library
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
 
+                     -- temporary
+                     , Streamly.Internal.Data.Array.Tree.Type
+
     build-depends:
                     -- Core libraries shipped with ghc, the min and max
                     -- constraints of these libraries should match with
