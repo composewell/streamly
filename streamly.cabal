@@ -154,12 +154,12 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Time/Clock/Type.hsc
     core/src/Streamly/Internal/Data/Time/Clock.hs
     core/src/Streamly/Internal/Data/SVar/Type.hs
-    core/src/Streamly/Internal/Data/Stream/StreamK/Type.hs
+    core/src/Streamly/Internal/Data/StreamK/Type.hs
     core/src/Streamly/Internal/Data/Fold/Step.hs
     core/src/Streamly/Internal/Data/Refold/Type.hs
     core/src/Streamly/Internal/Data/Fold/Type.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Step.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Type.hs
+    core/src/Streamly/Internal/Data/StreamD/Step.hs
+    core/src/Streamly/Internal/Data/StreamD/Type.hs
     core/src/Streamly/Internal/Data/Stream/StreamDK/Type.hs
     core/src/Streamly/Internal/Data/Unfold/Type.hs
     core/src/Streamly/Internal/Data/Producer/Type.hs
@@ -174,12 +174,12 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Array/Foreign/Mut.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Type.hs
     core/src/Streamly/Internal/Data/Array/Mut/Type.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Generate.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Eliminate.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Nesting.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Transform.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Exception.hs
-    core/src/Streamly/Internal/Data/Stream/StreamD/Lift.hs
+    core/src/Streamly/Internal/Data/StreamD/Generate.hs
+    core/src/Streamly/Internal/Data/StreamD/Eliminate.hs
+    core/src/Streamly/Internal/Data/StreamD/Nesting.hs
+    core/src/Streamly/Internal/Data/StreamD/Transform.hs
+    core/src/Streamly/Internal/Data/StreamD/Exception.hs
+    core/src/Streamly/Internal/Data/StreamD/Lift.hs
     core/src/Streamly/Internal/Data/Stream/StreamD.hs
     core/src/Streamly/Internal/Data/Stream/StreamDK.hs
     core/src/Streamly/Internal/Data/Stream/Common.hs
