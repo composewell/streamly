@@ -191,7 +191,7 @@ import Prelude
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
                foldr1, (!!), replicate, reverse, concatMap, iterate, splitAt)
 
-import Streamly.Internal.Data.Stream.StreamK.Type
+import Streamly.Internal.Data.StreamK.Type
 
 -- $setup
 -- >>> :m

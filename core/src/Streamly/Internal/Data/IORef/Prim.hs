@@ -47,7 +47,7 @@ import Data.Primitive.Types (Prim, sizeOf#, readByteArray#, writeByteArray#)
 import GHC.Exts (MutableByteArray#, newByteArray#, RealWorld)
 import GHC.IO (IO(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
 
 -- | An 'IORef' holds a single 'Prim' value.
 data IORef a = IORef (MutableByteArray# RealWorld)

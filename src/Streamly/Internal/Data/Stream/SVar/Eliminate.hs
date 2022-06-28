@@ -39,8 +39,8 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Streamly.Internal.Data.SVar
 

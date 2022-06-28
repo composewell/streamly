@@ -121,13 +121,13 @@ import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
+import qualified Streamly.Internal.Data.StreamK.Type as S
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
+import qualified Streamly.Internal.Data.StreamD.Type as S
 #endif
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync

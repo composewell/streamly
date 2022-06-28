@@ -178,7 +178,7 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)

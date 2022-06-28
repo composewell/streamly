@@ -86,7 +86,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 

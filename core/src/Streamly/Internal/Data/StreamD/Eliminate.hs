@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Eliminate
+-- Module      : Streamly.Internal.Data.StreamD.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -10,7 +10,7 @@
 -- A few functions in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy.
 --
-module Streamly.Internal.Data.Stream.StreamD.Eliminate
+module Streamly.Internal.Data.StreamD.Eliminate
     (
     -- * Running a 'Fold'
       fold
@@ -85,12 +85,12 @@ import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
+import qualified Streamly.Internal.Data.StreamD.Nesting as Nesting
 
 import Prelude hiding
        ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
        , maximum, minimum, notElem, null, splitAt, tail, (!!))
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.StreamD.Type
 
 ------------------------------------------------------------------------------
 -- Elimination by Folds

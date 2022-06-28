@@ -151,7 +151,7 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 import qualified Streamly.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- References

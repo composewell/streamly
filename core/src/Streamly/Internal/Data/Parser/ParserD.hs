@@ -208,8 +208,8 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamD.Generate as D
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span

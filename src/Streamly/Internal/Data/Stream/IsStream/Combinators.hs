@@ -29,7 +29,7 @@ import Data.Int (Int64)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, foldStreamShared)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (Stream)
 
 import Streamly.Internal.Data.SVar
 

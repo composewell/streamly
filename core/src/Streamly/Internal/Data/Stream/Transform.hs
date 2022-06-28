@@ -135,9 +135,9 @@ import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Pipe (Pipe)
 
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Transform as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Bottom
 import Streamly.Internal.Data.Stream.Type

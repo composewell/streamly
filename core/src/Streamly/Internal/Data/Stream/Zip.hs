@@ -39,11 +39,11 @@ import Text.Read
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
     (cmpBy, eqBy, foldl', foldr, fromList, toList)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 

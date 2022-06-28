@@ -64,13 +64,13 @@ import Text.Read
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Generate as D
+import qualified Streamly.Internal.Data.StreamD.Transform as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (map, mapM, repeat, filter)
 

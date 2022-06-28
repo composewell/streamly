@@ -36,9 +36,9 @@ import Gauge hiding (env)
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+import Streamly.Internal.Data.StreamD.Type (Step(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT

@@ -110,7 +110,7 @@ import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamD.Type as D
 import qualified Streamly.Internal.Data.Unfold as UF
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing

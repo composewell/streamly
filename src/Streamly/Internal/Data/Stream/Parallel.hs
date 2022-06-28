@@ -67,11 +67,11 @@ import qualified Data.Set as Set
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamD.Type (Step(..))
+import Streamly.Internal.Data.StreamK.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 

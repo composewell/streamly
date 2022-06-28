@@ -65,7 +65,7 @@ import Data.Ratio
 import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith

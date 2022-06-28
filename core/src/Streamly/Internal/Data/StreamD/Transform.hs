@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Transform
+-- Module      : Streamly.Internal.Data.StreamD.Transform
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -12,7 +12,7 @@
 -- A few functions in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
 
-module Streamly.Internal.Data.Stream.StreamD.Transform
+module Streamly.Internal.Data.StreamD.Transform
     (
     -- * Piping
     -- | Pass through a 'Pipe'.
@@ -151,7 +151,7 @@ import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
        , scanl, scanl1, sequence, take, takeWhile)
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.StreamD.Type
 
 ------------------------------------------------------------------------------
 -- Piping

@@ -253,7 +253,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(getSerialT))
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as SD
+import qualified Streamly.Internal.Data.StreamD.Type as SD
 
 --
 -- $setup

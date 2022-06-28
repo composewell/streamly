@@ -33,7 +33,7 @@ where
 #include "inline.hs"
 
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.StreamD.Step (Step(..))
 import Prelude hiding (concat, map)
 
 ------------------------------------------------------------------------------

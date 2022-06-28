@@ -320,7 +320,7 @@ import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
+import qualified Streamly.Internal.Data.StreamD.Type as StreamD
 
 import Prelude hiding
        ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith

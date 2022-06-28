@@ -60,8 +60,8 @@ import Text.Read
        , readListPrecDefault)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 #include "Instances.hs"
 #include "inline.hs"

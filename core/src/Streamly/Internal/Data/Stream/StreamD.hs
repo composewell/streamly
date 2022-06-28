@@ -17,20 +17,20 @@
 
 module Streamly.Internal.Data.Stream.StreamD
     (
-      module Streamly.Internal.Data.Stream.StreamD.Type
-    , module Streamly.Internal.Data.Stream.StreamD.Generate
-    , module Streamly.Internal.Data.Stream.StreamD.Eliminate
-    , module Streamly.Internal.Data.Stream.StreamD.Exception
-    , module Streamly.Internal.Data.Stream.StreamD.Lift
-    , module Streamly.Internal.Data.Stream.StreamD.Nesting
-    , module Streamly.Internal.Data.Stream.StreamD.Transform
+      module Streamly.Internal.Data.StreamD.Type
+    , module Streamly.Internal.Data.StreamD.Generate
+    , module Streamly.Internal.Data.StreamD.Eliminate
+    , module Streamly.Internal.Data.StreamD.Exception
+    , module Streamly.Internal.Data.StreamD.Lift
+    , module Streamly.Internal.Data.StreamD.Nesting
+    , module Streamly.Internal.Data.StreamD.Transform
     )
 where
 
-import Streamly.Internal.Data.Stream.StreamD.Type
-import Streamly.Internal.Data.Stream.StreamD.Generate
-import Streamly.Internal.Data.Stream.StreamD.Eliminate
-import Streamly.Internal.Data.Stream.StreamD.Exception
-import Streamly.Internal.Data.Stream.StreamD.Lift
-import Streamly.Internal.Data.Stream.StreamD.Nesting
-import Streamly.Internal.Data.Stream.StreamD.Transform
+import Streamly.Internal.Data.StreamD.Type
+import Streamly.Internal.Data.StreamD.Generate
+import Streamly.Internal.Data.StreamD.Eliminate
+import Streamly.Internal.Data.StreamD.Exception
+import Streamly.Internal.Data.StreamD.Lift
+import Streamly.Internal.Data.StreamD.Nesting
+import Streamly.Internal.Data.StreamD.Transform

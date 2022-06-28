@@ -32,7 +32,7 @@ import qualified Prelude as P
 import qualified Data.List as List
 
 import qualified Streamly.Internal.Control.Concurrent as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
+import qualified Streamly.Internal.Data.StreamK.Type as S
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)

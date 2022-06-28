@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamK.Type
+-- Module      : Streamly.Internal.Data.StreamK.Type
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -15,7 +15,7 @@
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
-module Streamly.Internal.Data.Stream.StreamK.Type
+module Streamly.Internal.Data.StreamK.Type
     (
     -- * The stream type
       Stream (..)

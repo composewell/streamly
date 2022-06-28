@@ -62,11 +62,11 @@ import Streamly.Internal.Control.Concurrent
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Serial (SerialT (..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (Stream)
 import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
 
 import Streamly.Internal.Data.SVar.Type
 import Streamly.Internal.Data.SVar

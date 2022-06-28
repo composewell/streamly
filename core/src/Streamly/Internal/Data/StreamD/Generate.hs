@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Generate
+-- Module      : Streamly.Internal.Data.StreamD.Generate
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -22,7 +22,7 @@
 -- A few combinators in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
 --
-module Streamly.Internal.Data.Stream.StreamD.Generate
+module Streamly.Internal.Data.StreamD.Generate
   (
     -- * Primitives
       nil
@@ -95,7 +95,7 @@ import Streamly.Internal.Data.Time.Units
     (toAbsTime, AbsTime, toRelTime64, RelTime64)
 
 import Prelude hiding (iterate, repeat, replicate, takeWhile)
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.StreamD.Type
 
 ------------------------------------------------------------------------------
 -- Primitives

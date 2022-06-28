@@ -250,12 +250,12 @@ library
 
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
-                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.StreamK.Type
                      , Streamly.Internal.Data.Fold.Step
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Fold.Type
-                     , Streamly.Internal.Data.Stream.StreamD.Step
-                     , Streamly.Internal.Data.Stream.StreamD.Type
+                     , Streamly.Internal.Data.StreamD.Step
+                     , Streamly.Internal.Data.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
@@ -278,12 +278,12 @@ library
 
                      -- streamly-core-streams
                      -- StreamD depends on streamly-array-types
-                     , Streamly.Internal.Data.Stream.StreamD.Generate
-                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                     , Streamly.Internal.Data.Stream.StreamD.Nesting
-                     , Streamly.Internal.Data.Stream.StreamD.Transform
-                     , Streamly.Internal.Data.Stream.StreamD.Exception
-                     , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.StreamD.Generate
+                     , Streamly.Internal.Data.StreamD.Eliminate
+                     , Streamly.Internal.Data.StreamD.Nesting
+                     , Streamly.Internal.Data.StreamD.Transform
+                     , Streamly.Internal.Data.StreamD.Exception
+                     , Streamly.Internal.Data.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Common

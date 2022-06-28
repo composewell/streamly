@@ -42,8 +42,8 @@ import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Streamly.Internal.Data.SVar
 

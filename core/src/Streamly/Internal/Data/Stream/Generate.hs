@@ -33,8 +33,8 @@ where
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamK, toStreamK)
 import Streamly.Internal.Data.Unfold (Unfold)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 -- $setup

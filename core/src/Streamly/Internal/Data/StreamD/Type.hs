@@ -1,7 +1,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Type
+-- Module      : Streamly.Internal.Data.StreamD.Type
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -13,7 +13,7 @@
 -- module have been originally adapted from the vector package (c) Roman
 -- Leshchinskiy. See the notes in specific functions.
 
-module Streamly.Internal.Data.Stream.StreamD.Type
+module Streamly.Internal.Data.StreamD.Type
     (
     -- * The stream type
       Step (..)
@@ -103,12 +103,12 @@ import Prelude hiding (map, mapM, foldr, take, concatMap, takeWhile)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
+import Streamly.Internal.Data.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 ------------------------------------------------------------------------------
 -- The direct style stream type

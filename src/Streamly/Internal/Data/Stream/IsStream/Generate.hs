@@ -110,13 +110,13 @@ import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Generate as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
+import qualified Streamly.Internal.Data.StreamK.Type as S
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as S
+import qualified Streamly.Internal.Data.StreamD.Generate as S
 #endif
 import qualified System.IO as IO
 

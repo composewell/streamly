@@ -264,8 +264,8 @@ import qualified Data.Foldable as F
 #endif
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 #ifdef USE_FOREIGN_PTR
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 #endif

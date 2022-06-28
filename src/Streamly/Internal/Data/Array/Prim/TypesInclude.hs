@@ -24,8 +24,8 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import qualified GHC.Exts as Exts
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import GHC.Exts hiding (fromListN, fromList, toList)
 import Prelude hiding (length, unlines, foldr)

@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Exception
+-- Module      : Streamly.Internal.Data.StreamD.Exception
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.StreamD.Exception
+module Streamly.Internal.Data.StreamD.Exception
     (
       gbracket_
     , gbracket
@@ -37,7 +37,7 @@ import Streamly.Internal.Data.IOFinalizer
 import qualified Control.Monad.Catch as MC
 import qualified Data.Map.Strict as Map
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.StreamD.Type
 
 data GbracketState s1 s2 v
     = GBracketInit

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Nesting
+-- Module      : Streamly.Internal.Data.StreamD.Nesting
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -23,7 +23,7 @@
 -- The zipWithM combinator in this module has been adapted from the vector
 -- package (c) Roman Leshchinskiy.
 --
-module Streamly.Internal.Data.Stream.StreamD.Nesting
+module Streamly.Internal.Data.StreamD.Nesting
     (
     -- * Generate
     -- | Combining streams to generate streams.
@@ -174,7 +174,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Ring.Foreign as RB
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.StreamD.Type
 
 import Prelude hiding (concatMap, mapM, zipWith)
 

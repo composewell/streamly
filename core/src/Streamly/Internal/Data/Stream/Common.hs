@@ -35,13 +35,13 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
+import qualified Streamly.Internal.Data.StreamK.Type as S
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
+import qualified Streamly.Internal.Data.StreamD.Type as S
 #endif
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamD.Type as D
 
 import Prelude hiding (foldr, repeat)
 
