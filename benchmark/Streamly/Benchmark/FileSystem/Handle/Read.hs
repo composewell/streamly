@@ -28,7 +28,7 @@ import GHC.Magic (noinline)
 import System.IO (Handle)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as IP

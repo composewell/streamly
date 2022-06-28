@@ -29,6 +29,7 @@
 -- pressure to GC.
 
 module Streamly.Internal.Data.Array.Foreign
+    {-# DEPRECATED "Use Data.Array.Unboxed instead" #-}
     (
       Array
 
@@ -255,7 +256,7 @@ getIndexRev i arr =
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed as Array
 -- >>> last arr = Array.getIndexRev arr 0
 --
 -- /Pre-release/

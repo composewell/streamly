@@ -185,7 +185,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 
 -------------------------------------------------------------------------------
 -- Subscription to events

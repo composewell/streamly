@@ -11,7 +11,7 @@
 --------------------------------------------------------------------------------
 
 import Control.DeepSeq (NFData)
-import Streamly.Internal.Data.Array.Foreign (Array)
+import Streamly.Internal.Data.Array.Unboxed (Array)
 import System.FilePath (dropExtensions, takeFileName)
 import System.FilePath.Posix ((</>))
 import Gauge.Main (Benchmark, bench, bgroup, defaultMain, env, nfIO)
@@ -21,7 +21,7 @@ import Streamly.Internal.Unicode.Char
     )
 import Streamly.Benchmark.Common (o_1_space_prefix)
 
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Stream.IsStream as IsStream
 import qualified System.Directory as Dir
 

@@ -81,8 +81,8 @@ import Streamly.Internal.Data.SVar (adaptState, defState)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
     (memcpy, allocBytesToElemCount)
 
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 -- import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign
 --      as ArrayFold
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A

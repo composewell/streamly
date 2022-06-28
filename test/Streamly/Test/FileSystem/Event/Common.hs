@@ -63,7 +63,7 @@ import System.IO
 import System.IO.Temp (withSystemTempDirectory)
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Unicode.Stream as Unicode
 

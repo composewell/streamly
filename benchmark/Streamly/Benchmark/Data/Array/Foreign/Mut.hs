@@ -41,7 +41,7 @@ import Prelude
     , undefined
     )
 
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Mut as MArray
 import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
 import qualified Streamly.Prelude as Stream

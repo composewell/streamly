@@ -4,11 +4,11 @@
 
 import Control.DeepSeq (deepseq)
 
-import qualified Streamly.Internal.Data.Array.Foreign as IA
+import qualified Streamly.Internal.Data.Array.Unboxed as IA
 import qualified GHC.Exts as GHC
 
 import qualified Streamly.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 type Stream = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"

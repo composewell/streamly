@@ -92,7 +92,7 @@ module Streamly.Data.Array.Foreign
     )
 where
 
-import Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Internal.Data.Array.Unboxed as A
 
 -- $setup
 -- >>> :m

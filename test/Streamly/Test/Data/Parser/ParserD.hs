@@ -12,7 +12,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Data.List as List
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Producer.Source as Source

@@ -121,7 +121,7 @@ import qualified Data.Foldable as F
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
--- >>> import Streamly.Internal.Data.Array.Foreign as Array
+-- >>> import Streamly.Internal.Data.Array.Unboxed as Array
 
 -------------------------------------------------------------------------------
 -- Array Data Type

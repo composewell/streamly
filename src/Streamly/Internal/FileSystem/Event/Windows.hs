@@ -122,8 +122,8 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import Streamly.Internal.Data.Array.Foreign (Array)
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import Streamly.Internal.Data.Array.Unboxed (Array)
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.

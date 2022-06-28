@@ -217,6 +217,7 @@ extra-source-files:
     core/src/Streamly/Data/Fold/Tee.hs
     core/src/Streamly/Internal/Data/Fold/Window.hs
     core/src/Streamly/Data/Array/Foreign.hs
+    core/src/Streamly/Data/Array/Unboxed.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
     core/src/Streamly/Internal/Data/Time/Clock/Windows.c
     core/streamly-core.cabal
@@ -635,6 +636,7 @@ library
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 

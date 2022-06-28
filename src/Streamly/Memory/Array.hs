@@ -71,4 +71,4 @@ module Streamly.Memory.Array
     )
 where
 
-import Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Internal.Data.Array.Unboxed as A
