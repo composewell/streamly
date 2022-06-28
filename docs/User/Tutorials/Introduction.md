@@ -221,7 +221,7 @@ code for this example, including the imports that we have omitted below.
 The `countArray` function counts the line, word, char counts in one chunk:
 
 ```haskell
-import qualified Streamly.Data.Array.Foreign as Array
+import qualified Streamly.Data.Array.Unboxed as Array
 
 countArray :: Array Word8 -> IO Counts
 countArray arr =

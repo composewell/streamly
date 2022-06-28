@@ -75,7 +75,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import qualified Streamly.Internal.Data.Unfold as UF
 -- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
--- import qualified Streamly.Data.Array.Foreign as A
+-- import qualified Streamly.Data.Array.Unboxed as A
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
 

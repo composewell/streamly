@@ -333,6 +333,7 @@ library
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
+                     , Streamly.Data.Array.Unboxed
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

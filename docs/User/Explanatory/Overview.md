@@ -377,7 +377,7 @@ module Main where
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Array.Foreign as A
+import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 

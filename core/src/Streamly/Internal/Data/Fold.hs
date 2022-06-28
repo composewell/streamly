@@ -340,7 +340,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)

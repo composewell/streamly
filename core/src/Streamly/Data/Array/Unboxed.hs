@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 #include "inline.hs"
 
 -- |
@@ -47,14 +48,13 @@
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Data.Array.Foreign as Array
+-- > import qualified Streamly.Data.Array.Unboxed as Array
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array.Foreign".
 
-module Streamly.Data.Array.Foreign
-  {-# DEPRECATED "Use Streamly.Data.Array.Unboxed instead" #-}
+module Streamly.Data.Array.Unboxed
     (
-      A.Array
+      Array
 
     -- * Arrays
     -- ** Construction
@@ -66,21 +66,21 @@ module Streamly.Data.Array.Foreign
     -- 'fromList' can be used to construct an array from a string literal.
 
     -- Pure List APIs
-    , A.fromListN
-    , A.fromList
+    , fromListN
+    , fromList
 
     -- Monadic APIs
-    , A.writeN      -- drop new
-    , A.write       -- full buffer
+    , writeN      -- drop new
+    , write       -- full buffer
     , writeLastN    -- drop old (ring buffer)
 
     -- ** Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
-    , A.toList
+    , toList
     , A.read
-    , A.readRev
+    , readRev
 
     -- ** Casting
     , cast
@@ -89,11 +89,11 @@ module Streamly.Data.Array.Foreign
     -- ** Random Access
     , A.length
     -- , (!!)
-    , A.getIndex
+    , getIndex
     )
 where
 
-import Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Data.Array.Foreign as A
 
 -- $setup
 -- >>> :m

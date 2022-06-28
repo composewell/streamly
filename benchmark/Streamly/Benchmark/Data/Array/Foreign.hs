@@ -7,7 +7,7 @@ import Control.DeepSeq (deepseq)
 import qualified Streamly.Internal.Data.Array.Foreign as IA
 import qualified GHC.Exts as GHC
 
-import qualified Streamly.Data.Array.Foreign as A
+import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Foreign as A
 type Stream = A.Array
 
