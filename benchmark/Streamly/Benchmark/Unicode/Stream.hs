@@ -35,7 +35,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
@@ -105,7 +105,7 @@ linesUnlinesArrayCharCopy inh outh =
       $ Stream.unfold Handle.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Storable]
+inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Unboxed]
 -- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''Step
 #endif
 

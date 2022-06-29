@@ -2316,7 +2316,7 @@ cmp arr1 arr2 =
 -- NFData
 -------------------------------------------------------------------------------
 
--- This is a Storable array, we cannot have unevaluated data in it so this is
+-- This is a Unboxed array, we cannot have unevaluated data in it so this is
 -- just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}

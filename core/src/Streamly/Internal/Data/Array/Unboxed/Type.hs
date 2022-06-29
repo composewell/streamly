@@ -524,7 +524,7 @@ instance (Storable a, Eq a) => Eq (Array a) where
     arr1 == arr2 =
         (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
 
--- Since this is a Storable array we cannot have unevaluated data in it so
+-- Since this is a Unboxed array we cannot have unevaluated data in it so
 -- this is just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}

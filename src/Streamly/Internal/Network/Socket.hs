@@ -76,7 +76,7 @@ import Control.Monad (forM_, when)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
@@ -303,7 +303,7 @@ sendAll s p len = do
     when (sent >= 0) $ sendAll s (p `plusPtr` sent) (len - sent)
 
 {-# INLINABLE writeArrayWith #-}
-writeArrayWith :: Storable a
+writeArrayWith :: Unboxed a
     => (h -> Ptr Word8 -> Int -> IO ())
     -> h
     -> Array a
@@ -319,7 +319,7 @@ writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
 --
 -- @since 0.8.0
 {-# INLINABLE writeChunk #-}
-writeChunk :: Storable a => Socket -> Array a -> IO ()
+writeChunk :: Unboxed a => Socket -> Array a -> IO ()
 writeChunk = writeArrayWith sendAll
 
 -------------------------------------------------------------------------------
@@ -423,7 +423,7 @@ readWith chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 -}
 
 -- TODO
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
+-- read :: (IsStream t, MonadIO m, Unboxed a) => Handle -> t m a
 --
 -- > read = 'readByChunks' defaultChunkSize
 -- | Generate a stream of elements of the given type from a socket. The
@@ -476,7 +476,7 @@ putChunks h = S.mapM_ (liftIO . writeChunk h)
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
+writeChunks :: (MonadIO m, Unboxed a) => Socket -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeChunk h)
 
 -- | @writeChunksWith bufsize socket@ writes a stream of arrays to
@@ -487,7 +487,7 @@ writeChunks h = FL.drainBy (liftIO . writeChunk h)
 --
 -- @since 0.9.0
 {-# INLINE writeChunksWith #-}
-writeChunksWith :: (MonadIO m, Storable a)
+writeChunksWith :: (MonadIO m, Unboxed a)
     => Int -> Socket -> Fold m (Array a) ()
 writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 
@@ -496,7 +496,7 @@ writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 -- @since 0.7.0
 {-# DEPRECATED writeChunksWithBufferOf "Please use 'writeChunksWith' instead" #-}
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Storable a)
+writeChunksWithBufferOf :: (MonadIO m, Unboxed a)
     => Int -> Socket -> Fold m (Array a) ()
 writeChunksWithBufferOf = writeChunksWith
 
@@ -630,7 +630,7 @@ readLines h f = foldLines (readUtf8 h) f
 --
 -- @since 0.7.0
 {-# INLINE readFrames #-}
-readFrames :: (IsStream t, MonadIO m, Storable a)
+readFrames :: (IsStream t, MonadIO m, Unboxed a)
     => Array a -> Handle -> Fold m a b -> t m b
 readFrames = undefined -- foldFrames . read
 
@@ -639,7 +639,7 @@ readFrames = undefined -- foldFrames . read
 --
 -- @since 0.7.0
 {-# INLINE writeByFrames #-}
-writeByFrames :: (IsStream t, MonadIO m, Storable a)
+writeByFrames :: (IsStream t, MonadIO m, Unboxed a)
     => Array a -> Handle -> t m a -> m ()
 writeByFrames = undefined
 -}

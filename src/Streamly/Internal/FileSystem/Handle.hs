@@ -114,7 +114,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
@@ -365,7 +365,7 @@ getBytesWith size h = AS.concat $ getChunksWith size h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
+-- read :: (IsStream t, MonadIO m, Unboxed a) => Handle -> t m a
 --
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
@@ -495,7 +495,7 @@ consumeChunks = Refold.drainBy putChunk
 --
 -- @since 0.9.0
 {-# INLINE writeChunksWith #-}
-writeChunksWith :: (MonadIO m, Storable a)
+writeChunksWith :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 
@@ -504,7 +504,7 @@ writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 -- @since 0.7.0
 {-# DEPRECATED writeChunksWithBufferOf "Please use writeChunksWith instead." #-}
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Storable a)
+writeChunksWithBufferOf :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWithBufferOf = writeChunksWith
 

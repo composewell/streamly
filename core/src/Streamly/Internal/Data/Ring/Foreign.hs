@@ -604,7 +604,6 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
                     Done b -> Done b
 
     extract (Tuple4' _ _ _ st) = extract1 st
-
 -- | @slidingWindow collector@ is an incremental sliding window
 -- fold that does not require all the intermediate elements in a computation.
 -- This maintains @n@ elements in the window, when a new element comes it slides

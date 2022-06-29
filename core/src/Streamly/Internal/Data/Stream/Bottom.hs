@@ -55,7 +55,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
@@ -312,7 +312,7 @@ reverse s = fromStreamD $ D.reverse $ toStreamD s
 --
 -- /Pre-release/
 {-# INLINE reverse' #-}
-reverse' :: (MonadIO m, Storable a) => Stream m a -> Stream m a
+reverse' :: (MonadIO m, Unboxed a) => Stream m a -> Stream m a
 -- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 reverse' =
         fromStreamD

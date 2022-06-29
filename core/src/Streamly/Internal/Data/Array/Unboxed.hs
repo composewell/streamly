@@ -182,7 +182,7 @@ fromStream m = P.fold A.write $ Stream.toStreamK m
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Storable a) => Producer m (Array a) a
+producer :: forall m a. (Monad m, Unboxed a) => Producer m (Array a) a
 producer =
     Producer.translate A.unsafeThaw A.unsafeFreeze
         $ MA.producerWith (return . unsafeInlineIO)
@@ -193,7 +193,7 @@ producer =
 --
 -- @since 0.8.0
 {-# INLINE_NORMAL read #-}
-read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+read :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
 read = Producer.simplify producer
 
 -- | Unfold an array into a stream, does not check the end of the array, the
@@ -208,7 +208,7 @@ read = Producer.simplify producer
 -- /Pre-release/
 --
 {-# INLINE_NORMAL unsafeRead #-}
-unsafeRead :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+unsafeRead :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
 unsafeRead = Unfold step inject
     where
 
@@ -243,7 +243,7 @@ null arr = A.byteLength arr == 0
 --
 -- /Pre-release/
 {-# INLINE getIndexRev #-}
-getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
+getIndexRev :: forall a. Unboxed a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
         $ do
@@ -259,7 +259,7 @@ getIndexRev i arr =
 --
 -- /Pre-release/
 {-# INLINE last #-}
-last :: Storable a => Array a -> Maybe a
+last :: Unboxed a => Array a -> Maybe a
 last = getIndexRev 0
 
 -------------------------------------------------------------------------------
@@ -352,7 +352,7 @@ find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
 -- /Pre-release/
 {-# INLINE getSliceUnsafe #-}
 getSliceUnsafe ::
-       forall a. Storable a
+       forall a. Unboxed a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
@@ -376,7 +376,7 @@ splitOn predicate arr =
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
 {-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Storable a)
+genSlicesFromLen :: forall m a. (Monad m, Unboxed a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
@@ -389,7 +389,7 @@ genSlicesFromLen from len =
 --
 -- /Pre-release//
 {-# INLINE getSlicesFromLen #-}
-getSlicesFromLen :: forall m a. (Monad m, Storable a)
+getSlicesFromLen :: forall m a. (Monad m, Unboxed a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
@@ -408,7 +408,7 @@ getSlicesFromLen from len =
 --
 -- @since 0.8.0
 {-# INLINE getIndex #-}
-getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
+getIndex :: forall a. Unboxed a => Int -> Array a -> Maybe a
 getIndex i arr =
     unsafeInlineIO
         $ do
@@ -472,7 +472,7 @@ getIndicesFromThenTo = undefined
 --
 -- @since 0.7.0
 {-# INLINE runPipe #-}
-runPipe :: (MonadIO m, Storable a, Storable b)
+runPipe :: (MonadIO m, Unboxed a, Prim b)
     => Pipe m a b -> Array a -> m (Array b)
 runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -}
@@ -503,7 +503,7 @@ streamTransform f arr =
 --
 castUnsafe ::
 #ifdef DEVBUILD
-    Storable b =>
+    Prim b =>
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end) =
@@ -522,7 +522,7 @@ asBytes = castUnsafe
 --
 -- @since 0.8.0
 --
-cast :: forall a b. (Storable b) => Array a -> Maybe (Array b)
+cast :: forall a b. (Unboxed b) => Array a -> Maybe (Array b)
 cast arr =
     let len = A.byteLength arr
         r = len `mod` SIZE_OF(b)
