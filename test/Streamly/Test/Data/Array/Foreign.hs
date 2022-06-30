@@ -14,12 +14,16 @@ import Data.Char (isLower)
 import Data.List (sort)
 import Data.Word(Word8)
 import Test.QuickCheck (chooseInt, listOf)
+import Streamly.Internal.Data.Unboxed (Storable, alignment, peek, poke)
+import GHC.Ptr (plusPtr)
+import Foreign.ForeignPtr (withForeignPtr)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
 type Array = A.Array
 
@@ -181,6 +185,50 @@ testBubbleAsc = testBubbleWith True
 testBubbleDesc ::  Property
 testBubbleDesc = testBubbleWith False
 
+testByteLengthWithMA :: forall a. Storable a => a -> IO ()
+testByteLengthWithMA _ = do
+     arrA <- MA.newArray 100 :: IO (MA.Array a)
+     let arrW8 = MA.castUnsafe arrA :: MA.Array Word8
+     MA.byteLength arrA `shouldBe` MA.length arrW8
+
+testFromForeignPtrUnsafeMA :: IO ()
+testFromForeignPtrUnsafeMA = do
+    fp <- Malloc.mallocForeignPtrAlignedBytes numBytes alignmentInt
+    arr <-
+        withForeignPtr fp $ \p -> do
+            writeNext (0 :: Int) p
+            return
+                $ MA.fromForeignPtrUnsafe
+                      fp
+                      (p `plusPtr` numBytes)
+                      (p `plusPtr` numBytes)
+    MA.toList arr `shouldReturn` [0..99]
+
+    where
+
+    sizeOfInt = sizeOf (undefined :: Int)
+    alignmentInt = alignment (undefined :: Int)
+    numBytes = sizeOfInt * 100
+    writeNext i _
+        | i >= 100 = return ()
+    writeNext i p = poke p i >> writeNext (i + 1) (p `plusPtr` sizeOfInt)
+
+testAsPtrUnsafeMA :: IO ()
+testAsPtrUnsafeMA = do
+    arr <- MA.fromList ([0 .. 99] :: [Int])
+    MA.asPtrUnsafe arr (getList (0 :: Int)) `shouldReturn` [0 .. 99]
+
+    where
+
+    sizeOfInt = sizeOf (undefined :: Int)
+
+    getList i _
+        | i >= 100 = return []
+    getList i p = do
+        val <- peek p
+        rest <- getList (i + 1) (p `plusPtr` sizeOfInt)
+        return $ val : rest
+
 main :: IO ()
 main =
     hspec $
@@ -222,3 +270,9 @@ main =
             it "stripZero" (testStripZero `shouldReturn` True)
             it "stripEmpty" (testStripEmpty `shouldReturn` True)
             it "stripNull" (testStripNull `shouldReturn` True)
+            it "testByteLengthWithMA Int"
+                   (testByteLengthWithMA (undefined :: Int))
+            it "testByteLengthWithMA Char"
+                   (testByteLengthWithMA (undefined :: Char))
+            it "testFromForeignPtrUnsafeMA" testFromForeignPtrUnsafeMA
+            it "testAsPtrUnsafeMA" testAsPtrUnsafeMA
