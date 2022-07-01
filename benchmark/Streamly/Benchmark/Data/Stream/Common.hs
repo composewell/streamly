@@ -13,10 +13,10 @@ module Stream.Common
     )
 where
 
-import Streamly.Internal.Data.Stream (Stream, fromStreamK)
+import Streamly.Internal.Data.Stream (Stream, fromStreamD)
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified  Streamly.Internal.Data.Stream.StreamD as D
 import Control.DeepSeq (NFData)
 import Gauge
 import Prelude hiding (mapM)
@@ -27,8 +27,8 @@ toNull :: Monad m => Stream m a -> m ()
 toNull = Stream.fold Fold.drain
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (Monad m) => Int -> Int -> Stream m Int
-sourceUnfoldrM count start = fromStreamK $ K.unfoldrMWith K.consM step start
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
+sourceUnfoldrM count start = fromStreamD $ D.unfoldrM step start
     where
     step cnt =
         if cnt > start + count
@@ -36,8 +36,8 @@ sourceUnfoldrM count start = fromStreamK $ K.unfoldrMWith K.consM step start
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> Int -> Stream m Int
-sourceUnfoldr count start = fromStreamK $ K.unfoldr step start
+sourceUnfoldr :: Monad m => Int -> Int -> Stream m Int
+sourceUnfoldr count start = fromStreamD $ D.unfoldr step start
     where
     step cnt =
         if cnt > start + count
@@ -45,8 +45,8 @@ sourceUnfoldr count start = fromStreamK $ K.unfoldr step start
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrAction #-}
-sourceUnfoldrAction :: Monad m1 => Int -> Int -> Stream m (m1 Int)
-sourceUnfoldrAction value n = fromStreamK $ K.unfoldr step n
+sourceUnfoldrAction :: (Monad m1, Monad m) => Int -> Int -> Stream m (m1 Int)
+sourceUnfoldrAction value n = fromStreamD $ D.unfoldr step n
     where
     step cnt =
         if cnt > n + value

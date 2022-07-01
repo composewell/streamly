@@ -27,10 +27,10 @@ import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
 
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
@@ -56,37 +56,37 @@ instance Exception BenchException
 
 retryNoneSimple :: Int -> Int -> IO ()
 retryNoneSimple length from =
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const S.nil) source
+    Stream.fold Fold.drain
+        $ Stream.retry (Map.singleton BenchException1 length) (const Stream.nil) source
 
     where
 
-    source = S.enumerateFromTo from (from + length)
+    source = Stream.unfold IUF.enumerateFromTo (from, from + length)
 
 retryNone :: Int -> Int -> IO ()
 retryNone length from = do
     ref <- Ref.newIORef (0 :: Int)
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const S.nil)
+    Stream.fold Fold.drain
+        $ Stream.retry (Map.singleton BenchException1 length) (const Stream.nil)
         $ source ref
 
     where
 
     source ref =
-        IP.replicateM (from + length)
+        Stream.unfold (IUF.replicateM (from + length))
             $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
 
 retryAll :: Int -> Int -> IO ()
 retryAll length from = do
     ref <- Ref.newIORef 0
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 (length + from)) (const S.nil)
+    Stream.fold Fold.drain
+        $ Stream.retry (Map.singleton BenchException1 (length + from)) (const Stream.nil)
         $ source ref
 
     where
 
     source ref =
-        IP.fromEffect
+        Stream.fromEffect
             $ do
                 Ref.modifyIORef' ref (+ 1)
                 val <- Ref.readIORef ref
@@ -96,13 +96,13 @@ retryAll length from = do
 
 retryUnknown :: Int -> Int -> IO ()
 retryUnknown length from = do
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const source)
-        $ throwIO BenchException2 `S.before` S.nil
+    Stream.fold Fold.drain
+        $ Stream.retry (Map.singleton BenchException1 length) (const source)
+        $ throwIO BenchException2 `Stream.before` Stream.nil
 
     where
 
-    source = S.enumerateFromTo from (from + length)
+    source = Stream.unfold IUF.enumerateFromTo (from, from + length)
 
 
 o_1_space_serial_exceptions :: Int -> [Benchmark]
@@ -123,8 +123,8 @@ o_1_space_serial_exceptions length =
 -- | Send the file contents to /dev/null with exception handling
 readWriteOnExceptionStream :: Handle -> Handle -> IO ()
 readWriteOnExceptionStream inh devNull =
-    let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
+    let readEx = Stream.onException (hClose inh) (Stream.unfold FH.read inh)
+    in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
@@ -133,9 +133,9 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
 -- | Send the file contents to /dev/null with exception handling
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
-    let handler (_e :: SomeException) = S.fromEffect (hClose inh >> return 10)
-        readEx = S.handle handler (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
+    let handler (_e :: SomeException) = Stream.fromEffect (hClose inh >> return 10)
+        readEx = Stream.handle handler (Stream.unfold FH.read inh)
+    in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
@@ -144,8 +144,8 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
-    let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) readEx
+    let readEx = Stream.finally_ (hClose inh) (Stream.unfold FH.read inh)
+    in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteFinally_Stream
@@ -153,32 +153,19 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
-    let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) readEx
-
--- | Send the file contents to /dev/null with exception handling
-fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
-fromToBytesBracket_Stream inh devNull =
-    let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.getBytes inh)
-    in IFH.putBytes devNull $ readEx
+    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
+    in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 #endif
 
-fromToBytesBracketStream :: Handle -> Handle -> IO ()
-fromToBytesBracketStream inh devNull =
-    let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.getBytes inh)
-    in IFH.putBytes devNull $ readEx
-
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
-            IP.after (hClose inh)
-                $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
+            Stream.after (hClose inh)
+                $ Stream.before (hPutChar devNull 'A') (Stream.unfold FH.read inh)
+     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
@@ -186,8 +173,8 @@ inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
 
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
-    let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
+    let readEx = Stream.after (hClose inh) (Stream.unfold FH.read inh)
+     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
@@ -195,8 +182,8 @@ inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
 
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
-    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
+    let readEx = Stream.after_ (hClose inh) (Stream.unfold FH.read inh)
+     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteAfter_Stream
@@ -206,27 +193,21 @@ inspect $ 'readWriteAfter_Stream `hasNoType` ''D.Step
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
     [ bgroup "exceptions"
-       [ mkBenchSmall "S.onException" env $ \inh _ ->
+       [ mkBenchSmall "Stream.onException" env $ \inh _ ->
            readWriteOnExceptionStream inh (nullH env)
-       , mkBenchSmall "S.handle" env $ \inh _ ->
+       , mkBenchSmall "Stream.handle" env $ \inh _ ->
            readWriteHandleExceptionStream inh (nullH env)
-       , mkBenchSmall "S.finally_" env $ \inh _ ->
+       , mkBenchSmall "Stream.finally_" env $ \inh _ ->
            readWriteFinally_Stream inh (nullH env)
-       , mkBenchSmall "S.finally" env $ \inh _ ->
+       , mkBenchSmall "Stream.finally" env $ \inh _ ->
            readWriteFinallyStream inh (nullH env)
-       , mkBenchSmall "S.after . S.before" env $ \inh _ ->
+       , mkBenchSmall "Stream.after . Stream.before" env $ \inh _ ->
            readWriteBeforeAfterStream inh (nullH env)
-       , mkBenchSmall "S.after" env $ \inh _ ->
+       , mkBenchSmall "Stream.after" env $ \inh _ ->
            readWriteAfterStream inh (nullH env)
-       , mkBenchSmall "S.after_" env $ \inh _ ->
+       , mkBenchSmall "Stream.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
        ]
-    , bgroup "exceptions/fromToBytes"
-       [ mkBenchSmall "S.bracket_" env $ \inh _ ->
-           fromToBytesBracket_Stream inh (nullH env)
-       , mkBenchSmall "S.bracket" env $ \inh _ ->
-           fromToBytesBracketStream inh (nullH env)
-        ]
     ]
 
  -------------------------------------------------------------------------------
@@ -274,43 +255,14 @@ o_1_space_copy_exceptions_readChunks env =
 -- Exceptions toChunks
 -------------------------------------------------------------------------------
 
--- | Send the file contents to /dev/null with exception handling
-toChunksBracket_ :: Handle -> Handle -> IO ()
-toChunksBracket_ inh devNull =
-    let readEx = IP.bracket_
-            (return ())
-            (\_ -> hClose inh)
-            (\_ -> IFH.getChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
-
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksBracket_
 #endif
-
-toChunksBracket :: Handle -> Handle -> IO ()
-toChunksBracket inh devNull =
-    let readEx = S.bracket
-            (return ())
-            (\_ -> hClose inh)
-            (\_ -> IFH.getChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
-
-o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "exceptions/toChunks"
-        [ mkBench "S.bracket_" env $ \inH _ ->
-            toChunksBracket_ inH (nullH env)
-        , mkBench "S.bracket" env $ \inH _ ->
-            toChunksBracket inH (nullH env)
-        ]
-    ]
-
 
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
 benchmarks moduleName env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_copy_exceptions_readChunks env
-            , o_1_space_copy_exceptions_toChunks env
             , o_1_space_copy_stream_exceptions env
             , o_1_space_serial_exceptions size
             ]

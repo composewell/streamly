@@ -1,6 +1,6 @@
 -- |
--- Module      : Serial
--- Copyright   : (c) 2018 Composewell Technologies
+-- Module      : Data.Stream
+-- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
@@ -47,4 +47,3 @@ main = do
         ++ Lift.benchmarks moduleName size
         ++ Reduce.benchmarks moduleName size
         ++ Transformation.benchmarks moduleName size
-    
