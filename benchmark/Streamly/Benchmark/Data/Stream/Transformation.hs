@@ -35,7 +35,7 @@ traversableTraverse = traverse return
 
 {-# INLINE traversableSequenceA #-}
 traversableSequenceA :: Stream Identity Int -> IO (Stream Identity Int)
-traversableSequenceA = sequenceA . Prelude.fmap return
+traversableSequenceA = traverse return
 
 {-# INLINE traversableMapM #-}
 traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
@@ -43,7 +43,7 @@ traversableMapM = Prelude.mapM return
 
 {-# INLINE traversableSequence #-}
 traversableSequence :: Stream Identity Int -> IO (Stream Identity Int)
-traversableSequence = Prelude.sequence . Prelude.fmap return
+traversableSequence = Prelude.mapM return
 
 {-# INLINE benchPureSinkIO #-}
 benchPureSinkIO
