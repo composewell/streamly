@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- *** Uninitialized Arrays
     , newArray
     , newPinnedArrayBytes
+    , newArrayUnitialized
     , newArrayAligned
     , newArrayWith
     , newAlignedArrayContents
@@ -444,6 +445,12 @@ newPinnedArrayBytes bytes = do
         , aEnd   = 0
         , aBound = bytes
         }
+newArrayUnitialized :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
+newArrayUnitialized count = do
+    arr <- newArrayAligned (alignment (undefined :: a)) count
+    -- set end of array to allocated boundary
+    -- declaring that the array is full
+    return $ arr { aEnd = aBound arr }
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
