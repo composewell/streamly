@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- *** Uninitialized Arrays
     , newArray
+    , newArrayUnitialized
     , newArrayAligned
     , newArrayAlignedUnmanaged
     , newArrayWith
@@ -526,6 +527,13 @@ newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 {-# INLINE newArray #-}
 newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
+
+newArrayUnitialized :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
+newArrayUnitialized count = do
+    arr <- newArrayAligned (alignment (undefined :: a)) count
+    -- set end of array to allocated boundary
+    -- declaring that the array is full
+    return $ arr { aEnd = aBound arr }
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.

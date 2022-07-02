@@ -20,6 +20,7 @@ module Streamly.Internal.Data.Array.Mut.Type
 
     -- *** Uninitialized Arrays
     , newArray
+    , newArrayUninitialized
     -- , newArrayWith
 
     -- *** From streams
@@ -238,6 +239,10 @@ newArray n@(I# n#) =
                   (# s1#, arr# #) ->
                       let ma = Array arr# 0 0 n
                        in (# s1#, ma #)
+
+{-# INLINE newArrayUninitialized #-}
+newArrayUninitialized :: forall m a. MonadIO m => Int -> m (Array a)
+newArrayUninitialized = fmap (\arr -> arr { arrLen = arrTrueLen arr }) . newArray
 
 -------------------------------------------------------------------------------
 -- Random writes
