@@ -246,6 +246,11 @@ test-suite Data.Ring.Unboxed
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Ring/Unboxed.hs
   ghc-options: -main-is Streamly.Test.Data.Ring.Unboxed.main
+test-suite Data.Array.TreeArray
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Array/TreeArray.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.TreeArray.main
 
 test-suite Data.Array.Stream.Foreign
   import: test-options

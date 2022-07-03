@@ -10,10 +10,7 @@ module Streamly.Test.Data.Array (main) where
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
-import Streamly.Test.Common (listEquals, checkListEqual)
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Array.Tree.Type as T
-import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as S
 type Array = A.Array
 
 moduleName :: String
@@ -36,23 +33,6 @@ testFromList =
                     xs <- run $ S.toList $ (S.unfold A.read) arr
                     assert (xs == list)
 
-testTreeAppendCount :: Property
-testTreeAppendCount =
-    forAll (choose (0, maxArrLen)) $ \len ->
-      forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-        monadicIO $ do
-          arr <- S.fold (T.appendN T.newArray $ length list) $ S.fromList list
-          assert (T.count arr == length list)
-
-testTreeAppendRead :: Property
-testTreeAppendRead =
-  forAll (choose (0, 7)) $ \len ->
-    forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-      monadicIO $ do
-        arr <- S.fold (T.appendN T.newArray $ length list) $ S.fromList list
-        readArr <- S.toList $ S.unfold T.read arr
-        assert (readArr == list)
-
 testLengthFromStream :: Property
 testLengthFromStream = genericTestFrom (const A.fromStream)
 
@@ -68,5 +48,3 @@ main =
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
             prop "fromList" testFromList
-            prop "testTreeAppendCount" testTreeAppendCount
-            prop "testTreeAppendRead" testTreeAppendRead
