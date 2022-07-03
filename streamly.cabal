@@ -99,6 +99,7 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Prim/Pinned.hs
     test/Streamly/Test/Data/Array/Foreign.hs
     test/Streamly/Test/Data/Array/Stream/Foreign.hs
+    test/Streamly/Test/Data/Array/TreeArray.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Event/Common.hs
@@ -650,6 +651,9 @@ library
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Foreign
+
+                     -- temporary
+                     , Streamly.Internal.Data.Array.Tree.Type
 
     other-modules:
                        Streamly.Data.Array
