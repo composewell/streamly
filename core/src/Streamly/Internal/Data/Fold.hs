@@ -52,6 +52,7 @@ module Streamly.Internal.Data.Fold
     , drain
     , drainBy
     , last
+    , the
     , length
     , genericLength
     , countDistinct
@@ -150,6 +151,7 @@ module Streamly.Internal.Data.Fold
     -- , ldeleteBy
     -- , luniq
     , nub
+    , nubInt
 
     -- ** Mapping Filters
     , catMaybes
@@ -590,6 +592,43 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 foldFilter :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
 foldFilter f1 f2 = many f1 (catMaybes f2)
 
+-- | Used as a scan. Returns 'Just' for the first occurrence of an element,
+-- returns 'Nothing' for any other occurrences.
+--
+-- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
+-- >>> Stream.toList $ Stream.catMaybes $ Stream.postscan Fold.nub stream
+-- [1,2,3,4,5,7]
+--
+-- /Pre-release/
+{-# INLINE nub #-}
+nub :: (Monad m, Ord a) => Fold m a (Maybe a)
+nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
+
+    where
+
+    initial = Tuple' Set.empty Nothing
+
+    step (Tuple' set _) x =
+        if Set.member x set
+        then Tuple' set Nothing
+        else Tuple' (Set.insert x set) (Just x)
+
+-- | Like 'nub' but specialized to a stream of 'Int', for better performance.
+--
+-- /Pre-release/
+{-# INLINE nubInt #-}
+nubInt :: Monad m => Fold m Int (Maybe Int)
+nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
+
+    where
+
+    initial = Tuple' IntSet.empty Nothing
+
+    step (Tuple' set _) x =
+        if IntSet.member x set
+        then Tuple' set Nothing
+        else Tuple' (IntSet.insert x set) (Just x)
+
 ------------------------------------------------------------------------------
 -- Left folds
 ------------------------------------------------------------------------------
@@ -621,6 +660,24 @@ drainBy f = lmapM f drain
 last :: Monad m => Fold m a (Maybe a)
 last = foldl1' (\_ x -> x)
 
+-- | If the stream consists of one or more occurences of the same element
+-- then returns that element else terminates and returns 'Nothing'.
+--
+-- /Pre-release/
+{-# INLINE the #-}
+the :: (Monad m, Eq a) => Fold m a (Maybe a)
+the = foldt' step initial id
+
+    where
+
+    initial = Partial Nothing
+
+    step Nothing x = Partial (Just x)
+    step old@(Just x0) x =
+            if x0 == x
+            then Partial old
+            else Done Nothing
+
 ------------------------------------------------------------------------------
 -- To Summary
 ------------------------------------------------------------------------------
@@ -651,6 +708,8 @@ length = genericLength
 --
 -- Equivalent to using 'nub' followed by 'length' on a stream.
 --
+-- >>> countDistinct = Fold.postscan Fold.nub $ Fold.catMaybes $ Fold.length
+--
 -- The memory used is proportional to the number of distinct elements in the
 -- stream, to guard against using too much memory use it as a scan and
 -- terminate if the count reaches more than a threshold.
@@ -661,6 +720,8 @@ length = genericLength
 --
 {-# INLINE countDistinct #-}
 countDistinct :: (Monad m, Ord a) => Fold m a Int
+countDistinct = postscan nub $ catMaybes $ length
+{-
 countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
     where
@@ -674,13 +735,18 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
         else
             let cnt = n + 1
              in Tuple' (Set.insert x set) cnt
+-}
 
 -- | Like 'countDistinct' but specialized to a stream of 'Int', for better
 -- performance.
 --
+-- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
+--
 -- /Pre-release/
 {-# INLINE countDistinctInt #-}
 countDistinctInt :: Monad m => Fold m Int Int
+countDistinctInt = postscan nubInt $ catMaybes $ length
+{-
 countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
     where
@@ -694,6 +760,7 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
         else
             let cnt = n + 1
              in Tuple' (IntSet.insert x set) cnt
+ -}
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
 -- identity (@0@) when the stream is empty. Note that this is not numerically
@@ -2573,46 +2640,3 @@ top = topBy $ flip compare
 {-# INLINE bottom #-}
 bottom :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
 bottom = topBy compare
-
--- | Delete the duplicate elements from the stream while scanning.
--- It returns (Just a) for new element and Nothing for duplicates ones.
---
--- >>> stream = Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
--- >>> Stream.toList $ Stream.catMaybes $ Stream.postscan Fold.nub stream
--- [1,2,3,4,5,7]
---
--- /Pre-release/
-{-# INLINE nub #-}
-nub :: (MonadIO m, Ord a) => Fold m a (Maybe a)
-nub = Fold step initial extract
-
-    where
-
-    initial = return $ Partial (Set.empty, Nothing)
-
-    step (set, _) x = do
-        if Set.member x set
-        then return $ Partial (set, Nothing)
-        else return $ Partial (Set.insert x set, Just x)
-
-    extract = return . snd
-
-{-# INLINE the #-}
-the :: (Eq a, Monad m) => Fold m a (Maybe a)
-the = Fold step initial extract
-
-    where
-
-    initial =
-        return $ Partial Nothing
-
-    step Nothing x =
-        return $ Partial (Just x)
-
-    step old@(Just x0) x =
-        return $
-            if x0 == x
-            then  Partial old
-            else  Done Nothing
-
-    extract = return
