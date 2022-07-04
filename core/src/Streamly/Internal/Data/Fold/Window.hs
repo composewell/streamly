@@ -268,14 +268,8 @@ range n = Fold step initial extract
 --
 -- This implementation traverses the entire window buffer to compute the
 -- minimum whenever we demand it.  It performs better than the dequeue based
--- implementation in @streamly-statistics@ package when any of the following
--- holds:
---
--- * window size is small (< 30)
--- * we are using this as a fold instead of a scan.
---
--- For other cases the implementation in the @streamly-statistics@ package
--- performs better.
+-- implementation in @streamly-statistics@ package when the window size is
+-- small (< 30).
 --
 -- If you want to compute the minimum of the entire stream
 -- 'Streamly.Data.Fold.minimum' is much faster.
