@@ -56,6 +56,7 @@ module Streamly.Internal.Data.Fold
     , genericLength
     , countDistinct
     , countDistinctInt
+    , frequency
     , mean
     , rollingHash
     , rollingHashWithSalt
@@ -84,6 +85,8 @@ module Streamly.Internal.Data.Fold
     , toStream
     , toStreamRev
     , toMap
+    , top
+    , bottom
 
     -- ** Terminating Folds
     -- Element folds. Terminate after inspecting one element. All these can be
@@ -146,6 +149,7 @@ module Streamly.Internal.Data.Fold
     , sampleFromthen
     -- , ldeleteBy
     -- , luniq
+    , nub
 
     -- ** Mapping Filters
     , catMaybes
@@ -278,9 +282,6 @@ module Streamly.Internal.Data.Fold
     , snoc
     , duplicate
     , finish
-    , top
-    , bottom
-    , nub
 
     -- * Deprecated
     , sequence
@@ -2273,6 +2274,15 @@ classifyMutWith f fld =
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
 classify = classifyWith fst . lmap snd
+
+-- | Determine the frequency of each element in the stream.
+--
+-- You can just collect the keys of the resulting map to get the unique
+-- elements in the stream.
+--
+{-# INLINE frequency #-}
+frequency :: (Monad m, Ord a) => Fold m a (Map a Int)
+frequency = classifyWith id length
 
 ------------------------------------------------------------------------------
 -- Unzipping
