@@ -35,7 +35,6 @@ module Streamly.Internal.Data.Fold.Window
     --
       lmap
     , cumulative
-    , nub
 
     -- ** Sums
     , length
@@ -49,6 +48,9 @@ module Streamly.Internal.Data.Fold.Window
     , maximum
     , range
     , mean
+
+    -- ** Distribution
+    , frequency
     )
 where
 
@@ -66,10 +68,12 @@ import qualified Streamly.Internal.Data.Ring.Foreign as Ring
 
 import Prelude hiding (length, sum, minimum, maximum)
 
-
 -- $setup
 -- >>> import Data.Bifunctor(bimap)
 -- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
+-- >>> import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+-- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
 
 -------------------------------------------------------------------------------
@@ -313,38 +317,35 @@ maximum n = fmap (fmap snd) $ range n
 mean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
 mean = Fold.teeWith (/) sum length
 
--- | Drop repeated elements within the specified
--- tumbling window in the stream.
+-------------------------------------------------------------------------------
+-- Distribution
+-------------------------------------------------------------------------------
+
+-- XXX We can use a Windowed classifyWith operation, that will allow us to
+-- express windowed frequency, mode, histograms etc idiomatically.
+
+-- | Count the frequency of elements in a sliding window.
+--
+-- >>> input = Stream.fromList [1,1,3,4,4::Int]
+-- >>> f = Ring.slidingWindow 4 FoldW.frequency
+-- >>> Stream.fold f input
+-- fromList [(1,1),(3,1),(4,2)]
+--
 -- /Pre-release/
 --
--- >>> import qualified Streamly.Prelude as S
--- >>> S.fold nub $ S.fromList [(1, Nothing), (1, Nothing), (3, Nothing), (4, Just 1)]
--- fromList [(1,1),(3,1),(4,1)]
---
-{-# INLINE nub #-}
-nub :: (Monad m, Ord a) => Fold m (a, Maybe a) (Map.Map a Int)
-nub = Fold step initial extract
+{-# INLINE frequency #-}
+frequency :: (Monad m, Ord a) => Fold m (a, Maybe a) (Map.Map a Int)
+frequency = Fold.foldl' step Map.empty
 
     where
 
-    initial =
-        return $ Partial Map.empty
-
-    updateRefCounts new map0 = return $ Map.insertWith (+) new (1::Int) map0
-
-    alter a m1 (Just v) =
+    decrement v =
         if v == 1
-        then do
-            _ <- return $ Map.delete a m1
-            return Nothing
-        else return $ Just (v -1)
-    alter _ _ Nothing = error "Invalid old element"
+        then Nothing
+        else Just (v - 1)
 
-    step map0 (new, mOld) = do
-        m1 <- updateRefCounts new map0
-        Partial <$>
-            case mOld of
-                Just a -> Map.alterF (alter a m1) a m1
-                Nothing -> return m1
-
-    extract = return
+    step refCountMap (new, mOld) =
+        let m1 = Map.insertWith (+) new 1 refCountMap
+        in case mOld of
+                Just k -> Map.update decrement k m1
+                Nothing -> m1
