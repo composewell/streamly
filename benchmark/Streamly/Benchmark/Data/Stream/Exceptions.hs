@@ -247,14 +247,6 @@ o_1_space_copy_exceptions_readChunks env =
         ]
     ]
 
--------------------------------------------------------------------------------
--- Exceptions toChunks
--------------------------------------------------------------------------------
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'toChunksBracket_
-#endif
-
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
 benchmarks moduleName env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
