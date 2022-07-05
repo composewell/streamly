@@ -23,6 +23,11 @@ import qualified Prelude
 import Gauge
 import Streamly.Internal.Data.Stream (Stream)
 import Stream.Common
+import Streamly.Benchmark.Common
+    (o_1_space_prefix
+    , o_n_space_prefix
+    , o_n_heap_prefix
+    , o_n_stack_prefix)
 import Prelude hiding (sequence, mapM, fmap)
 
 -------------------------------------------------------------------------------
@@ -386,12 +391,12 @@ o_1_space_indexing value =
 --
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
-        [ bgroup  moduleName $ Prelude.concat
+        [ bgroup  (o_1_space_prefix moduleName) $ Prelude.concat
             [ o_1_space_mapping size
             , o_1_space_filtering size
             , o_1_space_filteringX4 size
             , o_1_space_inserting size
             , o_1_space_indexing size
             ]
-        , bgroup moduleName $ o_n_space_traversable size
+        , bgroup  (o_n_space_prefix moduleName) $ o_n_space_traversable size
         ]

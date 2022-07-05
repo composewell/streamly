@@ -193,19 +193,19 @@ inspect $ 'readWriteAfter_Stream `hasNoType` ''D.Step
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
     [ bgroup "exceptions"
-       [ mkBenchSmall "Stream.onException" env $ \inh _ ->
+       [ mkBenchSmall "S.onException" env $ \inh _ ->
            readWriteOnExceptionStream inh (nullH env)
-       , mkBenchSmall "Stream.handle" env $ \inh _ ->
+       , mkBenchSmall "S.handle" env $ \inh _ ->
            readWriteHandleExceptionStream inh (nullH env)
-       , mkBenchSmall "Stream.finally_" env $ \inh _ ->
+       , mkBenchSmall "S.finally_" env $ \inh _ ->
            readWriteFinally_Stream inh (nullH env)
-       , mkBenchSmall "Stream.finally" env $ \inh _ ->
+       , mkBenchSmall "S.finally" env $ \inh _ ->
            readWriteFinallyStream inh (nullH env)
-       , mkBenchSmall "Stream.after . Stream.before" env $ \inh _ ->
+       , mkBenchSmall "S.after . S.before" env $ \inh _ ->
            readWriteBeforeAfterStream inh (nullH env)
-       , mkBenchSmall "Stream.after" env $ \inh _ ->
+       , mkBenchSmall "S.after" env $ \inh _ ->
            readWriteAfterStream inh (nullH env)
-       , mkBenchSmall "Stream.after_" env $ \inh _ ->
+       , mkBenchSmall "S.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
        ]
     ]

@@ -24,7 +24,7 @@ import Streamly.Benchmark.Common
 
 
 moduleName :: String
-moduleName = "Data.Stream"
+moduleName = "Prelude.Serial"
 
 -------------------------------------------------------------------------------
 -- Main
