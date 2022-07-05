@@ -156,10 +156,6 @@ readWriteFinallyStream inh devNull =
     let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
     in Stream.fold (FH.write devNull) readEx
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
-#endif
-
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =

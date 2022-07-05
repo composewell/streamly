@@ -56,4 +56,3 @@ benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
     [ bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
     ]
-    
