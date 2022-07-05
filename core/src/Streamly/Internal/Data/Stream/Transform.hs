@@ -20,7 +20,6 @@ module Streamly.Internal.Data.Stream.Transform
     -- | Stateless one-to-one maps.
     , sequence
     , mapM
-    , map
 
     -- * Mapping Side Effects (Observation)
     -- | See also the intersperse*_ combinators.
@@ -262,10 +261,6 @@ foldrT f z s = D.foldrT f z (toStreamD s)
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f m = fromStreamK $ D.toStreamK $ D.mapM f $ toStreamD m
-
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> Stream m a -> Stream m b
-map f = mapM $ return . f
 
 -- |
 -- sequence = Stream.mapM id

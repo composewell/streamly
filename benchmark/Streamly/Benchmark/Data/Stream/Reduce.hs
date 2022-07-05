@@ -33,67 +33,67 @@ import Control.Monad.IO.Class (MonadIO)
 foldMany :: Monad m => Stream m Int -> m ()
 foldMany =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.foldMany (FL.take 2 FL.mconcat)
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE foldManyPost #-}
 foldManyPost :: Monad m => Stream m Int -> m ()
 foldManyPost =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.foldManyPost (FL.take 2 FL.mconcat)
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE refoldMany #-}
 refoldMany :: Monad m => Stream m Int -> m ()
 refoldMany =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE foldIterateM #-}
 foldIterateM :: Monad m => Stream m Int -> m ()
 foldIterateM =
     Stream.fold FL.drain
-        . Stream.map getSum
+        . fmap getSum
         . Stream.foldIterateM
             (return . FL.take 2 . FL.sconcat) (return (Sum 0))
-        . Stream.map Sum
+        . fmap Sum
 
 {-# INLINE refoldIterateM #-}
 refoldIterateM :: Monad m => Stream m Int -> m ()
 refoldIterateM =
     Stream.fold FL.drain
-        . Stream.map getSum
+        . fmap getSum
         . Stream.refoldIterateM
             (Refold.take 2 Refold.sconcat) (return (Sum 0))
-        . Stream.map Sum
+        . fmap Sum
 
 {-# INLINE parseMany #-}
 parseMany :: MonadCatch m => Int -> Stream m Int -> m ()
 parseMany n =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.parseMany (PR.fromFold $ FL.take n FL.mconcat)
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE parseManyD #-}
 parseManyD :: MonadCatch m => Int -> Stream m Int -> m ()
 parseManyD n =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.parseManyD (ParserD.fromFold $ FL.take n FL.mconcat)
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE parseIterate #-}
 parseIterate :: MonadCatch m => Int -> Stream m Int -> m ()
 parseIterate n =
       Stream.fold FL.drain
-    . Stream.map getSum
+    . fmap getSum
     . Stream.parseIterate (\_ -> PR.fromFold $ FL.take n FL.mconcat) 0
-    . Stream.map Sum
+    . fmap Sum
 
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadCatch m, MonadIO m) => Int -> Stream m Int -> m ()

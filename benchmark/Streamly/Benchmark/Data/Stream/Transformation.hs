@@ -14,20 +14,19 @@ module Stream.Transformation (benchmarks) where
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
+import Streamly.Benchmark.Common (o_1_space_prefix, o_n_space_prefix)
 import System.Random (randomRIO)
+
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
+
 import qualified Prelude
 
 import Gauge
 import Streamly.Internal.Data.Stream (Stream)
 import Stream.Common
-import Streamly.Benchmark.Common
-    (o_1_space_prefix
-    , o_n_space_prefix
-    , o_n_heap_prefix
-    , o_n_stack_prefix)
+
 import Prelude hiding (sequence, mapM, fmap)
 
 -------------------------------------------------------------------------------
@@ -369,11 +368,11 @@ o_1_space_inserting value =
 
 {-# INLINE indexed #-}
 indexed :: MonadIO m => Stream m Int -> m ()
-indexed  = Stream.fold FL.drain . Stream.map snd . Stream.indexed
+indexed  = Stream.fold FL.drain . Prelude.fmap snd . Stream.indexed
 
 {-# INLINE indexedR #-}
 indexedR :: MonadIO m => Int -> Stream m Int -> m ()
-indexedR value  = Stream.fold FL.drain . (Stream.map snd . Stream.indexedR value)
+indexedR value  = Stream.fold FL.drain . (Prelude.fmap snd . Stream.indexedR value)
 
 o_1_space_indexing :: Int -> [Benchmark]
 o_1_space_indexing value =
