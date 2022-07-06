@@ -13,10 +13,10 @@ module Stream.Common
     )
 where
 
-import Streamly.Internal.Data.Stream (Stream, fromStreamD)
+import Streamly.Internal.Data.Stream (Stream, unfold)
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified  Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Unfold as UF
 import Control.DeepSeq (NFData)
 import Gauge
 import Prelude hiding (mapM)
@@ -28,7 +28,7 @@ toNull = Stream.fold Fold.drain
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
-sourceUnfoldrM count start = fromStreamD $ D.unfoldrM step start
+sourceUnfoldrM count start = unfold (UF.unfoldrM step) start
     where
     step cnt =
         if cnt > start + count
@@ -37,7 +37,7 @@ sourceUnfoldrM count start = fromStreamD $ D.unfoldrM step start
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: Monad m => Int -> Int -> Stream m Int
-sourceUnfoldr count start = fromStreamD $ D.unfoldr step start
+sourceUnfoldr count start = unfold (UF.unfoldr step) start
     where
     step cnt =
         if cnt > start + count
@@ -46,7 +46,7 @@ sourceUnfoldr count start = fromStreamD $ D.unfoldr step start
 
 {-# INLINE sourceUnfoldrAction #-}
 sourceUnfoldrAction :: (Monad m1, Monad m) => Int -> Int -> Stream m (m1 Int)
-sourceUnfoldrAction value n = fromStreamD $ D.unfoldr step n
+sourceUnfoldrAction value n = unfold (UF.unfoldr step) n
     where
     step cnt =
         if cnt > n + value
@@ -68,3 +68,4 @@ benchIOSrc
     -> Benchmark
 benchIOSrc name f =
     bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
+    
