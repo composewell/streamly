@@ -68,4 +68,3 @@ benchIOSrc
     -> Benchmark
 benchIOSrc name f =
     bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
-    
