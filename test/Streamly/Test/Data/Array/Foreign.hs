@@ -191,6 +191,25 @@ testByteLengthWithMA _ = do
      let arrW8 = MA.castUnsafe arrA :: MA.Array Word8
      MA.byteLength arrA `shouldBe` MA.length arrW8
 
+testBreakOn :: [Word8] -> Word8 -> [Word8] -> (Maybe [Word8]) -> IO ()
+testBreakOn inp sep bef aft = do
+    (bef_, aft_) <- A.breakOn sep (A.fromList inp)
+    bef_ `shouldBe` A.fromList bef
+    aft_ `shouldBe` fmap A.fromList aft
+
+testWrite :: [Char] -> IO ()
+testWrite inp = do
+    arr <- S.fold A.write (S.fromList inp)
+    A.toList arr `shouldBe` inp
+
+testFromToList :: [Char] -> IO ()
+testFromToList inp = A.toList (A.fromList inp) `shouldBe` inp
+
+testUnsafeIndxedFromList :: [Char] -> IO ()
+testUnsafeIndxedFromList inp =
+    let arr = A.fromList inp
+     in fmap (flip A.unsafeIndex arr) [0 .. (length inp - 1)] `shouldBe` inp
+
 testFromForeignPtrUnsafeMA :: IO ()
 testFromForeignPtrUnsafeMA = do
     fp <- Malloc.mallocForeignPtrAlignedBytes numBytes alignmentInt
@@ -228,6 +247,18 @@ testAsPtrUnsafeMA = do
         val <- peek p
         rest <- getList (i + 1) (p `plusPtr` sizeOfInt)
         return $ val : rest
+
+reallocMA :: Property
+reallocMA =
+    let len = 10000
+        bSize = len * sizeOf (undefined :: Char)
+    in forAll (vectorOf len (arbitrary :: Gen Char)) $ \vec ->
+           forAll (chooseInt (bSize - 2000, bSize + 2000)) $ \newBLen -> do
+               arr <- MA.fromList vec
+               arr1 <- MA.realloc newBLen arr
+               lst <- MA.toList arr
+               lst1 <- MA.toList arr1
+               lst `shouldBe` lst1
 
 main :: IO ()
 main =
@@ -270,9 +301,26 @@ main =
             it "stripZero" (testStripZero `shouldReturn` True)
             it "stripEmpty" (testStripEmpty `shouldReturn` True)
             it "stripNull" (testStripNull `shouldReturn` True)
+        describe "Mut" $ do
             it "testByteLengthWithMA Int"
                    (testByteLengthWithMA (undefined :: Int))
             it "testByteLengthWithMA Char"
                    (testByteLengthWithMA (undefined :: Char))
             it "testFromForeignPtrUnsafeMA" testFromForeignPtrUnsafeMA
             it "testAsPtrUnsafeMA" testAsPtrUnsafeMA
+            it "reallocMA" reallocMA
+        describe "breakOn" $ do
+            it "testBreakOn [1, 0, 2] 0"
+                   (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
+            it "testBreakOn [1, 0] 0" (testBreakOn [1, 0] 0 [1] (Just []))
+            it "testBreakOn [1] 0" (testBreakOn [1] 0 [1] Nothing)
+        describe "toList . fromList" $ do
+            it "testFromToList abc" (testFromToList "abc")
+            it "testFromToList \\22407" (testFromToList "\22407")
+        describe "unsafeIndex . fromList" $ do
+            it "testUnsafeIndxedFromList abc" (testUnsafeIndxedFromList "abc")
+            it "testUnsafeIndxedFromList \\22407"
+                   (testUnsafeIndxedFromList "\22407")
+        describe "write" $ do
+            it "testWrite abc" (testWrite "abc")
+            it "testWrite \\22407" (testWrite "\22407")
