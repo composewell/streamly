@@ -1,7 +1,8 @@
 module Main (main) where
 
+import Data.Word (Word8)
 import Streamly.Test.Common (listEquals, chooseInt)
-import Test.Hspec (hspec, describe)
+import Test.Hspec (hspec, describe, shouldBe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, Property, vectorOf, Gen)
 import Test.QuickCheck.Monadic (monadicIO, run)
@@ -55,6 +56,14 @@ parseBreak = do
                 ls2 <- run $ Stream.toList $ ArrayStream.concat str
                 listEquals (==) (ls1 ++ ls2) ls
 
+splitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
+splitOnSuffix sep inp out = do
+    res <-
+        Stream.toList
+            $ ArrayStream.splitOnSuffix sep
+            $ Stream.chunksOf 2 (Array.writeN 2) $ Stream.fromList inp
+    fmap Array.toList res `shouldBe` out
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -70,3 +79,13 @@ main =
         describe moduleName $ do
             describe "Stream parsing" $ do
                 prop "parseBreak" parseBreak
+            describe "splifOnSuffix" $ do
+                Hspec.it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]"
+                       $ splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]
+                                         [[1, 2], [4], [5, 6]]
+                Hspec.it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]"
+                       $ splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]
+                                         [[1, 2], [4], [5, 6]]
+                Hspec.it "splitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]"
+                       $ splitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]
+                                         [[], [1, 2], [4], [5, 6]]
