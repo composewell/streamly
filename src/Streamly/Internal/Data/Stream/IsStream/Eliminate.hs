@@ -453,6 +453,7 @@ headElse x = D.headElse x . toStreamD
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m = fmap (fmap IsStream.fromStream) $ K.tail $ Stream.toStreamK m
 
+
 -- | Extract all but the last element of the stream, if any.
 --
 -- @since 0.5.0

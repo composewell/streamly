@@ -132,17 +132,17 @@ foldBreak s = do
     (r, s1) <- S.foldBreak (FL.take 1 FL.length) s
     when (r /= 0) $ foldBreak s1
 
-{-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= P.mapM_ tail
+{-# INLINE tailBreak #-}
+tailBreak :: Monad m => Stream m a -> m ()
+tailBreak s = S.tailBreak s >>= P.mapM_ tailBreak
 
 nullTail s = do
     r <- S.null s
-    when (not r) $ S.tail s >>= P.mapM_ nullTail
+    when (not r) $ S.tailBreak s >>= P.mapM_ nullTail
 
 headTail s = do
     h <- S.head s
-    when (isJust h) $ S.tail s >>= P.mapM_ headTail
+    when (isJust h) $ S.tailBreak s >>= P.mapM_ headTail
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -577,7 +577,7 @@ o_n_stack :: [Benchmark]
 o_n_stack =
     [ bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
-        [ benchFold "tail"   tail     sourceUnfoldrM
+        [ benchFold "tailBreak"   tailBreak     sourceUnfoldrM
         , benchFold "nullTail" nullTail sourceUnfoldrM
         , benchFold "headTail" headTail sourceUnfoldrM
         ]

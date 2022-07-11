@@ -205,27 +205,27 @@ uncons s = do
         Nothing -> return ()
         Just (_, t) -> uncons t
 
-{-# INLINE init #-}
-init :: Monad m => Stream m a -> m ()
-init s = do
-    t <- S.init s
+{-# INLINE initBreak #-}
+initBreak :: Monad m => Stream m a -> m ()
+initBreak s = do
+    t <- S.initBreak s
     P.mapM_ S.drain t
 
-{-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= P.mapM_ tail
+{-# INLINE tailBreak #-}
+tailBreak :: Monad m => Stream m a -> m ()
+tailBreak s = S.tailBreak s >>= P.mapM_ tailBreak
 
 {-# INLINE nullTail #-}
 nullTail :: Monad m => Stream m Int -> m ()
 nullTail s = do
     r <- S.null s
-    when (not r) $ S.tail s >>= P.mapM_ nullTail
+    when (not r) $ S.tailBreak s >>= P.mapM_ nullTail
 
 {-# INLINE headTail #-}
 headTail :: Monad m => Stream m Int -> m ()
 headTail s = do
     h <- S.head s
-    when (isJust h) $ S.tail s >>= P.mapM_ headTail
+    when (isJust h) $ S.tailBreak s >>= P.mapM_ headTail
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -634,7 +634,7 @@ o_1_space_elimination streamLen =
         [ benchFold "toNull"   drain   (unfoldrM streamLen)
         , benchFold "mapM_"    mapM_    (unfoldrM streamLen)
         , benchFold "uncons"   uncons   (unfoldrM streamLen)
-        , benchFold "init"   init     (unfoldrM streamLen)
+        , benchFold "initBreak"   initBreak     (unfoldrM streamLen)
         , benchFold "foldl'" foldl'    (unfoldrM streamLen)
         , benchFold "last"   last     (unfoldrM streamLen)
         ]
@@ -850,7 +850,7 @@ o_n_stack :: Int -> Int -> Int -> Benchmark
 o_n_stack streamLen iterStreamLen maxIters =
     bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
-        [ benchFold "tail"   tail     (unfoldrM streamLen)
+        [ benchFold "tailBreak"   tailBreak     (unfoldrM streamLen)
         , benchFold "nullTail" nullTail (unfoldrM streamLen)
         , benchFold "headTail" headTail (unfoldrM streamLen)
         ]

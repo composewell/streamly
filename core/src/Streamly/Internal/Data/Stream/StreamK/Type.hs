@@ -68,8 +68,8 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , foldlx'
     , drain
     , null
-    , tail
-    , init
+    , tailBreak
+    , initBreak
 
     -- * Transformation
     , conjoin
@@ -1274,17 +1274,17 @@ uncons m =
         yieldk a r = pure (Just (a, r))
     in foldStream defState yieldk single stop m
 
-{-# INLINE tail #-}
-tail :: Applicative m => Stream m a -> m (Maybe (Stream m a))
-tail =
+{-# INLINE tailBreak #-}
+tailBreak :: Applicative m => Stream m a -> m (Maybe (Stream m a))
+tailBreak =
     let stop      = pure Nothing
         single _  = pure $ Just nil
         yieldk _ r = pure $ Just r
     in foldStream defState yieldk single stop
 
-{-# INLINE init #-}
-init :: Applicative m => Stream m a -> m (Maybe (Stream m a))
-init = go1
+{-# INLINE initBreak #-}
+initBreak :: Applicative m => Stream m a -> m (Maybe (Stream m a))
+initBreak = go1
     where
     go1 m1 = do
         (\case

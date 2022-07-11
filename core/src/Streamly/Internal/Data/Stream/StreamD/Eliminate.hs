@@ -40,6 +40,7 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , null
     , head
     , headElse
+    , tailBreak
     , last
     , elem
     , notElem
@@ -252,15 +253,15 @@ headElse :: Monad m => a -> Stream m a -> m a
 headElse a = foldrM (\x _ -> return x) (return a)
 
 -- Does not fuse, has the same performance as the StreamK version.
-{-# INLINE_NORMAL tail #-}
-tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
-tail (UnStream step state) = go SPEC state
+{-# INLINE_NORMAL tailBreak #-}
+tailBreak :: Monad m => Stream m a -> m (Maybe (Stream m a))
+tailBreak (UnStream step state) = go state
   where
-    go !_ st = do
+    go st = do
         r <- step defState st
         case r of
             Yield _ s -> return (Just $ Stream step s)
-            Skip  s   -> go SPEC s
+            Skip  s   -> go s
             Stop      -> return Nothing
 
 -- XXX will it fuse? need custom impl?

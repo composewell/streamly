@@ -89,8 +89,8 @@ module Streamly.Internal.Data.Stream.StreamK
     , drain
     , null
     , head
-    , tail
-    , init
+    , tailBreak
+    , initBreak
     , elem
     , notElem
     , all
