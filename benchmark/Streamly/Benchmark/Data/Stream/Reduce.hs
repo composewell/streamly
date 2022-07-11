@@ -14,6 +14,7 @@ module Stream.Reduce (benchmarks) where
 import Control.Monad.Catch (MonadCatch)
 import Data.Monoid (Sum(Sum), getSum)
 import Stream.Common (benchIOSink)
+import Streamly.Benchmark.Common (o_1_space_prefix)
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Parser as PR
@@ -119,5 +120,5 @@ o_1_space_grouping value =
 
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
-    [ bgroup  moduleName $  o_1_space_grouping size
+    [ bgroup  (o_1_space_prefix moduleName) $  o_1_space_grouping size
     ]
