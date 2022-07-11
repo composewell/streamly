@@ -893,8 +893,8 @@ both = fmap (either id id)
 
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> Stream m a
-init = fromStreamD . D.initStream . toStreamD
+init = fromStreamD . D.init . toStreamD
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> Stream m a
-tail = fromStreamD . D.tailStream . toStreamD
+tail = fromStreamD . D.tail . toStreamD

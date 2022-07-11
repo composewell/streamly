@@ -85,8 +85,8 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , dropByTime
     , dropWhile
     , dropWhileM
-    , initStream
-    , tailStream
+    , init
+    , tail
 
     -- * Inserting Elements
     -- | Produce a superset of the stream.
@@ -1264,9 +1264,9 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 catMaybes :: (Monad m) => Stream m (Maybe a) -> Stream m a
 catMaybes = fmap fromJust . filter isJust
 
-{-# INLINE initStream #-}
-initStream :: Monad m => Stream m a -> Stream m a
-initStream (Stream step1 state1) = Stream step (Nothing, state1)
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> Stream m a
+init (Stream step1 state1) = Stream step (Nothing, state1)
 
     where
 
@@ -1286,9 +1286,9 @@ initStream (Stream step1 state1) = Stream step (Nothing, state1)
                 Skip s -> Skip (Just a, s)
                 Stop -> Stop
 
-{-# INLINE tailStream #-}
-tailStream :: Monad m => Stream m a -> Stream m a
-tailStream (Stream step1 state1) = Stream step (Nothing, state1)
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> Stream m a
+tail (Stream step1 state1) = Stream step (Nothing, state1)
 
     where
 

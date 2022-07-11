@@ -40,7 +40,6 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , null
     , head
     , headElse
-    , tail
     , last
     , elem
     , notElem
