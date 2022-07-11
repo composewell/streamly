@@ -545,6 +545,17 @@ benchmark Data.Array.Foreign.Mut
     buildable: True
 
 -------------------------------------------------------------------------------
+-- Ring Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark Data.Ring.Unboxed
+  import: bench-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Benchmark/Data/Ring/Unboxed.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
+-------------------------------------------------------------------------------
 -- Array Stream Benchmarks
 -------------------------------------------------------------------------------
 

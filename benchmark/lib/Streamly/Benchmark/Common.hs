@@ -237,8 +237,9 @@ runWithCLIOptsEnv defStreamSize alloc mkBench = do
     r <- alloc value
     value `seq` runMode (mode cfg) cfg benches (mkBench r value)
 #else
+    r0 <- alloc 0
     (value, ingredients) <-
-        parseCLIOpts defStreamSize $ bgroup "All" (mkBench undefined 0)
+        parseCLIOpts defStreamSize $ bgroup "All" (mkBench r0 0)
     r <- alloc value
     value `seq` defaultMainWithIngredients ingredients
         $ bgroup "All" (mkBench r value)
