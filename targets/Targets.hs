@@ -121,6 +121,9 @@ targets =
             [ "array_grp" ]
       )
 
+    -- Ring
+    , ("Data.Ring.Unboxed", [])
+
     -- Parsers
     , ("Data.Parser.ParserD",
             [ "base_parser_grp"
