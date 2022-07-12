@@ -891,6 +891,15 @@ rights = fmap (fromRight undefined) . filter isRight
 both :: Monad m => Stream m (Either a a) -> Stream m a
 both = fmap (either id id)
 
+#ifdef USE_STREAMK_ONLY
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> Stream m a
+init = fromStreamK . K.init . toStreamK
+
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> Stream m a
+tail = fromStreamK . K.tail . toStreamK
+#else
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> Stream m a
 init = fromStreamD . D.init . toStreamD
@@ -898,3 +907,4 @@ init = fromStreamD . D.init . toStreamD
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> Stream m a
 tail = fromStreamD . D.tail . toStreamD
+#endif

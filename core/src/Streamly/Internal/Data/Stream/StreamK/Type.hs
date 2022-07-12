@@ -70,6 +70,8 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , null
     , tailBreak
     , initBreak
+    , tail
+    , init
 
     -- * Transformation
     , conjoin
@@ -1294,6 +1296,35 @@ initBreak = go1
         let single _ = sng p
             yieldk a x = yld p $ go a x
          in foldStream defState yieldk single stp m1
+
+{-# INLINE tail #-}
+tail :: Stream m a -> Stream m a
+tail = go
+    where
+    go rest = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
+            stop = error "tail: Empty Stream."
+            single _ = run nil
+            yieldk _ r = run r
+         in foldStream (adaptState st) yieldk single stop rest
+
+{-# INLINE init #-}
+init :: Stream m a -> Stream m a
+init = go0
+
+    where
+
+    go0 m = mkStream $ \st yld sng stp ->
+        let stop = error "init: Empty Stream."
+            single _ = stp
+            yieldk a r = foldStream st yld sng stp (go1 a r)
+         in foldStream st yieldk single stop m
+
+    go1 a r = mkStream $ \st yld sng stp ->
+        let stop = stp
+            single _ = sng a
+            yieldk a1 r1 = yld a (go1 a1 r1)
+         in foldStream st yieldk single stop r
 
 ------------------------------------------------------------------------------
 -- Reordering

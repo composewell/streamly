@@ -91,6 +91,8 @@ module Streamly.Internal.Data.Stream.StreamK
     , head
     , tailBreak
     , initBreak
+    , tail
+    , init
     , elem
     , notElem
     , all
