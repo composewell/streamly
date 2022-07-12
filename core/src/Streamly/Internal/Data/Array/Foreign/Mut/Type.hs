@@ -486,7 +486,7 @@ fromForeignPtrUnsafe fp@(ForeignPtr startAddr contents) endPtr boundPtr =
                  acont
                  ((startPtr `minusPtr` trueStartPtr) `div` sizeA)
                  ((endPtr `minusPtr` trueStartPtr) `div` sizeA)
-                 ((boundPtr `minusPtr` boundPtr) `div` sizeA))
+                 ((boundPtr `minusPtr` trueStartPtr) `div` sizeA))
 
 {-
 -- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
