@@ -13,17 +13,15 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Data.List as List
 import qualified Prelude
-import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
 import Prelude hiding (const, take, drop, concat, mapM)
-import Streamly.Prelude (SerialT)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -43,7 +41,7 @@ testUnfoldM unf seed si sf lst = evalState action si
     where
 
     action = do
-        x <- S.toList $ S.unfold unf seed
+        x <- S.fold Fold.toList $ S.unfold unf seed
         y <- get
         return $ x == lst && y == sf
 
@@ -57,7 +55,7 @@ testUnfold unf seed lst = runIdentity action
     where
 
     action = do
-        x <- S.toList $ S.unfold unf seed
+        x <- S.fold Fold.toList $ S.unfold unf seed
         return $ x == lst
 
 testUnfoldD :: Unfold Identity a Int -> a -> [Int] -> Bool
@@ -112,7 +110,7 @@ fromStream =
         $ \list ->
               testUnfoldD
                   UF.fromStream
-                  (S.fromList list :: SerialT Identity Int)
+                  (S.fromList list :: S.Stream Identity Int)
                   list
 
 fromStreamD :: Property

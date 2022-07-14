@@ -28,7 +28,6 @@ import System.IO (Handle, hClose)
 import System.Random (randomRIO)
 
 import qualified Prelude
-import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF

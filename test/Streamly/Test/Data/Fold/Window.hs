@@ -3,7 +3,8 @@ module Streamly.Test.Data.Fold.Window (main) where
 import Streamly.Internal.Data.Fold.Window
 import Test.Hspec (hspec, describe, it, runIO)
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Fold as Fold
 
 import Prelude hiding (sum, maximum, minimum)
 
@@ -23,7 +24,7 @@ main = hspec $ do
                 let c = S.fromList testCase
                 a <- runIO $ S.fold (Ring.slidingWindow winSize f) c
                 b <- runIO $ S.fold f $ S.drop (numElem - winSize)
-                        $ S.map (, Nothing) c
+                        $ fmap (, Nothing) c
                 let c1 = a - b
                 it ("should not deviate more than " ++ show deviationLimit)
                     $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
@@ -40,8 +41,8 @@ main = hspec $ do
 
             testFunc tc f sI sW = do
                 let c = S.fromList tc
-                a <- runIO $ S.toList $ S.postscan f $ S.map (, Nothing) c
-                b <- runIO $ S.toList $ S.postscan
+                a <- runIO $ S.fold Fold.toList $ S.postscan f $ fmap (, Nothing) c
+                b <- runIO $ S.fold Fold.toList $ S.postscan
                         (Ring.slidingWindow winSize f) c
                 it "Infinite" $ a  == sI
                 it ("Finite " ++ show winSize) $ b == sW

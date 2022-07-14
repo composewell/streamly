@@ -213,7 +213,7 @@ import Prelude hiding
     , zipWith
     )
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
-import Streamly.Internal.Data.Unfold
+import Streamly.Internal.Data.Unfold hiding (fromStream)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Unfold as Unfold

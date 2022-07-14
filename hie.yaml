@@ -74,6 +74,8 @@ cradle:
               component: "test:Data.Array"
             - path: "./test/Streamly/Test/Data/Array/Unboxed.hs"
               component: "test:Data.Array.Unboxed"
+            - path: "./test/Streamly/Test/Data/Array/Unboxed/Mut.hs"
+              component: "test:Data.Array.Unboxed.Mut"
             - path: "./test/Streamly/Test/Data/Array/Stream/Foreign.hs"
               component: "test:Data.Array.Stream.Foreign"
             - path: "./test/Streamly/Test/Data/Fold.hs"

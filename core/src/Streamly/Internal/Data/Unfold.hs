@@ -180,8 +180,10 @@ module Streamly.Internal.Data.Unfold
     -- ** From Memory
     , fromPtr
 
+    -- ** From Stream
     , fromStreamK
     , fromStreamD
+    , fromStream
 
     -- * Combinators
     -- ** Mapping on Input
@@ -281,6 +283,7 @@ import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
@@ -585,6 +588,8 @@ fromStreamK = Unfold step pure
             Just (x, xs) -> Yield x xs
             Nothing -> Stop) <$> K.uncons stream
 
+fromStream :: Applicative m => Unfold m (Stream.Stream m a) a
+fromStream = lmap Stream.toStreamK fromStreamK
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
