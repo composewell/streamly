@@ -237,11 +237,13 @@ decodeTable = [
 utf8dLength :: Int
 utf8dLength = length decodeTable
 
+-- | We do not want to garbage collect this and free the memory, we want to
+-- keep this persistent. We don't know how to do that with GHC without having a
+-- reference in some global structure. So we use a hack, use mallocBytes so
+-- that the GC has no way to free it.
 {-# NOINLINE utf8d #-}
 utf8d :: Ptr Word8
 utf8d = unsafePerformIO $ do
-    -- Aligning to cacheline makes a barely noticeable difference
-    -- XXX currently alignment is not implemented for unmanaged allocation
     let size = utf8dLength
     p <- liftIO $ mallocBytes size
     void $ D.fold
@@ -249,6 +251,7 @@ utf8d = unsafePerformIO $ do
         (D.fromList decodeTable)
     return p
 
+-- XXX We can just use Foreign.Storable in this.
 -- | Return element at the specified index without checking the bounds.
 -- and without touching the foreign ptr.
 {-# INLINE_NORMAL unsafePeekElemOff #-}
@@ -261,6 +264,7 @@ unsafePeekElemOff p i =
 
     peekElemOff p_ i_ = peek (p_ `plusPtr` (i_ * sizeOf (undefined :: a)))
 
+-- XXX We can use a fromPtr stream to implement it.
 {-# INLINE showMemory #-}
 showMemory :: forall a. (Show a, Storable a) => Ptr a -> Ptr a -> String
 showMemory cur end
@@ -341,13 +345,11 @@ resumeDecodeUtf8EitherD
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let p = utf8d
-        !ptr = p
-        stt =
+    let stt =
             if dst == 0
             then UTF8DecodeInit state
             else UTF8Decoding state dst codep
-    in Stream (step' ptr) stt
+    in Stream (step' utf8d) stt
   where
     {-# INLINE_LATE step' #-}
     step' _ gst (UTF8DecodeInit st) = do
@@ -456,9 +458,7 @@ data UTF8CharDecodeState a
 {-# INLINE parseCharUtf8WithD #-}
 parseCharUtf8WithD ::
        MonadThrow m => CodingFailureMode -> ParserD.Parser m Word8 Char
-parseCharUtf8WithD cfm =
-    let ptr = utf8d
-    in ParserD.Parser (step' ptr) initial extract
+parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 
     where
 
@@ -558,8 +558,7 @@ parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
 decodeUtf8WithD :: Monad m
     => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
-    let ptr = utf8d
-    in Stream (step' ptr) (UTF8DecodeInit state)
+    Stream (step' utf8d) (UTF8DecodeInit state)
 
     where
 
@@ -719,8 +718,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
-    let ptr = utf8d
-    in Stream (step' ptr) (OuterLoop state Nothing)
+    Stream (step' utf8d) (OuterLoop state Nothing)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =

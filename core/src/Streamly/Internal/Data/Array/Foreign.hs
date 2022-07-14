@@ -354,9 +354,9 @@ getSliceUnsafe ::
     -> Array a
     -> Array a
 getSliceUnsafe index len (Array contents start e) =
-    let fp1 = start + index
-        end = fp1 + len
-     in assert (end <= e) (Array contents fp1 end)
+    let start1 = start + index
+        end1 = start1 + len
+     in assert (end1 <= e) (Array contents start1 end1)
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
@@ -523,6 +523,7 @@ cast = fmap A.unsafeFreeze . MA.cast . A.unsafeThaw
 --
 asCStringUnsafe :: Storable a => Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
+    -- XXX Ensure a pinned allocation here.
     let arr1 = asBytes arr <> A.fromList [0]
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 

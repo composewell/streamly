@@ -53,6 +53,7 @@ newtype ArrayContents a = ArrayContents Addr# ForeignPtrContents
 -- XXX can use UnliftedNewtypes
 data ArrayContents a = ArrayContents !(MutableByteArray# RealWorld)
 
+-- XXX rename to getMutableByteArray#
 {-# INLINE getInternalMutableByteArray #-}
 getInternalMutableByteArray :: ArrayContents a -> MutableByteArray# RealWorld
 getInternalMutableByteArray (ArrayContents mbarr) = mbarr
@@ -74,11 +75,22 @@ touch (ArrayContents contents) =
 --------------------------------------------------------------------------------
 
 #ifndef USE_STORABLE
+
+-- XXX This is a superset of Storable. Put a Storable constraint on this
+-- and remove sizeOf, alignment, readOffPtr, writeOffPtr from this. Just keep
+-- the bytearray reading/writing functions.
+
+-- | Keep the instances compatible with Storable.
 class Unboxed a where
     sizeOf :: a -> Int
     alignment :: a -> Int
+
+    -- Read an element of type "a" from a MutableByteArray given the element
+    -- index.
     readByteArray :: ArrayContents a -> Int -> IO a
     writeByteArray :: ArrayContents a -> Int -> a -> IO ()
+
+    -- Read an element of type "a" from a Ptr given the element index.
     readOffPtr :: Ptr a -> Int -> IO a
     writeOffPtr :: Ptr a -> Int -> a -> IO ()
 
@@ -103,6 +115,15 @@ instance Unboxed _type where {                                     \
 ; writeOffPtr (Ptr addr) (I# n) (_constructor val) =               \
      IO $ \s -> (# _writeAddr addr n val s, () #)                  \
 }
+
+-- XXX Why not always use a Word8 mutable byte array and use byte offsets to
+-- read and write using readWord8ArrayAsInt# etc. Is there an advantage of
+-- using readIntArray# vs readWord8ArrayAsInt#. If we use a Word8 array we can
+-- control the alignment and casts. It will be possible to cast a misaligned
+-- slice. There seem to be no performance advantage of alignment anymore, seee
+-- https://lemire.me/blog/2012/05/31/data-alignment-for-speed-myth-or-reality/
+-- . We can also check if GHC's implementation of the two APIs makes any
+-- difference.
 
 DERIVE_UNBOXED( Char
               , C#
@@ -181,11 +202,10 @@ instance Unboxed Bool where
         case a of
             True -> writeOffPtr (castPtr ptr) i (1 :: Int)
             False -> writeOffPtr (castPtr ptr) i (0 :: Int)
-
 #endif
 
 --------------------------------------------------------------------------------
--- Combinators for Unboxed
+-- Functions for Unboxed
 --------------------------------------------------------------------------------
 
 #ifndef USE_STORABLE
@@ -208,13 +228,11 @@ peekWith = readByteArray
 pokeWith :: Unboxed a => ArrayContents a -> Int -> a -> IO ()
 pokeWith = writeByteArray
 
-#endif
+#else
 
 --------------------------------------------------------------------------------
--- Combinators for Storable
+-- Functions for Storable
 --------------------------------------------------------------------------------
-
-#ifdef USE_STORABLE
 
 {-# INLINE peekWith #-}
 peekWith :: Storable a => ArrayContents a -> Int -> IO a

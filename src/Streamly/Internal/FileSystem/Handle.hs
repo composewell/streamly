@@ -121,7 +121,6 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -225,7 +224,7 @@ _getChunksWith size h = go
         then stp
         else yld arr go
 
--- | @getChunksWit hsize handle@ reads a stream of arrays from the file
+-- | @getChunksWith size handle@ reads a stream of arrays from the file
 -- handle @handle@.  The maximum size of a single array is limited to @size@.
 -- The actual size read may be less than or equal to @size@.
 --
@@ -406,10 +405,11 @@ getBytes = AS.concat . getChunks
 putChunk :: (Storable a, MonadIO m) => Handle -> Array a -> m ()
 putChunk _ arr | byteLength arr == 0 = return ()
 putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
-    liftIO $ hPutBuf h ptr aLen >> touch (arrContents arr)
+    liftIO $ hPutBuf h ptr aLen
 
     where
 
+    -- XXX We should have the length passed by asPtrUnsafe itself.
     aLen = A.byteLength arr
 
 -------------------------------------------------------------------------------

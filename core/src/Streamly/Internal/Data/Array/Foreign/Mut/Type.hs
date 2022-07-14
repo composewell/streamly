@@ -214,6 +214,10 @@ where
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
+-- XXX Since we are only supporting PlainPtr we cannot suport C malloced
+-- memory, then there is no point of supporting foreign ptr as well. I guess we
+-- can remove foreign ptr support entirely.
+
 #ifdef USE_C_MALLOC
 #define USE_FOREIGN_PTR
 #endif
@@ -374,13 +378,16 @@ data Array a =
 #ifdef DEVBUILD
     Storable a =>
 #endif
-    -- All offsets are from the start of arraycontents
-    -- The offsets are in terms of number of array elements and not bytes
+    -- The array is a range into arrContents. arrContents may be a superset of
+    -- the slice represented by the array.
     Array
     { arrContents :: UNPACKIF !(ArrayContents a)
-    , arrStart :: {-# UNPACK #-} !Int      -- ^ offset
-    , aEnd   :: {-# UNPACK #-} !Int        -- ^ offset + len
-    , aBound :: {-# UNPACK #-} !Int        -- ^ capacity
+    -- XXX Store byte offsets instead of indices, see "cast".
+    , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
+    , aEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents.
+                                       -- Represents the first invalid index of
+                                       -- the array.
+    , aBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents
     }
 
 -------------------------------------------------------------------------------
@@ -409,6 +416,7 @@ data Array a =
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Storable a)
+-- XXX The Int part of the result tuple is always zero, can be removed.
     => (Int -> Int -> m (ArrayContents a, Int)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
@@ -420,17 +428,18 @@ newArrayWith alloc alignSize count = do
         , aBound = p + count
         }
 
--- The size is in bytes
+-- XXX The Int part of the result tuple is always zero, can be removed.
 newAlignedArrayContents :: Int -> Int -> IO (ArrayContents a, Int)
 #ifdef USE_C_MALLOC
-newAlignedArrayContents size align = do
-    (ForeignPtr addr contents) <- mallocForeignPtrAlignedBytes size align
+newAlignedArrayContents bytes align = do
+    (ForeignPtr addr contents) <- mallocForeignPtrAlignedBytes bytes align
+    -- XXX This won't even type match now. Remove USE_C_MALLOC flag and code.
     return (ArrayContents contents, Ptr addr)
 #else
-newAlignedArrayContents size _align | size < 0 =
+newAlignedArrayContents nbytes _align | nbytes < 0 =
   errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
-newAlignedArrayContents (I# size) (I# align) = IO $ \s ->
-    case newAlignedPinnedByteArray# size align s of
+newAlignedArrayContents (I# nbytes) (I# align) = IO $ \s ->
+    case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
            let p = 0
 #ifdef USE_FOREIGN_PTR
@@ -453,15 +462,15 @@ nil ::
     Array a
 nil = Array nilArrayContents 0 0 0
 
--- XXX need to be fixed.
+-- XXX We can remove this.
 
 -- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
 -- at the memory pointed by the @foreignPtr@, @end@ is the first unused
 -- address, and @bound@ is the first address beyond the allocated memory.
 --
--- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
--- integral multiple of the element size. Only PlainPtr type ForeignPtr is
--- supported.
+-- Unsafe: Make sure that the memory is pinned, foreignPtr <= end <= bound and
+-- (end - start) is an integral multiple of the element size. Only PlainPtr
+-- type ForeignPtr is supported.
 --
 -- /Pre-release/
 --
@@ -473,8 +482,6 @@ fromForeignPtrUnsafe ::
 fromForeignPtrUnsafe (ForeignPtr start _) _ _
     | Ptr start == nullPtr = nil
 fromForeignPtrUnsafe fp@(ForeignPtr startAddr contents) endPtr boundPtr =
-    -- XXX PIN THE ARRAY
-    -- XXX The array will likely be pinned!
     let acont@(!(ArrayContents mbarr# :: ArrayContents a)) =
             fptrToArrayContents contents
         trueStartPtr = Ptr (byteArrayContents# (unsafeCoerce# mbarr#))
@@ -487,6 +494,8 @@ fromForeignPtrUnsafe fp@(ForeignPtr startAddr contents) endPtr boundPtr =
                  ((startPtr `minusPtr` trueStartPtr) `div` sizeA)
                  ((endPtr `minusPtr` trueStartPtr) `div` sizeA)
                  ((boundPtr `minusPtr` trueStartPtr) `div` sizeA))
+
+-- XXX We can remove this.
 
 {-
 -- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
@@ -564,10 +573,10 @@ withNewArrayUnsafe count f = do
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> a -> Array a -> m ()
-putIndexUnsafe i x (Array{..}) = liftIO $ do
+putIndexUnsafe i x (Array{..}) = do
     let index = INDEX_OF(arrStart, i)
     assert (i >= 0 && INDEX_VALID(index, aEnd)) (return ())
-    pokeWith arrContents index x
+    liftIO $ pokeWith arrContents index x
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
@@ -577,7 +586,7 @@ invalidIndex label i =
 putIndexPtr :: forall m a. (MonadIO m, Storable a) =>
     ArrayContents a -> Int -> Int -> Int -> a -> m ()
 putIndexPtr arrContents start end i x = do
-    let index = start + i
+    let index = INDEX_OF(start, i)
     if i >= 0 && INDEX_VALID(index,end)
     then liftIO $ pokeWith arrContents index x
     else invalidIndex "putIndexPtr" i
@@ -644,8 +653,7 @@ modifyIndexPtr arrContents i f start end = liftIO $ do
 -- /Pre-release/
 modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndex i f (Array{..}) = do
-    modifyIndexPtr arrContents i f arrStart aEnd
+modifyIndex i f (Array{..}) = modifyIndexPtr arrContents i f arrStart aEnd
 
 -- | Modify the array indices generated by the supplied stream.
 --
@@ -654,7 +662,7 @@ modifyIndex i f (Array{..}) = do
 modifyIndices :: forall m a . (MonadIO m, Storable a)
     => (Int -> a -> a) -> Array a -> Fold m Int ()
 -- XXX Use Fold.foldlM' here
-modifyIndices f Array{..} = Fold step initial extract
+modifyIndices f Array{..} = Fold step initial return
 
     where
 
@@ -662,9 +670,8 @@ modifyIndices f Array{..} = Fold step initial extract
 
     step () i =
         let f1 x = (f i x, ())
-         in FL.Partial <$> liftIO (modifyIndexPtr arrContents i f1 arrStart aEnd)
-
-    extract () = liftIO $ touch arrContents
+         in FL.Partial
+                <$> liftIO (modifyIndexPtr arrContents i f1 arrStart aEnd)
 
 -- | Modify each element of an array using the supplied modifier function.
 --
@@ -683,6 +690,7 @@ modify f Array{..} = liftIO $
             go (INDEX_NEXT(i))
 
 -- XXX Rename this to swapIndices
+-- XXX We already have swapIndices, name it to swapByteArrayIndices?
 {-# INLINE swapPtrs #-}
 swapPtrs :: Storable a => ArrayContents a -> Int -> Int -> IO ()
 swapPtrs arrContents i1 i2 = do
@@ -699,10 +707,10 @@ swapPtrs arrContents i1 i2 = do
 {-# INLINE unsafeSwapIndices #-}
 unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Array a -> m ()
-unsafeSwapIndices i1 i2 arr = liftIO $ do
-        let t1 = INDEX_OF(arrStart arr,i1)
-            t2 = INDEX_OF(arrStart arr,i2)
-        swapPtrs (arrContents arr) t1 t2
+unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
+        let t1 = INDEX_OF(arrStart,i1)
+            t2 = INDEX_OF(arrStart,i2)
+        swapPtrs arrContents t1 t2
 
 -- | Swap the elements at two indices.
 --
@@ -716,7 +724,7 @@ swapIndices i1 i2 Array{..} = liftIO $ do
             $ invalidIndex "swapIndices" i1
         when (i2 < 0 || INDEX_INVALID(t2,aEnd))
             $ invalidIndex "swapIndices" i2
-        swapPtrs arrContents t1 (t2 :: Int)
+        swapPtrs arrContents t1 t2
 
 -------------------------------------------------------------------------------
 -- Rounding
@@ -805,9 +813,12 @@ arrayChunkBytes = 1024
 roundDownTo :: Int -> Int -> Int
 roundDownTo elemSize size = size - (size `mod` elemSize)
 
--- The size is in bytes
 -- XXX See if resizing can be implemented by reading the old array as a stream
 -- and then using writeN to the new array.
+--
+-- NOTE: we are passing elemSize explicitly to avoid a Storable constraint.
+-- Since this is not inlined Storable consrraint leads to dictionary passing
+-- which complicates some inspection tests.
 --
 {-# NOINLINE reallocAligned #-}
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
@@ -819,6 +830,7 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
     (contents, pNew) <- newAlignedArrayContents newCapMaxInBytes alignSize
     let !(ArrayContents mbarrFrom#) = arrContents
         !(ArrayContents mbarrTo#) = contents
+        -- XXX This would be 0 as pNew is always 0
         !(I# pNewInBytes#) = pNew * elemSize
 
     -- Copy old data
@@ -833,7 +845,8 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
     assert (oldSizeInBytes `mod` elemSize == 0) (return ())
     assert (newLen >= 0) (return ())
     assert (newLenInBytes `mod` elemSize == 0) (return ())
-    IO $ \s# -> (# copyMutableByteArray# mbarrFrom# oldStartInBytes# mbarrTo# pNewInBytes# newLenInBytes# s#, () #)
+    IO $ \s# -> (# copyMutableByteArray# mbarrFrom# oldStartInBytes#
+                        mbarrTo# pNewInBytes# newLenInBytes# s#, () #)
     touch arrContents
 
     return $ Array
@@ -843,7 +856,6 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
         , aBound = pNew + newCap
         }
 
--- The size is in bytes
 -- | @realloc newCapacity array@ reallocates the array to the specified
 -- capacity in bytes.
 --
@@ -854,24 +866,23 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
 --
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
-realloc n arr =
-    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) n arr
+realloc bytes arr =
+    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) bytes arr
 
--- The size is in bytes
--- | @reallocWith label capSizer minIncrement array@. The label is used
+-- | @reallocWith label capSizer minIncrementBytes array@. The label is used
 -- in error messages and the capSizer is used to determine the capacity of the
 -- new array in bytes given the current byte length of the array.
-reallocWith :: forall m a. (MonadIO m , Storable a) =>
+reallocWith :: forall m a. (MonadIO m, Storable a) =>
        String
     -> (Int -> Int)
     -> Int
     -> Array a
     -> m (Array a)
-reallocWith label capSizer minIncr arr = do
+reallocWith label capSizer minIncrBytes arr = do
     let oldSize = aEnd arr - arrStart arr
         oldSizeBytes = oldSize * SIZE_OF(a)
         newCapBytes = capSizer oldSizeBytes
-        newSizeBytes = oldSizeBytes + minIncr
+        newSizeBytes = oldSizeBytes + minIncrBytes
         safeCapBytes = max newCapBytes newSizeBytes
     assert
         (safeCapBytes >= newSizeBytes || error (badSize newSizeBytes))
@@ -883,12 +894,11 @@ reallocWith label capSizer minIncr arr = do
     badSize newSize =
         concat
             [ label
-            , ": new array size is less than required size "
+            , ": new array size (in bytes) is less than required size "
             , show newSize
             , ". Please check the sizing function passed."
             ]
 
--- The new capacity is in elements
 -- | @resize newCapacity array@ changes the total capacity of the array so that
 -- it is enough to hold the specified number of elements.  Nothing is done if
 -- the specified capacity is less than the length of the array.
@@ -900,23 +910,22 @@ reallocWith label capSizer minIncr arr = do
 {-# INLINE resize #-}
 resize :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resize n arr@Array{..} = do
-    let req = SIZE_OF(a) * n
+resize nElems arr@Array{..} = do
+    let req = SIZE_OF(a) * nElems
         len = (aEnd - arrStart) * SIZE_OF(a)
     if req < len
     then return arr
     else realloc req arr
 
--- The new capacity is in elements
--- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
--- it is rounded up to the closest power of 2.
+-- | Like 'resize' but if the byte capacity is more than 'largeObjectThreshold'
+-- then it is rounded up to the closest power of 2.
 --
 -- /Pre-release/
 {-# INLINE resizeExp #-}
 resizeExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resizeExp n arr@Array{..} = do
-    let req = roundUpLargeArray (SIZE_OF(a) * n)
+resizeExp nElems arr@Array{..} = do
+    let req = roundUpLargeArray (SIZE_OF(a) * nElems)
         req1 =
             if req > largeObjectThreshold
             then roundUpToPower2 req
@@ -939,15 +948,13 @@ rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
 rightSize arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
     let start = arrStart
-        len = aEnd - start
-        lenInBytes = len * SIZE_OF(a)
-        capacity = aBound - start
-        capacityInBytes = capacity * SIZE_OF(a)
-        target = roundUpLargeArray lenInBytes
-        waste = aBound - aEnd
-    assert (target >= lenInBytes) (return ())
+        len = (aEnd - start) * SIZE_OF(a)
+        capacity = (aBound - start) * SIZE_OF(a)
+        target = roundUpLargeArray len
+        waste = (aBound - aEnd) * SIZE_OF(a)
+    assert (target >= len) (return ())
     -- We trade off some wastage (25%) to avoid reallocations and copying.
-    if target < capacityInBytes && len < 3 * waste
+    if target < capacity && len < 3 * waste
     then realloc target arr
     else return arr
 
@@ -999,7 +1006,6 @@ snocMay arr@Array{..} x = liftIO $ do
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
 
--- The sizer considers byte resizer
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
 snocWithRealloc :: forall m a. (MonadIO m, Storable a) =>
@@ -1102,8 +1108,7 @@ getIndexPtr arrContents start end i = do
 --
 {-# INLINE getIndex #-}
 getIndex :: (MonadIO m, Storable a) => Int -> Array a -> m a
-getIndex i arr =
-    getIndexPtr (arrContents arr) (arrStart arr) (aEnd arr) i
+getIndex i Array{..} = getIndexPtr arrContents arrStart aEnd i
 
 {-# INLINE getIndexPtrRev #-}
 getIndexPtrRev :: forall m a. (MonadIO m, Storable a) =>
@@ -1121,8 +1126,7 @@ getIndexPtrRev arrContents start end i = do
 --
 {-# INLINE getIndexRev #-}
 getIndexRev :: (MonadIO m, Storable a) => Int -> Array a -> m a
-getIndexRev i arr =
-    getIndexPtrRev (arrContents arr) (arrStart arr) (aEnd arr) i
+getIndexRev i Array{..} = getIndexPtrRev arrContents arrStart aEnd i
 
 data GetIndicesState contents start end st =
     GetIndicesState contents start end st
@@ -1210,6 +1214,8 @@ getSlice index len (Array contents start e _) =
 -------------------------------------------------------------------------------
 -- In-place mutation algorithms
 -------------------------------------------------------------------------------
+
+-- XXX Check and remove forall wherever it is redundant.
 
 -- XXX consider the bulk update/accumulation/permutation APIs from vector.
 
@@ -1350,6 +1356,12 @@ mergeBy = undefined
 -- Size
 -------------------------------------------------------------------------------
 
+-- XXX Check all usages of byteLength. Earlier we were using byteLength instead
+-- of length to avoid Storable constraint and division. Now it is reversed.
+-- However, we should consider changing the indices in array back to
+-- byteoffsets because of misaligned cast issue. If so we do not need to change
+-- this either.
+
 -- | /O(1)/ Get the byte length of the array.
 --
 -- @since 0.7.0
@@ -1361,7 +1373,7 @@ byteLength Array{..} =
 
 -- Note: try to avoid the use of length in performance sensitive internal
 -- routines as it involves a costly 'div' operation. Instead use the end ptr
--- int he array to check the bounds etc.
+-- in the array to check the bounds etc.
 --
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
@@ -1797,7 +1809,8 @@ fromArrayUnsafe (ArrayUnsafe contents start end) =
 
 -- XXX Keep the bound intact to not lose any free space? Perf impact?
 
--- | Append up to @n@ input items to the supplied array.
+-- | @appendNUnsafe alloc n@ appends up to @n@ input items to the supplied
+-- array.
 --
 -- Unsafe: Do not drive the fold beyond @n@ elements, it will lead to memory
 -- corruption or segfault.
@@ -1818,7 +1831,7 @@ appendNUnsafe action n =
     initial = do
         assert (n >= 0) (return ())
         arr@(Array _ _ end bound) <- action
-        let free = bound - end
+        let free = (bound - end) * SIZE_OF(a)
             needed = n * SIZE_OF(a)
         -- XXX We can also reallocate if the array has too much free space,
         -- otherwise we lose that space.
@@ -1872,7 +1885,6 @@ append :: forall m a. (MonadIO m, Storable a) =>
     m (Array a) -> Fold m a (Array a)
 append = appendWith (* 2)
 
--- Use foldlM'
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
 --
@@ -1885,6 +1897,7 @@ append = appendWith (* 2)
 {-# INLINE_NORMAL writeNWithUnsafe #-}
 writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+-- XXX Use foldlM'
 writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
 
     where
@@ -1940,6 +1953,7 @@ writeN = writeNWith newArray
 {-# INLINE_NORMAL writeRevNWithUnsafe #-}
 writeRevNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
+-- XXX Use foldlM'
 writeRevNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
 
     where
@@ -1984,6 +1998,7 @@ writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned align = writeNWith (newArrayAligned align)
 
+-- XXX Remove this
 {-
 -- | @writeNAlignedUnmanaged align n@ folds a maximum of @n@ elements from the
 -- input stream to an 'Array' whose starting address is aligned to @align@
@@ -2188,7 +2203,8 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 
 -- | Copy two arrays into a newly allocated array.
 {-# INLINE spliceCopy #-}
-spliceCopy :: forall m a. (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceCopy :: forall m a. (MonadIO m, Storable a) =>
+    Array a -> Array a -> m (Array a)
 spliceCopy arr1 arr2 = liftIO $ do
     let start1 = arrStart arr1
         start2 = arrStart arr2
@@ -2203,34 +2219,44 @@ spliceCopy arr1 arr2 = liftIO $ do
     let arrS1# = getInternalMutableByteArray (arrContents arr1)
         arrS2# = getInternalMutableByteArray (arrContents arr2)
         arrD# = getInternalMutableByteArray (arrContents arr)
-    IO $ \s# -> (# copyMutableByteArray# arrS1# start1InBytes# arrD# 0# len1InBytes# s#, () #)
-    IO $ \s# -> (# copyMutableByteArray# arrS2# start2InBytes# arrD# len1InBytes# len2InBytes# s#, () #)
-    -- XXX We don't need to touch anything!
+    IO $ \s# -> (# copyMutableByteArray#
+                    arrS1# start1InBytes# arrD# 0# len1InBytes# s#
+                , () #)
+    IO $ \s# -> (# copyMutableByteArray#
+                    arrS2# start2InBytes# arrD# len1InBytes# len2InBytes# s#
+                , () #)
     return $ arr { aEnd = len1 + len2 }
 
 -- | Really really unsafe, appends the second array into the first array. If
 -- the first array does not have enough space it may cause silent data
 -- corruption or if you are lucky a segfault.
 {-# INLINE spliceUnsafe #-}
-spliceUnsafe :: forall m a. (Storable a, MonadIO m) => Array a -> (Array a, Int) -> m (Array a)
-spliceUnsafe dst (src, srcLenInBytes) =
+spliceUnsafe :: forall m a. (Storable a, MonadIO m) =>
+    Array a -> Array a -> m (Array a)
+spliceUnsafe dst src =
     liftIO $ do
          let startSrc = arrStart src
              !(I# startSrcInBytes#) = startSrc * SIZE_OF(a)
-             !(I# srcLenInBytes#) = srcLenInBytes
-             srcLen = srcLenInBytes `div` SIZE_OF(a)
+             srcLen = aEnd src - startSrc
+             !(I# srcBytes#) = srcLen * SIZE_OF(a)
              endDst = aEnd dst
              !(I# endDstInBytes#) = endDst * SIZE_OF(a)
              srcArr# = getInternalMutableByteArray (arrContents src)
              dstArr# = getInternalMutableByteArray (arrContents dst)
          assert (endDst + srcLen <= aBound dst) (return ())
-         -- XXX We don't need to touch anything!
-         IO $ \s# -> (# copyMutableByteArray# srcArr# startSrcInBytes# dstArr# endDstInBytes# srcLenInBytes# s#, () #)
+         IO $ \s# -> (# copyMutableByteArray#
+                            srcArr#
+                            startSrcInBytes# -- start copying from here
+                            dstArr#
+                            endDstInBytes#   -- start writing here
+                            srcBytes#        -- write this many bytes
+                            s#
+                     , () #)
          return $ dst {aEnd = endDst + srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
--- the @sizer dstBytesn srcBytes@ function, where @dstBytes@ is the size of the
+-- the @sizer dstBytes srcBytes@ function, where @dstBytes@ is the size of the
 -- first array and @srcBytes@ is the size of the second array, in bytes.
 --
 -- Note that the returned array may be a mutated version of first array.
@@ -2246,22 +2272,21 @@ spliceWith sizer dst@(Array _ start end bound) src = do
 -}
     assert (end <= bound) (return ())
     let srcLen = aEnd src - arrStart src
-        srcLenInBytes = srcLen * SIZE_OF(a)
+        srcBytes = srcLen * SIZE_OF(a)
 
     dst1 <-
         if end + srcLen >= bound
         then do
-            let oldSize = end - start
-                newSize = sizer oldSize srcLen
-                newSizeInBytes = newSize * SIZE_OF(a)
-            when (newSize < oldSize + srcLen)
+            let dstBytes = (end - start) * SIZE_OF(a)
+                newSizeInBytes = sizer dstBytes srcBytes
+            when (newSizeInBytes < dstBytes + srcBytes)
                 $ error
                     $ "splice: newSize is less than the total size "
                     ++ "of arrays being appended. Please check the "
-                    ++ "newSize function passed."
+                    ++ "sizer function passed."
             liftIO $ realloc newSizeInBytes dst
         else return dst
-    spliceUnsafe dst1 (src, srcLenInBytes)
+    spliceUnsafe dst1 src
 
 -- | The first array is mutated to append the second array. If there is no
 -- reserved space available in the first array a new allocation of exact
@@ -2299,8 +2324,11 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 breakOn :: MonadIO m
     => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
 breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
-    loc <- c_memchr p sep (fromIntegral $ byteLength arr)
-    let locNum = loc `minusPtr` p
+    -- XXX Instead of using asPtrUnsafe (pinning memory) we can pass unlifted
+    -- Addr# to memchr and it should be safe (from ghc 8.4).
+    -- XXX We do not need memchr here, we can use a Haskell equivalent.
+    loc <- c_memchr p sep (fromIntegral $ length arr)
+    let sepIndex = loc `minusPtr` p
     return $
         if loc == nullPtr
         then (arr, Nothing)
@@ -2308,12 +2336,12 @@ breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
             ( Array
                 { arrContents = arrContents
                 , arrStart = arrStart
-                , aEnd = arrStart + locNum
-                , aBound = arrStart + locNum
+                , aEnd = arrStart + sepIndex -- exclude the separator
+                , aBound = arrStart + sepIndex
                 }
             , Just $ Array
                     { arrContents = arrContents
-                    , arrStart = arrStart + (locNum + 1)
+                    , arrStart = arrStart + (sepIndex + 1)
                     , aEnd = aEnd
                     , aBound = aBound
                     }
@@ -2357,41 +2385,33 @@ splitAt i arr@Array{..} =
 --
 -- /Pre-release/
 --
+{-# INLINE castUnsafe #-}
 castUnsafe ::
        forall a b. (Storable a, Storable b)
     => Array a
     -> Array b
 castUnsafe (Array contents start end bound) =
-    let sizeB = SIZE_OF(b)
-        sizeA = SIZE_OF(a)
-     in if sizeA == sizeB
-        then Array (castContents contents) start end bound
-        else if sizeA > sizeB
-             then let factor = sizeA `div` sizeB
-                   in Array
-                          (castContents contents)
-                          (factor * start)
-                          (factor * end)
-                          (factor * bound)
-             else let factor = sizeB `div` sizeA
-                   in Array
-                          (castContents contents)
-                          (start `div` factor)
-                          (end `div` factor)
-                          (bound `div` factor)
+    let sizeA = SIZE_OF(a)
+        sizeB = SIZE_OF(b)
+     in Array
+            (castContents contents)
+            ((start * sizeA) `div` sizeB)
+            ((end * sizeA) `div` sizeB)
+            ((bound * sizeA) `div` sizeB)
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
 -- /Pre-release/
 --
+{-# INLINE asBytes #-}
 asBytes :: forall a. Storable a => Array a -> Array Word8
 asBytes (Array contents start end bound) =
-    let factor = SIZE_OF(a)
+    let multiplier = SIZE_OF(a)
      in (Array
              (castContents contents)
-             (factor * start)
-             (factor * end)
-             (factor * bound))
+             (start * multiplier)
+             (end * multiplier)
+             (bound * multiplier))
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
@@ -2399,17 +2419,50 @@ asBytes (Array contents start end bound) =
 --
 -- /Pre-release/
 --
+{-# INLINE cast #-}
 cast :: forall a b. (Storable a, Storable b) => Array a -> Maybe (Array b)
 cast arr =
-    let sizeB = SIZE_OF(b)
-        sizeA = SIZE_OF(a)
-     in if sizeA == sizeB
-               || (sizeA > sizeB && sizeA `mod` sizeB == 0)
-               || (sizeB > sizeA && sizeB `mod` sizeA == 0)
-        then Just $ castUnsafe arr
-        else Nothing
+    -- XXX Because we use indices in the array and not byte offsets, the start
+    -- has to be aligned with both sizes. If we store byte offsets instead of
+    -- indices in the array this is not required.
+    --
+    -- For example: (Array bytearray 3 7 7 :: Array Word8) cannot be cast into
+    -- Array Word32 because the start index is not aligned at 4 bytes.  If we
+    -- were to use byte offsets instead then we can cast it because the length
+    -- of the array is a multiple of 4.
+    let r1 = arrStart arr * SIZE_OF(a) `mod` SIZE_OF(b)
+        r2 = aEnd arr * SIZE_OF(a) `mod` SIZE_OF(b)
+     in if r1 /= 0 || r2 /= 0
+        then Nothing
+        else Just $ castUnsafe arr
 
--- | Use an @Array a@ as @Ptr@.
+-- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
+-- pointer to the FFI call. For unsafe calls we do not need to pin the array.
+-- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in
+-- before the pointer is wrapped.
+--
+-- From the GHC manual:
+--
+-- GHC, since version 8.4, guarantees that garbage collection will never occur
+-- during an unsafe call, even in the bytecode interpreter, and further
+-- guarantees that unsafe calls will be performed in the calling thread. Making
+-- it safe to pass heap-allocated objects to unsafe functions.
+
+-- Unsafe because of direct pointer operations. The user must ensure that they
+-- are writing within the legal bounds of the array. Should we just name it
+-- asPtr, the unsafety is implicit for any pointer operations. And we are safe
+-- from Haskell perspective because we will be pinning the memory.
+
+-- | Use an @Array a@ as @Ptr a@. This is useful when we want to pass an array
+-- as a pointer to some operating system call or to a "safe" FFI call.
+--
+-- If the array is not pinned it is copied to pinned memory before passing it
+-- to the monadic action.
+--
+-- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
+-- that the programmer keeps this in mind and creates a pinned array
+-- opportunistically before this operation occurs, to avoid the cost of a copy
+-- if possible.
 --
 -- /Unsafe/
 --
@@ -2421,23 +2474,27 @@ asPtrUnsafe ::
     -> (Ptr a -> m b)
     -> m b
 asPtrUnsafe arr f = do
-  let contents = arrContents arr
-      !ptr = Ptr (byteArrayContents# (unsafeCoerce# (getInternalMutableByteArray contents)))
-  -- XXX PIN THE ARRAY HERE
-  r <- f (ptr `plusPtr` (arrStart arr * SIZE_OF(a)))
-  liftIO $ touch contents
-  return r
+    let contents = arrContents arr
+        !ptr = Ptr (byteArrayContents#
+                       (unsafeCoerce# (getInternalMutableByteArray contents)))
+    -- XXX Check if the array is pinned, if not, copy it to a pinned array
+    -- XXX We should probably pass to the IO action the byte length of the array as
+    -- well so that bounds can be checked.
+    r <- f (ptr `plusPtr` (arrStart arr * SIZE_OF(a)))
+    liftIO $ touch contents
+    return r
 
 -------------------------------------------------------------------------------
 -- Equality
 -------------------------------------------------------------------------------
 
--- XXX Is this correct?
+-- XXX We can return Ordering instead
+
 -- | Compare if two arrays are equal.
 --
 -- /Pre-release/
 {-# INLINE cmp #-}
-cmp :: forall m a.(Storable a, MonadIO m) => Array a -> Array a -> m Bool
+cmp :: forall m a.(MonadIO m, Storable a) => Array a -> Array a -> m Bool
 cmp arr1 arr2 =
     liftIO
         $ do
@@ -2448,17 +2505,15 @@ cmp arr1 arr2 =
                 !(I# len#) = byteLength arr1
             if length arr1 == length arr2
             then do
-                r <- IO $ \s# ->
-                         let res =
-                                 I#
-                                     (compareByteArrays#
-                                          (unsafeCoerce# marr1)
-                                          st1#
-                                          (unsafeCoerce# marr2)
-                                          st2#
-                                          len#)
-                          in (# s#, res #)
-                return $ r == 0
+                let res =
+                         I#
+                             (compareByteArrays#
+                                  (unsafeCoerce# marr1)
+                                  st1#
+                                  (unsafeCoerce# marr2)
+                                  st2#
+                                  len#)
+                return $ res == 0
             else return False
 
 -------------------------------------------------------------------------------

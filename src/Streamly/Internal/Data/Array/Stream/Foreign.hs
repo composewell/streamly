@@ -469,11 +469,7 @@ spliceArraysLenUnsafe :: (MonadIO m, Storable a)
     => Int -> SerialT m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newArray len
-    S.foldlM' writeArr (return arr) buffered
-
-    where
-
-    writeArr dst arr = MA.spliceUnsafe dst (arr, MA.byteLength arr)
+    S.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
 _spliceArrays :: (MonadIO m, Storable a)
@@ -487,7 +483,7 @@ _spliceArrays s = do
 
     where
 
-    writeArr dst arr = MA.spliceUnsafe dst (A.unsafeThaw arr, A.length arr)
+    writeArr dst arr = MA.spliceUnsafe dst (A.unsafeThaw arr)
 
 {-# INLINE _spliceArraysBuffered #-}
 _spliceArraysBuffered :: (MonadIO m, Storable a)

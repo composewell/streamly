@@ -407,7 +407,8 @@ cast arr =
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: forall a. Storable a => Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN :: forall a. Storable a =>
+    Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh (A.Array {..}) n
     | n < 0 = error "unsafeEqArrayN: n should be >= 0"
     | n == 0 = True
@@ -416,6 +417,9 @@ unsafeEqArrayN Ring{..} rh (A.Array {..}) n
     where
 
     w8Contents = castContents arrContents :: ArrayContents Word8
+    -- XXX The old implementaiton treated n as number of bytes and now we are
+    -- treating it as number of elements. Number of elements may be the right
+    -- thing but we need to check the users of the API for breakage.
     nW8 = n * SIZE_OF(a)
 
     check p i = do
@@ -431,6 +435,10 @@ unsafeEqArrayN Ring{..} rh (A.Array {..}) n
             go (castPtr (unsafeForeignPtrToPtr ringStart)) i
         | (castPtr p) == rh = touchForeignPtr ringStart >> return True
         | otherwise = check p i
+
+-- XXX This is not modular. We should probably just convert the array and the
+-- ring buffer to streams and compare the two streams. Need to check perf
+-- though.
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ringHead pointer.  Returns true if the Array and
@@ -456,9 +464,9 @@ unsafeEqArray Ring{..} rh (A.Array{..}) =
         else return False
 
     go p i
-        | (castPtr p) ==
+        | castPtr p ==
               ringBound = go (castPtr (unsafeForeignPtrToPtr ringStart)) i
-        | (castPtr p) == rh = touchForeignPtr ringStart >> return True
+        | castPtr p == rh = touchForeignPtr ringStart >> return True
         | otherwise = check p i
 
 -------------------------------------------------------------------------------

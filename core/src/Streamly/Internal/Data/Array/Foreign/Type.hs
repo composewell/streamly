@@ -164,6 +164,8 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 
 -- | Use an @Array a@ as @Ptr a@.
 --
+-- See 'MA.asPtrUnsafe' in the Mutable array module for more details.
+--
 -- /Unsafe/
 --
 -- /Pre-release/
@@ -223,12 +225,21 @@ splice arr1 arr2 =
     unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
 
 -- XXX The docs need to be updated
+-- XXX This does not make sense if we have to create a copy of the array. We
+-- should introduce a fromPtr unfold/stream API instead to stream the contents
+-- of the Ptr up to the given length.
+--
+-- Maybe we can introduce another Array type with a limited API for random
+-- access of read only memory addresses. Or just have a foreign ptr based array
+-- with a limited API for specific use cases. To reuse code between these we
+-- may have to parameterize the array with the type of contents.
+
 -- | Create an 'Array' of the given number of elements of type @a@ from a read
 -- only pointer @Ptr a@.  The pointer is not freed when the array is garbage
 -- collected. This API is unsafe for the following reasons:
 --
 -- 1. The pointer must point to static pinned memory or foreign memory that
--- does not require freeing..
+-- does not require freeing.
 -- 2. The pointer must be legally accessible upto the given length.
 -- 3. To guarantee that the array is immutable, the contents of the address
 -- must be guaranteed to not change.
@@ -583,6 +594,7 @@ writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 
+-- XXX Remove this.
 {-
 -- | @writeNAlignedUnmanaged n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size and using unmanaged memory.

@@ -93,8 +93,7 @@ import qualified Network.Socket as Net
 
 import Streamly.Internal.BaseCompat
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (fromForeignPtrUnsafe, touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
@@ -312,8 +311,7 @@ writeArrayWith :: Storable a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr ->
-    f h (castPtr ptr) aLen >> touch (arrContents arr)
+writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
 
     where
 
