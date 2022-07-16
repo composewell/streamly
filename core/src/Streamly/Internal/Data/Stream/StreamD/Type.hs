@@ -159,13 +159,13 @@ consM m (Stream step state) = Stream step1 Nothing
 -- | Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
-uncons (UnStream step state) = go state
+uncons (UnStream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
             Yield x s -> return $ Just (x, Stream step s)
-            Skip  s   -> go s
+            Skip  s   -> go SPEC s
             Stop      -> return Nothing
 
 ------------------------------------------------------------------------------
@@ -372,6 +372,8 @@ foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
             Yield x s -> fstep x (go SPEC s)
             Skip s    -> go SPEC s
             Stop      -> final
+
+-- XXX Should we make all argument strict wherever we use SPEC?
 
 -- Note that foldr works on pure values, therefore it becomes necessarily
 -- strict when the monad m is strict. In that case it cannot terminate early,

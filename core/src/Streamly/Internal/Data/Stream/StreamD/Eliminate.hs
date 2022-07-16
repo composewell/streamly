@@ -228,6 +228,7 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
 -- Specialized Folds
 ------------------------------------------------------------------------------
 
+-- benchmark after dropping 1 item from stream or using unfolds
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
 null = foldrM (\_ _ -> return False) (return True)
@@ -243,13 +244,13 @@ headElse a = foldrM (\x _ -> return x) (return a)
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}
 tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
-tail (UnStream step state) = go state
+tail (UnStream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
             Yield _ s -> return (Just $ Stream step s)
-            Skip  s   -> go s
+            Skip  s   -> go SPEC s
             Stop      -> return Nothing
 
 -- XXX will it fuse? need custom impl?
@@ -257,18 +258,19 @@ tail (UnStream step state) = go state
 last :: Monad m => Stream m a -> m (Maybe a)
 last = foldl' (\_ y -> Just y) Nothing
 
+-- XXX Use the foldrM based impl instead
 {-# INLINE_NORMAL elem #-}
 elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
 -- elem e m = foldrM (\x xs -> if x == e then return True else xs) (return False) m
-elem e (Stream step state) = go state
+elem e (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
             Yield x s
-              | x == e    -> return True
-              | otherwise -> go s
-            Skip s -> go s
+              | x == e -> return True
+              | otherwise -> go SPEC s
+            Skip s -> go SPEC s
             Stop   -> return False
 
 {-# INLINE_NORMAL notElem #-}
@@ -278,118 +280,124 @@ notElem e s = fmap not (elem e s)
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
 -- all p m = foldrM (\x xs -> if p x then xs else return False) (return True) m
-all p (Stream step state) = go state
+all p (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
             Yield x s
-              | p x       -> go s
+              | p x -> go SPEC s
               | otherwise -> return False
-            Skip s -> go s
+            Skip s -> go SPEC s
             Stop   -> return True
 
 {-# INLINE_NORMAL any #-}
 any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
 -- any p m = foldrM (\x xs -> if p x then return True else xs) (return False) m
-any p (Stream step state) = go state
+any p (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
             Yield x s
-              | p x       -> return True
-              | otherwise -> go s
-            Skip s -> go s
+              | p x -> return True
+              | otherwise -> go SPEC s
+            Skip s -> go SPEC s
             Stop   -> return False
 
 {-# INLINE_NORMAL maximum #-}
 maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
-maximum (Stream step state) = go Nothing state
+maximum (Stream step state) = go SPEC Nothing' state
   where
-    go Nothing st = do
+    go !_ Nothing' st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
-            Skip  s   -> go Nothing s
+            Yield x s -> go SPEC (Just' x) s
+            Skip  s   -> go SPEC Nothing' s
             Stop      -> return Nothing
-    go (Just acc) st = do
+    go !_ (Just' acc) st = do
         r <- step defState st
         case r of
             Yield x s
-              | acc <= x  -> go (Just x) s
-              | otherwise -> go (Just acc) s
-            Skip s -> go (Just acc) s
+              | acc <= x  -> go SPEC (Just' x) s
+              | otherwise -> go SPEC (Just' acc) s
+            Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
 
 {-# INLINE_NORMAL maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
-maximumBy cmp (Stream step state) = go Nothing state
+maximumBy cmp (Stream step state) = go SPEC Nothing' state
   where
-    go Nothing st = do
+    go !_ Nothing' st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
-            Skip  s   -> go Nothing s
+            Yield x s -> go SPEC (Just' x) s
+            Skip  s   -> go SPEC Nothing' s
             Stop      -> return Nothing
-    go (Just acc) st = do
+    go !_ (Just' acc) st = do
         r <- step defState st
         case r of
             Yield x s -> case cmp acc x of
-                GT -> go (Just acc) s
-                _  -> go (Just x) s
-            Skip s -> go (Just acc) s
+                GT -> go SPEC (Just' acc) s
+                _  -> go SPEC (Just' x) s
+            Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
 
 {-# INLINE_NORMAL minimum #-}
 minimum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
-minimum (Stream step state) = go Nothing state
-  where
-    go Nothing st = do
+minimum (Stream step state) = go SPEC Nothing' state
+
+    where
+
+    go !_ Nothing' st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
-            Skip  s   -> go Nothing s
+            Yield x s -> go SPEC (Just' x) s
+            Skip  s   -> go SPEC Nothing' s
             Stop      -> return Nothing
-    go (Just acc) st = do
+    go !_ (Just' acc) st = do
         r <- step defState st
         case r of
             Yield x s
-              | acc <= x  -> go (Just acc) s
-              | otherwise -> go (Just x) s
-            Skip s -> go (Just acc) s
+              | acc <= x  -> go SPEC (Just' acc) s
+              | otherwise -> go SPEC (Just' x) s
+            Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
 
 {-# INLINE_NORMAL minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
-minimumBy cmp (Stream step state) = go Nothing state
-  where
-    go Nothing st = do
+minimumBy cmp (Stream step state) = go SPEC Nothing' state
+
+    where
+
+    go !_ Nothing' st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
-            Skip  s   -> go Nothing s
+            Yield x s -> go SPEC (Just' x) s
+            Skip  s   -> go SPEC Nothing' s
             Stop      -> return Nothing
-    go (Just acc) st = do
+    go !_ (Just' acc) st = do
         r <- step defState st
         case r of
             Yield x s -> case cmp acc x of
-                GT -> go (Just x) s
-                _  -> go (Just acc) s
-            Skip s -> go (Just acc) s
+                GT -> go SPEC (Just' x) s
+                _  -> go SPEC (Just' acc) s
+            Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
 
 {-# INLINE_NORMAL (!!) #-}
 (!!) :: (Monad m) => Stream m a -> Int -> m (Maybe a)
-(Stream step state) !! i = go i state
-  where
-    go n st = do
+(Stream step state) !! i = go SPEC i state
+
+    where
+
+    go !_ !n st = do
         r <- step defState st
         case r of
             Yield x s | n < 0 -> return Nothing
                       | n == 0 -> return $ Just x
-                      | otherwise -> go (n - 1) s
-            Skip s -> go n s
+                      | otherwise -> go SPEC (n - 1) s
+            Skip s -> go SPEC n s
             Stop   -> return Nothing
 
 {-# INLINE_NORMAL lookup #-}
