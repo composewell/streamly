@@ -24,4 +24,6 @@ active-repositories: hackage.haskell.org, head.hackage.ghc.haskell.org:override
 source-repository-package
   type: git
   location: https://github.com/composewell/fusion-plugin
-  tag: 5fc7a38c9106e643b5ebde61400d54813a071d7b
+  tag: 25aa89c97aaaf83209d4282638ef774780061366
+
+allow-newer: all

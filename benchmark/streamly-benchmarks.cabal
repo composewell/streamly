@@ -120,7 +120,7 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 4.17
+      base                >= 4.9   && < 4.18
     , deepseq             >= 1.4.1 && < 1.5
     , mtl                 >= 2.2   && < 2.3
 
@@ -133,7 +133,7 @@ common bench-depends
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
-    , ghc-prim          >= 0.4   && < 0.9
+    , ghc-prim          >= 0.4   && < 0.10
 
   if flag(bench-core)
     build-depends: streamly-core
@@ -155,9 +155,8 @@ common bench-depends
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
   if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.17
+    build-depends:     template-haskell   >= 2.14  && < 2.20
                      , inspection-testing >= 0.4   && < 0.5
-                     , ghc-prim           >= 0.2   && < 0.9
   -- Array uses a Storable constraint in dev build making several inspection
   -- tests fail
   if flag(dev) && flag(inspection)
@@ -582,6 +581,8 @@ benchmark FileSystem.Handle
   other-modules:
       Handle.Read
     , Handle.ReadWrite
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
   if flag(bench-core)
     buildable: False
   else
@@ -596,6 +597,8 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
   if flag(bench-core)
     buildable: False
   else

@@ -35,6 +35,9 @@ where
 
 import Control.DeepSeq (NFData(rnf))
 import Data.Char (ord, chr)
+#if MIN_VERSION_base(4,17,0)
+import Data.Char (generalCategory, GeneralCategory(Space))
+#endif
 import Data.Word (Word8)
 import System.Directory (getFileSize)
 import System.Environment (lookupEnv)
@@ -140,8 +143,10 @@ mkBenchSmall name env action =
 
     useSmallH (RefHandles {smallInH = inh, outputH = outh}) = Handles inh outh
 
+#if !MIN_VERSION_base(4,17,0)
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
+#endif
 
 -- Code copied from base/Data.Char to INLINE it
 {-# INLINE isSpace #-}
@@ -154,7 +159,11 @@ isSpace                 :: Char -> Bool
 -- so we'll do it like this until there's a way around that.
 isSpace c
   | uc <= 0x377 = uc == 32 || uc - 0x9 <= 4 || uc == 0xa0
+#if MIN_VERSION_base(4,17,0)
+  | otherwise = generalCategory c == Space
+#else
   | otherwise = iswspace (ord c) /= 0
+#endif
   where
     uc = fromIntegral (ord c) :: Word
 

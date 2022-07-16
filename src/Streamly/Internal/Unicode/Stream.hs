@@ -85,6 +85,9 @@ import Control.Monad.Catch (MonadThrow(..), MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (chr, ord)
+#if MIN_VERSION_base(4,17,0)
+import Data.Char (generalCategory, GeneralCategory(Space))
+#endif
 import Data.Word (Word8)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -1036,15 +1039,21 @@ stripHead = S.dropWhile isSpace
 lines :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
 lines = S.splitOnSuffix (== '\n')
 
+#if !MIN_VERSION_base(4,17,0)
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
+#endif
 
 -- | Code copied from base/Data.Char to INLINE it
 {-# INLINE isSpace #-}
 isSpace :: Char -> Bool
 isSpace c
   | uc <= 0x377 = uc == 32 || uc - 0x9 <= 4 || uc == 0xa0
+#if MIN_VERSION_base(4,17,0)
+  | otherwise = generalCategory c == Space
+#else
   | otherwise = iswspace (ord c) /= 0
+#endif
   where
     uc = fromIntegral (ord c) :: Word
 
