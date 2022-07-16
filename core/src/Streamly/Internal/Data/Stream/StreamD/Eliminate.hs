@@ -83,6 +83,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
@@ -415,20 +416,20 @@ toListRev = foldl' (flip (:)) []
 
 {-# INLINE_NORMAL the #-}
 the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
-the (Stream step state) = go state
+the (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step defState st
         case r of
-            Yield x s -> go' x s
-            Skip s    -> go s
+            Yield x s -> go' SPEC x s
+            Skip s    -> go SPEC s
             Stop      -> return Nothing
-    go' n st = do
+    go' !_ n st = do
         r <- step defState st
         case r of
-            Yield x s | x == n -> go' n s
+            Yield x s | x == n -> go' SPEC n s
                       | otherwise -> return Nothing
-            Skip s -> go' n s
+            Skip s -> go' SPEC n s
             Stop   -> return (Just n)
 
 ------------------------------------------------------------------------------
@@ -446,65 +447,71 @@ mapM_ m = drain . mapM m
 
 {-# INLINE_NORMAL isPrefixOf #-}
 isPrefixOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
-isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
-  where
-    go (sa, sb, Nothing) = do
+isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
+
+    where
+
+    go !_ Nothing' sa sb = do
         r <- stepa defState sa
         case r of
-            Yield x sa' -> go (sa', sb, Just x)
-            Skip sa'    -> go (sa', sb, Nothing)
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa'    -> go SPEC Nothing' sa' sb
             Stop        -> return True
 
-    go (sa, sb, Just x) = do
+    go !_ (Just' x) sa sb = do
         r <- stepb defState sb
         case r of
             Yield y sb' ->
                 if x == y
-                    then go (sa, sb', Nothing)
+                    then go SPEC Nothing' sa sb'
                     else return False
-            Skip sb' -> go (sa, sb', Just x)
+            Skip sb' -> go SPEC (Just' x) sa sb'
             Stop     -> return False
 
 {-# INLINE_NORMAL isSubsequenceOf #-}
 isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
-isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
-  where
-    go (sa, sb, Nothing) = do
+isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
+
+    where
+
+    go !_ Nothing' sa sb = do
         r <- stepa defState sa
         case r of
-            Yield x sa' -> go (sa', sb, Just x)
-            Skip sa'    -> go (sa', sb, Nothing)
-            Stop        -> return True
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa' -> go SPEC Nothing' sa' sb
+            Stop -> return True
 
-    go (sa, sb, Just x) = do
+    go !_ (Just' x) sa sb = do
         r <- stepb defState sb
         case r of
             Yield y sb' ->
                 if x == y
-                    then go (sa, sb', Nothing)
-                    else go (sa, sb', Just x)
-            Skip sb' -> go (sa, sb', Just x)
-            Stop     -> return False
+                    then go SPEC Nothing' sa sb'
+                    else go SPEC (Just' x) sa sb'
+            Skip sb' -> go SPEC (Just' x) sa sb'
+            Stop -> return False
 
 {-# INLINE_NORMAL stripPrefix #-}
 stripPrefix
     :: (Eq a, Monad m)
     => Stream m a -> Stream m a -> m (Maybe (Stream m a))
-stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
-  where
-    go (sa, sb, Nothing) = do
+stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
+
+    where
+
+    go !_ Nothing' sa sb = do
         r <- stepa defState sa
         case r of
-            Yield x sa' -> go (sa', sb, Just x)
-            Skip sa'    -> go (sa', sb, Nothing)
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa'    -> go SPEC Nothing' sa' sb
             Stop        -> return $ Just (Stream stepb sb)
 
-    go (sa, sb, Just x) = do
+    go !_ (Just' x) sa sb = do
         r <- stepb defState sb
         case r of
             Yield y sb' ->
                 if x == y
-                    then go (sa, sb', Nothing)
+                    then go SPEC Nothing' sa sb'
                     else return Nothing
-            Skip sb' -> go (sa, sb', Just x)
+            Skip sb' -> go SPEC (Just' x) sa sb'
             Stop     -> return Nothing
