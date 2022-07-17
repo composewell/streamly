@@ -49,7 +49,8 @@ let haskellPackages =
                       nixpkgs.haskell.lib.overrideCabal
                         (let src = fetchGit {
                             url = "git@github.com:composewell/bench-report.git";
-                            rev = "06cb2c3c0bda3306c2435cc76009c58d7148a290";
+                            rev = "a94e503abfd2cc378bfefd9ae348bcdc4ec3217b";
+                            ref = "update-coreutils";
                         }; in super.callCabal2nix "bench-report" src {})
                         (old:
                           { enableLibraryProfiling = false;
@@ -71,7 +72,7 @@ let haskellPackages =
                       nixpkgs.haskell.lib.overrideCabal
                         (let src = fetchGit {
                             url = "git@github.com:composewell/streamly-coreutils.git";
-                            rev = "a09e856698770bb6ecb8416a0db297f78b77997c";
+                            rev = "b1e6fc37f0e898c54378129750d3ccc1c034f611";
                         }; in super.callCabal2nix "streamly-coreutils" src {})
                         (old:
                           { librarySystemDepends =
@@ -115,7 +116,7 @@ let haskellPackages =
                       #  } {})
                       (let src = fetchGit {
                           url = "git@github.com:composewell/streamly.git";
-                          rev = "0e739d7f6bb9a06489008a6dfc19cd9d30a25099";
+                          rev = "14ee0b70363cf925e9cc067bf1df4ecbd047ac38";
                       }; in super.callCabal2nix "streamly" src {})
                       (old:
                         { librarySystemDepends =
@@ -130,7 +131,7 @@ let haskellPackages =
                     nixpkgs.haskell.lib.overrideCabal
                       (let src = fetchGit {
                           url = "git@github.com:composewell/streamly.git";
-                          rev = "0e739d7f6bb9a06489008a6dfc19cd9d30a25099";
+                          rev = "14ee0b70363cf925e9cc067bf1df4ecbd047ac38";
                       }; in super.callCabal2nix "streamly-core" "${src}/core" {})
                       (old:
                         { librarySystemDepends =
