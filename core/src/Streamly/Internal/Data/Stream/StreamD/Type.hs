@@ -109,6 +109,9 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+#ifdef USE_UNFOLDS_EVERYWHERE
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
+#endif
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -222,11 +225,15 @@ fromEffect m = Stream step True
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
 fromList :: Applicative m => [a] -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+fromList = unfold Unfold.fromList
+#else
 fromList = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (x:xs) = pure $ Yield x xs
     step _ []     = pure Stop
+#endif
 
 ------------------------------------------------------------------------------
 -- Conversions From/To

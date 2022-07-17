@@ -28,6 +28,9 @@ module Streamly.Internal.Data.Unfold.Type
     , fromEffect
     , fromPure
 
+    -- * From Containers
+    , fromList
+
     -- * Transformations
     , lmap
     , lmapM
@@ -334,6 +337,23 @@ fromEffect m = Unfold step inject
 -- /Pre-release/
 fromPure :: Applicative m => b -> Unfold m a b
 fromPure = fromEffect Prelude.. pure
+
+-- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use
+-- rewrite rules to rewrite list enumerations to unfold enumerations.
+
+-- | Convert a list of pure values to a 'Stream'
+--
+-- /Since: 0.8.0/
+--
+{-# INLINE_LATE fromList #-}
+fromList :: Applicative m => Unfold m [a] a
+fromList = Unfold step pure
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (x:xs) = pure $ Yield x xs
+    step [] = pure Stop
 
 -- | Outer product discarding the first element.
 --

@@ -13,6 +13,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Data.List as List
 import qualified Prelude
+import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.IsStream as S

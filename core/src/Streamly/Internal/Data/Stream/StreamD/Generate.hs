@@ -94,6 +94,11 @@ import Streamly.Internal.Data.Time.Clock
 import Streamly.Internal.Data.Time.Units
     (toAbsTime, AbsTime, toRelTime64, RelTime64)
 
+#ifdef USE_UNFOLDS_EVERYWHERE
+import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Unfold.Enumeration as Unfold
+#endif
+
 import Prelude hiding (iterate, repeat, replicate, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
@@ -131,6 +136,9 @@ cons x (Stream step state) = Stream step1 Nothing
 -- Adapted from vector package
 {-# INLINE_NORMAL unfoldrM #-}
 unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+unfoldrM next = unfold (Unfold.unfoldrM next)
+#else
 unfoldrM next = Stream step
   where
     {-# INLINE_LATE step #-}
@@ -139,6 +147,7 @@ unfoldrM next = Stream step
         return $ case r of
             Just (x, s) -> Yield x s
             Nothing     -> Stop
+#endif
 
 {-# INLINE_LATE unfoldr #-}
 unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
@@ -150,15 +159,26 @@ unfoldr f = unfoldrM (return . f)
 
 {-# INLINE_NORMAL repeatM #-}
 repeatM :: Monad m => m a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+repeatM = unfold Unfold.repeatM
+#else
 repeatM x = Stream (\_ _ -> x >>= \r -> return $ Yield r ()) ()
+#endif
 
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+repeat x = repeatM (pure x)
+#else
 repeat x = Stream (\_ _ -> return $ Yield x ()) ()
+#endif
 
 -- Adapted from the vector package
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: forall m a. Monad m => Int -> m a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+replicateM n = unfold (Unfold.replicateM n)
+#else
 replicateM n p = Stream step n
   where
     {-# INLINE_LATE step #-}
@@ -167,6 +187,7 @@ replicateM n p = Stream step n
       | otherwise = do
           x <- p
           return $ Yield x (i - 1)
+#endif
 
 {-# INLINE_NORMAL replicate #-}
 replicate :: Monad m => Int -> a -> Stream m a
@@ -189,10 +210,15 @@ replicate n x = replicateM n (return x)
 -- enumerateFromStepIntegral is faster for integrals.
 {-# INLINE_NORMAL enumerateFromStepNum #-}
 enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+enumerateFromStepNum from stride =
+    unfold Unfold.enumerateFromStepNum (from, stride)
+#else
 enumerateFromStepNum from stride = Stream step 0
     where
     {-# INLINE_LATE step #-}
     step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
+#endif
 
 {-# INLINE_NORMAL enumerateFromNum #-}
 enumerateFromNum :: (Monad m, Num a) => a -> Stream m a
@@ -206,6 +232,7 @@ enumerateFromThenNum from next = enumerateFromStepNum from (next - from)
 -- Enumeration of Integrals
 ------------------------------------------------------------------------------
 
+#ifndef USE_UNFOLDS_EVERYWHERE
 data EnumState a = EnumInit | EnumYield a a a | EnumStop
 
 {-# INLINE_NORMAL enumerateFromThenToIntegralUp #-}
@@ -256,6 +283,7 @@ enumerateFromThenToIntegralDn from next to = Stream step EnumInit
             else Yield x $ EnumYield (x + stride) stride toMinus
 
     step _ EnumStop = return Stop
+#endif
 
 -- XXX This can perhaps be simplified and written in terms of
 -- enumeratFromStepIntegral as we have done in unfolds. But anyway we should be
@@ -264,29 +292,44 @@ enumerateFromThenToIntegralDn from next to = Stream step EnumInit
 enumerateFromThenToIntegral
     :: (Monad m, Integral a)
     => a -> a -> a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+enumerateFromThenToIntegral from next to =
+    unfold Unfold.enumerateFromThenToIntegral (from, next, to)
+#else
 enumerateFromThenToIntegral from next to
     | next >= from = enumerateFromThenToIntegralUp from next to
     | otherwise    = enumerateFromThenToIntegralDn from next to
+#endif
 
 {-# INLINE_NORMAL enumerateFromThenIntegral #-}
 enumerateFromThenIntegral
     :: (Monad m, Integral a, Bounded a)
     => a -> a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+enumerateFromThenIntegral from next =
+    unfold Unfold.enumerateFromThenIntegralBounded (from, next)
+#else
 enumerateFromThenIntegral from next =
     if next > from
     then enumerateFromThenToIntegralUp from next maxBound
     else enumerateFromThenToIntegralDn from next minBound
+#endif
 
 -- | Can be used to enumerate unbounded integrals. This does not check for
 -- overflow or underflow for bounded integrals.
 --
 {-# INLINE_NORMAL enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+enumerateFromStepIntegral from stride =
+    unfold Unfold.enumerateFromStepIntegral (from, stride)
+#else
 enumerateFromStepIntegral from stride =
     from `seq` stride `seq` Stream step from
     where
         {-# INLINE_LATE step #-}
         step _ !x = return $ Yield x $! (x + stride)
+#endif
 
 -- | Enumerate upwards from @from@ to @to@. We are assuming that "to" is
 -- constrained by the type to be within max/min bounds.
@@ -353,12 +396,16 @@ times g = Stream step Nothing
 
 {-# INLINE_NORMAL fromIndicesM #-}
 fromIndicesM :: Monad m => (Int -> m a) -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+fromIndicesM gen = unfold (Unfold.fromIndicesM gen) 0
+#else
 fromIndicesM gen = Stream step 0
   where
     {-# INLINE_LATE step #-}
     step _ i = do
        x <- gen i
        return $ Yield x (i + 1)
+#endif
 
 {-# INLINE fromIndices #-}
 fromIndices :: Monad m => (Int -> a) -> Stream m a
@@ -385,7 +432,11 @@ generate n gen = generateM n (return . gen)
 
 {-# INLINE_NORMAL iterateM #-}
 iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+iterateM step = unfold (Unfold.iterateM step)
+#else
 iterateM step = Stream (\_ st -> st >>= \(!x) -> return $ Yield x (step x))
+#endif
 
 {-# INLINE_NORMAL iterate #-}
 iterate :: Monad m => (a -> a) -> a -> Stream m a
@@ -399,8 +450,12 @@ iterate step st = iterateM (return . step) (return st)
 -- | Convert a list of monadic actions to a 'Stream'
 {-# INLINE_LATE fromListM #-}
 fromListM :: MonadAsync m => [m a] -> Stream m a
+#ifdef USE_UNFOLDS_EVERYWHERE
+fromListM = unfold Unfold.fromListM
+#else
 fromListM = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
     step _ []     = return Stop
+#endif

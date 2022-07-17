@@ -177,7 +177,6 @@ module Streamly.Internal.Data.Unfold
     , fromList
     , fromListM
 
-    , fromStream
     , fromStreamK
     , fromStreamD
 
@@ -263,7 +262,6 @@ import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunIn
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
@@ -602,20 +600,6 @@ fromStreamK = Unfold step pure
             Just (x, xs) -> Yield x xs
             Nothing -> Stop) <$> K.uncons stream
 
--- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
--- case) than using fromStream even if it is implemented using fromStreamD.
--- Check if StreamK to StreamD rewrite rules are working correctly when
--- implementing fromStream using fromStreamD.
---
--- | Convert a stream into an 'Unfold'. Note that a stream converted to an
--- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
---
--- /Since: 0.8.0/
---
-{-# INLINE_NORMAL fromStream #-}
-fromStream :: Applicative m => Unfold m (SerialT m a) a
-fromStream = lmap getSerialT fromStreamK
-
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
@@ -651,23 +635,6 @@ consM action unf = Unfold step inject
             Yield x s -> Yield x (Right (Stream step1 s))
             Skip s -> Skip (Right (Stream step1 s))
             Stop -> Stop) <$> step1 defState st
-
--- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use
--- rewrite rules to rewrite list enumerations to unfold enumerations.
---
--- | Convert a list of pure values to a 'Stream'
---
--- /Since: 0.8.0/
---
-{-# INLINE_LATE fromList #-}
-fromList :: Applicative m => Unfold m [a] a
-fromList = Unfold step pure
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step (x:xs) = pure $ Yield x xs
-    step [] = pure Stop
 
 -- | Convert a list of monadic values to a 'Stream'
 --

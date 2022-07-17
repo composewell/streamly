@@ -180,6 +180,7 @@ import Streamly.Internal.Data.Time.Units
        , toAbsTime)
 
 import qualified Data.Heap as H
+import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.IsMap as IsMap
@@ -188,7 +189,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Expand
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
-import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (concatMap, map)
 
@@ -1287,6 +1287,10 @@ ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
                 assert (IsMap.mapNull mp) (return ())
                 return (hp, mp, out, cnt)
 
+{-# INLINE readSerial #-}
+readSerial :: Applicative m => Unfold.Unfold m (IsStream.SerialT m a) a
+readSerial = Unfold.fromStream
+
 -- XXX Use mutable IORef in accumulator
 {-# INLINE classifySessionsByGeneric #-}
 classifySessionsByGeneric
@@ -1301,7 +1305,7 @@ classifySessionsByGeneric
     -> t m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract) input =
-    Expand.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
+    Expand.unfoldMany (Unfold.lmap sessionOutputStream readSerial)
         $ scanlMAfter' sstep (return szero) (flush extract)
         $ interjectSuffix tick (return Nothing)
         $ map Just input

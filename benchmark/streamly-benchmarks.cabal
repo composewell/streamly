@@ -223,7 +223,7 @@ benchmark Prelude.Serial
     if flag(dev)
       ghc-options: +RTS -M3500M -RTS
     else
-      ghc-options: +RTS -M2000M -RTS
+      ghc-options: +RTS -M2500M -RTS
 
 
 benchmark Prelude.WSerial

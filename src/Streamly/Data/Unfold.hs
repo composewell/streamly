@@ -150,10 +150,15 @@ import Prelude hiding
     , zipWith
     )
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
-import Streamly.Internal.Data.Unfold hiding (fromStream)
+import Streamly.Internal.Data.Unfold
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Unfold as Unfold
+
+-- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
+-- case) than using fromStream even if it is implemented using fromStreamD.
+-- Check if StreamK to StreamD rewrite rules are working correctly when
+-- implementing fromStream using fromStreamD.
 
 -- | Convert a stream into an 'Unfold'. Note that a stream converted to an
 -- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
@@ -162,4 +167,4 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 --
 {-# INLINE_NORMAL fromStream #-}
 fromStream :: (IsStream t, Applicative m) => Unfold m (t m a) a
-fromStream = lmap IsStream.adapt Unfold.fromStream
+fromStream = lmap IsStream.toStream Unfold.fromStreamK
