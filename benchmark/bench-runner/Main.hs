@@ -37,20 +37,36 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Prelude.Rate/o-1-space.asyncly." `isPrefixOf` benchName = "-K128K"
         | "Prelude.Serial/o-1-space.mixed.sum-product-fold" == benchName =
             "-K64M"
+        | "Data.Stream/o-1-space.mixed.sum-product-fold" == benchName =
+            "-K64M"
         | "Prelude.Serial/o-n-heap.grouping.classifySessionsOf"
+            `isPrefixOf` benchName = "-K1M -M32M"
+        | "Data.Stream/o-n-heap.grouping.classifySessionsOf"
             `isPrefixOf` benchName = "-K1M -M32M"
         | "Prelude.Serial/o-n-heap.Functor." `isPrefixOf` benchName =
             "-K4M -M32M"
+        | "Data.Stream/o-n-heap.Functor." `isPrefixOf` benchName =
+            "-K4M -M32M"
         | "Prelude.Serial/o-n-heap.transformer." `isPrefixOf` benchName =
+            "-K8M -M64M"
+        | "Data.Stream/o-n-heap.transformer." `isPrefixOf` benchName =
             "-K8M -M64M"
         | "Prelude.Serial/o-n-space.Functor." `isPrefixOf` benchName =
             "-K4M -M64M"
+        | "Data.Stream/o-n-space.Functor." `isPrefixOf` benchName =
+            "-K4M -M64M"
         | "Prelude.Serial/o-n-space.Applicative." `isPrefixOf` benchName =
+            "-K8M -M128M"
+        | "Data.Stream/o-n-space.Applicative." `isPrefixOf` benchName =
             "-K8M -M128M"
         | "Prelude.Serial/o-n-space.Monad." `isPrefixOf` benchName =
             "-K8M -M64M"
+        | "Data.Stream/o-n-space.Monad." `isPrefixOf` benchName =
+            "-K8M -M64M"
         | "Prelude.Serial/o-n-space.grouping." `isPrefixOf` benchName = ""
+        | "Data.Stream/o-n-space.grouping." `isPrefixOf` benchName = ""
         | "Prelude.Serial/o-n-space." `isPrefixOf` benchName = "-K4M"
+        | "Data.Stream/o-n-space." `isPrefixOf` benchName = "-K4M"
         | "Prelude.WSerial/o-n-space." `isPrefixOf` benchName = "-K4M"
         | "Prelude.Async/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
