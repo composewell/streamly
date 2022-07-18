@@ -413,7 +413,7 @@ benchmark Data.Stream
    hs-source-dirs: Streamly/Benchmark/Data
    main-is: Stream.hs
    other-modules:
-        Stream.Elimination
+        Stream.Eliminate
       , Stream.Exceptions
       , Stream.Generate
       , Stream.Lift

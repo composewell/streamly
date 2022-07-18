@@ -1,5 +1,5 @@
 -- |
--- Module      : Stream.Elimination
+-- Module      : Stream.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Stream.Elimination (benchmarks) where
+module Stream.Eliminate (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)

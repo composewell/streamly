@@ -13,7 +13,7 @@ module Main (main) where
 
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
-import qualified Stream.Elimination as Elimination
+import qualified Stream.Eliminate as Elimination
 import qualified Stream.Exceptions as Exceptions
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
