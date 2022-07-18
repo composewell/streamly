@@ -80,6 +80,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
              `isPrefixOf` benchName = "-K8M"
         | "Data.Array.Foreign/o-1-space.elimination.foldable.sum" == benchName =
             "-K8M"
+        | "Unicode.Char/o-1-space." `isPrefixOf` benchName = "-M32M"
         | otherwise = ""
 
 speedOpts :: String -> String -> Maybe Quickness
