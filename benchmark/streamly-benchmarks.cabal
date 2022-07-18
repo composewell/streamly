@@ -414,7 +414,7 @@ benchmark Data.Stream
    main-is: Stream.hs
    other-modules:
         Stream.Eliminate
-      , Stream.Exceptions
+      , Stream.Exception
       , Stream.Generate
       , Stream.Lift
       , Stream.Reduce

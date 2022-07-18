@@ -14,7 +14,7 @@ module Main (main) where
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Stream.Eliminate as Elimination
-import qualified Stream.Exceptions as Exceptions
+import qualified Stream.Exception as Exception
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
 import qualified Stream.Reduce as Reduce
@@ -43,7 +43,7 @@ main = do
     allBenchmarks env size =
            Generation.benchmarks moduleName size
         ++ Elimination.benchmarks moduleName size
-        ++ Exceptions.benchmarks moduleName env size
+        ++ Exception.benchmarks moduleName env size
         ++ Lift.benchmarks moduleName size
         ++ Reduce.benchmarks moduleName size
         ++ Transformation.benchmarks moduleName size

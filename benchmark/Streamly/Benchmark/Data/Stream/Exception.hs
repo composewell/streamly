@@ -1,5 +1,5 @@
 -- |
--- Module      : Stream.Exceptions
+-- Module      : Stream.Exception
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Exceptions (benchmarks) where
+module Stream.Exception (benchmarks) where
 
 import Control.Exception (SomeException, Exception, throwIO)
 import System.IO (Handle, hClose, hPutChar)
