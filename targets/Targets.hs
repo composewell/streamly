@@ -106,20 +106,6 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Array.Prim",
-            [ "array_grp"
-            , "array_cmp"
-            ]
-      )
-    , ("Data.Array.Prim.Pinned",
-            [ "array_grp"
-            , "array_cmp"
-            , "pinned_array_cmp"
-            ]
-      )
-    , ("Data.SmallArray",
-            [ "array_grp" ]
-      )
 
     -- Ring
     , ("Data.Ring.Unboxed", [])
