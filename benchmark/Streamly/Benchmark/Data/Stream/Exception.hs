@@ -21,16 +21,23 @@
 module Stream.Exception (benchmarks) where
 
 import Control.Exception (SomeException, Exception, throwIO)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
+import Streamly.Internal.Data.Array.Foreign.Type (Array(..), byteLength)
+import Streamly.Internal.System.IO (defaultChunkSize)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import System.IO (Handle, hClose, hPutChar)
 
 import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
 
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
@@ -151,6 +158,33 @@ readWriteFinally_Stream inh devNull =
 inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 #endif
 
+{-# INLINE concatArr #-}
+concatArr :: (Monad m) => Stream.Stream m (Array Word8) -> Stream.Stream m Word8
+concatArr m = Stream.fromStreamD $ D.unfoldMany A.read (Stream.toStreamD m)
+
+-- | Send the file contents to /dev/null with exception handling
+fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
+fromToBytesBracket_Stream inh devNull =
+    let readEx =
+              SerialT
+            $ Stream.toStreamK
+            $ Stream.bracket_ (return ()) (\_ -> hClose inh)
+                    (\_ -> concatArr $ getChunks inh)
+     in IFH.putBytes devNull readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
+#endif
+
+fromToBytesBracketStream :: Handle -> Handle -> IO ()
+fromToBytesBracketStream inh devNull =
+    let readEx =
+              SerialT
+            $ Stream.toStreamK
+            $ Stream.bracket (return ()) (\_ -> hClose inh)
+                    (\_ -> concatArr $ getChunks inh)
+        in IFH.putBytes devNull readEx
+
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
     let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
@@ -204,6 +238,12 @@ o_1_space_copy_stream_exceptions env =
        , mkBenchSmall "S.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
        ]
+       , bgroup "exceptions/fromToBytes"
+       [ mkBenchSmall "S.bracket_" env $ \inh _ ->
+           fromToBytesBracket_Stream inh (nullH env)
+       , mkBenchSmall "S.bracket" env $ \inh _ ->
+           fromToBytesBracketStream inh (nullH env)
+        ]
     ]
 
  -------------------------------------------------------------------------------
@@ -247,10 +287,59 @@ o_1_space_copy_exceptions_readChunks env =
         ]
     ]
 
+-------------------------------------------------------------------------------
+-- Exceptions toChunks
+-------------------------------------------------------------------------------
+
+getChunks :: MonadIO m => Handle -> Stream.Stream m (Array Word8)
+getChunks h = Stream.fromStreamD (D.Stream step ())
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        arr <- IFH.getChunk defaultChunkSize h
+        return $
+            case byteLength arr of
+                0 -> D.Stop
+                _ -> D.Yield arr ()
+
+-- | Send the file contents to /dev/null with exception handling
+toChunksBracket_ :: Handle -> Handle -> IO ()
+toChunksBracket_ inh devNull =
+    let readEx = Stream.bracket_
+            (return ())
+            (\_ -> hClose inh)
+            (\_ -> getChunks inh)
+     in Stream.fold (IFH.writeChunks devNull) readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksBracket_
+#endif
+
+toChunksBracket :: Handle -> Handle -> IO ()
+toChunksBracket inh devNull =
+    let readEx = Stream.bracket
+            (return ())
+            (\_ -> hClose inh)
+            (\_ -> getChunks inh)
+    in Stream.fold (IFH.writeChunks devNull) readEx
+
+o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
+o_1_space_copy_exceptions_toChunks env =
+    [ bgroup "exceptions/toChunks"
+        [ mkBench "S.bracket_" env $ \inH _ ->
+            toChunksBracket_ inH (nullH env)
+        , mkBench "S.bracket" env $ \inH _ ->
+            toChunksBracket inH (nullH env)
+        ]
+    ]
+
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
 benchmarks moduleName env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_copy_exceptions_readChunks env
+            , o_1_space_copy_exceptions_toChunks env
             , o_1_space_copy_stream_exceptions env
             , o_1_space_serial_exceptions size
             ]

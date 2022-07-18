@@ -9,6 +9,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
+
 module Stream.Transformation (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
@@ -16,6 +25,10 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Streamly.Benchmark.Common (o_1_space_prefix, o_n_space_prefix)
 import System.Random (randomRIO)
+
+#ifdef INSPECTION
+import Test.Inspection
+#endif
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as FL
@@ -187,6 +200,11 @@ takeWhileTrue value = Stream.fold FL.drain . Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Stream m Int -> m ()
 takeWhileMTrue value = Stream.fold FL.drain . Stream.takeWhileM (return . (<= (value + 1)))
 
+#ifdef INSPECTION
+-- inspect $ hasNoType 'takeInterval ''SPEC
+inspect $ hasNoTypeClasses 'takeInterval
+-- inspect $ 'takeInterval `hasNoType` ''D.Step
+#endif
 
 {-# INLINE dropOne #-}
 dropOne :: MonadIO m => Stream m Int -> m ()
@@ -208,6 +226,10 @@ dropWhileMTrue value = Stream.fold FL.drain . Stream.dropWhileM (return . (<= (v
 dropWhileFalse :: MonadIO m => Int -> Stream m Int -> m ()
 dropWhileFalse value = Stream.fold FL.drain . Stream.dropWhile (> (value + 1))
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropInterval
+-- inspect $ 'dropInterval `hasNoType` ''D.Step
+#endif
 
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Stream m Int -> m ()

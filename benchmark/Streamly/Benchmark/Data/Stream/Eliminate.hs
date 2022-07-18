@@ -9,6 +9,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
+
 module Stream.Eliminate (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
@@ -23,6 +32,14 @@ import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
+
+#ifdef INSPECTION
+import GHC.Types (SPEC(..))
+import Test.Inspection
+
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+#endif
+
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
@@ -315,6 +332,11 @@ eqBy' src = Stream.eqBy (==) src src
 eqByPure :: Int -> Int -> Identity Bool
 eqByPure value n = eqBy' (sourceUnfoldr value n)
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqByPure
+inspect $ 'eqByPure `hasNoType` ''SPEC
+inspect $ 'eqByPure `hasNoType` ''D.Step
+#endif
 
 {-# INLINE eqInstance #-}
 eqInstance :: Stream Identity Int -> Bool
@@ -332,6 +354,11 @@ cmpBy' src = Stream.cmpBy compare src src
 cmpByPure :: Int -> Int -> Identity Ordering
 cmpByPure value n = cmpBy' (sourceUnfoldr value n)
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'cmpByPure
+inspect $ 'cmpByPure `hasNoType` ''SPEC
+inspect $ 'cmpByPure `hasNoType` ''D.Step
+#endif
 
 {-# INLINE ordInstance #-}
 ordInstance :: Stream Identity Int -> Bool
@@ -366,9 +393,21 @@ stripPrefix src = do
 eqBy :: Int -> Int -> IO Bool
 eqBy value n = eqBy' (sourceUnfoldrM value n)
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqBy
+inspect $ 'eqBy `hasNoType` ''SPEC
+inspect $ 'eqBy `hasNoType` ''D.Step
+#endif
+
 {-# INLINE cmpBy #-}
 cmpBy :: Int -> Int -> IO Ordering
 cmpBy value n = cmpBy' (sourceUnfoldrM value n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'cmpBy
+inspect $ 'cmpBy `hasNoType` ''SPEC
+inspect $ 'cmpBy `hasNoType` ''D.Step
+#endif
 
 o_1_space_elimination_multi_stream :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream value =
