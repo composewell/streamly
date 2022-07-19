@@ -92,6 +92,11 @@ flag use-folds
   manual: True
   default: False
 
+flag use-folds
+  description: Use folds for elimination everywhere
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
