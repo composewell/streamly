@@ -53,7 +53,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -------------------------------------------------------------------------------
 -- stream exceptions
 -------------------------------------------------------------------------------
-
 data BenchException
     = BenchException1
     | BenchException2
@@ -157,6 +156,19 @@ readWriteFinally_Stream inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 #endif
+
+getChunks :: MonadIO m => Handle -> Stream.Stream m (Array Word8)
+getChunks h = Stream.fromStreamD (D.Stream step ())
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        arr <- IFH.getChunk defaultChunkSize h
+        return $
+            case byteLength arr of
+                0 -> D.Stop
+                _ -> D.Yield arr ()
 
 {-# INLINE concatArr #-}
 concatArr :: (Monad m) => Stream.Stream m (Array Word8) -> Stream.Stream m Word8
@@ -290,19 +302,6 @@ o_1_space_copy_exceptions_readChunks env =
 -------------------------------------------------------------------------------
 -- Exceptions toChunks
 -------------------------------------------------------------------------------
-
-getChunks :: MonadIO m => Handle -> Stream.Stream m (Array Word8)
-getChunks h = Stream.fromStreamD (D.Stream step ())
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ _ = do
-        arr <- IFH.getChunk defaultChunkSize h
-        return $
-            case byteLength arr of
-                0 -> D.Stop
-                _ -> D.Yield arr ()
 
 -- | Send the file contents to /dev/null with exception handling
 toChunksBracket_ :: Handle -> Handle -> IO ()
