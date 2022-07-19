@@ -34,7 +34,7 @@ import qualified Data.Map.Strict as Map
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -51,6 +51,7 @@ import Test.Inspection
 -------------------------------------------------------------------------------
 -- stream exceptions
 -------------------------------------------------------------------------------
+
 data BenchException
     = BenchException1
     | BenchException2
@@ -61,12 +62,14 @@ instance Exception BenchException
 retryNoneSimple :: Int -> Int -> IO ()
 retryNoneSimple length from =
     Stream.fold Fold.drain
-        $ Stream.retry (Map.singleton BenchException1 length) (const Stream.nil) source
+        $ Stream.retry
+            (Map.singleton BenchException1 length) (const Stream.nil) source
 
     where
 
-    source = Stream.unfold IUF.enumerateFromTo (from, from + length)
+    source = Stream.unfold Unfold.enumerateFromTo (from, from + length)
 
+-- XXX Use unfolds in these APIs?
 retryNone :: Int -> Int -> IO ()
 retryNone length from = do
     ref <- Ref.newIORef (0 :: Int)
@@ -77,14 +80,15 @@ retryNone length from = do
     where
 
     source ref =
-        Stream.unfold (IUF.replicateM (from + length))
+        Stream.unfold (Unfold.replicateM (from + length))
             $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
 
 retryAll :: Int -> Int -> IO ()
 retryAll length from = do
     ref <- Ref.newIORef 0
     Stream.fold Fold.drain
-        $ Stream.retry (Map.singleton BenchException1 (length + from)) (const Stream.nil)
+        $ Stream.retry
+            (Map.singleton BenchException1 (length + from)) (const Stream.nil)
         $ source ref
 
     where
@@ -106,7 +110,7 @@ retryUnknown length from = do
 
     where
 
-    source = Stream.unfold IUF.enumerateFromTo (from, from + length)
+    source = Stream.unfold Unfold.enumerateFromTo (from, from + length)
 
 
 o_1_space_serial_exceptions :: Int -> [Benchmark]
@@ -155,6 +159,11 @@ readWriteFinally_Stream inh devNull =
 inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 #endif
 
+readWriteFinallyStream :: Handle -> Handle -> IO ()
+readWriteFinallyStream inh devNull =
+    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
+    in Stream.fold (FH.write devNull) readEx
+
 getChunks :: MonadIO m => Handle -> Stream.Stream m (Array Word8)
 getChunks h = Stream.fromStreamD (D.Stream step ())
 
@@ -178,6 +187,7 @@ fromToBytesBracket_Stream inh devNull =
               SerialT
             $ Stream.toStreamK
             $ Stream.bracket_ (return ()) (\_ -> hClose inh)
+    -- XXX Replace this with getBytes once #1722 is fixed
                     (\_ -> concatArr $ getChunks inh)
      in IFH.putBytes devNull readEx
 
@@ -191,13 +201,9 @@ fromToBytesBracketStream inh devNull =
               SerialT
             $ Stream.toStreamK
             $ Stream.bracket (return ()) (\_ -> hClose inh)
+    -- XXX Replace this with getBytes once #1722 is fixed
                     (\_ -> concatArr $ getChunks inh)
         in IFH.putBytes devNull readEx
-
-readWriteFinallyStream :: Handle -> Handle -> IO ()
-readWriteFinallyStream inh devNull =
-    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
-    in Stream.fold (FH.write devNull) readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
@@ -247,7 +253,7 @@ o_1_space_copy_stream_exceptions env =
        , mkBenchSmall "S.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
        ]
-       , bgroup "exceptions/fromToBytes"
+    , bgroup "exceptions/fromToBytes"
        [ mkBenchSmall "S.bracket_" env $ \inh _ ->
            fromToBytesBracket_Stream inh (nullH env)
        , mkBenchSmall "S.bracket" env $ \inh _ ->
@@ -262,8 +268,8 @@ o_1_space_copy_stream_exceptions env =
 -- | Send the file contents to /dev/null with exception handling
 readChunksOnException :: Handle -> Handle -> IO ()
 readChunksOnException inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.readChunks
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
+    let readEx = Unfold.onException (\_ -> hClose inh) FH.readChunks
+    in Unfold.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksOnException
@@ -272,8 +278,8 @@ inspect $ hasNoTypeClasses 'readChunksOnException
 -- | Send the file contents to /dev/null with exception handling
 readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
+    let readEx = Unfold.bracket_ return (\_ -> hClose inh) FH.readChunks
+    in Unfold.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readChunksBracket_
@@ -281,8 +287,8 @@ inspect $ hasNoTypeClasses 'readChunksBracket_
 
 readChunksBracket :: Handle -> Handle -> IO ()
 readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
+    let readEx = Unfold.bracket return (\_ -> hClose inh) FH.readChunks
+    in Unfold.fold (IFH.writeChunks devNull) readEx inh
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
