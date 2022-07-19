@@ -84,6 +84,9 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
+#ifdef USE_FOLDS_EVERYWHERE
+import qualified Streamly.Internal.Data.Fold as Fold
+#endif
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
@@ -231,11 +234,19 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
 -- benchmark after dropping 1 item from stream or using unfolds
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
+#ifdef USE_FOLDS_EVERYWHERE
+null = fold Fold.null
+#else
 null = foldrM (\_ _ -> return False) (return True)
+#endif
 
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+head = fold Fold.one
+#else
 head = foldrM (\x _ -> return (Just x)) (return Nothing)
+#endif
 
 {-# INLINE_NORMAL headElse #-}
 headElse :: Monad m => a -> Stream m a -> m a
@@ -256,11 +267,18 @@ tail (UnStream step state) = go SPEC state
 -- XXX will it fuse? need custom impl?
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+last = fold Fold.last
+#else
 last = foldl' (\_ y -> Just y) Nothing
+#endif
 
 -- XXX Use the foldrM based impl instead
 {-# INLINE_NORMAL elem #-}
 elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+#ifdef USE_FOLDS_EVERYWHERE
+elem e = fold (Fold.elem e)
+#else
 -- elem e m = foldrM (\x xs -> if x == e then return True else xs) (return False) m
 elem e (Stream step state) = go SPEC state
   where
@@ -272,6 +290,7 @@ elem e (Stream step state) = go SPEC state
               | otherwise -> go SPEC s
             Skip s -> go SPEC s
             Stop   -> return False
+#endif
 
 {-# INLINE_NORMAL notElem #-}
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
@@ -279,6 +298,9 @@ notElem e s = fmap not (elem e s)
 
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+#ifdef USE_FOLDS_EVERYWHERE
+all p = fold (Fold.all p)
+#else
 -- all p m = foldrM (\x xs -> if p x then xs else return False) (return True) m
 all p (Stream step state) = go SPEC state
   where
@@ -290,9 +312,13 @@ all p (Stream step state) = go SPEC state
               | otherwise -> return False
             Skip s -> go SPEC s
             Stop   -> return True
+#endif
 
 {-# INLINE_NORMAL any #-}
 any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+#ifdef USE_FOLDS_EVERYWHERE
+any p = fold (Fold.any p)
+#else
 -- any p m = foldrM (\x xs -> if p x then return True else xs) (return False) m
 any p (Stream step state) = go SPEC state
   where
@@ -304,9 +330,13 @@ any p (Stream step state) = go SPEC state
               | otherwise -> go SPEC s
             Skip s -> go SPEC s
             Stop   -> return False
+#endif
 
 {-# INLINE_NORMAL maximum #-}
 maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+maximum = fold Fold.maximum
+#else
 maximum (Stream step state) = go SPEC Nothing' state
   where
     go !_ Nothing' st = do
@@ -323,9 +353,13 @@ maximum (Stream step state) = go SPEC Nothing' state
               | otherwise -> go SPEC (Just' acc) s
             Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
+#endif
 
 {-# INLINE_NORMAL maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+maximumBy cmp = fold (Fold.maximumBy cmp)
+#else
 maximumBy cmp (Stream step state) = go SPEC Nothing' state
   where
     go !_ Nothing' st = do
@@ -342,9 +376,13 @@ maximumBy cmp (Stream step state) = go SPEC Nothing' state
                 _  -> go SPEC (Just' x) s
             Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
+#endif
 
 {-# INLINE_NORMAL minimum #-}
 minimum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+minimum = fold Fold.minimum
+#else
 minimum (Stream step state) = go SPEC Nothing' state
 
     where
@@ -363,9 +401,13 @@ minimum (Stream step state) = go SPEC Nothing' state
               | otherwise -> go SPEC (Just' x) s
             Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
+#endif
 
 {-# INLINE_NORMAL minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+minimumBy cmp = fold (Fold.minimumBy cmp)
+#else
 minimumBy cmp (Stream step state) = go SPEC Nothing' state
 
     where
@@ -384,9 +426,13 @@ minimumBy cmp (Stream step state) = go SPEC Nothing' state
                 _  -> go SPEC (Just' acc) s
             Skip s -> go SPEC (Just' acc) s
             Stop   -> return (Just acc)
+#endif
 
 {-# INLINE_NORMAL (!!) #-}
 (!!) :: (Monad m) => Stream m a -> Int -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+stream !! i = fold (Fold.index i) stream
+#else
 (Stream step state) !! i = go SPEC i state
 
     where
@@ -399,16 +445,25 @@ minimumBy cmp (Stream step state) = go SPEC Nothing' state
                       | otherwise -> go SPEC (n - 1) s
             Skip s -> go SPEC n s
             Stop   -> return Nothing
+#endif
 
 {-# INLINE_NORMAL lookup #-}
 lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
+#ifdef USE_FOLDS_EVERYWHERE
+lookup e = fold (Fold.lookup e)
+#else
 lookup e = foldrM (\(a, b) xs -> if e == a then return (Just b) else xs)
                    (return Nothing)
+#endif
 
 {-# INLINE_NORMAL findM #-}
 findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+findM p = fold (Fold.findM p)
+#else
 findM p = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
                    (return Nothing)
+#endif
 
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
@@ -416,7 +471,11 @@ find p = findM (return . p)
 
 {-# INLINE toListRev #-}
 toListRev :: Monad m => Stream m a -> m [a]
+#ifdef USE_FOLDS_EVERYWHERE
+toListRev = fold Fold.toListRev
+#else
 toListRev = foldl' (flip (:)) []
+#endif
 
 ------------------------------------------------------------------------------
 -- Transformation comprehensions
@@ -424,6 +483,9 @@ toListRev = foldl' (flip (:)) []
 
 {-# INLINE_NORMAL the #-}
 the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+the = fold Fold.the
+#else
 the (Stream step state) = go SPEC state
   where
     go !_ st = do
@@ -439,6 +501,7 @@ the (Stream step state) = go SPEC state
                       | otherwise -> return Nothing
             Skip s -> go' SPEC n s
             Stop   -> return (Just n)
+#endif
 
 ------------------------------------------------------------------------------
 -- Map and Fold
@@ -447,7 +510,11 @@ the (Stream step state) = go SPEC state
 -- | Execute a monadic action for each element of the 'Stream'
 {-# INLINE_NORMAL mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
+#ifdef USE_FOLDS_EVERYWHERE
+mapM_ f = fold (Fold.drainBy f)
+#else
 mapM_ m = drain . mapM m
+#endif
 
 ------------------------------------------------------------------------------
 -- Multi-stream folds

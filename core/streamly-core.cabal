@@ -92,6 +92,11 @@ flag use-unfolds
   manual: True
   default: False
 
+flag use-folds
+  description: Use folds for elimination everywhere
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -110,6 +115,9 @@ common compile-options
 
     if flag(use-unfolds)
       cpp-options:    -DUSE_UNFOLDS_EVERYWHERE
+
+    if flag(use-folds)
+      cpp-options:    -DUSE_FOLDS_EVERYWHERE
 
     if flag(use-c-malloc)
       cpp-options:    -DUSE_C_MALLOC

@@ -1173,10 +1173,11 @@ findM predicate = Fold step (return $ Partial ()) (const $ return Nothing)
     where
 
     step () a =
-        (\r ->
-            if r
-            then Done (Just a)
-            else Partial ()) <$> predicate a
+        let f r =
+                if r
+                then Done (Just a)
+                else Partial ()
+         in f <$> predicate a
 
 -- | Returns the first element that satisfies the given predicate.
 --
