@@ -200,11 +200,11 @@ takeWhileTrue value = Stream.fold FL.drain . Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Stream m Int -> m ()
 takeWhileMTrue value = Stream.fold FL.drain . Stream.takeWhileM (return . (<= (value + 1)))
 
-#ifdef INSPECTION
+-- #ifdef INSPECTION
 -- inspect $ hasNoType 'takeInterval ''SPEC
-inspect $ hasNoTypeClasses 'takeInterval
+-- inspect $ hasNoTypeClasses 'takeInterval
 -- inspect $ 'takeInterval `hasNoType` ''D.Step
-#endif
+-- #endif
 
 {-# INLINE dropOne #-}
 dropOne :: MonadIO m => Stream m Int -> m ()
@@ -226,10 +226,10 @@ dropWhileMTrue value = Stream.fold FL.drain . Stream.dropWhileM (return . (<= (v
 dropWhileFalse :: MonadIO m => Int -> Stream m Int -> m ()
 dropWhileFalse value = Stream.fold FL.drain . Stream.dropWhile (> (value + 1))
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropInterval
+-- #ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'dropInterval
 -- inspect $ 'dropInterval `hasNoType` ''D.Step
-#endif
+-- #endif
 
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Stream m Int -> m ()
