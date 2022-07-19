@@ -103,7 +103,7 @@ module Streamly.Internal.Data.Fold
     -- , (!!)
     , genericIndex
     , index
-    -- , findM
+    , findM
     , find
     , lookup
     , findIndex
@@ -114,7 +114,6 @@ module Streamly.Internal.Data.Fold
     , any
     , and
     , or
-    -- , the
 
     -- * Combinators
     -- ** Utilities
@@ -1166,17 +1165,25 @@ head = one
 
 -- | Returns the first element that satisfies the given predicate.
 --
--- @since 0.7.0
-{-# INLINE find #-}
-find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-find predicate = foldt' step (Partial ()) (const Nothing)
+-- /Pre-release/
+{-# INLINE findM #-}
+findM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
+findM predicate = Fold step (return $ Partial ()) (const $ return Nothing)
 
     where
 
     step () a =
-        if predicate a
-        then Done (Just a)
-        else Partial ()
+        (\r ->
+            if r
+            then Done (Just a)
+            else Partial ()) <$> predicate a
+
+-- | Returns the first element that satisfies the given predicate.
+--
+-- @since 0.7.0
+{-# INLINE find #-}
+find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+find p = findM (return . p)
 
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
