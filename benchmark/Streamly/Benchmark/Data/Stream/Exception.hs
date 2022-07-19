@@ -46,8 +46,6 @@ import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Test.Inspection
-
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
 -------------------------------------------------------------------------------
@@ -162,7 +160,6 @@ getChunks h = Stream.fromStreamD (D.Stream step ())
 
     where
 
-    {-# INLINE_LATE step #-}
     step _ _ = do
         arr <- IFH.getChunk defaultChunkSize h
         return $
