@@ -41,6 +41,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Fold as Fold
 
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
@@ -107,14 +108,14 @@ foldableAny value n =
 {-# INLINE foldableAnd #-}
 foldableAnd :: Int -> Int -> Bool
 foldableAnd value n =
-    Prelude.and $ Stream.mapM
-        (return . (<= (value + 1))) (sourceUnfoldr value n :: Stream Identity Int)
+    Prelude.and $ fmap
+        (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableOr #-}
 foldableOr :: Int -> Int -> Bool
 foldableOr value n =
-    Prelude.or $ Stream.mapM
-        (return . (> (value + 1))) (sourceUnfoldr value n :: Stream Identity Int)
+    Prelude.or $ fmap
+        (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableLength #-}
 foldableLength :: Int -> Int -> Int
@@ -179,7 +180,7 @@ o_1_space_elimination_foldable value =
           -- Foldable instance
         [ bench "foldl'" $ nf (foldableFoldl' value) 1
         , bench "foldrElem" $ nf (foldableFoldrElem value) 1
-        , bench "null" $ nf (_foldableNull value) 1
+     -- , bench "null" $ nf (_foldableNull value) 1
         , bench "elem" $ nf (foldableElem value) 1
         , bench "length" $ nf (foldableLength value) 1
         , bench "sum" $ nf (foldableSum value) 1
@@ -196,8 +197,16 @@ o_1_space_elimination_foldable value =
         , bench "and" $ nf (foldableAnd value) 1
         , bench "or" $ nf (foldableOr value) 1
 
+        -- Applicative and Traversable operations
+        -- TBD: traverse_
         , benchIOSink1 "mapM_" (foldableMapM_ value)
+        -- TBD: for_
+        -- TBD: forM_
         , benchIOSink1 "sequence_" (foldableSequence_ value)
+        -- TBD: sequenceA_
+        -- TBD: asum
+        -- XXX needs to be fixed, results are in ns
+        -- , benchIOSink1 "msum" (foldableMsum value)
         ]
     ]
 
@@ -225,6 +234,14 @@ benchPureSink :: NFData b
     => Int -> String -> (Stream Identity Int -> b) -> Benchmark
 benchPureSink value name = benchPure name (sourceUnfoldr value)
 
+-- XXX We should be using sourceUnfoldrM for fair comparison with IO monad, but
+-- we can't use it as it requires MonadAsync constraint.
+{-# INLINE benchIdentitySink #-}
+benchIdentitySink
+    :: NFData b
+    => Int -> String -> (Stream Identity Int -> Identity b) -> Benchmark
+benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
+
 -------------------------------------------------------------------------------
 -- Reductions
 -------------------------------------------------------------------------------
@@ -247,6 +264,10 @@ foldrMElem e =
                  else xs)
         (return False)
 
+{-# INLINE foldrToStream #-}
+foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
+foldrToStream = Stream.foldr Stream.cons Stream.nil
+
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => Stream m Int -> m [Int]
 foldrMBuild = Stream.foldrM (\x xs -> (x :) <$> xs) (return [])
@@ -261,15 +282,16 @@ o_1_space_elimination_folds value =
                   [ benchIOSink value "foldrMElem" (foldrMElem value)
                   ]
             , bgroup "Identity"
-                  [
-                   benchPureSink value "foldrMToListLength"
+                  [ benchIdentitySink value "foldrMElem" (foldrMElem value)
+                  , benchIdentitySink value "foldrToStreamLength"
+                        (Stream.fold Fold.length . runIdentity . foldrToStream)
+                  , benchPureSink value "foldrMToListLength"
                         (Prelude.length . runIdentity . foldrMBuild)
                   ]
             ]
 
         -- deconstruction
         , benchIOSink value "uncons" uncons
-        , benchPureSink value "drain (pure)" id
 
         -- length is used to check for foldr/build fusion
         , benchPureSink value "length . IsList.toList" (Prelude.length . GHC.toList)
@@ -310,7 +332,7 @@ o_n_space_elimination_foldr value =
         [ benchIOSink value "foldrM/build/IO (toList)" foldrMBuild
         -- Right folds for reducing are inherently non-streaming as the
         -- expression needs to be fully built before it can be reduced.
-       -- , benchIdentitySink value "foldrM/reduce/Identity (sum)" foldrMReduce
+       , benchIdentitySink value "foldrM/reduce/Identity (sum)" foldrMReduce
         , benchIOSink value "foldrM/reduce/IO (sum)" foldrMReduce
         ]
     ]
