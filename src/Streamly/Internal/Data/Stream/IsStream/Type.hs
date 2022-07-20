@@ -105,7 +105,7 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..), Serial)
+import Streamly.Internal.Data.Stream.Serial (SerialT, Serial)
 import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
@@ -129,6 +129,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
 #endif
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
@@ -463,9 +464,9 @@ foldStream st yld sng stp m =
 fromSerial :: IsStream t => SerialT m a -> t m a
 fromSerial = adapt
 
-instance IsStream SerialT where
-    toStream = getSerialT
-    fromStream = SerialT
+instance IsStream Stream.Stream where
+    toStream = Stream.toStreamK
+    fromStream = Stream.fromStreamK
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}

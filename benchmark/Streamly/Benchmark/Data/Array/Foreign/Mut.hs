@@ -21,7 +21,6 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor ((<&>))
 import Streamly.Prelude (MonadAsync, SerialT, IsStream)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import System.Random (randomRIO)
 import Prelude
     ( IO
@@ -43,7 +42,7 @@ import Prelude
 
 import qualified Streamly.Internal.Data.Array.Foreign as Array
 import qualified Streamly.Internal.Data.Array.Foreign.Mut as MArray
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Prelude as Stream
 
 import Gauge
@@ -172,11 +171,11 @@ unfoldReadRevDrain = Stream.drain . Stream.unfold MArray.readRev
 {-# INLINE toStreamDRevDrain #-}
 toStreamDRevDrain :: MonadIO m => Stream Int -> m ()
 toStreamDRevDrain =
-    Stream.drain . SerialT . StreamD.toStreamK . MArray.toStreamDRev
+    Stream.drain . Stream.fromStreamD . MArray.toStreamDRev
 
 {-# INLINE toStreamDDrain #-}
 toStreamDDrain :: MonadIO m => Stream Int -> m ()
-toStreamDDrain = Stream.drain . SerialT . StreamD.toStreamK . MArray.toStreamD
+toStreamDDrain = Stream.drain . Stream.fromStreamD . MArray.toStreamD
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int

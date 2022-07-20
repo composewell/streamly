@@ -36,11 +36,12 @@ import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Fold.SVar (write, writeLimited)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.SVar
 
@@ -214,7 +215,7 @@ newFoldSVar stt f = do
     -- Add the producer thread-id to the SVar.
     liftIO myThreadId >>= modifyThread sv
 
-    void $ doFork (void $ f $ SerialT $ fromProducer sv)
+    void $ doFork (void $ f $ Stream.fromStreamK $ fromProducer sv)
                   (svarMrun sv)
                   (handleFoldException sv)
     return sv
@@ -369,8 +370,8 @@ pushToFold sv a = do
 {-# INLINE teeToSVar #-}
 teeToSVar :: MonadAsync m =>
     SVar K.Stream m a -> SerialT m a -> SerialT m a
-teeToSVar svr (SerialT m) = SerialT $ K.mkStream $ \st yld sng stp -> do
-    K.foldStreamShared st yld sng stp (go False m)
+teeToSVar svr m = Stream.fromStreamK $ K.mkStream $ \st yld sng stp -> do
+    K.foldStreamShared st yld sng stp (go False $ Stream.toStreamK m)
 
     where
 

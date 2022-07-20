@@ -122,6 +122,7 @@ foldContinue f s = D.foldContinue f $ toStreamD s
 --
 -- >>> fold f = Stream.parse (Parser.fromFold f)
 --
+-- @since 0.9.0
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> Stream m a -> m b
 fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm

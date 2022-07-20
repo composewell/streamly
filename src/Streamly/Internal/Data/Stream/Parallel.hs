@@ -66,7 +66,6 @@ import qualified Data.Set as Set
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
@@ -74,6 +73,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.SVar
 
@@ -172,7 +172,7 @@ forkSVarPar ss m r = K.mkStream $ \st yld sng stp -> do
             writeIORef (svarStopBy sv) $ Set.elemAt 0 set
         _ -> return ()
     pushWorkerPar sv (runOne st{streamVar = Just sv} r)
-    K.foldStream st yld sng stp $ getSerialT (SVar.fromSVar sv)
+    K.foldStream st yld sng stp $ Stream.toStreamK (SVar.fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadAsync m
@@ -270,7 +270,7 @@ mkParallelK m = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     -- pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
     SVar.toSVarParallel st sv $ D.fromStreamK m
-    K.foldStream st yld sng stp $ getSerialT $ SVar.fromSVar sv
+    K.foldStream st yld sng stp $ Stream.toStreamK $ SVar.fromSVar sv
 
 -- | Same as 'mkParallel' but for StreamD stream.
 --
@@ -340,9 +340,9 @@ mkParallelD m = D.Stream step Nothing
 {-# INLINE tapAsyncK #-}
 tapAsyncK :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
 tapAsyncK f m = K.mkStream $ \st yld sng stp -> do
-    sv <- SVar.newFoldSVar st (f . getSerialT)
+    sv <- SVar.newFoldSVar st (f . Stream.toStreamK)
     K.foldStreamShared st yld sng stp
-        $ getSerialT (SVar.teeToSVar sv $ SerialT m)
+        $ Stream.toStreamK (SVar.teeToSVar sv $ Stream.fromStreamK m)
 
 data TapState fs st a = TapInit | Tapping !fs st | TapDone st
 

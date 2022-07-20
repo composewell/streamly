@@ -30,7 +30,7 @@ import Test.Inspection
 #endif
 
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -283,7 +283,7 @@ filterMAllIn value n = composeN n $ S.filterM (\x -> return $ x <= (value + 1))
 
 {-# INLINE foldFilterEven #-}
 foldFilterEven :: MonadIO m => Int -> SerialT m Int -> m ()
-foldFilterEven n = composeN n $ Serial.foldFilter (FL.satisfy even)
+foldFilterEven n = composeN n $ Stream.foldFilter (FL.satisfy even)
 
 {-# INLINE _takeOne #-}
 _takeOne :: MonadIO m => Int -> SerialT m Int -> m ()

@@ -38,12 +38,13 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.SVar
 
@@ -187,7 +188,7 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
 {-# INLINE fromSVar #-}
 fromSVar :: MonadAsync m => SVar K.Stream m a -> SerialT m a
 fromSVar sv =
-    SerialT $ K.mkStream $ \st yld sng stp -> do
+    Stream.fromStreamK $ K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref hook
         -- We pass a copy of sv to fromStreamVar, so that we know that it has
