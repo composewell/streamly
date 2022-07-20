@@ -9,9 +9,9 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
--- Lists are just a special case of monadic streams. The stream type @SerialT
+-- Lists are just a special case of monadic streams. The stream type @Stream
 -- Identity a@ can be used as a replacement for @[a]@.  The 'List' type in this
--- module is just a newtype wrapper around @SerialT Identity@ for better type
+-- module is just a newtype wrapper around @Stream Identity@ for better type
 -- inference when using the 'OverloadedLists' GHC extension. @List a@ provides
 -- better performance compared to @[a]@. Standard list, string and list
 -- comprehension syntax can be used with the 'List' type by enabling
@@ -25,12 +25,12 @@
 --
 --
 -- @
--- List $ S.map (+ 1) $ toSerial (1 \`Cons\` Nil)
+-- List $ S.map (+ 1) $ toStream (1 \`Cons\` Nil)
 -- @
 --
 -- To convert a 'List' to regular lists, you can use any of the following:
 --
--- * @toList . toSerial@ and @toSerial . fromList@
+-- * @toList . toStream@ and @toStream . fromList@
 -- * 'Data.Foldable.toList' from "Data.Foldable"
 -- * 'GHC.Exts.toList' and 'GHC.Exts.fromList' from 'IsList' in "GHC.Exts"
 --
@@ -69,10 +69,9 @@ import GHC.Exts (IsList(..), IsString(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
 
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
@@ -90,8 +89,8 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 --
 -- | @List a@ is a replacement for @[a]@.
 --
--- @since 0.6.0
-newtype List a = List { toSerial :: SerialT Identity a }
+-- /Pre-release/
+newtype List a = List { toStream :: Stream Identity a }
     deriving
     ( Show, Read, Eq, Ord, NFData , NFData1
     , Semigroup, Monoid, Functor, Foldable
@@ -107,7 +106,7 @@ instance IsList (List a) where
     {-# INLINE fromList #-}
     fromList = List . fromList
     {-# INLINE toList #-}
-    toList = toList . toSerial
+    toList = toList . toStream
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -124,7 +123,7 @@ instance IsList (List a) where
 --
 -- @since 0.6.0
 pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toSerial -> True) where
+pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toStream -> True) where
     Nil = List $ Stream.fromStreamK K.nil
 
 infixr 5 `Cons`
@@ -136,13 +135,13 @@ infixr 5 `Cons`
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
     (fmap (second (List . Stream.fromStreamK))
-        . runIdentity . K.uncons . Stream.toStreamK . toSerial
+        . runIdentity . K.uncons . Stream.toStreamK . toStream
             -> Just (x, xs)
     )
 
     where
 
-    Cons x xs = List $ Serial.cons x (toSerial xs)
+    Cons x xs = List $ Stream.cons x (toStream xs)
 
 {-# COMPLETE Nil, Cons #-}
 
@@ -183,4 +182,4 @@ fromZipList (ZipList zs) = List $ Stream.fromStreamK $ getZipSerialM zs
 --
 -- @since 0.6.0
 toZipList :: List a -> ZipList a
-toZipList = ZipList . ZipSerialM . Stream.toStreamK . toSerial
+toZipList = ZipList . ZipSerialM . Stream.toStreamK . toStream

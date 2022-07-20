@@ -414,15 +414,16 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> :set -XFlexibleContexts
 -- >>> :set -package streamly
 -- >>> import Streamly.Data.Fold (Fold)
--- >>> import Prelude hiding (concatMap, filter, map)
--- >>> import Streamly.Prelude (SerialT)
+-- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+-- >>> import Prelude hiding (concatMap, filter, map)
 
 ------------------------------------------------------------------------------
 -- The Fold type
@@ -1227,7 +1228,7 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- We can append a stream to a fold as follows:
 --
 -- >>> :{
--- foldAppend :: Monad m => Fold m a b -> SerialT m a -> m (Fold m a b)
+-- foldAppend :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
 -- foldAppend f = Stream.fold (Fold.duplicate f)
 -- :}
 --

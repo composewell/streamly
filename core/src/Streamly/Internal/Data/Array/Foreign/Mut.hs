@@ -34,7 +34,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed (Storable)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -51,7 +51,7 @@ import Streamly.Internal.Data.Array.Foreign.Mut.Type
 -- /Pre-release/
 {-# INLINE splitOn #-}
 splitOn :: (MonadIO m, Storable a) =>
-    (a -> Bool) -> Array a -> SerialT m (Array a)
+    (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
     Stream.fromStreamD
         $ fmap (\(i, len) -> getSliceUnsafe i len arr)
@@ -98,6 +98,6 @@ getSlicesFromLen from len =
 --
 -- /Pre-release/
 {-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+fromStream :: (MonadIO m, Storable a) => Stream m a -> m (Array a)
 fromStream = fromStreamD . Stream.toStreamD
--- fromStream (SerialT m) = P.fold write m
+-- fromStream (Stream m) = P.fold write m

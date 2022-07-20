@@ -364,7 +364,7 @@ foldxM = IsStream.foldlMx'
 -- /Since: 0.8.0 (signature change)/
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> SerialT m a -> m b
-foldlM' step begin m = S.foldlM' step begin $ IsStream.toStreamS m
+foldlM' step begin = S.foldlM' step begin . IsStream.toStreamS
 
 ------------------------------------------------------------------------------
 -- Running a sink

@@ -53,7 +53,7 @@ import Streamly.Internal.Data.SmallArray.Type
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -161,17 +161,17 @@ instance NFData a => NFData (SmallArray a) where
 --
 -- For optimal performance use this with @n@ <= 128.
 {-# INLINE fromStreamN #-}
-fromStreamN :: MonadIO m => Int -> SerialT m a -> m (SmallArray a)
+fromStreamN :: MonadIO m => Int -> Stream m a -> m (SmallArray a)
 fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
     fromStreamDN n $ D.fromStreamK $ Stream.toStreamK m
 
 {-# INLINE_EARLY toStream #-}
-toStream :: Monad m => SmallArray a -> SerialT m a
+toStream :: Monad m => SmallArray a -> Stream m a
 toStream = Stream.fromStreamK . D.toStreamK . toStreamD
 
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: Monad m => SmallArray a -> SerialT m a
+toStreamRev :: Monad m => SmallArray a -> Stream m a
 toStreamRev = Stream.fromStreamK . D.toStreamK . toStreamDRev
 
 {-# INLINE fold #-}
@@ -179,7 +179,7 @@ fold :: Monad m => Fold m a b -> SmallArray a -> m b
 fold f arr = D.fold f (toStreamD arr)
 
 {-# INLINE streamFold #-}
-streamFold :: Monad m => (SerialT m a -> m b) -> SmallArray a -> m b
+streamFold :: Monad m => (Stream m a -> m b) -> SmallArray a -> m b
 streamFold f arr = f (toStream arr)
 
 {-# INLINE_NORMAL read #-}

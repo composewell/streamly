@@ -34,7 +34,7 @@ import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (Storable, sizeOf)
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
@@ -53,7 +53,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Storable a)
-    => Int -> SerialT m a -> SerialT m (Array a)
+    => Int -> Stream m a -> Stream m (Array a)
 arraysOf n = Stream.fromStreamD . MArray.arraysOf n . Stream.toStreamD
 
 -------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 -- /Internal/
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
-    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
 compact n = Stream.fromStreamD . packArraysChunksOf n . Stream.toStreamD
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
@@ -299,7 +299,7 @@ compactGEFold n = Fold step initial extract
 --
 -- /Internal/
 compactLE :: (MonadThrow m, MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
+    Int -> Stream m (Array a) -> Stream m (Array a)
 compactLE n =
     Stream.fromStreamD . D.parseMany (compactLEParserD n) . Stream.toStreamD
 
@@ -309,7 +309,7 @@ compactLE n =
 -- /Unimplemented/
 {-# INLINE compactEQ #-}
 compactEQ :: -- (MonadIO m, Storable a) =>
-    Int -> SerialT m (Array a) -> SerialT m (Array a)
+    Int -> Stream m (Array a) -> Stream m (Array a)
 compactEQ _n _xs = undefined
     -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
 
@@ -320,6 +320,6 @@ compactEQ _n _xs = undefined
 {-# INLINE compactGE #-}
 compactGE ::
        (MonadIO m, Storable a)
-    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
 compactGE n =
     Stream.fromStreamD . D.foldMany (compactGEFold n) . Stream.toStreamD

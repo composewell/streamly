@@ -2474,7 +2474,7 @@ zip = zipWithM (curry return)
 {-# INLINE indexed #-}
 indexed :: -- forall m a b. Monad m =>
     Fold m (Int, a) b -> Fold m a b
-indexed = undefined -- zip (Stream.enumerateFrom 0 :: SerialT m Int)
+indexed = undefined -- zip (Stream.enumerateFrom 0 :: Stream m Int)
 
 -- | Change the predicate function of a Fold from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an

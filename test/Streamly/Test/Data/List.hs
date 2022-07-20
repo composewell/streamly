@@ -110,7 +110,7 @@ main = hspec $
         it "Show instance" $ do
             show ([1..3] :: List Int) `shouldBe`
 #ifdef USE_STREAMLY_LIST
-                "List {toSerial = fromList [1,2,3]}"
+                "List {toStream = fromList [1,2,3]}"
 #else
                 "[1,2,3]"
 #endif
@@ -118,7 +118,7 @@ main = hspec $
         it "Read instance" $ do
             (read
 #ifdef USE_STREAMLY_LIST
-                "List {toSerial = fromList [1,2,3]}"
+                "List {toStream = fromList [1,2,3]}"
 #else
                 "[1,2,3]"
 #endif

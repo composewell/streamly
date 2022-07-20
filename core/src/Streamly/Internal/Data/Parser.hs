@@ -1220,7 +1220,7 @@ takeP i p = D.toParserK $ D.takeP i $ D.fromParserK p
 -- of the parsers fail.
 --
 -- An even more efficient implementation can use ParserD type Parser in
--- the SerialT stream.
+-- the stream.
 --
 -- /Pre-release/
 --
