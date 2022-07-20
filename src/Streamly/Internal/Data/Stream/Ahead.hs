@@ -51,11 +51,11 @@ import qualified Data.Heap as H
 
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.Stream.SVar.Generate
 import Streamly.Internal.Data.SVar
@@ -606,7 +606,7 @@ forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 forkSVarAhead m1 m2 = K.mkStream $ \st yld sng stp -> do
         sv <- newAheadVar st (concurrently m1 m2)
                           workLoopAhead
-        K.foldStream st yld sng stp $ getSerialT (fromSVar sv)
+        K.foldStream st yld sng stp $ Stream.toStreamK (fromSVar sv)
     where
     concurrently ma mb = K.mkStream $ \st yld sng stp -> do
         runInIO <- askRunInIO

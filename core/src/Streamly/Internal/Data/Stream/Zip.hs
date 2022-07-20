@@ -38,7 +38,6 @@ import Text.Read
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
@@ -46,6 +45,7 @@ import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Prelude hiding (map, repeat, zipWith)
 
@@ -105,10 +105,10 @@ NFDATA1_INSTANCE(ZipSerialM)
 
 instance Monad m => Functor (ZipSerialM m) where
     {-# INLINE fmap #-}
-    fmap f (ZipSerialM m) = ZipSerialM $ getSerialT $ fmap f (SerialT m)
+    fmap f (ZipSerialM m) = ZipSerialM $ Stream.toStreamK $ fmap f (Stream.fromStreamK m)
 
 instance Monad m => Applicative (ZipSerialM m) where
-    pure = ZipSerialM . getSerialT . Serial.repeat
+    pure = ZipSerialM . Stream.toStreamK . Serial.repeat
 
     {-# INLINE (<*>) #-}
     ZipSerialM m1 <*> ZipSerialM m2 = ZipSerialM $ zipWithK id m1 m2

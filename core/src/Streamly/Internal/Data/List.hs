@@ -69,11 +69,12 @@ import GHC.Exts (IsList(..), IsString(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
 
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 -- We implement list as a newtype instead of a type synonym to make type
 -- inference easier when using -XOverloadedLists and -XOverloadedStrings. When
@@ -123,8 +124,8 @@ instance IsList (List a) where
 --
 -- @since 0.6.0
 pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . getSerialT . toSerial -> True) where
-    Nil = List $ SerialT K.nil
+pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toSerial -> True) where
+    Nil = List $ Stream.fromStreamK K.nil
 
 infixr 5 `Cons`
 
@@ -134,8 +135,8 @@ infixr 5 `Cons`
 -- @since 0.6.0
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second (List . SerialT))
-        . runIdentity . K.uncons . getSerialT . toSerial
+    (fmap (second (List . Stream.fromStreamK))
+        . runIdentity . K.uncons . Stream.toStreamK . toSerial
             -> Just (x, xs)
     )
 
@@ -176,10 +177,10 @@ instance IsList (ZipList a) where
 --
 -- @since 0.6.0
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ SerialT $ getZipSerialM zs
+fromZipList (ZipList zs) = List $ Stream.fromStreamK $ getZipSerialM zs
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
 -- @since 0.6.0
 toZipList :: List a -> ZipList a
-toZipList = ZipList . ZipSerialM . getSerialT . toSerial
+toZipList = ZipList . ZipSerialM . Stream.toStreamK . toSerial

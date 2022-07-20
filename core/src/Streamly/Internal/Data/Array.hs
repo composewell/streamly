@@ -62,7 +62,7 @@ import GHC.Base (Int(..))
 import GHC.IO (unsafePerformIO)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
@@ -70,6 +70,7 @@ import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Data.Primitive.Array hiding (fromList, fromListN)
 import Prelude hiding (foldr, length, read)
@@ -152,13 +153,13 @@ fromStreamD = D.fold write
 
 {-# INLINE fromStreamN #-}
 fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
-fromStreamN n (SerialT m) = do
+fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
-    fromStreamDN n $ D.fromStreamK m
+    fromStreamDN n $ Stream.toStreamD m
 
 {-# INLINE fromStream #-}
 fromStream :: MonadIO m => SerialT m a -> m (Array a)
-fromStream (SerialT m) = fromStreamD $ D.fromStreamK m
+fromStream = fromStreamD . Stream.toStreamD
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -218,11 +219,11 @@ toStreamDRev arr = D.Stream step (length arr - 1)
 
 {-# INLINE_EARLY toStream #-}
 toStream :: Monad m => Array a -> SerialT m a
-toStream = SerialT . D.toStreamK . toStreamD
+toStream = Stream.fromStreamD . toStreamD
 
 {-# INLINE_EARLY toStreamRev #-}
 toStreamRev :: Monad m => Array a -> SerialT m a
-toStreamRev = SerialT . D.toStreamK . toStreamDRev
+toStreamRev = Stream.fromStreamD . toStreamDRev
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds

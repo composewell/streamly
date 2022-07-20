@@ -53,7 +53,8 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
-import qualified Streamly.Internal.Data.Stream.Serial as S
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as S
 
 import Gauge
 
@@ -106,8 +107,12 @@ benchPureSink1 name f =
     bench name $ nfIO $ randomRIO (1,1) >>= return . runIdentity . f
 
 {-# INLINE benchPureSrc #-}
-benchPureSrc :: String -> (Int -> S.SerialT Identity a) -> Benchmark
-benchPureSrc name src = benchPure name src (runIdentity . S.drain)
+benchPureSrc :: String -> (Int -> S.Stream Identity a) -> Benchmark
+benchPureSrc name src = benchPure name src (runIdentity . drain)
+
+    where
+
+    drain = S.fold Fold.drain
 
 -------------------------------------------------------------------------------
 -- String/List generation for read instances

@@ -94,7 +94,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type
     (ArrayContents, touch)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT(..))
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
@@ -103,6 +103,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified GHC.Exts as Exts
 
@@ -493,8 +494,8 @@ toStreamKRev arr =
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, Storable a) => Array a -> SerialT m a
-toStream = SerialT . D.toStreamK . toStreamD
+toStream :: (Monad m, Storable a) => Array a -> Stream m a
+toStream = Stream.fromStreamD . toStreamD
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
 --     forall a. S.readK (read a) = K.fromArray a #-}
@@ -503,8 +504,8 @@ toStream = SerialT . D.toStreamK . toStreamD
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, Storable a) => Array a -> SerialT m a
-toStreamRev = SerialT . D.toStreamK . toStreamDRev
+toStreamRev :: (Monad m, Storable a) => Array a -> Stream m a
+toStreamRev = Stream.fromStreamD . toStreamDRev
 
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
