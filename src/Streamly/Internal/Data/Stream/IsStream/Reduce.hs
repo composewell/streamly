@@ -172,7 +172,9 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , scanlMAfter'
     , foldManyPost
     , splitOnSeq
-    , fromPure)
+    , fromPure
+    , absTimesWith
+    , parallelFst)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, cons)
 import Streamly.Internal.Data.Time.Units
@@ -1010,12 +1012,54 @@ intervalsOf n f xs =
 {-# INLINE chunksOfTimeout #-}
 chunksOfTimeout :: (IsStream t, MonadAsync m, Functor (t m))
     => Int -> Double -> FL.Fold m a b -> t m a -> t m b
-chunksOfTimeout n timeout f =
-      map snd
-    . classifySessionsBy
-        timeout False (const (return False)) timeout (FL.take n f)
-    . Transform.timestamped
-    . map ((),)
+chunksOfTimeout n timeout (Fold step initial extract) inp =
+    foldManyPost (Fold step1 initial1 extract1) newInp
+
+    where
+
+    timeoutMs = toRelTime (round (timeout * 1000) :: MilliSecond64)
+    initial1 = do
+        res <- initial
+        return
+            $ case res of
+                  FL.Partial fs -> FL.Partial (fs, 0, Nothing)
+                  FL.Done b -> FL.Done b
+
+    {-# INLINE stepElem #-}
+    stepElem fs count expiry ma =
+        case ma of
+            Nothing -> return $ FL.Partial (fs, count, Just expiry)
+            Just a -> do
+                res <- step fs a
+                return
+                    $ case res of
+                          FL.Partial fs1 ->
+                              FL.Partial (fs1, count + 1, Just expiry)
+                          FL.Done b -> FL.Done b
+
+    {-# INLINE stepWithCountGuard #-}
+    stepWithCountGuard fs count expiry ma =
+        if count >= n
+        then FL.Done <$> extract fs
+        else stepElem fs count expiry ma
+
+    {-# INLINE stepWithTimeoutGuard #-}
+    stepWithTimeoutGuard curTime fs count expiry ma =
+        if curTime > expiry
+        then FL.Done <$> extract fs
+        else stepWithCountGuard fs count expiry ma
+
+    step1 (fs, count, Nothing) (curTime, ma) =
+        let expiry = addToAbsTime curTime timeoutMs
+         in stepWithCountGuard fs count expiry ma
+    step1 (fs, count, Just expiry) (curTime, ma) =
+        stepWithTimeoutGuard curTime fs count expiry ma
+
+    extract1 (fs, _, _) = extract fs
+
+    timestampedInput = Transform.timestamped (fmap Just inp)
+    timeStream = fmap (, Nothing) $ absTimesWith 0.01
+    newInp = timestampedInput `parallelFst` timeStream
 
 ------------------------------------------------------------------------------
 -- Windowed classification
