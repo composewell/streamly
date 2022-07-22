@@ -27,13 +27,19 @@ module Streamly.Internal.Data.Stream.Generate
     -- * From Containers
     , fromFoldable
     , fromFoldableM
+
+    -- * From memory
+    , fromPtr
     )
 where
 
+import Control.Monad.IO.Class (MonadIO)
+import Foreign.Storable (Storable)
+import Foreign.Ptr (Ptr)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamK, toStreamK)
-import Streamly.Internal.Data.Unfold (Unfold)
+import Streamly.Internal.Data.Unfold.Type (Unfold)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
@@ -140,3 +146,11 @@ fromFoldable = fromStreamK . K.fromFoldable
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: (Monad m, Foldable f) => f (m a) -> Stream m a
 fromFoldableM = Prelude.foldr Stream.consM Stream.nil
+
+------------------------------------------------------------------------------
+-- From pointers
+------------------------------------------------------------------------------
+
+{-# INLINE fromPtr #-}
+fromPtr :: (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
+fromPtr n = Stream.fromStreamD . D.fromPtr n

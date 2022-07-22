@@ -177,6 +177,9 @@ module Streamly.Internal.Data.Unfold
     , fromList
     , fromListM
 
+    -- ** From Pointer
+    , fromPtr
+
     , fromStreamK
     , fromStreamD
 
@@ -260,6 +263,8 @@ module Streamly.Internal.Data.Unfold
     )
 where
 
+#include "ArrayMacros.h"
+
 import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Functor (($>))
@@ -282,6 +287,9 @@ import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile, either)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Foreign (Storable, peek, sizeOf)
+import Foreign.Ptr
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -626,6 +634,18 @@ fromListM = Unfold step pure
     {-# INLINE_LATE step #-}
     step (x:xs) = (`Yield` xs) <$> x
     step [] = pure Stop
+
+{-# INLINE fromPtr #-}
+fromPtr :: forall m a. (MonadIO m, Storable a) => Unfold m (Int, Ptr a) a
+fromPtr = Unfold step return
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (0, _) = return Stop
+    step (n, p) = do
+        x <- liftIO $ peek p
+        return $ Yield x (n - 1, PTR_NEXT(p, a))
 
 ------------------------------------------------------------------------------
 -- Specialized Generation

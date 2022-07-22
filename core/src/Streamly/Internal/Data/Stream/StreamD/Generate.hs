@@ -79,6 +79,9 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , fromList
     , fromListM
 
+    -- * From Pointers
+    , fromPtr
+
     -- * Conversions
     , fromStreamK
     , toStreamK
@@ -86,8 +89,11 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
 where
 
 #include "inline.hs"
+#include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (Storable (peek), sizeOf)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Time.Clock
     (Clock(Monotonic), asyncClock, readClock)
@@ -459,3 +465,19 @@ fromListM = Stream step
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
     step _ []     = return Stop
 #endif
+
+-------------------------------------------------------------------------------
+-- From pointers
+-------------------------------------------------------------------------------
+
+{-# INLINE fromPtr #-}
+fromPtr :: forall m a. (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
+fromPtr count ptr = Stream step (count, ptr)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ (0, _) = return Stop
+    step _ (n, p) = do
+        x <- liftIO $ peek p
+        return $ Yield x (n - 1, PTR_NEXT(p, a))
