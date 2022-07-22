@@ -1001,7 +1001,8 @@ intervalsOf n f xs =
 --
 -- | Like 'chunksOf' but if the chunk is not completed within the specified
 -- time interval then emit whatever we have collected till now. The chunk
--- timeout is reset whenever a chunk is emitted.
+-- timeout is reset whenever a chunk is emitted. The granularity of the clock
+-- is 100 ms.
 --
 -- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
 -- >>> f = Stream.mapM_ print $ Stream.chunksOfTimeout 5 1 Fold.toList s
@@ -1013,7 +1014,7 @@ chunksOfTimeout :: (IsStream t, MonadAsync m, Functor (t m))
 chunksOfTimeout n timeout f =
       map snd
     . classifySessionsBy
-        timeout False (const (return False)) timeout (FL.take n f)
+        0.1 False (const (return False)) timeout (FL.take n f)
     . Transform.timestamped
     . map ((),)
 
