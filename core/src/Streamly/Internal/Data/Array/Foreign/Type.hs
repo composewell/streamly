@@ -1,3 +1,4 @@
+{-# LANGUAGE UnboxedTuples #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Foreign.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -23,10 +24,6 @@ module Streamly.Internal.Data.Array.Foreign.Type
     -- * Construction
     , splice
 
-    , fromPtr
-    , fromForeignPtrUnsafe
-    , fromAddr#
-    , fromCString#
     , fromList
     , fromListN
     , fromListRev
@@ -62,7 +59,6 @@ module Streamly.Internal.Data.Array.Foreign.Type
     , writeNUnsafe
     , MA.ArrayUnsafe (..)
     , writeNAligned
-    , writeNAlignedUnmanaged
     , write
 
     -- * Streams of arrays
@@ -81,20 +77,15 @@ import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
-import Foreign.C.String (CString)
-import Foreign.C.Types (CSize(..))
-import Foreign.Ptr (plusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
-import GHC.Base (Addr#, nullAddr#, build)
+import GHC.Base (build)
 import GHC.Exts (IsList, IsString(..))
-import GHC.ForeignPtr (ForeignPtr)
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (ArrayContents, touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
@@ -141,34 +132,27 @@ data Array a =
 #ifdef DEVBUILD
     Storable a =>
 #endif
+    -- All offsets are in terms of bytes from the start of arraycontents
     Array
-    { arrContents ::
-#ifndef USE_FOREIGN_PTR
-        {-# UNPACK #-}
-#endif
-            !ArrayContents -- ^ first address
-    , arrStart :: {-# UNPACK #-} !(Ptr a) -- start address
-    , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused addres
+    { arrContents :: {-# UNPACK #-} !(ArrayContents a)
+    , arrStart :: {-# UNPACK #-} !Int -- offset
+    , aEnd   :: {-# UNPACK #-} !Int   -- offset + len
     }
 
 -------------------------------------------------------------------------------
 -- Utility functions
 -------------------------------------------------------------------------------
 
-foreign import ccall unsafe "string.h strlen" c_strlen
-    :: CString -> IO CSize
-
 -- | Use an @Array a@ as @Ptr a@.
+--
+-- See 'MA.asPtrUnsafe' in the Mutable array module for more details.
 --
 -- /Unsafe/
 --
 -- /Pre-release/
 --
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe Array{..} f = do
-  r <- f arrStart
-  liftIO $ touch arrContents
-  return r
+asPtrUnsafe arr = MA.asPtrUnsafe (unsafeThaw arr)
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing
@@ -220,124 +204,6 @@ unsafeThaw (Array ac as ae) = MA.Array ac as ae ae
 splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
     unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
-
--- | Create an 'Array' of the given number of elements of type @a@ from a read
--- only pointer @Ptr a@.  The pointer is not freed when the array is garbage
--- collected. This API is unsafe for the following reasons:
---
--- 1. The pointer must point to static pinned memory or foreign memory that
--- does not require freeing..
--- 2. The pointer must be legally accessible upto the given length.
--- 3. To guarantee that the array is immutable, the contents of the address
--- must be guaranteed to not change.
---
--- /Unsafe/
---
--- /Pre-release/
---
-{-# INLINE fromPtr #-}
-fromPtr ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    Int -> Ptr a -> Array a
-fromPtr n ptr = unsafeInlineIO $ do
-    let end = ptr `plusPtr` n
-    return $ Array
-        { arrContents = MA.nilArrayContents
-        , arrStart = ptr
-        , aEnd = end
-        }
-
--- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
--- at the memory pointed by the @foreignPtr@, @end@ is the first unused
--- address.
---
--- Unsafe: Make sure that foreignPtr <= end and (end - start) is an
--- integral multiple of the element size. Only PlainPtr type ForeignPtr is
--- supported.
---
--- /Pre-release/
---
-{-# INLINE fromForeignPtrUnsafe #-}
-fromForeignPtrUnsafe ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    ForeignPtr a -> Ptr a -> Array a
-fromForeignPtrUnsafe fp end = unsafeFreeze $ MA.fromForeignPtrUnsafe fp end end
-
--- XXX when converting an array of Word8 from a literal string we can simply
--- refer to the literal string. Is it possible to write rules such that
--- fromList Word8 can be rewritten so that GHC does not first convert the
--- literal to [Char] and then we convert it back to an Array Word8?
---
--- TBD: We can also add template haskell quasiquotes to specify arrays of other
--- literal types. TH will encode them into a string literal and we read that as
--- an array of the required type. With template Haskell we can provide a safe
--- version of fromString#.
---
--- | Create an @Array Word8@ of the given length from a static, read only
--- machine address 'Addr#'. See 'fromPtr' for safety caveats.
---
--- A common use case for this API is to create an array from a static unboxed
--- string literal. GHC string literals are of type 'Addr#', and must contain
--- characters that can be encoded in a byte i.e. characters or literal bytes in
--- the range from 0-255.
---
--- >>> import Data.Word (Word8)
--- >>> Array.fromAddr# 5 "hello world!"# :: Array Word8
--- [104,101,108,108,111]
---
--- >>> Array.fromAddr# 3 "\255\NUL\255"# :: Array Word8
--- [255,0,255]
---
--- /See also: 'fromString#'/
---
--- /Unsafe/
---
--- /Time complexity: O(1)/
---
--- /Pre-release/
---
-{-# INLINE fromAddr# #-}
-fromAddr# ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    Int -> Addr# -> Array a
-fromAddr# n addr# = fromPtr n (castPtr $ Ptr addr#)
-
--- | Generate a byte array from an 'Addr#' that contains a sequence of NUL
--- (@0@) terminated bytes. The array would not include the NUL byte. The
--- address must be in static read-only memory and must be legally accessible up
--- to and including the first NUL byte.
---
--- An unboxed string literal (e.g. @"hello"#@) is a common example of an
--- 'Addr#' in static read only memory. It represents the UTF8 encoded sequence
--- of bytes terminated by a NUL byte (a 'CString') corresponding to the
--- given unicode string.
---
--- >>> Array.fromCString# "hello world!"#
--- [104,101,108,108,111,32,119,111,114,108,100,33]
---
--- >>> Array.fromCString# "\255\NUL\255"#
--- [255]
---
--- /See also: 'fromAddr#'/
---
--- /Unsafe/
---
--- /Time complexity: O(n) (computes the length of the string)/
---
--- /Pre-release/
---
-{-# INLINE fromCString# #-}
-fromCString# :: Addr# -> Array Word8
-fromCString# addr# = do
-    let cstr = Ptr addr#
-        len = unsafeInlineIO $ c_strlen cstr
-    fromPtr (fromIntegral len) (castPtr cstr)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -462,7 +328,7 @@ byteLength = MA.byteLength . unsafeThaw
 --
 -- @since 0.8.0
 {-# INLINE length #-}
-length :: forall a. Storable a => Array a -> Int
+length :: Storable a => Array a -> Int
 length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
@@ -523,7 +389,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- specified index @i@ is the first index of the second slice.
 --
 -- @since 0.7.0
-splitAt :: forall a. Storable a => Int -> Array a -> (Array a, Array a)
+splitAt :: Storable a => Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
   where
     (a, b) = MA.splitAt i (unsafeThaw arr)
@@ -542,12 +408,9 @@ toListFB c n Array{..} = go arrStart
         -- accumulating the list and fusing better with the pure consumers.
         --
         -- This should be safe as the array contents are guaranteed to be
-        -- evaluated/written to before we peek at them.
-        let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
-                    return r
-        in c x (go (PTR_NEXT(p,a)))
+        -- evaluated/written to before we peekWith at them.
+        let !x = unsafeInlineIO $ peekWith arrContents p
+        in c x (go (INDEX_NEXT(p,a)))
 
 -- | Convert an 'Array' into a list.
 --
@@ -581,19 +444,6 @@ writeN = fmap unsafeFreeze . MA.writeN
 writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
-
--- | @writeNAlignedUnmanaged n@ folds a maximum of @n@ elements from the input
--- stream to an 'Array' aligned to the given size and using unmanaged memory.
--- This could be useful to allocate memory that we need to allocate only once
--- in the lifetime of the program.
---
--- /Pre-release/
---
-{-# INLINE_NORMAL writeNAlignedUnmanaged #-}
-writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
-    => Int -> Int -> Fold m a (Array a)
-writeNAlignedUnmanaged alignSize =
-    fmap unsafeFreeze . MA.writeNAlignedUnmanaged alignSize
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -655,7 +505,8 @@ instance Storable a => IsList (Array a) where
 -- or may not be correct? arrcmp is 40% faster compared to stream equality.
 instance (Storable a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
-    arr1 == arr2 = unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
+    arr1 == arr2 =
+        (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
 
 -- Since this is a Storable array we cannot have unevaluated data in it so
 -- this is just a no op.
@@ -706,8 +557,7 @@ toStreamD_ size Array{..} = D.Stream step arrStart
     {-# INLINE_LATE step #-}
     step _ p | p == aEnd = return D.Stop
     step _ p = liftIO $ do
-        x <- peek p
-        touch arrContents
+        x <- peekWith arrContents p
         return $ D.Yield x (p `plusPtr` size)
 
 {-
@@ -741,7 +591,7 @@ nil ::
     Storable a =>
 #endif
     Array a
-nil = Array MA.nilArrayContents (Ptr nullAddr#) (Ptr nullAddr#)
+nil = Array MA.nilArrayContents 0 0
 
 instance Storable a => Monoid (Array a) where
     mempty = nil

@@ -60,8 +60,7 @@ import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Ptr (minusPtr, plusPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
+import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
@@ -119,16 +118,15 @@ fromFold (Fold.Fold fstep finitial fextract) =
 
         goArray !_ !cur !fs | cur >= end = do
             assert (cur == end) (return ())
-            liftIO $ touch contents
             return $ Partial 0 fs
         goArray !_ !cur !fs = do
-            x <- liftIO $ peek cur
+            x <- liftIO $ peekWith contents cur
             res <- fstep fs x
             let elemSize = SIZE_OF(a)
-                next = PTR_NEXT(cur,a)
+                next = INDEX_NEXT(cur,a)
             case res of
                 Fold.Done b ->
-                    return $ Done ((end `minusPtr` next) `div` elemSize) b
+                    return $ Done ((end - next) `div` elemSize) b
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
 
@@ -153,18 +151,18 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 
         {-# INLINE partial #-}
         partial arrRem cur next elemSize st n fs1 = do
-            let next1 = next `plusPtr` negate (n * elemSize)
+            let next1 = next - (n * elemSize)
             if next1 >= start && cur < end
             then goArray SPEC next1 fs1
             else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
-            x <- liftIO $ peek cur
+            x <- liftIO $ peekWith contents cur
             liftIO $ touch contents
             res <- step1 fs x
             let elemSize = SIZE_OF(a)
-                next = PTR_NEXT(cur,a)
-                arrRem = (end `minusPtr` next) `div` elemSize
+                next = INDEX_NEXT(cur,a)
+                arrRem = (end - next) `div` elemSize
             case res of
                 ParserD.Done n b -> do
                     return $ Done (arrRem + n) b
@@ -340,7 +338,7 @@ take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
                 Error err -> return $ Error err
         else do
             let !(Array contents start _) = arr
-                end = PTR_INDEX(start,i,a)
+                end = INDEX_OF(start,i,a)
                 arr1 = Array contents start end
                 remaining = negate i1
             res <- step1 r arr1

@@ -25,3 +25,15 @@
 #define PTR_VALID(ptr,end,a) ptr `plusPtr` SIZE_OF(a) <= end
 #define PTR_INVALID(ptr,end,a) ptr `plusPtr` SIZE_OF(a) > end
 
+-------------------------------------------------------------------------------
+-- Macros to access array indices
+-------------------------------------------------------------------------------
+
+#define INDEX_NEXT(i,a) i + SIZE_OF(a)
+#define INDEX_PREV(i,a) i - SIZE_OF(a)
+
+#define INDEX_OF(base,i,a) base + (SIZE_OF(a) * i)
+#define RINDEX_OF(base,i,a) base - (SIZE_OF(a) * (i + 1))
+
+#define INDEX_VALID(i,end,a) i + SIZE_OF(a) <= end
+#define INDEX_INVALID(i,end,a) i + SIZE_OF(a) > end

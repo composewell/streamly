@@ -157,7 +157,7 @@ import Data.Kind (Type)
 import Data.Map (Map)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.Unboxed (Storable)
+import qualified Foreign.Storable as Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
@@ -178,6 +178,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
+import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
 
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
@@ -823,7 +824,7 @@ splitOnAny _subseq _f _m =
 -- /Pre-release/
 {-# INLINE splitBySeq #-}
 splitBySeq
-    :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadAsync m, Storable.Storable a, Unboxed a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
     intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m
@@ -874,7 +875,7 @@ splitBySeq patt f m =
 -- /Pre-release/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable.Storable a, Unboxed a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq False patt f (toStreamD m)
@@ -926,7 +927,7 @@ wordsOn _subseq _f _m =
 -- /Pre-release/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable.Storable a, Unboxed a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq True patt f (toStreamD m)

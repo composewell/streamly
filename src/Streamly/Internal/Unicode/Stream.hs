@@ -81,6 +81,7 @@ where
 
 #include "inline.hs"
 
+import Control.Monad (void)
 import Control.Monad.Catch (MonadThrow(..), MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
@@ -89,6 +90,7 @@ import Data.Char (chr, ord)
 import Data.Char (generalCategory, GeneralCategory(Space))
 #endif
 import Data.Word (Word8)
+import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (assert, unsafeChr)
@@ -96,7 +98,7 @@ import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Foreign (Array)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents, touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayContents)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD, adapt)
@@ -104,9 +106,11 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Unboxed (peekWith)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
@@ -233,20 +237,41 @@ decodeTable = [
   12,36,12,12,12,12,12,12,12,12,12,12
   ]
 
+{-# INLINE utf8dLength #-}
+utf8dLength :: Int
+utf8dLength = length decodeTable
+
+-- | We do not want to garbage collect this and free the memory, we want to
+-- keep this persistent. We don't know how to do that with GHC without having a
+-- reference in some global structure. So we use a hack, use mallocBytes so
+-- that the GC has no way to free it.
 {-# NOINLINE utf8d #-}
-utf8d :: A.Array Word8
-utf8d =
-      unsafePerformIO
-    -- Aligning to cacheline makes a barely noticeable difference
-    -- XXX currently alignment is not implemented for unmanaged allocation
-    $ D.fold (A.writeNAlignedUnmanaged 64 (length decodeTable))
-              (D.fromList decodeTable)
+utf8d :: Ptr Word8
+utf8d = unsafePerformIO $ do
+    let size = utf8dLength
+    p <- liftIO $ mallocBytes size
+    void $ D.fold
+        (Fold.foldlM' (\b a -> poke b a >> return (b `plusPtr` 1)) (return p))
+        (D.fromList decodeTable)
+    return p
 
 -- | Return element at the specified index without checking the bounds.
 -- and without touching the foreign ptr.
 {-# INLINE_NORMAL unsafePeekElemOff #-}
 unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
-unsafePeekElemOff p i = let !x = unsafeInlineIO $ peekElemOff p i in x
+unsafePeekElemOff p i =
+    let !x = unsafeInlineIO $ peekElemOff p i
+     in x
+
+-- XXX We can use a fromPtr stream to implement it.
+{-# INLINE showMemory #-}
+showMemory ::
+    forall a. (Show a, Storable a) => Ptr a -> Ptr a -> String
+showMemory cur end
+    | cur < end =
+        let cur1 = cur `plusPtr` sizeOf (undefined :: a)
+         in show (unsafeInlineIO $ peek cur) ++ " " ++ showMemory cur1 end
+showMemory _ _ = ""
 
 -- decode is split into two separate cases to avoid branching instructions.
 -- From the higher level flow we already know which case we are in so we can
@@ -265,11 +290,9 @@ decode0 table byte =
 
     where
 
-    utf8table =
-        let end = table `plusPtr` 364
-        in A.Array undefined table end :: A.Array Word8
+    utf8tableEnd = table `plusPtr` 364
     showByte = "Streamly: decode0: byte: " ++ show byte
-    showTable = " table: " ++ show utf8table
+    showTable = " table: " ++ showMemory table utf8tableEnd
 
 -- When the state is not 0
 {-# INLINE decode1 #-}
@@ -291,14 +314,12 @@ decode1 table state codep byte =
                (Tuple' state' codep')
     where
 
-    utf8table =
-        let end = table `plusPtr` 364
-        in A.Array undefined table end :: A.Array Word8
+    utf8tableEnd = table `plusPtr` 364
     showByte = "Streamly: decode1: byte: " ++ show byte
     showState st cp =
         " state: " ++ show st ++
         " codepoint: " ++ show cp ++
-        " table: " ++ show utf8table
+        " table: " ++ showMemory table utf8tableEnd
 
 -------------------------------------------------------------------------------
 -- Resumable UTF-8 decoding
@@ -324,13 +345,11 @@ resumeDecodeUtf8EitherD
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let A.Array _ p _ = utf8d
-        !ptr = p
-        stt =
+    let stt =
             if dst == 0
             then UTF8DecodeInit state
             else UTF8Decoding state dst codep
-    in Stream (step' ptr) stt
+    in Stream (step' utf8d) stt
   where
     {-# INLINE_LATE step' #-}
     step' _ gst (UTF8DecodeInit st) = do
@@ -439,9 +458,7 @@ data UTF8CharDecodeState a
 {-# INLINE parseCharUtf8WithD #-}
 parseCharUtf8WithD ::
        MonadThrow m => CodingFailureMode -> ParserD.Parser m Word8 Char
-parseCharUtf8WithD cfm =
-    let A.Array _ ptr _ = utf8d
-    in ParserD.Parser (step' ptr) initial extract
+parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 
     where
 
@@ -541,8 +558,7 @@ parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
 decodeUtf8WithD :: Monad m
     => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
-    let A.Array _ ptr _ = utf8d
-    in Stream (step' ptr) (UTF8DecodeInit state)
+    Stream (step' utf8d) (UTF8DecodeInit state)
 
     where
 
@@ -679,9 +695,9 @@ decodeUtf8Lax = decodeUtf8
 #endif
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
-    | InnerLoopDecodeInit s ArrayContents !(Ptr a) !(Ptr a)
-    | InnerLoopDecodeFirst s ArrayContents !(Ptr a) !(Ptr a) Word8
-    | InnerLoopDecoding s ArrayContents !(Ptr a) !(Ptr a)
+    | InnerLoopDecodeInit s (ArrayContents a) !Int !Int
+    | InnerLoopDecodeFirst s (ArrayContents a) !Int !Int Word8
+    | InnerLoopDecoding s (ArrayContents a) !Int !Int
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the UTF8DecodeState
@@ -702,8 +718,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
-    let A.Array _ ptr _ = utf8d
-    in Stream (step' ptr) (OuterLoop state Nothing)
+    Stream (step' utf8d) (OuterLoop state Nothing)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -737,12 +752,11 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                      Skip (InnerLoopDecoding s arrContents arrStart aEnd ds cp)
                 Skip s -> Skip (OuterLoop s dst)
                 Stop -> Skip inputUnderflow
-    step' _ _ (InnerLoopDecodeInit st startf p end)
+    step' _ _ (InnerLoopDecodeInit st _ p end)
         | p == end = do
-            liftIO $ touch startf
             return $ Skip $ OuterLoop st Nothing
-    step' _ _ (InnerLoopDecodeInit st startf p end) = do
-        x <- liftIO $ peek p
+    step' _ _ (InnerLoopDecodeInit st contents p end) = do
+        x <- liftIO $ peekWith contents p
         -- Note: It is important to use a ">" instead of a "<=" test here for
         -- GHC to generate code layout for default branch prediction for the
         -- common case. This is fragile and might change with the compiler
@@ -752,13 +766,13 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
             False ->
                 return $ Skip $ YAndC
                     (unsafeChr (fromIntegral x))
-                    (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                    (InnerLoopDecodeInit st contents (p + 1) end)
             -- Using a separate state here generates a jump to a separate code
             -- block in the core which seems to perform slightly better for the
             -- non-ascii case.
-            True -> return $ Skip $ InnerLoopDecodeFirst st startf p end x
+            True -> return $ Skip $ InnerLoopDecodeFirst st contents p end x
 
-    step' table _ (InnerLoopDecodeFirst st startf p end x) = do
+    step' table _ (InnerLoopDecodeFirst st contents p end x) = do
         let (Tuple' sv cp) = decode0 table x
         return $
             case sv of
@@ -770,15 +784,13 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                         ++ "decodeUtf8ArraysWith: Invalid UTF8"
                         ++ " codepoint encountered"
                         )
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                        (InnerLoopDecodeInit st contents (p + 1) end)
                 0 -> error "unreachable state"
-                _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
-    step' _ _ (InnerLoopDecoding st startf p end sv cp)
-        | p == end = do
-            liftIO $ touch startf
-            return $ Skip $ OuterLoop st (Just (sv, cp))
-    step' table _ (InnerLoopDecoding st startf p end statePtr codepointPtr) = do
-        x <- liftIO $ peek p
+                _ -> Skip (InnerLoopDecoding st contents (p + 1) end sv cp)
+    step' _ _ (InnerLoopDecoding st _ p end sv cp)
+        | p == end = return $ Skip $ OuterLoop st (Just (sv, cp))
+    step' table _ (InnerLoopDecoding st contents p end statePtr codepointPtr) = do
+        x <- liftIO $ peekWith contents p
         let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
         return $
             case sv of
@@ -786,7 +798,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                     Skip $
                     YAndC
                         (unsafeChr cp)
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                        (InnerLoopDecodeInit st contents (p + 1) end)
                 12 ->
                     Skip $
                     transliterateOrError
@@ -795,10 +807,10 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                         ++ "decodeUtf8ArraysWith: Invalid UTF8"
                         ++ " codepoint encountered"
                         )
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                        (InnerLoopDecodeInit st contents (p + 1) end)
                 _ ->
                     Skip
-                    (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
+                    (InnerLoopDecoding st contents (p + 1) end sv cp)
     step' _ _ (YAndC c s) = return $ Yield c s
     step' _ _ D = return Stop
 

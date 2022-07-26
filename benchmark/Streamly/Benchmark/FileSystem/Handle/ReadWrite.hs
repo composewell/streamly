@@ -42,7 +42,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as MAS
 import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 
 import Test.Inspection
 #endif
@@ -82,8 +81,8 @@ copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
 inspect $ hasNoTypeClasses 'copyStream
 inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
 inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'copyStream `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+                                                   -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
 
@@ -170,8 +169,8 @@ writeReadWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 inspect $ hasNoTypeClasses 'writeReadWith
 inspect $ 'writeReadWith `hasNoType` ''Step
 inspect $ 'writeReadWith `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'writeReadWith `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'writeReadWith `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+                                                      -- FH.read/A.read
 #endif
 
 -- | Send the file contents ('AT.defaultChunkSize') to /dev/null
@@ -187,8 +186,8 @@ writeRead inh devNull = IUF.fold fld unf inh
 inspect $ hasNoTypeClasses 'writeRead
 inspect $ 'writeRead `hasNoType` ''Step
 inspect $ 'writeRead `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'writeRead `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 inspect $ 'writeRead `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+                                                  -- FH.read/A.read
 #endif
 
 o_1_space_copy :: BenchEnv -> [Benchmark]

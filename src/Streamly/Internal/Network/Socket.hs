@@ -75,9 +75,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
+import Foreign.Ptr (plusPtr, Ptr, castPtr)
 import Streamly.Internal.Data.Unboxed (Storable)
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
@@ -91,10 +90,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Internal.BaseCompat
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
-    (fromForeignPtrUnsafe, touch)
 import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
@@ -107,6 +103,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -261,12 +258,12 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    ptr <- mallocPlainForeignPtrBytes size
+    arr <- MArray.newPinnedArrayBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    unsafeWithForeignPtr ptr $ \p -> do
+    MArray.asPtrUnsafe arr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
-                $ fromForeignPtrUnsafe ptr (p `plusPtr` n) (p `plusPtr` size)
+                $ arr { MArray.aEnd = n, MArray.aBound = size }
 
         -- XXX shrink only if the diff is significant
         -- A.shrinkToFit v
@@ -312,12 +309,11 @@ writeArrayWith :: Storable a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h Array{..} =
-    f h (castPtr arrStart) aLen >> touch arrContents
+writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
 
     where
 
-    aLen = aEnd `minusPtr` arrStart
+    aLen = A.byteLength arr
 
 -- | Write an Array to a file handle.
 --

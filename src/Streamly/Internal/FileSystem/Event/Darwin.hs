@@ -14,7 +14,7 @@
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromCString\# "path"#]
+-- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromList "path"]
 -- @
 --
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)
@@ -560,7 +560,7 @@ watchToStream (Watch handle _ _) =
 -- {-\# LANGUAGE MagicHash #-}
 -- watchWith
 --      ('setIgnoreSelf' 'On' . 'setRootPathEvents' 'On')
---      [Array.fromCString\# "path"#]
+--      [Array.fromList "path"]
 -- @
 --
 -- /Pre-release/
