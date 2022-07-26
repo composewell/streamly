@@ -90,7 +90,7 @@ jobs:
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6
-            cabal_project: cabal.project
+            cabal_project: cabal.project.902
             disable_sdist_build: "y"
             ignore_error: true
           - name: 8.10.7-sdist-stack
