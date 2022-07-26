@@ -114,20 +114,15 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (minusPtr, plusPtr)
 import Streamly.Internal.Data.Unboxed (Storable)
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Foreign.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (fromForeignPtrUnsafe)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, fromStreamD)
@@ -136,6 +131,8 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
@@ -183,14 +180,14 @@ import qualified Streamly.Internal.Data.Unfold as UF
 {-# INLINABLE getChunk #-}
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
-    ptr <- mallocPlainForeignPtrBytes size
+    arr <- MArray.newPinnedArrayBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    MArray.asPtrUnsafe arr $ \p -> do
         n <- hGetBufSome h p size
         -- XXX shrink only if the diff is significant
         return $
             unsafeFreezeWithShrink $
-            fromForeignPtrUnsafe ptr (p `plusPtr` n) (p `plusPtr` size)
+            arr { MArray.aEnd = n, MArray.aBound = size }
 
 -- This could be useful in implementing the "reverse" read APIs or if you want
 -- to read arrays of exact size instead of compacting them later. Compacting
@@ -404,12 +401,13 @@ getBytes = AS.concat . getChunks
 {-# INLINABLE putChunk #-}
 putChunk :: MonadIO m => Handle -> Array a -> m ()
 putChunk _ arr | byteLength arr == 0 = return ()
-putChunk h Array{..} =
-    liftIO $ hPutBuf h arrStart aLen >> touch arrContents
+putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
+    liftIO $ hPutBuf h ptr aLen
 
     where
 
-    aLen = aEnd `minusPtr` arrStart
+    -- XXX We should have the length passed by asPtrUnsafe itself.
+    aLen = A.byteLength arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO

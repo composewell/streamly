@@ -82,11 +82,6 @@ flag use-unliftio
   manual: True
   default: False
 
-flag use-storable
-  description: Use Storable for unboxed arrays
-  manual: True
-  default: False
-
 flag use-unfolds
   description: Use unfolds for generation everywhere
   manual: True
@@ -121,9 +116,6 @@ common compile-options
 
     if flag(use-c-malloc)
       cpp-options:    -DUSE_C_MALLOC
-
-    if flag(use-storable)
-      cpp-options:    -DUSE_STORABLE
 
     ghc-options:      -Wall
                       -Wcompat

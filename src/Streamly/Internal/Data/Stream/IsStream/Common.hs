@@ -69,7 +69,7 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unboxed (Storable)
+import qualified Foreign.Storable as Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Foreign.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
@@ -79,6 +79,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
+import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
 
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
@@ -678,7 +679,7 @@ foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 -- that we can search files in files for example.
 {-# INLINE splitOnSeq #-}
 splitOnSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable.Storable a, Unboxed a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m =
     IsStream.fromStreamD $ D.splitOnSeq patt f (IsStream.toStreamD m)

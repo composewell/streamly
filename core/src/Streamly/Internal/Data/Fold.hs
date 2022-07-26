@@ -306,9 +306,10 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
 import Data.Word (Word32)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
+import Foreign.Storable (Storable, peek, sizeOf)
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -1483,7 +1484,7 @@ data SplitOnSeqState acc a rb rh w ck =
 --
 -- /Pre-release/
 {-# INLINE takeEndBySeq #-}
-takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a) =>
+takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -1619,7 +1620,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
-takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a) =>
+takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -2598,7 +2599,7 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
     consume s a = inject a >>= produce s
 
 {-# INLINE topBy #-}
-topBy :: (MonadIO m, Storable a) =>
+topBy :: (MonadIO m, Unboxed a) =>
        (a -> a -> Ordering)
     -> Int
     -> Fold m a (MA.Array a)
@@ -2637,7 +2638,7 @@ topBy cmp n = Fold step initial extract
 --
 -- /Pre-release/
 {-# INLINE top #-}
-top :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
+top :: (MonadIO m, Unboxed a, Ord a) => Int -> Fold m a (MA.Array a)
 top = topBy $ flip compare
 
 -- | Fold the input stream to bottom n elements.
@@ -2648,5 +2649,5 @@ top = topBy $ flip compare
 --
 -- /Pre-release/
 {-# INLINE bottom #-}
-bottom :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (MA.Array a)
+bottom :: (MonadIO m, Unboxed a, Ord a) => Int -> Fold m a (MA.Array a)
 bottom = topBy compare

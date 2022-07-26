@@ -34,13 +34,6 @@ module Streamly.Internal.Data.Array.Foreign
 
     -- * Construction
 
-    -- Pure, From Static Memory (Unsafe)
-    -- We can use fromPtrM#, fromCStringM# and fromAddrM# to create arrays from
-    -- a dynamic memory address which requires a finalizer.
-    , A.fromPtr
-    , A.fromAddr#
-    , A.fromCString#
-
     -- Pure List APIs
     , A.fromListN
     , A.fromList
@@ -122,11 +115,18 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
-import Foreign.Ptr (plusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable, peek, sizeOf)
+import Foreign.Ptr (castPtr)
+import qualified Foreign.Storable as Storable (Storable)
+import Streamly.Internal.Data.Unboxed
+    ( Storable
+    , Unboxed
+    , castContents
+    , peekWith
+    , sizeOf
+    )
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (ReadUState(..), touch)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (ArrayUnsafe(..))
 import Streamly.Internal.Data.Array.Foreign.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -213,10 +213,10 @@ unsafeRead = Unfold step inject
     where
 
     inject (Array contents start end) =
-        return (ReadUState contents end start)
+        return (ArrayUnsafe contents end start)
 
     {-# INLINE_LATE step #-}
-    step (ReadUState contents end p) = do
+    step (ArrayUnsafe contents end p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
             -- accumulating the list and fusing better with the pure consumers.
@@ -224,11 +224,10 @@ unsafeRead = Unfold step inject
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ do
-                        r <- peek p
-                        touch contents
+                        r <- peekWith contents p
                         return r
-            let !p1 = PTR_NEXT(p,a)
-            return $ D.Yield x (ReadUState contents end p1)
+            let !p1 = INDEX_NEXT(p,a)
+            return $ D.Yield x (ArrayUnsafe contents end p1)
 
 -- |
 --
@@ -247,11 +246,10 @@ null arr = A.byteLength arr == 0
 getIndexRev :: forall a. Storable a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
-        $ asPtrUnsafe arr
-            $ \ptr -> do
-                let elemPtr = PTR_RINDEX(aEnd arr,i,a)
-                if i >= 0 && elemPtr >= ptr
-                then Just <$> peek elemPtr
+        $ do
+                let elemPtr = RINDEX_OF(aEnd arr, i, a)
+                if i >= 0 && elemPtr >= arrStart arr
+                then Just <$> peekWith (arrContents arr) elemPtr
                 else return Nothing
 
 -- |
@@ -273,7 +271,8 @@ last = getIndexRev 0
 --
 -- @since 0.8.0
 {-# INLINE writeLastN #-}
-writeLastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+writeLastN ::
+       (Unboxed a, Storable.Storable a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = A.unsafeFreeze <$> Fold step initial done
@@ -360,9 +359,9 @@ getSliceUnsafe ::
     -> Array a
 getSliceUnsafe index len (Array contents start e) =
     let size = SIZE_OF(a)
-        fp1 = start `plusPtr` (index * size)
-        end = fp1 `plusPtr` (len * size)
-     in assert (end <= e) (Array contents fp1 end)
+        start1 = start + (index * size)
+        end1 = start1 + (len * size)
+     in assert (end1 <= e) (Array contents start1 end1)
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
@@ -412,11 +411,10 @@ getSlicesFromLen from len =
 getIndex :: forall a. Storable a => Int -> Array a -> Maybe a
 getIndex i arr =
     unsafeInlineIO
-        $ asPtrUnsafe arr
-            $ \ptr -> do
-                let elemPtr = PTR_INDEX(ptr,i,a)
-                if i >= 0 && PTR_VALID(elemPtr,aEnd arr,a)
-                then Just <$> peek elemPtr
+        $ do
+                let elemPtr = INDEX_OF(arrStart arr, i, a)
+                if i >= 0 && INDEX_VALID(elemPtr, aEnd arr, a)
+                then Just <$> peekWith (arrContents arr) elemPtr
                 else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from
@@ -509,7 +507,7 @@ castUnsafe ::
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end) =
-    Array contents (castPtr start) (castPtr end)
+    Array (castContents contents) start end
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
@@ -542,6 +540,7 @@ cast arr =
 --
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
+    -- XXX Ensure a pinned allocation here.
     let arr1 = asBytes arr <> A.fromList [0]
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 

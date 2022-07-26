@@ -23,7 +23,6 @@ cabal.project.report
 cabal.project.packdiff
 cabal.project.Werror
 cabal.project.Werror-nocode
-cabal.project.storable
 default.nix
 examples/README.md
 hie.yaml

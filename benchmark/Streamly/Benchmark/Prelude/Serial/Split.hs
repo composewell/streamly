@@ -67,7 +67,7 @@ splitOn inh =
 inspect $ hasNoTypeClasses 'splitOn
 inspect $ 'splitOn `hasNoType` ''Step
 inspect $ 'splitOn `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'splitOn `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'splitOn `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Split suffix on line feed.
@@ -80,7 +80,7 @@ splitOnSuffix inh =
 inspect $ hasNoTypeClasses 'splitOnSuffix
 inspect $ 'splitOnSuffix `hasNoType` ''Step
 inspect $ 'splitOnSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'splitOnSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'splitOnSuffix `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Split suffix with line feed.
@@ -93,7 +93,7 @@ splitWithSuffix inh =
 inspect $ hasNoTypeClasses 'splitWithSuffix
 inspect $ 'splitWithSuffix `hasNoType` ''Step
 inspect $ 'splitWithSuffix `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'splitWithSuffix `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'splitWithSuffix `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Split on line feed.
@@ -124,7 +124,7 @@ wordsBy inh =
 inspect $ hasNoTypeClasses 'wordsBy
 inspect $ 'wordsBy `hasNoType` ''Step
 inspect $ 'wordsBy `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'wordsBy `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'wordsBy `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Split on a word8 sequence.

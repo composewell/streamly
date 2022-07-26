@@ -75,15 +75,19 @@ module Streamly.Internal.Data.Ring.Foreign
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
+import Foreign.Storable
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed
-    ( Storable, alignment, peek, poke, sizeOf
+import Streamly.Internal.Data.Unboxed as Unboxed
+    ( ArrayContents
+    , Unboxed
+    , castContents
+    , peekWith
     )
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array, memcmp)
+import Streamly.Internal.Data.Array.Foreign.Mut.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
@@ -129,7 +133,7 @@ startOf = unsafeForeignPtrToPtr . ringStart
 {-# INLINE new #-}
 new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
 new count = do
-    let size = count * SIZE_OF(a)
+    let size = count * max 1 (sizeOf (undefined :: a))
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
     return (Ring
@@ -401,22 +405,32 @@ cast arr =
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
 unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
-unsafeEqArrayN Ring{..} rh A.Array{..} n =
-    let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
-                as = arrStart
-            assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs) (return ())
-            let len = ringBound `minusPtr` rh
-            r1 <- memcmp (castPtr rh) (castPtr as) (min len n)
-            r2 <- if n > len
-                then memcmp (castPtr rs) (castPtr (as `plusPtr` len))
-                              (min (rh `minusPtr` rs) (n - len))
-                else return True
-            -- XXX enable these, check perf impact
-            -- touchForeignPtr ringStart
-            -- touchForeignPtr aStart
-            return (r1 && r2)
-    in res
+unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
+    | nBytes < 0 = error "unsafeEqArrayN: n should be >= 0"
+    | nBytes == 0 = True
+    | otherwise = unsafeInlineIO $ check (castPtr rh) 0
+
+    where
+
+    w8Contents = castContents arrContents :: ArrayContents Word8
+
+    check p i = do
+        relem <- peek p
+        aelem <- peekWith w8Contents i
+        if relem == aelem
+        then go (p `plusPtr` 1) (i + 1)
+        else return False
+
+    go p i
+        | i == nBytes = return True
+        | castPtr p == ringBound =
+            go (castPtr (unsafeForeignPtrToPtr ringStart)) i
+        | castPtr p == rh = touchForeignPtr ringStart >> return True
+        | otherwise = check p i
+
+-- XXX This is not modular. We should probably just convert the array and the
+-- ring buffer to streams and compare the two streams. Need to check perf
+-- though.
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ringHead pointer.  Returns true if the Array and
@@ -428,20 +442,24 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
 {-# INLINE unsafeEqArray #-}
 unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh A.Array{..} =
-    let !res = unsafeInlineIO $ do
-            let rs = unsafeForeignPtrToPtr ringStart
-            let as = arrStart
-            assert (aEnd `minusPtr` as >= ringBound `minusPtr` rs)
-                   (return ())
-            let len = ringBound `minusPtr` rh
-            r1 <- memcmp (castPtr rh) (castPtr as) len
-            r2 <- memcmp (castPtr rs) (castPtr (as `plusPtr` len))
-                           (rh `minusPtr` rs)
-            -- XXX enable these, check perf impact
-            -- touchForeignPtr ringStart
-            -- touchForeignPtr aStart
-            return (r1 && r2)
-    in res
+    unsafeInlineIO $ check (castPtr rh) 0
+
+    where
+
+    w8Contents = castContents arrContents :: ArrayContents Word8
+
+    check p i = do
+        relem <- peek p
+        aelem <- peekWith w8Contents i
+        if relem == aelem
+        then go (p `plusPtr` 1) (i + 1)
+        else return False
+
+    go p i
+        | castPtr p ==
+              ringBound = go (castPtr (unsafeForeignPtrToPtr ringStart)) i
+        | castPtr p == rh = touchForeignPtr ringStart >> return True
+        | otherwise = check p i
 
 -------------------------------------------------------------------------------
 -- Folding
@@ -543,7 +561,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- a))@ action depends on when it is executed. It does not capture the sanpshot
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
-slidingWindowWith :: forall m a b. (MonadIO m, Storable a)
+slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unboxed a)
     => Int -> Fold m ((a, Maybe a), (m (Array a))) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
@@ -597,6 +615,6 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 -- there is no old element.
 --
 {-# INLINE slidingWindow #-}
-slidingWindow :: forall m a b. (MonadIO m, Storable a)
+slidingWindow :: forall m a b. (MonadIO m, Storable a, Unboxed a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b
 slidingWindow n f = slidingWindowWith n (lmap fst f)

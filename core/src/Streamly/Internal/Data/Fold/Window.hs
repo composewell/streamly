@@ -56,7 +56,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
-import Streamly.Internal.Data.Unboxed (Storable, peek)
+import Foreign.Storable (Storable, peek)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict

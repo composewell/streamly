@@ -18,7 +18,7 @@
 --
 -- @
 -- {-\# LANGUAGE MagicHash #-}
--- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromCString\# "path"#]
+-- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchRecursive' [Array.fromList "path"]
 -- @
 --
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)
@@ -92,6 +92,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Bits ((.|.), (.&.), complement)
+import Data.Char (ord)
 import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
@@ -465,7 +466,7 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 -- @
 -- watchWith
 --  ('setAttrsModified' On . 'setLastWriteTimeModified' Off)
---  [Array.fromCString\# "dir"#]
+--  [Array.fromList "dir"]
 -- @
 --
 -- /Pre-release/
@@ -527,7 +528,8 @@ getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 -- /Pre-release/
 --
 getAbsPath :: Event -> Array Word8
-getAbsPath ev = getRoot ev <> A.fromCString# "\\"# <> getRelPath ev
+getAbsPath ev = getRoot ev <> backSlash <> getRelPath ev
+    where backSlash = A.fromList [ fromIntegral (ord '\\') ]
 
 -- XXX need to document the exact semantics of these.
 --

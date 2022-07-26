@@ -13,7 +13,7 @@
 -- occurring under the watched paths.
 --
 -- @
--- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchPaths' [Array.fromCString\# "dir"#]
+-- Stream.mapM_ (putStrLn . 'showEvent') $ 'watchPaths' [Array.fromList "dir"]
 -- @
 --
 -- 'Event' is an opaque type. Accessor functions (e.g. 'showEvent' above)
@@ -636,10 +636,12 @@ ensureTrailingSlash path =
          in case mx of
             Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
             Just x ->
-                if x /= fromIntegral (ord '/')
-                then path <> A.fromCString# "/"#
+                if x /= forwardSlashByte
+                then path <> forwardSlash
                 else path
     else path
+    where forwardSlash = A.fromList [ forwardSlashByte ]
+          forwardSlashByte = fromIntegral (ord '/')
 
 removeTrailingSlash :: Array Word8 -> Array Word8
 removeTrailingSlash path =
@@ -908,7 +910,7 @@ watchToStream cfg wt@(Watch handle _) = do
 -- @
 -- watchwith
 --      ('setFollowSymLinks' On . 'setUnwatchMoved' Off)
---      [Array.fromCString\# "dir"#]
+--      [Array.fromList "dir"]
 -- @
 --
 -- /Pre-release/

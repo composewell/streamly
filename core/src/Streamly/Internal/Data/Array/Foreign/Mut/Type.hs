@@ -18,8 +18,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- $arrayNotes
       Array (..)
     , ArrayContents
-    , arrayToFptrContents
-    , fptrToArrayContents
     , nilArrayContents
     , touch
 
@@ -29,9 +27,10 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
 
     -- *** Uninitialized Arrays
     , newArray
+    , newPinnedArrayBytes
     , newArrayAligned
-    , newArrayAlignedUnmanaged
     , newArrayWith
+    , newAlignedArrayContents
 
     -- *** Initialized Arrays
     , withNewArrayUnsafe
@@ -43,7 +42,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , writeNUnsafe
     , writeN
     , writeNAligned
-    , writeNAlignedUnmanaged
 
     , writeWith
     , write
@@ -52,7 +50,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- , writeRev
 
     -- ** From containers
-    , fromForeignPtrUnsafe
     , fromListN
     , fromList
     , fromListRevN
@@ -98,7 +95,6 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     -- * Eliminating and Reading
 
     -- ** To streams
-    , ReadUState(..)
     , read
     , readRevWith
     , readRev
@@ -194,6 +190,8 @@ module Streamly.Internal.Data.Array.Foreign.Mut.Type
     , spliceWith
     , splice
     , spliceExp
+    , spliceUnsafe
+    , putSliceUnsafe
     -- , putSlice
     -- , appendSlice
     -- , appendSliceFrom
@@ -214,10 +212,6 @@ where
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
-#ifdef USE_C_MALLOC
-#define USE_FOREIGN_PTR
-#endif
-
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (when, void)
@@ -228,27 +222,27 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-#ifndef USE_FOREIGN_PTR
-import Foreign.Marshal.Alloc (mallocBytes)
-#endif
-import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
+import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
+import Streamly.Internal.Control.Exception (assertM)
 import Streamly.Internal.Data.Unboxed
-    ( Storable, alignment, peek, poke, sizeOf
+    ( ArrayContents(..)
+    , Storable
+    , alignment
+    , castContents
+    , getMutableByteArray#
+    , peekWith
+    , pokeWith
+    , sizeOf
+    , touch
     )
 import GHC.Base
-    ( touch#, IO(..), byteArrayContents#
+    ( IO(..), byteArrayContents#
     , Int(..), newAlignedPinnedByteArray#
+    , copyMutableByteArray#, compareByteArrays#
     )
-#ifndef USE_FOREIGN_PTR
-import GHC.Base (RealWorld, MutableByteArray#)
-#endif
 import GHC.Base (noinline)
 import GHC.Exts (unsafeCoerce#)
-import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
-#ifdef USE_C_MALLOC
-import GHC.ForeignPtr (mallocForeignPtrAlignedBytes)
-#endif
+
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -267,9 +261,6 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-#ifdef USE_FOREIGN_PTR
-import qualified Streamly.Internal.Foreign.Malloc as Malloc
-#endif
 import qualified Prelude
 
 import Prelude hiding
@@ -316,37 +307,6 @@ memcmp p1 p2 len = do
     return $ r == 0
 
 -------------------------------------------------------------------------------
--- Array Contents
--------------------------------------------------------------------------------
-
--- We support using ForeignPtrContents or MutableByteArray.
-
-#ifdef USE_FOREIGN_PTR
-newtype ArrayContents = ArrayContents ForeignPtrContents
-#define UNPACKIF
-#else
--- XXX can use UnliftedNewtypes
-data ArrayContents = ArrayContents !(MutableByteArray# RealWorld)
-#define UNPACKIF {-# UNPACK #-}
-#endif
-
-{-# INLINE touch #-}
-touch :: ArrayContents -> IO ()
-touch (ArrayContents contents) =
-    IO $ \s -> case touch# contents s of s' -> (# s', () #)
-
-fptrToArrayContents :: ForeignPtrContents -> ArrayContents
-arrayToFptrContents :: ArrayContents -> ForeignPtrContents
-#ifdef USE_FOREIGN_PTR
-fptrToArrayContents = ArrayContents
-arrayToFptrContents (ArrayContents contents) = contents
-#else
-fptrToArrayContents (PlainPtr mbarr) = ArrayContents mbarr
-fptrToArrayContents _ = error "Unsupported foreign ptr"
-arrayToFptrContents (ArrayContents contents) = PlainPtr contents
-#endif
-
--------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
 
@@ -380,11 +340,15 @@ data Array a =
 #ifdef DEVBUILD
     Storable a =>
 #endif
+    -- The array is a range into arrContents. arrContents may be a superset of
+    -- the slice represented by the array. All offsets are in bytes.
     Array
-    { arrContents :: UNPACKIF !ArrayContents
-    , arrStart :: {-# UNPACK #-} !(Ptr a)      -- ^ first address
-    , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- ^ first unused address
-    , aBound :: {-# UNPACK #-} !(Ptr a)        -- ^ first address beyond allocated memory
+    { arrContents :: {-# UNPACK #-} !(ArrayContents a)
+    , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
+    , aEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
+                                       -- Represents the first invalid index of
+                                       -- the array.
+    , aBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
     }
 
 -------------------------------------------------------------------------------
@@ -413,101 +377,37 @@ data Array a =
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Storable a)
-    => (Int -> Int -> m (ArrayContents, Ptr a)) -> Int -> Int -> m (Array a)
+    => (Int -> Int -> m (ArrayContents a)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
-    (contents, p) <- alloc size alignSize
+    contents <- alloc size alignSize
     return $ Array
         { arrContents = contents
-        , arrStart = p
-        , aEnd   = p
-        , aBound = p `plusPtr` size
+        , arrStart = 0
+        , aEnd   = 0
+        , aBound = size
         }
 
-newAlignedArrayContents :: Int -> Int -> IO (ArrayContents, Ptr a)
-#ifdef USE_C_MALLOC
-newAlignedArrayContents size align = do
-    (ForeignPtr addr contents) <- mallocForeignPtrAlignedBytes size align
-    return (ArrayContents contents, Ptr addr)
-#else
-newAlignedArrayContents size _align | size < 0 =
+newAlignedArrayContents :: Int -> Int -> IO (ArrayContents a)
+newAlignedArrayContents nbytes _align | nbytes < 0 =
   errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
-newAlignedArrayContents (I# size) (I# align) = IO $ \s ->
-    case newAlignedPinnedByteArray# size align s of
+newAlignedArrayContents (I# nbytes) (I# align) = IO $ \s ->
+    case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
-           let p = Ptr (byteArrayContents# (unsafeCoerce# mbarr#))
-#ifdef USE_FOREIGN_PTR
-               c = ArrayContents (PlainPtr mbarr#)
-#else
-               c = ArrayContents mbarr#
-#endif
-            in (# s', (c, p) #)
-#endif
+           let c = ArrayContents mbarr#
+            in (# s', c #)
 
 {-# NOINLINE nilArrayContents #-}
-nilArrayContents :: ArrayContents
+nilArrayContents :: ArrayContents a
 nilArrayContents =
-    fst $ unsafePerformIO $ newAlignedArrayContents 0 0
+    unsafePerformIO $ newAlignedArrayContents 0 0
 
 nil ::
 #ifdef DEVBUILD
     Storable a =>
 #endif
     Array a
-nil = Array nilArrayContents nullPtr nullPtr nullPtr
-
--- | @fromForeignPtrUnsafe foreignPtr end bound@ creates an 'Array' that starts
--- at the memory pointed by the @foreignPtr@, @end@ is the first unused
--- address, and @bound@ is the first address beyond the allocated memory.
---
--- Unsafe: Make sure that foreignPtr <= end <= bound and (end - start) is an
--- integral multiple of the element size. Only PlainPtr type ForeignPtr is
--- supported.
---
--- /Pre-release/
---
-{-# INLINE fromForeignPtrUnsafe #-}
-fromForeignPtrUnsafe ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    ForeignPtr a -> Ptr a -> Ptr a -> Array a
-fromForeignPtrUnsafe (ForeignPtr start _) _ _
-    | Ptr start == nullPtr = nil
-fromForeignPtrUnsafe fp@(ForeignPtr start contents) end bound =
-    assert (unsafeForeignPtrToPtr fp <= end && end <= bound)
-           (Array (fptrToArrayContents contents) (Ptr start) end bound)
-
--- | Like 'newArrayWith' but using an allocator that allocates unmanaged pinned
--- memory. The memory will never be freed by GHC.  This could be useful in
--- allocate-once global data structures. Use carefully as incorrect use can
--- lead to memory leak.
---
--- /Internal/
-{-# INLINE newArrayAlignedUnmanaged #-}
-newArrayAlignedUnmanaged :: forall m a. (MonadIO m, Storable a) =>
-    Int -> Int -> m (Array a)
-#ifdef USE_FOREIGN_PTR
-newArrayAlignedUnmanaged = do
-    newArrayWith mallocForeignPtrAlignedUnmanagedBytes
-
-    where
-
-    mallocForeignPtrAlignedUnmanagedBytes size align = do
-        ForeignPtr addr contents <-
-            liftIO $ Malloc.mallocForeignPtrAlignedUnmanagedBytes size align
-        return (ArrayContents contents, Ptr addr)
-#else
-newArrayAlignedUnmanaged _align count = do
-    let size = max (count * SIZE_OF(a)) 0
-    p <- liftIO $ mallocBytes size
-    return $ Array
-        { arrContents = nilArrayContents
-        , arrStart = p
-        , aEnd = p
-        , aBound = p `plusPtr` size
-        }
-#endif
+nil = Array nilArrayContents 0 0 0
 
 -- | Like 'newArrayWith' but using an allocator that aligns the memory to the
 -- alignment dictated by the 'Storable' instance of the type.
@@ -527,6 +427,23 @@ newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 {-# INLINE newArray #-}
 newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
+
+-- | Allocates a pinned empty array that can hold 'count' items.  The memory of
+-- the array is uninitialized and the allocation is aligned as per the
+-- 'Storable' instance of the type.
+--
+-- /Pre-release/
+{-# INLINE newPinnedArrayBytes #-}
+newPinnedArrayBytes :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
+newPinnedArrayBytes bytes = do
+    contents <-
+        liftIO $ newAlignedArrayContents bytes (alignment (undefined :: a))
+    return $ Array
+        { arrContents = contents
+        , arrStart = 0
+        , aEnd   = 0
+        , aBound = bytes
+        }
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
@@ -551,24 +468,14 @@ withNewArrayUnsafe count f = do
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
     => Int -> a -> Array a -> m ()
-putIndexUnsafe i x arr@(Array{..}) =
-    asPtrUnsafe arr $ \ptr -> do
-        let elemPtr = PTR_INDEX(ptr,i,a)
-        assert (i >= 0 && PTR_VALID(elemPtr,aEnd,a)) (return ())
-        liftIO $ poke elemPtr x
+putIndexUnsafe i x (Array {..}) = do
+    let index = INDEX_OF(arrStart, i, a)
+    assert (i >= 0 && INDEX_VALID(index, aEnd, a)) (return ())
+    liftIO $ pokeWith arrContents index x
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
     error $ label ++ ": invalid array index " ++ show i
-
-{-# INLINE putIndexPtr #-}
-putIndexPtr :: forall m a. (MonadIO m, Storable a) =>
-    Ptr a -> Ptr a -> Int -> a -> m ()
-putIndexPtr start end i x = do
-    let elemPtr = PTR_INDEX(start,i,a)
-    if i >= 0 && PTR_VALID(elemPtr,end,a)
-    then liftIO $ poke elemPtr x
-    else invalidIndex "putIndexPtr" i
 
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
@@ -579,10 +486,12 @@ putIndexPtr start end i x = do
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
-putIndex :: (MonadIO m, Storable a) => Int -> a -> Array a -> m ()
-putIndex i x arr =
-    asPtrUnsafe arr
-        $ \p -> putIndexPtr p (aEnd arr) i x
+putIndex :: forall m a. (MonadIO m, Storable a) => Int -> a -> Array a -> m ()
+putIndex i x Array{..} = do
+    let index = INDEX_OF(arrStart,i,a)
+    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    then liftIO $ pokeWith arrContents index x
+    else invalidIndex "putIndex" i
 
 -- | Write an input stream of (index, value) pairs to an array. Throws an
 -- error if any index is out of bounds.
@@ -591,51 +500,40 @@ putIndex i x arr =
 {-# INLINE putIndices #-}
 putIndices :: forall m a. (MonadIO m, Storable a)
     => Array a -> Fold m (Int, a) ()
-putIndices Array{..} = FL.rmapM extract $ FL.foldlM' step initial
+putIndices arr = FL.foldlM' step (return ())
 
     where
 
-    initial = return ()
-
-    step () (i, x) = liftIO (putIndexPtr arrStart aEnd i x)
-
-    extract () = liftIO $ touch arrContents
+    step () (i, x) = liftIO (putIndex i x arr)
 
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
 modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndexUnsafe i f arr@(Array{..}) = do
-    liftIO $ asPtrUnsafe arr $ \ptr -> do
-        let elemPtr = PTR_INDEX(ptr,i,a)
-        assert (i >= 0 && PTR_NEXT(elemPtr,a) <= aEnd) (return ())
-        r <- peek elemPtr
+modifyIndexUnsafe i f (Array{..}) = liftIO $ do
+        let index = INDEX_OF(arrStart,i,a)
+        assert (i >= 0 && INDEX_NEXT(index,a) <= aEnd) (return ())
+        r <- peekWith arrContents index
         let (x, res) = f r
-        poke elemPtr x
+        pokeWith arrContents index x
         return res
-
-{-# INLINE modifyIndexPtr #-}
-modifyIndexPtr :: forall m a b. (MonadIO m, Storable a) =>
-    Int -> (a -> (a, b)) -> Ptr a -> Ptr a -> m b
-modifyIndexPtr i f start end = liftIO $ do
-    let elemPtr = PTR_INDEX(start,i,a)
-    if i >= 0 && PTR_VALID(elemPtr,end,a)
-    then do
-        r <- peek elemPtr
-        let (x, res) = f r
-        poke elemPtr x
-        return res
-    else invalidIndex "modifyIndex" i
 
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
 modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndex i f arr@(Array{..}) = do
-    liftIO $ asPtrUnsafe arr $ \ptr -> do
-        modifyIndexPtr i f ptr aEnd
+modifyIndex i f Array{..} = do
+    let index = INDEX_OF(arrStart,i,a)
+    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    then liftIO $ do
+        r <- peekWith arrContents index
+        let (x, res) = f r
+        pokeWith arrContents index x
+        return res
+    else invalidIndex "modifyIndex" i
+
 
 -- | Modify the array indices generated by the supplied stream.
 --
@@ -643,41 +541,39 @@ modifyIndex i f arr@(Array{..}) = do
 {-# INLINE modifyIndices #-}
 modifyIndices :: forall m a . (MonadIO m, Storable a)
     => (Int -> a -> a) -> Array a -> Fold m Int ()
-modifyIndices f Array{..} = Fold step initial extract
+modifyIndices f arr = FL.foldlM' step initial
 
     where
 
-    initial = return $ FL.Partial ()
+    initial = return ()
 
     step () i =
         let f1 x = (f i x, ())
-         in FL.Partial <$> liftIO (modifyIndexPtr i f1 arrStart aEnd)
-
-    extract () = liftIO $ touch arrContents
+         in modifyIndex i f1 arr
 
 -- | Modify each element of an array using the supplied modifier function.
 --
 -- /Pre-release/
 modify :: forall m a. (MonadIO m, Storable a)
     => (a -> a) -> Array a -> m ()
-modify f arr@Array{..} = liftIO $
-    asPtrUnsafe arr go
+modify f Array{..} = liftIO $
+    go arrStart
 
     where
 
-    go ptr =
-        when (PTR_VALID(ptr,aEnd,a)) $ do
-            r <- peek ptr
-            poke ptr (f r)
-            go (PTR_NEXT(ptr,a))
+    go i =
+        when (INDEX_VALID(i,aEnd,a)) $ do
+            r <- peekWith arrContents i
+            pokeWith arrContents i (f r)
+            go (INDEX_NEXT(i,a))
 
-{-# INLINE swapPtrs #-}
-swapPtrs :: Storable a => Ptr a -> Ptr a -> IO ()
-swapPtrs ptr1 ptr2 = do
-    r1 <- peek ptr1
-    r2 <- peek ptr2
-    poke ptr1 r2
-    poke ptr2 r1
+{-# INLINE swapArrayByteIndices #-}
+swapArrayByteIndices :: Storable a => ArrayContents a -> Int -> Int -> IO ()
+swapArrayByteIndices arrContents i1 i2 = do
+    r1 <- peekWith arrContents i1
+    r2 <- peekWith arrContents i2
+    pokeWith arrContents i1 r2
+    pokeWith arrContents i2 r1
 
 -- | Swap the elements at two indices without validating the indices.
 --
@@ -687,11 +583,10 @@ swapPtrs ptr1 ptr2 = do
 {-# INLINE unsafeSwapIndices #-}
 unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Array a -> m ()
-unsafeSwapIndices i1 i2 arr = liftIO $ do
-    asPtrUnsafe arr $ \ptr -> do
-        let ptr1 = PTR_INDEX(ptr,i1,a)
-            ptr2 = PTR_INDEX(ptr,i2,a)
-        swapPtrs ptr1 (ptr2 :: Ptr a)
+unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
+        let t1 = INDEX_OF(arrStart,i1,a)
+            t2 = INDEX_OF(arrStart,i2,a)
+        swapArrayByteIndices arrContents t1 t2
 
 -- | Swap the elements at two indices.
 --
@@ -699,13 +594,13 @@ unsafeSwapIndices i1 i2 arr = liftIO $ do
 swapIndices :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Array a -> m ()
 swapIndices i1 i2 Array{..} = liftIO $ do
-        let ptr1 = PTR_INDEX(arrStart,i1,a)
-            ptr2 = PTR_INDEX(arrStart,i2,a)
-        when (i1 < 0 || PTR_INVALID(ptr1,aEnd,a))
+        let t1 = INDEX_OF(arrStart,i1,a)
+            t2 = INDEX_OF(arrStart,i2,a)
+        when (i1 < 0 || INDEX_INVALID(t1,aEnd,a))
             $ invalidIndex "swapIndices" i1
-        when (i2 < 0 || PTR_INVALID(ptr2,aEnd,a))
+        when (i2 < 0 || INDEX_INVALID(t2,aEnd,a))
             $ invalidIndex "swapIndices" i2
-        swapPtrs ptr1 (ptr2 :: Ptr a)
+        swapArrayByteIndices arrContents t1 t2
 
 -------------------------------------------------------------------------------
 -- Rounding
@@ -797,31 +692,38 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 -- XXX See if resizing can be implemented by reading the old array as a stream
 -- and then using writeN to the new array.
 --
+-- NOTE: we are passing elemSize explicitly to avoid a Storable constraint.
+-- Since this is not inlined Storable consrraint leads to dictionary passing
+-- which complicates some inspection tests.
+--
 {-# NOINLINE reallocAligned #-}
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
-reallocAligned elemSize alignSize newCapacity Array{..} = do
-    assert (aEnd <= aBound) (return ())
+reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
+    assertM (aEnd <= aBound)
 
     -- Allocate new array
-    let newCapMax = roundUpLargeArray newCapacity
-    (contents, pNew) <- newAlignedArrayContents newCapMax alignSize
+    let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
+    contents <- newAlignedArrayContents newCapMaxInBytes alignSize
+    let !(ArrayContents mbarrFrom#) = arrContents
+        !(ArrayContents mbarrTo#) = contents
 
     -- Copy old data
     let oldStart = arrStart
-        oldSize = aEnd `minusPtr` oldStart
-        newCap = roundDownTo elemSize newCapMax
-        newLen = min oldSize newCap
-    assert (oldSize `mod` elemSize == 0) (return ())
-    assert (newLen >= 0) (return ())
-    assert (newLen `mod` elemSize == 0) (return ())
-    memcpy (castPtr pNew) (castPtr oldStart) newLen
-    touch arrContents
+        !(I# oldStartInBytes#) = oldStart
+        oldSizeInBytes = aEnd - oldStart
+        newCapInBytes = roundDownTo elemSize newCapMaxInBytes
+        !newLenInBytes@(I# newLenInBytes#) = min oldSizeInBytes newCapInBytes
+    assert (oldSizeInBytes `mod` elemSize == 0) (return ())
+    assert (newLenInBytes >= 0) (return ())
+    assert (newLenInBytes `mod` elemSize == 0) (return ())
+    IO $ \s# -> (# copyMutableByteArray# mbarrFrom# oldStartInBytes#
+                        mbarrTo# 0# newLenInBytes# s#, () #)
 
     return $ Array
-        { arrStart = pNew
+        { arrStart = 0
         , arrContents = contents
-        , aEnd   = pNew `plusPtr` newLen
-        , aBound = pNew `plusPtr` newCap
+        , aEnd   = newLenInBytes
+        , aBound = newCapInBytes
         }
 
 -- | @realloc newCapacity array@ reallocates the array to the specified
@@ -834,10 +736,10 @@ reallocAligned elemSize alignSize newCapacity Array{..} = do
 --
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
-realloc n arr =
-    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) n arr
+realloc bytes arr =
+    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) bytes arr
 
--- | @reallocWith label capSizer minIncrement array@. The label is used
+-- | @reallocWith label capSizer minIncrBytes array@. The label is used
 -- in error messages and the capSizer is used to determine the capacity of the
 -- new array in bytes given the current byte length of the array.
 reallocWith :: forall m a. (MonadIO m , Storable a) =>
@@ -846,22 +748,24 @@ reallocWith :: forall m a. (MonadIO m , Storable a) =>
     -> Int
     -> Array a
     -> m (Array a)
-reallocWith label capSizer minIncr arr = do
-    let oldSize = aEnd arr `minusPtr` arrStart arr
-        newCap = capSizer oldSize
-        newSize = oldSize + minIncr
-        safeCap = max newCap newSize
-    assert (newCap >= newSize || error (badSize newSize)) (return ())
-    realloc safeCap arr
+reallocWith label capSizer minIncrBytes arr = do
+    let oldSizeBytes = aEnd arr - arrStart arr
+        newCapBytes = capSizer oldSizeBytes
+        newSizeBytes = oldSizeBytes + minIncrBytes
+        safeCapBytes = max newCapBytes newSizeBytes
+    assertM (safeCapBytes >= newSizeBytes || error (badSize newSizeBytes))
+
+    realloc safeCapBytes arr
 
     where
 
-    badSize newSize = concat
-        [ label
-        , ": new array size is less than required size "
-        , show newSize
-        , ". Please check the sizing function passed."
-        ]
+    badSize newSize =
+        concat
+            [ label
+            , ": new array size (in bytes) is less than required size "
+            , show newSize
+            , ". Please check the sizing function passed."
+            ]
 
 -- | @resize newCapacity array@ changes the total capacity of the array so that
 -- it is enough to hold the specified number of elements.  Nothing is done if
@@ -874,27 +778,27 @@ reallocWith label capSizer minIncr arr = do
 {-# INLINE resize #-}
 resize :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resize n arr@Array{..} = do
-    let req = SIZE_OF(a) * n
-        len = aEnd `minusPtr` arrStart
+resize nElems arr@Array{..} = do
+    let req = SIZE_OF(a) * nElems
+        len = aEnd - arrStart
     if req < len
     then return arr
     else realloc req arr
 
--- | Like 'resize' but if the capacity is more than 'largeObjectThreshold' then
--- it is rounded up to the closest power of 2.
+-- | Like 'resize' but if the byte capacity is more than 'largeObjectThreshold'
+-- then it is rounded up to the closest power of 2.
 --
 -- /Pre-release/
 {-# INLINE resizeExp #-}
 resizeExp :: forall m a. (MonadIO m, Storable a) =>
     Int -> Array a -> m (Array a)
-resizeExp n arr@Array{..} = do
-    let req = roundUpLargeArray (SIZE_OF(a) * n)
+resizeExp nElems arr@Array{..} = do
+    let req = roundUpLargeArray (SIZE_OF(a) * nElems)
         req1 =
             if req > largeObjectThreshold
             then roundUpToPower2 req
             else req
-        len = aEnd `minusPtr` arrStart
+        len = aEnd - arrStart
     if req1 < len
     then return arr
     else realloc req1 arr
@@ -912,10 +816,10 @@ rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
 rightSize arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
     let start = arrStart
-        len = aEnd `minusPtr` start
-        capacity = aBound `minusPtr` start
+        len = aEnd - start
+        capacity = aBound - start
         target = roundUpLargeArray len
-        waste = aBound `minusPtr` aEnd
+        waste = aBound - aEnd
     assert (target >= len) (return ())
     assert (len `mod` SIZE_OF(a) == 0) (return ())
     -- We trade off some wastage (25%) to avoid reallocations and copying.
@@ -940,11 +844,10 @@ rightSize arr@Array{..} = do
 --
 -- /Internal/
 {-# INLINE snocNewEnd #-}
-snocNewEnd :: (MonadIO m, Storable a) => Ptr a -> Array a -> a -> m (Array a)
+snocNewEnd :: (MonadIO m, Storable a) => Int -> Array a -> a -> m (Array a)
 snocNewEnd newEnd arr@Array{..} x = liftIO $ do
     assert (newEnd <= aBound) (return ())
-    poke aEnd x
-    touch arrContents
+    pokeWith arrContents aEnd x
     return $ arr {aEnd = newEnd}
 
 -- | Really really unsafe, appends the element into the first array, may
@@ -955,7 +858,7 @@ snocNewEnd newEnd arr@Array{..} x = liftIO $ do
 {-# INLINE snocUnsafe #-}
 snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
     Array a -> a -> m (Array a)
-snocUnsafe arr@Array{..} = snocNewEnd (PTR_NEXT(aEnd,a)) arr
+snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(aEnd,a)) arr
 
 -- | Like 'snoc' but does not reallocate when pre-allocated array capacity
 -- becomes full.
@@ -965,7 +868,7 @@ snocUnsafe arr@Array{..} = snocNewEnd (PTR_NEXT(aEnd,a)) arr
 snocMay :: forall m a. (MonadIO m, Storable a) =>
     Array a -> a -> m (Maybe (Array a))
 snocMay arr@Array{..} x = liftIO $ do
-    let newEnd = PTR_NEXT(aEnd,a)
+    let newEnd = INDEX_NEXT(aEnd,a)
     if newEnd <= aBound
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
@@ -1001,7 +904,7 @@ snocWith :: forall m a. (MonadIO m, Storable a) =>
     -> a
     -> m (Array a)
 snocWith allocSize arr x = liftIO $ do
-    let newEnd = PTR_NEXT(aEnd arr,a)
+    let newEnd = INDEX_NEXT(aEnd arr,a)
     if newEnd <= aBound arr
     then snocNewEnd newEnd arr x
     else snocWithRealloc allocSize arr x
@@ -1049,42 +952,27 @@ snoc = snocWith f
 -- Random reads
 -------------------------------------------------------------------------------
 
+-- XXX Can this be deduplicated with array/foreign
+
 -- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
 getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
-getIndexUnsafe i arr@(Array {..}) =
-    asPtrUnsafe arr $ \ptr -> do
-        let elemPtr = PTR_INDEX(ptr,i,a)
-        assert (i >= 0 && PTR_VALID(elemPtr,aEnd,a)) (return ())
-        liftIO $ peek elemPtr
-
-{-# INLINE getIndexPtr #-}
-getIndexPtr :: forall m a. (MonadIO m, Storable a) =>
-    Ptr a -> Ptr a -> Int -> m a
-getIndexPtr start end i = do
-    let elemPtr = PTR_INDEX(start,i,a)
-    if i >= 0 && PTR_VALID(elemPtr,end,a)
-    then liftIO $ peek elemPtr
-    else invalidIndex "getIndexPtr" i
+getIndexUnsafe i (Array {..}) = do
+    let index = INDEX_OF(arrStart,i,a)
+    assert (i >= 0 && INDEX_VALID(index,aEnd,a)) (return ())
+    liftIO $ peekWith arrContents index
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: (MonadIO m, Storable a) => Int -> Array a -> m a
-getIndex i arr =
-    asPtrUnsafe arr
-        $ \p -> getIndexPtr p (aEnd arr) i
-
-{-# INLINE getIndexPtrRev #-}
-getIndexPtrRev :: forall m a. (MonadIO m, Storable a) =>
-    Ptr a -> Ptr a -> Int -> m a
-getIndexPtrRev start end i = do
-    let elemPtr = PTR_RINDEX(end,i,a)
-    if i >= 0 && elemPtr >= start
-    then liftIO $ peek elemPtr
-    else invalidIndex "getIndexPtrRev" i
+getIndex :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndex i Array{..} = do
+    let index = INDEX_OF(arrStart,i,a)
+    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    then liftIO $ peekWith arrContents index
+    else invalidIndex "getIndex" i
 
 -- | /O(1)/ Lookup the element at the given index from the end of the array.
 -- Index starts from 0.
@@ -1092,10 +980,12 @@ getIndexPtrRev start end i = do
 -- Slightly faster than computing the forward index and using getIndex.
 --
 {-# INLINE getIndexRev #-}
-getIndexRev :: (MonadIO m, Storable a) => Int -> Array a -> m a
-getIndexRev i arr =
-    asPtrUnsafe arr
-        $ \p -> getIndexPtrRev p (aEnd arr) i
+getIndexRev :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndexRev i Array{..} = do
+    let index = RINDEX_OF(aEnd,i,a)
+    if i >= 0 && index >= arrStart
+    then liftIO $ peekWith arrContents index
+    else invalidIndex "getIndexRev" i
 
 data GetIndicesState contents start end st =
     GetIndicesState contents start end st
@@ -1112,20 +1002,18 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
 
     where
 
-    inject (Array contents start (Ptr end) _) =
-        return $ GetIndicesState contents start (Ptr end) sti
+    inject (Array contents start end _) =
+        return $ GetIndicesState contents start end sti
 
     {-# INLINE_LATE step #-}
     step (GetIndicesState contents start end st) = do
         r <- stepi defState st
         case r of
             D.Yield i s -> do
-                x <- liftio $ getIndexPtr start end i
+                x <- liftio $ getIndex i (Array contents start end undefined)
                 return $ D.Yield x (GetIndicesState contents start end s)
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
-            D.Stop -> do
-                liftio $ touch contents
-                return D.Stop
+            D.Stop -> return D.Stop
 
 {-# INLINE getIndices #-}
 getIndices :: (MonadIO m, Storable a) => Stream m Int -> Unfold m (Array a) a
@@ -1151,8 +1039,8 @@ getSliceUnsafe :: forall a. Storable a
     -> Array a
     -> Array a
 getSliceUnsafe index len (Array contents start e _) =
-    let fp1 = PTR_INDEX(start,index,a)
-        end = fp1 `plusPtr` (len * SIZE_OF(a))
+    let fp1 = INDEX_OF(start,index,a)
+        end = fp1 + (len * SIZE_OF(a))
      in assert
             (index >= 0 && len >= 0 && end <= e)
             -- Note: In a slice we always use bound = end so that the slice
@@ -1170,8 +1058,8 @@ getSlice :: forall a. Storable a =>
     -> Array a
     -> Array a
 getSlice index len (Array contents start e _) =
-    let fp1 = PTR_INDEX(start,index,a)
-        end = fp1 `plusPtr` (len * SIZE_OF(a))
+    let fp1 = INDEX_OF(start,index,a)
+        end = fp1 + (len * SIZE_OF(a))
      in if index >= 0 && len >= 0 && end <= e
         -- Note: In a slice we always use bound = end so that the slice user
         -- cannot overwrite elements beyond the end of the slice.
@@ -1196,15 +1084,15 @@ getSlice index len (Array contents start e _) =
 reverse :: forall m a. (MonadIO m, Storable a) => Array a -> m ()
 reverse Array{..} = liftIO $ do
     let l = arrStart
-        h = PTR_PREV(aEnd,a)
+        h = INDEX_PREV(aEnd,a)
      in swap l h
 
     where
 
     swap l h = do
         when (l < h) $ do
-            swapPtrs l h
-            swap (PTR_NEXT(l,a)) (PTR_PREV(h,a))
+            swapArrayByteIndices arrContents l h
+            swap (INDEX_NEXT(l,a)) (INDEX_PREV(h,a))
 
 -- | Generate the next permutation of the sequence, returns False if this is
 -- the last permutation.
@@ -1226,7 +1114,7 @@ partitionBy f arr@Array{..} = liftIO $ do
     if arrStart >= aEnd
     then return (arr, arr)
     else do
-        ptr <- go arrStart (PTR_PREV(aEnd,a))
+        ptr <- go arrStart (INDEX_PREV(aEnd,a))
         let pl = Array arrContents arrStart ptr ptr
             pr = Array arrContents ptr aEnd aEnd
         return (pl, pr)
@@ -1235,11 +1123,11 @@ partitionBy f arr@Array{..} = liftIO $ do
 
     -- Invariant low < high on entry, and on return as well
     moveHigh low high = do
-        h <- peek high
+        h <- peekWith arrContents high
         if f h
         then
             -- Correctly classified, continue the loop
-            let high1 = PTR_PREV(high,a)
+            let high1 = INDEX_PREV(high,a)
              in if low == high1
                 then return Nothing
                 else moveHigh low high1
@@ -1255,7 +1143,7 @@ partitionBy f arr@Array{..} = liftIO $ do
     -- low <= high
     -- Both low and high are valid locations within the array
     go low high = do
-        l <- peek low
+        l <- peekWith arrContents low
         if f l
         then
             -- low is wrongly classified
@@ -1266,17 +1154,17 @@ partitionBy f arr@Array{..} = liftIO $ do
                 case r of
                     Nothing -> return low
                     Just (high1, h) -> do -- low < high1
-                        poke low h
-                        poke high1 l
-                        let low1 = PTR_NEXT(low,a)
-                            high2 = PTR_PREV(high1,a)
+                        pokeWith arrContents low h
+                        pokeWith arrContents high1 l
+                        let low1 = INDEX_NEXT(low,a)
+                            high2 = INDEX_PREV(high1,a)
                         if low1 <= high2
                         then go low1 high2
                         else return low1 -- low1 > high2
 
         else do
             -- low is correctly classified
-            let low1 = PTR_NEXT(low,a)
+            let low1 = INDEX_NEXT(low,a)
             if low == high
             then return low1
             else go low1 high
@@ -1329,12 +1217,12 @@ mergeBy = undefined
 {-# INLINE byteLength #-}
 byteLength :: Array a -> Int
 byteLength Array{..} =
-    let len = aEnd `minusPtr` arrStart
+    let len = aEnd - arrStart
     in assert (len >= 0) len
 
 -- Note: try to avoid the use of length in performance sensitive internal
 -- routines as it involves a costly 'div' operation. Instead use the end ptr
--- int he array to check the bounds etc.
+-- in the array to check the bounds etc.
 --
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
@@ -1357,7 +1245,7 @@ length arr =
 {-# INLINE byteCapacity #-}
 byteCapacity :: Array a -> Int
 byteCapacity Array{..} =
-    let len = aBound `minusPtr` arrStart
+    let len = aBound - arrStart
     in assert (len >= 0) len
 
 -- | The remaining capacity in the array for appending more elements without
@@ -1367,7 +1255,7 @@ byteCapacity Array{..} =
 {-# INLINE bytesFree #-}
 bytesFree :: Array a -> Int
 bytesFree Array{..} =
-    let n = aBound `minusPtr` aEnd
+    let n = aBound - aEnd
     in assert (n >= 0) n
 
 -------------------------------------------------------------------------------
@@ -1413,8 +1301,8 @@ arraysOf n (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield x s -> do
-                liftIO $ poke end x >> touch contents
-                let end1 = PTR_NEXT(end,a)
+                liftIO $ pokeWith contents end x
+                let end1 = INDEX_NEXT(end,a)
                 return $
                     if end1 >= bound
                     then D.Skip
@@ -1447,7 +1335,7 @@ arrayStreamKFromStreamD =
 
 data FlattenState s contents a =
       OuterLoop s
-    | InnerLoop s contents !(Ptr a) !(Ptr a)
+    | InnerLoop s contents !Int !Int
 
 -- | Use the "read" unfold instead.
 --
@@ -1475,11 +1363,8 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- liftIO $ do
-                    r <- peek p
-                    touch contents
-                    return r
-        return $ D.Yield x (InnerLoop st contents (PTR_NEXT(p,a)) end)
+        x <- liftIO $ peekWith contents p
+        return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 -- | Use the "readRev" unfold instead.
 --
@@ -1499,7 +1384,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                let p = PTR_PREV(aEnd,a)
+                let p = INDEX_PREV(aEnd,a)
                  in D.Skip (InnerLoop s arrContents p arrStart)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
@@ -1509,47 +1394,50 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     step' _ (InnerLoop st contents p start) = do
         x <- liftIO $ do
-                    r <- peek p
-                    touch contents
+                    r <- peekWith contents p
                     return r
-        let cur = PTR_PREV(p,a)
+        let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
 
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
 
-data ReadUState a = ReadUState
-    UNPACKIF !ArrayContents  -- contents
-    !(Ptr a)           -- end address
-    !(Ptr a)           -- current address
+data ArrayUnsafe a = ArrayUnsafe
+    {-# UNPACK #-} !(ArrayContents a)  -- contents
+    {-# UNPACK #-} !Int                -- index 1
+    {-# UNPACK #-} !Int                -- index 2
 
-toReadUState :: Array a -> ReadUState a
-toReadUState (Array contents start end _) = ReadUState contents end start
+toArrayUnsafe :: Array a -> ArrayUnsafe a
+toArrayUnsafe (Array contents start end _) = ArrayUnsafe contents start end
+
+fromArrayUnsafe ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    ArrayUnsafe a -> Array a
+fromArrayUnsafe (ArrayUnsafe contents start end) =
+         Array contents start end end
 
 {-# INLINE_NORMAL producerWith #-}
 producerWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Producer m (Array a) a
-producerWith liftio = Producer step (return . toReadUState) extract
+producerWith liftio = Producer step (return . toArrayUnsafe) extract
     where
 
     {-# INLINE_LATE step #-}
-    step (ReadUState contents end cur)
-        | assert (cur <= end) (cur == end) = liftio $ do
-            -- We bind it strictly here as we don't want this to be optimized
-            -- out in a purely lazy monad like Identity.
-            !_ <- touch contents
-            return D.Stop
-    step (ReadUState contents end cur) = do
+    step (ArrayUnsafe _ cur end)
+        | assert (cur <= end) (cur == end) = return D.Stop
+    step (ArrayUnsafe contents cur end) = do
             -- When we use a purely lazy Monad like Identity, we need to force a
             -- few actions for correctness and execution order sanity. We want
             -- the peek to occur right here and not lazily at some later point
             -- because we want the peek to be ordered with respect to the touch.
-            !x <- liftio $ peek cur
-            return $ D.Yield x (ReadUState contents end (PTR_NEXT(cur,a)))
+            !x <- liftio $ peekWith contents cur
+            return $ D.Yield x (ArrayUnsafe contents (INDEX_NEXT(cur,a)) end)
 
-    extract (ReadUState contents end cur) = return $ Array contents cur end end
+    extract = return . fromArrayUnsafe
 
 -- | Resumable unfold of an array.
 --
@@ -1572,16 +1460,14 @@ readRevWith liftio = Unfold step inject
     where
 
     inject (Array contents start end _) =
-        let p = PTR_PREV(end,a)
-         in return $ ReadUState contents start p
+        let p = INDEX_PREV(end,a)
+         in return $ ArrayUnsafe contents start p
 
     {-# INLINE_LATE step #-}
-    step (ReadUState contents start p) | p < start = liftio $ do
-        !_ <- touch contents
-        return D.Stop
-    step (ReadUState contents start p) = do
-        !x <- liftio $ peek p
-        return $ D.Yield x (ReadUState contents start (PTR_PREV(p,a)))
+    step (ArrayUnsafe _ start p) | p < start = return D.Stop
+    step (ArrayUnsafe contents start p) = do
+        !x <- liftio $ peekWith contents p
+        return $ D.Yield x (ArrayUnsafe contents start (INDEX_PREV(p,a)))
 
 -- | Unfold an array into a stream in reverse order.
 --
@@ -1612,8 +1498,7 @@ toListFB c n Array{..} = go arrStart
         -- evaluated/written to before we peek at them.
         -- XXX
         let !x = unsafeInlineIO $ do
-                    r <- peek p
-                    touch arrContents
+                    r <- peekWith arrContents p
                     return r
         in c x (go (PTR_NEXT(p,a)))
 -}
@@ -1630,9 +1515,8 @@ toList Array{..} = liftIO $ go arrStart
 
     go p | assert (p <= aEnd) (p == aEnd) = return []
     go p = do
-        x <- peek p
-        touch arrContents
-        (:) x <$> go (PTR_NEXT(p,a))
+        x <- peekWith arrContents p
+        (:) x <$> go (INDEX_NEXT(p,a))
 
 {-# INLINE_NORMAL toStreamDWith #-}
 toStreamDWith ::
@@ -1645,9 +1529,8 @@ toStreamDWith liftio Array{..} = D.Stream step arrStart
     {-# INLINE_LATE step #-}
     step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
     step _ p = liftio $ do
-        r <- peek p
-        touch arrContents
-        return $ D.Yield r (PTR_NEXT(p,a))
+        r <- peekWith arrContents p
+        return $ D.Yield r (INDEX_NEXT(p,a))
 
 -- | Use the 'read' unfold instead.
 --
@@ -1669,10 +1552,9 @@ toStreamKWith liftio Array{..} = go arrStart
     go p | assert (p <= aEnd) (p == aEnd) = K.nil
          | otherwise =
         let elemM = do
-              r <- peek p
-              touch arrContents
+              r <- peekWith arrContents p
               return r
-        in liftio elemM `K.consM` go (PTR_NEXT(p,a))
+        in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
@@ -1683,7 +1565,7 @@ toStreamDRevWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
 toStreamDRevWith liftio Array{..} =
-    let p = PTR_PREV(aEnd,a)
+    let p = INDEX_PREV(aEnd,a)
     in D.Stream step p
 
     where
@@ -1691,9 +1573,8 @@ toStreamDRevWith liftio Array{..} =
     {-# INLINE_LATE step #-}
     step _ p | p < arrStart = return D.Stop
     step _ p = liftio $ do
-        r <- peek p
-        touch arrContents
-        return $ D.Yield r (PTR_PREV(p,a))
+        r <- peekWith arrContents p
+        return $ D.Yield r (INDEX_PREV(p,a))
 
 -- | Use the 'readRev' unfold instead.
 --
@@ -1709,7 +1590,7 @@ toStreamKRevWith ::
        forall m a. (Monad m, Storable a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
 toStreamKRevWith liftio Array {..} =
-    let p = PTR_PREV(aEnd,a)
+    let p = INDEX_PREV(aEnd,a)
     in go p
 
     where
@@ -1717,10 +1598,9 @@ toStreamKRevWith liftio Array {..} =
     go p | p < arrStart = K.nil
          | otherwise =
         let elemM = do
-              r <- peek p
-              touch arrContents
+              r <- peekWith arrContents p
               return r
-        in liftio elemM `K.consM` go (PTR_PREV(p,a))
+        in liftio elemM `K.consM` go (INDEX_PREV(p,a))
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
@@ -1747,23 +1627,6 @@ foldr f z arr = D.foldr f z $ toStreamD arr
 -- Folds
 -------------------------------------------------------------------------------
 
-data ArrayUnsafe a = ArrayUnsafe
-    UNPACKIF !ArrayContents  -- contents
-    {-# UNPACK #-} !(Ptr a)  -- start address
-    {-# UNPACK #-} !(Ptr a)  -- first unused address
-
-toArrayUnsafe :: Array a -> ArrayUnsafe a
-toArrayUnsafe (Array contents start end _) =
-    ArrayUnsafe contents start end
-
-fromArrayUnsafe ::
-#ifdef DEVBUILD
-    Storable a =>
-#endif
-    ArrayUnsafe a -> Array a
-fromArrayUnsafe (ArrayUnsafe contents start end) =
-         Array contents start end end
-
 -- Note: Arrays may be allocated with a specific alignment at the beginning of
 -- the array. If you need to maintain that alignment on reallocations then you
 -- can resize the array manually before append, using an aligned resize
@@ -1771,7 +1634,8 @@ fromArrayUnsafe (ArrayUnsafe contents start end) =
 
 -- XXX Keep the bound intact to not lose any free space? Perf impact?
 
--- | Append up to @n@ input items to the supplied array.
+-- | @appendNUnsafe alloc n@ appends up to @n@ input items to the supplied
+-- array.
 --
 -- Unsafe: Do not drive the fold beyond @n@ elements, it will lead to memory
 -- corruption or segfault.
@@ -1792,7 +1656,7 @@ appendNUnsafe action n =
     initial = do
         assert (n >= 0) (return ())
         arr@(Array _ _ end bound) <- action
-        let free = bound `minusPtr` end
+        let free = bound - end
             needed = n * SIZE_OF(a)
         -- XXX We can also reallocate if the array has too much free space,
         -- otherwise we lose that space.
@@ -1803,8 +1667,8 @@ appendNUnsafe action n =
         return $ toArrayUnsafe arr1
 
     step (ArrayUnsafe contents start end) x = do
-        liftIO $ poke end x >> touch contents
-        return $ ArrayUnsafe contents start (PTR_NEXT(end,a))
+        liftIO $ pokeWith contents end x
+        return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
 -- | Append @n@ elements to an existing array. Any free space left in the array
 -- after appending @n@ elements is lost.
@@ -1858,17 +1722,16 @@ append = appendWith (* 2)
 {-# INLINE_NORMAL writeNWithUnsafe #-}
 writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
+writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     where
 
-    initial = FL.Partial . toArrayUnsafe <$> alloc (max n 0)
+    initial = toArrayUnsafe <$> alloc (max n 0)
 
     step (ArrayUnsafe contents start end) x = do
-        liftIO $ poke end x >> touch contents
+        liftIO $ pokeWith contents end x
         return
-          $ FL.Partial
-          $ ArrayUnsafe contents start (PTR_NEXT(end,a))
+          $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -1913,20 +1776,19 @@ writeN = writeNWith newArray
 {-# INLINE_NORMAL writeRevNWithUnsafe #-}
 writeRevNWithUnsafe :: forall m a. (MonadIO m, Storable a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
-writeRevNWithUnsafe alloc n = Fold step initial (return . fromArrayUnsafe)
+writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     where
 
     toArrayUnsafeRev (Array contents _ _ bound) =
          ArrayUnsafe contents bound bound
 
-    initial = FL.Partial . toArrayUnsafeRev <$> alloc (max n 0)
+    initial = toArrayUnsafeRev <$> alloc (max n 0)
 
     step (ArrayUnsafe contents start end) x = do
-        let ptr = PTR_PREV(start,a)
-        liftIO $ poke ptr x >> touch contents
+        let ptr = INDEX_PREV(start,a)
+        liftIO $ pokeWith contents ptr x
         return
-          $ FL.Partial
           $ ArrayUnsafe contents ptr end
 
 -- | Like writeNWith but writes the array in reverse order.
@@ -1956,23 +1818,6 @@ writeRevN = writeRevNWith newArray
 writeNAligned :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned align = writeNWith (newArrayAligned align)
-
--- | @writeNAlignedUnmanaged align n@ folds a maximum of @n@ elements from the
--- input stream to an 'Array' whose starting address is aligned to @align@
--- bytes and is allocated using unmanaged memory (never freed).  This could be
--- useful to allocate memory that we need to allocate only once in the lifetime
--- of the program.
---
--- >>> f = Array.newArrayAlignedUnmanaged
--- >>> writeNAlignedUnmanaged a = Array.writeNWith (f a)
--- >>> writeNAlignedUnmanaged a n = Array.appendN (f a n) n
---
--- /Pre-release/
---
-{-# INLINE_NORMAL writeNAlignedUnmanaged #-}
-writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
-    => Int -> Int -> Fold m a (Array a)
-writeNAlignedUnmanaged align = writeNWith (newArrayAlignedUnmanaged align)
 
 -- XXX Buffer to a list instead?
 --
@@ -2030,15 +1875,15 @@ writeWith elemCount =
     where
 
     insertElem (Array contents start end bound) x = do
-        liftIO $ poke end x
-        return $ Array contents start (PTR_NEXT(end,a)) bound
+        liftIO $ pokeWith contents end x
+        return $ Array contents start (INDEX_NEXT(end,a)) bound
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newArrayAligned (alignment (undefined :: a)) elemCount
     step arr@(Array _ start end bound) x
-        | PTR_NEXT(end,a) > bound = do
-        let oldSize = end `minusPtr` start
+        | INDEX_NEXT(end,a) > bound = do
+        let oldSize = end - start
             newSize = max (oldSize * 2) 1
         arr1 <-
             liftIO
@@ -2077,14 +1922,14 @@ fromStreamDN :: forall m a. (MonadIO m, Storable a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
     arr <- liftIO $ newArray limit
-    end <- D.foldlM' fwrite (return $ aEnd arr) $ D.take limit str
+    end <- D.foldlM' (fwrite (arrContents arr)) (return $ aEnd arr) $ D.take limit str
     return $ arr {aEnd = end}
 
     where
 
-    fwrite ptr x = do
-        liftIO $ poke ptr x
-        return $ PTR_NEXT(ptr,a)
+    fwrite arrContents ptr x = do
+        liftIO $ pokeWith arrContents ptr x
+        return $ INDEX_NEXT(ptr,a)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -2156,45 +2001,60 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 -- Combining
 -------------------------------------------------------------------------------
 
+-- | Put a sub range of a source array into a subrange of a destination array.
+-- This is not safe as it does not check the bounds.
+{-# INLINE putSliceUnsafe #-}
+putSliceUnsafe :: MonadIO m => Array a -> Int -> Array a -> Int -> Int -> m ()
+putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
+    assertM (lenBytes <= aBound dst - dstStartBytes)
+    assertM (lenBytes <= aEnd src - srcStartBytes)
+    let !(I# srcStartBytes#) = srcStartBytes
+        !(I# dstStartBytes#) = dstStartBytes
+        !(I# lenBytes#) = lenBytes
+    let arrS# = getMutableByteArray# (arrContents src)
+        arrD# = getMutableByteArray# (arrContents dst)
+    IO $ \s# -> (# copyMutableByteArray#
+                    arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
+                , () #)
+
 -- | Copy two arrays into a newly allocated array.
 {-# INLINE spliceCopy #-}
-spliceCopy :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
-spliceCopy arr1 arr2 = do
-    let src1 = arrStart arr1
-        src2 = arrStart arr2
-        len1 = aEnd arr1 `minusPtr` src1
-        len2 = aEnd arr2 `minusPtr` src2
-
-    arr <- liftIO $ newArray (len1 + len2)
-    let dst = arrStart arr
-
-    -- XXX Should we use copyMutableByteArray# instead? Is there an overhead to
-    -- ccall?
-    liftIO $ do
-        memcpy (castPtr dst) (castPtr src1) len1
-        touch (arrContents arr1)
-        memcpy (castPtr (dst `plusPtr` len1)) (castPtr src2) len2
-        touch (arrContents arr2)
-    return arr { aEnd = dst `plusPtr` (len1 + len2) }
+spliceCopy :: forall m a. (MonadIO m, Storable a) =>
+    Array a -> Array a -> m (Array a)
+spliceCopy arr1 arr2 = liftIO $ do
+    let start1 = arrStart arr1
+        start2 = arrStart arr2
+        len1 = aEnd arr1 - start1
+        len2 = aEnd arr2 - start2
+    newArrContents <-
+        liftIO
+            $ newAlignedArrayContents
+                  (len1 + len2)
+                  (alignment (undefined :: a))
+    let len = len1 + len2
+        newArr = Array newArrContents 0 len len
+    putSliceUnsafe arr1 start1 newArr 0 len1
+    putSliceUnsafe arr2 start2 newArr len1 len2
+    return newArr
 
 -- | Really really unsafe, appends the second array into the first array. If
 -- the first array does not have enough space it may cause silent data
 -- corruption or if you are lucky a segfault.
 {-# INLINE spliceUnsafe #-}
-spliceUnsafe :: MonadIO m => Array a -> (Array a, Int) -> m (Array a)
-spliceUnsafe dst (src, srcLen) =
+spliceUnsafe :: MonadIO m =>
+    Array a -> Array a -> m (Array a)
+spliceUnsafe dst src =
     liftIO $ do
-         let psrc = arrStart src
-         let pdst = aEnd dst
-         assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
-         memcpy (castPtr pdst) (castPtr psrc) srcLen
-         touch (arrContents src)
-         touch (arrContents dst)
-         return $ dst {aEnd = pdst `plusPtr` srcLen}
+         let startSrc = arrStart src
+             srcLen = aEnd src - startSrc
+             endDst = aEnd dst
+         assertM (endDst + srcLen <= aBound dst)
+         putSliceUnsafe src startSrc dst endDst srcLen
+         return $ dst {aEnd = endDst + srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
--- the @sizer dstBytesn srcBytes@ function, where @dstBytes@ is the size of the
+-- the @sizer dstBytes srcBytes@ function, where @dstBytes@ is the size of the
 -- first array and @srcBytes@ is the size of the second array, in bytes.
 --
 -- Note that the returned array may be a mutated version of first array.
@@ -2209,21 +2069,21 @@ spliceWith sizer dst@(Array _ start end bound) src = do
      in D.fold f (toStreamD src)
 -}
     assert (end <= bound) (return ())
-    let srcLen = aEnd src `minusPtr` arrStart src
+    let srcBytes = aEnd src - arrStart src
 
     dst1 <-
-        if end `plusPtr` srcLen >= bound
+        if end + srcBytes >= bound
         then do
-            let oldSize = end `minusPtr` start
-                newSize = sizer oldSize srcLen
-            when (newSize < oldSize + srcLen)
+            let dstBytes = end - start
+                newSizeInBytes = sizer dstBytes srcBytes
+            when (newSizeInBytes < dstBytes + srcBytes)
                 $ error
                     $ "splice: newSize is less than the total size "
                     ++ "of arrays being appended. Please check the "
-                    ++ "newSize function passed."
-            liftIO $ realloc newSize dst
+                    ++ "sizer function passed."
+            liftIO $ realloc newSizeInBytes dst
         else return dst
-    spliceUnsafe dst1 (src, srcLen)
+    spliceUnsafe dst1 src
 
 -- | The first array is mutated to append the second array. If there is no
 -- reserved space available in the first array a new allocation of exact
@@ -2260,9 +2120,12 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 {-# INLINE breakOn #-}
 breakOn :: MonadIO m
     => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr@Array{..} = liftIO $ do
-    let p = arrStart
-    loc <- c_memchr p sep (fromIntegral $ aEnd `minusPtr` p)
+breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
+    -- XXX Instead of using asPtrUnsafe (pinning memory) we can pass unlifted
+    -- Addr# to memchr and it should be safe (from ghc 8.4).
+    -- XXX We do not need memchr here, we can use a Haskell equivalent.
+    loc <- c_memchr p sep (fromIntegral $ byteLength arr)
+    let sepIndex = loc `minusPtr` p
     return $
         if loc == nullPtr
         then (arr, Nothing)
@@ -2270,12 +2133,12 @@ breakOn sep arr@Array{..} = liftIO $ do
             ( Array
                 { arrContents = arrContents
                 , arrStart = arrStart
-                , aEnd = loc
-                , aBound = loc
+                , aEnd = arrStart + sepIndex -- exclude the separator
+                , aBound = arrStart + sepIndex
                 }
             , Just $ Array
                     { arrContents = arrContents
-                    , arrStart = arrStart `plusPtr` (loc `minusPtr` p + 1)
+                    , arrStart = arrStart + (sepIndex + 1)
                     , aEnd = aEnd
                     , aBound = aBound
                     }
@@ -2294,7 +2157,7 @@ splitAt i arr@Array{..} =
              then error $ "sliceAt: specified array index " ++ show i
                         ++ " is beyond the maximum index " ++ show maxIndex
              else let off = i * SIZE_OF(a)
-                      p = arrStart `plusPtr` off
+                      p = arrStart + off
                 in ( Array
                   { arrContents = arrContents
                   , arrStart = arrStart
@@ -2303,7 +2166,7 @@ splitAt i arr@Array{..} =
                   }
                 , Array
                   { arrContents = arrContents
-                  , arrStart = arrStart `plusPtr` off
+                  , arrStart = p
                   , aEnd = aEnd
                   , aBound = aBound
                   }
@@ -2326,7 +2189,7 @@ castUnsafe ::
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end bound) =
-    Array contents (castPtr start) (castPtr end) (castPtr bound)
+    Array (castContents contents) start end bound
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
@@ -2349,44 +2212,82 @@ cast arr =
         then Nothing
         else Just $ castUnsafe arr
 
--- | Use an @Array a@ as @Ptr a@.
+-- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
+-- pointer to the FFI call. For unsafe calls we do not need to pin the array.
+-- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in
+-- before the pointer is wrapped.
+--
+-- From the GHC manual:
+--
+-- GHC, since version 8.4, guarantees that garbage collection will never occur
+-- during an unsafe call, even in the bytecode interpreter, and further
+-- guarantees that unsafe calls will be performed in the calling thread. Making
+-- it safe to pass heap-allocated objects to unsafe functions.
+
+-- Unsafe because of direct pointer operations. The user must ensure that they
+-- are writing within the legal bounds of the array. Should we just name it
+-- asPtr, the unsafety is implicit for any pointer operations. And we are safe
+-- from Haskell perspective because we will be pinning the memory.
+
+-- | Use an @Array a@ as @Ptr a@. This is useful when we want to pass an array
+-- as a pointer to some operating system call or to a "safe" FFI call.
+--
+-- If the array is not pinned it is copied to pinned memory before passing it
+-- to the monadic action.
+--
+-- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
+-- that the programmer keeps this in mind and creates a pinned array
+-- opportunistically before this operation occurs, to avoid the cost of a copy
+-- if possible.
 --
 -- /Unsafe/
 --
 -- /Pre-release/
 --
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe Array{..} f = do
-  r <- f arrStart
-  liftIO $ touch arrContents
+asPtrUnsafe arr f = do
+  let contents = arrContents arr
+      !ptr = Ptr (byteArrayContents#
+                     (unsafeCoerce# (getMutableByteArray# contents)))
+  -- XXX Check if the array is pinned, if not, copy it to a pinned array
+  -- XXX We should probably pass to the IO action the byte length of the array
+  -- as well so that bounds can be checked.
+  r <- f (ptr `plusPtr` arrStart arr)
+  liftIO $ touch contents
   return r
 
 -------------------------------------------------------------------------------
 -- Equality
 -------------------------------------------------------------------------------
 
--- | Compare if two arrays are equal.
+-- | Compare the length of the arrays. If the length is equal, compare the
+-- lexicographical ordering of two underlying byte arrays
 --
 -- /Pre-release/
 {-# INLINE cmp #-}
-cmp :: MonadIO m => Array a -> Array a -> m Bool
+cmp :: MonadIO m => Array a -> Array a -> m Ordering
 cmp arr1 arr2 =
-    liftIO $ do
-        let ptr1 = arrStart arr1
-        let ptr2 = arrStart arr2
-        let len1 = aEnd arr1 `minusPtr` ptr1
-        let len2 = aEnd arr2 `minusPtr` ptr2
-
-        if len1 == len2
-        then
-            if ptr1 == ptr2
-            then return True
-            else do
-                r <- memcmp (castPtr ptr1) (castPtr ptr2) len1
-                touch (arrContents arr1)
-                touch (arrContents arr2)
-                return r
-        else return False
+    liftIO
+        $ do
+            let marr1 = getMutableByteArray# (arrContents arr1)
+                marr2 = getMutableByteArray# (arrContents arr2)
+                !(I# st1#) = arrStart arr1
+                !(I# st2#) = arrStart arr2
+                !(I# len#) = byteLength arr1
+            case compare (byteLength arr1) (byteLength arr2) of
+                EQ -> do
+                    r <- liftIO $ IO $ \s# ->
+                             let res =
+                                     I#
+                                         (compareByteArrays#
+                                              (unsafeCoerce# marr1)
+                                              st1#
+                                              (unsafeCoerce# marr2)
+                                              st2#
+                                              len#)
+                              in (# s#, res #)
+                    return $ compare r 0
+                x -> return x
 
 -------------------------------------------------------------------------------
 -- NFData
@@ -2408,12 +2309,10 @@ instance NFData1 Array where
 {-# INLINE strip #-}
 strip :: forall a m. (Storable a, MonadIO m) =>
     (a -> Bool) -> Array a -> m (Array a)
-strip eq arr@Array{..} = do
-    st <- liftIO $ getStart arrStart
-    end <- liftIO $ getLast aEnd st
-    liftIO $ do
-        touch arrContents
-        return arr {arrStart = st, aEnd = end, aBound = end}
+strip eq arr@Array{..} = liftIO $ do
+    st <- getStart arrStart
+    end <- getLast aEnd st
+    return arr {arrStart = st, aEnd = end, aBound = end}
 
     where
 
@@ -2430,17 +2329,17 @@ strip eq arr@Array{..} = do
     getStart cur = do
         if cur < aEnd
         then do
-            r <- peek cur
+            r <- peekWith arrContents cur
             if eq r
-            then getStart (PTR_NEXT(cur, a))
+            then getStart (INDEX_NEXT(cur,a))
             else return cur
         else return cur
 
     getLast cur low = do
         if cur > low
         then do
-            let prev = PTR_PREV(cur,a)
-            r <- peek prev
+            let prev = INDEX_PREV(cur,a)
+            r <- peekWith arrContents prev
             if eq r
             then getLast prev low
             else return cur

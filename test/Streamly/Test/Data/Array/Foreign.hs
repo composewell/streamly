@@ -13,17 +13,16 @@ module Streamly.Test.Data.Array.Foreign (main) where
 import Data.Char (isLower)
 import Data.List (sort)
 import Data.Word(Word8)
+import Foreign.Storable (peek)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.QuickCheck (chooseInt, listOf)
-import Streamly.Internal.Data.Unboxed (Storable, alignment, peek, poke)
 import GHC.Ptr (plusPtr)
-import Foreign.ForeignPtr (withForeignPtr)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Foreign as A
 import qualified Streamly.Internal.Data.Array.Foreign.Type as A
 import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Foreign.Malloc as Malloc
 
 type Array = A.Array
 
@@ -185,7 +184,7 @@ testBubbleAsc = testBubbleWith True
 testBubbleDesc ::  Property
 testBubbleDesc = testBubbleWith False
 
-testByteLengthWithMA :: forall a. Storable a => a -> IO ()
+testByteLengthWithMA :: forall a. Unboxed a => a -> IO ()
 testByteLengthWithMA _ = do
      arrA <- MA.newArray 100 :: IO (MA.Array a)
      let arrW8 = MA.castUnsafe arrA :: MA.Array Word8
@@ -210,28 +209,6 @@ testUnsafeIndxedFromList inp =
     let arr = A.fromList inp
      in fmap (flip A.unsafeIndex arr) [0 .. (length inp - 1)] `shouldBe` inp
 
-testFromForeignPtrUnsafeMA :: IO ()
-testFromForeignPtrUnsafeMA = do
-    fp <- Malloc.mallocForeignPtrAlignedBytes numBytes alignmentInt
-    arr <-
-        withForeignPtr fp $ \p -> do
-            writeNext (0 :: Int) p
-            return
-                $ MA.fromForeignPtrUnsafe
-                      fp
-                      (p `plusPtr` numBytes)
-                      (p `plusPtr` numBytes)
-    MA.toList arr `shouldReturn` [0..99]
-
-    where
-
-    sizeOfInt = sizeOf (undefined :: Int)
-    alignmentInt = alignment (undefined :: Int)
-    numBytes = sizeOfInt * 100
-    writeNext i _
-        | i >= 100 = return ()
-    writeNext i p = poke p i >> writeNext (i + 1) (p `plusPtr` sizeOfInt)
-
 testAsPtrUnsafeMA :: IO ()
 testAsPtrUnsafeMA = do
     arr <- MA.fromList ([0 .. 99] :: [Int])
@@ -241,6 +218,8 @@ testAsPtrUnsafeMA = do
 
     sizeOfInt = sizeOf (undefined :: Int)
 
+    -- We need to be careful here. We assume Unboxed and Storable are compatible
+    -- with each other. For Int, they are compatible.
     getList i _
         | i >= 100 = return []
     getList i p = do
@@ -306,7 +285,6 @@ main =
                    (testByteLengthWithMA (undefined :: Int))
             it "testByteLengthWithMA Char"
                    (testByteLengthWithMA (undefined :: Char))
-            it "testFromForeignPtrUnsafeMA" testFromForeignPtrUnsafeMA
             it "testAsPtrUnsafeMA" testAsPtrUnsafeMA
             it "reallocMA" reallocMA
         describe "breakOn" $ do

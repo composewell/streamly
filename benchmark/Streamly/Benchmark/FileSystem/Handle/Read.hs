@@ -65,7 +65,7 @@ readLast = S.last . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readLast
 inspect $ 'readLast `hasNoType` ''Step -- S.unfold
 inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readLast `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'readLast `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- assert that flattenArrays constructors are not present
@@ -77,7 +77,7 @@ readCountBytes = S.length . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
 inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readCountBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'readCountBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Count the number of lines in a file.
@@ -92,7 +92,7 @@ readCountLines =
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
 inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readCountLines `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'readCountLines `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Count the number of words in a file.
@@ -116,7 +116,7 @@ readSumBytes = S.sum . S.unfold FH.read
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
 inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readSumBytes `hasNoType` ''MA.ReadUState  -- FH.read/A.read
+inspect $ 'readSumBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- XXX When we mark this with INLINE and we have two benchmarks using S.drain
@@ -235,8 +235,8 @@ inspect $ hasNoTypeClasses 'chunksOf
 inspect $ 'chunksOf `hasNoType` ''Step
 inspect $ 'chunksOf `hasNoType` ''FoldMany
 inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
+                                                 -- FH.read/A.read
 inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'chunksOf `hasNoType` ''MA.ReadUState  -- FH.read/A.read
 #endif
 
 {-# INLINE arraysOf #-}

@@ -17,11 +17,12 @@ import Data.Int (Int64)
 import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Storable)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
 import Data.Semigroup (Sum(..), getSum)
+import Foreign.Storable (Storable)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
@@ -112,7 +113,7 @@ splitOnSuffixSeq = do
              $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
 
 splitterProperties ::
-       forall a. (Arbitrary a, Eq a, Show a, Storable a, Enum a)
+       forall a. (Arbitrary a, Eq a, Show a, Storable a, Unboxed a, Enum a)
     => a
     -> String
     -> Spec
