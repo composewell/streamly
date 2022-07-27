@@ -936,6 +936,11 @@ takeFramedByEsc_ =
                     Just _ -> checkPass xs Nothing openMinusClose
             checkPass [] _ _ = False
 
+            checkPassBeg [] = False
+            checkPassBeg xxs@(x:_)
+                | isBegin x = checkPass xxs Nothing (0 :: Int)
+                | otherwise = False
+
             escapeFrame begin end escape l =
                 let
                     helper (x : xs) maybePrevEsc openMinusClose =
@@ -969,12 +974,12 @@ takeFramedByEsc_ =
         in
             case S.parse prsr (S.fromList ls) of
                 Right parsed_list ->
-                    if checkPass ls Nothing (0 :: Int)
+                    if checkPassBeg ls
                     then checkListEqual parsed_list $
                         escapeFrame isBegin isEnd isEsc ls
                     else property False
                 Left _ ->
-                    if checkPass ls Nothing (0 :: Int)
+                    if checkPassBeg ls
                     then property False
                     else property True
 
