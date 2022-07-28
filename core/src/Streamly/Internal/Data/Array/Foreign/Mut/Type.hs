@@ -2119,30 +2119,6 @@ splice = spliceWith (+)
 spliceExp :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 
--- | UNSAFE: Puts the second array into the first array at a given index,
--- displacing existing contents by the required length. If the first array
--- does not have enough space it may cause silent data corruption or
--- if you are lucky a segfault.
-{-# INLINE putSliceUnsafe #-}
-putSliceUnsafe :: (MonadIO m, Storable a) => Array a -> Int -> (Array a, Int) -> m (Array a)
-putSliceUnsafe dst index (src, srcLen) =
-    liftIO $ do
-         let psrc = arrStart src
-         let pdst = aEnd dst
-         -- position to put slice elements in
-         let pPosSlice = arrStart dst `plusPtr` index
-         -- position to move existing elements to
-         let pPosMove = pPosSlice `plusPtr` srcLen
-         let pPosLen  = length dst - index
-         assert (pdst `plusPtr` srcLen <= aBound dst) (return ())
-         -- shift existing elements from index by pPosLen amount
-         memcpy (castPtr pPosMove) (castPtr pPosMove) pPosLen
-         -- move existing elements from index by srcLen amount
-         memcpy (castPtr pPosSlice) (castPtr psrc) srcLen
-         touch (arrContents src)
-         touch (arrContents dst)
-         return $ dst {aEnd = pdst `plusPtr` srcLen}
-
 -------------------------------------------------------------------------------
 -- Splitting
 -------------------------------------------------------------------------------
