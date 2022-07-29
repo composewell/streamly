@@ -58,8 +58,6 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Ring/Unboxed.hs
     benchmark/Streamly/Benchmark/Data/Array/Foreign/Mut.hs
-    benchmark/Streamly/Benchmark/Data/Array/Prim.hs
-    benchmark/Streamly/Benchmark/Data/Array/Prim/Pinned.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
@@ -87,17 +85,12 @@ extra-source-files:
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Array/ArrayMacros.h
 
-    src/Streamly/Internal/Data/Array/PrimInclude.hs
-    src/Streamly/Internal/Data/Array/Prim/TypesInclude.hs
-    src/Streamly/Internal/Data/Array/Prim/MutTypesInclude.hs
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/config.h.in
     src/inline.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
-    test/Streamly/Test/Data/Array/Prim.hs
-    test/Streamly/Test/Data/Array/Prim/Pinned.hs
     test/Streamly/Test/Data/Array/Foreign.hs
     test/Streamly/Test/Data/Ring/Unboxed.hs
     test/Streamly/Test/Data/Array/Stream/Foreign.hs
@@ -441,13 +434,7 @@ library
                        Streamly.Data.Unfold
 
                      -- XXX To be removed or put under dev flag
-                     , Streamly.Internal.Data.Array.Prim.Mut.Type
-                     , Streamly.Internal.Data.Array.Prim.Type
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Mut.Type
-                     , Streamly.Internal.Data.Array.Prim.Pinned.Type
                      , Streamly.Internal.Data.SmallArray.Type
-                     , Streamly.Internal.Data.Array.Prim
-                     , Streamly.Internal.Data.Array.Prim.Pinned
                      , Streamly.Internal.Data.SmallArray
 
                      -- streamly-concurrent
@@ -494,7 +481,6 @@ library
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Unicode.Char.Parser
                      , Streamly.Internal.Unicode.Array.Char
-                     , Streamly.Internal.Unicode.Array.Prim.Pinned
 
                      -- streamly-filesystem
                      , Streamly.Internal.System.IOVec.Type
@@ -647,7 +633,6 @@ library
 
     other-modules:
                        Streamly.Data.Array
-                     , Streamly.Data.Prim.Array
                      , Streamly.Data.SmallArray
 
     if os(windows)
