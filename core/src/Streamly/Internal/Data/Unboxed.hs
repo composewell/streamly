@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Unboxed
     , getMutableByteArray#
     , pin
     , unpin
+    , newUnpinnedArrayContents
     ) where
 
 #include "MachDeps.h"
@@ -22,7 +23,7 @@ module Streamly.Internal.Data.Unboxed
 
 import Data.Complex (Complex((:+)), realPart)
 import GHC.Base (IO(..))
-import GHC.Int (Int32(..))
+import GHC.Int (Int32(..), Int64(..))
 import GHC.Word (Word8(..), Word64(..))
 
 import GHC.Exts
@@ -46,6 +47,20 @@ castContents (ArrayContents mbarr) = ArrayContents mbarr
 touch :: ArrayContents a -> IO ()
 touch (ArrayContents contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
+
+--------------------------------------------------------------------------------
+-- Creation
+--------------------------------------------------------------------------------
+
+{-# INLINE newUnpinnedArrayContents #-}
+newUnpinnedArrayContents :: Int -> IO (ArrayContents a)
+newUnpinnedArrayContents nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newUnpinnedArrayContents: size must be >= 0"
+newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
+    case newByteArray# nbytes s of
+        (# s', mbarr# #) ->
+           let c = ArrayContents mbarr#
+            in (# s', c #)
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
@@ -106,11 +121,18 @@ unpin arr@(ArrayContents marr#) =
 #define SIZEOF_WORD64_PRIMITIVE 8#
 #define SIZEOF_HSDOUBLE_PRIMITIVE 8#
 #define SIZEOF_INT32_PRIMITIVE 4#
+#define SIZEOF_INT64_PRIMITIVE 8#
 
 #ifdef __GHCJS__
 #define WORD64TYP Word64#
 #else
 #define WORD64TYP Word#
+#endif
+
+#ifdef __GHCJS__
+#define INT64TYP Int64#
+#else
+#define INT64TYP Int#
 #endif
 
 {-# INLINE readWord8ArrayAsWideChar# #-}
@@ -148,6 +170,18 @@ writeWord8ArrayAsInt32# ::
        MutableByteArray# d -> Int# -> Int# -> State# d -> State# d
 writeWord8ArrayAsInt32# arr# i# a# s# =
     writeInt32Array# arr# (quotInt# i# SIZEOF_INT32_PRIMITIVE) a# s#
+
+{-# INLINE readWord8ArrayAsInt64# #-}
+readWord8ArrayAsInt64# ::
+       MutableByteArray# d -> Int# -> State# d -> (# State# d, INT64TYP #)
+readWord8ArrayAsInt64# arr# i# s# =
+    readInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE) s#
+
+{-# INLINE writeWord8ArrayAsInt64# #-}
+writeWord8ArrayAsInt64# ::
+       MutableByteArray# d -> Int# -> INT64TYP -> State# d -> State# d
+writeWord8ArrayAsInt64# arr# i# a# s# =
+    writeInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE) a# s#
 
 {-# INLINE readWord8ArrayAsWord# #-}
 readWord8ArrayAsWord# ::
@@ -268,6 +302,13 @@ DERIVE_UNBOXED( Int
               , ALIGNMENT_HSINT
               , readWord8ArrayAsInt#
               , writeWord8ArrayAsInt#)
+
+DERIVE_UNBOXED( Int64
+              , I64#
+              , SIZEOF_INT64
+              , ALIGNMENT_INT64
+              , readWord8ArrayAsInt64#
+              , writeWord8ArrayAsInt64#)
 
 DERIVE_UNBOXED( Word
               , W#

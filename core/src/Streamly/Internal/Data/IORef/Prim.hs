@@ -9,7 +9,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A mutable variable in a mutation capable monad (IO) holding a 'Prim'
+-- A mutable variable in a mutation capable monad (IO) holding a 'Unboxed'
 -- value. This allows fast modification because of unboxed storage.
 --
 -- = Multithread Consistency Notes
@@ -24,7 +24,6 @@
 module Streamly.Internal.Data.IORef.Prim
     (
       IORef
-    , Prim
 
     -- * Construction
     , newIORef
@@ -42,56 +41,57 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Primitive (primitive_)
-import Data.Primitive.Types (Prim, sizeOf#, readByteArray#, writeByteArray#)
-import GHC.Exts (MutableByteArray#, newByteArray#, RealWorld)
-import GHC.IO (IO(..))
+import Streamly.Internal.Data.Unboxed
+    ( ArrayContents(..)
+    , Unboxed(..)
+    , peekWith
+    , pokeWith
+    , newUnpinnedArrayContents
+    )
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
--- | An 'IORef' holds a single 'Prim' value.
-data IORef a = IORef (MutableByteArray# RealWorld)
+-- | An 'IORef' holds a single 'Unboxed' value.
+newtype IORef a = IORef (ArrayContents a)
 
 -- | Create a new 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE newIORef #-}
-newIORef :: forall a. Prim a => a -> IO (IORef a)
-newIORef x = IO (\s# ->
-      case newByteArray# (sizeOf# (undefined :: a)) s# of
-        (# s1#, arr# #) ->
-            case writeByteArray# arr# 0# x s1# of
-                s2# -> (# s2#, IORef arr# #)
-    )
+newIORef :: forall a. Unboxed a => a -> IO (IORef a)
+newIORef x = do
+    var <- newUnpinnedArrayContents (sizeOf (undefined :: a))
+    pokeWith var 0 x
+    return $ IORef var
 
 -- | Write a value to an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE writeIORef #-}
-writeIORef :: Prim a => IORef a -> a -> IO ()
-writeIORef (IORef arr#) x = primitive_ (writeByteArray# arr# 0# x)
+writeIORef :: Unboxed a => IORef a -> a -> IO ()
+writeIORef (IORef var) x = pokeWith var 0 x
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
-readIORef :: Prim a => IORef a -> IO a
-readIORef (IORef arr#) = IO (readByteArray# arr# 0#)
+readIORef :: Unboxed a => IORef a -> IO a
+readIORef (IORef var) = peekWith var 0
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
 -- /Pre-release/
 {-# INLINE modifyIORef' #-}
-modifyIORef' :: Prim a => IORef a -> (a -> a) -> IO ()
-modifyIORef' (IORef arr#) g = primitive_ $ \s# ->
-  case readByteArray# arr# 0# s# of
-    (# s'#, a #) -> let a' = g a in a' `seq` writeByteArray# arr# 0# a' s'#
+modifyIORef' :: Unboxed a => IORef a -> (a -> a) -> IO ()
+modifyIORef' var g = do
+  x <- readIORef var
+  writeIORef var (g x)
 
 -- | Generate a stream by continuously reading the IORef.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL toStreamD #-}
-toStreamD :: (MonadIO m, Prim a) => IORef a -> D.Stream m a
+toStreamD :: (MonadIO m, Unboxed a) => IORef a -> D.Stream m a
 toStreamD var = D.Stream step ()
 
     where
