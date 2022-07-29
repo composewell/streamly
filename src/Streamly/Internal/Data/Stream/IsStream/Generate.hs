@@ -89,7 +89,6 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Primitive.Types (Prim)
 import Data.Void (Void)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
@@ -105,6 +104,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.WSerial (WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 
 import qualified Streamly.Internal.Data.IORef.Prim as Prim
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
@@ -660,5 +660,5 @@ fromCallback setCallback = concatM $ do
 -- /Pre-release/
 --
 {-# INLINE fromPrimIORef #-}
-fromPrimIORef :: (IsStream t, MonadIO m, Prim a) => Prim.IORef a -> t m a
+fromPrimIORef :: (IsStream t, MonadIO m, Unboxed a) => Prim.IORef a -> t m a
 fromPrimIORef = fromStreamD . Prim.toStreamD
