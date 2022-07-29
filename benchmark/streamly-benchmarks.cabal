@@ -493,29 +493,10 @@ benchmark Data.Array
   else
     buildable: True
 
-benchmark Data.Array.Prim
-  import: bench-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Prim.hs
-  build-depends: primitive
-  if flag(bench-core)
-    buildable: False
-  else
-    buildable: True
-
 benchmark Data.SmallArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
-  if flag(bench-core)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Data.Array.Prim.Pinned
-  import: bench-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Prim/Pinned.hs
   if flag(bench-core)
     buildable: False
   else
