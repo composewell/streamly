@@ -32,5 +32,5 @@ import Streamly.Internal.Data.Stream.IsStream.Expand
 import Streamly.Internal.Data.Stream.IsStream.Reduce
 import Streamly.Internal.Data.Stream.IsStream.Transform
 import Streamly.Internal.Data.Stream.IsStream.Type
-    hiding (cmpBy, drain, eqBy, foldl', foldrM, foldr, fold, toList, toStream
+    hiding (cmpBy, drain, eqBy, foldl', fold, toList, toStream
         , fromEffect, fromPure, repeat)

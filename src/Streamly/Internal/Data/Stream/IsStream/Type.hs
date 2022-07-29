@@ -88,9 +88,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , toList
 
     -- * Fold operations
-    , foldrM
     , foldrMx
-    , foldr
 
     , foldlx'
     , foldlMx'
@@ -354,18 +352,10 @@ mkStreamStream = K.MkStream
 -- Folds
 ------------------------------------------------------------------------------
 
-{-# INLINE foldrM #-}
-foldrM :: (IsStream t, Monad m) => (a -> m b -> m b) -> m b -> t m a -> m b
-foldrM step acc m = S.foldrM step acc $ toStreamS m
-
 {-# INLINE foldrMx #-}
 foldrMx :: (IsStream t, Monad m)
     => (a -> m x -> m x) -> m x -> (m x -> m b) -> t m a -> m b
 foldrMx step final project m = D.foldrMx step final project $ toStreamD m
-
-{-# INLINE foldr #-}
-foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
-foldr f z = foldrM (\a b -> f a <$> b) (return z)
 
 -- | Like 'foldlx'', but with a monadic step function.
 --
