@@ -241,7 +241,7 @@ Mutable arrays are a generalization of immutable arrays:
 
 Unboxed IORef:
 
-* `Streamly.Data.IORef.Prim`
+* `Streamly.Data.IORef.Unboxed`
 
 ## Strict Data
 

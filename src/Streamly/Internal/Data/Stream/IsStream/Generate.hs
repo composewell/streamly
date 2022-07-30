@@ -106,7 +106,7 @@ import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 
-import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
@@ -655,10 +655,10 @@ fromCallback setCallback = concatM $ do
     setCallback callback
     return $ Stream.fromStreamK stream
 
--- | Construct a stream by reading a 'Prim' 'IORef' repeatedly.
+-- | Construct a stream by reading an 'Unboxed' 'IORef' repeatedly.
 --
 -- /Pre-release/
 --
 {-# INLINE fromPrimIORef #-}
-fromPrimIORef :: (IsStream t, MonadIO m, Unboxed a) => Prim.IORef a -> t m a
-fromPrimIORef = fromStreamD . Prim.toStreamD
+fromPrimIORef :: (IsStream t, MonadIO m, Unboxed a) => Unboxed.IORef a -> t m a
+fromPrimIORef = fromStreamD . Unboxed.toStreamD

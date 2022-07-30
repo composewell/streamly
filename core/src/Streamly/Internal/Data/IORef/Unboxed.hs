@@ -1,7 +1,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 -- |
--- Module      : Streamly.Internal.Data.IORef.Prim
+-- Module      : Streamly.Internal.Data.IORef.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -21,7 +21,7 @@
 -- reading it from another thread should give consistent old or new value. The
 -- same holds true for 32-bit values on a 32-bit platform.
 
-module Streamly.Internal.Data.IORef.Prim
+module Streamly.Internal.Data.IORef.Unboxed
     (
       IORef
 

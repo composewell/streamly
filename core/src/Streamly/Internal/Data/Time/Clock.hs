@@ -35,21 +35,21 @@ import Streamly.Internal.Data.Time.Units
     (MicroSecond64(..), fromAbsTime, addToAbsTime, toRelTime)
 import Streamly.Internal.Control.ForkIO (forkIOManaged)
 
-import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 
 ------------------------------------------------------------------------------
 -- Async clock
 ------------------------------------------------------------------------------
 
 {-# INLINE updateTimeVar #-}
-updateTimeVar :: Clock -> Prim.IORef MicroSecond64 -> IO ()
+updateTimeVar :: Clock -> Unboxed.IORef MicroSecond64 -> IO ()
 updateTimeVar clock timeVar = do
     t <- fromAbsTime <$> getTime clock
-    Prim.modifyIORef' timeVar (const t)
+    Unboxed.modifyIORef' timeVar (const t)
 
 {-# INLINE updateWithDelay #-}
 updateWithDelay :: RealFrac a =>
-    Clock -> a -> Prim.IORef MicroSecond64 -> IO ()
+    Clock -> a -> Unboxed.IORef MicroSecond64 -> IO ()
 updateWithDelay clock precision timeVar = do
     threadDelay (delayTime precision)
     updateTimeVar clock timeVar
@@ -78,16 +78,16 @@ updateWithDelay clock precision timeVar = do
 -- CAUTION! This is safe only on a 64-bit machine. On a 32-bit machine a 64-bit
 -- 'Var' cannot be read consistently without a lock while another thread is
 -- writing to it.
-asyncClock :: Clock -> Double -> IO (ThreadId, Prim.IORef MicroSecond64)
+asyncClock :: Clock -> Double -> IO (ThreadId, Unboxed.IORef MicroSecond64)
 asyncClock clock g = do
-    timeVar <- Prim.newIORef 0
+    timeVar <- Unboxed.newIORef 0
     updateTimeVar clock timeVar
     tid <- forkIOManaged $ forever (updateWithDelay clock g timeVar)
     return (tid, timeVar)
 
 {-# INLINE readClock #-}
-readClock :: (ThreadId, Prim.IORef MicroSecond64) -> IO MicroSecond64
-readClock (_, timeVar) = Prim.readIORef timeVar
+readClock :: (ThreadId, Unboxed.IORef MicroSecond64) -> IO MicroSecond64
+readClock (_, timeVar) = Unboxed.readIORef timeVar
 
 ------------------------------------------------------------------------------
 -- Adjustable Timer
@@ -98,19 +98,19 @@ data Timer = Timer ThreadId (MVar ()) (IO ())
 
 -- Set the expiry to current time + timer period
 {-# INLINE resetTimerExpiry #-}
-resetTimerExpiry :: Clock -> MicroSecond64 -> Prim.IORef MicroSecond64 -> IO ()
+resetTimerExpiry :: Clock -> MicroSecond64 -> Unboxed.IORef MicroSecond64 -> IO ()
 resetTimerExpiry clock period timeVar = do
     t <- getTime clock
     let t1 = addToAbsTime t (toRelTime period)
-    Prim.modifyIORef' timeVar (const (fromAbsTime t1))
+    Unboxed.modifyIORef' timeVar (const (fromAbsTime t1))
 
 {-# INLINE processTimerTick #-}
 processTimerTick :: RealFrac a =>
-    Clock -> a -> Prim.IORef MicroSecond64 -> MVar () -> IO () -> IO ()
+    Clock -> a -> Unboxed.IORef MicroSecond64 -> MVar () -> IO () -> IO ()
 processTimerTick clock precision timeVar mvar reset = do
     threadDelay (delayTime precision)
     t <- fromAbsTime <$> getTime clock
-    expiry <- Prim.readIORef timeVar
+    expiry <- Unboxed.readIORef timeVar
     when (t >= expiry) $ do
         -- non-blocking put so that we can process multiple timers in a
         -- non-blocking manner in future.
@@ -139,7 +139,7 @@ processTimerTick clock precision timeVar mvar reset = do
 timer :: Clock -> Double -> Double -> IO Timer
 timer clock g period = do
     mvar <- newEmptyMVar
-    timeVar <- Prim.newIORef 0
+    timeVar <- Unboxed.newIORef 0
     let p = round (period * 1e6) :: Int
         p1 = fromIntegral p :: MicroSecond64
         reset = resetTimerExpiry clock p1 timeVar

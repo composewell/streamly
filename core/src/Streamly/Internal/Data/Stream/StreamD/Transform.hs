@@ -144,7 +144,7 @@ import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.IORef.Prim as Prim
+import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 
 import Prelude hiding
@@ -344,17 +344,18 @@ pollCounts predicate fld (Stream step state) = Stream step' Nothing
         -- As long as we are using an "Int" for counts lockfree reads from
         -- Var should work correctly on both 32-bit and 64-bit machines.
         -- However, an Int on a 32-bit machine may overflow quickly.
-        countVar <- liftIO $ Prim.newIORef (0 :: Int)
+        countVar <- liftIO $ Unboxed.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ fld
-            $ Prim.toStreamD countVar
+            $ Unboxed.toStreamD countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                when (predicate x) $ liftIO $ Prim.modifyIORef' countVar (+ 1)
+                when (predicate x)
+                    $ liftIO $ Unboxed.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
             Stop -> do

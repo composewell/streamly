@@ -276,8 +276,7 @@ library
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unboxed
                     -- Unboxed IORef
-                     -- XXX Depends on primitive
-                     , Streamly.Internal.Data.IORef.Prim
+                     , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Foreign.Mut.Type
                      , Streamly.Internal.Data.Array.Foreign.Mut
