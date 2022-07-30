@@ -164,7 +164,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Parser/ParserD/Type.hs
     core/src/Streamly/Internal/Data/Pipe/Type.hs
     core/src/Streamly/Internal/Data/Unboxed.hs
-    core/src/Streamly/Internal/Data/IORef/Prim.hs
+    core/src/Streamly/Internal/Data/IORef/Unboxed.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Mut/Type.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Mut.hs
     core/src/Streamly/Internal/Data/Array/Foreign/Type.hs
@@ -567,8 +567,7 @@ library
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unboxed
                     -- Unboxed IORef
-                     -- XXX Depends on primitive
-                     , Streamly.Internal.Data.IORef.Prim
+                     , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Foreign.Mut.Type
                      , Streamly.Internal.Data.Array.Foreign.Mut
