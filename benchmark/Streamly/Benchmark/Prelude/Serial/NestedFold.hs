@@ -20,6 +20,7 @@ import Data.Monoid (Sum(..))
 import Data.Proxy (Proxy(..))
 import Data.HashMap.Strict (HashMap)
 import GHC.Generics (Generic)
+import Streamly.Internal.Data.IsMap.HashMap ()
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
