@@ -433,6 +433,8 @@ library
                      -- XXX To be moved to streamly-core
                        Streamly.Data.Unfold
 
+                     , Streamly.Internal.Data.IsMap.HashMap
+
                      -- XXX To be removed or put under dev flag
                      , Streamly.Internal.Data.SmallArray.Type
                      , Streamly.Internal.Data.SmallArray
@@ -669,8 +671,10 @@ library
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
-
                      , fusion-plugin-types >= 0.1 && < 0.2
+
+                     , hashable          >= 1.3   && < 1.5
+                     , unordered-containers >= 0.2 && < 0.3
 
                      -- XXX to be removed
                      , transformers-base >= 0.4   && < 0.5
