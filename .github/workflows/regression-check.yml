@@ -25,6 +25,7 @@ jobs:
         Data.Parser.ParserD
         Data.Parser.ParserK
         Data.SmallArray
+        Data.Stream
         Data.Stream.StreamD
         Data.Stream.StreamDK
         Data.Stream.StreamK:6
@@ -33,7 +34,6 @@ jobs:
         Prelude.Ahead
         Prelude.Async:12
         Prelude.Parallel
-        Prelude.Serial
         Prelude.WAsync:6
         Prelude.WSerial
         Prelude.ZipAsync

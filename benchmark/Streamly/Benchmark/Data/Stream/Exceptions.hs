@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Prelude.Serial.Exceptions
+-- Module      : Stream.Exceptions
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Exceptions (benchmarks) where
+module Stream.Exceptions (benchmarks) where
 
 import Control.Exception (SomeException, Exception, throwIO)
 import System.IO (Handle, hClose, hPutChar)
@@ -29,10 +29,18 @@ import qualified Data.Map.Strict as Map
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
+#ifdef USE_PRELUDE
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Prelude as S
+#else
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Unfold as Unfold
+#endif
 
 import Gauge hiding (env)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
@@ -47,6 +55,28 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- stream exceptions
 -------------------------------------------------------------------------------
 
+drain :: SerialT IO a -> IO ()
+#ifdef USE_PRELUDE
+drain = Stream.drain
+#else
+drain = Stream.fold Fold.drain
+#endif
+
+enumerateFromTo :: Int -> Int -> SerialT IO Int
+#ifdef USE_PRELUDE
+enumerateFromTo length from = S.enumerateFromTo from (from + length)
+#else
+enumerateFromTo length from = Stream.unfold Unfold.enumerateFromTo (from, from + length)
+#endif
+
+sourceRef :: (Num b) => Int -> Int -> Ref.IORef b -> SerialT IO b
+#ifdef USE_PRELUDE
+sourceRef length from ref = S.replicateM (from + length)
+#else
+sourceRef length from ref = Stream.unfold (Unfold.replicateM (from + length))
+#endif
+    $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
+
 data BenchException
     = BenchException1
     | BenchException2
@@ -56,37 +86,40 @@ instance Exception BenchException
 
 retryNoneSimple :: Int -> Int -> IO ()
 retryNoneSimple length from =
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const S.nil) source
+    drain
+        $ Stream.retry
+            (Map.singleton BenchException1 length)
+            (const S.nil)
+            source
 
     where
 
-    source = S.enumerateFromTo from (from + length)
+    source = enumerateFromTo length from
 
 retryNone :: Int -> Int -> IO ()
 retryNone length from = do
     ref <- Ref.newIORef (0 :: Int)
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const S.nil)
+    drain
+        $ Stream.retry (Map.singleton BenchException1 length) (const S.nil)
         $ source ref
 
     where
 
-    source ref =
-        IP.replicateM (from + length)
-            $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
+    source = sourceRef length from
+
 
 retryAll :: Int -> Int -> IO ()
 retryAll length from = do
     ref <- Ref.newIORef 0
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 (length + from)) (const S.nil)
+    drain
+        $ Stream.retry
+            (Map.singleton BenchException1 (length + from)) (const S.nil)
         $ source ref
 
     where
 
     source ref =
-        IP.fromEffect
+        Stream.fromEffect
             $ do
                 Ref.modifyIORef' ref (+ 1)
                 val <- Ref.readIORef ref
@@ -96,13 +129,13 @@ retryAll length from = do
 
 retryUnknown :: Int -> Int -> IO ()
 retryUnknown length from = do
-    IP.drain
-        $ IP.retry (Map.singleton BenchException1 length) (const source)
+    drain
+        $ Stream.retry (Map.singleton BenchException1 length) (const source)
         $ throwIO BenchException2 `S.before` S.nil
 
     where
 
-    source = S.enumerateFromTo from (from + length)
+    source = enumerateFromTo length from
 
 
 o_1_space_serial_exceptions :: Int -> [Benchmark]
@@ -124,7 +157,7 @@ o_1_space_serial_exceptions length =
 readWriteOnExceptionStream :: Handle -> Handle -> IO ()
 readWriteOnExceptionStream inh devNull =
     let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
+    in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
@@ -135,7 +168,7 @@ readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) = S.fromEffect (hClose inh >> return 10)
         readEx = S.handle handler (S.unfold FH.read inh)
-    in S.fold (FH.write devNull) $ readEx
+    in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
@@ -144,7 +177,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
-    let readEx = IP.finally_ (hClose inh) (S.unfold FH.read inh)
+    let readEx = Stream.finally_ (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -159,9 +192,9 @@ readWriteFinallyStream inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
-    let readEx = IP.bracket_ (return ()) (\_ -> hClose inh)
+    let readEx = Stream.bracket_ (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.getBytes inh)
-    in IFH.putBytes devNull $ readEx
+    in IFH.putBytes devNull readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
@@ -171,13 +204,13 @@ fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.getBytes inh)
-    in IFH.putBytes devNull $ readEx
+    in IFH.putBytes devNull readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
-            IP.after (hClose inh)
-                $ IP.before (hPutChar devNull 'A') (S.unfold FH.read inh)
+            Stream.after (hClose inh)
+                $ Stream.before (hPutChar devNull 'A') (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -186,7 +219,7 @@ inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
 
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
-    let readEx = IP.after (hClose inh) (S.unfold FH.read inh)
+    let readEx = Stream.after (hClose inh) (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -195,7 +228,7 @@ inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
 
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
-    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
+    let readEx = Stream.after_ (hClose inh) (S.unfold FH.read inh)
      in S.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -277,11 +310,11 @@ o_1_space_copy_exceptions_readChunks env =
 -- | Send the file contents to /dev/null with exception handling
 toChunksBracket_ :: Handle -> Handle -> IO ()
 toChunksBracket_ inh devNull =
-    let readEx = IP.bracket_
+    let readEx = Stream.bracket_
             (return ())
             (\_ -> hClose inh)
             (\_ -> IFH.getChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
+    in S.fold (IFH.writeChunks devNull) readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksBracket_
@@ -293,7 +326,7 @@ toChunksBracket inh devNull =
             (return ())
             (\_ -> hClose inh)
             (\_ -> IFH.getChunks inh)
-    in S.fold (IFH.writeChunks devNull) $ readEx
+    in S.fold (IFH.writeChunks devNull) readEx
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
@@ -304,7 +337,6 @@ o_1_space_copy_exceptions_toChunks env =
             toChunksBracket inH (nullH env)
         ]
     ]
-
 
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
 benchmarks moduleName env size =

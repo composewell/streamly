@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Generation
+-- Module      : Stream.Generate
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,19 +9,29 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Serial.Generation (benchmarks) where
+module Stream.Generate (benchmarks) where
 
 import Data.Functor.Identity (Identity)
 
-import qualified Prelude
+#ifdef USE_PRELUDE
 import qualified GHC.Exts as GHC
-
-import qualified Streamly.Prelude  as S
+import qualified Streamly.Prelude as S
+import qualified Prelude
+#endif
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
 import Streamly.Benchmark.Common
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+#ifdef USE_PRELUDE
 import Streamly.Benchmark.Prelude
+import Streamly.Prelude (fromSerial, MonadAsync)
+#endif
+import qualified Stream.Common as SC
+
+import System.IO.Unsafe (unsafeInterleaveIO)
+
 import Prelude hiding (repeat, replicate, iterate)
 
 -------------------------------------------------------------------------------
@@ -31,7 +41,7 @@ import Prelude hiding (repeat, replicate, iterate)
 -------------------------------------------------------------------------------
 -- fromList
 -------------------------------------------------------------------------------
-
+#ifdef USE_PRELUDE
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
 sourceIsList value n = GHC.fromList [n..n+value]
@@ -39,6 +49,7 @@ sourceIsList value n = GHC.fromList [n..n+value]
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Int -> SerialT Identity Char
 sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
+#endif
 
 {-# INLINE readInstance #-}
 readInstance :: String -> SerialT Identity Int
@@ -57,6 +68,7 @@ readInstanceList str =
         [(x,"")] -> x
         _ -> error "readInstance: no parse"
 
+#ifdef USE_PRELUDE
 {-# INLINE repeat #-}
 repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 repeat count = S.take count . S.repeat
@@ -115,8 +127,8 @@ fromIndices value n = S.take value $ S.fromIndices (+ n)
 fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
+o_1_space_generation_prel :: Int -> [Benchmark]
+o_1_space_generation_prel value =
     [ bgroup "generation"
         [ benchIOSrc fromSerial "unfoldr" (sourceUnfoldr value)
         , benchIOSrc fromSerial "unfoldrM" (sourceUnfoldrM value)
@@ -147,8 +159,40 @@ o_1_space_generation value =
           -- These essentially test cons and consM
         , benchIOSrc fromSerial "fromFoldable" (sourceFromFoldable value)
         , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
-
         , benchIOSrc fromSerial "absTimes" $ absTimes value
+        ]
+    ]
+#endif
+
+{-# INLINE mfixUnfold #-}
+mfixUnfold :: Int -> Int -> SerialT IO (Int, Int)
+mfixUnfold count start = Stream.mfix f
+    where
+    f action = do
+        let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
+        x <- Stream.unfold Unfold.fromListM [incr 1 action, incr 2 action]
+        y <- SC.sourceUnfoldr count start
+        return (x, y)
+
+{-# INLINE fromFoldable #-}
+fromFoldable :: Int -> Int -> SerialT m Int
+fromFoldable count start =
+    Stream.fromFoldable (Prelude.enumFromTo count start)
+
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: Monad m => Int -> Int -> SerialT m Int
+fromFoldableM count start =
+    Stream.fromFoldableM (fmap return (Prelude.enumFromTo count start))
+
+o_1_space_generation :: Int -> [Benchmark]
+o_1_space_generation value =
+    [ bgroup "generation"
+        [ SC.benchIOSrc "unfold" (SC.sourceUnfoldr value)
+        , SC.benchIOSrc "fromFoldable" (fromFoldable value)
+        , SC.benchIOSrc "fromFoldableM" (fromFoldableM value)
+        , SC.benchIOSrc "mfix_10" (mfixUnfold 10)
+        , SC.benchIOSrc "mfix_100" (mfixUnfold 100)
+        , SC.benchIOSrc "mfix_1000" (mfixUnfold 1000)
         ]
     ]
 
@@ -174,6 +218,11 @@ o_n_heap_generation value =
 --
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
+        [
+#ifdef USE_PRELUDE
+        bgroup (o_1_space_prefix moduleName) (o_1_space_generation_prel size)
+        ,
+#endif
+        bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_generation size)
         ]

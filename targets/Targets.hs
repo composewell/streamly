@@ -25,9 +25,9 @@ targets =
       )
 
     -- Streams
-    , ("Prelude.Serial", ["serial_wserial_cmp"])
+    , ("Data.Stream", ["serial_wserial_cmp"])
     , ("Prelude.WSerial", ["serial_wserial_cmp"])
-    , ("Prelude.Serial",
+    , ("Data.Stream",
             [ "prelude_serial_grp"
             , "infinite_grp"
             , "serial_wserial_cmp"

@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Elimination
+-- Module      : Stream.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Elimination (benchmarks) where
+module Stream.Eliminate (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
@@ -33,22 +33,39 @@ import Test.Inspection
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
-
+import qualified Streamly.Internal.Data.Fold as Fold
+#ifdef USE_PRELUDE
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
+#else
+import qualified Streamly.Internal.Data.Stream as S
+#endif
 
 import Gauge
-import Streamly.Prelude (SerialT, IsStream, fromSerial)
-import Streamly.Benchmark.Common
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+#ifdef USE_PRELUDE
+import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude
+#else
+import Stream.Common
+    ( sourceUnfoldr
+    , sourceUnfoldrM
+    , sourceUnfoldrAction
+    , benchIOSink
+    )
+#endif
+import Streamly.Benchmark.Common
+
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
 
+#ifdef USE_PRELUDE
 {-# INLINE repeat #-}
 repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 repeat count = S.take count . S.repeat
-
+#endif
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
@@ -60,76 +77,76 @@ repeat count = S.take count . S.repeat
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Int -> Int -> Int
 foldableFoldl' value n =
-    F.foldl' (+) 0 (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.foldl' (+) 0 (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableFoldrElem #-}
 foldableFoldrElem :: Int -> Int -> Bool
 foldableFoldrElem value n =
     F.foldr (\x xs -> x == value || xs)
             False
-            (sourceUnfoldr value n :: S.SerialT Identity Int)
+            (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableSum #-}
 foldableSum :: Int -> Int -> Int
 foldableSum value n =
-    Prelude.sum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.sum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableProduct #-}
 foldableProduct :: Int -> Int -> Int
 foldableProduct value n =
-    Prelude.product (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.product (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE _foldableNull #-}
 _foldableNull :: Int -> Int -> Bool
 _foldableNull value n =
-    Prelude.null (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.null (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableElem #-}
 foldableElem :: Int -> Int -> Bool
 foldableElem value n =
-    value `Prelude.elem` (sourceUnfoldr value n :: S.SerialT Identity Int)
+    value `Prelude.elem` (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableNotElem #-}
 foldableNotElem :: Int -> Int -> Bool
 foldableNotElem value n =
-    value `Prelude.notElem` (sourceUnfoldr value n :: S.SerialT Identity Int)
+    value `Prelude.notElem` (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableFind #-}
 foldableFind :: Int -> Int -> Maybe Int
 foldableFind value n =
-    F.find (== (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.find (== (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAll #-}
 foldableAll :: Int -> Int -> Bool
 foldableAll value n =
-    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAny #-}
 foldableAny :: Int -> Int -> Bool
 foldableAny value n =
-    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableAnd #-}
 foldableAnd :: Int -> Int -> Bool
 foldableAnd value n =
-    Prelude.and $ S.map
-        (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.and $ fmap
+        (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableOr #-}
 foldableOr :: Int -> Int -> Bool
 foldableOr value n =
-    Prelude.or $ S.map
-        (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.or $ fmap
+        (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableLength #-}
 foldableLength :: Int -> Int -> Int
 foldableLength value n =
-    Prelude.length (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.length (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMin #-}
 foldableMin :: Int -> Int -> Int
 foldableMin value n =
-    Prelude.minimum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.minimum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE ordInstanceMin #-}
 ordInstanceMin :: SerialT Identity Int -> SerialT Identity Int
@@ -138,12 +155,12 @@ ordInstanceMin src = min src src
 {-# INLINE foldableMax #-}
 foldableMax :: Int -> Int -> Int
 foldableMax value n =
-    Prelude.maximum (sourceUnfoldr value n :: S.SerialT Identity Int)
+    Prelude.maximum (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMinBy #-}
 foldableMinBy :: Int -> Int -> Int
 foldableMinBy value n =
-    F.minimumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.minimumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableListMinBy #-}
 foldableListMinBy :: Int -> Int -> Int
@@ -152,27 +169,27 @@ foldableListMinBy value n = F.minimumBy compare [1..value+n]
 {-# INLINE foldableMaxBy #-}
 foldableMaxBy :: Int -> Int -> Int
 foldableMaxBy value n =
-    F.maximumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.maximumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableToList #-}
 foldableToList :: Int -> Int -> [Int]
 foldableToList value n =
-    F.toList (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.toList (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableMapM_ #-}
 foldableMapM_ :: Monad m => Int -> Int -> m ()
 foldableMapM_ value n =
-    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: S.SerialT Identity Int)
+    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: SerialT Identity Int)
 
 {-# INLINE foldableSequence_ #-}
 foldableSequence_ :: Int -> Int -> IO ()
 foldableSequence_ value n =
-    F.sequence_ (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+    F.sequence_ (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
 
 {-# INLINE _foldableMsum #-}
 _foldableMsum :: Int -> Int -> IO Int
 _foldableMsum value n =
-    F.msum (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+    F.msum (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
 
 {-# INLINE showInstance #-}
 showInstance :: SerialT Identity Int -> String
@@ -240,8 +257,8 @@ benchPureSink value name = benchPure name (sourceUnfoldr value)
 
 {-# INLINE benchHoistSink #-}
 benchHoistSink
-    :: (IsStream t, NFData b)
-    => Int -> String -> (t Identity Int -> IO b) -> Benchmark
+    :: (NFData b)
+    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
 benchHoistSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
 
@@ -249,8 +266,8 @@ benchHoistSink value name f =
 -- we can't use it as it requires MonadAsync constraint.
 {-# INLINE benchIdentitySink #-}
 benchIdentitySink
-    :: (IsStream t, NFData b)
-    => Int -> String -> (t Identity Int -> Identity b) -> Benchmark
+    :: (NFData b)
+    => Int -> String -> (SerialT Identity Int -> Identity b) -> Benchmark
 benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
 
 -------------------------------------------------------------------------------
@@ -264,7 +281,7 @@ uncons s = do
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
-
+#ifdef USE_PRELUDE
 {-# INLINE init #-}
 init :: Monad m => SerialT m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
@@ -272,6 +289,7 @@ init s = S.init s >>= Prelude.mapM_ S.drain
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => SerialT m Int -> m ()
 mapM_ = S.mapM_ (\_ -> return ())
+#endif
 
 {-# INLINE foldrMElem #-}
 foldrMElem :: Monad m => Int -> SerialT m Int -> m Bool
@@ -290,7 +308,7 @@ foldrToStream = S.foldr S.cons S.nil
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => SerialT m Int -> m [Int]
 foldrMBuild = S.foldrM (\x xs -> (x :) <$> xs) (return [])
-
+#ifdef USE_PRELUDE
 {-# INLINE foldl'Reduce #-}
 foldl'Reduce :: Monad m => SerialT m Int -> m Int
 foldl'Reduce = S.foldl' (+) 0
@@ -398,40 +416,47 @@ drainWhile = S.drainWhile (const True)
 {-# INLINE lookup #-}
 lookup :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
 lookup val = S.lookup val . S.map (\x -> (x, x))
-
+#endif
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
     [ bgroup "elimination"
         -- Basic folds
-        [ bgroup "reduce"
+        [
+#ifdef USE_PRELUDE
+            bgroup "reduce"
             [ bgroup
                   "IO"
                   [ benchIOSink value "foldl'" foldl'Reduce
                   , benchIOSink value "foldl1'" foldl1'Reduce
                   , benchIOSink value "foldlM'" foldlM'Reduce
                   ]
+
             , bgroup
                   "Identity"
                   [ benchIdentitySink value "foldl'" foldl'Reduce
                   , benchIdentitySink value "foldl1'" foldl1'Reduce
                   , benchIdentitySink value "foldlM'" foldlM'Reduce
                   ]
-            ]
-        , bgroup "build"
+            ] ,
+#endif
+         bgroup "build"
             [ bgroup "IO"
                   [ benchIOSink value "foldrMElem" (foldrMElem value)
                   ]
             , bgroup "Identity"
                   [ benchIdentitySink value "foldrMElem" (foldrMElem value)
-                  , benchIdentitySink value "foldrToStreamLength"
-                        (S.length . runIdentity . foldrToStream)
                   , benchPureSink value "foldrMToListLength"
                         (Prelude.length . runIdentity . foldrMBuild)
+                  , benchIdentitySink value "foldrToStreamLength"
+                        (S.fold Fold.length . runIdentity . foldrToStream)
                   ]
             ]
 
         -- deconstruction
         , benchIOSink value "uncons" uncons
+        , benchHoistSink value "length . generally"
+              (S.fold Fold.length . S.generally)
+#ifdef USE_PRELUDE
         , benchIOSink value "init" init
 
         -- draining
@@ -442,19 +467,18 @@ o_1_space_elimination_folds value =
         , benchIOSink value "mapM_" mapM_
 
         -- this is too fast, causes all benchmarks reported in ns
-    -- , benchIOSink value "head" head
+        --, benchIOSink value "head" head
         , benchIOSink value "last" last
         , benchIOSink value "length" length
-        , benchHoistSink value "length . generally"
-              (length . Internal.generally)
         , benchIOSink value "sum" sum
         , benchIOSink value "product" product
         , benchIOSink value "maximumBy" maximumBy
         , benchIOSink value "maximum" maximum
         , benchIOSink value "minimumBy" minimumBy
         , benchIOSink value "minimum" minimum
-
+#ifdef USE_PRELUDE
         , bench "the" $ nfIO $ randomRIO (1,1) >>= the . repeat value
+#endif
         , benchIOSink value "find" (find value)
         , benchIOSink value "findM" (findM value)
         -- , benchIOSink value "lookupFirst" (lookup 1)
@@ -463,13 +487,14 @@ o_1_space_elimination_folds value =
         , benchIOSink value "findIndex" (findIndex value)
         , benchIOSink value "elemIndex" (elemIndex value)
         -- this is too fast, causes all benchmarks reported in ns
-    -- , benchIOSink value "null" S.null
+        -- , benchIOSink value "null" S.null
         , benchIOSink value "elem" (elem value)
         , benchIOSink value "notElem" (notElem value)
         , benchIOSink value "all" (all value)
         , benchIOSink value "any" (any value)
         , benchIOSink value "and" (and value)
         , benchIOSink value "or" (or value)
+#endif
 
         -- length is used to check for foldr/build fusion
         , benchPureSink value "length . IsList.toList" (Prelude.length . GHC.toList)
@@ -479,7 +504,7 @@ o_1_space_elimination_folds value =
 -------------------------------------------------------------------------------
 -- Buffered Transformations by fold
 -------------------------------------------------------------------------------
-
+#ifdef USE_PRELUDE
 {-# INLINE foldl'Build #-}
 foldl'Build :: Monad m => SerialT m Int -> m [Int]
 foldl'Build = S.foldl' (flip (:)) []
@@ -499,6 +524,7 @@ o_n_heap_elimination_foldl value =
         , benchIdentitySink value "foldlM'/build/Identity" foldlM'Build
         ]
     ]
+#endif
 
 -- For comparisons
 {-# INLINE showInstanceList #-}
@@ -533,7 +559,7 @@ o_n_space_elimination_foldr value =
         , benchIOSink value "foldrM/reduce/IO (sum)" foldrMReduce
         ]
     ]
-
+#ifdef USE_PRELUDE
 o_n_heap_elimination_toList :: Int -> [Benchmark]
 o_n_heap_elimination_toList value =
     [ bgroup "toList"
@@ -553,7 +579,7 @@ o_n_space_elimination_toList value =
             (Internal.toStream :: (SerialT IO Int -> IO (SerialT Identity Int)))
         ]
     ]
-
+#endif
 -------------------------------------------------------------------------------
 -- Multi-stream folds
 -------------------------------------------------------------------------------
@@ -673,14 +699,17 @@ benchmarks moduleName size =
             , o_1_space_elimination_multi_stream_pure size
             , o_1_space_elimination_multi_stream size
             ]
-        , bgroup (o_n_heap_prefix moduleName) $ concat
-            [ o_n_heap_elimination_foldl size
-            , o_n_heap_elimination_toList size
-            , o_n_heap_elimination_buffered size
-            ]
-        , bgroup (o_n_space_prefix moduleName) $ concat
-            [ o_n_space_elimination_foldable size
-            , o_n_space_elimination_toList size
-            , o_n_space_elimination_foldr size
-            ]
+
+        , bgroup (o_n_heap_prefix moduleName) $
+               o_n_heap_elimination_buffered size
+#ifdef USE_PRELUDE
+            ++ o_n_heap_elimination_foldl size
+            ++ o_n_heap_elimination_toList size
+#endif
+        , bgroup (o_n_space_prefix moduleName) $
+               o_n_space_elimination_foldable size
+#ifdef USE_PRELUDE
+            ++ o_n_space_elimination_toList size
+#endif
+            ++ o_n_space_elimination_foldr size
         ]

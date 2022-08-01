@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.NestedStream
+-- Module      : Stream.NestedStream
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.NestedStream (benchmarks) where
+module Stream.NestedStream (benchmarks) where
 
 import Control.Monad.Trans.Class (lift)
 
@@ -356,7 +356,7 @@ o_n_space_applicative value =
         [ benchIOSrc fromSerial "(*>) (n times)" $
             iterateSingleton ((*>) . pure) value
         , benchIOSrc fromSerial "(<*) (n times)" $
-            iterateSingleton (\x xs -> xs <* pure x) value
+            iterateSingleton (\x xs ->  xs <* pure x) value
         , benchIOSrc fromSerial "(<*>) (n times)" $
             iterateSingleton (\x xs -> pure (+ x) <*> xs) value
         , benchIOSrc fromSerial "liftA2 (n times)" $

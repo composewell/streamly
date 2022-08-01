@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.NestedFold
+-- Module      : Stream.NestedFold
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Serial.NestedFold (benchmarks) where
+module Stream.NestedFold (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
