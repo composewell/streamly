@@ -1,12 +1,12 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.Array
+-- Module      : Streamly.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- This module provides immutable arrays in pinned memory (non GC memory)
@@ -24,18 +24,34 @@
 --
 -- = Programmer Notes
 --
+-- Array creation APIs require a 'MonadIO' Monad, except 'fromList' which is a
+-- pure API. To operate on streams in pure Monads like 'Identity' you can hoist
+-- it to IO monad as follows:
+--
+-- >>> import Data.Functor.Identity (Identity, runIdentity)
+-- >>> s = Stream.fromList [1..10] :: SerialT Identity Int
+-- >>> s1 = Stream.hoist (return . runIdentity) s :: SerialT IO Int
+-- >>> Stream.fold Array.write s1 :: IO (Array Int)
+-- [1,2,3,4,5,6,7,8,9,10]
+--
+-- 'unsafePerformIO' can be used to get a pure API from IO, as long as you know
+-- it is safe to do so:
+--
+-- >>> import System.IO.Unsafe (unsafePerformIO)
+-- >>> unsafePerformIO $ Stream.fold Array.write s1 :: Array Int
+-- [1,2,3,4,5,6,7,8,9,10]
+--
 -- To apply a transformation to an array use 'read' to unfold the array into a
 -- stream, apply a transformation on the stream and then use 'write' to fold it
 -- back to an array.
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Array as A
+-- > import qualified Streamly.Data.Array.Unboxed as Array
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array.Unboxed".
 
-module Streamly.Memory.Array
-    {-# DEPRECATED "Use Streamly.Data.Array.Foreign instead" #-}
+module Streamly.Data.Array.Unboxed
     (
       A.Array
 
@@ -55,7 +71,7 @@ module Streamly.Memory.Array
     -- Monadic APIs
     , A.writeN      -- drop new
     , A.write       -- full buffer
-    -- , writeLastN -- drop old (ring buffer)
+    , writeLastN    -- drop old (ring buffer)
 
     -- ** Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
@@ -63,12 +79,26 @@ module Streamly.Memory.Array
 
     , A.toList
     , A.read
+    , A.readRev
+
+    -- ** Casting
+    , cast
+    , asBytes
 
     -- ** Random Access
     , A.length
     -- , (!!)
-    -- , A.readIndex
+    , A.getIndex
     )
 where
 
 import Streamly.Internal.Data.Array.Unboxed as A
+
+-- $setup
+-- >>> :m
+-- >>> :set -XFlexibleContexts
+-- >>> :set -package streamly
+-- >>> import Streamly.Prelude (SerialT)
+-- >>> import Streamly.Data.Array.Unboxed (Array)
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array

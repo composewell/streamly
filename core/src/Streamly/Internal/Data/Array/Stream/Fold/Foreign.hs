@@ -62,12 +62,12 @@ import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (touch)
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (touch)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Parser.ParserD (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD

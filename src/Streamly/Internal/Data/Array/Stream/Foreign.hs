@@ -64,7 +64,7 @@ import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..))
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -72,16 +72,16 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type
     (allocBytesToElemCount)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 -- import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign
 --      as ArrayFold
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as PR

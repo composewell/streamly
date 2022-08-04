@@ -1119,7 +1119,7 @@ reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, plusPtr)
-import Streamly.Internal.Data.Array.Foreign.Mut.Type (sizeOfElem)
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (sizeOfElem)
 reverse' m = Stream step Nothing
     where
     {-# INLINE_LATE step #-}

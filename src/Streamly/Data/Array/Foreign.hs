@@ -47,11 +47,12 @@
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Data.Array.Foreign as Array
+-- > import qualified Streamly.Data.Array.Unboxed as Array
 --
--- For experimental APIs see "Streamly.Internal.Data.Array.Foreign".
+-- For experimental APIs see "Streamly.Internal.Data.Array.Unboxed".
 
 module Streamly.Data.Array.Foreign
+    {-# DEPRECATED "Please use \"Streamly.Data.Array.Unboxed\" instead." #-}
     (
       A.Array
 
@@ -92,13 +93,13 @@ module Streamly.Data.Array.Foreign
     )
 where
 
-import Streamly.Internal.Data.Array.Foreign as A
+import Streamly.Internal.Data.Array.Unboxed as A
 
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
 -- >>> :set -package streamly
 -- >>> import Streamly.Prelude (SerialT)
--- >>> import Streamly.Data.Array.Foreign (Array)
+-- >>> import Streamly.Data.Array.Unboxed (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array

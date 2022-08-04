@@ -58,7 +58,7 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Unboxed (Storable)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -78,7 +78,7 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser

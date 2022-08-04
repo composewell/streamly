@@ -25,7 +25,7 @@ import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Data.Fold as FL
 

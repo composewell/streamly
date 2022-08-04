@@ -63,9 +63,9 @@
 -- = Programmer Notes
 --
 -- Read IO requests to connected stream sockets are performed in chunks of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.  Unless
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.  Unless
 -- specified otherwise in the API, writes are collected into chunks of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before they are
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before they are
 -- written to the socket. APIs are provided to control the chunking behavior.
 --
 -- > import qualified Streamly.Network.Socket as Socket

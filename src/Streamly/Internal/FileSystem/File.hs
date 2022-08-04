@@ -97,14 +97,14 @@ import qualified System.IO as SIO
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Foreign.Type (Array(..), writeNUnsafe)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Foreign as A
+import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
@@ -271,9 +271,9 @@ readChunksFromToWith = usingFile3 FH.readChunksFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- /Pre-release/
 {-# INLINE readChunks #-}
@@ -290,7 +290,7 @@ readWith = usingFile2 FH.readWith
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
@@ -410,7 +410,7 @@ writeWith n path =
 -- > write = 'writeWith' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
--- 'Streamly.Internal.Data.Array.Foreign.Type.defaultChunkSize' before writing to
+-- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing to
 -- the IO device.
 --
 -- /Pre-release/

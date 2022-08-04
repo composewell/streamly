@@ -10,7 +10,7 @@ module Streamly.Test.Data.Ring.Unboxed (main) where
 
 import Control.Monad (void)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Ring.Foreign as Ring
 
 import Prelude as P

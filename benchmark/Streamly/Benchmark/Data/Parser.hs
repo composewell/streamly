@@ -32,7 +32,7 @@ import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream.IsStream as IP

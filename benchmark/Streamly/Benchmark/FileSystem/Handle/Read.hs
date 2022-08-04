@@ -28,8 +28,8 @@ import GHC.Magic (noinline)
 import System.IO (Handle)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign.Type as AT
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as AT
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH
@@ -44,7 +44,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as IUF
 

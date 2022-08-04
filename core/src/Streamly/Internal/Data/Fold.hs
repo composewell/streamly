@@ -317,8 +317,8 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
@@ -345,12 +345,12 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Data.Array.Foreign as Array
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
--- >>> import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 
 ------------------------------------------------------------------------------
 -- hoist

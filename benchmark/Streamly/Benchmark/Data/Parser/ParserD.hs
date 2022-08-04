@@ -26,7 +26,7 @@ import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Producer as Producer

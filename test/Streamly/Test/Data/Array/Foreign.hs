@@ -19,9 +19,9 @@ import Test.QuickCheck (chooseInt, listOf)
 import GHC.Ptr (plusPtr)
 
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Array.Foreign as A
-import qualified Streamly.Internal.Data.Array.Foreign.Type as A
-import qualified Streamly.Internal.Data.Array.Foreign.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 
 type Array = A.Array

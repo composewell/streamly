@@ -278,9 +278,9 @@ library
                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Foreign.Mut.Type
-                     , Streamly.Internal.Data.Array.Foreign.Mut
-                     , Streamly.Internal.Data.Array.Foreign.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut.Type
+                     , Streamly.Internal.Data.Array.Unboxed.Mut
+                     , Streamly.Internal.Data.Array.Unboxed.Type
                      , Streamly.Internal.Data.Array.Mut.Type
 
                      -- streamly-core-streams
@@ -325,7 +325,7 @@ library
                      -- streamly-core-data-arrays
                      -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Foreign
+                     , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
@@ -340,7 +340,7 @@ library
                      -- streamly-core exposed modules
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
-                     , Streamly.Data.Array.Foreign
+                     , Streamly.Data.Array.Unboxed
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

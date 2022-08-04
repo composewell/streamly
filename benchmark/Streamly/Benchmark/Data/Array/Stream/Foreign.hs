@@ -34,7 +34,7 @@ import System.Random (randomRIO)
 import Prelude hiding ()
 
 import qualified Streamly.Prelude  as Stream
-import qualified Streamly.Internal.Data.Array.Foreign as Array
+import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser

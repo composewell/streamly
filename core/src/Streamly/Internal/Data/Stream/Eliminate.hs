@@ -77,7 +77,7 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unboxed (Unboxed)
 
-import qualified Streamly.Internal.Data.Array.Foreign.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
