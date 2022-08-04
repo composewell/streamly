@@ -71,7 +71,7 @@ genSlicesFromLen from len =
     let fromThenTo n = (from, from + len, n - 1)
         mkSlice n i = return (i, min len (n - i))
      in Unfold.lmap length
-        $ Unfold.mapMWithInput mkSlice
+        $ Unfold.mapM2 mkSlice
         $ Unfold.lmap fromThenTo Unfold.enumerateFromThenTo
 
 -- | Generate a stream of slices of specified length from an array, starting
@@ -86,7 +86,7 @@ getSlicesFromLen :: forall m a. (Monad m, Unboxed a)
     -> Unfold m (Array a) (Array a)
 getSlicesFromLen from len =
     let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
-     in Unfold.mapMWithInput mkSlice (genSlicesFromLen from len)
+     in Unfold.mapM2 mkSlice (genSlicesFromLen from len)
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice

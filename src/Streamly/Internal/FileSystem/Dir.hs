@@ -223,7 +223,7 @@ read =
 {-# INLINE readEither #-}
 readEither :: MonadIO m => Unfold m String (Either String String)
 readEither =
-      UF.mapMWithInput classify
+      UF.mapM2 classify
     $ UF.filter (\x -> x /= "." && x /= "..")
     -- XXX use proper streaming read of the dir
     $ UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList

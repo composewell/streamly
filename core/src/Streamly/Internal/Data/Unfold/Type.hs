@@ -35,6 +35,9 @@ module Streamly.Internal.Data.Unfold.Type
     , lmap
     , lmapM
     , map
+    , map2
+    , mapM
+    , mapM2
     , both
     , first
     , second
@@ -47,7 +50,9 @@ module Streamly.Internal.Data.Unfold.Type
     -- * Nesting
     , ConcatState (..)
     , many
+    , many2
     , manyInterleave
+    -- , manyInterleave2
 
     -- Applicative
     , apSequence
@@ -77,7 +82,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
-import Prelude hiding (map, concatMap, zipWith, takeWhile)
+import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 
 -- $setup
 -- >>> import qualified Streamly.Prelude as Stream
@@ -290,11 +295,70 @@ takeWhile f = takeWhileM (return . f)
 -- Functor
 ------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL mapM2 #-}
+mapM2 :: Monad m => (a -> b -> m c) -> Unfold m a b -> Unfold m a c
+mapM2 f (Unfold ustep uinject) = Unfold step inject
+    where
+    inject a = do
+        r <- uinject a
+        return (a, r)
+
+    {-# INLINE_LATE step #-}
+    step (inp, st) = do
+        r <- ustep st
+        case r of
+            Yield x s -> f inp x >>= \a -> return $ Yield a (inp, s)
+            Skip s    -> return $ Skip (inp, s)
+            Stop      -> return Stop
+
+-- | Apply a monadic function to each element of the stream and replace it
+-- with the output of the resulting action.
+--
+-- >>> mapM f = Unfold.mapM2 (const f)
+--
+-- /Since: 0.8.0/
+--
+{-# INLINE_NORMAL mapM #-}
+mapM :: Monad m => (b -> m c) -> Unfold m a b -> Unfold m a c
+-- mapM f = mapM2 (const f)
+mapM f (Unfold ustep uinject) = Unfold step uinject
+    where
+    {-# INLINE_LATE step #-}
+    step st = do
+        r <- ustep st
+        case r of
+            Yield x s -> f x >>= \a -> return $ Yield a s
+            Skip s    -> return $ Skip s
+            Stop      -> return Stop
+
+-- |
+--
+-- >>> map2 f = Unfold.mapM2 (\a b -> pure (f a b))
+--
+{-# INLINE_NORMAL map2 #-}
+map2 :: Functor m => (a -> b -> c) -> Unfold m a b -> Unfold m a c
+-- map2 f = mapM2 (\a b -> pure (f a b))
+map2 f (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
+
+    where
+
+    func a r =
+        case r of
+            Yield x s -> Yield (f a x) (a, s)
+            Skip s    -> Skip (a, s)
+            Stop      -> Stop
+
+    {-# INLINE_LATE step #-}
+    step (a, st) = fmap (func a) (ustep st)
+
 -- | Map a function on the output of the unfold (the type @b@).
+--
+-- >>> map f = Unfold.map2 (const f)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL map #-}
 map :: Functor m => (b -> c) -> Unfold m a b -> Unfold m a c
+-- map f = map2 (const f)
 map f (Unfold ustep uinject) = Unfold step uinject
 
     where
@@ -373,15 +437,49 @@ apDiscardSnd :: -- Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a b
 apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 
+{-# ANN type Many2State Fuse #-}
+data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
+
+{-# INLINE_NORMAL many2 #-}
+many2 :: Monad m => Unfold m (a, b) c -> Unfold m a b -> Unfold m a c
+many2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject a = do
+        s <- inject1 a
+        return $ Many2Outer a s
+
+    {-# INLINE_LATE step #-}
+    step (Many2Outer a st) = do
+        r <- step1 st
+        case r of
+            Yield b s -> do
+                innerSt <- inject2 (a, b)
+                return $ Skip (Many2Inner a s innerSt)
+            Skip s    -> return $ Skip (Many2Outer a s)
+            Stop      -> return Stop
+
+    step (Many2Inner a ost ist) = do
+        r <- step2 ist
+        return $ case r of
+            Yield x s -> Yield x (Many2Inner a ost s)
+            Skip s    -> Skip (Many2Inner a ost s)
+            Stop      -> Skip (Many2Outer a ost)
+
 data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 
 -- | Create a cross product (vector product or cartesian product) of the
 -- output streams of two unfolds using a monadic combining function.
 --
+-- >>> f1 f u = Unfold.mapM2 (\(_, c) b -> f b c) (Unfold.lmap fst u)
+-- >>> crossWithM f u = Unfold.many2 (f1 f u)
+--
 -- /Pre-release/
 {-# INLINE_NORMAL crossWithM #-}
 crossWithM :: Monad m =>
     (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+-- crossWithM f u1 u2 = many2 (mapM2 (\(_, b) c -> f b c) (lmap fst u2)) u1
 crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
@@ -443,6 +541,9 @@ cross = crossWith (,)
 apply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
 apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 
+-- XXX Applicative makes sense for unfolds, but monad does not. Use streams for
+-- monad.
+
 {-
 -- | Example:
 --
@@ -472,6 +573,9 @@ instance Monad m => Applicative (Unfold m a) where
 data ConcatMapState m b s1 x =
       ConcatMapOuter x s1
     | forall s2. ConcatMapInner x s1 s2 (s2 -> m (Step s2 b))
+
+-- XXX This is experimental. We should rather use streams if concatMap like
+-- functionality is needed. This is no more efficient than streams.
 
 -- | Map an unfold generating action to each element of an unfold and
 -- flatten the results into a single stream.
@@ -593,12 +697,15 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 -- | Apply the first unfold to each output element of the second unfold and
 -- flatten the output in a single stream.
 --
+-- >>> many u = Unfold.many2 (Unfold.lmap snd u)
+--
 -- /Since: 0.9.0 (signature changed)/
 --
 -- /Since: 0.8.0/
 --
 {-# INLINE_NORMAL many #-}
 many :: Monad m => Unfold m b c -> Unfold m a b -> Unfold m a c
+-- many u1 = many2 (lmap snd u1)
 many (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     where
@@ -635,7 +742,7 @@ instance Monad m => Category (Unfold m) where
     id = identity
 
     {-# INLINE (.) #-}
-    (.) = flip many
+    (.) = many
 -}
 
 -------------------------------------------------------------------------------

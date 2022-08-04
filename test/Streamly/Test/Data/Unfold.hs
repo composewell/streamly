@@ -469,13 +469,13 @@ mapM =
                   mList = Prelude.map fA list
                in testUnfoldMD unf list 0 (length list) mList
 
-mapMWithInput :: Property
-mapMWithInput =
+mapM2 :: Property
+mapM2 =
     property
         $ \f list ->
               let fA = applyFun2 f :: [Int] -> Int -> Int
                   fM x y = modify (+ 1) >> return (fA x y)
-                  unf = UF.mapMWithInput fM UF.fromList
+                  unf = UF.mapM2 fM UF.fromList
                   mList = Prelude.map (fA list) list
                in testUnfoldMD unf list 0 (length list) mList
 
@@ -667,7 +667,7 @@ testTransformation =
             -- prop "map" map
             prop "postscan" postscan
             prop "mapM" mapM
-            prop "mapMWithInput" mapMWithInput
+            prop "mapM2" mapM2
             prop "takeWhileM" takeWhileM
             -- prop "takeWhile" takeWhile
             prop "take" take

@@ -38,7 +38,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Prelude as SP
 
 import Gauge hiding (env)
-import Prelude hiding (concat, take, filter, zipWith, map, mapM, takeWhile)
+import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
@@ -305,12 +305,12 @@ mapM :: Monad m => Int -> Int -> m ()
 mapM size start =
     drainTransformationDefault (size + start) (UF.mapM (return . (+) 1)) start
 
-{-# INLINE mapMWithInput #-}
-mapMWithInput :: Monad m => Int -> Int -> m ()
-mapMWithInput size start =
+{-# INLINE mapM2 #-}
+mapM2 :: Monad m => Int -> Int -> m ()
+mapM2 size start =
     drainTransformationDefault
         size
-        (UF.mapMWithInput (\a b -> return $ a + b))
+        (UF.mapM2 (\a b -> return $ a + b))
         start
 
 -------------------------------------------------------------------------------
@@ -418,6 +418,9 @@ teeZipWith size start =
 -- Applicative
 -------------------------------------------------------------------------------
 
+nthRoot :: Double -> Int -> Int
+nthRoot n value = round (fromIntegral value**(1/n))
+
 {-# INLINE toNullAp #-}
 toNullAp :: Monad m => Int -> Int -> m ()
 toNullAp value start =
@@ -437,9 +440,6 @@ _apDiscardSnd = undefined
 -------------------------------------------------------------------------------
 -- Monad
 -------------------------------------------------------------------------------
-
-nthRoot :: Double -> Int -> Int
-nthRoot n value = round (fromIntegral value**(1/n))
 
 {-# INLINE concatMapM #-}
 concatMapM :: Monad m => Int -> Int -> m ()
@@ -601,9 +601,9 @@ concatCount :: Int -> Int
 concatCount linearCount =
     round (((1 + 8 * fromIntegral linearCount)**(1/2::Double) - 1) / 2)
 
-{-# INLINE concat #-}
-concat :: Monad m => Int -> Int -> m ()
-concat linearCount start = do
+{-# INLINE many #-}
+many :: Monad m => Int -> Int -> m ()
+many linearCount start = do
     let end = start + concatCount linearCount
     UF.fold FL.drain (UF.many (source end) (source end)) start
 
@@ -668,7 +668,7 @@ o_1_space_transformation size =
           "transformation"
           [ benchIO "map" $ map size
           , benchIO "mapM" $ mapM size
-          , benchIO "mapMWithInput" $ mapMWithInput size
+          , benchIO "mapM2" $ mapM2 size
           , benchIO "postscan" $ postscan size
           ]
     ]
@@ -728,7 +728,7 @@ o_1_space_nested env size =
           , benchIO "filterAllIn" $ filterAllIn size
           , benchIO "filterSome" $ filterSome size
 
-          , benchIO "concat" $ concat size
+          , benchIO "many" $ many size
           , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
             $ \inh _ -> foldManySepBy inh
           ]

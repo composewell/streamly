@@ -196,10 +196,15 @@ module Streamly.Internal.Data.Unfold
     -- * Folding
     , fold
 
+    -- XXX Add "WithInput" versions of all these, map2, postscan2, takeWhile2,
+    -- filter2 etc.  Alternatively, we can use the default operations with
+    -- input, but that might make the common case more inconvenient.
+
     -- ** Mapping on Output
     , map
+    , map2
     , mapM
-    , mapMWithInput
+    , mapM2
 
     , postscanlM'
     , postscan
@@ -234,6 +239,7 @@ module Streamly.Internal.Data.Unfold
     -- ** Nesting
     , ConcatState (..)
     , many
+    , many2
     , concatMapM
     , bind
 
@@ -419,39 +425,6 @@ foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
     step (FoldManyYield b next) = return $ Yield b next
     step FoldManyDone = return Stop
 
--- | Apply a monadic function to each element of the stream and replace it
--- with the output of the resulting action.
---
--- /Since: 0.8.0/
---
-{-# INLINE_NORMAL mapM #-}
-mapM :: Monad m => (b -> m c) -> Unfold m a b -> Unfold m a c
-mapM f (Unfold ustep uinject) = Unfold step uinject
-    where
-    {-# INLINE_LATE step #-}
-    step st = do
-        r <- ustep st
-        case r of
-            Yield x s -> f x >>= \a -> return $ Yield a s
-            Skip s    -> return $ Skip s
-            Stop      -> return Stop
-
-{-# INLINE_NORMAL mapMWithInput #-}
-mapMWithInput :: Monad m => (a -> b -> m c) -> Unfold m a b -> Unfold m a c
-mapMWithInput f (Unfold ustep uinject) = Unfold step inject
-    where
-    inject a = do
-        r <- uinject a
-        return (a, r)
-
-    {-# INLINE_LATE step #-}
-    step (inp, st) = do
-        r <- ustep st
-        case r of
-            Yield x s -> f inp x >>= \a -> return $ Yield a (inp, s)
-            Skip s    -> return $ Skip (inp, s)
-            Stop      -> return Stop
-
 -------------------------------------------------------------------------------
 -- Either
 -------------------------------------------------------------------------------
@@ -475,6 +448,8 @@ either (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield (f x) (s, f)
             Skip s -> Skip (s, f)
             Stop -> Stop) <$> step1 st
+
+-- postscan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
@@ -551,6 +526,8 @@ scanWith restart (Fold fstep initial extract) (Unfold stepU injectU) =
 {-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
 scanMany = scanWith True
+
+-- scan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 -- Once fold is done it will stop.
