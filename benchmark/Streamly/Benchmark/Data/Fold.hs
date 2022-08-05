@@ -93,16 +93,16 @@ sequence_ value =
 filter :: Monad m => Int -> Stream m Int -> m ()
 filter _ = Stream.fold (FL.filter even FL.drain)
 
-{-# INLINE foldFilter #-}
-foldFilter :: Monad m => Int -> Stream m Int -> m ()
-foldFilter _ = Stream.fold (FL.foldFilter (FL.satisfy even) FL.drain)
+{-# INLINE scanMaybe #-}
+scanMaybe :: Monad m => Int -> Stream m Int -> m ()
+scanMaybe _ = Stream.fold (FL.scanMaybe (FL.filtering even) FL.drain)
 
-{-# INLINE foldFilter2 #-}
-foldFilter2 :: Monad m => Int -> Stream m Int -> m ()
-foldFilter2 _ =
+{-# INLINE scanMaybe2 #-}
+scanMaybe2 :: Monad m => Int -> Stream m Int -> m ()
+scanMaybe2 _ =
     Stream.fold
-        $ FL.foldFilter (FL.satisfy even)
-        $ FL.foldFilter (FL.satisfy odd) FL.drain
+        $ FL.scanMaybe (FL.filtering even)
+        $ FL.scanMaybe (FL.filtering odd) FL.drain
 
 -------------------------------------------------------------------------------
 -- Splitting by serial application
@@ -395,8 +395,8 @@ o_1_space_serial_composition value =
       [ bgroup
             "composition"
             [ benchIOSink value "filter even" $ filter value
-            , benchIOSink value "foldFilter even" $ foldFilter value
-            , benchIOSink value "foldFilter even, odd" $ foldFilter2 value
+            , benchIOSink value "scanMaybe even" $ scanMaybe value
+            , benchIOSink value "scanMaybe even, odd" $ scanMaybe2 value
             , benchIOSink value "foldBreak (recursive)" foldBreak
             , benchIOSink value "serialWith (all, any)" $ splitAllAny value
             , benchIOSink value "serial_ (all, any)" $ serial_ value

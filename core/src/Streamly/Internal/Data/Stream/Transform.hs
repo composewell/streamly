@@ -38,14 +38,21 @@ module Streamly.Internal.Data.Stream.Transform
     -- the elements. We can use a concatMap and scan for filtering but these
     -- combinators are more efficient and convenient.
 
+    -- mapMaybeM is a general filtering combinator as we can map the stream to
+    -- Just/Nothing using any stateful fold and then use this to filter out.
+    , mapMaybeM
+    , mapMaybe
+    , catMaybes
+    , scanMaybe
+
     , with
     , deleteBy
     , filter
     , filterM
-    , foldFilter
+
+    -- Stateful/scanning filters
     , uniq
     , uniqBy
-    , nubBy
     , prune
     , repeated
 
@@ -58,6 +65,22 @@ module Streamly.Internal.Data.Stream.Transform
     , drop
     , dropWhile
     , dropWhileM
+
+    -- * Position Indexing
+    , indexed
+    , indexedR
+
+    -- * Searching
+    , findIndices -- XXX indicesBy
+    , elemIndices -- XXX indicesOf
+
+    -- * Rolling map
+    -- | Map using the previous element.
+    , rollingMapM
+    , rollingMap
+    , rollingMap2
+
+    -- Merge
 
     -- * Inserting Elements
     -- | Produce a superset of the stream. This is the opposite of
@@ -89,30 +112,12 @@ module Streamly.Internal.Data.Stream.Transform
     -- , intersperseByBefore
     -- , intersperseByAfter
 
+    -- Fold and Unfold, Buffering
+
     -- * Reordering
     , reverse
     , reverse'
     , reassembleBy
-
-    -- * Position Indexing
-    , indexed
-    , indexedR
-
-    -- * Searching
-    , findIndices -- XXX indicesBy
-    , elemIndices -- XXX indicesOf
-
-    -- * Rolling map
-    -- | Map using the previous element.
-    , rollingMapM
-    , rollingMap
-    , rollingMap2
-
-    -- * Maybe Streams
-    -- Move these to Streamly.Data.Maybe.Stream?
-    , catMaybes -- XXX justs (like lefts/rights)
-    , mapMaybe
-    , mapMaybeM
 
     -- * Either Streams
     -- Move these to Streamly.Data.Either.Stream?
@@ -135,6 +140,7 @@ import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Pipe (Pipe)
 
 import qualified Streamly.Internal.Data.Fold as FL
+-- import qualified Streamly.Internal.Data.Fold.Window as Window
 import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -153,12 +159,14 @@ import Prelude hiding
 -- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 -- >>> import Control.Monad.Trans (lift)
 -- >>> import Control.Monad.Trans.Identity (runIdentityT)
+-- >>> import Data.Either (fromLeft, fromRight, isLeft, isRight, either)
 -- >>> import Data.Function ((&))
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Prelude hiding (filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence, reverse, foldr1 , scanl, scanl1)
 -- >>> import Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as Window
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
@@ -432,27 +440,23 @@ with f comb g = fmap snd . comb g . f
 
 -- | Include only those elements that pass a predicate.
 --
+-- >>> filter p = Stream.filterM (return . p)
+-- >>> filter p = Stream.mapMaybe (\x -> if p x then Just x else Nothing)
+-- >>> filter p = Stream.scanMaybe (Fold.filtering p)
+--
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 filter p m = fromStreamD $ D.filter p $ toStreamD m
+-- filter p = scanMaybe (FL.filtering p)
 
 -- | Same as 'filter' but with a monadic predicate.
+--
+-- >>> f p x = p x >>= \r -> return $ if r then Just x else Nothing
+-- >>> filterM p = Stream.mapMaybeM (f p)
 --
 {-# INLINE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 filterM p m = fromStreamD $ D.filterM p $ toStreamD m
-
--- | Use a filtering fold on a stream.
---
--- >>> input = Stream.fromList [1..10]
--- >>> Stream.fold Fold.sum $ Stream.foldFilter (Fold.satisfy (> 5)) input
--- 40
---
--- /Pre-release/
---
-{-# INLINE foldFilter #-}
-foldFilter :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
-foldFilter p = fromStreamD . D.foldFilter p . toStreamD
 
 -- | Drop repeated elements that are adjacent to each other using the supplied
 -- comparison function.
@@ -475,6 +479,7 @@ foldFilter p = fromStreamD . D.foldFilter p . toStreamD
 {-# INLINE uniqBy #-}
 uniqBy :: Monad m =>
     (a -> a -> Bool) -> Stream m a -> Stream m a
+-- uniqBy eq = scanMaybe (FL.uniqBy eq)
 uniqBy eq = catMaybes . rollingMap f
 
     where
@@ -486,9 +491,12 @@ uniqBy eq = catMaybes . rollingMap f
 
 -- | Drop repeated elements that are adjacent to each other.
 --
+-- >>> uniq = Stream.uniqBy (==)
+--
 {-# INLINE uniq #-}
 uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
 uniq = fromStreamD . D.uniq . toStreamD
+-- uniq = scanMaybe FL.uniq
 
 -- | Strip all leading and trailing occurrences of an element passing a
 -- predicate and make all other consecutive occurrences uniq.
@@ -524,21 +532,6 @@ repeated :: -- (Monad m, Eq a) =>
     Stream m a -> Stream m a
 repeated = undefined
 
--- We can have more efficient implementations for nubOrd and nubInt by using
--- Set and IntSet to find/remove duplication. For Hashable we can use a
--- hashmap. Use rewrite rules to specialize to more efficient impls.
-
--- | Drop repeated elements anywhere in the stream.
---
--- /Caution: not scalable for infinite streams/
---
--- /Unimplemented/
---
-{-# INLINE nubBy #-}
-nubBy :: -- Monad m =>
-    (a -> a -> Bool) -> Stream m a -> Stream m a
-nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
-
 -- | Deletes the first occurrence of the element in the stream that satisfies
 -- the given equality predicate.
 --
@@ -549,6 +542,7 @@ nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
 {-# INLINE deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
 deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
+-- deleteBy cmp x = scanMaybe (FL.deleteBy cmp x)
 
 ------------------------------------------------------------------------------
 -- Trimming
@@ -559,6 +553,7 @@ deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 {-# INLINE takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
+-- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -566,12 +561,14 @@ takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
+-- dropWhile p = scanMaybe (FL.droppingWhile p)
 
 -- | Same as 'dropWhile' but with a monadic predicate.
 --
 {-# INLINE dropWhileM #-}
 dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
+-- dropWhileM p = scanMaybe (FL.droppingWhileM p)
 
 ------------------------------------------------------------------------------
 -- Inserting Elements
@@ -764,6 +761,7 @@ reassembleBy = undefined
 {-# INLINE indexed #-}
 indexed :: Monad m => Stream m a -> Stream m (Int, a)
 indexed = fromStreamD . D.indexed . toStreamD
+-- indexed = scanMaybe FL.indexing
 
 -- |
 -- >>> f n = Fold.foldl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
@@ -781,6 +779,7 @@ indexed = fromStreamD . D.indexed . toStreamD
 {-# INLINE indexedR #-}
 indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
 indexedR n = fromStreamD . D.indexedR n . toStreamD
+-- indexedR n = scanMaybe (FL.indexingRev n)
 
 ------------------------------------------------------------------------------
 -- Searching
@@ -812,6 +811,7 @@ elemIndices a = findIndices (== a)
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
 rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
+-- rollingMap f = scanMaybe (FL.slide2 $ Window.rollingMap f)
 
 -- | Like 'rollingMap' but with an effectful map function.
 --
@@ -820,6 +820,7 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 {-# INLINE rollingMapM #-}
 rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Stream m a -> Stream m b
 rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
+-- rollingMapM f = scanMaybe (FL.slide2 $ Window.rollingMapM f)
 
 -- | Like 'rollingMap' but requires at least two elements in the stream,
 -- returns an empty stream otherwise.
@@ -841,7 +842,7 @@ rollingMap2 f m = fromStreamD $ D.rollingMap2 f $ toStreamD m
 --
 -- Equivalent to:
 --
--- >>> mapMaybe f = fmap fromJust . Stream.filter isJust . fmap f
+-- >>> mapMaybe f = Stream.catMaybes . fmap f
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
@@ -851,26 +852,22 @@ mapMaybe f m = fromStreamD $ D.mapMaybe f $ toStreamD m
 --
 -- Equivalent to:
 --
--- >>> mapMaybeM f = fmap fromJust . Stream.filter isJust . Stream.mapM f
+-- >>> mapMaybeM f = Stream.catMaybes . Stream.mapM f
+--
+-- >>> mapM f = Stream.mapMaybeM (\x -> Just <$> f x)
 --
 {-# INLINE_EARLY mapMaybeM #-}
 mapMaybeM :: Monad m
           => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
--- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
---
--- /Pre-release/
---
-{-# INLINE catMaybes #-}
-catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
-catMaybes = fmap fromJust . filter isJust
-
 ------------------------------------------------------------------------------
 -- Either streams
 ------------------------------------------------------------------------------
 
 -- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
+--
+-- >>> lefts = fmap (fromLeft undefined) . Stream.filter isLeft
 --
 -- /Pre-release/
 --
@@ -880,6 +877,8 @@ lefts = fmap (fromLeft undefined) . filter isLeft
 
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
 --
+-- >>> rights = fmap (fromRight undefined) . Stream.filter isRight
+--
 -- /Pre-release/
 --
 {-# INLINE rights #-}
@@ -888,6 +887,8 @@ rights = fmap (fromRight undefined) . filter isRight
 
 -- | Remove the either wrapper and flatten both lefts and as well as rights in
 -- the output stream.
+--
+-- >>> both = fmap (either id id)
 --
 -- /Pre-release/
 --

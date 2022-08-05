@@ -18,6 +18,9 @@
 -- For more advanced statistical measures see the @streamly-statistics@
 -- package.
 
+-- XXX A window fold can be driven either using the Ring.slidingWindow
+-- combinator or by zipping nthLast fold and last fold.
+
 module Streamly.Internal.Data.Fold.Window
     (
     -- * Incremental Folds
@@ -35,6 +38,9 @@ module Streamly.Internal.Data.Fold.Window
     --
       lmap
     , cumulative
+
+    , rollingMap
+    , rollingMapM
 
     -- ** Sums
     , length
@@ -97,6 +103,37 @@ lmap f = Fold.lmap (bimap f (f <$>))
 {-# INLINE cumulative #-}
 cumulative :: Fold m (a, Maybe a) b -> Fold m a b
 cumulative = Fold.lmap (, Nothing)
+
+-- XXX Exchange the first two arguments of rollingMap or exchange the order in
+-- the fold input tuple.
+
+-- | Apply an effectful function on the latest and the oldest element of the
+-- window.
+{-# INLINE rollingMapM #-}
+rollingMapM :: Monad m =>
+    (Maybe a -> a -> m (Maybe b)) -> Fold m (a, Maybe a) (Maybe b)
+rollingMapM f = Fold.foldlM' f1 initial
+
+    where
+
+    initial = return Nothing
+
+    f1 _ (a, ma) = f ma a
+
+-- | Apply a pure function on the latest and the oldest element of the window.
+--
+-- >>> rollingMap f = FoldW.rollingMapM (\x y -> return $ f x y)
+--
+{-# INLINE rollingMap #-}
+rollingMap :: Monad m =>
+    (Maybe a -> a -> Maybe b) -> Fold m (a, Maybe a) (Maybe b)
+rollingMap f = Fold.foldl' f1 initial
+
+    where
+
+    initial = Nothing
+
+    f1 _ (a, ma) = f ma a
 
 -------------------------------------------------------------------------------
 -- Sum
