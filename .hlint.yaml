@@ -26,11 +26,11 @@
 - ignore: {name: "Use fmap"}
 
 # Warnings ignored in specific places
-- ignore: {name: "Use ++", within: Stream.Transformation}
-- ignore: {name: "Use mapM", within: Stream.Transformation}
-- ignore: {name: "Use traverse", within: Stream.Transformation}
-- ignore: {name: "Redundant <*", within: Stream.NestedStream}
-- ignore: {name: "Use ++", within: Stream.NestedStream}
+- ignore: {name: "Use ++", within: Stream.Transform}
+- ignore: {name: "Use mapM", within: Stream.Transform}
+- ignore: {name: "Use traverse", within: Stream.Transform}
+- ignore: {name: "Redundant <*", within: Stream.Expand}
+- ignore: {name: "Use ++", within: Stream.Reduce}
 - ignore: {name: "Use ++", within: Stream.Split}
 - ignore: {name: "Redundant bracket", within: Stream.Split}
 - ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Char.Parser}

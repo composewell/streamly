@@ -13,22 +13,29 @@ module Stream.Generate (benchmarks) where
 
 import Data.Functor.Identity (Identity)
 
+import qualified Stream.Common as Common
 #ifdef USE_PRELUDE
 import qualified GHC.Exts as GHC
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Prelude
-#endif
+#else
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
+#endif
 
 import Gauge
 import Streamly.Benchmark.Common
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 #ifdef USE_PRELUDE
-import Streamly.Benchmark.Prelude
-import Streamly.Prelude (fromSerial, MonadAsync)
+import Streamly.Prelude (MonadAsync)
+import Stream.Common hiding (MonadAsync, replicate, enumerateFromTo)
+import Streamly.Benchmark.Prelude hiding
+    (benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
+    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
+    , breakAfterSome, toListM, toListSome)
+#else
+import Stream.Common
 #endif
-import qualified Stream.Common as SC
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 
@@ -41,6 +48,7 @@ import Prelude hiding (repeat, replicate, iterate)
 -------------------------------------------------------------------------------
 -- fromList
 -------------------------------------------------------------------------------
+
 #ifdef USE_PRELUDE
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
@@ -126,42 +134,6 @@ fromIndices value n = S.take value $ S.fromIndices (+ n)
 {-# INLINE fromIndicesM #-}
 fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
-
-o_1_space_generation_prel :: Int -> [Benchmark]
-o_1_space_generation_prel value =
-    [ bgroup "generation"
-        [ benchIOSrc fromSerial "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc fromSerial "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc fromSerial "repeat" (repeat value)
-        , benchIOSrc fromSerial "repeatM" (repeatM value)
-        , benchIOSrc fromSerial "replicate" (replicate value)
-        , benchIOSrc fromSerial "replicateM" (replicateM value)
-        , benchIOSrc fromSerial "iterate" (iterate value)
-        , benchIOSrc fromSerial "iterateM" (iterateM value)
-        , benchIOSrc fromSerial "fromIndices" (fromIndices value)
-        , benchIOSrc fromSerial "fromIndicesM" (fromIndicesM value)
-        , benchIOSrc fromSerial "intFromTo" (sourceIntFromTo value)
-        , benchIOSrc fromSerial "intFromThenTo" (sourceIntFromThenTo value)
-        , benchIOSrc fromSerial "integerFromStep" (sourceIntegerFromStep value)
-        , benchIOSrc fromSerial "fracFromThenTo" (sourceFracFromThenTo value)
-        , benchIOSrc fromSerial "fracFromTo" (sourceFracFromTo value)
-        , benchIOSrc fromSerial "fromList" (sourceFromList value)
-        , benchPureSrc "IsList.fromList" (sourceIsList value)
-        , benchPureSrc "IsString.fromString" (sourceIsString value)
-        , benchIOSrc fromSerial "fromListM" (sourceFromListM value)
-        , benchIOSrc fromSerial "enumerateFrom" (enumerateFrom value)
-        , benchIOSrc fromSerial "enumerateFromTo" (enumerateFromTo value)
-        , benchIOSrc fromSerial "enumerateFromThen" (enumerateFromThen value)
-        , benchIOSrc fromSerial "enumerateFromThenTo" (enumerateFromThenTo value)
-        , benchIOSrc fromSerial "enumerate" (enumerate value)
-        , benchIOSrc fromSerial "enumerateTo" (enumerateTo value)
-
-          -- These essentially test cons and consM
-        , benchIOSrc fromSerial "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
-        , benchIOSrc fromSerial "absTimes" $ absTimes value
-        ]
-    ]
 #endif
 
 {-# INLINE mfixUnfold #-}
@@ -170,29 +142,51 @@ mfixUnfold count start = Stream.mfix f
     where
     f action = do
         let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
-        x <- Stream.unfold Unfold.fromListM [incr 1 action, incr 2 action]
-        y <- SC.sourceUnfoldr count start
+        x <- Common.fromListM [incr 1 action, incr 2 action]
+        y <- Common.sourceUnfoldr count start
         return (x, y)
-
-{-# INLINE fromFoldable #-}
-fromFoldable :: Int -> Int -> SerialT m Int
-fromFoldable count start =
-    Stream.fromFoldable (Prelude.enumFromTo count start)
-
-{-# INLINE fromFoldableM #-}
-fromFoldableM :: Monad m => Int -> Int -> SerialT m Int
-fromFoldableM count start =
-    Stream.fromFoldableM (fmap return (Prelude.enumFromTo count start))
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
-        [ SC.benchIOSrc "unfold" (SC.sourceUnfoldr value)
-        , SC.benchIOSrc "fromFoldable" (fromFoldable value)
-        , SC.benchIOSrc "fromFoldableM" (fromFoldableM value)
-        , SC.benchIOSrc "mfix_10" (mfixUnfold 10)
-        , SC.benchIOSrc "mfix_100" (mfixUnfold 100)
-        , SC.benchIOSrc "mfix_1000" (mfixUnfold 1000)
+        [ benchIOSrc "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc "unfoldrM" (sourceUnfoldrM value)
+#ifdef USE_PRELUDE
+        , benchIOSrc "repeat" (repeat value)
+        , benchIOSrc "repeatM" (repeatM value)
+        , benchIOSrc "replicate" (replicate value)
+        , benchIOSrc "replicateM" (replicateM value)
+        , benchIOSrc "iterate" (iterate value)
+        , benchIOSrc "iterateM" (iterateM value)
+        , benchIOSrc "fromIndices" (fromIndices value)
+        , benchIOSrc "fromIndicesM" (fromIndicesM value)
+        , benchIOSrc "intFromTo" (sourceIntFromTo value)
+        , benchIOSrc "intFromThenTo" (sourceIntFromThenTo value)
+        , benchIOSrc "integerFromStep" (sourceIntegerFromStep value)
+        , benchIOSrc "fracFromThenTo" (sourceFracFromThenTo value)
+        , benchIOSrc "fracFromTo" (sourceFracFromTo value)
+        , benchIOSrc "fromList" (sourceFromList value)
+        , benchPureSrc "IsList.fromList" (sourceIsList value)
+        , benchPureSrc "IsString.fromString" (sourceIsString value)
+        , benchIOSrc "fromListM" (sourceFromListM value)
+        , benchIOSrc "enumerateFrom" (enumerateFrom value)
+        , benchIOSrc "enumerateFromTo" (enumerateFromTo value)
+        , benchIOSrc "enumerateFromThen" (enumerateFromThen value)
+        , benchIOSrc "enumerateFromThenTo" (enumerateFromThenTo value)
+        , benchIOSrc "enumerate" (enumerate value)
+        , benchIOSrc "enumerateTo" (enumerateTo value)
+#endif
+
+          -- These essentially test cons and consM
+        , benchIOSrc "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
+
+#ifdef USE_PRELUDE
+        , benchIOSrc "absTimes" $ absTimes value
+#endif
+        , Common.benchIOSrc "mfix_10" (mfixUnfold 10)
+        , Common.benchIOSrc "mfix_100" (mfixUnfold 100)
+        , Common.benchIOSrc "mfix_1000" (mfixUnfold 1000)
         ]
     ]
 
@@ -218,11 +212,6 @@ o_n_heap_generation value =
 --
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
-        [
-#ifdef USE_PRELUDE
-        bgroup (o_1_space_prefix moduleName) (o_1_space_generation_prel size)
-        ,
-#endif
-        bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_generation size)
         ]

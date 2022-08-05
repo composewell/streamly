@@ -35,14 +35,13 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold
 #ifdef USE_PRELUDE
-import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 #else
 import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 import Gauge
+-- XXX Replace SerialT with Stream
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 #ifdef USE_PRELUDE
 import Streamly.Prelude (fromSerial)
@@ -56,7 +55,6 @@ import Stream.Common
     )
 #endif
 import Streamly.Benchmark.Common
-
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
@@ -66,6 +64,7 @@ import qualified Prelude
 repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 repeat count = S.take count . S.repeat
 #endif
+
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
@@ -281,6 +280,7 @@ uncons s = do
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
+
 #ifdef USE_PRELUDE
 {-# INLINE init #-}
 init :: Monad m => SerialT m a -> m ()
@@ -308,6 +308,7 @@ foldrToStream = S.foldr S.cons S.nil
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => SerialT m Int -> m [Int]
 foldrMBuild = S.foldrM (\x xs -> (x :) <$> xs) (return [])
+
 #ifdef USE_PRELUDE
 {-# INLINE foldl'Reduce #-}
 foldl'Reduce :: Monad m => SerialT m Int -> m Int
@@ -411,12 +412,13 @@ drainWhile = S.drainWhile (const True)
 
 {-# INLINE (!!) #-}
 (!!) :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
-(!!) = flip (Internal.!!)
+(!!) = flip (S.!!)
 
 {-# INLINE lookup #-}
 lookup :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
 lookup val = S.lookup val . S.map (\x -> (x, x))
 #endif
+
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
     [ bgroup "elimination"
@@ -445,10 +447,10 @@ o_1_space_elimination_folds value =
                   ]
             , bgroup "Identity"
                   [ benchIdentitySink value "foldrMElem" (foldrMElem value)
-                  , benchPureSink value "foldrMToListLength"
-                        (Prelude.length . runIdentity . foldrMBuild)
                   , benchIdentitySink value "foldrToStreamLength"
                         (S.fold Fold.length . runIdentity . foldrToStream)
+                  , benchPureSink value "foldrMToListLength"
+                        (Prelude.length . runIdentity . foldrMBuild)
                   ]
             ]
 
@@ -467,7 +469,7 @@ o_1_space_elimination_folds value =
         , benchIOSink value "mapM_" mapM_
 
         -- this is too fast, causes all benchmarks reported in ns
-        --, benchIOSink value "head" head
+    -- , benchIOSink value "head" head
         , benchIOSink value "last" last
         , benchIOSink value "length" length
         , benchIOSink value "sum" sum
@@ -476,9 +478,8 @@ o_1_space_elimination_folds value =
         , benchIOSink value "maximum" maximum
         , benchIOSink value "minimumBy" minimumBy
         , benchIOSink value "minimum" minimum
-#ifdef USE_PRELUDE
+
         , bench "the" $ nfIO $ randomRIO (1,1) >>= the . repeat value
-#endif
         , benchIOSink value "find" (find value)
         , benchIOSink value "findM" (findM value)
         -- , benchIOSink value "lookupFirst" (lookup 1)
@@ -487,7 +488,7 @@ o_1_space_elimination_folds value =
         , benchIOSink value "findIndex" (findIndex value)
         , benchIOSink value "elemIndex" (elemIndex value)
         -- this is too fast, causes all benchmarks reported in ns
-        -- , benchIOSink value "null" S.null
+    -- , benchIOSink value "null" S.null
         , benchIOSink value "elem" (elem value)
         , benchIOSink value "notElem" (notElem value)
         , benchIOSink value "all" (all value)
@@ -504,6 +505,7 @@ o_1_space_elimination_folds value =
 -------------------------------------------------------------------------------
 -- Buffered Transformations by fold
 -------------------------------------------------------------------------------
+
 #ifdef USE_PRELUDE
 {-# INLINE foldl'Build #-}
 foldl'Build :: Monad m => SerialT m Int -> m [Int]
@@ -559,14 +561,15 @@ o_n_space_elimination_foldr value =
         , benchIOSink value "foldrM/reduce/IO (sum)" foldrMReduce
         ]
     ]
+
 #ifdef USE_PRELUDE
 o_n_heap_elimination_toList :: Int -> [Benchmark]
 o_n_heap_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
-        [ benchIOSink value "toListRev" Internal.toListRev
+        [ benchIOSink value "toListRev" S.toListRev
         , benchIOSink value "toStreamRev"
-            (Internal.toStreamRev :: (SerialT IO Int -> IO (SerialT Identity Int)))
+            (S.toStreamRev :: (SerialT IO Int -> IO (SerialT Identity Int)))
         ]
     ]
 
@@ -576,10 +579,11 @@ o_n_space_elimination_toList value =
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
         , benchIOSink value "toStream"
-            (Internal.toStream :: (SerialT IO Int -> IO (SerialT Identity Int)))
+            (S.toStream :: (SerialT IO Int -> IO (SerialT Identity Int)))
         ]
     ]
 #endif
+
 -------------------------------------------------------------------------------
 -- Multi-stream folds
 -------------------------------------------------------------------------------

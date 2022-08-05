@@ -1,5 +1,5 @@
 -- |
--- Module      : Stream.Transformation
+-- Module      : Stream.Transform
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,36 +18,37 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Transformation (benchmarks) where
+module Stream.Transform (benchmarks) where
 
+import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity)
 
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as FL
 
-#ifdef USE_PRELUDE
-import Streamly.Prelude (fromSerial, MonadAsync)
-import Streamly.Benchmark.Prelude
-import Streamly.Internal.Data.Time.Units
-import qualified Streamly.Benchmark.Prelude as BP
-import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-import qualified Streamly.Internal.Data.Unfold as Unfold
-#else
-import Control.DeepSeq (NFData(..))
-import Data.Functor.Identity (Identity)
-import Stream.Common
-import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream as Internal
 import qualified Prelude
+import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Unfold as Unfold
+#ifdef USE_PRELUDE
+import Streamly.Benchmark.Prelude hiding
+    ( benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
+    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
+    , breakAfterSome, toListM, toListSome, transformMapM, transformComposeMapM
+    , transformTeeMapM, transformZipMapM, mapN, mapM)
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import Streamly.Internal.Data.Time.Units
+#else
+import Streamly.Benchmark.Prelude (benchIO)
+import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
 import Gauge
 import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Stream.Common hiding (scanl')
 import Streamly.Benchmark.Common
-import Prelude hiding (sequence, mapM, fmap)
+import Prelude hiding (sequence, mapM)
 
 -------------------------------------------------------------------------------
 -- Pipelines (stream-to-stream transformations)
@@ -60,7 +61,7 @@ import Prelude hiding (sequence, mapM, fmap)
 -------------------------------------------------------------------------------
 -- Traversable Instance
 -------------------------------------------------------------------------------
-#ifndef USE_PRELUDE
+
 {-# INLINE traversableTraverse #-}
 traversableTraverse :: SerialT Identity Int -> IO (SerialT Identity Int)
 traversableTraverse = traverse return
@@ -95,111 +96,89 @@ o_n_space_traversable value =
         , benchPureSinkIO value "sequence" traversableSequence
         ]
     ]
-#endif
 
-#ifdef USE_PRELUDE
-{-# INLINE composeNG #-}
-composeNG ::
-       (S.IsStream t, Monad m)
-    => Int
-    -> (t m Int -> S.SerialT m Int)
-    -> t m Int
-    -> m ()
-composeNG = BP.composeN
-#else
-{-# INLINE composeNG #-}
-composeNG ::
-       (Monad m)
-    => Int
-    -> (SerialT m Int -> SerialT m Int)
-    -> SerialT m Int
-    -> m ()
-composeNG _n = return $ Stream.fold FL.drain
-#endif
 -------------------------------------------------------------------------------
 -- maps and scans
 -------------------------------------------------------------------------------
 
-
-{-# INLINE scan #-}
-scan :: MonadIO m => Int -> SerialT m Int -> m ()
-scan n = composeNG n $ S.scan FL.sum
-
-{-# INLINE tap #-}
-tap :: MonadIO m => Int -> SerialT m Int -> m ()
-tap n = composeNG n $ S.tap FL.sum
-
 #ifdef USE_PRELUDE
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> SerialT m Int -> m ()
-scanl' n = composeNG n $ S.scanl' (+) 0
+scanl' n = composeN n $ Stream.scanl' (+) 0
 
 {-# INLINE scanlM' #-}
 scanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
-scanlM' n = composeNG n $ S.scanlM' (\b a -> return $ b + a) (return 0)
+scanlM' n = composeN n $ Stream.scanlM' (\b a -> return $ b + a) (return 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> SerialT m Int -> m ()
-scanl1' n = composeNG n $ S.scanl1' (+)
+scanl1' n = composeN n $ Stream.scanl1' (+)
 
 {-# INLINE scanl1M' #-}
 scanl1M' :: MonadIO m => Int -> SerialT m Int -> m ()
-scanl1M' n = composeNG n $ S.scanl1M' (\b a -> return $ b + a)
+scanl1M' n = composeN n $ Stream.scanl1M' (\b a -> return $ b + a)
+#endif
 
+{-# INLINE scan #-}
+scan :: MonadIO m => Int -> SerialT m Int -> m ()
+scan n = composeN n $ Stream.scan FL.sum
+
+#ifdef USE_PRELUDE
 {-# INLINE postscanl' #-}
 postscanl' :: MonadIO m => Int -> SerialT m Int -> m ()
-postscanl' n = composeNG n $ S.postscanl' (+) 0
+postscanl' n = composeN n $ Stream.postscanl' (+) 0
 
 {-# INLINE postscanlM' #-}
 postscanlM' :: MonadIO m => Int -> SerialT m Int -> m ()
-postscanlM' n = composeNG n $ S.postscanlM' (\b a -> return $ b + a) (return 0)
-
+postscanlM' n = composeN n $ Stream.postscanlM' (\b a -> return $ b + a) (return 0)
+#endif
 
 {-# INLINE postscan #-}
 postscan :: MonadIO m => Int -> SerialT m Int -> m ()
-postscan n = composeNG n $ S.postscan FL.sum
+postscan n = composeN n $ Stream.postscan FL.sum
 
 {-# INLINE sequence #-}
-sequence ::
-       (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int)
-    -> t m (m Int)
-    -> m ()
-sequence t = S.drain . t . S.sequence
+sequence :: MonadAsync m => SerialT m (m Int) -> m ()
+sequence = Common.drain . Stream.sequence
 
+{-# INLINE tap #-}
+tap :: MonadIO m => Int -> SerialT m Int -> m ()
+tap n = composeN n $ Stream.tap FL.sum
+
+#ifdef USE_PRELUDE
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> SerialT IO Int -> IO ()
 pollCounts n =
-    composeN n (Internal.pollCounts (const True) f)
+    composeN n (Stream.pollCounts (const True) f)
 
     where
 
-    f = S.drain . Internal.rollingMap2 (-) . Internal.delayPost 1
+    f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
 
 {-# INLINE timestamped #-}
-timestamped :: (S.MonadAsync m) => SerialT m Int -> m ()
-timestamped = S.drain . Internal.timestamped
-
-{-# INLINE trace #-}
-trace :: MonadAsync m => Int -> SerialT m Int -> m ()
-trace n = composeNG n $ Internal.trace return
+timestamped :: (MonadAsync m) => SerialT m Int -> m ()
+timestamped = Stream.drain . Stream.timestamped
 #endif
 
 {-# INLINE foldrS #-}
 foldrS :: MonadIO m => Int -> SerialT m Int -> m ()
-foldrS n = composeNG n $ Internal.foldrS S.cons S.nil
+foldrS n = composeN n $ Stream.foldrS Stream.cons Stream.nil
 
 {-# INLINE foldrSMap #-}
 foldrSMap :: MonadIO m => Int -> SerialT m Int -> m ()
-foldrSMap n = composeNG n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
+foldrSMap n = composeN n $ Stream.foldrS (\x xs -> x + 1 `Stream.cons` xs) Stream.nil
 
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> SerialT m Int -> m ()
-foldrT n = composeNG n $ Internal.foldrT S.cons S.nil
+foldrT n = composeN n $ Stream.foldrT Stream.cons Stream.nil
 
 {-# INLINE foldrTMap #-}
 foldrTMap :: MonadIO m => Int -> SerialT m Int -> m ()
-foldrTMap n = composeNG n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
+foldrTMap n = composeN n $ Stream.foldrT (\x xs -> x + 1 `Stream.cons` xs) Stream.nil
+
+{-# INLINE trace #-}
+trace :: MonadAsync m => Int -> SerialT m Int -> m ()
+trace n = composeN n $ Stream.trace return
 
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
@@ -211,13 +190,14 @@ o_1_space_mapping value =
         , benchIOSink value "foldrSMap" (foldrSMap 1)
         , benchIOSink value "foldrT" (foldrT 1)
         , benchIOSink value "foldrTMap" (foldrTMap 1)
-#ifdef USE_PRELUDE
-        -- Mapping
-        , benchIOSink value "map" (mapN fromSerial 1)
-        , bench "sequence" $ nfIO $ randomRIO (1, 1000) >>= \n ->
-              sequence fromSerial (sourceUnfoldrAction value n)
-        , benchIOSink value "mapM" (mapM fromSerial 1)
 
+        -- Mapping
+        , benchIOSink value "map" (mapN 1)
+        , bench "sequence" $ nfIO $ randomRIO (1, 1000) >>= \n ->
+              sequence (sourceUnfoldrAction value n)
+        , benchIOSink value "mapM" (mapM 1)
+        , benchIOSink value "tap" (tap 1)
+#ifdef USE_PRELUDE
         , benchIOSink value "pollCounts 1 second" (pollCounts 1)
         , benchIOSink value "timestamped" timestamped
 
@@ -228,48 +208,46 @@ o_1_space_mapping value =
         , benchIOSink value "scanl1M'" (scanl1M' 1)
         , benchIOSink value "postscanl'" (postscanl' 1)
         , benchIOSink value "postscanlM'" (postscanlM' 1)
-        , benchIOSink value "postscan" (postscan 1)
 #endif
         , benchIOSink value "scan" (scan 1)
-        , benchIOSink value "tap" (tap 1)
+        , benchIOSink value "postscan" (postscan 1)
         ]
     ]
 
-
-#ifdef USE_PRELUDE
 o_1_space_mappingX4 :: Int -> [Benchmark]
 o_1_space_mappingX4 value =
     [ bgroup "mappingX4"
-        [ benchIOSink value "map" (mapN fromSerial 4)
-        , benchIOSink value "mapM" (mapM fromSerial 4)
+        [ benchIOSink value "map" (mapN 4)
+        , benchIOSink value "mapM" (mapM 4)
         , benchIOSink value "trace" (trace 4)
 
+#ifdef USE_PRELUDE
         , benchIOSink value "scanl'" (scanl' 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
         , benchIOSink value "scanlM'" (scanlM' 4)
         , benchIOSink value "scanl1M'" (scanl1M' 4)
         , benchIOSink value "postscanl'" (postscanl' 4)
         , benchIOSink value "postscanlM'" (postscanlM' 4)
+#endif
         ]
     ]
-
 
 {-# INLINE sieveScan #-}
 sieveScan :: Monad m => SerialT m Int -> SerialT m Int
 sieveScan =
-      S.mapMaybe snd
-    . S.scanlM' (\(primes, _) n -> do
+      Stream.mapMaybe snd
+    . Stream.scan (FL.foldlM' (\(primes, _) n -> do
             return $
                 let ps = takeWhile (\p -> p * p <= n) primes
                  in if all (\p -> n `mod` p /= 0) ps
                     then (primes ++ [n], Just n)
-                    else (primes, Nothing)) (return ([2], Just 2))
+                    else (primes, Nothing)) (return ([2], Just 2)))
 
 o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
     [ bgroup "mapping"
         [ benchIO "naive prime sieve"
-            (\n -> S.sum $ sieveScan $ S.enumerateFromTo 2 (value + n))
+            (\n -> Stream.fold FL.sum $ sieveScan $ Common.enumerateFromTo 2 (value + n))
         ]
     ]
 
@@ -280,64 +258,59 @@ o_n_space_mapping value =
 o_1_space_functor :: Int -> [Benchmark]
 o_1_space_functor value =
     [ bgroup "Functor"
-        [ benchIOSink value "fmap" (fmapN fromSerial 1)
-        , benchIOSink value "fmap x 4" (fmapN fromSerial 4)
+        [ benchIOSink value "fmap" (mapN 1)
+        , benchIOSink value "fmap x 4" (mapN 4)
         ]
     ]
-#else
-{-# INLINE foldFilterEven #-}
-foldFilterEven :: MonadIO m => SerialT m Int -> m ()
-foldFilterEven = Stream.fold FL.drain . Stream.foldFilter (FL.satisfy even)
-#endif
+
 -------------------------------------------------------------------------------
 -- Size reducing transformations (filtering)
 -------------------------------------------------------------------------------
 
 {-# INLINE filterEven #-}
 filterEven :: MonadIO m => Int -> SerialT m Int -> m ()
-filterEven n = composeNG n $ S.filter even
+filterEven n = composeN n $ Stream.filter even
 
 {-# INLINE filterAllOut #-}
 filterAllOut :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-filterAllOut value n = composeNG n $ S.filter (> (value + 1))
+filterAllOut value n = composeN n $ Stream.filter (> (value + 1))
 
 {-# INLINE filterAllIn #-}
 filterAllIn :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-filterAllIn value n = composeNG n $ S.filter (<= (value + 1))
+filterAllIn value n = composeN n $ Stream.filter (<= (value + 1))
 
 {-# INLINE filterMEven #-}
 filterMEven :: MonadIO m => Int -> SerialT m Int -> m ()
-filterMEven n = composeNG n $ S.filterM (return . even)
+filterMEven n = composeN n $ Stream.filterM (return . even)
 
 {-# INLINE filterMAllOut #-}
 filterMAllOut :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-filterMAllOut value n = composeNG n $ S.filterM (\x -> return $ x > (value + 1))
+filterMAllOut value n = composeN n $ Stream.filterM (\x -> return $ x > (value + 1))
 
 {-# INLINE filterMAllIn #-}
 filterMAllIn :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-filterMAllIn value n = composeNG n $ S.filterM (\x -> return $ x <= (value + 1))
+filterMAllIn value n = composeN n $ Stream.filterM (\x -> return $ x <= (value + 1))
 
 {-# INLINE _takeOne #-}
 _takeOne :: MonadIO m => Int -> SerialT m Int -> m ()
-_takeOne n = composeNG n $ S.take 1
+_takeOne n = composeN n $ Stream.take 1
 
 {-# INLINE takeAll #-}
 takeAll :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-takeAll value n = composeNG n $ S.take (value + 1)
+takeAll value n = composeN n $ Stream.take (value + 1)
 
 {-# INLINE takeWhileTrue #-}
 takeWhileTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-takeWhileTrue value n = composeNG n $ S.takeWhile (<= (value + 1))
+takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 
 {-# INLINE takeWhileMTrue #-}
 takeWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-takeWhileMTrue value n = composeNG n $ S.takeWhileM (return . (<= (value + 1)))
+takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
 #ifdef USE_PRELUDE
 {-# INLINE takeInterval #-}
 takeInterval :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
-takeInterval i n = composeN n (Internal.takeInterval i)
-
+takeInterval i n = composeN n (Stream.takeInterval i)
 
 #ifdef INSPECTION
 -- inspect $ hasNoType 'takeInterval ''SPEC
@@ -348,33 +321,33 @@ inspect $ hasNoTypeClasses 'takeInterval
 
 {-# INLINE dropOne #-}
 dropOne :: MonadIO m => Int -> SerialT m Int -> m ()
-dropOne n = composeNG n $ S.drop 1
+dropOne n = composeN n $ Stream.drop 1
 
 {-# INLINE dropAll #-}
 dropAll :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-dropAll value n = composeNG n $ S.drop (value + 1)
+dropAll value n = composeN n $ Stream.drop (value + 1)
 
 {-# INLINE dropWhileTrue #-}
 dropWhileTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-dropWhileTrue value n = composeNG n $ S.dropWhile (<= (value + 1))
+dropWhileTrue value n = composeN n $ Stream.dropWhile (<= (value + 1))
 
 {-# INLINE dropWhileMTrue #-}
 dropWhileMTrue :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-dropWhileMTrue value n = composeNG n $ S.dropWhileM (return . (<= (value + 1)))
+dropWhileMTrue value n = composeN n $ Stream.dropWhileM (return . (<= (value + 1)))
 
 {-# INLINE dropWhileFalse #-}
 dropWhileFalse :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-dropWhileFalse value n = composeNG n $ S.dropWhile (> (value + 1))
+dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 
 #ifdef USE_PRELUDE
 -- XXX Decide on the time interval
 {-# INLINE _intervalsOfSum #-}
 _intervalsOfSum :: MonadAsync m => Double -> Int -> SerialT m Int -> m ()
-_intervalsOfSum i n = composeN n (S.intervalsOf i FL.sum)
+_intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
 
 {-# INLINE dropInterval #-}
 dropInterval :: NanoSecond64 -> Int -> SerialT IO Int -> IO ()
-dropInterval i n = composeN n (Internal.dropInterval i)
+dropInterval i n = composeN n (Stream.dropInterval i)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'dropInterval
@@ -384,42 +357,40 @@ inspect $ hasNoTypeClasses 'dropInterval
 
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-findIndices value n = composeNG n $ S.findIndices (== (value + 1))
+findIndices value n = composeN n $ Stream.findIndices (== (value + 1))
 
 {-# INLINE elemIndices #-}
 elemIndices :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-elemIndices value n = composeNG n $ S.elemIndices (value + 1)
+elemIndices value n = composeN n $ Stream.elemIndices (value + 1)
 
 {-# INLINE deleteBy #-}
 deleteBy :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-deleteBy value n = composeNG n $ S.deleteBy (>=) (value + 1)
+deleteBy value n = composeN n $ Stream.deleteBy (>=) (value + 1)
 
 -- uniq . uniq == uniq, composeN 2 ~ composeN 1
 {-# INLINE uniq #-}
 uniq :: MonadIO m => Int -> SerialT m Int -> m ()
-uniq n = composeNG n S.uniq
+uniq n = composeN n Stream.uniq
 
-#ifdef USE_PRELUDE
 {-# INLINE mapMaybe #-}
 mapMaybe :: MonadIO m => Int -> SerialT m Int -> m ()
 mapMaybe n =
-    composeNG n $
-    S.mapMaybe
+    composeN n $
+    Stream.mapMaybe
         (\x ->
              if odd x
              then Nothing
              else Just x)
 
 {-# INLINE mapMaybeM #-}
-mapMaybeM :: S.MonadAsync m => Int -> SerialT m Int -> m ()
+mapMaybeM :: MonadAsync m => Int -> SerialT m Int -> m ()
 mapMaybeM n =
-    composeNG n $
-    S.mapMaybeM
+    composeN n $
+    Stream.mapMaybeM
         (\x ->
              if odd x
              then return Nothing
              else return $ Just x)
-#endif
 
 o_1_space_filtering :: Int -> [Benchmark]
 o_1_space_filtering value =
@@ -431,9 +402,6 @@ o_1_space_filtering value =
         , benchIOSink value "filterM-even" (filterMEven 1)
         , benchIOSink value "filterM-all-out" (filterMAllOut value 1)
         , benchIOSink value "filterM-all-in" (filterMAllIn value 1)
-#ifndef USE_PRELUDE
-        , benchIOSink value "foldFilter-even" foldFilterEven
-#endif
 
         -- Trimming
         , benchIOSink value "take-all" (takeAll value 1)
@@ -460,17 +428,16 @@ o_1_space_filtering value =
         , benchIOSink value "deleteBy" (deleteBy value 1)
 
         , benchIOSink value "uniq" (uniq 1)
-#ifdef USE_PRELUDE
+
         -- Map and filter
         , benchIOSink value "mapMaybe" (mapMaybe 1)
         , benchIOSink value "mapMaybeM" (mapMaybeM 1)
-#endif
+
         -- Searching (stateful map and filter)
         , benchIOSink value "findIndices" (findIndices value 1)
         , benchIOSink value "elemIndices" (elemIndices value 1)
         ]
     ]
-
 
 o_1_space_filteringX4 :: Int -> [Benchmark]
 o_1_space_filteringX4 value =
@@ -482,8 +449,6 @@ o_1_space_filteringX4 value =
         , benchIOSink value "filterM-even" (filterMEven 4)
         , benchIOSink value "filterM-all-out" (filterMAllOut value 4)
         , benchIOSink value "filterM-all-in" (filterMAllIn value 4)
-
-        --, benchIOSink value "foldFilter-even" (foldFilterEven 4)
 
         -- trimming
         , benchIOSink value "take-all" (takeAll value 4)
@@ -501,11 +466,10 @@ o_1_space_filteringX4 value =
 
         , benchIOSink value "uniq" (uniq 4)
 
-#ifdef USE_PRELUDE
         -- map and filter
         , benchIOSink value "mapMaybe" (mapMaybe 4)
         , benchIOSink value "mapMaybeM" (mapMaybeM 4)
-#endif
+
         -- searching
         , benchIOSink value "findIndices" (findIndices value 4)
         , benchIOSink value "elemIndices" (elemIndices value 4)
@@ -515,29 +479,28 @@ o_1_space_filteringX4 value =
 -------------------------------------------------------------------------------
 -- Size increasing transformations (insertions)
 -------------------------------------------------------------------------------
-#ifdef USE_PRELUDE
+
 {-# INLINE intersperse #-}
-intersperse :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
-intersperse value n = composeNG n $ S.intersperse (value + 1)
+intersperse :: MonadAsync m => Int -> Int -> SerialT m Int -> m ()
+intersperse value n = composeN n $ Stream.intersperse (value + 1)
 
 {-# INLINE intersperseM #-}
-intersperseM :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
-intersperseM value n = composeNG n $ S.intersperseM (return $ value + 1)
-
-{-# INLINE interposeSuffix #-}
-interposeSuffix :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
-interposeSuffix value n =
-    composeNG n $ Internal.interposeSuffix (value + 1) Unfold.identity
-
-{-# INLINE intercalateSuffix #-}
-intercalateSuffix :: S.MonadAsync m => Int -> Int -> SerialT m Int -> m ()
-intercalateSuffix value n =
-    composeNG n $ Internal.intercalateSuffix Unfold.identity (value + 1)
+intersperseM :: MonadAsync m => Int -> Int -> SerialT m Int -> m ()
+intersperseM value n = composeN n $ Stream.intersperseM (return $ value + 1)
 
 {-# INLINE insertBy #-}
 insertBy :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-insertBy value n = composeNG n $ S.insertBy compare (value + 1)
+insertBy value n = composeN n $ Stream.insertBy compare (value + 1)
 
+{-# INLINE interposeSuffix #-}
+interposeSuffix :: Monad m => Int -> Int -> SerialT m Int -> m ()
+interposeSuffix value n =
+    composeN n $ Stream.interposeSuffix (value + 1) Unfold.identity
+
+{-# INLINE intercalateSuffix #-}
+intercalateSuffix :: Monad m => Int -> Int -> SerialT m Int -> m ()
+intercalateSuffix value n =
+    composeN n $ Stream.intercalateSuffix Unfold.identity (value + 1)
 
 o_1_space_inserting :: Int -> [Benchmark]
 o_1_space_inserting value =
@@ -554,21 +517,21 @@ o_1_space_insertingX4 :: Int -> [Benchmark]
 o_1_space_insertingX4 value =
     [ bgroup "insertingX4"
         [ benchIOSink value "intersperse" (intersperse value 4)
-     --   , benchIOSink value "insertBy" (insertBy value 4)
+        , benchIOSink value "insertBy" (insertBy value 4)
         ]
     ]
-#endif
+
 -------------------------------------------------------------------------------
 -- Indexing
 -------------------------------------------------------------------------------
-#ifdef USE_PRELUDE
+
 {-# INLINE indexed #-}
 indexed :: MonadIO m => Int -> SerialT m Int -> m ()
-indexed n = composeN n (S.map snd . S.indexed)
+indexed n = composeN n (fmap snd . Stream.indexed)
 
 {-# INLINE indexedR #-}
 indexedR :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-indexedR value n = composeN n (S.map snd . S.indexedR value)
+indexedR value n = composeN n (fmap snd . Stream.indexedR value)
 
 o_1_space_indexing :: Int -> [Benchmark]
 o_1_space_indexing value =
@@ -586,24 +549,6 @@ o_1_space_indexingX4 value =
         ]
     ]
 
-#else
-{-# INLINE indexed #-}
-indexed :: MonadIO m => SerialT m Int -> m ()
-indexed  = Stream.fold FL.drain . Prelude.fmap snd . Stream.indexed
-
-{-# INLINE indexedR #-}
-indexedR :: MonadIO m => Int -> SerialT m Int -> m ()
-indexedR value  = Stream.fold FL.drain . (Prelude.fmap snd . Stream.indexedR value)
-
-o_1_space_indexing :: Int -> [Benchmark]
-o_1_space_indexing value =
-    [ bgroup "indexing"
-        [ benchIOSink value "indexed" indexed
-        , benchIOSink value "indexedR" (indexedR value)
-        ]
-    ]
-#endif
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -614,23 +559,18 @@ o_1_space_indexing value =
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
-            [ o_1_space_mapping size
-            , o_1_space_indexing size
+            [ o_1_space_functor size
+            , o_1_space_mapping size
+            , o_1_space_mappingX4 size
             , o_1_space_filtering size
             , o_1_space_filteringX4 size
-#ifdef USE_PRELUDE
-            , o_1_space_functor size
-            , o_1_space_mappingX4 size
             , o_1_space_inserting size
             , o_1_space_insertingX4 size
+            , o_1_space_indexing size
             , o_1_space_indexingX4 size
-#endif
             ]
-
-        , bgroup (o_n_space_prefix moduleName) $
-#ifdef USE_PRELUDE
-            o_n_space_mapping size
-#else
-            o_n_space_traversable size
-#endif
+        , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
+            [ o_n_space_traversable size
+            , o_n_space_mapping size
+            ]
         ]

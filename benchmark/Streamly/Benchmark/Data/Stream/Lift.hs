@@ -11,21 +11,23 @@
 
 module Stream.Lift (benchmarks) where
 
-#ifdef USE_PRELUDE
+import Control.DeepSeq (NFData(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.State.Strict (StateT, get, put, MonadState)
-import Streamly.Prelude (fromSerial)
-import Streamly.Benchmark.Prelude
-import qualified Control.Monad.State.Strict as State
-import qualified Streamly.Prelude  as Stream
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-#else
-import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity)
-import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
+import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc, drain)
 import System.Random (randomRIO)
+#ifdef USE_PRELUDE
+import Streamly.Benchmark.Prelude hiding
+    (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+#else
+import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Stream.Common as Common
+import qualified Control.Monad.State.Strict as State
 
 import Gauge
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -36,11 +38,11 @@ import Prelude hiding (reverse, tail)
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)
 -------------------------------------------------------------------------------
-#ifdef USE_PRELUDE
+
 {-# INLINE sourceUnfoldrState #-}
-sourceUnfoldrState :: (Stream.IsStream t, Stream.MonadAsync m)
-                   => Int -> Int -> t (StateT Int m) Int
-sourceUnfoldrState value n = Stream.unfoldrM step n
+sourceUnfoldrState :: Common.MonadAsync m =>
+    Int -> Int -> SerialT (StateT Int m) Int
+sourceUnfoldrState value n = Common.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -51,27 +53,36 @@ sourceUnfoldrState value n = Stream.unfoldrM step n
             return (Just (s, cnt + 1))
 
 {-# INLINE evalStateT #-}
-evalStateT :: Stream.MonadAsync m => Int -> Int -> SerialT m Int
+evalStateT :: Common.MonadAsync m => Int -> Int -> SerialT m Int
 evalStateT value n =
-    Internal.evalStateT (return 0) (sourceUnfoldrState value n)
+    Stream.evalStateT (return 0) (sourceUnfoldrState value n)
 
 {-# INLINE withState #-}
-withState :: Stream.MonadAsync m => Int -> Int -> SerialT m Int
+withState :: Common.MonadAsync m => Int -> Int -> SerialT m Int
 withState value n =
-    Internal.evalStateT
-        (return (0 :: Int)) (Internal.liftInner (sourceUnfoldrM value n))
+    Stream.evalStateT
+        (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
+
+{-# INLINE benchHoistSink #-}
+benchHoistSink
+    :: (NFData b)
+    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
+benchHoistSink value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
 
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =
     [ bgroup "hoisting"
-        [ benchIOSrc fromSerial "evalState" (evalStateT value)
-        , benchIOSrc fromSerial "withState" (withState value)
+        [ benchIOSrc "evalState" (evalStateT value)
+        , benchIOSrc "withState" (withState value)
+        , benchHoistSink value "generally"
+            ((\xs -> Stream.fold Fold.length xs :: IO Int) . Stream.generally)
         ]
     ]
 
 {-# INLINE iterateStateIO #-}
 iterateStateIO ::
-       (Stream.MonadAsync m)
+       Monad m
     => Int
     -> StateT Int m Int
 iterateStateIO n = do
@@ -95,7 +106,7 @@ iterateStateT n = do
 {-# INLINE iterateState #-}
 {-# SPECIALIZE iterateState :: Int -> SerialT (StateT Int IO) Int #-}
 iterateState ::
-       (Stream.MonadAsync m, MonadState Int m)
+       MonadState Int m
     => Int
     -> SerialT m Int
 iterateState n = do
@@ -112,38 +123,12 @@ o_n_heap_transformer value =
         [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
             State.evalStateT (iterateStateIO n) value
         , benchIO "SerialT (StateT Int IO) (n times)" $ \n ->
-            State.evalStateT (Stream.drain (iterateStateT n)) value
+            State.evalStateT (drain (iterateStateT n)) value
         , benchIO "MonadState Int m => SerialT m Int" $ \n ->
-            State.evalStateT (Stream.drain (iterateState n)) value
+            State.evalStateT (drain (iterateState n)) value
         ]
     ]
-#else
-{-# INLINE benchHoistSink #-}
-benchHoistSink
-    :: (NFData b)
-    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
-benchHoistSink value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
 
--- XXX We should be using sourceUnfoldrM for fair comparison with IO monad, but
--- we can't use it as it requires MonadAsync constraint.
-
-{-# INLINE liftInner #-}
-liftInner :: Monad m => Int -> Int -> SerialT m Int
-liftInner value n =
-    Stream.evalStateT
-        (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
-
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-    [ bgroup "lift"
-        [ benchHoistSink value "length . generally"
-            ((\(_ :: SerialT IO Int) -> return 8 :: IO Int) . Stream.generally)
-
-        , benchIOSrc "liftInner/evalStateT" (liftInner value)
-        ]
-    ]
-#endif
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -153,11 +138,6 @@ o_1_space_generation value =
 --
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
-        [
-#ifdef USE_PRELUDE
-          bgroup (o_1_space_prefix moduleName) (o_1_space_hoisting size)
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_hoisting size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_transformer size)
-#else
-          bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
-#endif
         ]

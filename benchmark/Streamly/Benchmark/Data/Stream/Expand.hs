@@ -1,5 +1,5 @@
 -- |
--- Module      : Stream.NestedStream
+-- Module      : Stream.Expand
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,9 +18,10 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.NestedStream (benchmarks) where
+module Stream.Expand (benchmarks) where
 
 import Control.Monad.Trans.Class (lift)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Control.Applicative as AP
 
@@ -31,14 +32,23 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
+import qualified Stream.Common as Common
+#ifdef USE_PRELUDE
+import qualified Streamly.Internal.Data.Stream.IsStream as S
+import Streamly.Benchmark.Prelude hiding
+    (benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
+    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
+    , breakAfterSome, toListM, toListSome)
+#else
+import Streamly.Benchmark.Prelude (benchIO)
+import qualified Streamly.Internal.Data.Stream as S
+#endif
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Fold as Fold
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, serial)
+import Stream.Common hiding (append2)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Prelude
 import Prelude hiding (concatMap)
 
 -------------------------------------------------------------------------------
@@ -56,13 +66,14 @@ iterateN g initial count = f count initial
 
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
-iterateSingleton :: S.MonadAsync m
+iterateSingleton :: Monad m
     => (Int -> SerialT m Int -> SerialT m Int)
     -> Int
     -> Int
     -> SerialT m Int
 iterateSingleton g count n = iterateN g (return n) count
 
+{-
 -- XXX need to check why this is slower than the explicit recursion above, even
 -- if the above code is written in a foldr like head recursive way. We also
 -- need to try this with foldlM' once #150 is fixed.
@@ -70,12 +81,13 @@ iterateSingleton g count n = iterateN g (return n) count
 -- foldrM and any related fusion issues.
 {-# INLINE _iterateSingleton #-}
 _iterateSingleton ::
-       S.MonadAsync m
+       Monad m
     => (Int -> SerialT m Int -> SerialT m Int)
     -> Int
     -> Int
     -> SerialT m Int
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
+-}
 
 -------------------------------------------------------------------------------
 -- Multi-Stream
@@ -88,34 +100,34 @@ _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 {-# INLINE serial2 #-}
 serial2 :: Int -> Int -> IO ()
 serial2 count n =
-    S.drain $
-        S.serial (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
+    drain $
+        Common.append (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE serial4 #-}
 serial4 :: Int -> Int -> IO ()
 serial4 count n =
-    S.drain $
-    S.serial
-        (S.serial (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1)))
-        (S.serial
+    drain $
+    Common.append
+        (Common.append (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1)))
+        (Common.append
               (sourceUnfoldrM count (n + 2))
               (sourceUnfoldrM count (n + 3)))
 
 {-# INLINE append2 #-}
 append2 :: Int -> Int -> IO ()
 append2 count n =
-    S.drain $
-    Internal.append (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
+    drain $
+    Common.append2 (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE append4 #-}
 append4 :: Int -> Int -> IO ()
 append4 count n =
-    S.drain $
-    Internal.append
-        (Internal.append
+    drain $
+    Common.append2
+        (Common.append2
               (sourceUnfoldrM count n)
               (sourceUnfoldrM count (n + 1)))
-        (Internal.append
+        (Common.append2
               (sourceUnfoldrM count (n + 2))
               (sourceUnfoldrM count (n + 3)))
 
@@ -139,22 +151,24 @@ o_1_space_joining value =
 -- Concat Foldable containers
 -------------------------------------------------------------------------------
 
+#ifdef USE_PRELUDE
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc fromSerial "foldMapWith (<>) (List)"
+        [ benchIOSrc "foldMapWith (<>) (List)"
             (sourceFoldMapWith value)
-        , benchIOSrc fromSerial "foldMapWith (<>) (Stream)"
+        , benchIOSrc "foldMapWith (<>) (Stream)"
             (sourceFoldMapWithStream value)
-        , benchIOSrc fromSerial "foldMapWithM (<>) (List)"
+        , benchIOSrc "foldMapWithM (<>) (List)"
             (sourceFoldMapWithM value)
-        , benchIOSrc fromSerial "S.concatFoldableWith (<>) (List)"
+        , benchIOSrc "S.concatFoldableWith (<>) (List)"
             (concatFoldableWith value)
-        , benchIOSrc fromSerial "S.concatForFoldableWith (<>) (List)"
+        , benchIOSrc "S.concatForFoldableWith (<>) (List)"
             (concatForFoldableWith value)
-        , benchIOSrc fromSerial "foldMapM (List)" (sourceFoldMapM value)
+        , benchIOSrc "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
+#endif
 
 -------------------------------------------------------------------------------
 -- Concat
@@ -165,14 +179,14 @@ o_1_space_concatFoldable value =
 {-# INLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
-    S.drain $ S.concatMap
+    drain $ S.concatMap
         (\_ -> sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
 {-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM outer inner n =
-    S.drain $ S.concatMapM
+    drain $ S.concatMapM
         (\_ -> return $ sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
@@ -186,7 +200,7 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 {-# INLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
-    S.drain $ S.concatMap
+    drain $ S.concatMap
         (\_ -> sourceUnfoldr inner n)
         (sourceUnfoldr outer n)
 
@@ -200,7 +214,7 @@ inspect $ 'concatMapPure `hasNoType` ''SPEC
 {-# INLINE concatMapRepl #-}
 concatMapRepl :: Int -> Int -> Int -> IO ()
 concatMapRepl outer inner n =
-    S.drain $ S.concatMap (S.replicate inner) (sourceUnfoldrM outer n)
+    drain $ S.concatMap (Common.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl
@@ -211,7 +225,7 @@ inspect $ 'concatMapRepl `hasNoType` ''SPEC
 
 {-# INLINE concatMapWithSerial #-}
 concatMapWithSerial :: Int -> Int -> Int -> IO ()
-concatMapWithSerial = concatStreamsWith S.serial
+concatMapWithSerial = concatStreamsWith Common.append
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapWithSerial
@@ -220,7 +234,7 @@ inspect $ 'concatMapWithSerial `hasNoType` ''SPEC
 
 {-# INLINE concatMapWithAppend #-}
 concatMapWithAppend :: Int -> Int -> Int -> IO ()
-concatMapWithAppend = concatStreamsWith Internal.append
+concatMapWithAppend = concatStreamsWith Common.append2
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapWithAppend
@@ -231,11 +245,11 @@ inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 
 {-# INLINE concatPairWithSerial #-}
 concatPairWithSerial :: Int -> Int -> Int -> IO ()
-concatPairWithSerial = concatPairsWith Internal.serial
+concatPairWithSerial = concatPairsWith Common.append
 
 {-# INLINE concatPairWithAppend #-}
 concatPairWithAppend :: Int -> Int -> Int -> IO ()
-concatPairWithAppend = concatPairsWith Internal.append
+concatPairWithAppend = concatPairsWith Common.append2
 
 -- unfoldMany
 
@@ -244,7 +258,7 @@ concatPairWithAppend = concatPairsWith Internal.append
 {-# INLINE unfoldManyRepl #-}
 unfoldManyRepl :: Int -> Int -> Int -> IO ()
 unfoldManyRepl outer inner n =
-    S.drain
+    drain
          $ S.unfoldMany
                (UF.lmap return (UF.replicateM inner))
                (sourceUnfoldrM outer n)
@@ -266,7 +280,7 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapPure 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc fromSerial "concatMapId (n of 1) (fromFoldable)"
+        , benchIOSrc "concatMapId (n of 1) (fromFoldable)"
             (S.concatMap id . sourceConcatMapId value)
 
         , benchIOSrc1 "concatMap (n of 1)"
@@ -284,8 +298,8 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapM 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc fromSerial "concatMapWithId (n of 1) (fromFoldable)"
-            (S.concatMapWith serial id . sourceConcatMapId value)
+        , benchIOSrc "concatMapWithId (n of 1) (fromFoldable)"
+            (S.concatMapWith Common.append id . sourceConcatMapId value)
 
         , benchIOSrc1 "concatMapWith (n of 1)"
             (concatMapWithSerial value 1)
@@ -343,23 +357,23 @@ o_n_space_concat value = sqrtVal `seq`
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value fromSerial
-        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value fromSerial
-        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value fromSerial
-        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value fromSerial
+        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value
+        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value
+        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value
+        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value
         ]
     ]
 
 o_n_space_applicative :: Int -> [Benchmark]
 o_n_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIOSrc fromSerial "(*>) (n times)" $
+        [ benchIOSrc "(*>) (n times)" $
             iterateSingleton ((*>) . pure) value
-        , benchIOSrc fromSerial "(<*) (n times)" $
-            iterateSingleton (\x xs ->  xs <* pure x) value
-        , benchIOSrc fromSerial "(<*>) (n times)" $
+        , benchIOSrc "(<*) (n times)" $
+            iterateSingleton (\x xs -> xs <* pure x) value
+        , benchIOSrc "(<*>) (n times)" $
             iterateSingleton (\x xs -> pure (+ x) <*> xs) value
-        , benchIOSrc fromSerial "liftA2 (n times)" $
+        , benchIOSrc "liftA2 (n times)" $
             iterateSingleton (AP.liftA2 (+) . pure) value
         ]
     ]
@@ -371,18 +385,18 @@ o_n_space_applicative value =
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value fromSerial
-        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value fromSerial
+        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value
+        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value
         , benchIO "(>>=) (sqrt n x sqrt n) (filterAllOut)" $
-            filterAllOutM value fromSerial
+            filterAllOutM value
         , benchIO "(>>=) (sqrt n x sqrt n) (filterAllIn)" $
-            filterAllInM value fromSerial
+            filterAllInM value
         , benchIO "(>>=) (sqrt n x sqrt n) (filterSome)" $
-            filterSome value fromSerial
+            filterSome value
         , benchIO "(>>=) (sqrt n x sqrt n) (breakAfterSome)" $
-            breakAfterSome value fromSerial
+            breakAfterSome value
         , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
-            toNullM3 value fromSerial
+            toNullM3 value
         ]
     ]
 
@@ -400,16 +414,16 @@ sieve s = do
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
     [ bgroup "Monad"
-        [ benchIOSrc fromSerial "(>>) (n times)" $
+        [ benchIOSrc "(>>) (n times)" $
             iterateSingleton ((>>) . pure) value
-        , benchIOSrc fromSerial "(>>=) (n times)" $
+        , benchIOSrc "(>>=) (n times)" $
             iterateSingleton (\x xs -> xs >>= \y -> return (x + y)) value
         , benchIO "(>>=) (sqrt n x sqrt n) (toList)" $
-            toListM value fromSerial
+            toListM value
         , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
-            toListSome value fromSerial
+            toListSome value
         , benchIO "naive prime sieve (n/4)"
-            (\n -> S.sum $ sieve $ S.enumerateFromTo 2 (value `div` 4 + n))
+            (\n -> S.fold Fold.sum $ sieve $ enumerateFromTo 2 (value `div` 4 + n))
         ]
     ]
 
@@ -421,22 +435,22 @@ toKv :: Int -> (Int, Int)
 toKv p = (p, p)
 
 {-# INLINE joinWith #-}
-joinWith :: (S.MonadAsync m) =>
+joinWith :: Common.MonadAsync m =>
        ((Int -> Int -> Bool) -> SerialT m Int -> SerialT m Int -> SerialT m b)
     -> Int
     -> Int
     -> m ()
 joinWith j val i =
-    S.drain $ j (==) (sourceUnfoldrM val i) (sourceUnfoldrM val (val `div` 2))
+    drain $ j (==) (sourceUnfoldrM val i) (sourceUnfoldrM val (val `div` 2))
 
 {-# INLINE joinMapWith #-}
-joinMapWith :: (S.MonadAsync m) =>
+joinMapWith :: Common.MonadAsync m =>
        (SerialT m (Int, Int) -> SerialT m (Int, Int) -> SerialT m b)
     -> Int
     -> Int
     -> m ()
 joinMapWith j val i =
-    S.drain
+    drain
         $ j
             (fmap toKv (sourceUnfoldrM val i))
             (fmap toKv (sourceUnfoldrM val (val `div` 2)))
@@ -446,21 +460,21 @@ o_n_heap_buffering value =
     [ bgroup "buffered"
         [
           benchIOSrc1 "joinInner (sqrtVal)"
-            $ joinWith Internal.joinInner sqrtVal
+            $ joinWith S.joinInner sqrtVal
         , benchIOSrc1 "joinInnerMap"
-            $ joinMapWith Internal.joinInnerMap halfVal
+            $ joinMapWith S.joinInnerMap halfVal
         , benchIOSrc1 "joinLeft (sqrtVal)"
-            $ joinWith Internal.joinLeft sqrtVal
+            $ joinWith S.joinLeft sqrtVal
         , benchIOSrc1 "joinLeftMap "
-            $ joinMapWith Internal.joinLeftMap halfVal
+            $ joinMapWith S.joinLeftMap halfVal
         , benchIOSrc1 "joinOuter (sqrtVal)"
-            $ joinWith Internal.joinOuter sqrtVal
+            $ joinWith S.joinOuter sqrtVal
         , benchIOSrc1 "joinOuterMap"
-            $ joinMapWith Internal.joinOuterMap halfVal
+            $ joinMapWith S.joinOuterMap halfVal
         , benchIOSrc1 "intersectBy (sqrtVal)"
-            $ joinWith Internal.intersectBy sqrtVal
+            $ joinWith S.intersectBy sqrtVal
         , benchIOSrc1 "intersectBySorted"
-            $ joinMapWith (Internal.intersectBySorted compare) halfVal
+            $ joinMapWith (S.intersectBySorted compare) halfVal
         ]
     ]
 
@@ -482,7 +496,9 @@ benchmarks moduleName size =
             [
             -- multi-stream
               o_1_space_joining size
+#ifdef USE_PRELUDE
             , o_1_space_concatFoldable size
+#endif
             , o_1_space_concat size
 
             , o_1_space_applicative size

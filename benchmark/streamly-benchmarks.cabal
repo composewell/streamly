@@ -65,9 +65,10 @@ flag bench-core
   default: False
 
 flag use-prelude
-  description: Use Streamly.Prelude instead of Streamly.Data.Stream for serial benchmarks
+  description: Use Prelude instead of Data.Stream for serial benchmarks
   manual: True
   default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -207,6 +208,33 @@ common bench-options-threaded
 -------------------------------------------------------------------------------
 -- Serial Streams
 -------------------------------------------------------------------------------
+
+benchmark Data.Stream
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Stream.hs
+  other-modules:
+      Stream.Generate
+      Stream.Eliminate
+      Stream.Transform
+      Stream.Reduce
+      Stream.Expand
+      Stream.Exceptions
+      Stream.Lift
+      Stream.Common
+  if flag(use-prelude)
+    other-modules:
+      Stream.Split
+  if flag(bench-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+  if flag(limit-build-mem)
+    if flag(dev)
+      ghc-options: +RTS -M3500M -RTS
+    else
+      ghc-options: +RTS -M2500M -RTS
 
 benchmark Prelude.WSerial
   import: bench-options
@@ -387,37 +415,6 @@ benchmark Data.Parser
 -------------------------------------------------------------------------------
 -- Raw Streams
 -------------------------------------------------------------------------------
-benchmark Data.Stream
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: Stream.hs
-  other-modules:
-      Stream.Eliminate
-      Stream.Exceptions
-      Stream.Generate
-      Stream.Lift
-      Stream.Transformation
-  if flag(use-prelude)
-    other-modules:
-      Stream.NestedFold
-      Stream.NestedStream
-      Stream.Split
-  else
-    other-modules:
-      Stream.Common
-      Stream.Reduce
-
-  if flag(bench-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11
-  if flag(limit-build-mem)
-    if flag(dev)
-      ghc-options: +RTS -M3500M -RTS
-    else
-      ghc-options: +RTS -M2000M -RTS
 
 benchmark Data.Stream.StreamD
   import: bench-options

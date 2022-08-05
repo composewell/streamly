@@ -15,15 +15,14 @@ import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Stream.Eliminate as Elimination
 import qualified Stream.Exceptions as Exceptions
+import qualified Stream.Expand as NestedStream
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
-import qualified Stream.Reduce as Reduction
-import qualified Stream.Transformation as Transformation
+import qualified Stream.Reduce as NestedFold
 #ifdef USE_PRELUDE
-import qualified Stream.NestedFold as NestedFold
-import qualified Stream.NestedStream as NestedStream
 import qualified Stream.Split as Split
 #endif
+import qualified Stream.Transform as Transformation
 
 import Streamly.Benchmark.Common
 
@@ -45,15 +44,14 @@ main = do
     where
 
     allBenchmarks env size = Prelude.concat
-        [ Elimination.benchmarks moduleName size
+        [ Generation.benchmarks moduleName size
+        , Elimination.benchmarks moduleName size
         , Exceptions.benchmarks moduleName env size
-        , Generation.benchmarks moduleName size
-        , Lift.benchmarks moduleName size
-        , Reduction.benchmarks moduleName size
-        , Transformation.benchmarks moduleName size
 #ifdef USE_PRELUDE
-        , NestedFold.benchmarks moduleName size
-        , NestedStream.benchmarks moduleName size
         , Split.benchmarks moduleName env
 #endif
+        , Transformation.benchmarks moduleName size
+        , NestedFold.benchmarks moduleName size
+        , Lift.benchmarks moduleName size
+        , NestedStream.benchmarks moduleName size
         ]
