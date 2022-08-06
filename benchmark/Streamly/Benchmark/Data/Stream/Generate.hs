@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.Generation
+-- Module      : Stream.Generate
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,19 +9,36 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Serial.Generation (benchmarks) where
+module Stream.Generate (benchmarks) where
 
 import Data.Functor.Identity (Identity)
 
-import qualified Prelude
+import qualified Stream.Common as Common
+#ifdef USE_PRELUDE
 import qualified GHC.Exts as GHC
-
-import qualified Streamly.Prelude  as S
+import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Prelude
+#else
+import qualified Streamly.Internal.Data.Stream as Stream
+#endif
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial, MonadAsync)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Prelude
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+#ifdef USE_PRELUDE
+import Streamly.Prelude (MonadAsync)
+import Stream.Common hiding (MonadAsync, replicate, enumerateFromTo)
+import Streamly.Benchmark.Prelude hiding
+    (benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
+    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
+    , breakAfterSome, toListM, toListSome)
+#else
+import Stream.Common
+#endif
+
+import System.IO.Unsafe (unsafeInterleaveIO)
+
 import Prelude hiding (repeat, replicate, iterate)
 
 -------------------------------------------------------------------------------
@@ -32,6 +49,7 @@ import Prelude hiding (repeat, replicate, iterate)
 -- fromList
 -------------------------------------------------------------------------------
 
+#ifdef USE_PRELUDE
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
 sourceIsList value n = GHC.fromList [n..n+value]
@@ -39,6 +57,7 @@ sourceIsList value n = GHC.fromList [n..n+value]
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Int -> SerialT Identity Char
 sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
+#endif
 
 {-# INLINE readInstance #-}
 readInstance :: String -> SerialT Identity Int
@@ -57,6 +76,7 @@ readInstanceList str =
         [(x,"")] -> x
         _ -> error "readInstance: no parse"
 
+#ifdef USE_PRELUDE
 {-# INLINE repeat #-}
 repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 repeat count = S.take count . S.repeat
@@ -114,41 +134,59 @@ fromIndices value n = S.take value $ S.fromIndices (+ n)
 {-# INLINE fromIndicesM #-}
 fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
+#endif
+
+{-# INLINE mfixUnfold #-}
+mfixUnfold :: Int -> Int -> SerialT IO (Int, Int)
+mfixUnfold count start = Stream.mfix f
+    where
+    f action = do
+        let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
+        x <- Common.fromListM [incr 1 action, incr 2 action]
+        y <- Common.sourceUnfoldr count start
+        return (x, y)
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
-        [ benchIOSrc fromSerial "unfoldr" (sourceUnfoldr value)
-        , benchIOSrc fromSerial "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc fromSerial "repeat" (repeat value)
-        , benchIOSrc fromSerial "repeatM" (repeatM value)
-        , benchIOSrc fromSerial "replicate" (replicate value)
-        , benchIOSrc fromSerial "replicateM" (replicateM value)
-        , benchIOSrc fromSerial "iterate" (iterate value)
-        , benchIOSrc fromSerial "iterateM" (iterateM value)
-        , benchIOSrc fromSerial "fromIndices" (fromIndices value)
-        , benchIOSrc fromSerial "fromIndicesM" (fromIndicesM value)
-        , benchIOSrc fromSerial "intFromTo" (sourceIntFromTo value)
-        , benchIOSrc fromSerial "intFromThenTo" (sourceIntFromThenTo value)
-        , benchIOSrc fromSerial "integerFromStep" (sourceIntegerFromStep value)
-        , benchIOSrc fromSerial "fracFromThenTo" (sourceFracFromThenTo value)
-        , benchIOSrc fromSerial "fracFromTo" (sourceFracFromTo value)
-        , benchIOSrc fromSerial "fromList" (sourceFromList value)
+        [ benchIOSrc "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc "unfoldrM" (sourceUnfoldrM value)
+#ifdef USE_PRELUDE
+        , benchIOSrc "repeat" (repeat value)
+        , benchIOSrc "repeatM" (repeatM value)
+        , benchIOSrc "replicate" (replicate value)
+        , benchIOSrc "replicateM" (replicateM value)
+        , benchIOSrc "iterate" (iterate value)
+        , benchIOSrc "iterateM" (iterateM value)
+        , benchIOSrc "fromIndices" (fromIndices value)
+        , benchIOSrc "fromIndicesM" (fromIndicesM value)
+        , benchIOSrc "intFromTo" (sourceIntFromTo value)
+        , benchIOSrc "intFromThenTo" (sourceIntFromThenTo value)
+        , benchIOSrc "integerFromStep" (sourceIntegerFromStep value)
+        , benchIOSrc "fracFromThenTo" (sourceFracFromThenTo value)
+        , benchIOSrc "fracFromTo" (sourceFracFromTo value)
+        , benchIOSrc "fromList" (sourceFromList value)
         , benchPureSrc "IsList.fromList" (sourceIsList value)
         , benchPureSrc "IsString.fromString" (sourceIsString value)
-        , benchIOSrc fromSerial "fromListM" (sourceFromListM value)
-        , benchIOSrc fromSerial "enumerateFrom" (enumerateFrom value)
-        , benchIOSrc fromSerial "enumerateFromTo" (enumerateFromTo value)
-        , benchIOSrc fromSerial "enumerateFromThen" (enumerateFromThen value)
-        , benchIOSrc fromSerial "enumerateFromThenTo" (enumerateFromThenTo value)
-        , benchIOSrc fromSerial "enumerate" (enumerate value)
-        , benchIOSrc fromSerial "enumerateTo" (enumerateTo value)
+        , benchIOSrc "fromListM" (sourceFromListM value)
+        , benchIOSrc "enumerateFrom" (enumerateFrom value)
+        , benchIOSrc "enumerateFromTo" (enumerateFromTo value)
+        , benchIOSrc "enumerateFromThen" (enumerateFromThen value)
+        , benchIOSrc "enumerateFromThenTo" (enumerateFromThenTo value)
+        , benchIOSrc "enumerate" (enumerate value)
+        , benchIOSrc "enumerateTo" (enumerateTo value)
+#endif
 
           -- These essentially test cons and consM
-        , benchIOSrc fromSerial "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc fromSerial "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
 
-        , benchIOSrc fromSerial "absTimes" $ absTimes value
+#ifdef USE_PRELUDE
+        , benchIOSrc "absTimes" $ absTimes value
+#endif
+        , Common.benchIOSrc "mfix_10" (mfixUnfold 10)
+        , Common.benchIOSrc "mfix_100" (mfixUnfold 100)
+        , Common.benchIOSrc "mfix_1000" (mfixUnfold 1000)
         ]
     ]
 

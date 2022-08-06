@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial
+-- Module      : Data.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -13,19 +13,21 @@ module Main (main) where
 
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
-import qualified Serial.Elimination as Elimination
-import qualified Serial.Exceptions as Exceptions
-import qualified Serial.Generation as Generation
-import qualified Serial.NestedStream as NestedStream
-import qualified Serial.Split as Split
-import qualified Serial.Transformation as Transformation
-import qualified Serial.NestedFold as NestedFold
-import qualified Serial.Lift as Lift
+import qualified Stream.Eliminate as Elimination
+import qualified Stream.Exceptions as Exceptions
+import qualified Stream.Expand as NestedStream
+import qualified Stream.Generate as Generation
+import qualified Stream.Lift as Lift
+import qualified Stream.Reduce as NestedFold
+#ifdef USE_PRELUDE
+import qualified Stream.Split as Split
+#endif
+import qualified Stream.Transform as Transformation
 
 import Streamly.Benchmark.Common
 
 moduleName :: String
-moduleName = "Prelude.Serial"
+moduleName = "Data.Stream"
 
 -------------------------------------------------------------------------------
 -- Main
@@ -45,7 +47,9 @@ main = do
         [ Generation.benchmarks moduleName size
         , Elimination.benchmarks moduleName size
         , Exceptions.benchmarks moduleName env size
+#ifdef USE_PRELUDE
         , Split.benchmarks moduleName env
+#endif
         , Transformation.benchmarks moduleName size
         , NestedFold.benchmarks moduleName size
         , Lift.benchmarks moduleName size

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Prelude.Serial.Split
+-- Module      : Stream.Split
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Serial.Split (benchmarks) where
+module Stream.Split (benchmarks) where
 
 import Data.Char (ord)
 import Data.Word (Word8)

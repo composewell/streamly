@@ -64,12 +64,20 @@ flag bench-core
   manual: True
   default: False
 
+flag use-prelude
+  description: Use Prelude instead of Data.Stream for serial benchmarks
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
 
 common compile-options
     default-language: Haskell2010
+
+    if flag(use-prelude)
+      cpp-options:    -DUSE_PRELUDE
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
@@ -201,20 +209,23 @@ common bench-options-threaded
 -- Serial Streams
 -------------------------------------------------------------------------------
 
-benchmark Prelude.Serial
+benchmark Data.Stream
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Serial.hs
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Stream.hs
   other-modules:
-        Serial.Generation
-      , Serial.Elimination
-      , Serial.Transformation
-      , Serial.NestedStream
-      , Serial.NestedFold
-      , Serial.Split
-      , Serial.Exceptions
-      , Serial.Lift
+      Stream.Generate
+      Stream.Eliminate
+      Stream.Transform
+      Stream.Reduce
+      Stream.Expand
+      Stream.Exceptions
+      Stream.Lift
+      Stream.Common
+  if flag(use-prelude)
+    other-modules:
+      Stream.Split
   if flag(bench-core) || impl(ghcjs)
     buildable: False
   else
@@ -224,7 +235,6 @@ benchmark Prelude.Serial
       ghc-options: +RTS -M3500M -RTS
     else
       ghc-options: +RTS -M2500M -RTS
-
 
 benchmark Prelude.WSerial
   import: bench-options

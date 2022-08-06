@@ -1,5 +1,5 @@
 -- |
--- Module      : Serial.NestedFold
+-- Module      : Stream.Reduce
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -11,26 +11,37 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Serial.NestedFold (benchmarks) where
+module Stream.Reduce (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
-import Data.Proxy (Proxy(..))
-import Data.HashMap.Strict (HashMap)
 import GHC.Generics (Generic)
 import Streamly.Internal.Data.IsMap.HashMap ()
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-import qualified Streamly.Prelude  as S
+import qualified Stream.Common as Common
+#ifdef USE_PRELUDE
+import Control.Monad (when)
+import Data.Proxy (Proxy(..))
+import Data.HashMap.Strict (HashMap)
+import qualified Streamly.Internal.Data.Stream.IsStream as S
+import Streamly.Prelude (fromSerial)
+import Streamly.Benchmark.Prelude hiding
+    ( benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2
+    , toNullAp, monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM
+    , filterSome, breakAfterSome, toListM, toListSome, transformMapM
+    , transformComposeMapM, transformTeeMapM, transformZipMapM)
+#else
+import Streamly.Benchmark.Prelude (benchIO)
+import qualified Streamly.Internal.Data.Stream as S
+#endif
 
 import Gauge
-import Streamly.Prelude (SerialT, fromSerial)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Prelude
+import Stream.Common
 import Prelude hiding (reverse, tail)
 
 -------------------------------------------------------------------------------
@@ -48,13 +59,14 @@ iterateN g initial count = f count initial
 
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
-iterateSingleton :: S.MonadAsync m
+iterateSingleton :: Monad m
     => (Int -> SerialT m Int -> SerialT m Int)
     -> Int
     -> Int
     -> SerialT m Int
 iterateSingleton g count n = iterateN g (return n) count
 
+{-
 -- XXX need to check why this is slower than the explicit recursion above, even
 -- if the above code is written in a foldr like head recursive way. We also
 -- need to try this with foldlM' once #150 is fixed.
@@ -62,17 +74,18 @@ iterateSingleton g count n = iterateN g (return n) count
 -- foldrM and any related fusion issues.
 {-# INLINE _iterateSingleton #-}
 _iterateSingleton ::
-       S.MonadAsync m
+       Monad m
     => (Int -> SerialT m Int -> SerialT m Int)
     -> Int
     -> Int
     -> SerialT m Int
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
+-}
 
 -- Apply transformation g count times on a stream of length len
 {-# INLINE iterateSource #-}
 iterateSource ::
-       S.MonadAsync m
+       MonadAsync m
     => (SerialT m Int -> SerialT m Int)
     -> Int
     -> Int
@@ -94,9 +107,9 @@ o_n_space_functor value =
     [ bgroup "Functor"
         [ benchIO "(+) (n times) (baseline)" $ \i0 ->
             iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
-        , benchIOSrc fromSerial "(<$) (n times)" $
+        , benchIOSrc "(<$) (n times)" $
             iterateSingleton (<$) value
-        , benchIOSrc fromSerial "fmap (n times)" $
+        , benchIOSrc "fmap (n times)" $
             iterateSingleton (fmap . (+)) value
         {-
         , benchIOSrc fromSerial "_(<$) (n times)" $
@@ -111,74 +124,92 @@ o_n_space_functor value =
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
+#ifdef USE_PRELUDE
 {-# INLINE groups #-}
 groups :: MonadIO m => SerialT m Int -> m ()
-groups = S.drain . S.groups FL.drain
+groups = Common.drain . S.groups FL.drain
 
 -- XXX Change this test when the order of comparison is later changed
 {-# INLINE groupsByGT #-}
 groupsByGT :: MonadIO m => SerialT m Int -> m ()
-groupsByGT = S.drain . S.groupsBy (>) FL.drain
+groupsByGT = Common.drain . S.groupsBy (>) FL.drain
 
 {-# INLINE groupsByEq #-}
 groupsByEq :: MonadIO m => SerialT m Int -> m ()
-groupsByEq = S.drain . S.groupsBy (==) FL.drain
+groupsByEq = Common.drain . S.groupsBy (==) FL.drain
 
 -- XXX Change this test when the order of comparison is later changed
 {-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: MonadIO m => SerialT m Int -> m ()
 groupsByRollingLT =
-    S.drain . S.groupsByRolling (<) FL.drain
+    Common.drain . S.groupsByRolling (<) FL.drain
 
 {-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: MonadIO m => SerialT m Int -> m ()
 groupsByRollingEq =
-    S.drain . S.groupsByRolling (==) FL.drain
+    Common.drain . S.groupsByRolling (==) FL.drain
+#endif
 
 {-# INLINE foldMany #-}
 foldMany :: Monad m => SerialT m Int -> m ()
 foldMany =
-      S.drain
-    . S.map getSum
-    . Internal.foldMany (FL.take 2 FL.mconcat)
-    . S.map Sum
+      Common.drain
+    . fmap getSum
+    . S.foldMany (FL.take 2 FL.mconcat)
+    . fmap Sum
+
+{-# INLINE foldManyPost #-}
+foldManyPost :: Monad m => SerialT m Int -> m ()
+foldManyPost =
+      Common.drain
+    . fmap getSum
+    . S.foldManyPost (FL.take 2 FL.mconcat)
+    . fmap Sum
 
 {-# INLINE refoldMany #-}
 refoldMany :: Monad m => SerialT m Int -> m ()
 refoldMany =
-      S.drain
-    . S.map getSum
-    . Internal.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
-    . S.map Sum
+      Common.drain
+    . fmap getSum
+    . S.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
+    . fmap Sum
 
 {-# INLINE foldIterateM #-}
 foldIterateM :: Monad m => SerialT m Int -> m ()
 foldIterateM =
-    S.drain
-        . S.map getSum
-        . Internal.foldIterateM
+    Common.drain
+        . fmap getSum
+        . S.foldIterateM
             (return . FL.take 2 . FL.sconcat) (return (Sum 0))
-        . S.map Sum
+        . fmap Sum
 
 {-# INLINE refoldIterateM #-}
 refoldIterateM :: Monad m => SerialT m Int -> m ()
 refoldIterateM =
-    S.drain
-        . S.map getSum
-        . Internal.refoldIterateM
+    Common.drain
+        . fmap getSum
+        . S.refoldIterateM
             (Refold.take 2 Refold.sconcat) (return (Sum 0))
-        . S.map Sum
+        . fmap Sum
 
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
-        [ benchIOSink value "groups" groups
+        [
+#ifdef USE_PRELUDE
+          benchIOSink value "groups" groups
         , benchIOSink value "groupsByGT" groupsByGT
         , benchIOSink value "groupsByEq" groupsByEq
         , benchIOSink value "groupsByRollingLT" groupsByRollingLT
         , benchIOSink value "groupsByRollingEq" groupsByRollingEq
-        , benchIOSink value "foldMany" foldMany
+        ,
+#endif
+        -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
+        -- modules we can bring those here. arraysOf benchmarks are in
+        -- Parser/ParserD/Array.Stream/FileSystem.Handle.
+          benchIOSink value "foldMany" foldMany
+        , benchIOSink value "foldManyPost" foldManyPost
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM
@@ -195,7 +226,7 @@ reverse n = composeN n S.reverse
 
 {-# INLINE reverse' #-}
 reverse' :: MonadIO m => Int -> SerialT m Int -> m ()
-reverse' n = composeN n Internal.reverse'
+reverse' n = composeN n S.reverse'
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
@@ -205,7 +236,9 @@ o_n_heap_buffering value =
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
 
+#ifdef USE_PRELUDE
         , benchIOSink value "mkAsync" (mkAsync fromSerial)
+#endif
         ]
     ]
 
@@ -213,25 +246,26 @@ o_n_heap_buffering value =
 -- Grouping/Splitting
 -------------------------------------------------------------------------------
 
+#ifdef USE_PRELUDE
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: S.MonadAsync m => (Int -> Int) -> SerialT m Int -> m ()
+classifySessionsOf :: MonadAsync m => (Int -> Int) -> SerialT m Int -> m ()
 classifySessionsOf getKey =
-      S.drain
-    . Internal.classifySessionsOf
+      Common.drain
+    . S.classifySessionsOf
         (const (return False)) 3 (FL.take 10 FL.sum)
-    . Internal.timestamped
-    . S.map (\x -> (getKey x, x))
+    . S.timestamped
+    . fmap (\x -> (getKey x, x))
 
 {-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: S.MonadAsync m =>
+classifySessionsOfHash :: MonadAsync m =>
     (Int -> Int) -> SerialT m Int -> m ()
 classifySessionsOfHash getKey =
-      S.drain
-    . Internal.classifySessionsByGeneric
+      Common.drain
+    . S.classifySessionsByGeneric
         (Proxy :: Proxy (HashMap k))
         1 False (const (return False)) 3 (FL.take 10 FL.sum)
-    . Internal.timestamped
-    . S.map (\x -> (getKey x, x))
+    . S.timestamped
+    . fmap (\x -> (getKey x, x))
 
 o_n_space_grouping :: Int -> [Benchmark]
 o_n_space_grouping value =
@@ -251,6 +285,7 @@ o_n_space_grouping value =
     where
 
     getKey n = (`mod` n)
+#endif
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation
@@ -258,15 +293,15 @@ o_n_space_grouping value =
 
 {-# INLINE scanMap #-}
 scanMap :: MonadIO m => Int -> SerialT m Int -> m ()
-scanMap n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
+scanMap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
 
 {-# INLINE dropMap #-}
 dropMap :: MonadIO m => Int -> SerialT m Int -> m ()
-dropMap n = composeN n $ S.map (subtract 1) . S.drop 1
+dropMap n = composeN n $ fmap (subtract 1) . S.drop 1
 
 {-# INLINE dropScan #-}
 dropScan :: MonadIO m => Int -> SerialT m Int -> m ()
-dropScan n = composeN n $ S.scanl' (+) 0 . S.drop 1
+dropScan n = composeN n $ Common.scanl' (+) 0 . S.drop 1
 
 {-# INLINE takeDrop #-}
 takeDrop :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
@@ -274,11 +309,11 @@ takeDrop value n = composeN n $ S.drop 1 . S.take (value + 1)
 
 {-# INLINE takeScan #-}
 takeScan :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-takeScan value n = composeN n $ S.scanl' (+) 0 . S.take (value + 1)
+takeScan value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
 
 {-# INLINE takeMap #-}
 takeMap :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-takeMap value n = composeN n $ S.map (subtract 1) . S.take (value + 1)
+takeMap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
 
 {-# INLINE filterDrop #-}
 filterDrop :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
@@ -290,15 +325,17 @@ filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 
 {-# INLINE filterScan #-}
 filterScan :: MonadIO m => Int -> SerialT m Int -> m ()
-filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+filterScan n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
+#ifdef USE_PRELUDE
 {-# INLINE filterScanl1 #-}
 filterScanl1 :: MonadIO m => Int -> SerialT m Int -> m ()
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
+#endif
 
 {-# INLINE filterMap #-}
 filterMap :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
-filterMap value n = composeN n $ S.map (subtract 1) . S.filter (<= (value + 1))
+filterMap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
 
 -------------------------------------------------------------------------------
 -- Scan and fold
@@ -310,17 +347,17 @@ data Pair a b =
 
 {-# INLINE sumProductFold #-}
 sumProductFold :: Monad m => SerialT m Int -> m (Int, Int)
-sumProductFold = S.foldl' (\(s, p) x -> (s + x, p * x)) (0, 1)
+sumProductFold = Common.foldl' (\(s, p) x -> (s + x, p * x)) (0, 1)
 
 {-# INLINE sumProductScan #-}
 sumProductScan :: Monad m => SerialT m Int -> m (Pair Int Int)
 sumProductScan =
-    S.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
-    S.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
+    Common.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
+    Common.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
 
 {-# INLINE foldl'ReduceMap #-}
 foldl'ReduceMap :: Monad m => SerialT m Int -> m Int
-foldl'ReduceMap = fmap (+ 1) . S.foldl' (+) 0
+foldl'ReduceMap = fmap (+ 1) . Common.foldl' (+) 0
 
 o_1_space_transformations_mixed :: Int -> [Benchmark]
 o_1_space_transformations_mixed value =
@@ -347,7 +384,9 @@ o_1_space_transformations_mixedX4 value =
         , benchIOSink value "filter-drop" (filterDrop value 4)
         , benchIOSink value "filter-take" (filterTake value 4)
         , benchIOSink value "filter-scan" (filterScan 4)
+#ifdef USE_PRELUDE
         , benchIOSink value "filter-scanl1" (filterScanl1 4)
+#endif
         , benchIOSink value "filter-map" (filterMap value 4)
         ]
     ]
@@ -358,40 +397,43 @@ o_1_space_transformations_mixedX4 value =
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
-iterateScan = iterateSource (S.scanl' (+) 0)
+iterateScan :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScan = iterateSource (Common.scanl' (+) 0)
 
+#ifdef USE_PRELUDE
 -- this is quadratic
 {-# INLINE iterateScanl1 #-}
-iterateScanl1 :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScanl1 :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
 iterateScanl1 = iterateSource (S.scanl1' (+))
+#endif
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateMapM :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
 iterateMapM = iterateSource (S.mapM return)
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
 iterateFilterEven = iterateSource (S.filter even)
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> SerialT m Int
+iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> SerialT m Int
 iterateTakeAll value = iterateSource (S.take (value + 1))
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateDropOne :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
 iterateDropOne = iterateSource (S.drop 1)
 
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: S.MonadAsync m
+iterateDropWhileFalse :: MonadAsync m
     => Int -> Int -> Int -> Int -> SerialT m Int
 iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: S.MonadAsync m
+iterateDropWhileTrue :: MonadAsync m
     => Int -> Int -> Int -> Int -> SerialT m Int
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
+#ifdef USE_PRELUDE
 {-# INLINE tail #-}
 tail :: Monad m => SerialT m a -> m ()
 tail s = S.tail s >>= mapM_ tail
@@ -403,26 +445,31 @@ nullHeadTail s = do
     when (not r) $ do
         _ <- S.head s
         S.tail s >>= mapM_ nullHeadTail
+#endif
 
 -- Head recursive operations.
 o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value = by10 `seq` by100 `seq`
     [ bgroup "iterated"
-        [ benchIOSrc fromSerial "mapM (n/10 x 10)" $ iterateMapM by10 10
-        , benchIOSrc fromSerial "scanl' (quadratic) (n/100 x 100)" $
+        [ benchIOSrc "mapM (n/10 x 10)" $ iterateMapM by10 10
+        , benchIOSrc "scanl' (quadratic) (n/100 x 100)" $
             iterateScan by100 100
-        , benchIOSrc fromSerial "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
-        , benchIOSrc fromSerial "filterEven (n/10 x 10)" $
+#ifdef USE_PRELUDE
+        , benchIOSrc "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
+#endif
+        , benchIOSrc "filterEven (n/10 x 10)" $
             iterateFilterEven by10 10
-        , benchIOSrc fromSerial "takeAll (n/10 x 10)" $
+        , benchIOSrc "takeAll (n/10 x 10)" $
             iterateTakeAll value by10 10
-        , benchIOSrc fromSerial "dropOne (n/10 x 10)" $ iterateDropOne by10 10
-        , benchIOSrc fromSerial "dropWhileFalse (n/10 x 10)" $
+        , benchIOSrc "dropOne (n/10 x 10)" $ iterateDropOne by10 10
+        , benchIOSrc "dropWhileFalse (n/10 x 10)" $
             iterateDropWhileFalse value by10 10
-        , benchIOSrc fromSerial "dropWhileTrue (n/10 x 10)" $
+        , benchIOSrc "dropWhileTrue (n/10 x 10)" $
             iterateDropWhileTrue value by10 10
+#ifdef USE_PRELUDE
         , benchIOSink value "tail" tail
         , benchIOSink value "nullHeadTail" nullHeadTail
+#endif
         ]
     ]
 
@@ -438,12 +485,12 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
 o_1_space_pipes :: Int -> [Benchmark]
 o_1_space_pipes value =
     [ bgroup "pipes"
-        [ benchIOSink value "mapM" (transformMapM fromSerial 1)
-        , benchIOSink value "compose" (transformComposeMapM fromSerial 1)
-        , benchIOSink value "tee" (transformTeeMapM fromSerial 1)
+        [ benchIOSink value "mapM" (transformMapM 1)
+        , benchIOSink value "compose" (transformComposeMapM 1)
+        , benchIOSink value "tee" (transformTeeMapM 1)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 1)
+        , benchIOSink value "zip" (transformZipMapM 1)
 #endif
         ]
     ]
@@ -451,12 +498,12 @@ o_1_space_pipes value =
 o_1_space_pipesX4 :: Int -> [Benchmark]
 o_1_space_pipesX4 value =
     [ bgroup "pipesX4"
-        [ benchIOSink value "mapM" (transformMapM fromSerial 4)
-        , benchIOSink value "compose" (transformComposeMapM fromSerial 4)
-        , benchIOSink value "tee" (transformTeeMapM fromSerial 4)
+        [ benchIOSink value "mapM" (transformMapM 4)
+        , benchIOSink value "compose" (transformComposeMapM 4)
+        , benchIOSink value "tee" (transformTeeMapM 4)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM fromSerial 4)
+        , benchIOSink value "zip" (transformZipMapM 4)
 #endif
         ]
     ]
@@ -481,8 +528,12 @@ benchmarks moduleName size =
             ]
         , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
         , bgroup (o_n_heap_prefix moduleName) $ Prelude.concat
-            [ o_n_space_grouping size
-            , o_n_space_functor size
+            [
+#ifdef USE_PRELUDE
+              o_n_space_grouping size
+             ,
+#endif
+              o_n_space_functor size
             , o_n_heap_buffering size
             ]
         ]
