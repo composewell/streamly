@@ -228,7 +228,7 @@ import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Control.Exception (assertM)
 import Streamly.Internal.Data.Unboxed
     ( ArrayContents(..)
-    , Storable
+    , Unboxed
     , alignment
     , castContents
     , getMutableByteArray#
@@ -289,11 +289,11 @@ foreign import ccall unsafe "string.h memchr" c_memchr
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
 
--- | Given a 'Storable' type (unused first arg) and a number of bytes, return
+-- | Given an 'Unboxed' type (unused first arg) and a number of bytes, return
 -- how many elements of that type will completely fit in those bytes.
 --
 {-# INLINE bytesToElemCount #-}
-bytesToElemCount :: forall a. Storable a => a -> Int -> Int
+bytesToElemCount :: forall a. Unboxed a => a -> Int -> Int
 bytesToElemCount _ n = n `div` SIZE_OF(a)
 
 -- XXX we are converting Int to CSize
@@ -314,7 +314,7 @@ memcmp p1 p2 len = do
 
 -- $arrayNotes
 --
--- We can use a 'Storable' constraint in the Array type and the constraint can
+-- We can use an 'Unboxed' constraint in the Array type and the constraint can
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
 -- Investigate a GHC improvement possiblity.
@@ -340,7 +340,7 @@ memcmp p1 p2 len = do
 --
 data Array a =
 #ifdef DEVBUILD
-    Storable a =>
+    Unboxed a =>
 #endif
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
@@ -394,7 +394,7 @@ unpin arr@(Array{..}) = do
 --
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
-newArrayWith :: forall m a. (MonadIO m, Storable a)
+newArrayWith :: forall m a. (MonadIO m, Unboxed a)
     => (Int -> Int -> m (ArrayContents a)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
@@ -425,17 +425,17 @@ nilArrayContents =
 
 nil ::
 #ifdef DEVBUILD
-    Storable a =>
+    Unboxed a =>
 #endif
     Array a
 nil = Array nilArrayContents 0 0 0
 
 -- | Like 'newArrayWith' but using an allocator that aligns the memory to the
--- alignment dictated by the 'Storable' instance of the type.
+-- alignment dictated by the 'Unboxed' instance of the type.
 --
 -- /Internal/
 {-# INLINE newArrayAligned #-}
-newArrayAligned :: (MonadIO m, Storable a) => Int -> Int -> m (Array a)
+newArrayAligned :: (MonadIO m, Unboxed a) => Int -> Int -> m (Array a)
 newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 
 -- XXX Intead of newArray, make newPinnedArray and newUnpinnedArray. Make it
@@ -443,21 +443,21 @@ newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
 -- | Allocates an empty array that can hold 'count' items.  The memory of the
--- array is uninitialized and the allocation is aligned as per the 'Storable'
+-- array is uninitialized and the allocation is aligned as per the 'Unboxed'
 -- instance of the type.
 --
 -- /Pre-release/
 {-# INLINE newArray #-}
-newArray :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
+newArray :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
 newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocates a pinned empty array that can hold 'count' items.  The memory of
 -- the array is uninitialized and the allocation is aligned as per the
--- 'Storable' instance of the type.
+-- 'Unboxed' instance of the type.
 --
 -- /Pre-release/
 {-# INLINE newPinnedArrayBytes #-}
-newPinnedArrayBytes :: forall m a. (MonadIO m, Storable a) => Int -> m (Array a)
+newPinnedArrayBytes :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
 newPinnedArrayBytes bytes = do
     contents <-
         liftIO $ newAlignedArrayContents bytes (alignment (undefined :: a))
@@ -474,7 +474,7 @@ newPinnedArrayBytes bytes = do
 -- /Internal/
 {-# INLINE withNewArrayUnsafe #-}
 withNewArrayUnsafe ::
-       (MonadIO m, Storable a) => Int -> (Ptr a -> m ()) -> m (Array a)
+       (MonadIO m, Unboxed a) => Int -> (Ptr a -> m ()) -> m (Array a)
 withNewArrayUnsafe count f = do
     arr <- newArray count
     asPtrUnsafe arr
@@ -489,7 +489,7 @@ withNewArrayUnsafe count f = do
 --
 -- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
-putIndexUnsafe :: forall m a. (MonadIO m, Storable a)
+putIndexUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> a -> Array a -> m ()
 putIndexUnsafe i x (Array {..}) = do
     let index = INDEX_OF(arrStart, i, a)
@@ -509,7 +509,7 @@ invalidIndex label i =
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
-putIndex :: forall m a. (MonadIO m, Storable a) => Int -> a -> Array a -> m ()
+putIndex :: forall m a. (MonadIO m, Unboxed a) => Int -> a -> Array a -> m ()
 putIndex i x Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,aEnd,a)
@@ -521,7 +521,7 @@ putIndex i x Array{..} = do
 --
 -- /Pre-release/
 {-# INLINE putIndices #-}
-putIndices :: forall m a. (MonadIO m, Storable a)
+putIndices :: forall m a. (MonadIO m, Unboxed a)
     => Array a -> Fold m (Int, a) ()
 putIndices arr = FL.foldlM' step (return ())
 
@@ -532,7 +532,7 @@ putIndices arr = FL.foldlM' step (return ())
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
-modifyIndexUnsafe :: forall m a b. (MonadIO m, Storable a) =>
+modifyIndexUnsafe :: forall m a b. (MonadIO m, Unboxed a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
 modifyIndexUnsafe i f (Array{..}) = liftIO $ do
         let index = INDEX_OF(arrStart,i,a)
@@ -545,7 +545,7 @@ modifyIndexUnsafe i f (Array{..}) = liftIO $ do
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
-modifyIndex :: forall m a b. (MonadIO m, Storable a) =>
+modifyIndex :: forall m a b. (MonadIO m, Unboxed a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
 modifyIndex i f Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
@@ -562,7 +562,7 @@ modifyIndex i f Array{..} = do
 --
 -- /Pre-release/
 {-# INLINE modifyIndices #-}
-modifyIndices :: forall m a . (MonadIO m, Storable a)
+modifyIndices :: forall m a . (MonadIO m, Unboxed a)
     => (Int -> a -> a) -> Array a -> Fold m Int ()
 modifyIndices f arr = FL.foldlM' step initial
 
@@ -577,7 +577,7 @@ modifyIndices f arr = FL.foldlM' step initial
 -- | Modify each element of an array using the supplied modifier function.
 --
 -- /Pre-release/
-modify :: forall m a. (MonadIO m, Storable a)
+modify :: forall m a. (MonadIO m, Unboxed a)
     => (a -> a) -> Array a -> m ()
 modify f Array{..} = liftIO $
     go arrStart
@@ -591,7 +591,7 @@ modify f Array{..} = liftIO $
             go (INDEX_NEXT(i,a))
 
 {-# INLINE swapArrayByteIndices #-}
-swapArrayByteIndices :: Storable a => ArrayContents a -> Int -> Int -> IO ()
+swapArrayByteIndices :: Unboxed a => ArrayContents a -> Int -> Int -> IO ()
 swapArrayByteIndices arrContents i1 i2 = do
     r1 <- peekWith arrContents i1
     r2 <- peekWith arrContents i2
@@ -604,7 +604,7 @@ swapArrayByteIndices arrContents i1 i2 = do
 --
 -- /Pre-release/
 {-# INLINE unsafeSwapIndices #-}
-unsafeSwapIndices :: forall m a. (MonadIO m, Storable a)
+unsafeSwapIndices :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Int -> Array a -> m ()
 unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
         let t1 = INDEX_OF(arrStart,i1,a)
@@ -614,7 +614,7 @@ unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
 -- | Swap the elements at two indices.
 --
 -- /Pre-release/
-swapIndices :: forall m a. (MonadIO m, Storable a)
+swapIndices :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Int -> Array a -> m ()
 swapIndices i1 i2 Array{..} = liftIO $ do
         let t1 = INDEX_OF(arrStart,i1,a)
@@ -685,15 +685,15 @@ roundUpToPower2 n =
 -- case it returns one element's size.
 --
 {-# INLINE allocBytesToBytes #-}
-allocBytesToBytes :: forall a. Storable a => a -> Int -> Int
+allocBytesToBytes :: forall a. Unboxed a => a -> Int -> Int
 allocBytesToBytes _ n = max (arrayPayloadSize n) (SIZE_OF(a))
 
--- | Given a 'Storable' type (unused first arg) and real allocation size
+-- | Given an 'Unboxed' type (unused first arg) and real allocation size
 -- (including overhead), return how many elements of that type will completely
 -- fit in it, returns at least 1.
 --
 {-# INLINE allocBytesToElemCount #-}
-allocBytesToElemCount :: Storable a => a -> Int -> Int
+allocBytesToElemCount :: Unboxed a => a -> Int -> Int
 allocBytesToElemCount x bytes =
     let n = bytesToElemCount x (allocBytesToBytes x bytes)
      in assert (n >= 1) n
@@ -715,8 +715,8 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 -- XXX See if resizing can be implemented by reading the old array as a stream
 -- and then using writeN to the new array.
 --
--- NOTE: we are passing elemSize explicitly to avoid a Storable constraint.
--- Since this is not inlined Storable consrraint leads to dictionary passing
+-- NOTE: we are passing elemSize explicitly to avoid an Unboxed constraint.
+-- Since this is not inlined Unboxed consrraint leads to dictionary passing
 -- which complicates some inspection tests.
 --
 {-# NOINLINE reallocAligned #-}
@@ -758,14 +758,14 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
 -- 'largeObjectThreshold' then it is rounded up to the block size (4K).
 --
 {-# INLINABLE realloc #-}
-realloc :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m (Array a)
+realloc :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m (Array a)
 realloc bytes arr =
     liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) bytes arr
 
 -- | @reallocWith label capSizer minIncrBytes array@. The label is used
 -- in error messages and the capSizer is used to determine the capacity of the
 -- new array in bytes given the current byte length of the array.
-reallocWith :: forall m a. (MonadIO m , Storable a) =>
+reallocWith :: forall m a. (MonadIO m , Unboxed a) =>
        String
     -> (Int -> Int)
     -> Int
@@ -799,7 +799,7 @@ reallocWith label capSizer minIncrBytes arr = do
 --
 -- /Pre-release/
 {-# INLINE resize #-}
-resize :: forall m a. (MonadIO m, Storable a) =>
+resize :: forall m a. (MonadIO m, Unboxed a) =>
     Int -> Array a -> m (Array a)
 resize nElems arr@Array{..} = do
     let req = SIZE_OF(a) * nElems
@@ -813,7 +813,7 @@ resize nElems arr@Array{..} = do
 --
 -- /Pre-release/
 {-# INLINE resizeExp #-}
-resizeExp :: forall m a. (MonadIO m, Storable a) =>
+resizeExp :: forall m a. (MonadIO m, Unboxed a) =>
     Int -> Array a -> m (Array a)
 resizeExp nElems arr@Array{..} = do
     let req = roundUpLargeArray (SIZE_OF(a) * nElems)
@@ -835,7 +835,7 @@ resizeExp nElems arr@Array{..} = do
 --
 -- /Pre-release/
 {-# INLINE rightSize #-}
-rightSize :: forall m a. (MonadIO m, Storable a) => Array a -> m (Array a)
+rightSize :: forall m a. (MonadIO m, Unboxed a) => Array a -> m (Array a)
 rightSize arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
     let start = arrStart
@@ -867,7 +867,7 @@ rightSize arr@Array{..} = do
 --
 -- /Internal/
 {-# INLINE snocNewEnd #-}
-snocNewEnd :: (MonadIO m, Storable a) => Int -> Array a -> a -> m (Array a)
+snocNewEnd :: (MonadIO m, Unboxed a) => Int -> Array a -> a -> m (Array a)
 snocNewEnd newEnd arr@Array{..} x = liftIO $ do
     assert (newEnd <= aBound) (return ())
     pokeWith arrContents aEnd x
@@ -879,7 +879,7 @@ snocNewEnd newEnd arr@Array{..} x = liftIO $ do
 --
 -- /Internal/
 {-# INLINE snocUnsafe #-}
-snocUnsafe :: forall m a. (MonadIO m, Storable a) =>
+snocUnsafe :: forall m a. (MonadIO m, Unboxed a) =>
     Array a -> a -> m (Array a)
 snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(aEnd,a)) arr
 
@@ -888,7 +888,7 @@ snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(aEnd,a)) arr
 --
 -- /Internal/
 {-# INLINE snocMay #-}
-snocMay :: forall m a. (MonadIO m, Storable a) =>
+snocMay :: forall m a. (MonadIO m, Unboxed a) =>
     Array a -> a -> m (Maybe (Array a))
 snocMay arr@Array{..} x = liftIO $ do
     let newEnd = INDEX_NEXT(aEnd,a)
@@ -898,7 +898,7 @@ snocMay arr@Array{..} x = liftIO $ do
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
-snocWithRealloc :: forall m a. (MonadIO m, Storable a) =>
+snocWithRealloc :: forall m a. (MonadIO m, Unboxed a) =>
        (Int -> Int)
     -> Array a
     -> a
@@ -921,7 +921,7 @@ snocWithRealloc sizer arr x = do
 --
 -- /Pre-release/
 {-# INLINE snocWith #-}
-snocWith :: forall m a. (MonadIO m, Storable a) =>
+snocWith :: forall m a. (MonadIO m, Unboxed a) =>
        (Int -> Int)
     -> Array a
     -> a
@@ -943,7 +943,7 @@ snocWith allocSize arr x = liftIO $ do
 --
 -- /Pre-release/
 {-# INLINE snocLinear #-}
-snocLinear :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
+snocLinear :: forall m a. (MonadIO m, Unboxed a) => Array a -> a -> m (Array a)
 snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 
 -- | The array is mutated to append an additional element to it. If there is no
@@ -961,7 +961,7 @@ snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 --
 -- /Pre-release/
 {-# INLINE snoc #-}
-snoc :: forall m a. (MonadIO m, Storable a) => Array a -> a -> m (Array a)
+snoc :: forall m a. (MonadIO m, Unboxed a) => Array a -> a -> m (Array a)
 snoc = snocWith f
 
     where
@@ -981,7 +981,7 @@ snoc = snocWith f
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndexUnsafe :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndexUnsafe i (Array {..}) = do
     let index = INDEX_OF(arrStart,i,a)
     assert (i >= 0 && INDEX_VALID(index,aEnd,a)) (return ())
@@ -990,7 +990,7 @@ getIndexUnsafe i (Array {..}) = do
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndex :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndex i Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,aEnd,a)
@@ -1003,7 +1003,7 @@ getIndex i Array{..} = do
 -- Slightly faster than computing the forward index and using getIndex.
 --
 {-# INLINE getIndexRev #-}
-getIndexRev :: forall m a. (MonadIO m, Storable a) => Int -> Array a -> m a
+getIndexRev :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndexRev i Array{..} = do
     let index = RINDEX_OF(aEnd,i,a)
     if i >= 0 && index >= arrStart
@@ -1019,7 +1019,7 @@ data GetIndicesState contents start end st =
 --
 -- /Pre-release/
 {-# INLINE getIndicesD #-}
-getIndicesD :: (Monad m, Storable a) =>
+getIndicesD :: (Monad m, Unboxed a) =>
     (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (Array a) a
 getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
 
@@ -1039,7 +1039,7 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
             D.Stop -> return D.Stop
 
 {-# INLINE getIndices #-}
-getIndices :: (MonadIO m, Storable a) => Stream m Int -> Unfold m (Array a) a
+getIndices :: (MonadIO m, Unboxed a) => Stream m Int -> Unfold m (Array a) a
 getIndices = getIndicesD liftIO . Stream.toStreamD
 
 -------------------------------------------------------------------------------
@@ -1056,7 +1056,7 @@ getIndices = getIndicesD liftIO . Stream.toStreamD
 --
 -- /Pre-release/
 {-# INLINE getSliceUnsafe #-}
-getSliceUnsafe :: forall a. Storable a
+getSliceUnsafe :: forall a. Unboxed a
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Array a
@@ -1075,7 +1075,7 @@ getSliceUnsafe index len (Array contents start e _) =
 --
 -- /Pre-release/
 {-# INLINE getSlice #-}
-getSlice :: forall a. Storable a =>
+getSlice :: forall a. Unboxed a =>
        Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Array a
@@ -1104,7 +1104,7 @@ getSlice index len (Array contents start e _) =
 --
 -- /Pre-release/
 {-# INLINE reverse #-}
-reverse :: forall m a. (MonadIO m, Storable a) => Array a -> m ()
+reverse :: forall m a. (MonadIO m, Unboxed a) => Array a -> m ()
 reverse Array{..} = liftIO $ do
     let l = arrStart
         h = INDEX_PREV(aEnd,a)
@@ -1131,7 +1131,7 @@ permute = undefined
 --
 -- /Pre-release/
 {-# INLINE partitionBy #-}
-partitionBy :: forall m a. (MonadIO m, Storable a)
+partitionBy :: forall m a. (MonadIO m, Unboxed a)
     => (a -> Bool) -> Array a -> m (Array a, Array a)
 partitionBy f arr@Array{..} = liftIO $ do
     if arrStart >= aEnd
@@ -1255,7 +1255,7 @@ byteLength Array{..} =
 --
 -- @since 0.7.0
 {-# INLINE length #-}
-length :: forall a. Storable a => Array a -> Int
+length :: forall a. Unboxed a => Array a -> Int
 length arr =
     let elemSize = SIZE_OF(a)
         blen = byteLength arr
@@ -1299,7 +1299,7 @@ data GroupState s contents start end bound
 --
 -- /Pre-release/
 {-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Storable a)
+arraysOf :: forall m a. (MonadIO m, Unboxed a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 -- XXX the idiomatic implementation leads to large regression in the D.reverse'
 -- benchmark. It seems it has difficulty producing optimized code when
@@ -1346,7 +1346,7 @@ arraysOf n (D.Stream step state) =
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamD #-}
-arrayStreamKFromStreamD :: forall m a. (MonadIO m, Storable a) =>
+arrayStreamKFromStreamD :: forall m a. (MonadIO m, Unboxed a) =>
     D.Stream m a -> m (K.Stream m (Array a))
 arrayStreamKFromStreamD =
     let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
@@ -1367,7 +1367,7 @@ data FlattenState s contents a =
 -- We can try this if there are any fusion issues in the unfold.
 --
 {-# INLINE_NORMAL flattenArrays #-}
-flattenArrays :: forall m a. (MonadIO m, Storable a)
+flattenArrays :: forall m a. (MonadIO m, Unboxed a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
 
@@ -1396,7 +1396,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- We can try this if there are any fusion issues in the unfold.
 --
 {-# INLINE_NORMAL flattenArraysRev #-}
-flattenArraysRev :: forall m a. (MonadIO m, Storable a)
+flattenArraysRev :: forall m a. (MonadIO m, Unboxed a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
@@ -1436,7 +1436,7 @@ toArrayUnsafe (Array contents start end _) = ArrayUnsafe contents start end
 
 fromArrayUnsafe ::
 #ifdef DEVBUILD
-    Storable a =>
+    Unboxed a =>
 #endif
     ArrayUnsafe a -> Array a
 fromArrayUnsafe (ArrayUnsafe contents start end) =
@@ -1444,7 +1444,7 @@ fromArrayUnsafe (ArrayUnsafe contents start end) =
 
 {-# INLINE_NORMAL producerWith #-}
 producerWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Producer m (Array a) a
 producerWith liftio = Producer step (return . toArrayUnsafe) extract
     where
@@ -1465,19 +1465,19 @@ producerWith liftio = Producer step (return . toArrayUnsafe) extract
 -- | Resumable unfold of an array.
 --
 {-# INLINE_NORMAL producer #-}
-producer :: forall m a. (MonadIO m, Storable a) => Producer m (Array a) a
+producer :: forall m a. (MonadIO m, Unboxed a) => Producer m (Array a) a
 producer = producerWith liftIO
 
 -- | Unfold an array into a stream.
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL read #-}
-read :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
+read :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
 read = Producer.simplify producer
 
 {-# INLINE_NORMAL readRevWith #-}
 readRevWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Unfold m (Array a) a
 readRevWith liftio = Unfold step inject
     where
@@ -1496,7 +1496,7 @@ readRevWith liftio = Unfold step inject
 --
 -- /Pre-release/
 {-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (MonadIO m, Storable a) => Unfold m (Array a) a
+readRev :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
 readRev = readRevWith liftIO
 
 -------------------------------------------------------------------------------
@@ -1507,7 +1507,7 @@ readRev = readRevWith liftIO
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
 {-# INLINE_LATE toListFB #-}
-toListFB :: forall a b. Storable a => (a -> b -> b) -> b -> Array a -> b
+toListFB :: forall a b. Unboxed a => (a -> b -> b) -> b -> Array a -> b
 toListFB c n Array{..} = go arrStart
     where
 
@@ -1532,7 +1532,7 @@ toListFB c n Array{..} = go arrStart
 --
 -- @since 0.7.0
 {-# INLINE toList #-}
-toList :: forall m a. (MonadIO m, Storable a) => Array a -> m [a]
+toList :: forall m a. (MonadIO m, Unboxed a) => Array a -> m [a]
 toList Array{..} = liftIO $ go arrStart
     where
 
@@ -1543,7 +1543,7 @@ toList Array{..} = liftIO $ go arrStart
 
 {-# INLINE_NORMAL toStreamDWith #-}
 toStreamDWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
 toStreamDWith liftio Array{..} = D.Stream step arrStart
 
@@ -1561,12 +1561,12 @@ toStreamDWith liftio Array{..} = D.Stream step arrStart
 --
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
-toStreamD :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
+toStreamD :: forall m a. (MonadIO m, Unboxed a) => Array a -> D.Stream m a
 toStreamD = toStreamDWith liftIO
 
 {-# INLINE toStreamKWith #-}
 toStreamKWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
 toStreamKWith liftio Array{..} = go arrStart
 
@@ -1580,12 +1580,12 @@ toStreamKWith liftio Array{..} = go arrStart
         in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
+toStreamK :: forall m a. (MonadIO m, Unboxed a) => Array a -> K.Stream m a
 toStreamK = toStreamKWith liftIO
 
 {-# INLINE_NORMAL toStreamDRevWith #-}
 toStreamDRevWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
 toStreamDRevWith liftio Array{..} =
     let p = INDEX_PREV(aEnd,a)
@@ -1605,12 +1605,12 @@ toStreamDRevWith liftio Array{..} =
 --
 -- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: forall m a. (MonadIO m, Storable a) => Array a -> D.Stream m a
+toStreamDRev :: forall m a. (MonadIO m, Unboxed a) => Array a -> D.Stream m a
 toStreamDRev = toStreamDRevWith liftIO
 
 {-# INLINE toStreamKRevWith #-}
 toStreamKRevWith ::
-       forall m a. (Monad m, Storable a)
+       forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
 toStreamKRevWith liftio Array {..} =
     let p = INDEX_PREV(aEnd,a)
@@ -1626,7 +1626,7 @@ toStreamKRevWith liftio Array {..} =
         in liftio elemM `K.consM` go (INDEX_PREV(p,a))
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. (MonadIO m, Storable a) => Array a -> K.Stream m a
+toStreamKRev :: forall m a. (MonadIO m, Unboxed a) => Array a -> K.Stream m a
 toStreamKRev = toStreamKRevWith liftIO
 
 -------------------------------------------------------------------------------
@@ -1638,12 +1638,12 @@ toStreamKRev = toStreamKRevWith liftIO
 --
 -- | Strict left fold of an array.
 {-# INLINE_NORMAL foldl' #-}
-foldl' :: (MonadIO m, Storable a) => (b -> a -> b) -> b -> Array a -> m b
+foldl' :: (MonadIO m, Unboxed a) => (b -> a -> b) -> b -> Array a -> m b
 foldl' f z arr = D.foldl' f z $ toStreamD arr
 
 -- | Right fold of an array.
 {-# INLINE_NORMAL foldr #-}
-foldr :: (MonadIO m, Storable a) => (a -> b -> b) -> b -> Array a -> m b
+foldr :: (MonadIO m, Unboxed a) => (a -> b -> b) -> b -> Array a -> m b
 foldr f z arr = D.foldr f z $ toStreamD arr
 
 -------------------------------------------------------------------------------
@@ -1667,7 +1667,7 @@ foldr f z arr = D.foldr f z $ toStreamD arr
 --
 -- /Internal/
 {-# INLINE_NORMAL appendNUnsafe #-}
-appendNUnsafe :: forall m a. (MonadIO m, Storable a) =>
+appendNUnsafe :: forall m a. (MonadIO m, Unboxed a) =>
        m (Array a)
     -> Int
     -> Fold m a (Array a)
@@ -1700,7 +1700,7 @@ appendNUnsafe action n =
 --
 -- /Pre-release/
 {-# INLINE_NORMAL appendN #-}
-appendN :: forall m a. (MonadIO m, Storable a) =>
+appendN :: forall m a. (MonadIO m, Unboxed a) =>
     m (Array a) -> Int -> Fold m a (Array a)
 appendN initial n = FL.take n (appendNUnsafe initial n)
 
@@ -1715,7 +1715,7 @@ appendN initial n = FL.take n (appendNUnsafe initial n)
 --
 -- /Pre-release/
 {-# INLINE appendWith #-}
-appendWith :: forall m a. (MonadIO m, Storable a) =>
+appendWith :: forall m a. (MonadIO m, Unboxed a) =>
     (Int -> Int) -> m (Array a) -> Fold m a (Array a)
 appendWith sizer = FL.foldlM' (snocWith sizer)
 
@@ -1729,7 +1729,7 @@ appendWith sizer = FL.foldlM' (snocWith sizer)
 --
 -- /Pre-release/
 {-# INLINE append #-}
-append :: forall m a. (MonadIO m, Storable a) =>
+append :: forall m a. (MonadIO m, Unboxed a) =>
     m (Array a) -> Fold m a (Array a)
 append = appendWith (* 2)
 
@@ -1743,7 +1743,7 @@ append = appendWith (* 2)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeNWithUnsafe #-}
-writeNWithUnsafe :: forall m a. (MonadIO m, Storable a)
+writeNWithUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
 writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
@@ -1766,7 +1766,7 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
-writeNUnsafe :: forall m a. (MonadIO m, Storable a)
+writeNUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
 writeNUnsafe = writeNWithUnsafe newArray
 
@@ -1777,7 +1777,7 @@ writeNUnsafe = writeNWithUnsafe newArray
 -- >>> writeNWith alloc n = Array.appendN (alloc n) n
 --
 {-# INLINE_NORMAL writeNWith #-}
-writeNWith :: forall m a. (MonadIO m, Storable a)
+writeNWith :: forall m a. (MonadIO m, Unboxed a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
 writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 
@@ -1790,14 +1790,14 @@ writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
-writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
 writeN = writeNWith newArray
 
 -- | Like writeNWithUnsafe but writes the array in reverse order.
 --
 -- /Internal/
 {-# INLINE_NORMAL writeRevNWithUnsafe #-}
-writeRevNWithUnsafe :: forall m a. (MonadIO m, Storable a)
+writeRevNWithUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
 writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
@@ -1818,7 +1818,7 @@ writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 --
 -- /Internal/
 {-# INLINE_NORMAL writeRevNWith #-}
-writeRevNWith :: forall m a. (MonadIO m, Storable a)
+writeRevNWith :: forall m a. (MonadIO m, Unboxed a)
     => (Int -> m (Array a)) -> Int -> Fold m a (Array a)
 writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 
@@ -1826,7 +1826,7 @@ writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeRevN #-}
-writeRevN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeRevN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
 writeRevN = writeRevNWith newArray
 
 -- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
@@ -1838,7 +1838,7 @@ writeRevN = writeRevNWith newArray
 -- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
-writeNAligned :: forall m a. (MonadIO m, Storable a)
+writeNAligned :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned align = writeNWith (newArrayAligned align)
 
@@ -1856,7 +1856,7 @@ writeNAligned align = writeNWith (newArrayAligned align)
 -- /Unimplemented/
 --
 {-# INLINE_NORMAL writeChunks #-}
-writeChunks :: (MonadIO m, Storable a) =>
+writeChunks :: (MonadIO m, Unboxed a) =>
     Int -> Fold m a (K.Stream n (Array a))
 writeChunks n = FL.many (writeN n) FL.toStreamK
 
@@ -1889,7 +1889,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
-writeWith :: forall m a. (MonadIO m, Storable a)
+writeWith :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
 -- writeWith n = FL.rmapM rightSize $ appendWith (* 2) (newArray n)
 writeWith elemCount =
@@ -1928,7 +1928,7 @@ writeWith elemCount =
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+write :: forall m a. (MonadIO m, Unboxed a) => Fold m a (Array a)
 write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
 -------------------------------------------------------------------------------
@@ -1940,7 +1940,7 @@ write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 -- >>> fromStreamDN n = StreamD.fold (Array.writeN n)
 --
 {-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: forall m a. (MonadIO m, Storable a)
+fromStreamDN :: forall m a. (MonadIO m, Unboxed a)
     => Int -> D.Stream m a -> m (Array a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
@@ -1960,14 +1960,14 @@ fromStreamDN limit str = do
 --
 -- @since 0.7.0
 {-# INLINABLE fromListN #-}
-fromListN :: (MonadIO m, Storable a) => Int -> [a] -> m (Array a)
+fromListN :: (MonadIO m, Unboxed a) => Int -> [a] -> m (Array a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
 
 -- | Like fromListN but writes the array in reverse order.
 --
 -- /Pre-release/
 {-# INLINE fromListRevN #-}
-fromListRevN :: (MonadIO m, Storable a) => Int -> [a] -> m (Array a)
+fromListRevN :: (MonadIO m, Unboxed a) => Int -> [a] -> m (Array a)
 fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
 
 -------------------------------------------------------------------------------
@@ -1975,14 +1975,14 @@ fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
 -------------------------------------------------------------------------------
 
 {-# INLINE arrayStreamKLength #-}
-arrayStreamKLength :: (Monad m, Storable a) => K.Stream m (Array a) -> m Int
+arrayStreamKLength :: (Monad m, Unboxed a) => K.Stream m (Array a) -> m Int
 arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 
 -- | Convert an array stream to an array. Note that this requires peak memory
 -- that is double the size of the array stream.
 --
 {-# INLINE fromArrayStreamK #-}
-fromArrayStreamK :: (Storable a, MonadIO m) =>
+fromArrayStreamK :: (Unboxed a, MonadIO m) =>
     K.Stream m (Array a) -> m (Array a)
 fromArrayStreamK as = do
     len <- arrayStreamKLength as
@@ -2002,14 +2002,14 @@ fromArrayStreamK as = do
 -- >>> fromStreamD = StreamD.fold Array.write
 --
 {-# INLINE fromStreamD #-}
-fromStreamD :: (MonadIO m, Storable a) => D.Stream m a -> m (Array a)
+fromStreamD :: (MonadIO m, Unboxed a) => D.Stream m a -> m (Array a)
 fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
 {-# INLINE fromList #-}
-fromList :: (MonadIO m, Storable a) => [a] -> m (Array a)
+fromList :: (MonadIO m, Unboxed a) => [a] -> m (Array a)
 fromList xs = fromStreamD $ D.fromList xs
 
 -- XXX We are materializing the whole list first for getting the length. Check
@@ -2017,7 +2017,7 @@ fromList xs = fromStreamD $ D.fromList xs
 
 -- | Like 'fromList' but writes the contents of the list in reverse order.
 {-# INLINE fromListRev #-}
-fromListRev :: (MonadIO m, Storable a) => [a] -> m (Array a)
+fromListRev :: (MonadIO m, Unboxed a) => [a] -> m (Array a)
 fromListRev xs = fromListRevN (Prelude.length xs) xs
 
 -------------------------------------------------------------------------------
@@ -2042,7 +2042,7 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 
 -- | Copy two arrays into a newly allocated array.
 {-# INLINE spliceCopy #-}
-spliceCopy :: forall m a. (MonadIO m, Storable a) =>
+spliceCopy :: forall m a. (MonadIO m, Unboxed a) =>
     Array a -> Array a -> m (Array a)
 spliceCopy arr1 arr2 = liftIO $ do
     let start1 = arrStart arr1
@@ -2084,7 +2084,7 @@ spliceUnsafe dst src =
 --
 -- /Pre-release/
 {-# INLINE spliceWith #-}
-spliceWith :: forall m a. (MonadIO m, Storable a) =>
+spliceWith :: forall m a. (MonadIO m, Unboxed a) =>
     (Int -> Int -> Int) -> Array a -> Array a -> m (Array a)
 spliceWith sizer dst@(Array _ start end bound) src = do
 {-
@@ -2118,7 +2118,7 @@ spliceWith sizer dst@(Array _ start end bound) src = do
 --
 -- /Pre-release/
 {-# INLINE splice #-}
-splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+splice :: (MonadIO m, Unboxed a) => Array a -> Array a -> m (Array a)
 splice = spliceWith (+)
 
 -- | Like 'append' but the growth of the array is exponential. Whenever a new
@@ -2132,7 +2132,7 @@ splice = spliceWith (+)
 --
 -- /Pre-release/
 {-# INLINE spliceExp #-}
-spliceExp :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceExp :: (MonadIO m, Unboxed a) => Array a -> Array a -> m (Array a)
 spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 
 -------------------------------------------------------------------------------
@@ -2171,7 +2171,7 @@ breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
 -- specified index @i@ is the first index of the second slice.
 --
 -- @since 0.7.0
-splitAt :: forall a. Storable a => Int -> Array a -> (Array a, Array a)
+splitAt :: forall a. Unboxed a => Int -> Array a -> (Array a, Array a)
 splitAt i arr@Array{..} =
     let maxIndex = length arr - 1
     in  if i < 0
@@ -2208,7 +2208,7 @@ splitAt i arr@Array{..} =
 --
 castUnsafe ::
 #ifdef DEVBUILD
-    Storable b =>
+    Unboxed b =>
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end bound) =
@@ -2227,7 +2227,7 @@ asBytes = castUnsafe
 --
 -- /Pre-release/
 --
-cast :: forall a b. Storable b => Array a -> Maybe (Array b)
+cast :: forall a b. Unboxed b => Array a -> Maybe (Array b)
 cast arr =
     let len = byteLength arr
         r = len `mod` SIZE_OF(b)
@@ -2316,7 +2316,7 @@ cmp arr1 arr2 =
 -- NFData
 -------------------------------------------------------------------------------
 
--- This is a Unboxed array, we cannot have unevaluated data in it so this is
+-- This is an Unboxed array, we cannot have unevaluated data in it so this is
 -- just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}
@@ -2330,7 +2330,7 @@ instance NFData1 Array where
 --
 -- /Pre-release/
 {-# INLINE strip #-}
-strip :: forall a m. (Storable a, MonadIO m) =>
+strip :: forall a m. (Unboxed a, MonadIO m) =>
     (a -> Bool) -> Array a -> m (Array a)
 strip eq arr@Array{..} = liftIO $ do
     st <- getStart arrStart
@@ -2374,7 +2374,7 @@ strip eq arr@Array{..} = liftIO $ do
 --
 -- /Pre-release/
 {-# INLINE bubble #-}
-bubble :: (MonadIO m, Storable a) => (a -> a -> Ordering) -> Array a -> m ()
+bubble :: (MonadIO m, Unboxed a) => (a -> a -> Ordering) -> Array a -> m ()
 bubble cmp0 arr =
     when (l > 1) $ do
         x <- getIndexUnsafe (l - 1) arr

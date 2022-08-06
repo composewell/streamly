@@ -58,7 +58,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Storable, Unboxed, peekWith, sizeOf)
+import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
@@ -434,7 +434,7 @@ takeArrayListRev = go
 -- the first split.
 {-# INLINE splitAtArrayListRev #-}
 splitAtArrayListRev ::
-    forall a. Storable a => Int -> [Array a] -> ([Array a],[Array a])
+    forall a. Unboxed a => Int -> [Array a] -> ([Array a],[Array a])
 splitAtArrayListRev n ls
   | n <= 0 = ([], ls)
   | otherwise = go n ls

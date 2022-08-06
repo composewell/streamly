@@ -76,7 +76,7 @@ import Control.Monad (forM_, when)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
-import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
@@ -467,7 +467,7 @@ read = UF.first defaultChunkSize readWith
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}
-putChunks :: (MonadIO m, Storable a)
+putChunks :: (MonadIO m, Unboxed a)
     => Socket -> Stream m (Array a) -> m ()
 putChunks h = S.mapM_ (liftIO . writeChunk h)
 
@@ -571,7 +571,7 @@ write = writeWith defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
+write :: (MonadIO m, Unboxed a) => Handle -> Stream m a -> m ()
 write = toHandleWith defaultChunkSize
 -}
 

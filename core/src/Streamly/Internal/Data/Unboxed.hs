@@ -2,8 +2,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 module Streamly.Internal.Data.Unboxed
-    ( Storable
-    , Unboxed
+    ( Unboxed
     , alignment
     , peekWith
     , pokeWith
@@ -379,8 +378,6 @@ instance forall a. Unboxed a => Unboxed (Complex a) where
 --------------------------------------------------------------------------------
 -- Functions
 --------------------------------------------------------------------------------
-
-type Storable a = Unboxed a
 
 {-# INLINE peekWith #-}
 peekWith :: Unboxed a => ArrayContents a -> Int -> IO a

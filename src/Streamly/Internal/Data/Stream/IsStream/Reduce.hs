@@ -779,7 +779,7 @@ splitWithSuffix predicate f = foldMany (FL.takeEndBy predicate f)
 -- /Unimplemented/
 --
 {-# INLINE splitOnAny #-}
-splitOnAny :: -- (IsStream t, Monad m, Prim a, Integral a) =>
+splitOnAny :: -- (IsStream t, Monad m, Unboxed a, Integral a) =>
     [Array a] -> Fold m a b -> t m a -> t m b
 splitOnAny _subseq _f _m =
     undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
@@ -889,7 +889,7 @@ splitOnSuffixSeq patt f m =
 --
 -- /Unimplemented/
 {-# INLINE wordsOn #-}
-wordsOn :: -- (IsStream t, Monad m, Prim a, Eq a) =>
+wordsOn :: -- (IsStream t, Monad m, Unboxed a, Eq a) =>
     Array a -> Fold m a b -> t m a -> t m b
 wordsOn _subseq _f _m =
     undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
@@ -939,7 +939,7 @@ splitWithSuffixSeq patt f m =
 --
 -- /Unimplemented/
 {-# INLINE splitOnSuffixSeqAny #-}
-splitOnSuffixSeqAny :: -- (IsStream t, Monad m, Prim a, Integral a) =>
+splitOnSuffixSeqAny :: -- (IsStream t, Monad m, Unboxed a, Integral a) =>
     [Array a] -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeqAny _subseq _f _m = undefined
     -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
