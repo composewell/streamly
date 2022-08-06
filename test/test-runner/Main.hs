@@ -22,8 +22,6 @@ rtsOpts relaxMem exeName target =
         case target of
             -- XXX Data.Array.* heap requirement increased for GHC-8.10
             "Data.Array.Foreign" -> "-M128M"
-            "Data.Array.Prim" -> "-M128M"
-            "Data.Array.Prim.Pinned" -> "-M128M"
             "Prelude.Rate" -> "-M512M"
             -- For -O0 case writeChunks test fails, maybe we should have a
             -- separate flag for O0 case?
