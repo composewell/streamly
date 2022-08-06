@@ -31,7 +31,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
-import Streamly.Internal.Data.Unboxed (Storable, sizeOf)
+import Streamly.Internal.Data.Unboxed (Unboxed, sizeOf)
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -52,7 +52,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (MonadIO m, Storable a)
+arraysOf :: (MonadIO m, Unboxed a)
     => Int -> Stream m a -> Stream m (Array a)
 arraysOf n = Stream.fromStreamD . MArray.arraysOf n . Stream.toStreamD
 
@@ -81,7 +81,7 @@ data SpliceState s arr
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Storable a)
+packArraysChunksOf :: (MonadIO m, Unboxed a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
 packArraysChunksOf n (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
@@ -129,7 +129,7 @@ packArraysChunksOf n (D.Stream step state) =
 -- lpackArraysChunksOf = Fold.many compactLEFold
 --
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
-lpackArraysChunksOf :: (MonadIO m, Storable a)
+lpackArraysChunksOf :: (MonadIO m, Unboxed a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     Fold step initial extract
@@ -191,7 +191,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 --
 -- /Internal/
 {-# INLINE compact #-}
-compact :: (MonadIO m, Storable a)
+compact :: (MonadIO m, Unboxed a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
 compact n = Stream.fromStreamD . packArraysChunksOf n . Stream.toStreamD
 
@@ -204,7 +204,7 @@ compact n = Stream.fromStreamD . packArraysChunksOf n . Stream.toStreamD
 -- /Internal/
 {-# INLINE_NORMAL compactLEParserD #-}
 compactLEParserD ::
-       forall m a. (MonadThrow m, MonadIO m, Storable a)
+       forall m a. (MonadThrow m, MonadIO m, Unboxed a)
     => Int -> ParserD.Parser m (Array a) (Array a)
 compactLEParserD n = ParserD.Parser step initial extract
 
@@ -254,7 +254,7 @@ compactLEParserD n = ParserD.Parser step initial extract
 -- /Internal/
 {-# INLINE_NORMAL compactGEFold #-}
 compactGEFold ::
-       forall m a. (MonadIO m, Storable a)
+       forall m a. (MonadIO m, Unboxed a)
     => Int -> FL.Fold m (Array a) (Array a)
 compactGEFold n = Fold step initial extract
 
@@ -298,7 +298,7 @@ compactGEFold n = Fold step initial extract
 -- maximum specified size in bytes.
 --
 -- /Internal/
-compactLE :: (MonadThrow m, MonadIO m, Storable a) =>
+compactLE :: (MonadThrow m, MonadIO m, Unboxed a) =>
     Int -> Stream m (Array a) -> Stream m (Array a)
 compactLE n =
     Stream.fromStreamD . D.parseMany (compactLEParserD n) . Stream.toStreamD
@@ -308,7 +308,7 @@ compactLE n =
 --
 -- /Unimplemented/
 {-# INLINE compactEQ #-}
-compactEQ :: -- (MonadIO m, Storable a) =>
+compactEQ :: -- (MonadIO m, Unboxed a) =>
     Int -> Stream m (Array a) -> Stream m (Array a)
 compactEQ _n _xs = undefined
     -- IsStream.fromStreamD $ D.foldMany (compactEQFold n) (IsStream.toStreamD xs)
@@ -319,7 +319,7 @@ compactEQ _n _xs = undefined
 -- /Internal/
 {-# INLINE compactGE #-}
 compactGE ::
-       (MonadIO m, Storable a)
+       (MonadIO m, Unboxed a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
 compactGE n =
     Stream.fromStreamD . D.foldMany (compactGEFold n) . Stream.toStreamD

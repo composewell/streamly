@@ -8,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Unboxed pinned mutable array type for 'Storable' types with an option to use
+-- Unboxed pinned mutable array type for 'Unboxed' types with an option to use
 -- foreign (non-GHC) memory allocators. Fulfils the following goals:
 --
 -- * Random access (array)
@@ -33,7 +33,7 @@ module Streamly.Internal.Data.Array.Unboxed.Mut
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
@@ -50,7 +50,7 @@ import Streamly.Internal.Data.Array.Unboxed.Mut.Type
 --
 -- /Pre-release/
 {-# INLINE splitOn #-}
-splitOn :: (MonadIO m, Storable a) =>
+splitOn :: (MonadIO m, Unboxed a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
     Stream.fromStreamD
@@ -63,7 +63,7 @@ splitOn predicate arr =
 --
 -- /Pre-release/
 {-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Storable a)
+genSlicesFromLen :: forall m a. (Monad m, Unboxed a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
@@ -80,7 +80,7 @@ genSlicesFromLen from len =
 --
 -- /Pre-release/
 {-# INLINE getSlicesFromLen #-}
-getSlicesFromLen :: forall m a. (Monad m, Storable a)
+getSlicesFromLen :: forall m a. (Monad m, Unboxed a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
@@ -98,6 +98,6 @@ getSlicesFromLen from len =
 --
 -- /Pre-release/
 {-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Storable a) => Stream m a -> m (Array a)
+fromStream :: (MonadIO m, Unboxed a) => Stream m a -> m (Array a)
 fromStream = fromStreamD . Stream.toStreamD
 -- fromStream (Stream m) = P.fold write m

@@ -58,7 +58,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
+import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
@@ -105,7 +105,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, MonadIO m, Storable a)
+arraysOf :: (IsStream t, MonadIO m, Unboxed a)
     => Int -> t m a -> t m (Array a)
 arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 
@@ -125,7 +125,7 @@ arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 --
 -- @since 0.7.0
 {-# INLINE concat #-}
-concat :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+concat :: (IsStream t, Monad m, Unboxed a) => t m (Array a) -> t m a
 -- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
 -- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
 concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
@@ -137,7 +137,7 @@ concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}
-concatRev :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+concatRev :: (IsStream t, Monad m, Unboxed a) => t m (Array a) -> t m a
 -- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
 concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 
@@ -150,11 +150,11 @@ concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 --
 -- /Pre-release/
 {-# INLINE interpose #-}
-interpose :: (Monad m, IsStream t, Storable a) => a -> t m (Array a) -> t m a
+interpose :: (Monad m, IsStream t, Unboxed a) => a -> t m (Array a) -> t m a
 interpose x = S.interpose x A.read
 
 {-# INLINE intercalateSuffix #-}
-intercalateSuffix :: (Monad m, IsStream t, Storable a)
+intercalateSuffix :: (Monad m, IsStream t, Unboxed a)
     => Array a -> t m (Array a) -> t m a
 intercalateSuffix = S.intercalateSuffix A.read
 
@@ -163,7 +163,7 @@ intercalateSuffix = S.intercalateSuffix A.read
 --
 -- @since 0.7.0
 {-# INLINE interposeSuffix #-}
-interposeSuffix :: (Monad m, IsStream t, Storable a)
+interposeSuffix :: (Monad m, IsStream t, Unboxed a)
     => a -> t m (Array a) -> t m a
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
 interposeSuffix x = S.interposeSuffix x A.read
@@ -174,7 +174,7 @@ data FlattenState s a =
 
 -- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}
-unlines :: forall m a. (MonadIO m, Storable a)
+unlines :: forall m a. (MonadIO m, Unboxed a)
     => a -> D.Stream m (Array a) -> D.Stream m a
 unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
     where
@@ -202,7 +202,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- module Streamly.Internal.Data.Array.Stream.Mut.Foreign
 --
 {-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Storable a)
+packArraysChunksOf :: (MonadIO m, Unboxed a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
 packArraysChunksOf n str =
     D.map A.unsafeFreeze $ AS.packArraysChunksOf n $ D.map A.unsafeThaw str
@@ -210,7 +210,7 @@ packArraysChunksOf n str =
 -- XXX instead of writing two different versions of this operation, we should
 -- write it as a pipe.
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
-lpackArraysChunksOf :: (MonadIO m, Storable a)
+lpackArraysChunksOf :: (MonadIO m, Unboxed a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lpackArraysChunksOf n fld =
     FL.lmap A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.lmap A.unsafeFreeze fld)
@@ -220,7 +220,7 @@ lpackArraysChunksOf n fld =
 --
 -- @since 0.7.0
 {-# INLINE compact #-}
-compact :: (MonadIO m, Storable a)
+compact :: (MonadIO m, Unboxed a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
 compact n xs = fromStreamD $ packArraysChunksOf n (toStreamD xs)
 
@@ -317,7 +317,7 @@ splitOnSuffix byte s =
 -- to the number of times it can be called on the same stream.
 --
 {-# INLINE_NORMAL foldBreakD #-}
-foldBreakD :: forall m a b. (MonadIO m, Storable a) =>
+foldBreakD :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))
 foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
     res <- initial
@@ -353,7 +353,7 @@ foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
             FL.Partial fs1 -> goArray SPEC st fp next fs1
 
 {-# INLINE_NORMAL foldBreakK #-}
-foldBreakK :: forall m a b. (MonadIO m, Storable a) =>
+foldBreakK :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> K.Stream m (Array a) -> m (b, K.Stream m (Array a))
 foldBreakK (Fold fstep initial extract) stream = do
     res <- initial
@@ -394,7 +394,7 @@ foldBreakK (Fold fstep initial extract) stream = do
 --
 {-# INLINE_NORMAL foldBreak #-}
 foldBreak ::
-       (MonadIO m, Storable a)
+       (MonadIO m, Unboxed a)
     => FL.Fold m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
@@ -413,7 +413,7 @@ foldBreak f =
 
 -- When we have to take an array partially, take the last part of the array.
 {-# INLINE takeArrayListRev #-}
-takeArrayListRev :: forall a. Storable a => Int -> [Array a] -> [Array a]
+takeArrayListRev :: forall a. Unboxed a => Int -> [Array a] -> [Array a]
 takeArrayListRev = go
 
     where
@@ -434,7 +434,7 @@ takeArrayListRev = go
 -- the first split.
 {-# INLINE splitAtArrayListRev #-}
 splitAtArrayListRev ::
-    forall a. Storable a => Int -> [Array a] -> ([Array a],[Array a])
+    forall a. Unboxed a => Int -> [Array a] -> ([Array a],[Array a])
 splitAtArrayListRev n ls
   | n <= 0 = ([], ls)
   | otherwise = go n ls
@@ -464,14 +464,14 @@ splitAtArrayListRev n ls
 -- CAUTION! length must more than equal to lengths of all the arrays in the
 -- stream.
 {-# INLINE spliceArraysLenUnsafe #-}
-spliceArraysLenUnsafe :: (MonadIO m, Storable a)
+spliceArraysLenUnsafe :: (MonadIO m, Unboxed a)
     => Int -> SerialT m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newArray len
     S.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
-_spliceArrays :: (MonadIO m, Storable a)
+_spliceArrays :: (MonadIO m, Unboxed a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
@@ -485,7 +485,7 @@ _spliceArrays s = do
     writeArr dst arr = MA.spliceUnsafe dst (A.unsafeThaw arr)
 
 {-# INLINE _spliceArraysBuffered #-}
-_spliceArraysBuffered :: (MonadIO m, Storable a)
+_spliceArraysBuffered :: (MonadIO m, Unboxed a)
     => SerialT m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
     buffered <- S.foldr S.cons S.nil s
@@ -493,7 +493,7 @@ _spliceArraysBuffered s = do
     A.unsafeFreeze <$> spliceArraysLenUnsafe len (S.map A.unsafeThaw s)
 
 {-# INLINE spliceArraysRealloced #-}
-spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
+spliceArraysRealloced :: forall m a. (MonadIO m, Unboxed a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
@@ -509,7 +509,7 @@ spliceArraysRealloced s = do
 --
 -- @since 0.7.0
 {-# INLINE toArray #-}
-toArray :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
+toArray :: (MonadIO m, Unboxed a) => SerialT m (Array a) -> m (Array a)
 toArray = spliceArraysRealloced
 -- spliceArrays = _spliceArraysBuffered
 
@@ -520,7 +520,7 @@ toArray = spliceArraysRealloced
 --
 {-
 {-# INLINE toArraysInRange #-}
-toArraysInRange :: (IsStream t, MonadIO m, Storable a)
+toArraysInRange :: (IsStream t, MonadIO m, Unboxed a)
     => Int -> Int -> Fold m (Array a) b -> Fold m a b
 toArraysInRange low high (Fold step initial extract) =
 -}
@@ -528,7 +528,7 @@ toArraysInRange low high (Fold step initial extract) =
 {-
 -- | Fold the input to a pure buffered stream (List) of arrays.
 {-# INLINE _toArraysOf #-}
-_toArraysOf :: (MonadIO m, Storable a)
+_toArraysOf :: (MonadIO m, Unboxed a)
     => Int -> Fold m a (SerialT Identity (Array a))
 _toArraysOf n = FL.chunksOf n (A.writeNF n) FL.toStream
 -}
@@ -549,7 +549,7 @@ newtype List a = List {getList :: [a]}
 -- to the number of times it can be called on the same stream.
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD ::
-       forall m a b. (MonadIO m, MonadThrow m, Storable a)
+       forall m a b. (MonadIO m, MonadThrow m, Unboxed a)
     => PRD.Parser m a b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
@@ -629,7 +629,7 @@ parseBreakD
 
 {-# INLINE_NORMAL parseBreakK #-}
 parseBreakK ::
-       forall m a b. (MonadIO m, MonadThrow m, Storable a)
+       forall m a b. (MonadIO m, MonadThrow m, Unboxed a)
     => PRD.Parser m a b
     -> K.Stream m (Array.Array a)
     -> m (b, K.Stream m (Array.Array a))
@@ -708,7 +708,7 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 --
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak ::
-       (MonadIO m, MonadThrow m, Storable a)
+       (MonadIO m, MonadThrow m, Unboxed a)
     => PR.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
@@ -734,7 +734,7 @@ parseBreak p =
 --
 {-# INLINE_NORMAL runArrayParserDBreak #-}
 runArrayParserDBreak ::
-       forall m a b. (MonadIO m, MonadThrow m, Storable a)
+       forall m a b. (MonadIO m, MonadThrow m, Unboxed a)
     => PRD.Parser m (Array a) b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
@@ -806,7 +806,7 @@ runArrayParserDBreak
 --
 {-# INLINE parseArr #-}
 parseArr ::
-       (MonadIO m, MonadThrow m, Storable a)
+       (MonadIO m, MonadThrow m, Unboxed a)
     => ASF.Parser m a b
     -> SerialT m (A.Array a)
     -> m (b, SerialT m (A.Array a))
@@ -818,7 +818,7 @@ parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 -- /Pre-release/
 --
 {-# INLINE runArrayFold #-}
-runArrayFold :: (MonadIO m, MonadThrow m, Storable a) =>
+runArrayFold :: (MonadIO m, MonadThrow m, Unboxed a) =>
     ArrayFold m a b -> SerialT m (A.Array a) -> m b
 runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 
@@ -827,7 +827,7 @@ runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 -- /Pre-release/
 --
 {-# INLINE runArrayFoldBreak #-}
-runArrayFoldBreak :: (MonadIO m, MonadThrow m, Storable a) =>
+runArrayFoldBreak :: (MonadIO m, MonadThrow m, Unboxed a) =>
     ArrayFold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
 runArrayFoldBreak (ArrayFold p) s =
     second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
@@ -842,7 +842,7 @@ data ParseChunksState x inpBuf st pst =
 
 {-# INLINE_NORMAL runArrayFoldManyD #-}
 runArrayFoldManyD
-    :: (MonadThrow m, Storable a)
+    :: (MonadThrow m, Unboxed a)
     => ArrayFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m b
@@ -970,7 +970,7 @@ runArrayFoldManyD
 -- /Pre-release/
 {-# INLINE runArrayFoldMany #-}
 runArrayFoldMany
-    :: (IsStream t, MonadThrow m, Storable a)
+    :: (IsStream t, MonadThrow m, Unboxed a)
     => ArrayFold m a b
     -> t m (Array a)
     -> t m b

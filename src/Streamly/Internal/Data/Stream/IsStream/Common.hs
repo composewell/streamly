@@ -79,7 +79,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Internal.Data.Unboxed (Storable, Unboxed)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
@@ -499,7 +499,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 --
 -- /Pre-release/
 {-# INLINE reverse' #-}
-reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
+reverse' :: (IsStream t, MonadIO m, Unboxed a) => t m a -> t m a
 -- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 reverse' =
         fromStreamD

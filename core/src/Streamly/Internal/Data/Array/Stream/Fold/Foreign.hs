@@ -60,7 +60,7 @@ import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
+import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unboxed)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
@@ -97,7 +97,7 @@ newtype ArrayFold m a b = ArrayFold (ParserD.Parser m (Array a) b)
 --
 -- /Pre-release/
 {-# INLINE fromFold #-}
-fromFold :: forall m a b. (MonadIO m, Storable a) =>
+fromFold :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold.Fold m a b -> ArrayFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
     ArrayFold (ParserD.Parser step initial fextract)
@@ -135,7 +135,7 @@ fromFold (Fold.Fold fstep finitial fextract) =
 --
 -- /Pre-release/
 {-# INLINE fromParserD #-}
-fromParserD :: forall m a b. (MonadIO m, Storable a) =>
+fromParserD :: forall m a b. (MonadIO m, Unboxed a) =>
     ParserD.Parser m a b -> ArrayFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
     ArrayFold (ParserD.Parser step initial1 extract1)
@@ -177,7 +177,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 --
 -- /Pre-release/
 {-# INLINE fromParser #-}
-fromParser :: forall m a b. (MonadThrow m, MonadIO m, Storable a) =>
+fromParser :: forall m a b. (MonadThrow m, MonadIO m, Unboxed a) =>
     Parser.Parser m a b -> ArrayFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 
@@ -301,7 +301,7 @@ instance MonadThrow m => Monad (ArrayFold m a) where
 
 -- | Take @n@ array elements (@a@) from a stream of arrays (@Array a@).
 {-# INLINE take #-}
-take :: forall m a b. (Monad m, Storable a) =>
+take :: forall m a b. (Monad m, Unboxed a) =>
     Int -> ArrayFold m a b -> ArrayFold m a b
 take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
     ArrayFold $ ParserD.Parser step initial extract

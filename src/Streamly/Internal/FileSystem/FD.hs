@@ -120,7 +120,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.Unboxed (Storable)
+import Streamly.Internal.Data.Unboxed (Unboxed)
 -- import System.IO (Handle, hGetBufSome, hPutBuf)
 import System.IO (IOMode)
 import Prelude hiding (read)
@@ -237,7 +237,7 @@ readArrayUpto size (Handle fd) = do
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: Storable a => Handle -> Array a -> IO ()
+writeArray :: Unboxed a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr =
     asPtrUnsafe arr $ \p ->
@@ -334,7 +334,7 @@ readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
+-- read :: (IsStream t, MonadIO m, Unboxed a) => Handle -> t m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -353,7 +353,7 @@ read = AS.concat . readArrays
 --
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Storable a) => Handle -> Stream m (Array a) -> m ()
+writeArrays :: (MonadIO m, Unboxed a) => Handle -> Stream m (Array a) -> m ()
 writeArrays h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
@@ -363,7 +363,7 @@ writeArrays h = S.mapM_ (liftIO . writeArray h)
 --
 -- @since 0.7.0
 {-# INLINE writeArraysPackedUpto #-}
-writeArraysPackedUpto :: (MonadIO m, Storable a)
+writeArraysPackedUpto :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Stream m (Array a) -> m ()
 writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
@@ -422,7 +422,7 @@ write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
+write :: (MonadIO m, Unboxed a) => Handle -> Stream m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
@@ -481,7 +481,7 @@ readLines h f = foldLines (readUtf8 h) f
 --
 -- @since 0.7.0
 {-# INLINE readFrames #-}
-readFrames :: (IsStream t, MonadIO m, Storable a)
+readFrames :: (IsStream t, MonadIO m, Unboxed a)
     => Array a -> Handle -> Fold m a b -> t m b
 readFrames = undefined -- foldFrames . read
 
@@ -490,7 +490,7 @@ readFrames = undefined -- foldFrames . read
 --
 -- @since 0.7.0
 {-# INLINE writeByFrames #-}
-writeByFrames :: (IsStream t, MonadIO m, Storable a)
+writeByFrames :: (IsStream t, MonadIO m, Unboxed a)
     => Array a -> Handle -> t m a -> m ()
 writeByFrames = undefined
 
@@ -508,7 +508,7 @@ writeByFrames = undefined
 --
 -- @since 0.7.0
 {-# INLINE readIndex #-}
-readIndex :: Storable a => Handle -> Int -> Maybe a
+readIndex :: Unboxed a => Handle -> Int -> Maybe a
 readIndex arr i = undefined
 
 -- NOTE: To represent a range to read we have chosen (start, size) instead of
@@ -528,7 +528,7 @@ readIndex arr i = undefined
 -- chunk is aligned with @chunkSize@ from second chunk onwards.
 --
 {-# INLINE readSliceWith #-}
-readSliceWith :: (IsStream t, MonadIO m, Storable a)
+readSliceWith :: (IsStream t, MonadIO m, Unboxed a)
     => Int -> Handle -> Int -> Int -> t m a
 readSliceWith chunkSize h pos len = undefined
 
@@ -538,7 +538,7 @@ readSliceWith chunkSize h pos len = undefined
 --
 -- @since 0.7.0
 {-# INLINE readSlice #-}
-readSlice :: (IsStream t, MonadIO m, Storable a)
+readSlice :: (IsStream t, MonadIO m, Unboxed a)
     => Handle -> Int -> Int -> t m a
 readSlice = readSliceWith defaultChunkSize
 
@@ -548,7 +548,7 @@ readSlice = readSliceWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readSliceRev #-}
-readSliceRev :: (IsStream t, MonadIO m, Storable a)
+readSliceRev :: (IsStream t, MonadIO m, Unboxed a)
     => Handle -> Int -> Int -> t m a
 readSliceRev h i count = undefined
 
@@ -556,7 +556,7 @@ readSliceRev h i count = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeIndex #-}
-writeIndex :: (MonadIO m, Storable a) => Handle -> Int -> a -> m ()
+writeIndex :: (MonadIO m, Unboxed a) => Handle -> Int -> a -> m ()
 writeIndex h i a = undefined
 
 -- | @writeSlice h i count stream@ writes a stream to the file handle @h@
@@ -565,7 +565,7 @@ writeIndex h i a = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSlice #-}
-writeSlice :: (IsStream t, Monad m, Storable a)
+writeSlice :: (IsStream t, Monad m, Unboxed a)
     => Handle -> Int -> Int -> t m a -> m ()
 writeSlice h i len s = undefined
 
@@ -575,7 +575,7 @@ writeSlice h i len s = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSliceRev #-}
-writeSliceRev :: (IsStream t, Monad m, Storable a)
+writeSliceRev :: (IsStream t, Monad m, Unboxed a)
     => Handle -> Int -> Int -> t m a -> m ()
 writeSliceRev arr i len s = undefined
 -}

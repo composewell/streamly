@@ -89,7 +89,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type (ArrayContents)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Unboxed (Storable, peekWith, sizeOf)
+import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
@@ -125,7 +125,7 @@ import qualified Data.Foldable as F
 
 -- $arrayNotes
 --
--- We can use a 'Storable' constraint in the Array type and the constraint can
+-- We can use an 'Unboxed' constraint in the Array type and the constraint can
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
 -- Investigate a GHC improvement possiblity.
@@ -134,7 +134,7 @@ import qualified Data.Foldable as F
 --
 data Array a =
 #ifdef DEVBUILD
-    Storable a =>
+    Unboxed a =>
 #endif
     -- All offsets are in terms of bytes from the start of arraycontents
     Array
@@ -182,7 +182,7 @@ unsafeFreeze (MA.Array ac as ae _) = Array ac as ae
 -- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
-unsafeFreezeWithShrink :: Storable a => MA.Array a -> Array a
+unsafeFreezeWithShrink :: Unboxed a => MA.Array a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
   MA.Array ac as ae _ <- MA.rightSize arr
   return $ Array ac as ae
@@ -217,7 +217,7 @@ unpin = fmap unsafeFreeze . MA.unpin . unsafeThaw
 
 -- Splice two immutable arrays creating a new array.
 {-# INLINE splice #-}
-splice :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+splice :: (MonadIO m, Unboxed a) => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
     unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
 
@@ -229,7 +229,7 @@ splice arr1 arr2 =
 --
 -- @since 0.8.0
 {-# INLINABLE fromListN #-}
-fromListN :: Storable a => Int -> [a] -> Array a
+fromListN :: Unboxed a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 
 -- | Create an 'Array' from the first N elements of a list in reverse order.
@@ -238,7 +238,7 @@ fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 --
 -- /Pre-release/
 {-# INLINABLE fromListRevN #-}
-fromListRevN :: Storable a => Int -> [a] -> Array a
+fromListRevN :: Unboxed a => Int -> [a] -> Array a
 fromListRevN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRevN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
@@ -247,7 +247,7 @@ fromListRevN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRevN n xs
 --
 -- @since 0.8.0
 {-# INLINE fromList #-}
-fromList :: Storable a => [a] -> Array a
+fromList :: Unboxed a => [a] -> Array a
 fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 
 -- | Create an 'Array' from a list in reverse order. The list must be of finite
@@ -255,16 +255,16 @@ fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 --
 -- /Pre-release/
 {-# INLINABLE fromListRev #-}
-fromListRev :: Storable a => [a] -> Array a
+fromListRev :: Unboxed a => [a] -> Array a
 fromListRev xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRev xs
 
 {-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: forall m a. (MonadIO m, Storable a)
+fromStreamDN :: forall m a. (MonadIO m, Unboxed a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 
 {-# INLINE_NORMAL fromStreamD #-}
-fromStreamD :: forall m a. (MonadIO m, Storable a)
+fromStreamD :: forall m a. (MonadIO m, Unboxed a)
     => D.Stream m a -> m (Array a)
 fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 
@@ -273,14 +273,14 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 -------------------------------------------------------------------------------
 
 {-# INLINE bufferChunks #-}
-bufferChunks :: (MonadIO m, Storable a) =>
+bufferChunks :: (MonadIO m, Unboxed a) =>
     D.Stream m a -> m (K.Stream m (Array a))
 bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -- | @arraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 {-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Storable a)
+arraysOf :: forall m a. (MonadIO m, Unboxed a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
 
@@ -291,7 +291,7 @@ arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
 -- We can try this if there are any fusion issues in the unfold.
 --
 {-# INLINE_NORMAL flattenArrays #-}
-flattenArrays :: forall m a. (MonadIO m, Storable a)
+flattenArrays :: forall m a. (MonadIO m, Unboxed a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays = MA.flattenArrays . D.map unsafeThaw
 
@@ -302,7 +302,7 @@ flattenArrays = MA.flattenArrays . D.map unsafeThaw
 -- We can try this if there are any fusion issues in the unfold.
 --
 {-# INLINE_NORMAL flattenArraysRev #-}
-flattenArraysRev :: forall m a. (MonadIO m, Storable a)
+flattenArraysRev :: forall m a. (MonadIO m, Unboxed a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev = MA.flattenArraysRev . D.map unsafeThaw
 
@@ -322,12 +322,12 @@ breakOn sep arr = do
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL unsafeIndexIO #-}
-unsafeIndexIO :: forall a. Storable a => Int -> Array a -> IO a
+unsafeIndexIO :: forall a. Unboxed a => Int -> Array a -> IO a
 unsafeIndexIO i arr = MA.getIndexUnsafe i (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
-unsafeIndex :: forall a. Storable a => Int -> Array a -> a
+unsafeIndex :: forall a. Unboxed a => Int -> Array a -> a
 unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
 
 -- | /O(1)/ Get the byte length of the array.
@@ -344,31 +344,31 @@ byteLength = MA.byteLength . unsafeThaw
 --
 -- @since 0.8.0
 {-# INLINE length #-}
-length :: Storable a => Array a -> Int
+length :: Unboxed a => Array a -> Int
 length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --
 -- @since 0.8.0
 {-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readRev :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
 readRev = Unfold.lmap unsafeThaw $ MA.readRevWith (return . unsafeInlineIO)
 
 {-# INLINE_NORMAL toStreamD #-}
-toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
+toStreamD :: forall m a. (Monad m, Unboxed a) => Array a -> D.Stream m a
 toStreamD arr = MA.toStreamDWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
+toStreamK :: forall m a. (Monad m, Unboxed a) => Array a -> K.Stream m a
 toStreamK arr = MA.toStreamKWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
+toStreamDRev :: forall m a. (Monad m, Unboxed a) => Array a -> D.Stream m a
 toStreamDRev arr =
     MA.toStreamDRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. (Monad m, Storable a) => Array a -> K.Stream m a
+toStreamKRev :: forall m a. (Monad m, Unboxed a) => Array a -> K.Stream m a
 toStreamKRev arr =
     MA.toStreamKRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
@@ -376,7 +376,7 @@ toStreamKRev arr =
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, Storable a) => Array a -> Stream m a
+toStream :: (Monad m, Unboxed a) => Array a -> Stream m a
 toStream = Stream.fromStreamD . toStreamD
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
@@ -386,7 +386,7 @@ toStream = Stream.fromStreamD . toStreamD
 --
 -- /Pre-release/
 {-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, Storable a) => Array a -> Stream m a
+toStreamRev :: (Monad m, Unboxed a) => Array a -> Stream m a
 toStreamRev = Stream.fromStreamD . toStreamDRev
 
 -- XXX add fallback to StreamK rule
@@ -394,18 +394,18 @@ toStreamRev = Stream.fromStreamD . toStreamDRev
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
 {-# INLINE_NORMAL foldl' #-}
-foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
+foldl' :: forall a b. Unboxed a => (b -> a -> b) -> b -> Array a -> b
 foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 
 {-# INLINE_NORMAL foldr #-}
-foldr :: Storable a => (a -> b -> b) -> b -> Array a -> b
+foldr :: Unboxed a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
 -- @since 0.7.0
-splitAt :: Storable a => Int -> Array a -> (Array a, Array a)
+splitAt :: Unboxed a => Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
   where
     (a, b) = MA.splitAt i (unsafeThaw arr)
@@ -413,7 +413,7 @@ splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
 {-# INLINE_LATE toListFB #-}
-toListFB :: forall a b. Storable a => (a -> b -> b) -> b -> Array a -> b
+toListFB :: forall a b. Unboxed a => (a -> b -> b) -> b -> Array a -> b
 toListFB c n Array{..} = go arrStart
     where
 
@@ -434,7 +434,7 @@ toListFB c n Array{..} = go arrStart
 --
 -- @since 0.8.0
 {-# INLINE toList #-}
-toList :: Storable a => Array a -> [a]
+toList :: Unboxed a => Array a -> [a]
 toList s = build (\c n -> toListFB c n s)
 
 -------------------------------------------------------------------------------
@@ -448,7 +448,7 @@ toList s = build (\c n -> toListFB c n s)
 --
 -- @since 0.8.0
 {-# INLINE_NORMAL writeN #-}
-writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
 
 -- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
@@ -457,7 +457,7 @@ writeN = fmap unsafeFreeze . MA.writeN
 -- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
-writeNAligned :: forall m a. (MonadIO m, Storable a)
+writeNAligned :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Int -> Fold m a (Array a)
 writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 
@@ -469,12 +469,12 @@ writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
-writeNUnsafe :: forall m a. (MonadIO m, Storable a)
+writeNUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
 writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
 
 {-# INLINE_NORMAL writeWith #-}
-writeWith :: forall m a. (MonadIO m, Storable a)
+writeWith :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
 -- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
 writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
@@ -487,18 +487,18 @@ writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
 --
 -- @since 0.8.0
 {-# INLINE write #-}
-write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+write :: forall m a. (MonadIO m, Unboxed a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write
 
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
 
-instance (Show a, Storable a) => Show (Array a) where
+instance (Show a, Unboxed a) => Show (Array a) where
     {-# INLINE showsPrec #-}
     showsPrec _ = shows . toList
 
-instance (Storable a, Read a, Show a) => Read (Array a) where
+instance (Unboxed a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
     readPrec = fromList <$> readPrec
     readListPrec = readListPrecDefault
@@ -508,7 +508,7 @@ instance (a ~ Char) => IsString (Array a) where
     fromString = fromList
 
 -- GHC versions 8.0 and below cannot derive IsList
-instance Storable a => IsList (Array a) where
+instance Unboxed a => IsList (Array a) where
     type (Item (Array a)) = a
     {-# INLINE fromList #-}
     fromList = fromList
@@ -517,14 +517,14 @@ instance Storable a => IsList (Array a) where
     {-# INLINE toList #-}
     toList = toList
 
--- XXX we are assuming that Storable equality means element equality. This may
+-- XXX we are assuming that Unboxed equality means element equality. This may
 -- or may not be correct? arrcmp is 40% faster compared to stream equality.
-instance (Storable a, Eq a) => Eq (Array a) where
+instance (Unboxed a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
     arr1 == arr2 =
         (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
 
--- Since this is a Storable array we cannot have unevaluated data in it so
+-- Since this is an Unboxed array we cannot have unevaluated data in it so
 -- this is just a no op.
 instance NFData (Array a) where
     {-# INLINE rnf #-}
@@ -533,7 +533,7 @@ instance NFData (Array a) where
 instance NFData1 Array where
     liftRnf _ Array{} = ()
 
-instance (Storable a, Ord a) => Ord (Array a) where
+instance (Unboxed a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}
     compare arr1 arr2 = runIdentity $
         D.cmpBy compare (toStreamD arr1) (toStreamD arr2)
@@ -561,7 +561,7 @@ instance (Storable a, Ord a) => Ord (Array a) where
     min x y = if x <= y then x else y
 
 #ifdef DEVBUILD
--- Definitions using the Storable constraint from the Array type. These are to
+-- Definitions using the Unboxed constraint from the Array type. These are to
 -- make the Foldable instance possible though it is much slower (7x slower).
 --
 {-# INLINE_NORMAL toStreamD_ #-}
@@ -578,7 +578,7 @@ toStreamD_ size Array{..} = D.Stream step arrStart
 
 {-
 
-XXX Why isn't Storable implicit? This does not compile unless I use the Storable
+XXX Why isn't Unboxed implicit? This does not compile unless I use the Unboxed
 contraint.
 
 {-# INLINE_NORMAL _foldr #-}
@@ -599,16 +599,16 @@ instance Foldable Array where
 -- Semigroup and Monoid
 -------------------------------------------------------------------------------
 
-instance Storable a => Semigroup (Array a) where
+instance Unboxed a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 
 nil ::
 #ifdef DEVBUILD
-    Storable a =>
+    Unboxed a =>
 #endif
     Array a
 nil = Array MA.nilArrayContents 0 0
 
-instance Storable a => Monoid (Array a) where
+instance Unboxed a => Monoid (Array a) where
     mempty = nil
     mappend = (<>)
