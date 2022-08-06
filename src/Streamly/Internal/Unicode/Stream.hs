@@ -72,6 +72,9 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8ArraysD'
     , decodeUtf8ArraysD_
 
+    -- * Decoding String Literals
+    , fromStr#
+
     -- * Deprecations
     , decodeUtf8Lax
     , encodeLatin1Lax
@@ -94,6 +97,7 @@ import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Storable (Storable(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (assert, unsafeChr)
+import GHC.Exts (Addr#)
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
@@ -114,6 +118,7 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
@@ -124,9 +129,11 @@ import Prelude hiding (lines, words, unlines, unwords)
 
 -- $setup
 -- >>> :m
+-- >>> :set -XMagicHash
 -- >>> import Prelude hiding (lines, words, unlines, unwords)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
 -- >>> import Streamly.Internal.Unicode.Stream
 
 -------------------------------------------------------------------------------
@@ -979,6 +986,25 @@ encodeUtf8_ = fromStreamD . encodeUtf8D_ . toStreamD
 {-# INLINE encodeUtf8Lax #-}
 encodeUtf8Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeUtf8Lax = encodeUtf8
+
+-------------------------------------------------------------------------------
+-- Decoding string literals
+-------------------------------------------------------------------------------
+
+-- | Read UTF-8 encoded bytes as chars from an 'Addr#' until a 0 byte is
+-- encountered, the 0 byte is not included in the stream.
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- Note that this is completely safe when reading from Haskell string
+-- literals because they are guaranteed to be NULL terminated:
+--
+-- >>> Stream.fold Fold.toList (Unicode.fromStr# "Haskell"#)
+-- "Haskell"
+--
+{-# INLINE fromStr# #-}
+fromStr# :: MonadIO m => Addr# -> SerialT m Char
+fromStr# addr = decodeUtf8 $ Stream.fromByteStr# addr
 
 -------------------------------------------------------------------------------
 -- Encode streams of containers

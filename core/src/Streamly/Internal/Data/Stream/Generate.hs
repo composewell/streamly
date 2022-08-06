@@ -30,16 +30,20 @@ module Streamly.Internal.Data.Stream.Generate
 
     -- * From memory
     , fromPtr
+    , fromPtrN
+    , fromByteStr#
+ -- , fromByteArray#
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
+import Data.Word (Word8)
 import Foreign.Storable (Storable)
-import Foreign.Ptr (Ptr)
+import GHC.Exts (Addr#, Ptr (Ptr))
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamK, toStreamK)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
@@ -48,6 +52,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import GHC.Exts (Ptr (Ptr))
 
 
 ------------------------------------------------------------------------------
@@ -151,6 +156,41 @@ fromFoldableM = Prelude.foldr Stream.consM Stream.nil
 -- From pointers
 ------------------------------------------------------------------------------
 
+-- | Keep reading 'Storable' elements from 'Ptr' onwards.
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- /Pre-release/
 {-# INLINE fromPtr #-}
-fromPtr :: (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
-fromPtr n = Stream.fromStreamD . D.fromPtr n
+fromPtr :: (MonadIO m, Storable a) => Ptr a -> Stream m a
+fromPtr = Stream.fromStreamD . D.fromPtr
+
+-- | Take @n@ 'Storable' elements starting from 'Ptr' onwards.
+--
+-- >>> fromPtrN n = Stream.take n . Stream.fromPtr
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- /Pre-release/
+{-# INLINE fromPtrN #-}
+fromPtrN :: (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
+fromPtrN n = Stream.fromStreamD . D.take n . D.fromPtr
+
+-- | Read bytes from an 'Addr#' until a 0 byte is encountered, the 0 byte is
+-- not included in the stream.
+--
+-- >>> fromByteStr# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ Ptr addr
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- Note that this is completely safe when reading from Haskell string
+-- literals because they are guaranteed to be NULL terminated:
+--
+-- >>> Stream.fold Fold.toList $ Stream.fromByteStr# "\1\2\3\0"#
+-- [1,2,3]
+--
+{-# INLINE fromByteStr# #-}
+fromByteStr# :: MonadIO m => Addr# -> Stream m Word8
+fromByteStr# addr =
+    Stream.fromStreamD $ D.takeWhile (/= 0) $ D.fromPtr $ Ptr addr
+

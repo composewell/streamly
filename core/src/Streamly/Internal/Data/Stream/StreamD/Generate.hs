@@ -470,14 +470,15 @@ fromListM = Stream step
 -- From pointers
 -------------------------------------------------------------------------------
 
+-- | Read an infinite stream from a pointer, advancing the pointer as needed.
+-- The caller is responsible to end the stream safely.
 {-# INLINE fromPtr #-}
-fromPtr :: forall m a. (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
-fromPtr count ptr = Stream step (count, ptr)
+fromPtr :: forall m a. (MonadIO m, Storable a) => Ptr a -> Stream m a
+fromPtr = Stream step
 
     where
 
     {-# INLINE_LATE step #-}
-    step _ (0, _) = return Stop
-    step _ (n, p) = do
+    step _ p = do
         x <- liftIO $ peek p
-        return $ Yield x (n - 1, PTR_NEXT(p, a))
+        return $ Yield x (PTR_NEXT(p, a))

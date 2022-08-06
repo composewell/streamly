@@ -177,7 +177,7 @@ module Streamly.Internal.Data.Unfold
     , fromList
     , fromListM
 
-    -- ** From Pointer
+    -- ** From Memory
     , fromPtr
 
     , fromStreamK
@@ -636,16 +636,15 @@ fromListM = Unfold step pure
     step [] = pure Stop
 
 {-# INLINE fromPtr #-}
-fromPtr :: forall m a. (MonadIO m, Storable a) => Unfold m (Int, Ptr a) a
+fromPtr :: forall m a. (MonadIO m, Storable a) => Unfold m (Ptr a) a
 fromPtr = Unfold step return
 
     where
 
     {-# INLINE_LATE step #-}
-    step (0, _) = return Stop
-    step (n, p) = do
+    step p = do
         x <- liftIO $ peek p
-        return $ Yield x (n - 1, PTR_NEXT(p, a))
+        return $ Yield x (PTR_NEXT(p, a))
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
