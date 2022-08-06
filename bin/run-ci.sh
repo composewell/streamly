@@ -10,7 +10,6 @@
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" || exit; pwd)
 SCRIPT_NAME=$(basename "$0")
-source "$SCRIPT_DIR/../benchmark/bench-report/bin/build-lib.sh"
 
 CABAL_BUILD_OPTIONS="--flag limit-build-mem"
 
@@ -73,9 +72,9 @@ ghc_prime_perf () {
     --argstr compiler "$GHC_PRIME_NIX" \
     --argstr c2nix "--flag inspection" \
     --run "\
-      bin/test.sh --cabal-build-options \
+      bin/test-runner --cabal-build-options \
         \"--jobs=$JOBS --project-file cabal.project.Werror $PERF_FLAGS\";\
-      bin/bench.sh --cabal-build-options \
+      bin/bench-runner --cabal-build-options \
         \"--jobs=$JOBS --project-file cabal.project.Werror $PERF_FLAGS\" \
         --quick --raw;"
 }
@@ -84,7 +83,7 @@ ghc_prime_O0 () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "\
-      bin/test.sh --cabal-build-options \
+      bin/test-runner --cabal-build-options \
         \"--jobs=$JOBS --project-file cabal.project.O0\""
 }
 
@@ -128,7 +127,7 @@ ghc_prime_doctests () {
 ghc_prime_coverage () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test.sh --cabal-build-options \"--jobs=$JOBS\" --coverage"
+    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS\" --coverage"
 }
 
 #------------------------------------------------------------------------------
@@ -139,7 +138,7 @@ ghc_prime_dev_test () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "\
-      bin/test.sh --cabal-build-options \
+      bin/test-runner --cabal-build-options \
         \"--jobs=$JOBS --flag dev\""
 }
 
@@ -147,26 +146,26 @@ ghc_prime_dev_perf () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "\
-      bin/bench.sh --cabal-build-options \
+      bin/bench-runner --cabal-build-options \
         \"--jobs=$JOBS --flag dev $PERF_FLAGS\" --quick --raw"
 }
 
 ghc_prime_c_malloc () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test.sh --cabal-build-options \"--jobs=$JOBS --flag use-c-malloc\""
+    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag use-c-malloc\""
 }
 
 ghc_prime_debug () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test.sh --cabal-build-options \"--jobs=$JOBS --flag debug\""
+    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag debug\""
 }
 
 ghc_prime_streamk () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test.sh --cabal-build-options \"--jobs=$JOBS --flag streamk\""
+    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag streamk\""
 }
 
 #------------------------------------------------------------------------------
@@ -298,6 +297,17 @@ else
     print_help
   fi
 fi
+
+has_item () {
+  for i in $1
+  do
+    if test "$i" = "$2"
+    then
+      echo "$i"
+      break
+    fi
+  done
+}
 
 for i in $TARGETS
 do
