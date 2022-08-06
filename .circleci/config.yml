@@ -387,7 +387,7 @@ jobs:
             environment:
               BUILD: cabal-v2
               HLINT_OPTIONS: lint
-              HLINT_TARGETS: src test benchmark
+              HLINT_TARGETS: core/src src test benchmark
             command: |
               bash -c "$PACKCHECK $BUILD" || exit 1
               echo "Checking trailing spaces..."
