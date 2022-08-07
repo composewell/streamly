@@ -308,6 +308,7 @@ library
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.Stream.Type
                      , Streamly.Internal.Data.Stream.Eliminate
+                     , Streamly.Internal.Data.Stream.Enumerate
                      , Streamly.Internal.Data.Stream.Generate
                      , Streamly.Internal.Data.Stream.Transform
                      , Streamly.Internal.Data.Stream.Bottom

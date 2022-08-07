@@ -94,7 +94,6 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (Storable (peek), sizeOf)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Time.Clock
     (Clock(Monotonic), asyncClock, readClock)
 import Streamly.Internal.Data.Time.Units
@@ -452,10 +451,9 @@ iterate step st = iterateM (return . step) (return st)
 -- From containers
 -------------------------------------------------------------------------------
 
--- XXX we need the MonadAsync constraint because of a rewrite rule.
 -- | Convert a list of monadic actions to a 'Stream'
 {-# INLINE_LATE fromListM #-}
-fromListM :: MonadAsync m => [m a] -> Stream m a
+fromListM :: Monad m => [m a] -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
 fromListM = unfold Unfold.fromListM
 #else

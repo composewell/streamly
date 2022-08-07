@@ -22,7 +22,7 @@
 module Stream.Exceptions (benchmarks) where
 
 import Control.Exception (SomeException, Exception, throwIO)
-import Stream.Common (drain, enumerateFromTo)
+import Stream.Common (drain)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import System.IO (Handle, hClose, hPutChar)
 
@@ -36,7 +36,6 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
 #endif
 
 import Gauge hiding (env)
@@ -59,7 +58,7 @@ replicateM :: Common.MonadAsync m => Int -> m a -> SerialT m a
 #ifdef USE_PRELUDE
 replicateM = Stream.replicateM
 #else
-replicateM = Stream.unfold . Unfold.replicateM
+replicateM n = Stream.sequence . Stream.replicate n
 #endif
 
 data BenchException
@@ -79,7 +78,7 @@ retryNoneSimple length from =
 
     where
 
-    source = enumerateFromTo from (from + length)
+    source = Stream.enumerateFromTo from (from + length)
 
 retryNone :: Int -> Int -> IO ()
 retryNone length from = do
@@ -121,7 +120,7 @@ retryUnknown length from = do
 
     where
 
-    source = enumerateFromTo from (from + length)
+    source = Stream.enumerateFromTo from (from + length)
 
 
 o_1_space_serial_exceptions :: Int -> [Benchmark]

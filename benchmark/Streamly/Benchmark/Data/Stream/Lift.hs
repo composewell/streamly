@@ -42,7 +42,7 @@ import Prelude hiding (reverse, tail)
 {-# INLINE sourceUnfoldrState #-}
 sourceUnfoldrState :: Common.MonadAsync m =>
     Int -> Int -> SerialT (StateT Int m) Int
-sourceUnfoldrState value n = Common.unfoldrM step n
+sourceUnfoldrState value n = Stream.unfoldrM step n
     where
     step cnt =
         if cnt > n + value

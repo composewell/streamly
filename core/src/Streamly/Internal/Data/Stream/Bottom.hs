@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Stream.Bottom
     -- * Generation
       fromPure
     , fromEffect
+    , fromList
     , timesWith
     , absTimesWith
     , relTimesWith
@@ -64,6 +65,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream.Common as Common
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -88,6 +90,20 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 
 ------------------------------------------------------------------------------
+-- Generation
+------------------------------------------------------------------------------
+
+-- |
+-- >>> fromList = Prelude.foldr Stream.cons Stream.nil
+--
+-- Construct a stream from a list of pure values. This is more efficient than
+-- 'fromFoldable'.
+--
+{-# INLINE fromList #-}
+fromList :: Monad m => [a] -> Stream m a
+fromList = fromStreamK . Common.fromList
+
+------------------------------------------------------------------------------
 -- Generation - Time related
 ------------------------------------------------------------------------------
 
@@ -100,8 +116,8 @@ import Streamly.Internal.Data.Stream.Type
 -- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
 --
 -- >>> import Control.Concurrent (threadDelay)
--- >>> import Streamly.Internal.Data.Stream.Generate as Stream (timesWith)
--- >>> Stream.mapM_ (\x -> print x >> threadDelay 1000000) $ Stream.take 3 $ Stream.timesWith 0.01
+-- >>> f = Fold.drainBy (\x -> print x >> threadDelay 1000000)
+-- >>> Stream.fold f $ Stream.take 3 $ Stream.timesWith 0.01
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
@@ -119,7 +135,8 @@ timesWith g = fromStreamD $ D.times g
 -- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
 -- as 1 ms.
 --
--- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimesWith 0.01
+-- >>> f = Fold.drainBy print
+-- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimesWith 0.01
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
@@ -137,7 +154,8 @@ absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
 -- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
 -- ms is treated as 1 ms.
 --
--- >>> Stream.mapM_ print $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
+-- >>> f = Fold.drainBy print
+-- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
 -- RelTime64 (NanoSecond64 ...)
 -- RelTime64 (NanoSecond64 ...)
 -- RelTime64 (NanoSecond64 ...)
@@ -172,7 +190,7 @@ foldContinue f s = D.foldContinue f $ toStreamD s
 -- 'Fold' can terminate early without consuming the full stream. See the
 -- documentation of individual 'Fold's for termination behavior.
 --
--- >>> Stream.fold Fold.sum (Stream.unfold Unfold.enumerateFromTo (1, 100))
+-- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
 -- 5050
 --
 -- Folds never fail, therefore, they produce a default value even when no input
@@ -224,7 +242,7 @@ foldBreak fl strm = fmap f $ K.foldBreak fl (toStreamK strm)
 --
 -- Same as 'fmap'.
 --
--- >>> Stream.fold Fold.toList $ fmap (+1) $ Stream.unfold Unfold.fromList [1,2,3]
+-- >>> Stream.fold Fold.toList $ fmap (+1) $ Stream.fromList [1,2,3]
 -- [2,3,4]
 --
 {-# INLINE map #-}
@@ -239,7 +257,7 @@ map f = fromStreamD . D.map f . toStreamD
 --
 -- >>> import Data.Maybe (fromJust)
 -- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
--- >>> s = Stream.unfold Unfold.enumerateFromTo (1.0, 100.0)
+-- >>> s = Stream.enumerateFromTo 1.0 100.0
 -- >>> :{
 --  Stream.fold Fold.toList
 --   $ fmap (fromJust . fst)
@@ -340,7 +358,7 @@ findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 -- | Insert an effect and its output before consuming an element of a stream
 -- except the first one.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') input
 -- h.,e.,l.,l.,o"h,e,l,l,o"
 --
@@ -433,11 +451,11 @@ concatM generator = concatMapM (\() -> generator) (fromPure ())
 -- termination aligns:
 --
 -- >>> f = Fold.take 2 Fold.sum
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList []
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList []
 -- [0]
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList [1..9]
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList [1..9]
 -- [3,7,11,15,9]
--- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.unfold Unfold.fromList [1..10]
+-- >>> Stream.fold Fold.toList $ Stream.foldManyPost f $ Stream.fromList [1..10]
 -- [3,7,11,15,19,0]
 --
 -- /Pre-release/
@@ -468,8 +486,8 @@ zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 -- If stream @a@ or stream @b@ ends, the zipped stream ends. If stream @b@ ends
 -- first, the element @a@ from previous evaluation of stream @a@ is discarded.
 --
--- >>> s1 = Stream.unfold Unfold.fromList [1,2,3]
--- >>> s2 = Stream.unfold Unfold.fromList [4,5,6]
+-- >>> s1 = Stream.fromList [1,2,3]
+-- >>> s2 = Stream.fromList [4,5,6]
 -- >>> Stream.fold Fold.toList $ Stream.zipWith (+) s1 s2
 -- [5,7,9]
 --

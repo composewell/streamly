@@ -13,10 +13,8 @@ module Stream.Common
     ( MonadAsync
 
     -- Generation
-    , enumerateFromTo
-    , replicate
-    , unfoldrM
     , fromListM
+    , fromFoldableM
 
     , append
     , append2
@@ -32,7 +30,6 @@ module Stream.Common
     , sourceUnfoldrAction
     , sourceConcatMapId
     , sourceFromFoldable
-    , sourceFromFoldableM
 
     -- Benchmark stream elimination
     , benchIOSink
@@ -78,15 +75,12 @@ import Streamly.Prelude (foldl', scanl')
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Prelude as Stream
 import Streamly.Benchmark.Prelude
-    ( composeN, sourceUnfoldr, sourceUnfoldr, sourceFromFoldable
-    , sourceFromFoldableM, sourceUnfoldrAction, sourceConcatMapId, benchIOSink
+    ( composeN, sourceConcatMapId, benchIOSink
     , concatStreamsWith, concatPairsWith
     )
 #else
 import Control.DeepSeq (NFData)
-import Streamly.Internal.Data.Stream (unfold)
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
 #endif
 
 import Gauge
@@ -118,41 +112,25 @@ append2 = Stream.append2
 drain :: Monad m => Stream m a -> m ()
 drain = Stream.fold Fold.drain
 
-{-# INLINE enumerateFromTo #-}
-enumerateFromTo :: Monad m => Int -> Int -> Stream m Int
-#ifdef USE_PRELUDE
-enumerateFromTo = Stream.enumerateFromTo
-#else
-enumerateFromTo from to = Stream.unfold Unfold.enumerateFromTo (from, to)
-#endif
-
-{-# INLINE replicate #-}
-replicate :: Monad m => Int -> a -> Stream m a
-#ifdef USE_PRELUDE
-replicate = Stream.replicate
-#else
-replicate n = Stream.unfold (Unfold.replicateM n) . return
-#endif
-
-{-# INLINE unfoldrM #-}
-unfoldrM :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> Stream m a
-#ifdef USE_PRELUDE
-unfoldrM = Stream.unfoldrM
-#else
-unfoldrM step = Stream.unfold (Unfold.unfoldrM step)
-#endif
-
 {-# INLINE fromListM #-}
 fromListM :: MonadAsync m => [m a] -> Stream m a
 #ifdef USE_PRELUDE
 fromListM = Stream.fromListM
 #else
-fromListM = Stream.unfold Unfold.fromListM
+fromListM = Stream.sequence . Stream.fromList
+#endif
+
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: MonadAsync m => [m a] -> Stream m a
+#ifdef USE_PRELUDE
+fromFoldableM = Stream.fromFoldableM
+#else
+fromFoldableM = Stream.sequence . Stream.fromFoldable
 #endif
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: MonadAsync m => Int -> Int -> Stream m Int
-sourceUnfoldrM count start = unfoldrM step start
+sourceUnfoldrM count start = Stream.unfoldrM step start
 
     where
 
@@ -161,10 +139,9 @@ sourceUnfoldrM count start = unfoldrM step start
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-#ifndef USE_PRELUDE
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: Monad m => Int -> Int -> Stream m Int
-sourceUnfoldr count start = unfold (Unfold.unfoldr step) start
+sourceUnfoldr count start = Stream.unfoldr step start
 
     where
 
@@ -175,7 +152,7 @@ sourceUnfoldr count start = unfold (Unfold.unfoldr step) start
 
 {-# INLINE sourceUnfoldrAction #-}
 sourceUnfoldrAction :: (Monad m1, Monad m) => Int -> Int -> Stream m (m1 Int)
-sourceUnfoldrAction value n = unfold (Unfold.unfoldr step) n
+sourceUnfoldrAction value n = Stream.unfoldr step n
 
     where
 
@@ -188,10 +165,7 @@ sourceUnfoldrAction value n = unfold (Unfold.unfoldr step) n
 sourceFromFoldable :: Int -> Int -> Stream m Int
 sourceFromFoldable value n = Stream.fromFoldable [n..n+value]
 
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: Monad m => Int -> Int -> Stream m Int
-sourceFromFoldableM value n = Stream.fromFoldableM (fmap return [n..n+value])
-
+#ifndef USE_PRELUDE
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: (NFData b)

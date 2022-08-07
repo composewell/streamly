@@ -13,26 +13,23 @@ module Stream.Generate (benchmarks) where
 
 import Data.Functor.Identity (Identity)
 
+import qualified GHC.Exts as GHC
 import qualified Stream.Common as Common
 #ifdef USE_PRELUDE
-import qualified GHC.Exts as GHC
+import Streamly.Benchmark.Prelude (sourceFromFoldableM, absTimes)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import qualified Prelude
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
+import qualified Prelude
 
 import Gauge
 import Streamly.Benchmark.Common
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 #ifdef USE_PRELUDE
 import Streamly.Prelude (MonadAsync)
-import Stream.Common hiding (MonadAsync, replicate, enumerateFromTo)
-import Streamly.Benchmark.Prelude hiding
-    (benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
-    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
-    , breakAfterSome, toListM, toListSome)
+import Stream.Common hiding (MonadAsync)
 #else
 import Stream.Common
 #endif
@@ -49,7 +46,14 @@ import Prelude hiding (repeat, replicate, iterate)
 -- fromList
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
+{-# INLINE sourceFromList #-}
+sourceFromList :: Monad m => Int -> Int -> SerialT m Int
+sourceFromList value n = Stream.fromList [n..n+value]
+
+{-# INLINE sourceFromListM #-}
+sourceFromListM :: MonadAsync m => Int -> Int -> SerialT m Int
+sourceFromListM value n = fromListM (fmap return [n..n+value])
+
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> SerialT Identity Int
 sourceIsList value n = GHC.fromList [n..n+value]
@@ -57,7 +61,6 @@ sourceIsList value n = GHC.fromList [n..n+value]
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Int -> SerialT Identity Char
 sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
-#endif
 
 {-# INLINE readInstance #-}
 readInstance :: String -> SerialT Identity Int
@@ -76,56 +79,83 @@ readInstanceList str =
         [(x,"")] -> x
         _ -> error "readInstance: no parse"
 
-#ifdef USE_PRELUDE
 {-# INLINE repeat #-}
-repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-repeat count = S.take count . S.repeat
-
-{-# INLINE repeatM #-}
-repeatM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-repeatM count = S.take count . S.repeatM . return
+repeat :: Monad m => Int -> Int -> SerialT m Int
+repeat count = Stream.take count . Stream.repeat
 
 {-# INLINE replicate #-}
-replicate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-replicate = S.replicate
+replicate :: Monad m => Int -> Int -> SerialT m Int
+replicate = Stream.replicate
 
-{-# INLINE replicateM #-}
-replicateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-replicateM count = S.replicateM count . return
+-------------------------------------------------------------------------------
+-- enumerate
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceIntFromTo #-}
+sourceIntFromTo :: Monad m => Int -> Int -> SerialT m Int
+sourceIntFromTo value n = Stream.enumerateFromTo n (n + value)
+
+{-# INLINE sourceIntFromThenTo #-}
+sourceIntFromThenTo :: Monad m => Int -> Int -> SerialT m Int
+sourceIntFromThenTo value n = Stream.enumerateFromThenTo n (n + 1) (n + value)
+
+{-# INLINE sourceFracFromTo #-}
+sourceFracFromTo :: Monad m => Int -> Int -> SerialT m Double
+sourceFracFromTo value n =
+    Stream.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
+
+{-# INLINE sourceFracFromThenTo #-}
+sourceFracFromThenTo :: Monad m => Int -> Int -> SerialT m Double
+sourceFracFromThenTo value n = Stream.enumerateFromThenTo (fromIntegral n)
+    (fromIntegral n + 1.0001) (fromIntegral (n + value))
+
+{-# INLINE sourceIntegerFromStep #-}
+sourceIntegerFromStep :: Monad m => Int -> Int -> SerialT m Integer
+sourceIntegerFromStep value n =
+    Stream.take value $ Stream.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
 
 {-# INLINE enumerateFrom #-}
-enumerateFrom :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-enumerateFrom count = S.take count . S.enumerateFrom
+enumerateFrom :: Monad m => Int -> Int -> SerialT m Int
+enumerateFrom count = Stream.take count . Stream.enumerateFrom
 
 {-# INLINE enumerateFromTo #-}
-enumerateFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFromTo :: Monad m => Int -> Int -> SerialT m Int
 enumerateFromTo = sourceIntFromTo
 
 {-# INLINE enumerateFromThen #-}
-enumerateFromThen :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-enumerateFromThen count inp = S.take count $ S.enumerateFromThen inp (inp + 1)
+enumerateFromThen :: Monad m => Int -> Int -> SerialT m Int
+enumerateFromThen count inp = Stream.take count $ Stream.enumerateFromThen inp (inp + 1)
 
 {-# INLINE enumerateFromThenTo #-}
-enumerateFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+enumerateFromThenTo :: Monad m => Int -> Int -> SerialT m Int
 enumerateFromThenTo = sourceIntFromThenTo
 
 -- n ~ 1
 {-# INLINE enumerate #-}
-enumerate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-enumerate count n = S.take (count + n) S.enumerate
+enumerate :: Monad m => Int -> Int -> SerialT m Int
+enumerate count n = Stream.take (count + n) Stream.enumerate
 
 -- n ~ 1
 {-# INLINE enumerateTo #-}
-enumerateTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-enumerateTo count n = S.enumerateTo (minBound + count + n)
+enumerateTo :: Monad m => Int -> Int -> SerialT m Int
+enumerateTo count n = Stream.enumerateTo (minBound + count + n)
 
 {-# INLINE iterate #-}
-iterate :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-iterate count = S.take count . S.iterate (+1)
+iterate :: Monad m => Int -> Int -> SerialT m Int
+iterate count = Stream.take count . Stream.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-iterateM count = S.take count . S.iterateM (return . (+1)) . return
+iterateM :: MonadAsync m => Int -> Int -> SerialT m Int
+iterateM count = Stream.take count . Stream.iterateM (return . (+1)) . return
+
+#ifdef USE_PRELUDE
+{-# INLINE repeatM #-}
+repeatM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+repeatM count = S.take count . S.repeatM . return
+
+{-# INLINE replicateM #-}
+replicateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+replicateM count = S.replicateM count . return
 
 {-# INLINE fromIndices #-}
 fromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
@@ -151,37 +181,37 @@ o_1_space_generation value =
     [ bgroup "generation"
         [ benchIOSrc "unfoldr" (sourceUnfoldr value)
         , benchIOSrc "unfoldrM" (sourceUnfoldrM value)
-#ifdef USE_PRELUDE
         , benchIOSrc "repeat" (repeat value)
-        , benchIOSrc "repeatM" (repeatM value)
         , benchIOSrc "replicate" (replicate value)
-        , benchIOSrc "replicateM" (replicateM value)
         , benchIOSrc "iterate" (iterate value)
         , benchIOSrc "iterateM" (iterateM value)
-        , benchIOSrc "fromIndices" (fromIndices value)
-        , benchIOSrc "fromIndicesM" (fromIndicesM value)
         , benchIOSrc "intFromTo" (sourceIntFromTo value)
         , benchIOSrc "intFromThenTo" (sourceIntFromThenTo value)
         , benchIOSrc "integerFromStep" (sourceIntegerFromStep value)
         , benchIOSrc "fracFromThenTo" (sourceFracFromThenTo value)
         , benchIOSrc "fracFromTo" (sourceFracFromTo value)
         , benchIOSrc "fromList" (sourceFromList value)
+        , benchIOSrc "fromListM" (sourceFromListM value)
         , benchPureSrc "IsList.fromList" (sourceIsList value)
         , benchPureSrc "IsString.fromString" (sourceIsString value)
-        , benchIOSrc "fromListM" (sourceFromListM value)
         , benchIOSrc "enumerateFrom" (enumerateFrom value)
         , benchIOSrc "enumerateFromTo" (enumerateFromTo value)
         , benchIOSrc "enumerateFromThen" (enumerateFromThen value)
         , benchIOSrc "enumerateFromThenTo" (enumerateFromThenTo value)
         , benchIOSrc "enumerate" (enumerate value)
         , benchIOSrc "enumerateTo" (enumerateTo value)
+#ifdef USE_PRELUDE
+        , benchIOSrc "repeatM" (repeatM value)
+        , benchIOSrc "replicateM" (replicateM value)
+        , benchIOSrc "fromIndices" (fromIndices value)
+        , benchIOSrc "fromIndicesM" (fromIndicesM value)
 #endif
 
           -- These essentially test cons and consM
         , benchIOSrc "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
 
 #ifdef USE_PRELUDE
+        , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
         , benchIOSrc "absTimes" $ absTimes value
 #endif
         , Common.benchIOSrc "mfix_10" (mfixUnfold 10)

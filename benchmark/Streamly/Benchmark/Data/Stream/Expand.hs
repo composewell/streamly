@@ -32,15 +32,14 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
+import Streamly.Benchmark.Prelude (benchIO)
 import qualified Stream.Common as Common
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import Streamly.Benchmark.Prelude hiding
-    (benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
-    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
-    , breakAfterSome, toListM, toListSome)
+import Streamly.Benchmark.Prelude
+    ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
+    , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream as S
 #endif
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -214,7 +213,7 @@ inspect $ 'concatMapPure `hasNoType` ''SPEC
 {-# INLINE concatMapRepl #-}
 concatMapRepl :: Int -> Int -> Int -> IO ()
 concatMapRepl outer inner n =
-    drain $ S.concatMap (Common.replicate inner) (sourceUnfoldrM outer n)
+    drain $ S.concatMap (S.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl
@@ -423,7 +422,7 @@ o_n_space_monad value =
         , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
             toListSome value
         , benchIO "naive prime sieve (n/4)"
-            (\n -> S.fold Fold.sum $ sieve $ enumerateFromTo 2 (value `div` 4 + n))
+            (\n -> S.fold Fold.sum $ sieve $ S.enumerateFromTo 2 (value `div` 4 + n))
         ]
     ]
 

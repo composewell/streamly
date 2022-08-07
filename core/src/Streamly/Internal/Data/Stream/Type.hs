@@ -294,6 +294,7 @@ fromPure = fromStreamK . K.fromPure
 -- | Create a singleton stream from a monadic action.
 --
 -- >>> fromEffect m = m `consM` Stream.nil
+-- >>> fromEffect = Stream.sequence . Stream.fromPure
 --
 -- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
 -- hello

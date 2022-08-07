@@ -32,11 +32,7 @@ import qualified Prelude
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as Unfold
 #ifdef USE_PRELUDE
-import Streamly.Benchmark.Prelude hiding
-    ( benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2, toNullAp
-    , monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM, filterSome
-    , breakAfterSome, toListM, toListSome, transformMapM, transformComposeMapM
-    , transformTeeMapM, transformZipMapM, mapN, mapM)
+import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
@@ -247,7 +243,7 @@ o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
     [ bgroup "mapping"
         [ benchIO "naive prime sieve"
-            (\n -> Stream.fold FL.sum $ sieveScan $ Common.enumerateFromTo 2 (value + n))
+            (\n -> Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n))
         ]
     ]
 
