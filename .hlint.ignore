@@ -1,5 +1,4 @@
 core/src/Streamly/Internal/Data/Fold.hs
-core/src/Streamly/Internal/Data/Parser/ParserD/Type.hs
 core/src/Streamly/Internal/Data/Unboxed.hs
 core/src/Streamly/Internal/Data/Array/Unboxed.hs
 core/src/Streamly/Internal/Data/Array/Unboxed/Type.hs

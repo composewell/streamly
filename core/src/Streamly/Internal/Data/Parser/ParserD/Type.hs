@@ -381,7 +381,7 @@ extractStep f res =
         Error err -> return $ Error err
 
 {-# INLINE mapStateStep #-}
-mapStateStep :: (s -> s1) -> Step s b -> (Step s1 b)
+mapStateStep :: (s -> s1) -> Step s b -> Step s1 b
 mapStateStep f res =
     case res of
         Partial n s1 -> Partial n $ f s1
