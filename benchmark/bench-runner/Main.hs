@@ -76,9 +76,9 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.generation.show" `isSuffixOf` benchName = "-M32M"
         | "Data.Array/o-1-space.transformationX4.map" == benchName = "-M32M"
-        | "Data.Array.Foreign/o-1-space.elimination.foldable.foldl"
+        | "Data.Array.Unboxed/o-1-space.elimination.foldable.foldl"
              `isPrefixOf` benchName = "-K8M"
-        | "Data.Array.Foreign/o-1-space.elimination.foldable.sum" == benchName =
+        | "Data.Array.Unboxed/o-1-space.elimination.foldable.sum" == benchName =
             "-K8M"
         | "Unicode.Char/o-1-space." `isPrefixOf` benchName = "-M32M"
         | otherwise = ""

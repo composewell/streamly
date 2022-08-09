@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Array.Foreign.Mut
+-- Module      : Streamly.Benchmark.Data.Array.Unboxed.Mut
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -264,7 +264,7 @@ o_1_space_serial_marray value ~(array, indices) =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Array.Foreign.Mut"
+moduleName = "Data.Array.Unboxed.Mut"
 
 main :: IO ()
 main = do
