@@ -96,7 +96,11 @@ jobs:
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
-        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw
+        for i in $CI_BENCHMARKS
+        do
+          cabal run bench-runner --project-file=cabal.project.report -- --targets $i --raw || \
+              echo "Warning: target $i does not exist in the master branch."
+        done
 
     - name: Move charts to charts-master
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
