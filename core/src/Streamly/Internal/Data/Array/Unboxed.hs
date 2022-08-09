@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Foreign
+-- Module      : Streamly.Internal.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3

@@ -94,13 +94,13 @@ targets =
             , "array_cmp"
             ]
       )
-    , ("Data.Array.Foreign",
+    , ("Data.Array.Unboxed",
             [ "array_grp"
             , "array_cmp"
             , "pinned_array_cmp"
             ]
       )
-    , ("Data.Array.Foreign.Mut",
+    , ("Data.Array.Unboxed.Mut",
             [ "array_grp"
             , "array_cmp"
             , "noTest"

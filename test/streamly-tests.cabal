@@ -223,11 +223,11 @@ test-suite Data.Array
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
 
-test-suite Data.Array.Foreign
+test-suite Data.Array.Unboxed
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Foreign.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Foreign.main
+  main-is: Streamly/Test/Data/Array/Unboxed.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.main
 
 test-suite Data.Ring.Unboxed
   import: test-options

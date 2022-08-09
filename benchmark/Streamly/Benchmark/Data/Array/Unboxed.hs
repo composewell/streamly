@@ -114,7 +114,7 @@ o_n_heap_serial value =
     ]
 
 moduleName :: String
-moduleName = "Data.Array.Foreign"
+moduleName = "Data.Array.Unboxed"
 
 defStreamSize :: Int
 defStreamSize = defaultStreamSize
