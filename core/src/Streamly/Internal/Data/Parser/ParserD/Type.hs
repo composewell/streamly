@@ -462,15 +462,15 @@ parseDToK
     -> (s -> m b)
     -> Int
     -> (Int, Int)
-    -> ((Int, Int) -> K.Parse b -> m (K.Driver m a r))
-    -> m (K.Driver m a r)
+    -> ((Int, Int) -> K.Parse b -> m (K.Step m a r))
+    -> m (K.Step m a r)
 
 parseDToK pstep initial extract leftover (0, _) cont = do
     res <- initial
     case res of
         IPartial r -> return $ K.Continue leftover (parseCont (return r))
-        IDone b -> cont (0,0) (K.Done 0 b)
-        IError err -> cont (0,0) (K.Error err)
+        IDone b -> cont (0,0) (K.Success 0 b)
+        IError err -> cont (0,0) (K.Failure err)
 
     where
 
@@ -478,8 +478,8 @@ parseDToK pstep initial extract leftover (0, _) cont = do
         r <- pst
         pRes <- pstep r x
         case pRes of
-            Done n b -> cont (0,0) (K.Done n b)
-            Error err -> cont (0,0) (K.Error err)
+            Done n b -> cont (0,0) (K.Success n b)
+            Error err -> cont (0,0) (K.Failure err)
             Partial n pst1 -> return $ K.Partial n (parseCont (return pst1))
             Continue n pst1 -> return $ K.Continue n (parseCont (return pst1))
 
@@ -487,15 +487,15 @@ parseDToK pstep initial extract leftover (0, _) cont = do
         pst <- acc
         r <- try $ extract pst
         case r of
-            Left (e :: ParseError) -> cont (0,0) (K.Error (displayException e))
-            Right b -> cont (0,0) (K.Done 0 b)
+            Left (e :: ParseError) -> cont (0,0) (K.Failure (displayException e))
+            Right b -> cont (0,0) (K.Success 0 b)
 
 parseDToK pstep initial extract leftover (level, count) cont = do
     res <- initial
     case res of
         IPartial r -> return $ K.Continue leftover (parseCont count (return r))
-        IDone b -> cont (level,count) (K.Done 0 b)
-        IError err -> cont (level,count) (K.Error err)
+        IDone b -> cont (level,count) (K.Success 0 b)
+        IError err -> cont (level,count) (K.Failure err)
 
     where
 
@@ -506,9 +506,9 @@ parseDToK pstep initial extract leftover (level, count) cont = do
         case pRes of
             Done n b -> do
                 assert (n <= cnt1) (return ())
-                cont (level, cnt1 - n) (K.Done n b)
+                cont (level, cnt1 - n) (K.Success n b)
             Error err ->
-                cont (level, cnt1) (K.Error err)
+                cont (level, cnt1) (K.Failure err)
             Partial n pst1 -> do
                 assert (n <= cnt1) (return ())
                 return $ K.Partial n (parseCont (cnt1 - n) (return pst1))
@@ -520,8 +520,8 @@ parseDToK pstep initial extract leftover (level, count) cont = do
         r <- try $ extract pst
         let s = (level, cnt)
         case r of
-            Left (e :: ParseError) -> cont s (K.Error (displayException e))
-            Right b -> cont s (K.Done 0 b)
+            Left (e :: ParseError) -> cont s (K.Failure (displayException e))
+            Right b -> cont s (K.Success 0 b)
 
 -- | Convert a direct style 'Parser' to a CPS style 'K.Parser'.
 --
@@ -538,24 +538,24 @@ toParserK (Parser step initial extract) =
 
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDone #-}
-parserDone :: Monad m => (Int, Int) -> K.Parse b -> m (K.Driver m a b)
-parserDone (0,_) (K.Done n b) = return $ K.Stop n b
-parserDone st (K.Done _ _) =
+parserDone :: Monad m => (Int, Int) -> K.Parse b -> m (K.Step m a b)
+parserDone (0,_) (K.Success n b) = return $ K.Done n b
+parserDone st (K.Success _ _) =
     error $ "Bug: fromParserK: inside alternative: " ++ show st
-parserDone _ (K.Error e) = return $ K.Failed e
+parserDone _ (K.Failure e) = return $ K.Error e
 
 -- | When there is no more input to feed, extract the result from the Parser.
 --
 -- /Pre-release/
 --
-extractParse :: MonadThrow m => (Maybe a -> m (K.Driver m a b)) -> m b
+extractParse :: MonadThrow m => (Maybe a -> m (K.Step m a b)) -> m b
 extractParse cont = do
     r <- cont Nothing
     case r of
-        K.Stop _ b -> return b
+        K.Done _ b -> return b
         K.Partial _ _ -> error "Bug: extractParse got Partial"
         K.Continue _ cont1 -> extractParse cont1
-        K.Failed e -> throwM $ ParseError e
+        K.Error e -> throwM $ ParseError e
 
 data FromParserK b c = FPKDone !Int !b | FPKCont c
 
@@ -575,8 +575,8 @@ fromParserK parser0 = Parser step initial extract
     initial = do
         r <- K.runParser parser0 0 (0,0) parserDone
         return $ case r of
-            K.Stop n b -> IPartial $ FPKDone n b
-            K.Failed e -> IError e
+            K.Done n b -> IPartial $ FPKDone n b
+            K.Error e -> IError e
             K.Partial _ cont -> IPartial $ FPKCont cont -- XXX can we get this?
             K.Continue _ cont -> IPartial $ FPKCont cont
 
@@ -589,8 +589,8 @@ fromParserK parser0 = Parser step initial extract
     step (FPKCont cont) a = do
         r <- cont (Just a)
         return $ case r of
-            K.Stop n b -> Done n b
-            K.Failed e -> Error e
+            K.Done n b -> Done n b
+            K.Error e -> Error e
             K.Partial n cont1 -> Partial n (FPKCont cont1)
             K.Continue n cont1 -> Continue n (FPKCont cont1)
 

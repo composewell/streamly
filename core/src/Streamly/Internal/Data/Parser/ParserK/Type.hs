@@ -21,7 +21,7 @@
 
 module Streamly.Internal.Data.Parser.ParserK.Type
     (
-      Driver (..)
+      Step (..)
     , Parse (..)
     , Parser (..)
     , fromPure
@@ -38,39 +38,50 @@ import Control.Monad.Reader.Class (MonadReader, ask, local)
 import Control.Monad.State.Class (MonadState, get, put)
 import qualified Control.Monad.Fail as Fail
 
-
--- | The parse driver result. The driver may stop with a final result, pause
--- with a continuation to resume, or fail with an error.
+-- | The intermediate result of running a parser step. The parser driver may
+-- stop with a final result, pause with a continuation to resume, or fail with
+-- an error.
+--
+-- See ParserD docs. This is the same as the ParserD Step except that it uses a
+-- continuation in Partial and Continue constructors instead of a state in case
+-- of ParserD.
 --
 -- /Pre-release/
 --
-data Driver m a r =
-      Stop !Int r
+data Step m a r =
+      Done !Int r
       -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
       -- measure if that works any better.
-    | Partial !Int (Maybe a -> m (Driver m a r))
-    | Continue !Int (Maybe a -> m (Driver m a r))
-    | Failed String
+    | Partial !Int (Maybe a -> m (Step m a r))
+    | Continue !Int (Maybe a -> m (Step m a r))
+    | Error String
 
-instance Functor m => Functor (Driver m a) where
-    fmap f (Stop n r) = Stop n (f r)
-    fmap f (Partial n yld) = Partial n (fmap (fmap f) . yld)
-    fmap f (Continue n yld) = Continue n (fmap (fmap f) . yld)
-    fmap _ (Failed e) = Failed e
+instance Functor m => Functor (Step m a) where
+    fmap f (Done n r) = Done n (f r)
+    fmap f (Partial n k) = Partial n (fmap (fmap f) . k)
+    fmap f (Continue n k) = Continue n (fmap (fmap f) . k)
+    fmap _ (Error e) = Error e
 
--- The parser's result.
+-- | The parser's result.
 --
 -- /Pre-release/
 --
 data Parse b =
-      Done !Int !b      -- Done, no more input needed
-    | Error !String     -- Failed
+      Success !Int !b     -- Success, no more input needed
+    | Failure !String     -- Error
 
+-- | Map a function over 'Success'.
 instance Functor Parse where
-    fmap f (Done n b) = Done n (f b)
-    fmap _ (Error e) = Error e
+    fmap f (Success n b) = Success n (f b)
+    fmap _ (Failure e) = Failure e
 
--- | A continuation passing style parser representation.
+-- | A continuation passing style parser representation. A continuation of
+-- 'Step's, each step passes a state and a parse result to the next 'Step'. The
+-- resulting 'Step' may carry a continuation that consumes input 'a' and
+-- results in another 'Step'. Essentially, the continuation may either consume
+-- input without a result or return a result with no further input to be
+-- consumed.
+--
 newtype Parser m a b = MkParser
     { runParser :: forall r.
            -- The number of elements that were not used by the previous
@@ -88,9 +99,9 @@ newtype Parser m a b = MkParser
         -> (Int, Int)
            -- The first argument is the (nest level, used count) tuple as
            -- described above. The leftover element count is carried as part of
-           -- 'Done' constructor of 'Parse'.
-        -> ((Int, Int) -> Parse b -> m (Driver m a r))
-        -> m (Driver m a r)
+           -- 'Success' constructor of 'Parse'.
+        -> ((Int, Int) -> Parse b -> m (Step m a r))
+        -> m (Step m a r)
     }
 
 -------------------------------------------------------------------------------
@@ -102,9 +113,9 @@ newtype Parser m a b = MkParser
 --
 instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
-    fmap f parser = MkParser $ \lo st yieldk ->
-        let yld s res = yieldk s (fmap f res)
-         in runParser parser lo st yld
+    fmap f parser = MkParser $ \n st k ->
+        let k1 s res = k s (fmap f res)
+         in runParser parser n st k1
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -118,7 +129,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE fromPure #-}
 fromPure :: b -> Parser m a b
-fromPure b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
+fromPure b = MkParser $ \n st k -> k st (Success n b)
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
@@ -126,7 +137,7 @@ fromPure b = MkParser $ \lo st yieldk -> yieldk st (Done lo b)
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser m a b
-fromEffect eff = MkParser $ \lo st yieldk -> eff >>= \b -> yieldk st (Done lo b)
+fromEffect eff = MkParser $ \n st k -> eff >>= \b -> k st (Success n b)
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
@@ -140,22 +151,22 @@ instance Monad m => Applicative (Parser m a) where
     (<*>) = ap
 
     {-# INLINE (*>) #-}
-    m1 *> m2 = MkParser $ \lo st yieldk ->
-        let yield1 s (Done n _) = runParser m2 n s yieldk
-            yield1 s (Error e) = yieldk s (Error e)
-        in runParser m1 lo st yield1
+    p1 *> p2 = MkParser $ \n st k ->
+        let k1 s (Success n1 _) = runParser p2 n1 s k
+            k1 s (Failure e) = k s (Failure e)
+        in runParser p1 n st k1
 
     {-# INLINE (<*) #-}
-    m1 <* m2 = MkParser $ \lo st yieldk ->
-        let yield1 s (Done n b) =
-                let yield2 s1 (Done n1 _) = yieldk s1 (Done n1 b)
-                    yield2 s1 (Error e) = yieldk s1 (Error e)
-                in runParser m2 n s yield2
-            yield1 s (Error e) = yieldk s (Error e)
-        in runParser m1 lo st yield1
+    p1 <* p2 = MkParser $ \n st k ->
+        let k1 s1 (Success n1 b) =
+                let k2 s2 (Success n2 _) = k s2 (Success n2 b)
+                    k2 s2 (Failure e) = k s2 (Failure e)
+                in runParser p2 n1 s1 k2
+            k1 s1 (Failure e) = k s1 (Failure e)
+        in runParser p1 n st k1
 
     {-# INLINE liftA2 #-}
-    liftA2 f x = (<*>) (fmap f x)
+    liftA2 f p = (<*>) (fmap f p)
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -170,7 +181,7 @@ instance Monad m => Applicative (Parser m a) where
 --
 {-# INLINE die #-}
 die :: String -> Parser m a b
-die err = MkParser (\_ st yieldk -> yieldk st (Error err))
+die err = MkParser (\_ st k -> k st (Failure err))
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
 -- future parses depend on the previously parsed values.
@@ -219,10 +230,10 @@ instance Monad m => Monad (Parser m a) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    m >>= k = MkParser $ \lo st yieldk ->
-        let yield1 s (Done n b) = runParser (k b) n s yieldk
-            yield1 s (Error e) = yieldk s (Error e)
-         in runParser m lo st yield1
+    p >>= f = MkParser $ \n st k ->
+        let k1 s1 (Success n1 b) = runParser (f b) n1 s1 k
+            k1 s1 (Failure e) = k s1 (Failure e)
+         in runParser p n st k1
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -244,9 +255,7 @@ instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
     ask = fromEffect ask
 
     {-# INLINE local #-}
-    local f dp =
-        MkParser $ \lo st yieldk ->
-        local f $ runParser dp lo st yieldk
+    local f p = MkParser $ \n st k -> local f $ runParser p n st k
 
 instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
     {-# INLINE get #-}
@@ -281,11 +290,11 @@ instance Monad m => Alternative (Parser m a) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    m1 <|> m2 = MkParser $ \lo (level, _) yieldk ->
-        let yield1 (0, _) _ = error "0 nest level in Alternative"
-            yield1 (lvl, _) (Done n b) = yieldk (lvl - 1, 0) (Done n b)
-            yield1 (lvl, cnt) (Error _) = runParser m2 cnt (lvl - 1, 0) yieldk
-        in runParser m1 lo (level + 1, 0) yield1
+    p1 <|> p2 = MkParser $ \n (level, _) k ->
+        let k1 (0, _) _ = error "Bug: 0 nest level in Alternative"
+            k1 (l1, n1) (Failure _) = runParser p2 n1 (l1 - 1, 0) k
+            k1 (l1, _) success = k (l1 - 1, 0) success
+        in runParser p1 n (level + 1, 0) k1
 
     -- some and many are implemented here instead of using default definitions
     -- so that we can use INLINE on them. It gives 50% performance improvement.
