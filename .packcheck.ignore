@@ -9,7 +9,6 @@
 .packcheck.ignore
 appveyor.yml
 benchmark/bench-runner/default.nix
-benchmark/bench-runner/cabal.project
 bin/ghc.sh
 bin/run-ci.sh
 bin/run-repl-quick.sh

@@ -25,22 +25,30 @@ IMPORTANT NOTE:  The first time you run this executable it may take a long
 time because it has to build the `bench-report` executable which has a
 lot of dependencies.
 
-If you are using nix then use `benchmark/bench-runner/default.nix`. Build it
-manually and install it in the root of the repository like so,
+You can install it once in the root of the repository and use it multiple times.
+
+You can use `cabal.project.report` to install bench-runner like so:
+```
+$ cabal install bench-runner --project-file=cabal.project.report --installdir=./  --overwrite-policy=always
+$ ./bench-runner <bench-runner-args>
+```
+
+If you're using nix, you can install bench-runner like so:
 ```
 $ cd benchmark/bench-runner
 $ nix-shell --run 'cabal install bench-runner --installdir=../../  --overwrite-policy=always'
 $ cd ../../
+$ ./bench-runner <bench-runner-args>
 ```
 
-You can also use `cabal.project.report` to directly build an run the `bench-runner` like so,
+You can run the `bench-runner` without installing, like so:
 ```
 $ cabal run bench-runner --project-file=cabal.project.report -- <bench-runner-args>
 ```
 
-## bench.sh: Quick start
+## bench-runner: Quick start
 
-Assuming `bench-runner` is the executable. You can replace `bench-runner` with
+Assuming `bench-runner` is the executable. You can replace `./bench-runner` with
 `cabal run bench-runner --project-file=cabal.project.report --`
 
 Useful commands:
