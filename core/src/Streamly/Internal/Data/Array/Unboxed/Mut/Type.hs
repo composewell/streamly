@@ -359,13 +359,13 @@ data Array a =
 
 {-# INLINE pin #-}
 pin :: Array a -> IO (Array a)
-pin arr@(Array{..}) = do
+pin arr@Array{..} = do
     contents <- Unboxed.pin arrContents
     return $ arr {arrContents = contents}
 
 {-# INLINE unpin #-}
 unpin :: Array a -> IO (Array a)
-unpin arr@(Array{..}) = do
+unpin arr@Array{..} = do
     contents <- Unboxed.unpin arrContents
     return $ arr {arrContents = contents}
 
@@ -491,7 +491,7 @@ withNewArrayUnsafe count f = do
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> a -> Array a -> m ()
-putIndexUnsafe i x (Array {..}) = do
+putIndexUnsafe i x Array{..} = do
     let index = INDEX_OF(arrStart, i, a)
     assert (i >= 0 && INDEX_VALID(index, aEnd, a)) (return ())
     liftIO $ pokeWith arrContents index x
@@ -534,7 +534,7 @@ putIndices arr = FL.foldlM' step (return ())
 -- /Pre-release/
 modifyIndexUnsafe :: forall m a b. (MonadIO m, Unboxed a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndexUnsafe i f (Array{..}) = liftIO $ do
+modifyIndexUnsafe i f Array{..} = liftIO $ do
         let index = INDEX_OF(arrStart,i,a)
         assert (i >= 0 && INDEX_NEXT(index,a) <= aEnd) (return ())
         r <- peekWith arrContents index
@@ -982,7 +982,7 @@ snoc = snocWith f
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
 getIndexUnsafe :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
-getIndexUnsafe i (Array {..}) = do
+getIndexUnsafe i Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
     assert (i >= 0 && INDEX_VALID(index,aEnd,a)) (return ())
     liftIO $ peekWith arrContents index
@@ -1416,9 +1416,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p start) = do
-        x <- liftIO $ do
-                    r <- peekWith contents p
-                    return r
+        x <- liftIO $ peekWith contents p
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
 
@@ -1574,9 +1572,7 @@ toStreamKWith liftio Array{..} = go arrStart
 
     go p | assert (p <= aEnd) (p == aEnd) = K.nil
          | otherwise =
-        let elemM = do
-              r <- peekWith arrContents p
-              return r
+        let elemM = peekWith arrContents p
         in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
 
 {-# INLINE toStreamK #-}
@@ -1620,9 +1616,7 @@ toStreamKRevWith liftio Array {..} =
 
     go p | p < arrStart = K.nil
          | otherwise =
-        let elemM = do
-              r <- peekWith arrContents p
-              return r
+        let elemM = peekWith arrContents p
         in liftio elemM `K.consM` go (INDEX_PREV(p,a))
 
 {-# INLINE toStreamKRev #-}

@@ -137,86 +137,86 @@ unpin arr@(ArrayContents marr#) =
 {-# INLINE readWord8ArrayAsWideChar# #-}
 readWord8ArrayAsWideChar# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, Char# #)
-readWord8ArrayAsWideChar# arr# i# s# =
-    readWideCharArray# arr# (quotInt# i# SIZEOF_HSCHAR_PRIMITIVE) s#
+readWord8ArrayAsWideChar# arr# i# =
+    readWideCharArray# arr# (quotInt# i# SIZEOF_HSCHAR_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsWideChar# #-}
 writeWord8ArrayAsWideChar# ::
        MutableByteArray# d -> Int# -> Char# -> State# d -> State# d
-writeWord8ArrayAsWideChar# arr# i# a# s# =
-    writeWideCharArray# arr# (quotInt# i# SIZEOF_HSCHAR_PRIMITIVE) a# s#
+writeWord8ArrayAsWideChar# arr# i# =
+    writeWideCharArray# arr# (quotInt# i# SIZEOF_HSCHAR_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsInt# #-}
 readWord8ArrayAsInt# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, Int# #)
-readWord8ArrayAsInt# arr# i# s# =
-    readIntArray# arr# (quotInt# i# SIZEOF_HSINT_PRIMITIVE) s#
+readWord8ArrayAsInt# arr# i# =
+    readIntArray# arr# (quotInt# i# SIZEOF_HSINT_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsInt# #-}
 writeWord8ArrayAsInt# ::
        MutableByteArray# d -> Int# -> Int# -> State# d -> State# d
-writeWord8ArrayAsInt# arr# i# a# s# =
-    writeIntArray# arr# (quotInt# i# SIZEOF_HSINT_PRIMITIVE) a# s#
+writeWord8ArrayAsInt# arr# i# =
+    writeIntArray# arr# (quotInt# i# SIZEOF_HSINT_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsInt32# #-}
 readWord8ArrayAsInt32# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, Int# #)
-readWord8ArrayAsInt32# arr# i# s# =
-    readInt32Array# arr# (quotInt# i# SIZEOF_INT32_PRIMITIVE) s#
+readWord8ArrayAsInt32# arr# i# =
+    readInt32Array# arr# (quotInt# i# SIZEOF_INT32_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsInt32# #-}
 writeWord8ArrayAsInt32# ::
        MutableByteArray# d -> Int# -> Int# -> State# d -> State# d
-writeWord8ArrayAsInt32# arr# i# a# s# =
-    writeInt32Array# arr# (quotInt# i# SIZEOF_INT32_PRIMITIVE) a# s#
+writeWord8ArrayAsInt32# arr# i# =
+    writeInt32Array# arr# (quotInt# i# SIZEOF_INT32_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsInt64# #-}
 readWord8ArrayAsInt64# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, INT64TYP #)
-readWord8ArrayAsInt64# arr# i# s# =
-    readInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE) s#
+readWord8ArrayAsInt64# arr# i# =
+    readInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsInt64# #-}
 writeWord8ArrayAsInt64# ::
        MutableByteArray# d -> Int# -> INT64TYP -> State# d -> State# d
-writeWord8ArrayAsInt64# arr# i# a# s# =
-    writeInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE) a# s#
+writeWord8ArrayAsInt64# arr# i# =
+    writeInt64Array# arr# (quotInt# i# SIZEOF_INT64_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsWord# #-}
 readWord8ArrayAsWord# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, Word# #)
-readWord8ArrayAsWord# arr# i# s# =
-    readWordArray# arr# (quotInt# i# SIZEOF_HSWORD_PRIMITIVE) s#
+readWord8ArrayAsWord# arr# i# =
+    readWordArray# arr# (quotInt# i# SIZEOF_HSWORD_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsWord# #-}
 writeWord8ArrayAsWord# ::
        MutableByteArray# d -> Int# -> Word# -> State# d -> State# d
-writeWord8ArrayAsWord# arr# i# a# s# =
-    writeWordArray# arr# (quotInt# i# SIZEOF_HSWORD_PRIMITIVE) a# s#
+writeWord8ArrayAsWord# arr# i# =
+    writeWordArray# arr# (quotInt# i# SIZEOF_HSWORD_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsWord64# #-}
 readWord8ArrayAsWord64# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, WORD64TYP #)
-readWord8ArrayAsWord64# arr# i# s# =
-    readWord64Array# arr# (quotInt# i# SIZEOF_WORD64_PRIMITIVE) s#
+readWord8ArrayAsWord64# arr# i#  =
+    readWord64Array# arr# (quotInt# i# SIZEOF_WORD64_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsWord64# #-}
 writeWord8ArrayAsWord64# ::
        MutableByteArray# d -> Int# -> WORD64TYP -> State# d -> State# d
-writeWord8ArrayAsWord64# arr# i# a# s# =
-    writeWord64Array# arr# (quotInt# i# SIZEOF_WORD64_PRIMITIVE) a# s#
+writeWord8ArrayAsWord64# arr# i# =
+    writeWord64Array# arr# (quotInt# i# SIZEOF_WORD64_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsDouble# #-}
 readWord8ArrayAsDouble# ::
        MutableByteArray# d -> Int# -> State# d -> (# State# d, Double# #)
-readWord8ArrayAsDouble# arr# i# s# =
-    readDoubleArray# arr# (quotInt# i# SIZEOF_HSDOUBLE_PRIMITIVE) s#
+readWord8ArrayAsDouble# arr# i# =
+    readDoubleArray# arr# (quotInt# i# SIZEOF_HSDOUBLE_PRIMITIVE)
 
 {-# INLINE writeWord8ArrayAsDouble# #-}
 writeWord8ArrayAsDouble# ::
        MutableByteArray# d -> Int# -> Double# -> State# d -> State# d
-writeWord8ArrayAsDouble# arr# i# a# s# =
-    writeDoubleArray# arr# (quotInt# i# SIZEOF_HSDOUBLE_PRIMITIVE) a# s#
+writeWord8ArrayAsDouble# arr# i# =
+    writeDoubleArray# arr# (quotInt# i# SIZEOF_HSDOUBLE_PRIMITIVE)
 
 #endif
 
@@ -351,9 +351,9 @@ instance Unboxed Bool where
 
     {-# INLINE writeByteArray #-}
     writeByteArray arr i a =
-        case a of
-            True -> writeByteArray (castContents arr) i (1 :: Word8)
-            False -> writeByteArray (castContents arr) i (0 :: Word8)
+        if a
+        then writeByteArray (castContents arr) i (1 :: Word8)
+        else writeByteArray (castContents arr) i (0 :: Word8)
 
 instance forall a. Unboxed a => Unboxed (Complex a) where
     {-# INLINE sizeOf #-}

@@ -562,7 +562,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
 slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unboxed a)
-    => Int -> Fold m ((a, Maybe a), (m (Array a))) b -> Fold m a b
+    => Int -> Fold m ((a, Maybe a), m (Array a)) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where
