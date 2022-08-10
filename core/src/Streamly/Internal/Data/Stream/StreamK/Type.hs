@@ -770,7 +770,9 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
--- Note eta expanded
+-- IMPORTANT: This is eta expanded on purpose. This should not be eta
+-- reduced. This will cause a lot of regressions, probably because of some
+-- rewrite rules. Ideally don't run hlint on this file.
 {-# INLINE_LATE mapFB #-}
 mapFB :: forall b m a.
        (b -> Stream m b -> Stream m b)
