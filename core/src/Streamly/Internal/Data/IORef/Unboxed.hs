@@ -1,5 +1,3 @@
-{-# LANGUAGE UnboxedTuples #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.IORef.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -69,7 +67,7 @@ newIORef x = do
 -- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Unboxed a => IORef a -> a -> IO ()
-writeIORef (IORef var) x = pokeWith var 0 x
+writeIORef (IORef var) = pokeWith var 0
 
 -- | Read a value from an 'IORef'.
 --

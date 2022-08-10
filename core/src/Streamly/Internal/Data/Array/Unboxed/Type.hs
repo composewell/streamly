@@ -1,4 +1,3 @@
-{-# LANGUAGE UnboxedTuples #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Unboxed.Type
 -- Copyright   : (c) 2020 Composewell Technologies

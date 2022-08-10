@@ -722,7 +722,7 @@ length = genericLength
 --
 {-# INLINE countDistinct #-}
 countDistinct :: (Monad m, Ord a) => Fold m a Int
-countDistinct = postscan nub $ catMaybes $ length
+countDistinct = postscan nub $ catMaybes length
 {-
 countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
@@ -747,7 +747,7 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- /Pre-release/
 {-# INLINE countDistinctInt #-}
 countDistinctInt :: Monad m => Fold m Int Int
-countDistinctInt = postscan nubInt $ catMaybes $ length
+countDistinctInt = postscan nubInt $ catMaybes length
 {-
 countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 

@@ -1,11 +1,3 @@
-core/src/Streamly/Internal/Data/Fold.hs
-core/src/Streamly/Internal/Data/Unboxed.hs
-core/src/Streamly/Internal/Data/Array/Unboxed.hs
-core/src/Streamly/Internal/Data/Array/Unboxed/Type.hs
-core/src/Streamly/Internal/Data/Array/Unboxed/Mut/Type.hs
-core/src/Streamly/Internal/Data/Ring/Foreign.hs
-core/src/Streamly/Internal/Data/IORef/Unboxed.hs
-core/src/Streamly/Internal/Data/Stream/Zip.hs
 core/src/Streamly/Internal/Data/Stream/StreamK/Type.hs
 core/src/Streamly/Internal/Data/Pipe/Type.hs
 src/Streamly/Internal/Data/SmallArray/Type.hs

@@ -222,9 +222,7 @@ unsafeRead = Unfold step inject
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ do
-                        r <- peekWith contents p
-                        return r
+            let !x = unsafeInlineIO $ peekWith contents p
             let !p1 = INDEX_NEXT(p,a)
             return $ D.Yield x (ArrayUnsafe contents end p1)
 
