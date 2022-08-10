@@ -451,15 +451,14 @@ headElse x = D.headElse x . toStreamD
 -- @since 0.1.1
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-tail m = fmap (fmap IsStream.fromStream) $ K.tail $ Stream.toStreamK m
-
+tail = fmap (fmap IsStream.fromStream) . K.tailBreak . Stream.toStreamK
 
 -- | Extract all but the last element of the stream, if any.
 --
 -- @since 0.5.0
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-init m = fmap (fmap IsStream.fromStream) $ K.init $ Stream.toStreamK m
+init = fmap (fmap IsStream.fromStream) . K.initBreak . Stream.toStreamK
 
 -- | Extract the last element of the stream, if any.
 --
