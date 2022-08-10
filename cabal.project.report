@@ -14,12 +14,12 @@ package bench-show
 source-repository-package
   type: git
   location: https://github.com/composewell/bench-report.git
-  tag: 62b4b9003660ddaaa60bba2c52057ee5e51ee681
+  tag: ca3872acd4b817731b951c6ed91bfa6c58f26c5a
 
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-coreutils.git
-  tag: cf5054b8ea0d1dba33bc530b29ab32f237663d3b
+  tag: 74cfc8e5a12e4acfd65f943e3787221d6cf356dc
 
 source-repository-package
   type: git
