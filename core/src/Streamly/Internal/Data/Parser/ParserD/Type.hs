@@ -208,7 +208,7 @@ module Streamly.Internal.Data.Parser.ParserD.Type
 where
 
 import Control.Applicative (Alternative(..), liftA2)
-import Control.Exception (assert, Exception(..))
+import Control.Exception (Exception(..))
 import Control.Monad (MonadPlus(..), (>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader.Class (MonadReader, ask, local)
@@ -505,15 +505,15 @@ parseDToK pstep initial extract leftover (level, count) cont = do
         pRes <- pstep r x
         case pRes of
             Done n b -> do
-                assert (n <= cnt1) (return ())
+                assertM (n <= cnt1)
                 cont (level, cnt1 - n) (K.Success n b)
             Error err ->
                 cont (level, cnt1) (K.Failure err)
             Partial n pst1 -> do
-                assert (n <= cnt1) (return ())
+                assertM (n <= cnt1)
                 return $ K.Partial n (parseCont (cnt1 - n) (return pst1))
             Continue n pst1 -> do
-                assert (n <= cnt1) (return ())
+                assertM (n <= cnt1)
                 return $ K.Continue n (parseCont (cnt1 - n) (return pst1))
     parseCont cnt acc Nothing = do
         pst <- acc
@@ -981,7 +981,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         case r of
             Partial n s -> return $ Partial n (AltParseL 0 s)
             Continue n s -> do
-                assert (cnt + 1 - n >= 0) (return ())
+                assertM (cnt + 1 - n >= 0)
                 return $ Continue n (AltParseL (cnt + 1 - n) s)
             Done n b -> return $ Done n b
             Error _ -> do
@@ -1038,13 +1038,13 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Continue n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Done n b -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
                 xs <- fextract fs
@@ -1098,13 +1098,13 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Continue n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) fs)
             Done n b -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
                 xs <- fextract fs
@@ -1171,13 +1171,13 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
             Continue n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
             Done n b -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
@@ -1185,13 +1185,13 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Partial n (Tuple3' s (cnt1 - n) (Right fs))
             Continue n s -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
             Done n b -> do
-                assert (cnt1 - n >= 0) (return ())
+                assertM (cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> Done cnt1 <$> fextract fs
 
