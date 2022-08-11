@@ -60,6 +60,7 @@ import Control.Applicative (liftA2)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unboxed)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type (touch)
@@ -100,7 +101,7 @@ newtype ArrayFold m a b = ArrayFold (ParserD.Parser m (Array a) b)
 fromFold :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold.Fold m a b -> ArrayFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
-    ArrayFold (ParserD.Parser step initial fextract)
+    ArrayFold (ParserD.Parser step initial (fmap (Done 0) . fextract))
 
     where
 
@@ -308,13 +309,21 @@ take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
 
     where
 
+    -- XXX Need to make the Initial type Step to remove this
+    iextract s = do
+        r <- extract1 s
+        return $ case r of
+            Done _ b -> IDone b
+            Error err -> IError err
+            _ -> error "Bug: ArrayFold take invalid state in initial"
+
     initial = do
         res <- initial1
         case res of
             IPartial s ->
                 if n > 0
                 then return $ IPartial $ Tuple' n s
-                else IDone <$> extract1 s
+                else iextract s
             IDone b -> return $ IDone b
             IError err -> return $ IError err
 
@@ -323,8 +332,16 @@ take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
         let i2 = i1 + j
          in if i2 > 0
             then return $ st j (Tuple' i2 s)
-            else Done 0 <$> extract1 s -- i2 == i1 == j == 0
+            else do
+                -- i2 == i1 == j == 0
+                r <- extract1 s
+                return $ case r of
+                    Error err -> Error err
+                    Done n1 b -> Done n1 b
+                    Continue n1 s1 -> Continue n1 (Tuple' i2 s1)
+                    Partial _ _ -> error "Partial in extract"
 
+    -- Tuple' (how many more items to take) (fold state)
     step (Tuple' i r) arr = do
         let len = Array.length arr
             i1 = i - len
@@ -339,15 +356,20 @@ take n (ArrayFold (ParserD.Parser step1 initial1 extract1)) =
         else do
             let !(Array contents start _) = arr
                 end = INDEX_OF(start,i,a)
+                -- Supply only the required slice of array
                 arr1 = Array contents start end
-                remaining = negate i1
+                remaining = negate i1 -- i1 is negative here
             res <- step1 r arr1
             case res of
-                Partial 0 s -> Done remaining <$> extract1 s
+                Partial 0 s ->
+                    ParserD.bimapOverrideCount
+                        remaining (Tuple' 0) id <$> extract1 s
                 Partial j s -> return $ Partial (remaining + j) (Tuple' j s)
-                Continue 0 s -> Done remaining <$> extract1 s
+                Continue 0 s ->
+                    ParserD.bimapOverrideCount
+                        remaining (Tuple' 0) id <$> extract1 s
                 Continue j s -> return $ Continue (remaining + j) (Tuple' j s)
                 Done j b -> return $ Done (remaining + j) b
                 Error err -> return $ Error err
 
-    extract (Tuple' _ r) = extract1 r
+    extract (Tuple' i r) = first (Tuple' i) <$> extract1 r

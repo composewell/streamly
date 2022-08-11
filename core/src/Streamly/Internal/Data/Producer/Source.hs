@@ -161,9 +161,7 @@ parseD
                         return (b, unread src s1)
                     Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
-            Stop   -> do
-                b <- extract pst
-                return (b, unread (reverse $ getList buf) (source Nothing))
+            Stop -> goStop buf pst
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
@@ -189,6 +187,53 @@ parseD
                     src  = Prelude.reverse src0
                 s1 <- uextract s
                 return (b, unread src s1)
+            Error err -> throwM $ ParseError err
+
+    -- This is a simplified gobuf
+    goExtract !_ buf (List []) !pst = goStop buf pst
+    goExtract !_ buf (List (x:xs)) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            Partial 0 pst1 ->
+                goExtract SPEC (List []) (List xs) pst1
+            Partial n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List []) (List src) pst1
+            Continue 0 pst1 ->
+                goExtract SPEC (List (x:getList buf)) (List xs) pst1
+            Continue n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List buf1) (List src) pst1
+            Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                return (b, unread src (source Nothing))
+            Error err -> throwM $ ParseError err
+
+    -- This is a simplified goExtract
+    {-# INLINE goStop #-}
+    goStop buf pst = do
+        pRes <- extract pst
+        case pRes of
+            Partial _ _ -> error "Bug: parseD: Partial in extract"
+            Continue 0 _ ->
+                error "parseD: extract, Continue 0 creates infinite loop"
+            Continue n pst1 -> do
+                assert (n <= length (getList buf)) (return ())
+                let (src0, buf1) = splitAt n (getList buf)
+                    src = Prelude.reverse src0
+                goExtract SPEC (List buf1) (List src) pst1
+            Done 0 b -> return (b, source Nothing)
+            Done n b -> do
+                assert (n <= length (getList buf)) (return ())
+                let src0 = Prelude.take n (getList buf)
+                    src  = Prelude.reverse src0
+                return (b, unread src (source Nothing))
             Error err -> throwM $ ParseError err
 
 -- | Parse a buffered source using a parser, returning the parsed value and the

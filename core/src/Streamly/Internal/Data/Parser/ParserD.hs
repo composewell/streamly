@@ -109,11 +109,13 @@ module Streamly.Internal.Data.Parser.ParserD
     , serialWith
     , split_
 
+    {-
     -- ** Parallel Applicatives
     , teeWith
     , teeWithFst
     , teeWithMin
     -- , teeTill -- like manyTill but parallel
+    -}
 
     -- ** Sequential Interleaving
     -- Use two folds, run a primary parser, its rejected values go to the
@@ -124,11 +126,12 @@ module Streamly.Internal.Data.Parser.ParserD
     -- ** Sequential Alternative
     , alt
 
+    {-
     -- ** Parallel Alternatives
     , shortest
     , longest
     -- , fastest
-
+    -}
     -- * N-ary Combinators
     -- ** Sequential Collection
     , sequence
@@ -180,7 +183,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , longestN
     -- , fastestN -- first N successful in time
     -- , choiceN  -- first N successful in position
-    , choice   -- first successful in position
+    -- , choice   -- first successful in position
 
     -- -- ** Repeated Alternatives
     -- , retryMax    -- try N times
@@ -216,7 +219,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
        , zip, filter)
-import Streamly.Internal.Data.Parser.ParserD.Tee
+-- import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
 
 --
@@ -250,7 +253,7 @@ instance Exception ParserToFoldError
 --
 {-# INLINE toFold #-}
 toFold :: MonadThrow m => Parser m a b -> Fold m a b
-toFold (Parser pstep pinitial pextract) = Fold step initial pextract
+toFold (Parser pstep pinitial pextract) = Fold step initial extract
 
     where
 
@@ -272,6 +275,15 @@ toFold (Parser pstep pinitial pextract) = Fold step initial pextract
             Done n _ -> throwM $ DoneError n
             Error err -> throwM $ ErrorError err
 
+    extract st = do
+        r <- pextract st
+        case r of
+            Done 0 b -> return b
+            Partial n _ -> throwM $ PartialError n
+            Continue n _ -> throwM $ ContinueError n
+            Done n _ -> throwM $ DoneError n
+            Error err -> throwM $ ErrorError err
+
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
@@ -282,7 +294,7 @@ toFold (Parser pstep pinitial pextract) = Fold step initial pextract
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
-fromFold (Fold fstep finitial fextract) = Parser step initial fextract
+fromFold (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
@@ -300,13 +312,16 @@ fromFold (Fold fstep finitial fextract) = Parser step initial fextract
                   FL.Partial s1 -> Partial 0 s1
                   FL.Done b -> Done 0 b
 
+    extract = fmap (Done 0) . fextract
+
 -- | Convert Maybe returning folds to error returning parsers.
 --
 -- /Pre-release/
 --
 {-# INLINE fromFoldMaybe #-}
-fromFoldMaybe :: MonadThrow m => String -> Fold m a (Maybe b) -> Parser m a b
-fromFoldMaybe errMsg (Fold fstep finitial fextract) = Parser step initial extract
+fromFoldMaybe :: Monad m => String -> Fold m a (Maybe b) -> Parser m a b
+fromFoldMaybe errMsg (Fold fstep finitial fextract) =
+    Parser step initial extract
 
     where
 
@@ -333,8 +348,8 @@ fromFoldMaybe errMsg (Fold fstep finitial fextract) = Parser step initial extrac
     extract s = do
         res <- fextract s
         case res of
-            Just x -> return x
-            Nothing -> throwM $ ParseError errMsg
+            Just x -> return $ Done 0 x
+            Nothing -> return $ Error errMsg
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -345,7 +360,7 @@ fromFoldMaybe errMsg (Fold fstep finitial fextract) = Parser step initial extrac
 -- /Pre-release/
 --
 {-# INLINE peek #-}
-peek :: MonadThrow m => Parser m a a
+peek :: Monad m => Parser m a a
 peek = Parser step initial extract
 
     where
@@ -354,7 +369,7 @@ peek = Parser step initial extract
 
     step () a = return $ Done 1 a
 
-    extract () = throwM $ ParseError "peek: end of input"
+    extract () = return $ Error "peek: end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.eof'.
 --
@@ -362,13 +377,15 @@ peek = Parser step initial extract
 --
 {-# INLINE eof #-}
 eof :: Monad m => Parser m a ()
-eof = Parser step initial return
+eof = Parser step initial extract
 
     where
 
     initial = return $ IPartial ()
 
     step () _ = return $ Error "eof: not at end of input"
+
+    extract () = return $ Done 0 ()
 
 -- | See 'Streamly.Internal.Data.Parser.next'.
 --
@@ -377,10 +394,14 @@ eof = Parser step initial return
 {-# INLINE next #-}
 next :: Monad m => Parser m a (Maybe a)
 next = Parser step initial extract
+
   where
+
   initial = pure $ IPartial ()
-  step _ a = pure $ Done 0 (Just a)
-  extract _ = pure Nothing
+
+  step () a = pure $ Done 0 (Just a)
+
+  extract () = pure $ Done 0 Nothing
 
 -- | See 'Streamly.Internal.Data.Parser.either'.
 --
@@ -399,7 +420,7 @@ either f = Parser step initial extract
             Right b -> Done 0 b
             Left err -> Error err
 
-    extract _ = throwM $ ParseError "end of input"
+    extract () = return $ Error "end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.maybe'.
 --
@@ -422,7 +443,7 @@ maybe parserF = Parser step initial extract
             Just b -> Done 0 b
             Nothing -> Error "maybe: predicate failed"
 
-    extract _ = throwM $ ParseError "maybe: end of input"
+    extract () = return $ Error "maybe: end of input"
 
 -- | See 'Streamly.Internal.Data.Parser.satisfy'.
 --
@@ -445,7 +466,7 @@ satisfy predicate = Parser step initial extract
         then Done 0 a
         else Error "satisfy: predicate failed"
 
-    extract _ = throwM $ ParseError "satisfy: end of input"
+    extract () = return $ Error "satisfy: end of input"
 
 -------------------------------------------------------------------------------
 -- Taking elements
@@ -460,7 +481,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 -- /Pre-release/
 --
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> Int -> Fold m a b -> Parser m a b
+takeBetween :: Monad m => Int -> Int -> Fold m a b -> Parser m a b
 takeBetween low high (Fold fstep finitial fextract) =
 
     Parser step initial (extract streamErr)
@@ -492,7 +513,7 @@ takeBetween low high (Fold fstep finitial fextract) =
                 if i1 < high
                 -- XXX ideally this should be a Continue instead
                 then return $ IPartial s1
-                else IDone <$> extract foldErr s1
+                else iextract foldErr s1
             FL.Done b ->
                 return
                     $ if i1 >= low
@@ -501,7 +522,7 @@ takeBetween low high (Fold fstep finitial fextract) =
 
     initial = do
         when (low >= 0 && high >= 0 && low > high)
-            $ throwM $ ParseError invalidRange
+            $ error invalidRange
 
         finitial >>= inext (-1)
 
@@ -514,7 +535,7 @@ takeBetween low high (Fold fstep finitial fextract) =
                 let s1 = Tuple'Fused i1 s
                 if i1 < high
                 then return $ Continue 0 s1
-                else Done 0 <$> extract foldErr s1
+                else extract foldErr s1
             FL.Done b ->
                 return
                     $ if i1 >= low
@@ -524,15 +545,20 @@ takeBetween low high (Fold fstep finitial fextract) =
     step (Tuple'Fused i s) a = fstep s a >>= snext i
 
     extract f (Tuple'Fused i s)
-        | i >= low && i <= high = fextract s
-        | otherwise = throwM $ ParseError (f i)
+        | i >= low && i <= high = fmap (Done 0) (fextract s)
+        | otherwise = return $ Error (f i)
+
+    -- XXX Need to make Initial return type Step to deduplicate this
+    iextract f (Tuple'Fused i s)
+        | i >= low && i <= high = fmap IDone (fextract s)
+        | otherwise = return $ IError (f i)
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
 -- /Pre-release/
 --
 {-# INLINE takeEQ #-}
-takeEQ :: MonadThrow m => Int -> Fold m a b -> Parser m a b
+takeEQ :: Monad m => Int -> Fold m a b -> Parser m a b
 takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -576,10 +602,10 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
         i1 = i + 1
 
     extract (Tuple' i r)
-        | i == 0 && cnt == 0 = fextract r
+        | i == 0 && cnt == 0 = fmap (Done 0) $ fextract r
         | otherwise =
-            throwM
-                $ ParseError
+            return
+                $ Error
                 $ "takeEQ: Expecting exactly " ++ show cnt
                     ++ " elements, input terminated on " ++ show i
 
@@ -588,12 +614,13 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE takeGE #-}
-takeGE :: MonadThrow m => Int -> Fold m a b -> Parser m a b
+takeGE :: Monad m => Int -> Fold m a b -> Parser m a b
 takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
     cnt = max n 0
+
     initial = do
         res <- finitial
         return $ case res of
@@ -628,10 +655,10 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
         i1 = i + 1
 
     extract (Tuple' i r)
-        | i >= cnt = fextract r
+        | i >= cnt = fmap (Done 0) $ fextract r
         | otherwise =
-            throwM
-                $ ParseError
+            return
+                $ Error
                 $ "takeGE: Expecting at least " ++ show cnt
                     ++ " elements, input terminated on " ++ show i
 
@@ -653,7 +680,14 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
     step s a =
         if predicate a
         then pstep s a
-        else Done 1 <$> pextract s
+        else do
+            r <- pextract s
+            -- XXX need a map on count
+            case r of
+                Error err -> return $ Error err
+                Done n s1 -> return $ Done (n + 1) s1
+                Partial _ _ -> error "Bug: takeWhileP: Partial in extract"
+                Continue n s1 -> return $ Continue (n + 1) s1
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
@@ -662,7 +696,7 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile predicate (Fold fstep finitial fextract) =
-    Parser step initial fextract
+    Parser step initial extract
 
     where
 
@@ -682,12 +716,14 @@ takeWhile predicate (Fold fstep finitial fextract) =
                       FL.Done b -> Done 0 b
         else Done 1 <$> fextract s
 
+    extract s = fmap (Done 0) (fextract s)
+
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
 -- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
-takeWhile1 :: MonadThrow m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile1 predicate (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -721,15 +757,18 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
             b <- fextract s
             return $ Done 1 b
 
-    extract (Left' _) = throwM $ ParseError "takeWhile1: end of input"
-    extract (Right' s) = fextract s
+    extract (Left' _) = return $ Error "takeWhile1: end of input"
+    extract (Right' s) = fmap (Done 0) (fextract s)
 
 -------------------------------------------------------------------------------
 -- Separators
 -------------------------------------------------------------------------------
 
+data FramedEscState s =
+    FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
+
 {-# INLINE takeFramedByGeneric #-}
-takeFramedByGeneric :: MonadThrow m =>
+takeFramedByGeneric :: Monad m =>
        Maybe (a -> Bool)
     -> Maybe (a -> Bool)
     -> Maybe (a -> Bool)
@@ -812,7 +851,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
     step (FrameEscGo s n) a = processCheckEsc s a n
     step (FrameEscEsc s n) a = process s a n
 
-    err = throwM . ParseError
+    err = return . Error
 
     extract (FrameEscInit _) =
         err "takeFramedByGeneric: empty token"
@@ -820,7 +859,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
         case begin of
             Just _ ->
                 case end of
-                    Nothing -> fextract s
+                    Nothing -> fmap (Done 0) $ fextract s
                     Just _ -> err "takeFramedByGeneric: missing frame end"
             Nothing -> err "takeFramedByGeneric: missing closing frame"
     extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
@@ -830,7 +869,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBy #-}
-takeEndBy :: MonadCatch m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndBy cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
@@ -850,7 +889,7 @@ takeEndBy cond (Parser pstep pinitial pextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndByEsc #-}
-takeEndByEsc :: MonadCatch m =>
+takeEndByEsc :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
@@ -866,37 +905,32 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
         else do
             res <- pstep s a
             if not (isSep a)
-            then return $ mapStateStep Left' res
-            else extractStep pextract res
+            then return $ first Left' res
+            else fmap (first Left') $ extractStep pextract res
 
     step (Right' s) a = do
         res <- pstep s a
-        return $ mapStateStep Left' res
+        return $ first Left' res
 
-    extract (Left' s) = pextract s
+    extract (Left' s) = fmap (first Left') $ pextract s
     extract (Right' _) =
-        throwM $ ParseError "takeEndByEsc: trailing escape"
+        return $ Error "takeEndByEsc: trailing escape"
 
 -- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
 --
 -- /Pre-release/
 --
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: MonadCatch m =>
-    (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy_ :: (a -> Bool) -> Parser m a b -> Parser m a b
 takeEndBy_ cond (Parser pstep pinitial pextract) =
 
-    Parser step initial pextract
+    Parser step pinitial pextract
 
     where
 
-    initial = pinitial
-
     step s a =
         if cond a
-        then do
-            res <- pextract s
-            return $ Done 0 res
+        then pextract s
         else pstep s a
 
 -- | See 'Streamly.Internal.Data.Parser.takeStartBy'.
@@ -936,14 +970,11 @@ takeStartBy cond (Fold fstep finitial fextract) =
         then process s a
         else Done 1 <$> fextract s
 
-    extract (Left' s) = fextract s
-    extract (Right' s) = fextract s
-
-data FramedEscState s =
-    FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
+    extract (Left' s) = fmap (Done 0) $ fextract s
+    extract (Right' s) = fmap (Done 0) $ fextract s
 
 {-# INLINE takeFramedByEsc_ #-}
-takeFramedByEsc_ :: MonadThrow m =>
+takeFramedByEsc_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
 
@@ -985,7 +1016,7 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
                 else process s a (n - 1)
     step (FrameEscEsc s n) a = process s a n
 
-    err = throwM . ParseError
+    err = return . Error
 
     extract (FrameEscInit _) = err "takeFramedByEsc_: empty token"
     extract (FrameEscGo _ _) = err "takeFramedByEsc_: missing frame end"
@@ -994,7 +1025,7 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
 data FramedState s = FrameInit !s | FrameGo !s Int
 
 {-# INLINE takeFramedBy_ #-}
-takeFramedBy_ :: MonadThrow m =>
+takeFramedBy_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
 takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
 
@@ -1029,7 +1060,7 @@ takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
         | n == 0 = Done 0 <$> fextract s
         | otherwise = process s a (n - 1)
 
-    err = throwM . ParseError
+    err = return . Error
 
     extract (FrameInit _) = err "takeFramedBy_: empty token"
     extract (FrameGo _ _) = err "takeFramedBy_: missing frame end"
@@ -1080,9 +1111,9 @@ wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
               then Done 1 b
               else Partial 0 $ WBRight b
 
-    extract (WBLeft s) = fextract s
-    extract (WBWord s) = fextract s
-    extract (WBRight b) = return b
+    extract (WBLeft s) = fmap (Done 0) $ fextract s
+    extract (WBWord s) = fmap (Done 0) $ fextract s
+    extract (WBRight b) = return (Done 0 b)
 
 data WordFramedState s b =
       WordFramedSkipPre !s
@@ -1093,7 +1124,7 @@ data WordFramedState s b =
 -- | See 'Streamly.Internal.Data.Parser.wordFramedBy'
 --
 {-# INLINE wordFramedBy #-}
-wordFramedBy :: MonadCatch m =>
+wordFramedBy :: Monad m =>
        (a -> Bool)  -- ^ Escape
     -> (a -> Bool)  -- ^ left quote
     -> (a -> Bool)  -- ^ right quote
@@ -1163,16 +1194,16 @@ wordFramedBy isEsc isBegin isEnd isSep
               then Done 1 b
               else Partial 0 $ WordFramedSkipPost b
 
-    err = throwM . ParseError
+    err = return . Error
 
-    extract (WordFramedSkipPre s) = fextract s
+    extract (WordFramedSkipPre s) = fmap (Done 0) $ fextract s
     extract (WordFramedWord s n) =
         if n == 0
-        then fextract s
+        then fmap (Done 0) $ fextract s
         else err "wordFramedBy: missing frame end"
     extract (WordFramedEsc _ _) =
         err "wordFramedBy: trailing escape"
-    extract (WordFramedSkipPost b) = return b
+    extract (WordFramedSkipPost b) = return (Done 0 b)
 
 data WordQuotedState s b a =
       WordQuotedSkipPre !s
@@ -1183,7 +1214,7 @@ data WordQuotedState s b a =
     | WordQuotedSkipPost !b
 
 {-# INLINE wordQuotedBy #-}
-wordQuotedBy :: (MonadCatch m, Eq a) =>
+wordQuotedBy :: (Monad m, Eq a) =>
        Bool         -- ^ keep the quotes in the output
     -> (a -> Bool)  -- ^ Escape
     -> (a -> Bool)  -- ^ left quote
@@ -1270,19 +1301,19 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
               then Done 1 b
               else Partial 0 $ WordQuotedSkipPost b
 
-    err = throwM . ParseError
+    err = return . Error
 
-    extract (WordQuotedSkipPre s) = fextract s
-    extract (WordUnquotedWord s) = fextract s
+    extract (WordQuotedSkipPre s) = fmap (Done 0) $ fextract s
+    extract (WordUnquotedWord s) = fmap (Done 0) $ fextract s
     extract (WordQuotedWord s n _) =
         if n == 0
-        then fextract s
+        then fmap (Done 0) $ fextract s
         else err "wordQuotedBy: missing frame end"
     extract WordQuotedEsc {} =
         err "wordQuotedBy: trailing escape"
     extract (WordUnquotedEsc _) =
         err "wordQuotedBy: trailing escape"
-    extract (WordQuotedSkipPost b) = return b
+    extract (WordQuotedSkipPost b) = return (Done 0 b)
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s
@@ -1318,8 +1349,8 @@ groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
         then grouper s a0 a
         else Done 1 <$> fextract s
 
-    extract (GroupByInit s) = fextract s
-    extract (GroupByGrouping _ s) = fextract s
+    extract (GroupByInit s) = fmap (Done 0) $ fextract s
+    extract (GroupByGrouping _ s) = fmap (Done 0) $ fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.groupByRolling'.
 --
@@ -1350,8 +1381,8 @@ groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
         then grouper s a
         else Done 1 <$> fextract s
 
-    extract (GroupByInit s) = fextract s
-    extract (GroupByGrouping _ s) = fextract s
+    extract (GroupByInit s) = fmap (Done 0) $ fextract s
+    extract (GroupByGrouping _ s) = fmap (Done 0) $ fextract s
 
 {-# ANN type GroupByStatePair Fuse #-}
 data GroupByStatePair a s1 s2
@@ -1361,7 +1392,7 @@ data GroupByStatePair a s1 s2
     | GroupByGroupingPairR !a !s1 !s2
 
 {-# INLINE groupByRollingEither #-}
-groupByRollingEither :: MonadCatch m =>
+groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither
     eq
@@ -1432,14 +1463,14 @@ groupByRollingEither
         then grouperR2 s1 s2 a
         else Done 1 . Right <$> fextract2 s2
 
-    extract (GroupByInitPair s1 _) = Left <$> fextract1 s1
-    extract (GroupByGroupingPairL _ s1 _) = Left <$> fextract1 s1
-    extract (GroupByGroupingPairR _ _ s2) = Right <$> fextract2 s2
+    extract (GroupByInitPair s1 _) = Done 0 . Left <$> fextract1 s1
+    extract (GroupByGroupingPairL _ s1 _) = Done 0 . Left <$> fextract1 s1
+    extract (GroupByGroupingPairR _ _ s2) = Done 0 . Right <$> fextract2 s2
     extract (GroupByGroupingPair a s1 _) = do
                 res <- fstep1 s1 a
                 case res of
-                    FL.Done b -> return $ Left b
-                    FL.Partial s11 -> Left <$> fextract1 s11
+                    FL.Done b -> return $ Done 0 (Left b)
+                    FL.Partial s11 -> Done 0 . Left <$> fextract1 s11
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
@@ -1450,7 +1481,7 @@ groupByRollingEither
 -- /Pre-release/
 --
 {-# INLINE eqBy #-}
-eqBy :: MonadThrow m => (a -> a -> Bool) -> [a] -> Parser m a ()
+eqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a ()
 eqBy cmp str = Parser step initial extract
 
     where
@@ -1473,15 +1504,15 @@ eqBy cmp str = Parser step initial extract
                        ++ show (length xs + 1) ++ " elements"
 
     extract xs =
-        throwM
-            $ ParseError
+        return
+            $ Error
             $ "eqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
 
 -- XXX rename to streamBy?
 -- | Like eqBy but uses a stream instead of a list
 {-# INLINE matchBy #-}
-matchBy :: MonadThrow m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
+matchBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
 matchBy cmp (D.Stream sstep state) = Parser step initial extract
 
     where
@@ -1515,7 +1546,7 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Stop -> Done 1 ()
                 D.Skip s -> Continue 1 (Nothing', s)
 
-    extract _ = throwM $ ParseError "match: end of input"
+    extract _ = return $ Error "match: end of input"
 
 -------------------------------------------------------------------------------
 -- Transformations on input
@@ -1585,7 +1616,7 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
                     return $ Done 1 x
                 D.Skip s -> return $ Continue 1 (Nothing', s, fs)
 
-    extract _ = throwM $ ParseError "zipWithM: end of input"
+    extract _ = return $ Error "zipWithM: end of input"
 
 -- | Zip the input of a fold with a stream.
 --
@@ -1701,7 +1732,7 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
             IPartial s ->
                 if lim > 0
                 then return $ IPartial $ Tuple' 0 s
-                else IDone <$> pextract s
+                else iextract s
             IDone b -> return $ IDone b
             IError e -> return $ IError e
 
@@ -1714,23 +1745,25 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 assertM(cnt1 >= 0)
                 if cnt1 < lim
                 then return $ Partial 0 $ Tuple' cnt1 s
-                else Done 0 <$> pextract s
+                else do
+                    r1 <- pextract s
+                    return $ case r1 of
+                        Done n b -> Done n b
+                        Continue n s1 -> Continue n (Tuple' (cnt1 - n) s1)
+                        Error err -> Error err
+                        Partial _ _ -> error "takeP: Partial in extract"
+
             Continue 0 s -> do
                 assertM(cnt1 >= 0)
                 if cnt1 < lim
                 then return $ Continue 0 $ Tuple' cnt1 s
-                -- XXX This should error out?
-                -- If designed properly, this will probably error out.
-                -- "pextract" should error out
-                --
-                -- By Harendra,
-                --
-                -- This is a tricky case, we have the following options:
-                --   1. Done 0 with extract as you have written
-                --   2. Done n, will require buffering elements
-                --   3. Use a backtracking fold and not a parser, once we have
-                --      backtracking in folds
-                else Done 0 <$> pextract s
+                else do
+                    r1 <- pextract s
+                    return $ case r1 of
+                        Done n b -> Done n b
+                        Continue n s1 -> Continue n (Tuple' (cnt1 - n) s1)
+                        Error err -> Error err
+                        Partial _ _ -> error "takeP: Partial in extract"
             Partial n s -> do
                 let taken = cnt1 - n
                 assertM(taken >= 0)
@@ -1742,14 +1775,28 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
             Done n b -> return $ Done n b
             Error str -> return $ Error str
 
-    extract (Tuple' _ r) = pextract r
+    extract (Tuple' cnt r) = do
+        r1 <- pextract r
+        return $ case r1 of
+            Done n b -> Done n b
+            Continue n s1 -> Continue n (Tuple' (cnt - n) s1)
+            Error err -> Error err
+            Partial _ _ -> error "takeP: Partial in extract"
+
+    -- XXX Need to make the Initial type Step to remove this
+    iextract s = do
+        r <- pextract s
+        return $ case r of
+            Done _ b -> IDone b
+            Error err -> IError err
+            _ -> error "Bug: takeP invalid state in initial"
 
 -- | See 'Streamly.Internal.Data.Parser.lookahead'.
 --
 -- /Pre-release/
 --
 {-# INLINE lookAhead #-}
-lookAhead :: MonadThrow m => Parser m a b -> Parser m a b
+lookAhead :: Monad m => Parser m a b -> Parser m a b
 lookAhead (Parser step1 initial1 _) = Parser step initial extract
 
     where
@@ -1775,8 +1822,8 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
     -- that it terminates on eof without an error then we need a way to
     -- backtrack on eof, that will require extract to return 'Step' type.
     extract (Tuple' n _) =
-        throwM
-            $ ParseError
+        return
+            $ Error
             $ "lookAhead: end of input after consuming "
             ++ show n ++ " elements"
 
@@ -1859,18 +1906,29 @@ deintercalate
                 else error "deintercalate: infinite loop"
             Error err -> return $ Error err
 
+    {-# INLINE processResult #-}
+    processResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
     extract (DeintercalateL fs sL) = do
         r <- extractL sL
-        res <- fstep fs (Left r)
-        case res of
-            FL.Partial fs1 -> fextract fs1
-            FL.Done c -> return c
-    extract (DeintercalateR fs sR _) = do
+        case r of
+            Done n b -> processResult n fs (Left b)
+            Error err -> return $ Error err
+            Continue n s -> return $ Continue n (DeintercalateL fs s)
+            Partial _ _ -> error "Partial in extract"
+
+    extract (DeintercalateR fs sR consumed) = do
         r <- extractR sR
-        res <- fstep fs (Right r)
-        case res of
-            FL.Partial fs1 -> fextract fs1
-            FL.Done c -> return c
+        case r of
+            Done n b -> processResult n fs (Right b)
+            Error err -> return $ Error err
+            -- XXX Review consumed
+            Continue n s -> return $ Continue n (DeintercalateR fs s consumed)
+            Partial _ _ -> error "Partial in extract"
 
 data SepByState fs sp ss =
       SepByInit !fs !sp
@@ -1879,7 +1937,7 @@ data SepByState fs sp ss =
 -- This is a special case of deintercalate and can be easily implemented in
 -- terms of deintercalate.
 {-# INLINE sepBy #-}
-sepBy :: MonadCatch m =>
+sepBy :: Monad m =>
     Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 sepBy
     (Fold fstep finitial fextract)
@@ -1938,11 +1996,17 @@ sepBy
 
     extract (SepByInit fs sp) = do
         r <- pextract sp
-        res <- fstep fs r
-        case res of
-            FL.Partial fs1 -> fextract fs1
-            FL.Done c -> return c
-    extract (SepBySeparator fs _ _) = fextract fs
+        case r of
+            Done n b -> do
+                res <- fstep fs b
+                case res of
+                    FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+                    FL.Done c -> return (Done n c)
+            Error err -> return $ Error err
+            Continue n s -> return $ Continue n (SepByInit fs s)
+            Partial _ _ -> error "Partial in extract"
+
+    extract (SepBySeparator fs _ _) = fmap (Done 0) $ fextract fs
 
 -------------------------------------------------------------------------------
 -- Sequential Collection
@@ -1950,7 +2014,7 @@ sepBy
 --
 -- | See 'Streamly.Internal.Data.Parser.sequence'.
 {-# INLINE sequence #-}
-sequence :: MonadThrow m =>
+sequence :: Monad m =>
     Fold m b c -> D.Stream m (Parser m a b) -> Parser m a c
 sequence (Fold fstep finitial fextract) (D.Stream sstep sstate) =
     Parser step initial extract
@@ -2006,27 +2070,33 @@ sequence (Fold fstep finitial fextract) (D.Stream sstep sstate) =
                     FL.Done c -> return $ Done 1 c
             IError err -> return $ Error err
 
-    extract (Nothing', _, fs) = fextract fs
-    extract (Just' (Parser _ pinit pextr), _, fs) = do
+    extract (Nothing', _, fs) = fmap (Done 0) $ fextract fs
+    extract (Just' (Parser pstep pinit pextr), ss, fs) = do
         ps <- pinit
         case ps of
             IPartial ps1 ->  do
-                b <- pextr ps1
-                fres <- fstep fs b
-                case fres of
-                    FL.Partial fs1 -> fextract fs1
-                    FL.Done c -> return c
+                r <- pextr ps1
+                case r of
+                    Done n b -> do
+                        res <- fstep fs b
+                        case res of
+                            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+                            FL.Done c -> return (Done n c)
+                    Error err -> return $ Error err
+                    Continue n s -> return $ Continue n (Just' (Parser pstep (return (IPartial s)) pextr), ss, fs)
+                    Partial _ _ -> error "Partial in extract"
             IDone b -> do
                 fres <- fstep fs b
                 case fres of
-                    FL.Partial fs1 -> fextract fs1
-                    FL.Done c -> return c
-            IError err -> throwM $ ParseError err
+                    FL.Partial fs1 -> fmap (Done 0) $ fextract fs1
+                    FL.Done c -> return (Done 0 c)
+            IError err -> return $ Error err
 
 -------------------------------------------------------------------------------
 -- Alternative Collection
 -------------------------------------------------------------------------------
 
+{-
 -- | See 'Streamly.Internal.Data.Parser.choice'.
 --
 -- /Broken/
@@ -2034,6 +2104,7 @@ sequence (Fold fstep finitial fextract) (D.Stream sstep sstate) =
 {-# INLINE choice #-}
 choice :: (MonadCatch m, Foldable t) => t (Parser m a b) -> Parser m a b
 choice = foldl1 shortest
+-}
 
 -------------------------------------------------------------------------------
 -- Sequential Repetition
@@ -2049,7 +2120,7 @@ manyP _p _f = undefined
 -- /Pre-release/
 --
 {-# INLINE many #-}
-many :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+many :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
 many = splitMany
 -- many = countBetween 0 maxBound
 
@@ -2058,7 +2129,7 @@ many = splitMany
 -- /Pre-release/
 --
 {-# INLINE some #-}
-some :: MonadCatch m => Parser m a b -> Fold m b c -> Parser m a c
+some :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
 some = splitSome
 -- some p f = manyP p (takeGE 1 f)
 -- some = countBetween 1 maxBound
@@ -2168,9 +2239,17 @@ manyTill (Fold fstep finitial fextract)
                     FL.Done b1 -> return $ Done n b1
             Error err -> return $ Error err
 
-    extract (ManyTillL _ fs sR) = do
-        res <- extractL sR >>= fstep fs
+    extract (ManyTillL cnt fs sR) = do
+        res <- extractL sR
         case res of
-            FL.Partial s -> fextract s
-            FL.Done b -> return b
-    extract (ManyTillR _ fs _) = fextract fs
+            Done n b -> do
+                r <- fstep fs b
+                case r of
+                    FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+                    FL.Done c -> return (Done n c)
+            Error err -> return $ Error err
+            Continue n s -> do
+                assertM(n == cnt)
+                return $ Continue n (ManyTillL 0 fs s)
+            Partial _ _ -> error "Partial in extract"
+    extract (ManyTillR _ fs _) = fmap (Done 0) $ fextract fs

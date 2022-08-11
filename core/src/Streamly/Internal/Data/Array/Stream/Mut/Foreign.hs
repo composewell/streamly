@@ -239,8 +239,8 @@ compactLEParserD n = ParserD.Parser step initial extract
                 buf2 <- MArray.splice buf1 arr
                 return $ ParserD.Partial 0 (Just buf2)
 
-    extract Nothing = return MArray.nil
-    extract (Just buf) = return buf
+    extract Nothing = return $ ParserD.Done 0 MArray.nil
+    extract (Just buf) = return $ ParserD.Done 0 buf
 
     functionPath =
         "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactLEParserD"

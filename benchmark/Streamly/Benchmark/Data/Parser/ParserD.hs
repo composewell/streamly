@@ -157,6 +157,7 @@ serialWith value =
             <*> drainWhile (<= value)
         )
 
+{-
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
@@ -196,6 +197,7 @@ longestAllAny value =
             (drainWhile (<= value))
             (drainWhile (<= value))
         )
+-}
 
 {-# INLINE sequenceParser #-}
 sequenceParser :: MonadCatch m => Stream m Int -> m ()
@@ -310,11 +312,13 @@ choiceAsum value =
     Stream.parseD (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
 
+{-
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> Stream m Int -> m Int
 choice value =
     Stream.parseD
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
+-}
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -338,10 +342,12 @@ o_1_space_serial value =
     , benchIOSink value "some" some
     , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSink value "manyTill" $ manyTill value
+    {-
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
+    -}
     , benchIOSink value "sequenceParser" sequenceParser
     ]
 
@@ -398,7 +404,7 @@ o_n_space_serial value =
     , benchIOSink value "sequence/100" $ sequence (value `div` 100)
     , benchIOSink value "sequence_/100" $ sequence_ (value `div` 100)
     , benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100)
-    , benchIOSink value "choice/100" $ choice (value `div` 100)
+    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
     ]
 
 -------------------------------------------------------------------------------

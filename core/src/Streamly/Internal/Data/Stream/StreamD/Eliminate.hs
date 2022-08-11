@@ -89,6 +89,7 @@ import qualified Streamly.Internal.Data.Fold as Fold
 #endif
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as StreamD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
 
 import Prelude hiding
@@ -198,9 +199,7 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                         return (b, Nesting.append (fromList src) (Stream step s))
                     PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
-            Stop   -> do
-                b <- extract pst
-                return (b, let List buffer = buf in fromList buffer)
+            Stop -> goStop buf pst
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
@@ -225,6 +224,53 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (b, Nesting.append (fromList src) (Stream step s))
+            PR.Error err -> throwM $ ParseError err
+
+    -- This is simplified gobuf
+    goExtract !_ buf (List []) !pst = goStop buf pst
+    goExtract !_ buf (List (x:xs)) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                goExtract SPEC (List []) (List xs) pst1
+            PR.Partial n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List []) (List src) pst1
+            PR.Continue 0 pst1 ->
+                goExtract SPEC (List (x:getList buf)) (List xs) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List buf1) (List src) pst1
+            PR.Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                return (b, fromList src)
+            PR.Error err -> throwM $ ParseError err
+
+    -- This is simplified goExtract
+    {-# INLINE goStop #-}
+    goStop buf pst = do
+        pRes <- extract pst
+        case pRes of
+            PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
+            PR.Continue 0 _ ->
+                error "parseBreak: extract, Continue 0 creates infinite loop"
+            PR.Continue n pst1 -> do
+                assert (n <= length (getList buf)) (return ())
+                let (src0, buf1) = splitAt n (getList buf)
+                    src = Prelude.reverse src0
+                goExtract SPEC (List buf1) (List src) pst1
+            PR.Done 0 b -> return (b, StreamD.nil)
+            PR.Done n b -> do
+                assert (n <= length (getList buf)) (return ())
+                let src0 = Prelude.take n (getList buf)
+                    src  = Prelude.reverse src0
+                return (b, fromList src)
             PR.Error err -> throwM $ ParseError err
 
 ------------------------------------------------------------------------------

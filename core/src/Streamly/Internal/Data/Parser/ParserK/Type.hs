@@ -67,7 +67,7 @@ instance Functor m => Functor (Step m a) where
 -- /Pre-release/
 --
 data Parse b =
-      Success !Int !b     -- Success, no more input needed
+      Success !Int !b     -- Leftover count, result
     | Failure !String     -- Error
 
 -- | Map a function over 'Success'.

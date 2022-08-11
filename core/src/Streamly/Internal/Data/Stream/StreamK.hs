@@ -175,7 +175,8 @@ module Streamly.Internal.Data.Stream.StreamK
     )
 where
 
-import Control.Exception (assert)
+#include "assert.hs"
+
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
@@ -1027,27 +1028,40 @@ parseBreak (PR.Parser pstep initial extract) stream = do
     -- That will allow us more efficient random back and forth movement.
     goStream st buf !pst =
         let stop = do
-                b <- extract pst
-                return (b, fromList buf)
+                r <- extract pst
+                case r of
+                    PR.Error err -> throwM $ PR.ParseError err
+                    PR.Done n b -> do
+                        assertM(n <= length buf)
+                        let src0 = Prelude.take n buf
+                            src  = Prelude.reverse src0
+                        return (b, fromList src)
+                    PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
+                    PR.Continue 0 _ -> error "parseBreak: extract, Continue 0 creates infinite loop"
+                    PR.Continue n s -> do
+                        assertM(n <= length buf)
+                        let (src0, buf1) = splitAt n buf
+                            src = Prelude.reverse src0
+                        goBuf nil buf1 src s
             single x = yieldk x nil
             yieldk x r = do
                 res <- pstep pst x
                 case res of
                     PR.Partial 0 s -> goStream r [] s
                     PR.Partial n s -> do
-                        assert (n <= length (x:buf)) (return ())
+                        assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         goBuf r [] src s
                     PR.Continue 0 s -> goStream r (x:buf) s
                     PR.Continue n s -> do
-                        assert (n <= length (x:buf)) (return ())
+                        assertM(n <= length (x:buf))
                         let (src0, buf1) = splitAt n (x:buf)
                             src = Prelude.reverse src0
                         goBuf r buf1 src s
                     PR.Done 0 b -> return (b, r)
                     PR.Done n b -> do
-                        assert (n <= length (x:buf)) (return ())
+                        assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         return (b, serial (fromList src) r)

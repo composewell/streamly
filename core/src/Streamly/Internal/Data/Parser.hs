@@ -148,11 +148,13 @@ module Streamly.Internal.Data.Parser
     , serialWith
     , split_
 
+{-
     -- ** Parallel Applicatives
     , teeWith
     , teeWithFst
     , teeWithMin
     -- , teeTill -- like manyTill but parallel
+-}
 
     -- ** Sequential Interleaving
     -- Use two folds, run a primary parser, its rejected values go to the
@@ -182,10 +184,12 @@ module Streamly.Internal.Data.Parser
     -- ** Sequential Alternative
     , alt
 
+{-
     -- ** Parallel Alternatives
     , shortest
     , longest
     -- , fastest
+-}
 
     -- * N-ary Combinators
     -- ** Sequential Collection
@@ -228,7 +232,7 @@ module Streamly.Internal.Data.Parser
     -- , fastestN -- first N successful in time
     -- , choiceN  -- first N successful in position
     -- @
-    , choice   -- first successful in position
+    -- , choice   -- first successful in position
 
     -- ** Repeated Alternatives
     , retryMaxTotal
@@ -1110,6 +1114,7 @@ serialWith f p1 p2 =
 split_ :: MonadCatch m => Parser m x a -> Parser m x b -> Parser m x b
 split_ p1 p2 = D.toParserK $ D.split_ (D.fromParserK p1) (D.fromParserK p2)
 
+{-
 -- | @teeWith f p1 p2@ distributes its input to both @p1@ and @p2@ until both
 -- of them succeed or anyone of them fails and combines their output using @f@.
 -- The parser succeeds if both the parsers succeed.
@@ -1143,6 +1148,7 @@ teeWithMin :: MonadCatch m
     => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
 teeWithMin f p1 p2 =
     D.toParserK $ D.teeWithMin f (D.fromParserK p1) (D.fromParserK p2)
+-}
 
 -- | Sequential alternative. Apply the input to the first parser and return the
 -- result if the parser succeeds. If the first parser fails then backtrack and
@@ -1165,6 +1171,7 @@ teeWithMin f p1 p2 =
 alt :: MonadCatch m => Parser m x a -> Parser m x a -> Parser m x a
 alt p1 p2 = D.toParserK $ D.alt (D.fromParserK p1) (D.fromParserK p2)
 
+{-
 -- | Shortest alternative. Apply both parsers in parallel but choose the result
 -- from the one which consumed least input i.e. take the shortest succeeding
 -- parse.
@@ -1186,6 +1193,7 @@ shortest p1 p2 = D.toParserK $ D.shortest (D.fromParserK p1) (D.fromParserK p2)
 longest :: MonadCatch m
     => Parser m x a -> Parser m x a -> Parser m x a
 longest p1 p2 = D.toParserK $ D.longest (D.fromParserK p1) (D.fromParserK p2)
+-}
 
 -- | Run a parser without consuming the input.
 --
@@ -1246,6 +1254,7 @@ concatMap :: MonadCatch m
     => (b -> Parser m a c) -> Parser m a b -> Parser m a c
 concatMap f p = D.toParserK $ D.concatMap (D.fromParserK . f) (D.fromParserK p)
 
+{-
 -------------------------------------------------------------------------------
 -- Alternative Collection
 -------------------------------------------------------------------------------
@@ -1261,6 +1270,7 @@ concatMap f p = D.toParserK $ D.concatMap (D.fromParserK . f) (D.fromParserK p)
 choice ::
        (Functor t, Foldable t, MonadCatch m) => t (Parser m a b) -> Parser m a b
 choice ps = D.toParserK $ D.choice $ D.fromParserK <$> ps
+-}
 
 -------------------------------------------------------------------------------
 -- Sequential Repetition

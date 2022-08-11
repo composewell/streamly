@@ -275,6 +275,7 @@ takeEndBy_ :: MonadCatch m
     => Int -> Stream m Int -> m()
 takeEndBy_ value = Stream.parse (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
 
+{-
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadCatch m
     => Int -> Stream m Int -> m ((), ())
@@ -314,6 +315,7 @@ longestAllAny value =
             (PR.dropWhile (<= value))
             (PR.dropWhile (<= value))
         )
+-}
 
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
@@ -379,11 +381,13 @@ choiceAsum value =
     Stream.parse (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
 
+{-
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> Stream m Int -> m Int
 choice value =
     Stream.parse
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
+-}
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -450,10 +454,12 @@ o_1_space_serial value =
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
     , benchIOSink value "manyTill" $ manyTill value
+    {-
     , benchIOSink value "tee" $ teeAllAny value
     , benchIOSink value "teeFst" $ teeFstAllAny value
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
+    -}
     , benchIOSink value "parseBreak (recursive)" parseBreak
     , benchIOSink value "parseMany (take 1)" (parseMany 1)
     , benchIOSink value "parseMany (take all)" (parseMany value)
@@ -495,7 +501,7 @@ o_n_heap_serial value =
     , benchIOSink value "split_" $ split_ value
     -- XXX why O(n) heap?
     , benchIOSink value "choice (asum)" $ choiceAsum value
-    , benchIOSink value "choice" $ choice value
+    -- , benchIOSink value "choice" $ choice value
 
     -- These show non-linear time complexity.
     -- They accumulate the results in a list.

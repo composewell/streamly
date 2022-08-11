@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Control.Exception (SomeException(..))
+import Control.Exception (SomeException(..), try)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt, equals)
 import Test.Hspec (Spec, hspec, describe)
@@ -175,16 +175,19 @@ takeBetween =
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
                 let
                     list_length = Prelude.length ls
-                in
-                    case S.parseD (P.takeBetween m n FL.toList) (S.fromList ls) of
+                in monadicIO $ do
+                    let p = P.takeBetween m n FL.toList
+                    r <- run $ try $ S.parseD p (S.fromList ls)
+                    return $ case r of
                         Right parsed_list ->
                             if m <= list_length && n >= m
                             then
-                                let lpl = Prelude.length parsed_list
-                                in checkListEqual parsed_list (Prelude.take
-                                    lpl ls)
+                                let len = Prelude.length parsed_list
+                                in checkListEqual
+                                        parsed_list (Prelude.take len ls)
                             else property False
-                        Left _ -> property (m > n || list_length < m)
+                        Left (_ :: SomeException) ->
+                            property (m > n || list_length < m)
 
 take :: Property
 take =
@@ -417,6 +420,7 @@ splitWithFailBoth =
         Right _ -> False
         Left _ -> True)
 
+{-
 teeWithPass :: Property
 teeWithPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
@@ -511,6 +515,7 @@ longestFailBoth =
         (case S.parseD (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
+-}
 
 many :: Property
 many =
@@ -757,8 +762,8 @@ main =
     describe "test for sequence parser" $ do
         prop "P.takeBetween m n = Prelude.take when len >= m and len <= n"
                 takeBetweenPass
-        prop "P.takeBetween m n = Prelude.take when len >= m and len <= n and\
-                \fail otherwise" takeBetween
+        prop ("P.takeBetween m n = Prelude.take when len >= m and len <= n and"
+            ++ " fail otherwise") takeBetween
         prop "P.take = Prelude.take" Main.take
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
@@ -776,6 +781,7 @@ main =
         prop "fail due to die as left parser" splitWithFailLeft
         prop "fail due to die as right parser" splitWithFailRight
         prop "fail due to die as both parsers" splitWithFailBoth
+        {-
         prop "parsed two lists should be equal" teeWithPass
         prop "fail due to die as left parser" teeWithFailLeft
         prop "fail due to die as right parser" teeWithFailRight
@@ -788,6 +794,7 @@ main =
         prop "pass even if die is left parser" longestPassLeft
         prop "pass even if die is right parser" longestPassRight
         prop "fail due to die as both parsers" longestFailBoth
+        -}
         prop "P.many concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" many
         prop "[] due to parser being die" many_empty
         prop "P.some concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" some

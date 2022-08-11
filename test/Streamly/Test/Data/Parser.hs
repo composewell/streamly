@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Control.Exception (SomeException(..), displayException)
+import Control.Exception (SomeException(..), displayException, try)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
@@ -195,13 +195,16 @@ takeBetween =
 
     go m n ls =
         let inputLen = Prelude.length ls
-         in case S.parse (P.takeBetween m n FL.toList) (S.fromList ls) of
+         in monadicIO $ do
+            let p = P.takeBetween m n FL.toList
+            r <- run $ try $ S.parse p (S.fromList ls)
+            return $ case r of
                 Right xs ->
                     let parsedLen = Prelude.length xs
                      in if inputLen >= m && parsedLen >= m && parsedLen <= n
                         then checkListEqual xs $ Prelude.take parsedLen ls
                         else property False
-                Left _ ->
+                Left (_ :: SomeException) ->
                     property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
 
 takeEQPass :: Property
@@ -419,6 +422,7 @@ takeWhileP =
                         (takeWhileTillLen n predicate ls)
                     Left _ -> property False
 
+{-
 choice :: Property
 choice =
     forAll
@@ -434,6 +438,7 @@ choice =
     where
 
     parser i = P.fromFold (FL.take i FL.toList)
+-}
 
 groupBy :: Property
 groupBy =
@@ -1179,7 +1184,7 @@ main =
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
         prop "many (P.wordBy ' ') = words'" wordBy
         parseManyWordQuotedBy
-        prop "choice" choice
+        -- prop "choice" choice
         -- prop "" splitWithPass
         -- prop "" splitWithFailLeft
         -- prop "" splitWithFailRight

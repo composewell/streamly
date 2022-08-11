@@ -26,6 +26,7 @@
 
 module Streamly.Internal.Data.Parser.ParserD.Tee
     (
+    {-
     -- Parallel zipped
       teeWith
     , teeWithFst
@@ -34,9 +35,11 @@ module Streamly.Internal.Data.Parser.ParserD.Tee
     -- Parallel alternatives
     , shortest
     , longest
+    -}
     )
 where
 
+{-
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, try)
 import Prelude
@@ -611,3 +614,4 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                     Right b -> return b
             TeePair (_, StepResult _, _, _) (_, StepResult _, _, _) ->
                 error "unreachable"
+-}
