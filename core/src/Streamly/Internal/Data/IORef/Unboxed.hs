@@ -41,7 +41,8 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed
     ( ArrayContents(..)
-    , Unboxed(..)
+    , Unboxed
+    , sizeOf
     , peekWith
     , pokeWith
     , newUnpinnedArrayContents

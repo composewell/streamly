@@ -3,6 +3,7 @@
 
 module Streamly.Internal.Data.Unboxed
     ( Unboxed
+    , Unbox
     , alignment
     , peekWith
     , pokeWith
@@ -20,10 +21,11 @@ module Streamly.Internal.Data.Unboxed
 
 #include "ArrayMacros.h"
 
-import Data.Complex (Complex((:+)), realPart)
+import Data.Complex (Complex((:+)))
 import GHC.Base (IO(..))
 import GHC.Int (Int32(..), Int64(..))
 import GHC.Word (Word8(..), Word64(..))
+import Foreign.Storable (Storable(..))
 
 import GHC.Exts
 
@@ -257,21 +259,16 @@ writeWord8ArrayAsDouble# arr# i# =
 --
 -- This type class is similar to Storable. While Storable allows writing to a
 -- Ptr, this type class allows writing to a MutableByteArray#.
-class Unboxed a where
-    sizeOf :: a -> Int
-    alignment :: a -> Int
+type Unboxed a = (Unbox a, Storable a)
 
+class Unbox a where
     -- Read an element of type "a" from a MutableByteArray given the byte
     -- index.
     readByteArray :: ArrayContents a -> Int -> IO a
     writeByteArray :: ArrayContents a -> Int -> a -> IO ()
 
-#define DERIVE_UNBOXED(_type, _constructor, _sizeOf, _alignment, _readArray, _writeArray) \
-instance Unboxed _type where {                                       \
-; {-# INLINE sizeOf #-}                                              \
-; sizeOf _ = _sizeOf                                                 \
-; {-# INLINE alignment #-}                                           \
-; alignment _ =  _alignment                                          \
+#define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
+instance Unbox _type where {                                       \
 ; {-# INLINE readByteArray #-}                                       \
 ; readByteArray (ArrayContents mbarr) (I# n) = IO $ \s ->            \
       case _readArray mbarr n s of                                   \
@@ -283,84 +280,58 @@ instance Unboxed _type where {                                       \
 
 DERIVE_UNBOXED( Char
               , C#
-              , SIZEOF_HSCHAR
-              , ALIGNMENT_HSCHAR
               , readWord8ArrayAsWideChar#
               , writeWord8ArrayAsWideChar#)
 
 DERIVE_UNBOXED( Int32
               , I32#
-              , SIZEOF_INT32
-              , ALIGNMENT_INT32
               , readWord8ArrayAsInt32#
               , writeWord8ArrayAsInt32#)
 
 DERIVE_UNBOXED( Int
               , I#
-              , SIZEOF_HSINT
-              , ALIGNMENT_HSINT
               , readWord8ArrayAsInt#
               , writeWord8ArrayAsInt#)
 
 DERIVE_UNBOXED( Int64
               , I64#
-              , SIZEOF_INT64
-              , ALIGNMENT_INT64
               , readWord8ArrayAsInt64#
               , writeWord8ArrayAsInt64#)
 
 DERIVE_UNBOXED( Word
               , W#
-              , SIZEOF_HSWORD
-              , ALIGNMENT_HSWORD
               , readWord8ArrayAsWord#
               , writeWord8ArrayAsWord#)
 
 DERIVE_UNBOXED( Word8
               , W8#
-              , SIZEOF_WORD8
-              , ALIGNMENT_WORD8
               , readWord8Array#
               , writeWord8Array#)
 
 DERIVE_UNBOXED( Word64
               , W64#
-              , SIZEOF_WORD64
-              , ALIGNMENT_WORD64
               , readWord8ArrayAsWord64#
               , writeWord8ArrayAsWord64#)
 
 DERIVE_UNBOXED( Double
               , D#
-              , SIZEOF_DOUBLE
-              , ALIGNMENT_DOUBLE
               , readWord8ArrayAsDouble#
               , writeWord8ArrayAsDouble#)
 
-instance Unboxed Bool where
-    {-# INLINE sizeOf #-}
-    sizeOf _ = sizeOf (undefined :: Word8)
-
-    {-# INLINE alignment #-}
-    alignment _ = alignment (undefined :: Word8)
+instance Unbox Bool where
 
     {-# INLINE readByteArray #-}
     readByteArray arr i = do
         res <- readByteArray (castContents arr) i
-        return $ res /= (0 :: Word8)
+        return $ res /= (0 :: Int32)
 
     {-# INLINE writeByteArray #-}
     writeByteArray arr i a =
         if a
-        then writeByteArray (castContents arr) i (1 :: Word8)
-        else writeByteArray (castContents arr) i (0 :: Word8)
+        then writeByteArray (castContents arr) i (1 :: Int32)
+        else writeByteArray (castContents arr) i (0 :: Int32)
 
-instance forall a. Unboxed a => Unboxed (Complex a) where
-    {-# INLINE sizeOf #-}
-    sizeOf a = 2 * sizeOf (realPart a)
-
-    {-# INLINE alignment #-}
-    alignment a = alignment (realPart a)
+instance forall a. Unboxed a => Unbox (Complex a) where
 
     {-# INLINE readByteArray #-}
     readByteArray arr i = do

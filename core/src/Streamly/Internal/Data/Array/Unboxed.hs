@@ -134,7 +134,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Foreign.Storable as Storable
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MA
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
@@ -269,7 +268,7 @@ last = getIndexRev 0
 -- @since 0.8.0
 {-# INLINE writeLastN #-}
 writeLastN ::
-       (Unboxed a, Storable.Storable a, MonadIO m) => Int -> Fold m a (Array a)
+       (Unboxed a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = A.unsafeFreeze <$> Fold step initial done
