@@ -73,11 +73,8 @@ import qualified GHC.ST as GHCST
 import Text.ParserCombinators.ReadP
 
 data SmallArray a = SmallArray (SmallArray# a)
-  deriving Typeable
 
 data SmallMutableArray s a = SmallMutableArray (SmallMutableArray# s a)
-  deriving Typeable
-
 
 -- | Create a new small mutable array.
 newSmallArray

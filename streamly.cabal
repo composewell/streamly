@@ -330,16 +330,18 @@ common compile-options
     if flag(use-c-malloc)
       cpp-options:    -DUSE_C_MALLOC
 
-    ghc-options:      -Wall
-                      -Wcompat
-                      -Wunrecognised-warning-flags
-                      -Widentities
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -Wnoncanonical-monad-instances
-                      -Wmissing-export-lists
-                      -Rghc-timing
+    ghc-options:    -Weverything
+                    -Wno-implicit-prelude
+                    -Wno-missing-deriving-strategies
+                    -Wno-missing-exported-signatures
+                    -Wno-missing-import-lists
+                    -Wno-missing-local-signatures
+                    -Wno-missing-safe-haskell-mode
+                    -Wno-missed-specialisations
+                    -Wno-all-missed-specialisations
+                    -Wno-monomorphism-restriction
+                    -Wno-prepositive-qualified-module
+                    -Wno-unsafe
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -669,7 +671,6 @@ library
                      , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 2.3
                      , transformers      >= 0.4   && < 0.7
-                     , filepath          >= 1.2.0.0 && < 1.5
                      , template-haskell  >= 2.13 && < 2.20
 
                      -- The core streamly package

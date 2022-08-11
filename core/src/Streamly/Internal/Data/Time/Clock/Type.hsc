@@ -142,7 +142,7 @@ data Clock
   | RealtimeCoarse
 #endif
 
-  deriving (Eq, Enum, Generic, Read, Show, Typeable)
+  deriving (Eq, Enum, Generic, Read, Show)
 
 -------------------------------------------------------------------------------
 -- Translate the Haskell "Clock" type to C

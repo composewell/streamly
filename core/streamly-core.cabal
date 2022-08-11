@@ -117,16 +117,19 @@ common compile-options
     if flag(use-c-malloc)
       cpp-options:    -DUSE_C_MALLOC
 
-    ghc-options:      -Wall
-                      -Wcompat
-                      -Wunrecognised-warning-flags
-                      -Widentities
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -Wnoncanonical-monad-instances
-                      -Wmissing-export-lists
-                      -Rghc-timing
+    ghc-options:    -Weverything
+                    -Wno-implicit-prelude
+                    -Wno-missing-deriving-strategies
+                    -Wno-missing-exported-signatures
+                    -Wno-missing-import-lists
+                    -Wno-missing-local-signatures
+                    -Wno-missing-safe-haskell-mode
+                    -Wno-missed-specialisations
+                    -Wno-all-missed-specialisations
+                    -Wno-monomorphism-restriction
+                    -Wno-prepositive-qualified-module
+                    -Wno-unsafe
+                    -Rghc-timing
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -353,12 +356,10 @@ library
                        base              >= 4.9   && < 4.18
                      , containers        >= 0.5   && < 0.7
                      , deepseq           >= 1.4.1 && < 1.5
-                     , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
                      , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 2.3
                      , transformers      >= 0.4   && < 0.7
-                     , filepath          >= 1.2.0.0 && < 1.5
 
                      , fusion-plugin-types >= 0.1 && < 0.2
 

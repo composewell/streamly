@@ -29,8 +29,6 @@ where
 #include "inline.hs"
 
 import Data.Char (isAsciiUpper, isAsciiLower, chr, ord)
-import Data.Typeable (Typeable)
-
 import Unicode.Char (DecomposeMode(..))
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
@@ -85,7 +83,7 @@ data NormalizationMode
     | NFKD   -- ^ Compatibility decomposition.
     | NFC    -- ^ Canonical decomposition followed by canonical composition.
     | NFKC   -- ^ Compatibility decomposition followed by canonical composition.
-      deriving (Eq, Show, Enum, Typeable)
+      deriving (Eq, Show, Enum)
 
 -------------------------------------------------------------------------------
 -- Normalization combinators
