@@ -132,13 +132,13 @@ jobs:
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin"
             ignore_error: false
-          - name: 8.6.5-sdist-streamk-unoptimized
+          - name: 8.6.5-sdist-no-fusion-unoptimized
             ghc_version: 8.6.5
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6
             cabal_project: cabal.project
-            cabal_build_options: "--flag streamk --flag -opt"
+            cabal_build_options: "--flag no-fusion --flag -opt"
             ignore_error: false
           - name: 8.6.5-sdist-debug-unoptimized
             ghc_version: 8.6.5

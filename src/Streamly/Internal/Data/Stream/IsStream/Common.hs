@@ -75,7 +75,7 @@ import Streamly.Internal.Data.Array.Unboxed.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream(..), fromStreamD, toStreamD, fromStreamS, toStreamS)
+    (IsStream(..), fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -87,11 +87,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-#ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-#else
-import qualified Streamly.Internal.Data.Stream.StreamD as S
-#endif
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
@@ -202,7 +197,7 @@ repeatM = K.repeatMWith IsStream.consM
 {-# RULES "repeatM serial" repeatM = repeatMSerial #-}
 {-# INLINE repeatMSerial #-}
 repeatMSerial :: MonadAsync m => m a -> SerialT m a
-repeatMSerial = fromStreamS . S.repeatM
+repeatMSerial = fromStreamD . D.repeatM
 
 ------------------------------------------------------------------------------
 -- Generation - Time related
@@ -298,7 +293,7 @@ foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 -- Same as 'fmap'.
 --
 -- @
--- > S.toList $ S.map (+1) $ S.fromList [1,2,3]
+-- > D.toList $ D.map (+1) $ D.fromList [1,2,3]
 -- [2,3,4]
 -- @
 --
@@ -397,7 +392,7 @@ smapM step initial stream =
 -- @since 0.1.0
 {-# INLINE take #-}
 take :: (IsStream t, Monad m) => Int -> t m a -> t m a
-take n m = fromStreamS $ S.take n $ toStreamS
+take n m = fromStreamD $ D.take n $ toStreamD
     (maxYields (Just (fromIntegral n)) m)
 
 -- | End the stream as soon as the predicate fails on an element.
@@ -405,7 +400,7 @@ take n m = fromStreamS $ S.take n $ toStreamS
 -- @since 0.1.0
 {-# INLINE takeWhile #-}
 takeWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
+takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
@@ -416,7 +411,7 @@ takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 -- @since 0.1.0
 {-# INLINE drop #-}
 drop :: (IsStream t, Monad m) => Int -> t m a -> t m a
-drop n m = fromStreamS $ S.drop n $ toStreamS m
+drop n m = fromStreamD $ D.drop n $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Searching
@@ -430,7 +425,7 @@ drop n m = fromStreamS $ S.drop n $ toStreamS m
 -- @since 0.5.0
 {-# INLINE findIndices #-}
 findIndices :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m Int
-findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
+findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
@@ -454,7 +449,7 @@ findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-intersperseM m = fromStreamS . S.intersperseM m . toStreamS
+intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 
 -- | Intersperse a monadic action into the input stream after every @n@
 -- seconds.
@@ -493,7 +488,7 @@ interjectSuffix n f xs = xs `parallelFst` repeatM timed
 -- /Since: 0.1.1/
 {-# INLINE reverse #-}
 reverse :: (IsStream t, Monad m) => t m a -> t m a
-reverse s = fromStreamS $ S.reverse $ toStreamS s
+reverse s = fromStreamD $ D.reverse $ toStreamD s
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
@@ -699,8 +694,8 @@ splitOnSeq patt f m =
 {-# INLINE zipWithM #-}
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 =
-    IsStream.fromStreamS
-        $ S.zipWithM f (IsStream.toStreamS m1) (IsStream.toStreamS m2)
+    IsStream.fromStreamD
+        $ D.zipWithM f (IsStream.toStreamD m1) (IsStream.toStreamD m2)
 
 -- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
 -- elements @a@ and @b@ are then zipped using the supplied zip function and the
@@ -710,7 +705,7 @@ zipWithM f m1 m2 =
 -- first, the element @a@ from previous evaluation of stream @a@ is discarded.
 --
 -- @
--- > S.toList $ S.zipWith (+) (S.fromList [1,2,3]) (S.fromList [4,5,6])
+-- > D.toList $ D.zipWith (+) (D.fromList [1,2,3]) (D.fromList [4,5,6])
 -- [5,7,9]
 -- @
 --
@@ -718,5 +713,5 @@ zipWithM f m1 m2 =
 {-# INLINE zipWith #-}
 zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 =
-    IsStream.fromStreamS
-        $ S.zipWith f (IsStream.toStreamS m1) (IsStream.toStreamS m2)
+    IsStream.fromStreamD
+        $ D.zipWith f (IsStream.toStreamD m1) (IsStream.toStreamD m2)

@@ -57,11 +57,6 @@ flag no-fusion
   manual: True
   default: False
 
-flag streamk
-  description: Use CPS style streams when possible
-  manual: True
-  default: False
-
 flag use-c-malloc
   description: Use C malloc instead of GHC malloc
   manual: True
@@ -98,9 +93,6 @@ flag use-folds
 
 common compile-options
     default-language: Haskell2010
-
-    if flag(streamk)
-      cpp-options:    -DUSE_STREAMK_ONLY
 
     if flag(no-fusion)
       cpp-options:    -DDISABLE_FUSION
