@@ -85,7 +85,7 @@ import GHC.Exts (IsList, IsString(..))
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Unboxed.Mut.Type (ArrayContents)
+import Streamly.Internal.Data.Array.Unboxed.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
@@ -133,7 +133,7 @@ data Array a =
 #endif
     -- All offsets are in terms of bytes from the start of arraycontents
     Array
-    { arrContents :: {-# UNPACK #-} !(ArrayContents a)
+    { arrContents :: {-# UNPACK #-} !(MutableByteArray a)
     , arrStart :: {-# UNPACK #-} !Int -- offset
     , arrEnd   :: {-# UNPACK #-} !Int   -- offset + len
     }

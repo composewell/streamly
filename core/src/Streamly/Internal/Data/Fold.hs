@@ -306,7 +306,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust, fromJust)
 import Data.Word (Word32)
-import Foreign.Storable (Storable, peek, sizeOf)
+import Foreign.Storable (peek, sizeOf)
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unboxed (Unboxed)
@@ -1483,7 +1483,7 @@ data SplitOnSeqState acc a rb rh w ck =
 --
 -- /Pre-release/
 {-# INLINE takeEndBySeq #-}
-takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a) =>
+takeEndBySeq :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -1619,7 +1619,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
-takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a) =>
+takeEndBySeq_ :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b

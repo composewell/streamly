@@ -3,11 +3,12 @@
 
 module Streamly.Internal.Data.Unboxed
     ( Unboxed
+    , Unbox(..)
     , alignment
     , peekWith
     , pokeWith
     , sizeOf
-    , ArrayContents(..)
+    , MutableByteArray(..)
     , castContents
     , touch
     , getMutableByteArray#
@@ -20,10 +21,11 @@ module Streamly.Internal.Data.Unboxed
 
 #include "ArrayMacros.h"
 
-import Data.Complex (Complex((:+)), realPart)
+import Data.Complex (Complex((:+)))
 import GHC.Base (IO(..))
 import GHC.Int (Int32(..), Int64(..))
 import GHC.Word (Word8(..), Word64(..))
+import Foreign.Storable (Storable(..))
 
 import GHC.Exts
 
@@ -32,19 +34,19 @@ import GHC.Exts
 --------------------------------------------------------------------------------
 
 -- XXX can use UnliftedNewtypes
-data ArrayContents a = ArrayContents !(MutableByteArray# RealWorld)
+data MutableByteArray a = MutableByteArray !(MutableByteArray# RealWorld)
 
 {-# INLINE getMutableByteArray# #-}
-getMutableByteArray# :: ArrayContents a -> MutableByteArray# RealWorld
-getMutableByteArray# (ArrayContents mbarr) = mbarr
+getMutableByteArray# :: MutableByteArray a -> MutableByteArray# RealWorld
+getMutableByteArray# (MutableByteArray mbarr) = mbarr
 
 {-# INLINE castContents #-}
-castContents :: ArrayContents a -> ArrayContents b
-castContents (ArrayContents mbarr) = ArrayContents mbarr
+castContents :: MutableByteArray a -> MutableByteArray b
+castContents (MutableByteArray mbarr) = MutableByteArray mbarr
 
 {-# INLINE touch #-}
-touch :: ArrayContents a -> IO ()
-touch (ArrayContents contents) =
+touch :: MutableByteArray a -> IO ()
+touch (MutableByteArray contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
 
 --------------------------------------------------------------------------------
@@ -52,13 +54,13 @@ touch (ArrayContents contents) =
 --------------------------------------------------------------------------------
 
 {-# INLINE newUnpinnedArrayContents #-}
-newUnpinnedArrayContents :: Int -> IO (ArrayContents a)
+newUnpinnedArrayContents :: Int -> IO (MutableByteArray a)
 newUnpinnedArrayContents nbytes | nbytes < 0 =
   errorWithoutStackTrace "newUnpinnedArrayContents: size must be >= 0"
 newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
-           let c = ArrayContents mbarr#
+           let c = MutableByteArray mbarr#
             in (# s', c #)
 
 -------------------------------------------------------------------------------
@@ -66,8 +68,8 @@ newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
 -------------------------------------------------------------------------------
 
 {-# INLINE isPinned #-}
-isPinned :: ArrayContents a -> Bool
-isPinned (ArrayContents arr#) =
+isPinned :: MutableByteArray a -> Bool
+isPinned (MutableByteArray arr#) =
     let pinnedInt = I# (isMutableByteArrayPinned# arr#)
      in pinnedInt == 1
 
@@ -88,24 +90,24 @@ cloneMutableArrayWith# alloc# arr# s# =
                         s3# -> (# s3#, arr1# #)
 
 {-# INLINE pin #-}
-pin :: ArrayContents a -> IO (ArrayContents a)
-pin arr@(ArrayContents marr#) =
+pin :: MutableByteArray a -> IO (MutableByteArray a)
+pin arr@(MutableByteArray marr#) =
     if isPinned arr
     then return arr
     else IO
              $ \s# ->
                    case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
 
 {-# INLINE unpin #-}
-unpin :: ArrayContents a -> IO (ArrayContents a)
-unpin arr@(ArrayContents marr#) =
+unpin :: MutableByteArray a -> IO (MutableByteArray a)
+unpin arr@(MutableByteArray marr#) =
     if not (isPinned arr)
     then return arr
     else IO
              $ \s# ->
                    case cloneMutableArrayWith# newByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
 
 --------------------------------------------------------------------------------
 -- The Unboxed type class
@@ -225,14 +227,16 @@ writeWord8ArrayAsDouble# arr# i# =
 -- class allows each primitive type to have its own specific efficient
 -- implementation to read and write the type to memory.
 --
--- The ArrayContents type currently uses a MutableByteArray#. However, we could
--- also use a foreign ptr instead. That would just make the implementation a
--- bit more complicated. In that case the type class would have to support
--- reading and writing to a Ptr as well, basically what Storable does. We will
--- also need to touch the anchoring ptr at the right points which is prone to
--- errors. However, it should be simple to implement unmanaged/read-only memory
--- arrays by allowing a Ptr type in ArrayContents, though it would require all
--- instances to support reading from a Ptr.
+-- This is a typeclass that uses MutableByteArray but could use ForeignPtr or
+-- any other representation of memory. We could make this a multiparameter type
+-- class if necessary.
+--
+-- If the type class would have to support reading and writing to a Ptr as well,
+-- basically what Storable does. We will also need to touch the anchoring ptr at
+-- the right points which is prone to errors. However, it should be simple to
+-- implement unmanaged/read-only memory arrays by allowing a Ptr type in
+-- ArrayContents, though it would require all instances to support reading from
+-- a Ptr.
 --
 -- There is a reason for using byte offset instead of element index in read and
 -- write operations in the type class. If we use element index slicing of the
@@ -245,144 +249,116 @@ writeWord8ArrayAsDouble# arr# i# =
 -- anymore, see
 -- https://lemire.me/blog/2012/05/31/data-alignment-for-speed-myth-or-reality/
 --
--- We try to keep the instances compatible with Storable. But we may have to
--- differ, for example a Bool instance can be implemented more efficiently
--- using a bit vector. Need to check the performance. We can possibly write
--- tests for checking compatibility with Storable.
+-- We have to keep the instances compatible with Storable as we depend on it for
+-- size and alignment. We can possibly write tests for checking compatibility
+-- with Storable.
 
--- | An 'Unboxed' type supplies operations for reading and writing the type
+-- | An 'Unbox' type supplies operations for reading and writing the type
 -- from and to a byte array in memory. The read operation constructs the boxed
 -- type from an unboxed byte representation in memory. The write operation
 -- writes the boxed type to an unboxed byte representation in memory.
 --
--- This type class is similar to Storable. While Storable allows writing to a
--- Ptr, this type class allows writing to a MutableByteArray#.
-class Unboxed a where
-    sizeOf :: a -> Int
-    alignment :: a -> Int
-
-    -- Read an element of type "a" from a MutableByteArray given the byte
+-- This type class dependes on Storable for size and alignment of the type. It
+-- is similar to Storable in the sense that it has corresponding operations for
+-- peekByteOff and pokeByteOff. While Storable allows writing to a Ptr, this
+-- type class allows writing to a MutableByteArray#.
+class Storable a => Unbox a where
+    -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
-    readByteArray :: ArrayContents a -> Int -> IO a
-    writeByteArray :: ArrayContents a -> Int -> a -> IO ()
+    box :: MutableByteArray a -> Int -> IO a
+    -- | Write an element of type "a" to a MutableByteArray given the byte
+    -- index.
+    unbox :: MutableByteArray a -> Int -> a -> IO ()
 
-#define DERIVE_UNBOXED(_type, _constructor, _sizeOf, _alignment, _readArray, _writeArray) \
-instance Unboxed _type where {                                       \
-; {-# INLINE sizeOf #-}                                              \
-; sizeOf _ = _sizeOf                                                 \
-; {-# INLINE alignment #-}                                           \
-; alignment _ =  _alignment                                          \
-; {-# INLINE readByteArray #-}                                       \
-; readByteArray (ArrayContents mbarr) (I# n) = IO $ \s ->            \
+type Unboxed a = (Unbox a, Storable a)
+
+#define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
+instance Unbox _type where {                                         \
+; {-# INLINE box #-}                                                 \
+; box (MutableByteArray mbarr) (I# n) = IO $ \s ->                      \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
-; {-# INLINE writeByteArray #-}                                      \
-; writeByteArray (ArrayContents mbarr) (I# n) (_constructor val) =   \
+; {-# INLINE unbox #-}                                               \
+; unbox (MutableByteArray mbarr) (I# n) (_constructor val) =            \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 }
 
 DERIVE_UNBOXED( Char
               , C#
-              , SIZEOF_HSCHAR
-              , ALIGNMENT_HSCHAR
               , readWord8ArrayAsWideChar#
               , writeWord8ArrayAsWideChar#)
 
 DERIVE_UNBOXED( Int32
               , I32#
-              , SIZEOF_INT32
-              , ALIGNMENT_INT32
               , readWord8ArrayAsInt32#
               , writeWord8ArrayAsInt32#)
 
 DERIVE_UNBOXED( Int
               , I#
-              , SIZEOF_HSINT
-              , ALIGNMENT_HSINT
               , readWord8ArrayAsInt#
               , writeWord8ArrayAsInt#)
 
 DERIVE_UNBOXED( Int64
               , I64#
-              , SIZEOF_INT64
-              , ALIGNMENT_INT64
               , readWord8ArrayAsInt64#
               , writeWord8ArrayAsInt64#)
 
 DERIVE_UNBOXED( Word
               , W#
-              , SIZEOF_HSWORD
-              , ALIGNMENT_HSWORD
               , readWord8ArrayAsWord#
               , writeWord8ArrayAsWord#)
 
 DERIVE_UNBOXED( Word8
               , W8#
-              , SIZEOF_WORD8
-              , ALIGNMENT_WORD8
               , readWord8Array#
               , writeWord8Array#)
 
 DERIVE_UNBOXED( Word64
               , W64#
-              , SIZEOF_WORD64
-              , ALIGNMENT_WORD64
               , readWord8ArrayAsWord64#
               , writeWord8ArrayAsWord64#)
 
 DERIVE_UNBOXED( Double
               , D#
-              , SIZEOF_DOUBLE
-              , ALIGNMENT_DOUBLE
               , readWord8ArrayAsDouble#
               , writeWord8ArrayAsDouble#)
 
-instance Unboxed Bool where
-    {-# INLINE sizeOf #-}
-    sizeOf _ = sizeOf (undefined :: Word8)
+instance Unbox Bool where
 
-    {-# INLINE alignment #-}
-    alignment _ = alignment (undefined :: Word8)
+    {-# INLINE box #-}
+    box arr i = do
+        res <- box (castContents arr) i
+        return $ res /= (0 :: Int32)
 
-    {-# INLINE readByteArray #-}
-    readByteArray arr i = do
-        res <- readByteArray (castContents arr) i
-        return $ res /= (0 :: Word8)
-
-    {-# INLINE writeByteArray #-}
-    writeByteArray arr i a =
+    {-# INLINE unbox #-}
+    unbox arr i a =
         if a
-        then writeByteArray (castContents arr) i (1 :: Word8)
-        else writeByteArray (castContents arr) i (0 :: Word8)
+        then unbox (castContents arr) i (1 :: Int32)
+        else unbox (castContents arr) i (0 :: Int32)
 
-instance forall a. Unboxed a => Unboxed (Complex a) where
-    {-# INLINE sizeOf #-}
-    sizeOf a = 2 * sizeOf (realPart a)
+instance forall a. Unboxed a => Unbox (Complex a) where
 
-    {-# INLINE alignment #-}
-    alignment a = alignment (realPart a)
-
-    {-# INLINE readByteArray #-}
-    readByteArray arr i = do
-        let contents = castContents arr :: ArrayContents a
-        real <- readByteArray contents i
-        img <- readByteArray contents (i + SIZE_OF(a))
+    {-# INLINE box #-}
+    box arr i = do
+        let contents = castContents arr :: MutableByteArray a
+        real <- box contents i
+        img <- box contents (i + SIZE_OF(a))
         return $ real :+ img
 
-    {-# INLINE writeByteArray #-}
-    writeByteArray arr i (real :+ img) = do
-        let contents = castContents arr :: ArrayContents a
-        writeByteArray contents i real
-        writeByteArray contents (i + SIZE_OF(a)) img
+    {-# INLINE unbox #-}
+    unbox arr i (real :+ img) = do
+        let contents = castContents arr :: MutableByteArray a
+        unbox contents i real
+        unbox contents (i + SIZE_OF(a)) img
 
 --------------------------------------------------------------------------------
 -- Functions
 --------------------------------------------------------------------------------
 
 {-# INLINE peekWith #-}
-peekWith :: Unboxed a => ArrayContents a -> Int -> IO a
-peekWith = readByteArray
+peekWith :: Unboxed a => MutableByteArray a -> Int -> IO a
+peekWith = box
 
 {-# INLINE pokeWith #-}
-pokeWith :: Unboxed a => ArrayContents a -> Int -> a -> IO ()
-pokeWith = writeByteArray
+pokeWith :: Unboxed a => MutableByteArray a -> Int -> a -> IO ()
+pokeWith = unbox
