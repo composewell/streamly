@@ -33,13 +33,6 @@ where
 
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 
-#ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
-#else
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
-#endif
-
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -59,15 +52,15 @@ import Prelude hiding (foldr, repeat)
 --
 {-# INLINE_EARLY fromList #-}
 fromList :: Monad m => [a] -> K.Stream m a
-fromList = S.toStreamK . S.fromList
+fromList = D.toStreamK . D.fromList
 {-# RULES "fromList fallback to StreamK" [1]
-    forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
+    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
 
 -- | Convert a stream into a list in the underlying monad.
 --
 {-# INLINE toList #-}
 toList :: Monad m => K.Stream m a -> m [a]
-toList m = S.toList $ S.fromStreamK m
+toList m = D.toList $ D.fromStreamK m
 
 ------------------------------------------------------------------------------
 -- Folds
@@ -75,7 +68,7 @@ toList m = S.toList $ S.fromStreamK m
 
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> K.Stream m a -> m b
-foldrM step acc m = S.foldrM step acc $ S.fromStreamK m
+foldrM step acc m = D.foldrM step acc $ D.fromStreamK m
 
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> K.Stream m a -> m b
@@ -86,12 +79,12 @@ foldr f z = foldrM (\a b -> f a <$> b) (return z)
 {-# INLINE foldl' #-}
 foldl' ::
     Monad m => (b -> a -> b) -> b -> K.Stream m a -> m b
-foldl' step begin m = S.foldl' step begin $ S.fromStreamK m
+foldl' step begin m = D.foldl' step begin $ D.fromStreamK m
 
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> K.Stream m a -> m b
-fold fld m = S.fold fld $ S.fromStreamK m
+fold fld m = D.fold fld $ D.fromStreamK m
 
 ------------------------------------------------------------------------------
 -- Comparison

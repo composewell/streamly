@@ -285,11 +285,6 @@ flag has-llvm
   manual: True
   default: False
 
-flag streamk
-  description: Use CPS style streams when possible
-  manual: True
-  default: False
-
 flag use-c-malloc
   description: Use C malloc instead of GHC malloc
   manual: True
@@ -320,9 +315,6 @@ common compile-options
 
     if os(windows)
       cpp-options:    -DCABAL_OS_WINDOWS
-
-    if flag(streamk)
-      cpp-options:    -DUSE_STREAMK_ONLY
 
     if flag(dev)
       cpp-options:    -DDEVBUILD

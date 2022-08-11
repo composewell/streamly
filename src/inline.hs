@@ -9,7 +9,7 @@
 --
 -- {-# INLINE_EARLY unfoldr #-}
 -- unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
--- unfoldr step seed = fromStreamS (S.unfoldr step seed)
+-- unfoldr step seed = fromStreamD (S.unfoldr step seed)
 -- {-# RULES "unfoldr fallback to StreamK" [1]
 --     forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}```
 --

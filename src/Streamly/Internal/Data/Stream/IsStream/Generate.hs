@@ -99,7 +99,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     ( absTimesWith, concatM, relTimesWith, timesWith, fromPure, fromEffect
     , yield, yieldM, repeatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream (..), fromSerial, consM, fromStreamD, fromStreamS)
+    (IsStream (..), fromSerial, consM, fromStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.WSerial (WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
@@ -112,12 +112,6 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-#ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
-#else
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as S
-#endif
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified System.IO as IO
 
@@ -187,9 +181,9 @@ unfold0 unf = unfold unf (error "unfold0: unexpected void evaluation")
 -- @since 0.1.0
 {-# INLINE_EARLY unfoldr #-}
 unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step seed = fromStreamS (S.unfoldr step seed)
+unfoldr step seed = fromStreamD (D.unfoldr step seed)
 {-# RULES "unfoldr fallback to StreamK" [1]
-    forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
+    forall a b. D.toStreamK (D.unfoldr a b) = K.unfoldr a b #-}
 
 -- | Build a stream by unfolding a /monadic/ step function starting from a
 -- seed.  The step function returns the next element in the stream and the next
@@ -253,7 +247,7 @@ unfoldrMZipSerial f = fromSerial . Serial.unfoldrM f
 -- @since 0.4.0
 {-# INLINE_NORMAL repeat #-}
 repeat :: (IsStream t, Monad m) => a -> t m a
-repeat = fromStreamS . S.repeat
+repeat = fromStreamD . D.repeat
 
 -- |
 -- >>> replicate n = Stream.take n . Stream.repeat
@@ -263,7 +257,7 @@ repeat = fromStreamS . S.repeat
 -- @since 0.6.0
 {-# INLINE_NORMAL replicate #-}
 replicate :: (IsStream t, Monad m) => Int -> a -> t m a
-replicate n = fromStreamS . S.replicate n
+replicate n = fromStreamD . D.replicate n
 
 -- |
 -- >>> replicateM n = Stream.take n . Stream.repeatM
@@ -297,7 +291,7 @@ replicateM count =
 {-# RULES "replicateM serial" replicateM = replicateMSerial #-}
 {-# INLINE replicateMSerial #-}
 replicateMSerial :: MonadAsync m => Int -> m a -> SerialT m a
-replicateMSerial n = fromStreamS . S.replicateM n
+replicateMSerial n = fromStreamD . D.replicateM n
 
 ------------------------------------------------------------------------------
 -- Time Enumeration
@@ -420,7 +414,7 @@ timeout = undefined
 -- @since 0.6.0
 {-# INLINE fromIndices #-}
 fromIndices :: (IsStream t, Monad m) => (Int -> a) -> t m a
-fromIndices = fromStreamS . S.fromIndices
+fromIndices = fromStreamD . D.fromIndices
 
 --
 -- |
@@ -441,7 +435,7 @@ fromIndicesM = fromStream . K.fromIndicesMWith (IsStream.toConsK (consM @t))
 {-# RULES "fromIndicesM serial" fromIndicesM = fromIndicesMSerial #-}
 {-# INLINE fromIndicesMSerial #-}
 fromIndicesMSerial :: MonadAsync m => (Int -> m a) -> SerialT m a
-fromIndicesMSerial = fromStreamS . S.fromIndicesM
+fromIndicesMSerial = fromStreamD . D.fromIndicesM
 
 ------------------------------------------------------------------------------
 -- Iterating functions
@@ -460,7 +454,7 @@ fromIndicesMSerial = fromStreamS . S.fromIndicesM
 -- @since 0.1.2
 {-# INLINE_NORMAL iterate #-}
 iterate :: (IsStream t, Monad m) => (a -> a) -> a -> t m a
-iterate step = fromStreamS . S.iterate step
+iterate step = fromStreamD . D.iterate step
 
 -- |
 -- >>> iterateM f m = m >>= \a -> return a `Stream.consM` iterateM f (f a)
@@ -509,7 +503,7 @@ iterateM f = fromStream . K.iterateMWith (IsStream.toConsK (consM @t))  f
 {-# RULES "iterateM serial" iterateM = iterateMSerial #-}
 {-# INLINE iterateMSerial #-}
 iterateMSerial :: MonadAsync m => (a -> m a) -> m a -> SerialT m a
-iterateMSerial step = fromStreamS . S.iterateM step
+iterateMSerial step = fromStreamD . D.iterateM step
 
 -- | We can define cyclic structures using @let@:
 --

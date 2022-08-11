@@ -17,8 +17,6 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , K.Stream (..)
 
     -- * Type Conversion
-    , fromStreamS
-    , toStreamS
     , fromStreamD
     , toStreamD
     , adapt
@@ -121,12 +119,6 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-#ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
-#else
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as S
-#endif
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
@@ -230,15 +222,6 @@ toConsK cns x xs = toStream $ x `cns` fromStream xs
 -- Conversion to and from direct style stream
 ------------------------------------------------------------------------------
 
--- These definitions are dependent on what is imported as S
-{-# INLINE fromStreamS #-}
-fromStreamS :: (IsStream t, Monad m) => S.Stream m a -> t m a
-fromStreamS = fromStream . S.toStreamK
-
-{-# INLINE toStreamS #-}
-toStreamS :: (IsStream t, Monad m) => t m a -> S.Stream m a
-toStreamS = S.fromStreamK . toStream
-
 {-# INLINE toStreamD #-}
 toStreamD :: (IsStream t, Monad m) => t m a -> D.Stream m a
 toStreamD = D.fromStreamK . toStream
@@ -289,16 +272,16 @@ cmpBy f m1 m2 = D.cmpBy f (toStreamD m1) (toStreamD m2)
 -- @since 0.4.0
 {-# INLINE_EARLY fromList #-}
 fromList :: (Monad m, IsStream t) => [a] -> t m a
-fromList = fromStreamS . S.fromList
+fromList = fromStreamD . D.fromList
 {-# RULES "fromList fallback to StreamK" [1]
-    forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
+    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
 
 -- | Convert a stream into a list in the underlying monad.
 --
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: (IsStream t, Monad m) => t m a -> m [a]
-toList m = S.toList $ toStreamS m
+toList m = D.toList $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Building a stream
@@ -364,7 +347,7 @@ foldrMx step final project m = D.foldrMx step final project $ toStreamD m
 foldlMx' ::
     (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
-foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
+foldlMx' step begin done m = D.foldlMx' step begin done $ toStreamD m
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -375,7 +358,7 @@ foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
 {-# INLINE foldlx' #-}
 foldlx' ::
     (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldlx' step begin done m = S.foldlx' step begin done $ toStreamS m
+foldlx' step begin done m = D.foldlx' step begin done $ toStreamD m
 
 -- | Strict left associative fold.
 --
@@ -383,12 +366,12 @@ foldlx' step begin done m = S.foldlx' step begin done $ toStreamS m
 {-# INLINE foldl' #-}
 foldl' ::
     (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
-foldl' step begin m = S.foldl' step begin $ toStreamS m
+foldl' step begin m = D.foldl' step begin $ toStreamD m
 
 
 {-# INLINE fold #-}
 fold :: (IsStream t, Monad m) => Fold m a b -> t m a -> m b
-fold fld m = S.fold fld $ toStreamS m
+fold fld m = D.fold fld $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Folding a stream
@@ -746,8 +729,8 @@ concatMapFoldableWith f g = Prelude.foldr (f . g) nil
 -- Equivalent to:
 --
 -- @
--- concatForFoldableWith f xs g = Prelude.foldr (f . g) S.nil xs
--- concatForFoldableWith f = flip (S.concatMapFoldableWith f)
+-- concatForFoldableWith f xs g = Prelude.foldr (f . g) D.nil xs
+-- concatForFoldableWith f = flip (D.concatMapFoldableWith f)
 -- @
 --
 -- /Since: 0.8.0 (Renamed forEachWith to concatForFoldableWith)/
@@ -766,8 +749,8 @@ concatForFoldableWith f = flip (concatMapFoldableWith f)
 -- Equivalent to:
 --
 -- @
--- concatFoldableWith f = Prelude.foldr f S.nil
--- concatFoldableWith f = S.concatMapFoldableWith f id
+-- concatFoldableWith f = Prelude.foldr f D.nil
+-- concatFoldableWith f = D.concatMapFoldableWith f id
 -- @
 --
 -- /Since: 0.8.0 (Renamed foldWith to concatFoldableWith)/

@@ -247,7 +247,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     )
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream(..), fromStreamS, toStreamS, fromStreamD, toStreamD, toConsK)
+    (IsStream(..), fromStreamD, toStreamD, toConsK)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
@@ -257,11 +257,6 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-#ifdef USE_STREAMK_ONLY
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-#else
-import qualified Streamly.Internal.Data.Stream.StreamD as S
-#endif
 import qualified Prelude
 
 import Prelude hiding
@@ -359,7 +354,7 @@ foldrSShared f z xs =
 {-# INLINE foldrT #-}
 foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
-foldrT f z s = S.foldrT f z (toStreamS s)
+foldrT f z s = D.foldrT f z (toStreamD s)
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
@@ -681,7 +676,7 @@ postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
 {-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx step begin done = fromStreamS . S.scanlx' step begin done . toStreamS
+scanx step begin done = fromStreamD . D.scanlx' step begin done . toStreamD
 
 -- XXX this needs to be concurrent
 -- XXX because of the use of D.cons for appending, scanlM' has quadratic
@@ -760,7 +755,7 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- @since 0.2.0
 {-# INLINE scanl' #-}
 scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
-scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
+scanl' step z m = fromStreamD $ D.scanl' step z $ toStreamD m
 
 -- | Like 'scanl'' but does not stream the initial value of the accumulator.
 --
@@ -841,7 +836,7 @@ with f comb g = fmap snd . comb g . f
 -- @since 0.1.0
 {-# INLINE filter #-}
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-filter p m = fromStreamS $ S.filter p $ toStreamS m
+filter p m = fromStreamD $ D.filter p $ toStreamD m
 
 -- | Same as 'filter' but with a monadic predicate.
 --
@@ -953,7 +948,7 @@ nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
 -- @since 0.6.0
 {-# INLINE deleteBy #-}
 deleteBy :: (IsStream t, Monad m) => (a -> a -> Bool) -> a -> t m a -> t m a
-deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
+deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Lossy Buffering
@@ -1082,7 +1077,7 @@ takeInterval d = fromStreamD . D.takeByTime d . toStreamD
 -- @since 0.1.0
 {-# INLINE dropWhile #-}
 dropWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
+dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 
 -- | Same as 'dropWhile' but with a monadic predicate.
 --
@@ -1171,7 +1166,7 @@ dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
 {-# INLINE insertBy #-}
 insertBy ::
        (IsStream t, Monad m) => (a -> a -> Ordering) -> a -> t m a -> t m a
-insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
+insertBy cmp x m = fromStreamD $ D.insertBy cmp x (toStreamD m)
 
 -- | Insert a pure value between successive elements of a stream.
 --
@@ -1181,7 +1176,7 @@ insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
 -- @since 0.7.0
 {-# INLINE intersperse #-}
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
-intersperse a = fromStreamS . S.intersperse a . toStreamS
+intersperse a = fromStreamD . D.intersperse a . toStreamD
 
 -- | Insert a side effect before consuming an element of a stream except the
 -- first one.
@@ -1503,7 +1498,7 @@ rollingMap2 f m = fromStreamD $ D.rollingMap2 f $ toStreamD m
 -- @since 0.3.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: (IsStream t, Monad m) => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
+mapMaybe f m = fromStreamD $ D.mapMaybe f $ toStreamD m
 
 -- | Like 'mapMaybe' but maps a monadic function.
 --

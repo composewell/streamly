@@ -763,7 +763,7 @@ mergeMinBy _f _m1 _m2 = undefined
 mergeFstBy :: -- (IsStream t, Monad m) =>
     (a -> a -> m Ordering) -> t m a -> t m a -> t m a
 mergeFstBy _f _m1 _m2 = undefined
-    -- fromStreamS $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
+    -- fromStreamD $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
 
 -- XXX we may want to use the name "merge" differently
 -- | Same as @'mergeBy' 'compare'@.
