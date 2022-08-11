@@ -161,7 +161,7 @@ swap size start =
 {-# INLINE fromStream #-}
 fromStream :: Int -> Int -> IO ()
 fromStream size start =
-    drainGeneration UF.fromStream (S.replicate size start :: S.SerialT IO Int)
+    drainGeneration S.readStream (S.replicate size start :: S.SerialT IO Int)
 
 -- XXX INVESTIGATE: Although the performance of this should be equivalant to
 -- fromStream, this is considerably worse. More than 4x worse.

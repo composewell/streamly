@@ -173,6 +173,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , foldManyPost
     , splitOnSeq
     , fromPure)
+import Streamly.Internal.Data.Stream.IsStream.Generate (readStream)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, cons)
 import Streamly.Internal.Data.Time.Units
@@ -1291,7 +1292,7 @@ ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
 
 {-# INLINE readSerial #-}
 readSerial :: Applicative m => Unfold.Unfold m (IsStream.SerialT m a) a
-readSerial = Unfold.fromStream
+readSerial = readStream
 
 -- XXX Use mutable IORef in accumulator
 {-# INLINE classifySessionsByGeneric #-}

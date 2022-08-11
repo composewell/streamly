@@ -215,6 +215,7 @@ extra-source-files:
     core/src/Streamly/Data/Stream.hs
     core/src/Streamly/Data/Fold.hs
     core/src/Streamly/Data/Fold/Tee.hs
+    core/src/Streamly/Data/Unfold.hs
     core/src/Streamly/Internal/Data/Fold/Window.hs
     core/src/Streamly/Data/Array/Unboxed.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
@@ -436,10 +437,8 @@ library
                      -- dependency order To view dependency graph:
                      -- graphmod | dot -Tps > deps.ps
 
-                     -- XXX To be moved to streamly-core
-                       Streamly.Data.Unfold
 
-                     , Streamly.Internal.Data.IsMap.HashMap
+                       Streamly.Internal.Data.IsMap.HashMap
 
                      -- XXX To be removed or put under dev flag
                      , Streamly.Internal.Data.SmallArray.Type

@@ -569,7 +569,7 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- >>> concatMap f = Stream.concatMapM (return . f)
 -- >>> concatMap f = Stream.concatMapWith Stream.serial f
 -- >>> concatMap f = Stream.concat . Stream.map f
--- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
+-- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Stream.readStream)
 --
 -- @since 0.6.0
 {-# INLINE concatMap #-}
