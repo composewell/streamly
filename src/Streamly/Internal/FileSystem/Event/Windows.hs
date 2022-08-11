@@ -100,7 +100,7 @@ import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
-import Streamly.Prelude (SerialT, parallel)
+import Streamly.Prelude (Stream, parallel)
 import System.Win32.File
     ( FileNotificationFlag
     , LPOVERLAPPED
@@ -411,7 +411,7 @@ fILE_ACTION_RENAMED_OLD_NAME  =  4
 fILE_ACTION_RENAMED_NEW_NAME  :: FileAction
 fILE_ACTION_RENAMED_NEW_NAME  =  5
 
-eventStreamAggr :: (HANDLE, FilePath, Config) -> SerialT IO Event
+eventStreamAggr :: (HANDLE, FilePath, Config) -> Stream IO Event
 eventStreamAggr (handle, rootPath, cfg) =  do
     let recMode = getConfigRecMode cfg
         flagMasks = getConfigFlag cfg
@@ -419,7 +419,7 @@ eventStreamAggr (handle, rootPath, cfg) =  do
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
 pathsToHandles ::
-    NonEmpty FilePath -> Config -> SerialT IO (HANDLE, FilePath, Config)
+    NonEmpty FilePath -> Config -> Stream IO (HANDLE, FilePath, Config)
 pathsToHandles paths cfg = do
     let pathStream = S.fromList (NonEmpty.toList paths)
         st2 = S.mapM getWatchHandle pathStream
@@ -437,7 +437,7 @@ utf8ToStringList = NonEmpty.map utf8ToString
 
 -- | Close a Directory handle.
 --
-closePathHandleStream :: SerialT IO (HANDLE, FilePath, Config) -> IO ()
+closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
 closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 
 -- XXX
@@ -471,7 +471,7 @@ closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
 --
 -- /Pre-release/
 --
-watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
      S.bracket before after (S.concatMapWith parallel eventStreamAggr)
 
@@ -486,7 +486,7 @@ watchWith f paths =
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
 watchRecursive = watchWith (setRecursiveMode On)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
@@ -495,7 +495,7 @@ watchRecursive = watchWith (setRecursiveMode On)
 --
 -- /Pre-release/
 --
-watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch :: NonEmpty (Array Word8) -> Stream IO Event
 watch = watchWith id
 
 getFlag :: DWORD -> Event -> Bool

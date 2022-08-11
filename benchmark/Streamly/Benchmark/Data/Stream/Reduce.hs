@@ -18,7 +18,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 import Streamly.Internal.Data.IsMap.HashMap ()
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
@@ -60,10 +60,10 @@ iterateN g initial count = f count initial
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
 iterateSingleton :: Monad m
-    => (Int -> SerialT m Int -> SerialT m Int)
+    => (Int -> Stream m Int -> Stream m Int)
     -> Int
     -> Int
-    -> SerialT m Int
+    -> Stream m Int
 iterateSingleton g count n = iterateN g (return n) count
 
 {-
@@ -75,10 +75,10 @@ iterateSingleton g count n = iterateN g (return n) count
 {-# INLINE _iterateSingleton #-}
 _iterateSingleton ::
        Monad m
-    => (Int -> SerialT m Int -> SerialT m Int)
+    => (Int -> Stream m Int -> Stream m Int)
     -> Int
     -> Int
-    -> SerialT m Int
+    -> Stream m Int
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 -}
 
@@ -86,11 +86,11 @@ _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 {-# INLINE iterateSource #-}
 iterateSource ::
        MonadAsync m
-    => (SerialT m Int -> SerialT m Int)
+    => (Stream m Int -> Stream m Int)
     -> Int
     -> Int
     -> Int
-    -> SerialT m Int
+    -> Stream m Int
 iterateSource g count len n = f count (sourceUnfoldrM len n)
 
     where
@@ -126,32 +126,32 @@ o_n_space_functor value =
 
 #ifdef USE_PRELUDE
 {-# INLINE groups #-}
-groups :: MonadIO m => SerialT m Int -> m ()
+groups :: MonadIO m => Stream m Int -> m ()
 groups = Common.drain . S.groups FL.drain
 
 -- XXX Change this test when the order of comparison is later changed
 {-# INLINE groupsByGT #-}
-groupsByGT :: MonadIO m => SerialT m Int -> m ()
+groupsByGT :: MonadIO m => Stream m Int -> m ()
 groupsByGT = Common.drain . S.groupsBy (>) FL.drain
 
 {-# INLINE groupsByEq #-}
-groupsByEq :: MonadIO m => SerialT m Int -> m ()
+groupsByEq :: MonadIO m => Stream m Int -> m ()
 groupsByEq = Common.drain . S.groupsBy (==) FL.drain
 
 -- XXX Change this test when the order of comparison is later changed
 {-# INLINE groupsByRollingLT #-}
-groupsByRollingLT :: MonadIO m => SerialT m Int -> m ()
+groupsByRollingLT :: MonadIO m => Stream m Int -> m ()
 groupsByRollingLT =
     Common.drain . S.groupsByRolling (<) FL.drain
 
 {-# INLINE groupsByRollingEq #-}
-groupsByRollingEq :: MonadIO m => SerialT m Int -> m ()
+groupsByRollingEq :: MonadIO m => Stream m Int -> m ()
 groupsByRollingEq =
     Common.drain . S.groupsByRolling (==) FL.drain
 #endif
 
 {-# INLINE foldMany #-}
-foldMany :: Monad m => SerialT m Int -> m ()
+foldMany :: Monad m => Stream m Int -> m ()
 foldMany =
       Common.drain
     . fmap getSum
@@ -159,7 +159,7 @@ foldMany =
     . fmap Sum
 
 {-# INLINE foldManyPost #-}
-foldManyPost :: Monad m => SerialT m Int -> m ()
+foldManyPost :: Monad m => Stream m Int -> m ()
 foldManyPost =
       Common.drain
     . fmap getSum
@@ -167,7 +167,7 @@ foldManyPost =
     . fmap Sum
 
 {-# INLINE refoldMany #-}
-refoldMany :: Monad m => SerialT m Int -> m ()
+refoldMany :: Monad m => Stream m Int -> m ()
 refoldMany =
       Common.drain
     . fmap getSum
@@ -175,7 +175,7 @@ refoldMany =
     . fmap Sum
 
 {-# INLINE foldIterateM #-}
-foldIterateM :: Monad m => SerialT m Int -> m ()
+foldIterateM :: Monad m => Stream m Int -> m ()
 foldIterateM =
     Common.drain
         . fmap getSum
@@ -184,7 +184,7 @@ foldIterateM =
         . fmap Sum
 
 {-# INLINE refoldIterateM #-}
-refoldIterateM :: Monad m => SerialT m Int -> m ()
+refoldIterateM :: Monad m => Stream m Int -> m ()
 refoldIterateM =
     Common.drain
         . fmap getSum
@@ -221,11 +221,11 @@ o_1_space_grouping value =
 -------------------------------------------------------------------------------
 
 {-# INLINE reverse #-}
-reverse :: MonadIO m => Int -> SerialT m Int -> m ()
+reverse :: MonadIO m => Int -> Stream m Int -> m ()
 reverse n = composeN n S.reverse
 
 {-# INLINE reverse' #-}
-reverse' :: MonadIO m => Int -> SerialT m Int -> m ()
+reverse' :: MonadIO m => Int -> Stream m Int -> m ()
 reverse' n = composeN n S.reverse'
 
 o_n_heap_buffering :: Int -> [Benchmark]
@@ -248,7 +248,7 @@ o_n_heap_buffering value =
 
 #ifdef USE_PRELUDE
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: MonadAsync m => (Int -> Int) -> SerialT m Int -> m ()
+classifySessionsOf :: MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
 classifySessionsOf getKey =
       Common.drain
     . S.classifySessionsOf
@@ -258,7 +258,7 @@ classifySessionsOf getKey =
 
 {-# INLINE classifySessionsOfHash #-}
 classifySessionsOfHash :: MonadAsync m =>
-    (Int -> Int) -> SerialT m Int -> m ()
+    (Int -> Int) -> Stream m Int -> m ()
 classifySessionsOfHash getKey =
       Common.drain
     . S.classifySessionsByGeneric
@@ -292,49 +292,49 @@ o_n_space_grouping value =
 -------------------------------------------------------------------------------
 
 {-# INLINE scanMap #-}
-scanMap :: MonadIO m => Int -> SerialT m Int -> m ()
+scanMap :: MonadIO m => Int -> Stream m Int -> m ()
 scanMap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
 
 {-# INLINE dropMap #-}
-dropMap :: MonadIO m => Int -> SerialT m Int -> m ()
+dropMap :: MonadIO m => Int -> Stream m Int -> m ()
 dropMap n = composeN n $ fmap (subtract 1) . S.drop 1
 
 {-# INLINE dropScan #-}
-dropScan :: MonadIO m => Int -> SerialT m Int -> m ()
+dropScan :: MonadIO m => Int -> Stream m Int -> m ()
 dropScan n = composeN n $ Common.scanl' (+) 0 . S.drop 1
 
 {-# INLINE takeDrop #-}
-takeDrop :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+takeDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeDrop value n = composeN n $ S.drop 1 . S.take (value + 1)
 
 {-# INLINE takeScan #-}
-takeScan :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+takeScan :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeScan value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
 
 {-# INLINE takeMap #-}
-takeMap :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+takeMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeMap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
 
 {-# INLINE filterDrop #-}
-filterDrop :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+filterDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterDrop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
 
 {-# INLINE filterTake #-}
-filterTake :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+filterTake :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 
 {-# INLINE filterScan #-}
-filterScan :: MonadIO m => Int -> SerialT m Int -> m ()
+filterScan :: MonadIO m => Int -> Stream m Int -> m ()
 filterScan n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
 #ifdef USE_PRELUDE
 {-# INLINE filterScanl1 #-}
-filterScanl1 :: MonadIO m => Int -> SerialT m Int -> m ()
+filterScanl1 :: MonadIO m => Int -> Stream m Int -> m ()
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 #endif
 
 {-# INLINE filterMap #-}
-filterMap :: MonadIO m => Int -> Int -> SerialT m Int -> m ()
+filterMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterMap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
 
 -------------------------------------------------------------------------------
@@ -346,17 +346,17 @@ data Pair a b =
     deriving (Generic, NFData)
 
 {-# INLINE sumProductFold #-}
-sumProductFold :: Monad m => SerialT m Int -> m (Int, Int)
+sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
 sumProductFold = Common.foldl' (\(s, p) x -> (s + x, p * x)) (0, 1)
 
 {-# INLINE sumProductScan #-}
-sumProductScan :: Monad m => SerialT m Int -> m (Pair Int Int)
+sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
 sumProductScan =
     Common.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
     Common.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
 
 {-# INLINE foldl'ReduceMap #-}
-foldl'ReduceMap :: Monad m => SerialT m Int -> m Int
+foldl'ReduceMap :: Monad m => Stream m Int -> m Int
 foldl'ReduceMap = fmap (+ 1) . Common.foldl' (+) 0
 
 o_1_space_transformations_mixed :: Int -> [Benchmark]
@@ -397,49 +397,49 @@ o_1_space_transformations_mixedX4 value =
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateScan = iterateSource (Common.scanl' (+) 0)
 
 #ifdef USE_PRELUDE
 -- this is quadratic
 {-# INLINE iterateScanl1 #-}
-iterateScanl1 :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScanl1 :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateScanl1 = iterateSource (S.scanl1' (+))
 #endif
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateMapM :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateMapM = iterateSource (S.mapM return)
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateFilterEven = iterateSource (S.filter even)
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> SerialT m Int
+iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
 iterateTakeAll value = iterateSource (S.take (value + 1))
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateDropOne :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateDropOne = iterateSource (S.drop 1)
 
 {-# INLINE iterateDropWhileFalse #-}
 iterateDropWhileFalse :: MonadAsync m
-    => Int -> Int -> Int -> Int -> SerialT m Int
+    => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
 
 {-# INLINE iterateDropWhileTrue #-}
 iterateDropWhileTrue :: MonadAsync m
-    => Int -> Int -> Int -> Int -> SerialT m Int
+    => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
 #ifdef USE_PRELUDE
 {-# INLINE tail #-}
-tail :: Monad m => SerialT m a -> m ()
+tail :: Monad m => Stream m a -> m ()
 tail s = S.tail s >>= mapM_ tail
 
 {-# INLINE nullHeadTail #-}
-nullHeadTail :: Monad m => SerialT m Int -> m ()
+nullHeadTail :: Monad m => Stream m Int -> m ()
 nullHeadTail s = do
     r <- S.null s
     when (not r) $ do

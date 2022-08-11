@@ -172,7 +172,7 @@ import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
 import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), byteLength)
 import System.Directory (doesDirectoryExist)
@@ -865,7 +865,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
         pathLen :: Word32 <- peekByteOff ptr (len + 8)
         return (ewd, eflags, cookie, fromIntegral pathLen)
 
-watchToStream :: Config -> Watch -> SerialT IO Event
+watchToStream :: Config -> Watch -> Stream IO Event
 watchToStream cfg wt@(Watch handle _) = do
     -- Do not use too small a buffer. As per inotify man page:
     --
@@ -915,7 +915,7 @@ watchToStream cfg wt@(Watch handle _) = do
 --
 -- /Pre-release/
 --
-watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths = S.bracket before after (watchToStream cfg)
 
     where
@@ -932,7 +932,7 @@ watchWith f paths = S.bracket before after (watchToStream cfg)
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
 watchRecursive = watchWith (setRecursiveMode On)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
@@ -941,7 +941,7 @@ watchRecursive = watchWith (setRecursiveMode On)
 --
 -- /Pre-release/
 --
-watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch :: NonEmpty (Array Word8) -> Stream IO Event
 watch = watchWith id
 
 -------------------------------------------------------------------------------

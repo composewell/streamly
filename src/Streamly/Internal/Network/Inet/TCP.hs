@@ -108,7 +108,7 @@ import Streamly.Internal.Control.ForkLifted (fork)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
@@ -195,7 +195,7 @@ connectionsOnAddrWith
     => [(SocketOption, Int)]
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m Socket
+    -> Stream m Socket
 connectionsOnAddrWith opts addr port =
     connections maxListenQueue SockSpec
         { sockFamily = AF_INET
@@ -214,7 +214,7 @@ connectionsOnAddr
     :: MonadAsync m
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m Socket
+    -> Stream m Socket
 connectionsOnAddr = connectionsOnAddrWith []
 
 -- | Like 'connections' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
@@ -225,7 +225,7 @@ connectionsOnAddr = connectionsOnAddrWith []
 --
 -- /Pre-release/
 {-# INLINE connectionsOnPort #-}
-connectionsOnPort :: MonadAsync m => PortNumber -> SerialT m Socket
+connectionsOnPort :: MonadAsync m => PortNumber -> Stream m Socket
 connectionsOnPort = connectionsOnAddr (0,0,0,0)
 
 -- | Like 'connections' but binds on the localhost IPv4 address @127.0.0.1@.
@@ -236,7 +236,7 @@ connectionsOnPort = connectionsOnAddr (0,0,0,0)
 --
 -- /Pre-release/
 {-# INLINE connectionsOnLocalHost #-}
-connectionsOnLocalHost :: MonadAsync m => PortNumber -> SerialT m Socket
+connectionsOnLocalHost :: MonadAsync m => PortNumber -> Stream m Socket
 connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
@@ -337,7 +337,7 @@ putChunks
     :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m (Array Word8)
+    -> Stream m (Array Word8)
     -> m ()
 putChunks addr port xs =
     S.drain $ withConnection addr port (\sk -> S.fromEffect $ ISK.putChunks sk xs)
@@ -380,7 +380,7 @@ putBytesWithBufferOf
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m Word8
+    -> Stream m Word8
     -> m ()
 putBytesWithBufferOf n addr port m = putChunks addr port $ AS.arraysOf n m
 
@@ -404,7 +404,7 @@ writeWithBufferOf n addr port =
 -- @since 0.7.0
 {-# INLINE putBytes #-}
 putBytes :: (MonadCatch m, MonadAsync m)
-    => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
+    => (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Word8 -> m ()
 putBytes = putBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream to the supplied IPv4 host address and port number.
@@ -424,7 +424,7 @@ withInputConnect
     :: (IsStream t, MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m Word8
+    -> Stream m Word8
     -> (Socket -> t m a)
     -> t m a
 withInputConnect addr port input f = S.bracket pre post handler
@@ -452,6 +452,6 @@ processBytes
     :: (IsStream t, MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
-    -> SerialT m Word8
+    -> Stream m Word8
     -> t m Word8
 processBytes addr port input = withInputConnect addr port input ISK.toBytes

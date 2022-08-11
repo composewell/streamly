@@ -7,7 +7,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Test.Hspec as H
 
 import Streamly.Data.Fold (Fold)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Test.Common (listEquals)
 
 import qualified Streamly.Prelude as S

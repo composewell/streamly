@@ -29,23 +29,24 @@ import Control.Monad.Catch (MonadCatch, try, SomeException)
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (isJust)
 import Data.Word (Word8)
+import Streamly.Internal.Data.Stream (Stream)
 import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude hiding ()
 
-import qualified Streamly.Prelude  as Stream
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream (arraysOf)
+import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Gauge hiding (env)
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
+import Control.Monad.IO.Class (MonadIO)
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Unboxed (Unboxed)
@@ -60,8 +61,8 @@ import Test.Inspection
 -- XXX these can be moved to the common module
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (IsStream t, MonadAsync m) => Int -> Int -> t m Int
-sourceUnfoldrM value n = Stream.unfoldrM step n
+sourceUnfoldrM :: MonadIO m => Int -> Int -> Stream m Int
+sourceUnfoldrM value n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -71,7 +72,7 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 {-# INLINE benchIO #-}
 benchIO
     :: NFData b
-    => String -> (Int -> t IO a) -> (t IO a -> IO b) -> Benchmark
+    => String -> (Int -> Stream IO a) -> (Stream IO a -> IO b) -> Benchmark
 benchIO name src sink =
     bench name $ nfIO $ randomRIO (1,1) >>= sink . src
 
@@ -227,21 +228,21 @@ drainWhile p = Parser.takeWhile p Fold.drain
 -------------------------------------------------------------------------------
 
 {-# INLINE fold #-}
-fold :: SerialT IO (Array.Array Int) -> IO ()
+fold :: Stream IO (Array.Array Int) -> IO ()
 fold s = void $ ArrayStream.foldBreak Fold.drain s
 
 {-# INLINE parse #-}
-parse :: Int -> SerialT IO (Array.Array Int) -> IO ()
+parse :: Int -> Stream IO (Array.Array Int) -> IO ()
 parse value s = void $ ArrayStream.parseBreak (drainWhile (< value)) s
 
 {-# INLINE foldBreak #-}
-foldBreak :: SerialT IO (Array.Array Int) -> IO ()
+foldBreak :: Stream IO (Array.Array Int) -> IO ()
 foldBreak s = do
     (r, s1) <- ArrayStream.foldBreak Fold.one s
     when (isJust r) $ foldBreak s1
 
 {-# INLINE parseBreak #-}
-parseBreak :: SerialT IO (Array.Array Int) -> IO ()
+parseBreak :: Stream IO (Array.Array Int) -> IO ()
 parseBreak s = do
     r <- try $ ArrayStream.parseBreak Parser.one s
     case r of

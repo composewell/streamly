@@ -16,7 +16,7 @@ import Data.Word (Word8)
 import Network.Socket (Socket, PortNumber)
 import Streamly.Internal.Control.Monad (discard)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
@@ -78,22 +78,22 @@ server listener port sem handler = do
 remoteAddr :: (Word8,Word8,Word8,Word8)
 remoteAddr = (127, 0, 0, 1)
 
-sender :: PortNumber -> MVar () -> SerialT IO Char
+sender :: PortNumber -> MVar () -> Stream IO Char
 sender port sem = do
     _ <- liftIO $ takeMVar sem
     liftIO $ threadDelay 1000000                       -- wait for server
-    Stream.replicate 1000 testData                     -- SerialT IO String
-        & Stream.concatMap Stream.fromList             -- SerialT IO Char
-        & Unicode.encodeLatin1                         -- SerialT IO Word8
-        & TCP.processBytes remoteAddr port             -- SerialT IO Word8
-        & Unicode.decodeLatin1                         -- SerialT IO Char
+    Stream.replicate 1000 testData                     -- Stream IO String
+        & Stream.concatMap Stream.fromList             -- Stream IO Char
+        & Unicode.encodeLatin1                         -- Stream IO Word8
+        & TCP.processBytes remoteAddr port             -- Stream IO Word8
+        & Unicode.decodeLatin1                         -- Stream IO Char
 
 execute
     :: Unfold.Unfold IO PortNumber Socket
     -> PortNumber
     -> Int
     -> (Socket -> IO ())
-    -> IO (SerialT IO Char)
+    -> IO (Stream IO Char)
 execute listener port size handler = do
     sem <- newEmptyMVar
     tid <- forkIO $ server listener port sem handler

@@ -19,13 +19,14 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, sequence_, takeWhile, span)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
-import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Stream  as S
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
@@ -35,7 +36,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Gauge
-import Streamly.Prelude (SerialT, MonadAsync, IsStream)
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
@@ -45,7 +45,7 @@ import Streamly.Benchmark.Common
 -- XXX these can be moved to the common module
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (IsStream t, MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM :: (Monad m) => Int -> Int -> Stream m Int
 sourceUnfoldrM value n = S.unfoldrM step n
     where
     step cnt =
@@ -56,20 +56,20 @@ sourceUnfoldrM value n = S.unfoldrM step n
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
-    :: (IsStream t, NFData b)
-    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+    :: (NFData b)
+    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
 
 -- Make the input unsorted.
 {-# INLINE benchIOSinkRandom #-}
 benchIOSinkRandom
-    :: (IsStream t, NFData b)
-    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+    :: (NFData b)
+    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSinkRandom value name f =
     bench name $ nfIO $ randomRIO (1,1)
         >>= f
-        . S.map (\x -> if even x then x + 2 else x)
+        . fmap (\x -> if even x then x + 2 else x)
         . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
@@ -81,67 +81,69 @@ drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
 drainWhile p = PR.takeWhile p FL.drain
 
 {-# INLINE takeStartBy #-}
-takeStartBy :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeStartBy :: MonadCatch m => Int -> Stream m Int -> m ()
 takeStartBy value stream = do
-    stream1 <- return . fromMaybe (S.fromPure (value + 1)) =<< S.tail stream
+    stream1 <-
+        (return . fromMaybe (S.fromPure (value + 1))) . fmap S.fromStreamD
+            =<< D.tail (S.toStreamD stream)
     let stream2 = value `S.cons` stream1
     IP.parseD (PR.takeStartBy (== value) FL.drain) stream2
 
 {-# INLINE takeWhile #-}
-takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
+takeWhile :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhile value = IP.parseD (drainWhile (<= value))
 
 {-# INLINE takeP #-}
-takeP :: MonadThrow m => Int -> SerialT m a -> m ()
+takeP :: MonadThrow m => Int -> Stream m a -> m ()
 takeP value = IP.parseD (PR.takeP value (PR.fromFold FL.drain))
 
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> SerialT m a -> m ()
+takeBetween :: MonadCatch m => Int -> Stream m a -> m ()
 takeBetween value =  IP.parseD (PR.takeBetween 0 value FL.drain)
 
 {-# INLINE groupBy #-}
-groupBy :: MonadThrow m => SerialT m Int -> m ()
+groupBy :: MonadThrow m => Stream m Int -> m ()
 groupBy = IP.parseD (PR.groupBy (<=) FL.drain)
 
 {-# INLINE groupByRolling #-}
-groupByRolling :: MonadThrow m => SerialT m Int -> m ()
+groupByRolling :: MonadThrow m => Stream m Int -> m ()
 groupByRolling = IP.parseD (PR.groupByRolling (<=) FL.drain)
 
 {-# INLINE wordBy #-}
-wordBy :: MonadThrow m => Int -> SerialT m Int -> m ()
+wordBy :: MonadThrow m => Int -> Stream m Int -> m ()
 wordBy value = IP.parseD (PR.wordBy (>= value) FL.drain)
 
 {-# INLINE manyWordByEven #-}
-manyWordByEven :: MonadCatch m => SerialT m Int -> m ()
+manyWordByEven :: MonadCatch m => Stream m Int -> m ()
 manyWordByEven =
     IP.parseD (PR.many (PR.wordBy (Prelude.even) FL.drain) FL.drain)
 
 {-# INLINE many #-}
-many :: MonadCatch m => SerialT m Int -> m Int
+many :: MonadCatch m => Stream m Int -> m Int
 many = IP.parseD (PR.many (PR.satisfy (> 0)) FL.length)
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadCatch m => SerialT m Int -> m Int
+manyAlt :: MonadCatch m => Stream m Int -> m Int
 manyAlt xs = do
     x <- IP.parseD (AP.many (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE some #-}
-some :: MonadCatch m => SerialT m Int -> m Int
+some :: MonadCatch m => Stream m Int -> m Int
 some = IP.parseD (PR.some (PR.satisfy (> 0)) FL.length)
 
 {-# INLINE someAlt #-}
-someAlt :: MonadCatch m => SerialT m Int -> m Int
+someAlt :: MonadCatch m => Stream m Int -> m Int
 someAlt xs = do
     x <- IP.parseD (AP.some (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-#INLINE takeEndBy_ #-}
-takeEndBy_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+takeEndBy_ :: MonadCatch m => Int -> Stream m Int -> m ()
 takeEndBy_ value = IP.parseD (PR.takeEndBy_ (>= value) (PR.fromFold FL.drain))
 
 {-# INLINE manyTill #-}
-manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
+manyTill :: MonadCatch m => Int -> Stream m Int -> m Int
 manyTill value =
     let p = PR.satisfy (> 0)
         pcond = PR.satisfy (== value)
@@ -149,7 +151,7 @@ manyTill value =
 
 {-# INLINE serialWith #-}
 serialWith :: MonadThrow m
-    => Int -> SerialT m Int -> m ((), ())
+    => Int -> Stream m Int -> m ((), ())
 serialWith value =
     IP.parseD
         ((,)
@@ -159,7 +161,7 @@ serialWith value =
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: MonadThrow m
-    => Int -> SerialT m Int -> m ((), ())
+    => Int -> Stream m Int -> m ((), ())
 teeAllAny value =
     IP.parseD
         (PR.teeWith (,)
@@ -169,7 +171,7 @@ teeAllAny value =
 
 {-# INLINE teeFstAllAny #-}
 teeFstAllAny :: MonadThrow m
-    => Int -> SerialT m Int -> m ((), ())
+    => Int -> Stream m Int -> m ((), ())
 teeFstAllAny value =
     IP.parseD
         (PR.teeWithFst (,)
@@ -179,7 +181,7 @@ teeFstAllAny value =
 
 {-# INLINE shortestAllAny #-}
 shortestAllAny :: MonadThrow m
-    => Int -> SerialT m Int -> m ()
+    => Int -> Stream m Int -> m ()
 shortestAllAny value =
     IP.parseD
         (PR.shortest
@@ -189,7 +191,7 @@ shortestAllAny value =
 
 {-# INLINE longestAllAny #-}
 longestAllAny :: MonadCatch m
-    => Int -> SerialT m Int -> m ()
+    => Int -> Stream m Int -> m ()
 longestAllAny value =
     IP.parseD
         (PR.longest
@@ -198,7 +200,7 @@ longestAllAny value =
         )
 
 {-# INLINE sequenceParser #-}
-sequenceParser :: MonadCatch m => SerialT m Int -> m ()
+sequenceParser :: MonadCatch m => Stream m Int -> m ()
 sequenceParser = IP.parseD (PR.sequence FL.drain (D.repeat (PR.satisfy $ const True)))
 
 -------------------------------------------------------------------------------
@@ -206,16 +208,16 @@ sequenceParser = IP.parseD (PR.sequence FL.drain (D.repeat (PR.satisfy $ const T
 -------------------------------------------------------------------------------
 
 {-# INLINE span #-}
-span :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+span :: MonadThrow m => Int -> Stream m Int -> m ((), ())
 span value = IP.parseD (PR.span (<= (value `div` 2)) FL.drain FL.drain)
 
 {-# INLINE spanBy #-}
-spanBy :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+spanBy :: MonadThrow m => Int -> Stream m Int -> m ((), ())
 spanBy value =
     IP.parseD (PR.spanBy (\_ i -> i <= (value `div` 2)) FL.drain FL.drain)
 
 {-# INLINE spanByRolling #-}
-spanByRolling :: MonadThrow m => Int -> SerialT m Int -> m ((), ())
+spanByRolling :: MonadThrow m => Int -> Stream m Int -> m ((), ())
 spanByRolling value =
     IP.parseD (PR.spanByRolling (\_ i -> i <= value `div` 2) FL.drain FL.drain)
 
@@ -224,21 +226,21 @@ spanByRolling value =
 -------------------------------------------------------------------------------
 
 {-# INLINE parseMany #-}
-parseMany :: MonadThrow m => Int -> SerialT m Int -> m ()
+parseMany :: MonadThrow m => Int -> Stream m Int -> m ()
 parseMany value = IP.drain . IP.parseManyD (drainWhile (<= value + 1))
 
 {-# INLINE parseManyGroups #-}
-parseManyGroups :: MonadThrow m => Bool -> SerialT m Int -> m ()
+parseManyGroups :: MonadThrow m => Bool -> Stream m Int -> m ()
 parseManyGroups b = IP.drain . IP.parseManyD (PR.groupBy (\_ _ -> b) FL.drain)
 
 {-# INLINE parseManyGroupsRolling #-}
-parseManyGroupsRolling :: MonadThrow m => Bool -> SerialT m Int -> m ()
+parseManyGroupsRolling :: MonadThrow m => Bool -> Stream m Int -> m ()
 parseManyGroupsRolling b =
     IP.drain . IP.parseManyD (PR.groupByRolling (\_ _ -> b) FL.drain)
 
 {-# INLINE parseManyGroupsRollingEither #-}
 parseManyGroupsRollingEither :: (MonadThrow m, MonadCatch m) =>
-    (Int -> Int -> Bool) -> SerialT m Int -> m ()
+    (Int -> Int -> Bool) -> Stream m Int -> m ()
 parseManyGroupsRollingEither cmp =
        IP.drain
     .  IP.parseManyD (PR.groupByRollingEither cmp FL.drain FL.drain)
@@ -257,7 +259,7 @@ parseManyUnfoldArrays count arrays = do
                 $ Producer.concat Producer.fromList Array.producer
     let streamParser =
             Producer.simplify (Source.parseManyD parser readSrc)
-    S.drain $ S.unfold streamParser src
+    S.fold FL.drain $ S.unfold streamParser src
 
 -------------------------------------------------------------------------------
 -- Parsers in which -fspec-constr-recursive=16 is problematic
@@ -268,31 +270,31 @@ parseManyUnfoldArrays count arrays = do
 -- not have to rely on it.
 --
 {-# INLINE lookAhead #-}
-lookAhead :: MonadThrow m => Int -> SerialT m Int -> m ()
+lookAhead :: MonadThrow m => Int -> Stream m Int -> m ()
 lookAhead value =
     IP.parseD (PR.lookAhead (PR.takeWhile (<= value) FL.drain) $> ())
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadThrow m => Int -> SerialT m Int -> m ()
+sequenceA_ :: MonadThrow m => Int -> Stream m Int -> m ()
 sequenceA_ value =
     IP.parseD (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
 
 -- quadratic complexity
 {-# INLINE sequenceA #-}
-sequenceA :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequenceA :: MonadThrow m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     x <- IP.parseD (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
 -- quadratic complexity
 {-# INLINE sequence #-}
-sequence :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequence :: MonadThrow m => Int -> Stream m Int -> m Int
 sequence value xs = do
     x <- IP.parseD (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+sequence_ :: MonadCatch m => Int -> Stream m Int -> m ()
 sequence_ value xs =
     IP.parseD (foldr f (return ()) (replicate value (PR.takeBetween 0 1 FL.drain))) xs
 
@@ -305,13 +307,13 @@ sequence_ value xs =
 -- quadratic performance complexity.
 --
 {-# INLINE choiceAsum #-}
-choiceAsum :: MonadCatch m => Int -> SerialT m Int -> m Int
+choiceAsum :: MonadCatch m => Int -> Stream m Int -> m Int
 choiceAsum value =
     IP.parseD (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
 
 {-# INLINE choice #-}
-choice :: MonadCatch m => Int -> SerialT m Int -> m Int
+choice :: MonadCatch m => Int -> Stream m Int -> m Int
 choice value =
     IP.parseD
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))

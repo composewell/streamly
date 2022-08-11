@@ -174,7 +174,7 @@ import Foreign.Marshal.Array (withArray)
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.IO.Handle.FD (fdToHandle)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Cont (contListMap)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
@@ -510,7 +510,7 @@ readOneEvent = do
         , eventAbsPath = path
         }
 
-watchToStream :: Watch -> SerialT IO Event
+watchToStream :: Watch -> Stream IO Event
 watchToStream (Watch handle _ _) =
     S.parseMany readOneEvent $ S.unfold FH.read handle
 
@@ -566,7 +566,7 @@ watchToStream (Watch handle _ _) =
 -- /Pre-release/
 --
 watchWith ::
-    (Config -> Config) -> NonEmpty (Array Word8) -> SerialT IO Event
+    (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths = S.bracket before after watchToStream
 
     where
@@ -578,14 +578,14 @@ watchWith f paths = S.bracket before after watchToStream
 --
 -- >>> watchRecursive = watchWith id
 --
-watchRecursive :: NonEmpty (Array Word8) -> SerialT IO Event
+watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
 watchRecursive = watchWith id
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
 --
 -- /Unimplemented/
 --
-watch :: NonEmpty (Array Word8) -> SerialT IO Event
+watch :: NonEmpty (Array Word8) -> Stream IO Event
 watch _paths = undefined
 
 -------------------------------------------------------------------------------

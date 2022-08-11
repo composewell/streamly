@@ -26,7 +26,7 @@ import qualified Prelude
 
 import Gauge
 import Streamly.Benchmark.Common
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 #ifdef USE_PRELUDE
 import Streamly.Prelude (MonadAsync)
 import Stream.Common hiding (MonadAsync)
@@ -47,23 +47,23 @@ import Prelude hiding (repeat, replicate, iterate)
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: Monad m => Int -> Int -> SerialT m Int
+sourceFromList :: Monad m => Int -> Int -> Stream m Int
 sourceFromList value n = Stream.fromList [n..n+value]
 
 {-# INLINE sourceFromListM #-}
-sourceFromListM :: MonadAsync m => Int -> Int -> SerialT m Int
+sourceFromListM :: MonadAsync m => Int -> Int -> Stream m Int
 sourceFromListM value n = fromListM (fmap return [n..n+value])
 
 {-# INLINE sourceIsList #-}
-sourceIsList :: Int -> Int -> SerialT Identity Int
+sourceIsList :: Int -> Int -> Stream Identity Int
 sourceIsList value n = GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
-sourceIsString :: Int -> Int -> SerialT Identity Char
+sourceIsString :: Int -> Int -> Stream Identity Char
 sourceIsString value n = GHC.fromString (Prelude.replicate (n + value) 'a')
 
 {-# INLINE readInstance #-}
-readInstance :: String -> SerialT Identity Int
+readInstance :: String -> Stream Identity Int
 readInstance str =
     let r = reads str
     in case r of
@@ -80,11 +80,11 @@ readInstanceList str =
         _ -> error "readInstance: no parse"
 
 {-# INLINE repeat #-}
-repeat :: Monad m => Int -> Int -> SerialT m Int
+repeat :: Monad m => Int -> Int -> Stream m Int
 repeat count = Stream.take count . Stream.repeat
 
 {-# INLINE replicate #-}
-replicate :: Monad m => Int -> Int -> SerialT m Int
+replicate :: Monad m => Int -> Int -> Stream m Int
 replicate = Stream.replicate
 
 -------------------------------------------------------------------------------
@@ -92,60 +92,60 @@ replicate = Stream.replicate
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: Monad m => Int -> Int -> SerialT m Int
+sourceIntFromTo :: Monad m => Int -> Int -> Stream m Int
 sourceIntFromTo value n = Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromThenTo #-}
-sourceIntFromThenTo :: Monad m => Int -> Int -> SerialT m Int
+sourceIntFromThenTo :: Monad m => Int -> Int -> Stream m Int
 sourceIntFromThenTo value n = Stream.enumerateFromThenTo n (n + 1) (n + value)
 
 {-# INLINE sourceFracFromTo #-}
-sourceFracFromTo :: Monad m => Int -> Int -> SerialT m Double
+sourceFracFromTo :: Monad m => Int -> Int -> Stream m Double
 sourceFracFromTo value n =
     Stream.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
 
 {-# INLINE sourceFracFromThenTo #-}
-sourceFracFromThenTo :: Monad m => Int -> Int -> SerialT m Double
+sourceFracFromThenTo :: Monad m => Int -> Int -> Stream m Double
 sourceFracFromThenTo value n = Stream.enumerateFromThenTo (fromIntegral n)
     (fromIntegral n + 1.0001) (fromIntegral (n + value))
 
 {-# INLINE sourceIntegerFromStep #-}
-sourceIntegerFromStep :: Monad m => Int -> Int -> SerialT m Integer
+sourceIntegerFromStep :: Monad m => Int -> Int -> Stream m Integer
 sourceIntegerFromStep value n =
     Stream.take value $ Stream.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
 
 {-# INLINE enumerateFrom #-}
-enumerateFrom :: Monad m => Int -> Int -> SerialT m Int
+enumerateFrom :: Monad m => Int -> Int -> Stream m Int
 enumerateFrom count = Stream.take count . Stream.enumerateFrom
 
 {-# INLINE enumerateFromTo #-}
-enumerateFromTo :: Monad m => Int -> Int -> SerialT m Int
+enumerateFromTo :: Monad m => Int -> Int -> Stream m Int
 enumerateFromTo = sourceIntFromTo
 
 {-# INLINE enumerateFromThen #-}
-enumerateFromThen :: Monad m => Int -> Int -> SerialT m Int
+enumerateFromThen :: Monad m => Int -> Int -> Stream m Int
 enumerateFromThen count inp = Stream.take count $ Stream.enumerateFromThen inp (inp + 1)
 
 {-# INLINE enumerateFromThenTo #-}
-enumerateFromThenTo :: Monad m => Int -> Int -> SerialT m Int
+enumerateFromThenTo :: Monad m => Int -> Int -> Stream m Int
 enumerateFromThenTo = sourceIntFromThenTo
 
 -- n ~ 1
 {-# INLINE enumerate #-}
-enumerate :: Monad m => Int -> Int -> SerialT m Int
+enumerate :: Monad m => Int -> Int -> Stream m Int
 enumerate count n = Stream.take (count + n) Stream.enumerate
 
 -- n ~ 1
 {-# INLINE enumerateTo #-}
-enumerateTo :: Monad m => Int -> Int -> SerialT m Int
+enumerateTo :: Monad m => Int -> Int -> Stream m Int
 enumerateTo count n = Stream.enumerateTo (minBound + count + n)
 
 {-# INLINE iterate #-}
-iterate :: Monad m => Int -> Int -> SerialT m Int
+iterate :: Monad m => Int -> Int -> Stream m Int
 iterate count = Stream.take count . Stream.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: MonadAsync m => Int -> Int -> SerialT m Int
+iterateM :: MonadAsync m => Int -> Int -> Stream m Int
 iterateM count = Stream.take count . Stream.iterateM (return . (+1)) . return
 
 #ifdef USE_PRELUDE
@@ -167,7 +167,7 @@ fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 #endif
 
 {-# INLINE mfixUnfold #-}
-mfixUnfold :: Int -> Int -> SerialT IO (Int, Int)
+mfixUnfold :: Int -> Int -> Stream IO (Int, Int)
 mfixUnfold count start = Stream.mfix f
     where
     f action = do
