@@ -155,7 +155,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity ( Identity )
 import Data.Word (Word32)
-import Foreign.Storable (Storable, peek, sizeOf)
+import Foreign.Storable (peek, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
@@ -1823,7 +1823,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
-    :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -2136,7 +2136,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: forall m a b. (MonadIO m, Storable a, Unboxed a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b

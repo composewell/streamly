@@ -21,7 +21,6 @@ import Data.Word (Word8)
 import Data.Semigroup ((<>))
 #endif
 import Data.Semigroup (Sum(..), getSum)
-import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -113,7 +112,7 @@ splitOnSuffixSeq = do
              $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
 
 splitterProperties ::
-       forall a. (Arbitrary a, Eq a, Show a, Storable a, Unboxed a, Enum a)
+       forall a. (Arbitrary a, Eq a, Show a, Unboxed a, Enum a)
     => a
     -> String
     -> Spec

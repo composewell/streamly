@@ -40,8 +40,9 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed
-    ( ArrayContents(..)
-    , Unboxed(..)
+    ( MutableByteArray(..)
+    , Unboxed
+    , sizeOf
     , peekWith
     , pokeWith
     , newUnpinnedArrayContents
@@ -50,7 +51,7 @@ import Streamly.Internal.Data.Unboxed
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | An 'IORef' holds a single 'Unboxed' value.
-newtype IORef a = IORef (ArrayContents a)
+newtype IORef a = IORef (MutableByteArray a)
 
 -- | Create a new 'IORef'.
 --

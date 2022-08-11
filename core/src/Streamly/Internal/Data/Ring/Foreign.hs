@@ -80,7 +80,7 @@ import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Streamly.Internal.Data.Unboxed as Unboxed
-    ( ArrayContents
+    ( MutableByteArray
     , Unboxed
     , castContents
     , peekWith
@@ -412,7 +412,7 @@ unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
 
     where
 
-    w8Contents = castContents arrContents :: ArrayContents Word8
+    w8Contents = castContents arrContents :: MutableByteArray Word8
 
     check p i = do
         relem <- peek p
@@ -446,7 +446,7 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 
     where
 
-    w8Contents = castContents arrContents :: ArrayContents Word8
+    w8Contents = castContents arrContents :: MutableByteArray  Word8
 
     check p i = do
         relem <- peek p
@@ -561,7 +561,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- a))@ action depends on when it is executed. It does not capture the sanpshot
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
-slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unboxed a)
+slidingWindowWith :: forall m a b. (MonadIO m, Unboxed a)
     => Int -> Fold m ((a, Maybe a), m (Array a)) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
@@ -615,6 +615,6 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 -- there is no old element.
 --
 {-# INLINE slidingWindow #-}
-slidingWindow :: forall m a b. (MonadIO m, Storable a, Unboxed a)
+slidingWindow :: forall m a b. (MonadIO m, Unboxed a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b
 slidingWindow n f = slidingWindowWith n (lmap fst f)
