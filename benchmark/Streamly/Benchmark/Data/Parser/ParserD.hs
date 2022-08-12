@@ -62,17 +62,6 @@ benchIOSink
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
 
--- Make the input unsorted.
-{-# INLINE benchIOSinkRandom #-}
-benchIOSinkRandom
-    :: (NFData b)
-    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
-benchIOSinkRandom value name f =
-    bench name $ nfIO $ randomRIO (1,1)
-        >>= f
-        . fmap (\x -> if even x then x + 2 else x)
-        . sourceUnfoldrM value
-
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
@@ -252,6 +241,7 @@ parseManyGroupsRollingEitherAlt :: (MonadThrow m, MonadCatch m) =>
     (Int -> Int -> Bool) -> Int -> m ()
 parseManyGroupsRollingEitherAlt cmp value = do
     sourceUnfoldrM value 1
+        -- Make the input unsorted.
         & fmap (\x -> if even x then x + 2 else x)
         & Stream.parseManyD (PR.groupByRollingEither cmp Fold.drain Fold.drain)
         & Stream.fold Fold.drain
@@ -285,6 +275,7 @@ lookAhead :: MonadThrow m => Int -> Stream m Int -> m ()
 lookAhead value =
     Stream.parseD (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
 
+-- XXX The timing of this increased 3x after the stepify extract changes.
 {-# INLINE sequenceA_ #-}
 sequenceA_ :: MonadThrow m => Int -> Stream m Int -> m ()
 sequenceA_ value =
@@ -380,12 +371,24 @@ o_1_space_serial_nested value =
     , benchIOSink value "parseMany groupRollingBy (1 group)"
           $ parseManyGroupsRolling True
     , bench "parseMany groupRollingByEither (Left)"
-        $ nfIO $ parseManyGroupsRollingEither (<) value
+        $ nfIO $ parseManyGroupsRollingEitherLeft
     , bench "parseMany groupRollingByEither (Right)"
-        $ nfIO $ parseManyGroupsRollingEither (>) value
+        $ nfIO $ parseManyGroupsRollingEitherRight
     , bench "parseMany groupRollingByEither (Alternating)"
-        $ nfIO $ parseManyGroupsRollingEitherAlt (>) value
+        $ nfIO $ parseManyGroupsRollingEitherAlt1
     ]
+
+    where
+
+    {-# NOINLINE parseManyGroupsRollingEitherLeft #-}
+    parseManyGroupsRollingEitherLeft = parseManyGroupsRollingEither (<) value
+
+    {-# NOINLINE parseManyGroupsRollingEitherRight #-}
+    parseManyGroupsRollingEitherRight = parseManyGroupsRollingEither (>) value
+
+    {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
+    parseManyGroupsRollingEitherAlt1 =
+        parseManyGroupsRollingEitherAlt (>) value
 
 o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
 o_1_space_serial_unfold bound arrays =
