@@ -211,6 +211,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Ring/Foreign.hs
     core/src/Streamly/Internal/Data/Ring.hs
     core/src/Streamly/Internal/Data/Stream/StreamK.hs
+    core/src/Streamly/Data/Stream.hs
     core/src/Streamly/Data/Fold.hs
     core/src/Streamly/Data/Fold/Tee.hs
     core/src/Streamly/Internal/Data/Fold/Window.hs
@@ -643,6 +644,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamK
 
                      -- streamly-core exposed modules
+                     , Streamly.Data.Stream
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Unboxed

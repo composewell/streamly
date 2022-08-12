@@ -348,6 +348,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamK
 
                      -- streamly-core exposed modules
+                     , Streamly.Data.Stream
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Unboxed
