@@ -210,11 +210,11 @@ where
 -- When we use a purely lazy Monad like Identity, we need to force ordering of
 -- some actions for correctness.
 
+#include "assert.hs"
 #include "inline.hs"
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
-import Control.Exception (assert)
 import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -225,7 +225,6 @@ import Data.Semigroup (Semigroup(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
-import Streamly.Internal.Control.Exception (assertM)
 import Streamly.Internal.Data.Unboxed
     ( ArrayContents(..)
     , Unboxed
@@ -722,7 +721,7 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 {-# NOINLINE reallocAligned #-}
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
 reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
-    assertM (aEnd <= aBound)
+    assertM(aEnd <= aBound)
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
@@ -776,7 +775,7 @@ reallocWith label capSizer minIncrBytes arr = do
         newCapBytes = capSizer oldSizeBytes
         newSizeBytes = oldSizeBytes + minIncrBytes
         safeCapBytes = max newCapBytes newSizeBytes
-    assertM (safeCapBytes >= newSizeBytes || error (badSize newSizeBytes))
+    assertM(safeCapBytes >= newSizeBytes || error (badSize newSizeBytes))
 
     realloc safeCapBytes arr
 
@@ -2023,8 +2022,8 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 {-# INLINE putSliceUnsafe #-}
 putSliceUnsafe :: MonadIO m => Array a -> Int -> Array a -> Int -> Int -> m ()
 putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
-    assertM (lenBytes <= aBound dst - dstStartBytes)
-    assertM (lenBytes <= aEnd src - srcStartBytes)
+    assertM(lenBytes <= aBound dst - dstStartBytes)
+    assertM(lenBytes <= aEnd src - srcStartBytes)
     let !(I# srcStartBytes#) = srcStartBytes
         !(I# dstStartBytes#) = dstStartBytes
         !(I# lenBytes#) = lenBytes
@@ -2065,7 +2064,7 @@ spliceUnsafe dst src =
          let startSrc = arrStart src
              srcLen = aEnd src - startSrc
              endDst = aEnd dst
-         assertM (endDst + srcLen <= aBound dst)
+         assertM(endDst + srcLen <= aBound dst)
          putSliceUnsafe src startSrc dst endDst srcLen
          return $ dst {aEnd = endDst + srcLen}
 

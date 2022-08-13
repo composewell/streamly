@@ -196,12 +196,13 @@ module Streamly.Internal.Data.Parser.ParserD
     )
 where
 
+#include "assert.hs"
+
 import Control.Exception (Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Control.Exception (assertM)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
@@ -1705,17 +1706,17 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
             IError e -> return $ IError e
 
     step (Tuple' cnt r) a = do
-        assertM (cnt < lim)
+        assertM(cnt < lim)
         res <- pstep r a
         let cnt1 = cnt + 1
         case res of
             Partial 0 s -> do
-                assertM (cnt1 >= 0)
+                assertM(cnt1 >= 0)
                 if cnt1 < lim
                 then return $ Partial 0 $ Tuple' cnt1 s
                 else Done 0 <$> pextract s
             Continue 0 s -> do
-                assertM (cnt1 >= 0)
+                assertM(cnt1 >= 0)
                 if cnt1 < lim
                 then return $ Continue 0 $ Tuple' cnt1 s
                 -- XXX This should error out?
@@ -1732,11 +1733,11 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 else Done 0 <$> pextract s
             Partial n s -> do
                 let taken = cnt1 - n
-                assertM (taken >= 0)
+                assertM(taken >= 0)
                 return $ Partial n $ Tuple' taken s
             Continue n s -> do
                 let taken = cnt1 - n
-                assertM (taken >= 0)
+                assertM(taken >= 0)
                 return $ Continue n $ Tuple' taken s
             Done n b -> return $ Done n b
             Error str -> return $ Error str
@@ -2131,7 +2132,7 @@ manyTill (Fold fstep finitial fextract)
         case r of
             Partial n s -> return $ Partial n (ManyTillR 0 fs s)
             Continue n s -> do
-                assertM (cnt + 1 - n >= 0)
+                assertM(cnt + 1 - n >= 0)
                 return $ Continue n (ManyTillR (cnt + 1 - n) fs s)
             Done n _ -> do
                 b <- fextract fs
@@ -2157,7 +2158,7 @@ manyTill (Fold fstep finitial fextract)
         case r of
             Partial n s -> return $ Partial n (ManyTillL 0 fs s)
             Continue n s -> do
-                assertM (cnt + 1 - n >= 0)
+                assertM(cnt + 1 - n >= 0)
                 return $ Continue n (ManyTillL (cnt + 1 - n) fs s)
             Done n b -> do
                 fs1 <- fstep fs b

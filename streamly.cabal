@@ -85,6 +85,7 @@ extra-source-files:
     src/Streamly/Internal/Data/Array/ArrayMacros.h
 
     src/Streamly/Internal/FileSystem/Event/Darwin.h
+    src/assert.hs
     src/config.h.in
     src/inline.hs
     test/Streamly/Test/Data/*.hs
@@ -124,11 +125,12 @@ extra-source-files:
     -- This is temporary as we will soon break this package out
     core/configure
     core/configure.ac
+    core/src/assert.hs
+    core/src/config.h.in
+    core/src/inline.hs
     core/src/Streamly/Internal/Data/Stream/Instances.hs
     core/src/Streamly/Internal/Data/Array/ArrayMacros.h
-    core/src/inline.hs
     core/src/Streamly/Internal/Data/Time/Clock/config-clock.h
-    core/src/config.h.in
     core/src/Streamly/Internal/BaseCompat.hs
     core/src/Streamly/Internal/Control/Exception.hs
     core/src/Streamly/Internal/Control/Monad.hs
