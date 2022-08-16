@@ -261,20 +261,21 @@ writeWord8ArrayAsDouble# arr# i# =
 -- Ptr, this type class allows writing to a MutableByteArray#.
 type Unboxed a = (Unbox a, Storable a)
 
-class Unbox a where
+class Storable a => Unbox a where
+    -- XXX Do we want to store the type information in "ArrayContents"?
     -- Read an element of type "a" from a MutableByteArray given the byte
     -- index.
-    readByteArray :: ArrayContents a -> Int -> IO a
-    writeByteArray :: ArrayContents a -> Int -> a -> IO ()
+    box :: ArrayContents a -> Int -> IO a
+    unbox :: ArrayContents a -> Int -> a -> IO ()
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
-instance Unbox _type where {                                       \
-; {-# INLINE readByteArray #-}                                       \
-; readByteArray (ArrayContents mbarr) (I# n) = IO $ \s ->            \
+instance Unbox _type where {                                         \
+; {-# INLINE box #-}                                                 \
+; box (ArrayContents mbarr) (I# n) = IO $ \s ->                      \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
-; {-# INLINE writeByteArray #-}                                      \
-; writeByteArray (ArrayContents mbarr) (I# n) (_constructor val) =   \
+; {-# INLINE unbox #-}                                               \
+; unbox (ArrayContents mbarr) (I# n) (_constructor val) =            \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 }
 
@@ -320,31 +321,31 @@ DERIVE_UNBOXED( Double
 
 instance Unbox Bool where
 
-    {-# INLINE readByteArray #-}
-    readByteArray arr i = do
-        res <- readByteArray (castContents arr) i
+    {-# INLINE box #-}
+    box arr i = do
+        res <- box (castContents arr) i
         return $ res /= (0 :: Int32)
 
-    {-# INLINE writeByteArray #-}
-    writeByteArray arr i a =
+    {-# INLINE unbox #-}
+    unbox arr i a =
         if a
-        then writeByteArray (castContents arr) i (1 :: Int32)
-        else writeByteArray (castContents arr) i (0 :: Int32)
+        then unbox (castContents arr) i (1 :: Int32)
+        else unbox (castContents arr) i (0 :: Int32)
 
 instance forall a. Unboxed a => Unbox (Complex a) where
 
-    {-# INLINE readByteArray #-}
-    readByteArray arr i = do
+    {-# INLINE box #-}
+    box arr i = do
         let contents = castContents arr :: ArrayContents a
-        real <- readByteArray contents i
-        img <- readByteArray contents (i + SIZE_OF(a))
+        real <- box contents i
+        img <- box contents (i + SIZE_OF(a))
         return $ real :+ img
 
-    {-# INLINE writeByteArray #-}
-    writeByteArray arr i (real :+ img) = do
+    {-# INLINE unbox #-}
+    unbox arr i (real :+ img) = do
         let contents = castContents arr :: ArrayContents a
-        writeByteArray contents i real
-        writeByteArray contents (i + SIZE_OF(a)) img
+        unbox contents i real
+        unbox contents (i + SIZE_OF(a)) img
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -352,8 +353,8 @@ instance forall a. Unboxed a => Unbox (Complex a) where
 
 {-# INLINE peekWith #-}
 peekWith :: Unboxed a => ArrayContents a -> Int -> IO a
-peekWith = readByteArray
+peekWith = box
 
 {-# INLINE pokeWith #-}
 pokeWith :: Unboxed a => ArrayContents a -> Int -> a -> IO ()
-pokeWith = writeByteArray
+pokeWith = unbox
