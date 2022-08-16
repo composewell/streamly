@@ -227,7 +227,7 @@ readArrayUpto size (Handle fd) = do
         -- Use unsafeFreezeWithShrink
         return
             $ unsafeFreeze
-            $ arr { MArray.aEnd = n, MArray.aBound = size }
+            $ arr { MArray.arrEnd = n, MArray.arrBound = size }
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -250,7 +250,7 @@ writeArray (Handle fd) arr =
     {-
     -- Experiment to compare "writev" based IO with "write" based IO.
     iov <- A.newArray 1
-    let iov' = iov {aEnd = aBound iov}
+    let iov' = iov {arrEnd = arrBound iov}
     A.writeIndex iov' 0 (RawIO.IOVec (castPtr p) (fromIntegral aLen))
     RawIO.writevAll fd (unsafeForeignPtrToPtr (aStart iov')) 1
     -}

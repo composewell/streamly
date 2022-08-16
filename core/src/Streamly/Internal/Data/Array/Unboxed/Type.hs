@@ -139,7 +139,7 @@ data Array a =
     Array
     { arrContents :: {-# UNPACK #-} !(ArrayContents a)
     , arrStart :: {-# UNPACK #-} !Int -- offset
-    , aEnd   :: {-# UNPACK #-} !Int   -- offset + len
+    , arrEnd   :: {-# UNPACK #-} !Int   -- offset + len
     }
 
 -------------------------------------------------------------------------------
@@ -416,7 +416,7 @@ toListFB :: forall a b. Unboxed a => (a -> b -> b) -> b -> Array a -> b
 toListFB c n Array{..} = go arrStart
     where
 
-    go p | assert (p <= aEnd) (p == aEnd) = n
+    go p | assert (p <= arrEnd) (p == arrEnd) = n
     go p =
         -- unsafeInlineIO allows us to run this in Identity monad for pure
         -- toList/foldr case which makes them much faster due to not
@@ -570,7 +570,7 @@ toStreamD_ size Array{..} = D.Stream step arrStart
     where
 
     {-# INLINE_LATE step #-}
-    step _ p | p == aEnd = return D.Stop
+    step _ p | p == arrEnd = return D.Stop
     step _ p = liftIO $ do
         x <- peekWith arrContents p
         return $ D.Yield x (p `plusPtr` size)
