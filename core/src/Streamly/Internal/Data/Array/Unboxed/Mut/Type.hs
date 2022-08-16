@@ -17,7 +17,7 @@ module Streamly.Internal.Data.Array.Unboxed.Mut.Type
     -- * Type
     -- $arrayNotes
       Array (..)
-    , ArrayContents
+    , MutableByteArray
     , nilArrayContents
     , touch
     , pin
@@ -226,7 +226,7 @@ import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unboxed
-    ( ArrayContents(..)
+    ( MutableByteArray(..)
     , Unboxed
     , alignment
     , castContents
@@ -344,7 +344,7 @@ data Array a =
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
     Array
-    { arrContents :: {-# UNPACK #-} !(ArrayContents a)
+    { arrContents :: {-# UNPACK #-} !(MutableByteArray a)
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
     , aEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
@@ -394,7 +394,7 @@ unpin arr@Array{..} = do
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Unboxed a)
-    => (Int -> Int -> m (ArrayContents a)) -> Int -> Int -> m (Array a)
+    => (Int -> Int -> m (MutableByteArray a)) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
     contents <- alloc size alignSize
@@ -408,17 +408,17 @@ newArrayWith alloc alignSize count = do
 -- XXX Move this to Unboxed and rename this to newPinnedAlignedBytes?
 -- XXX Similarly have newUnpinnedBytes
 {-# INLINE newAlignedArrayContents #-}
-newAlignedArrayContents :: Int -> Int -> IO (ArrayContents a)
+newAlignedArrayContents :: Int -> Int -> IO (MutableByteArray a)
 newAlignedArrayContents nbytes _align | nbytes < 0 =
   errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
 newAlignedArrayContents (I# nbytes) (I# align) = IO $ \s ->
     case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
-           let c = ArrayContents mbarr#
+           let c = MutableByteArray mbarr#
             in (# s', c #)
 
 {-# NOINLINE nilArrayContents #-}
-nilArrayContents :: ArrayContents a
+nilArrayContents :: MutableByteArray a
 nilArrayContents =
     unsafePerformIO $ newAlignedArrayContents 0 0
 
@@ -590,7 +590,7 @@ modify f Array{..} = liftIO $
             go (INDEX_NEXT(i,a))
 
 {-# INLINE swapArrayByteIndices #-}
-swapArrayByteIndices :: Unboxed a => ArrayContents a -> Int -> Int -> IO ()
+swapArrayByteIndices :: Unboxed a => MutableByteArray a -> Int -> Int -> IO ()
 swapArrayByteIndices arrContents i1 i2 = do
     r1 <- peekWith arrContents i1
     r2 <- peekWith arrContents i2
@@ -726,8 +726,8 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
     contents <- newAlignedArrayContents newCapMaxInBytes alignSize
-    let !(ArrayContents mbarrFrom#) = arrContents
-        !(ArrayContents mbarrTo#) = contents
+    let !(MutableByteArray mbarrFrom#) = arrContents
+        !(MutableByteArray mbarrTo#) = contents
 
     -- Copy old data
     let oldStart = arrStart
@@ -1424,7 +1424,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 -------------------------------------------------------------------------------
 
 data ArrayUnsafe a = ArrayUnsafe
-    {-# UNPACK #-} !(ArrayContents a)  -- contents
+    {-# UNPACK #-} !(MutableByteArray a)  -- contents
     {-# UNPACK #-} !Int                -- index 1
     {-# UNPACK #-} !Int                -- index 2
 

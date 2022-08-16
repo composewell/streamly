@@ -170,7 +170,7 @@ interposeSuffix x = S.interposeSuffix x A.read
 
 data FlattenState s a =
       OuterLoop s
-    | InnerLoop s !(MA.ArrayContents a) !Int !Int
+    | InnerLoop s !(MA.MutableByteArray a) !Int !Int
 
 -- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}

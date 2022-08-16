@@ -80,7 +80,7 @@ import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Streamly.Internal.Data.Unboxed as Unboxed
-    ( ArrayContents
+    ( MutableByteArray
     , Unboxed
     , castContents
     , peekWith
@@ -412,7 +412,7 @@ unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
 
     where
 
-    w8Contents = castContents arrContents :: ArrayContents Word8
+    w8Contents = castContents arrContents :: MutableByteArray Word8
 
     check p i = do
         relem <- peek p
@@ -446,7 +446,7 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 
     where
 
-    w8Contents = castContents arrContents :: ArrayContents Word8
+    w8Contents = castContents arrContents :: MutableByteArray  Word8
 
     check p i = do
         relem <- peek p

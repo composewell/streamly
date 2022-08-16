@@ -3,12 +3,12 @@
 
 module Streamly.Internal.Data.Unboxed
     ( Unboxed
-    , Unbox
+    , Unbox(..)
     , alignment
     , peekWith
     , pokeWith
     , sizeOf
-    , ArrayContents(..)
+    , MutableByteArray(..)
     , castContents
     , touch
     , getMutableByteArray#
@@ -34,19 +34,19 @@ import GHC.Exts
 --------------------------------------------------------------------------------
 
 -- XXX can use UnliftedNewtypes
-data ArrayContents a = ArrayContents !(MutableByteArray# RealWorld)
+data MutableByteArray a = MutableByteArray !(MutableByteArray# RealWorld)
 
 {-# INLINE getMutableByteArray# #-}
-getMutableByteArray# :: ArrayContents a -> MutableByteArray# RealWorld
-getMutableByteArray# (ArrayContents mbarr) = mbarr
+getMutableByteArray# :: MutableByteArray a -> MutableByteArray# RealWorld
+getMutableByteArray# (MutableByteArray mbarr) = mbarr
 
 {-# INLINE castContents #-}
-castContents :: ArrayContents a -> ArrayContents b
-castContents (ArrayContents mbarr) = ArrayContents mbarr
+castContents :: MutableByteArray a -> MutableByteArray b
+castContents (MutableByteArray mbarr) = MutableByteArray mbarr
 
 {-# INLINE touch #-}
-touch :: ArrayContents a -> IO ()
-touch (ArrayContents contents) =
+touch :: MutableByteArray a -> IO ()
+touch (MutableByteArray contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
 
 --------------------------------------------------------------------------------
@@ -54,13 +54,13 @@ touch (ArrayContents contents) =
 --------------------------------------------------------------------------------
 
 {-# INLINE newUnpinnedArrayContents #-}
-newUnpinnedArrayContents :: Int -> IO (ArrayContents a)
+newUnpinnedArrayContents :: Int -> IO (MutableByteArray a)
 newUnpinnedArrayContents nbytes | nbytes < 0 =
   errorWithoutStackTrace "newUnpinnedArrayContents: size must be >= 0"
 newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
-           let c = ArrayContents mbarr#
+           let c = MutableByteArray mbarr#
             in (# s', c #)
 
 -------------------------------------------------------------------------------
@@ -68,8 +68,8 @@ newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
 -------------------------------------------------------------------------------
 
 {-# INLINE isPinned #-}
-isPinned :: ArrayContents a -> Bool
-isPinned (ArrayContents arr#) =
+isPinned :: MutableByteArray a -> Bool
+isPinned (MutableByteArray arr#) =
     let pinnedInt = I# (isMutableByteArrayPinned# arr#)
      in pinnedInt == 1
 
@@ -90,24 +90,24 @@ cloneMutableArrayWith# alloc# arr# s# =
                         s3# -> (# s3#, arr1# #)
 
 {-# INLINE pin #-}
-pin :: ArrayContents a -> IO (ArrayContents a)
-pin arr@(ArrayContents marr#) =
+pin :: MutableByteArray a -> IO (MutableByteArray a)
+pin arr@(MutableByteArray marr#) =
     if isPinned arr
     then return arr
     else IO
              $ \s# ->
                    case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
 
 {-# INLINE unpin #-}
-unpin :: ArrayContents a -> IO (ArrayContents a)
-unpin arr@(ArrayContents marr#) =
+unpin :: MutableByteArray a -> IO (MutableByteArray a)
+unpin arr@(MutableByteArray marr#) =
     if not (isPinned arr)
     then return arr
     else IO
              $ \s# ->
                    case cloneMutableArrayWith# newByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, ArrayContents marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
 
 --------------------------------------------------------------------------------
 -- The Unboxed type class
@@ -262,20 +262,19 @@ writeWord8ArrayAsDouble# arr# i# =
 type Unboxed a = (Unbox a, Storable a)
 
 class Storable a => Unbox a where
-    -- XXX Do we want to store the type information in "ArrayContents"?
     -- Read an element of type "a" from a MutableByteArray given the byte
     -- index.
-    box :: ArrayContents a -> Int -> IO a
-    unbox :: ArrayContents a -> Int -> a -> IO ()
+    box :: MutableByteArray a -> Int -> IO a
+    unbox :: MutableByteArray a -> Int -> a -> IO ()
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
 instance Unbox _type where {                                         \
 ; {-# INLINE box #-}                                                 \
-; box (ArrayContents mbarr) (I# n) = IO $ \s ->                      \
+; box (MutableByteArray mbarr) (I# n) = IO $ \s ->                      \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
 ; {-# INLINE unbox #-}                                               \
-; unbox (ArrayContents mbarr) (I# n) (_constructor val) =            \
+; unbox (MutableByteArray mbarr) (I# n) (_constructor val) =            \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 }
 
@@ -336,14 +335,14 @@ instance forall a. Unboxed a => Unbox (Complex a) where
 
     {-# INLINE box #-}
     box arr i = do
-        let contents = castContents arr :: ArrayContents a
+        let contents = castContents arr :: MutableByteArray a
         real <- box contents i
         img <- box contents (i + SIZE_OF(a))
         return $ real :+ img
 
     {-# INLINE unbox #-}
     unbox arr i (real :+ img) = do
-        let contents = castContents arr :: ArrayContents a
+        let contents = castContents arr :: MutableByteArray a
         unbox contents i real
         unbox contents (i + SIZE_OF(a)) img
 
@@ -352,9 +351,9 @@ instance forall a. Unboxed a => Unbox (Complex a) where
 --------------------------------------------------------------------------------
 
 {-# INLINE peekWith #-}
-peekWith :: Unboxed a => ArrayContents a -> Int -> IO a
+peekWith :: Unboxed a => MutableByteArray a -> Int -> IO a
 peekWith = box
 
 {-# INLINE pokeWith #-}
-pokeWith :: Unboxed a => ArrayContents a -> Int -> a -> IO ()
+pokeWith :: Unboxed a => MutableByteArray a -> Int -> a -> IO ()
 pokeWith = unbox
