@@ -215,6 +215,7 @@ extra-source-files:
     core/src/Streamly/Data/Fold/Tee.hs
     core/src/Streamly/Internal/Data/Fold/Window.hs
     core/src/Streamly/Data/Array/Unboxed.hs
+    core/src/Streamly/Data/Array/Unboxed/Mut.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
     core/src/Streamly/Internal/Data/Time/Clock/Windows.c
     core/streamly-core.cabal
