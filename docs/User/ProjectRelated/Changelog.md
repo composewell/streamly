@@ -3,10 +3,10 @@
 <!-- See rendered changelog at https://streamly.composewell.com -->
 ## Unreleased
 
-* The unboxed arrays now require `Prim` instance for the stored type instead of
-  `Storable`.
-  *Note*: The primitive package does not provide a prim instance of `Bool`. A
-  `Prim` instance for `Bool` can be found in `Streamly.Internal.Data.Unboxed`.
+* The unboxed arrays now require `Unbox` instance along with `Storable` for the
+  stored type. The `Unbox` typeclass can be found in `Streamly.Data.Unbox`.
+* New modules for unboxed mutable & unboxed immutable arrays are added.
+* A new module dedicated for unboxing is added.
 
 * Following APIs have been renamed in Streamly.Network.Socket module:
     readWithBufferOf -> readWith
