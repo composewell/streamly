@@ -89,8 +89,8 @@ readArrayUpto size h = do
         n <- hGetBufSome h p size
         let v = Array
                 { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
+                , arrEnd   = p `plusPtr` n
+                , arrBound = p `plusPtr` size
                 }
         -- XXX shrink only if the diff is significant
         shrinkToFit v
@@ -300,7 +300,7 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
     where
     aLen =
         let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
+        in arrEnd `minusPtr` p
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO

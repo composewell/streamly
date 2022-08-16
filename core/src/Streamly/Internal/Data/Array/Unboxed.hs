@@ -244,7 +244,7 @@ getIndexRev :: forall a. Unboxed a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
         $ do
-                let elemPtr = RINDEX_OF(aEnd arr, i, a)
+                let elemPtr = RINDEX_OF(arrEnd arr, i, a)
                 if i >= 0 && elemPtr >= arrStart arr
                 then Just <$> peekWith (arrContents arr) elemPtr
                 else return Nothing
@@ -410,7 +410,7 @@ getIndex i arr =
     unsafeInlineIO
         $ do
                 let elemPtr = INDEX_OF(arrStart arr, i, a)
-                if i >= 0 && INDEX_VALID(elemPtr, aEnd arr, a)
+                if i >= 0 && INDEX_VALID(elemPtr, arrEnd arr, a)
                 then Just <$> peekWith (arrContents arr) elemPtr
                 else return Nothing
 

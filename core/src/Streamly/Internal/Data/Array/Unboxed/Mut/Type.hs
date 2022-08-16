@@ -346,10 +346,10 @@ data Array a =
     Array
     { arrContents :: {-# UNPACK #-} !(ArrayContents a)
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
-    , aEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
+    , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
                                        -- the array.
-    , aBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
+    , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
     }
 
 -------------------------------------------------------------------------------
@@ -401,8 +401,8 @@ newArrayWith alloc alignSize count = do
     return $ Array
         { arrContents = contents
         , arrStart = 0
-        , aEnd   = 0
-        , aBound = size
+        , arrEnd   = 0
+        , arrBound = size
         }
 
 -- XXX Move this to Unboxed and rename this to newPinnedAlignedBytes?
@@ -463,8 +463,8 @@ newPinnedArrayBytes bytes = do
     return $ Array
         { arrContents = contents
         , arrStart = 0
-        , aEnd   = 0
-        , aBound = bytes
+        , arrEnd   = 0
+        , arrBound = bytes
         }
 
 -- | Allocate an Array of the given size and run an IO action passing the array
@@ -492,7 +492,7 @@ putIndexUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> a -> Array a -> m ()
 putIndexUnsafe i x Array{..} = do
     let index = INDEX_OF(arrStart, i, a)
-    assert (i >= 0 && INDEX_VALID(index, aEnd, a)) (return ())
+    assert (i >= 0 && INDEX_VALID(index, arrEnd, a)) (return ())
     liftIO $ pokeWith arrContents index x
 
 invalidIndex :: String -> Int -> a
@@ -511,7 +511,7 @@ invalidIndex label i =
 putIndex :: forall m a. (MonadIO m, Unboxed a) => Int -> a -> Array a -> m ()
 putIndex i x Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
-    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ pokeWith arrContents index x
     else invalidIndex "putIndex" i
 
@@ -535,7 +535,7 @@ modifyIndexUnsafe :: forall m a b. (MonadIO m, Unboxed a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
 modifyIndexUnsafe i f Array{..} = liftIO $ do
         let index = INDEX_OF(arrStart,i,a)
-        assert (i >= 0 && INDEX_NEXT(index,a) <= aEnd) (return ())
+        assert (i >= 0 && INDEX_NEXT(index,a) <= arrEnd) (return ())
         r <- peekWith arrContents index
         let (x, res) = f r
         pokeWith arrContents index x
@@ -548,7 +548,7 @@ modifyIndex :: forall m a b. (MonadIO m, Unboxed a) =>
     Int -> (a -> (a, b)) -> Array a -> m b
 modifyIndex i f Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
-    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ do
         r <- peekWith arrContents index
         let (x, res) = f r
@@ -584,7 +584,7 @@ modify f Array{..} = liftIO $
     where
 
     go i =
-        when (INDEX_VALID(i,aEnd,a)) $ do
+        when (INDEX_VALID(i,arrEnd,a)) $ do
             r <- peekWith arrContents i
             pokeWith arrContents i (f r)
             go (INDEX_NEXT(i,a))
@@ -618,9 +618,9 @@ swapIndices :: forall m a. (MonadIO m, Unboxed a)
 swapIndices i1 i2 Array{..} = liftIO $ do
         let t1 = INDEX_OF(arrStart,i1,a)
             t2 = INDEX_OF(arrStart,i2,a)
-        when (i1 < 0 || INDEX_INVALID(t1,aEnd,a))
+        when (i1 < 0 || INDEX_INVALID(t1,arrEnd,a))
             $ invalidIndex "swapIndices" i1
-        when (i2 < 0 || INDEX_INVALID(t2,aEnd,a))
+        when (i2 < 0 || INDEX_INVALID(t2,arrEnd,a))
             $ invalidIndex "swapIndices" i2
         swapArrayByteIndices arrContents t1 t2
 
@@ -721,7 +721,7 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 {-# NOINLINE reallocAligned #-}
 reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
 reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
-    assertM(aEnd <= aBound)
+    assertM(arrEnd <= arrBound)
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
@@ -732,7 +732,7 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
     -- Copy old data
     let oldStart = arrStart
         !(I# oldStartInBytes#) = oldStart
-        oldSizeInBytes = aEnd - oldStart
+        oldSizeInBytes = arrEnd - oldStart
         newCapInBytes = roundDownTo elemSize newCapMaxInBytes
         !newLenInBytes@(I# newLenInBytes#) = min oldSizeInBytes newCapInBytes
     assert (oldSizeInBytes `mod` elemSize == 0) (return ())
@@ -744,8 +744,8 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
     return $ Array
         { arrStart = 0
         , arrContents = contents
-        , aEnd   = newLenInBytes
-        , aBound = newCapInBytes
+        , arrEnd   = newLenInBytes
+        , arrBound = newCapInBytes
         }
 
 -- | @realloc newCapacity array@ reallocates the array to the specified
@@ -771,7 +771,7 @@ reallocWith :: forall m a. (MonadIO m , Unboxed a) =>
     -> Array a
     -> m (Array a)
 reallocWith label capSizer minIncrBytes arr = do
-    let oldSizeBytes = aEnd arr - arrStart arr
+    let oldSizeBytes = arrEnd arr - arrStart arr
         newCapBytes = capSizer oldSizeBytes
         newSizeBytes = oldSizeBytes + minIncrBytes
         safeCapBytes = max newCapBytes newSizeBytes
@@ -802,7 +802,7 @@ resize :: forall m a. (MonadIO m, Unboxed a) =>
     Int -> Array a -> m (Array a)
 resize nElems arr@Array{..} = do
     let req = SIZE_OF(a) * nElems
-        len = aEnd - arrStart
+        len = arrEnd - arrStart
     if req < len
     then return arr
     else realloc req arr
@@ -820,7 +820,7 @@ resizeExp nElems arr@Array{..} = do
             if req > largeObjectThreshold
             then roundUpToPower2 req
             else req
-        len = aEnd - arrStart
+        len = arrEnd - arrStart
     if req1 < len
     then return arr
     else realloc req1 arr
@@ -836,12 +836,12 @@ resizeExp nElems arr@Array{..} = do
 {-# INLINE rightSize #-}
 rightSize :: forall m a. (MonadIO m, Unboxed a) => Array a -> m (Array a)
 rightSize arr@Array{..} = do
-    assert (aEnd <= aBound) (return ())
+    assert (arrEnd <= arrBound) (return ())
     let start = arrStart
-        len = aEnd - start
-        capacity = aBound - start
+        len = arrEnd - start
+        capacity = arrBound - start
         target = roundUpLargeArray len
-        waste = aBound - aEnd
+        waste = arrBound - arrEnd
     assert (target >= len) (return ())
     assert (len `mod` SIZE_OF(a) == 0) (return ())
     -- We trade off some wastage (25%) to avoid reallocations and copying.
@@ -868,9 +868,9 @@ rightSize arr@Array{..} = do
 {-# INLINE snocNewEnd #-}
 snocNewEnd :: (MonadIO m, Unboxed a) => Int -> Array a -> a -> m (Array a)
 snocNewEnd newEnd arr@Array{..} x = liftIO $ do
-    assert (newEnd <= aBound) (return ())
-    pokeWith arrContents aEnd x
-    return $ arr {aEnd = newEnd}
+    assert (newEnd <= arrBound) (return ())
+    pokeWith arrContents arrEnd x
+    return $ arr {arrEnd = newEnd}
 
 -- | Really really unsafe, appends the element into the first array, may
 -- cause silent data corruption or if you are lucky a segfault if the first
@@ -880,7 +880,7 @@ snocNewEnd newEnd arr@Array{..} x = liftIO $ do
 {-# INLINE snocUnsafe #-}
 snocUnsafe :: forall m a. (MonadIO m, Unboxed a) =>
     Array a -> a -> m (Array a)
-snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(aEnd,a)) arr
+snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(arrEnd,a)) arr
 
 -- | Like 'snoc' but does not reallocate when pre-allocated array capacity
 -- becomes full.
@@ -890,8 +890,8 @@ snocUnsafe arr@Array{..} = snocNewEnd (INDEX_NEXT(aEnd,a)) arr
 snocMay :: forall m a. (MonadIO m, Unboxed a) =>
     Array a -> a -> m (Maybe (Array a))
 snocMay arr@Array{..} x = liftIO $ do
-    let newEnd = INDEX_NEXT(aEnd,a)
-    if newEnd <= aBound
+    let newEnd = INDEX_NEXT(arrEnd,a)
+    if newEnd <= arrBound
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
 
@@ -926,8 +926,8 @@ snocWith :: forall m a. (MonadIO m, Unboxed a) =>
     -> a
     -> m (Array a)
 snocWith allocSize arr x = liftIO $ do
-    let newEnd = INDEX_NEXT(aEnd arr,a)
-    if newEnd <= aBound arr
+    let newEnd = INDEX_NEXT(arrEnd arr,a)
+    if newEnd <= arrBound arr
     then snocNewEnd newEnd arr x
     else snocWithRealloc allocSize arr x
 
@@ -983,7 +983,7 @@ snoc = snocWith f
 getIndexUnsafe :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndexUnsafe i Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
-    assert (i >= 0 && INDEX_VALID(index,aEnd,a)) (return ())
+    assert (i >= 0 && INDEX_VALID(index,arrEnd,a)) (return ())
     liftIO $ peekWith arrContents index
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
@@ -992,7 +992,7 @@ getIndexUnsafe i Array{..} = do
 getIndex :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndex i Array{..} = do
     let index = INDEX_OF(arrStart,i,a)
-    if i >= 0 && INDEX_VALID(index,aEnd,a)
+    if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ peekWith arrContents index
     else invalidIndex "getIndex" i
 
@@ -1004,7 +1004,7 @@ getIndex i Array{..} = do
 {-# INLINE getIndexRev #-}
 getIndexRev :: forall m a. (MonadIO m, Unboxed a) => Int -> Array a -> m a
 getIndexRev i Array{..} = do
-    let index = RINDEX_OF(aEnd,i,a)
+    let index = RINDEX_OF(arrEnd,i,a)
     if i >= 0 && index >= arrStart
     then liftIO $ peekWith arrContents index
     else invalidIndex "getIndexRev" i
@@ -1106,7 +1106,7 @@ getSlice index len (Array contents start e _) =
 reverse :: forall m a. (MonadIO m, Unboxed a) => Array a -> m ()
 reverse Array{..} = liftIO $ do
     let l = arrStart
-        h = INDEX_PREV(aEnd,a)
+        h = INDEX_PREV(arrEnd,a)
      in swap l h
 
     where
@@ -1133,12 +1133,12 @@ permute = undefined
 partitionBy :: forall m a. (MonadIO m, Unboxed a)
     => (a -> Bool) -> Array a -> m (Array a, Array a)
 partitionBy f arr@Array{..} = liftIO $ do
-    if arrStart >= aEnd
+    if arrStart >= arrEnd
     then return (arr, arr)
     else do
-        ptr <- go arrStart (INDEX_PREV(aEnd,a))
+        ptr <- go arrStart (INDEX_PREV(arrEnd,a))
         let pl = Array arrContents arrStart ptr ptr
-            pr = Array arrContents ptr aEnd aEnd
+            pr = Array arrContents ptr arrEnd arrEnd
         return (pl, pr)
 
     where
@@ -1239,7 +1239,7 @@ mergeBy = undefined
 {-# INLINE byteLength #-}
 byteLength :: Array a -> Int
 byteLength Array{..} =
-    let len = aEnd - arrStart
+    let len = arrEnd - arrStart
     in assert (len >= 0) len
 
 -- Note: try to avoid the use of length in performance sensitive internal
@@ -1267,7 +1267,7 @@ length arr =
 {-# INLINE byteCapacity #-}
 byteCapacity :: Array a -> Int
 byteCapacity Array{..} =
-    let len = aBound - arrStart
+    let len = arrBound - arrStart
     in assert (len >= 0) len
 
 -- | The remaining capacity in the array for appending more elements without
@@ -1277,7 +1277,7 @@ byteCapacity Array{..} =
 {-# INLINE bytesFree #-}
 bytesFree :: Array a -> Int
 bytesFree Array{..} =
-    let n = aBound - aEnd
+    let n = arrBound - arrEnd
     in assert (n >= 0) n
 
 -------------------------------------------------------------------------------
@@ -1377,7 +1377,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                D.Skip (InnerLoop s arrContents arrStart aEnd)
+                D.Skip (InnerLoop s arrContents arrStart arrEnd)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
@@ -1406,7 +1406,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                let p = INDEX_PREV(aEnd,a)
+                let p = INDEX_PREV(arrEnd,a)
                  in D.Skip (InnerLoop s arrContents p arrStart)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
@@ -1508,7 +1508,7 @@ toListFB :: forall a b. Unboxed a => (a -> b -> b) -> b -> Array a -> b
 toListFB c n Array{..} = go arrStart
     where
 
-    go p | assert (p <= aEnd) (p == aEnd) = n
+    go p | assert (p <= arrEnd) (p == arrEnd) = n
     go p =
         -- unsafeInlineIO allows us to run this in Identity monad for pure
         -- toList/foldr case which makes them much faster due to not
@@ -1533,7 +1533,7 @@ toList :: forall m a. (MonadIO m, Unboxed a) => Array a -> m [a]
 toList Array{..} = liftIO $ go arrStart
     where
 
-    go p | assert (p <= aEnd) (p == aEnd) = return []
+    go p | assert (p <= arrEnd) (p == arrEnd) = return []
     go p = do
         x <- peekWith arrContents p
         (:) x <$> go (INDEX_NEXT(p,a))
@@ -1547,7 +1547,7 @@ toStreamDWith liftio Array{..} = D.Stream step arrStart
     where
 
     {-# INLINE_LATE step #-}
-    step _ p | assert (p <= aEnd) (p == aEnd) = return D.Stop
+    step _ p | assert (p <= arrEnd) (p == arrEnd) = return D.Stop
     step _ p = liftio $ do
         r <- peekWith arrContents p
         return $ D.Yield r (INDEX_NEXT(p,a))
@@ -1569,7 +1569,7 @@ toStreamKWith liftio Array{..} = go arrStart
 
     where
 
-    go p | assert (p <= aEnd) (p == aEnd) = K.nil
+    go p | assert (p <= arrEnd) (p == arrEnd) = K.nil
          | otherwise =
         let elemM = peekWith arrContents p
         in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
@@ -1583,7 +1583,7 @@ toStreamDRevWith ::
        forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> D.Stream m a
 toStreamDRevWith liftio Array{..} =
-    let p = INDEX_PREV(aEnd,a)
+    let p = INDEX_PREV(arrEnd,a)
     in D.Stream step p
 
     where
@@ -1608,7 +1608,7 @@ toStreamKRevWith ::
        forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Array a -> K.Stream m a
 toStreamKRevWith liftio Array {..} =
-    let p = INDEX_PREV(aEnd,a)
+    let p = INDEX_PREV(arrEnd,a)
     in go p
 
     where
@@ -1938,8 +1938,8 @@ fromStreamDN :: forall m a. (MonadIO m, Unboxed a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
     arr <- liftIO $ newArray limit
-    end <- D.foldlM' (fwrite (arrContents arr)) (return $ aEnd arr) $ D.take limit str
-    return $ arr {aEnd = end}
+    end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
+    return $ arr {arrEnd = end}
 
     where
 
@@ -2022,8 +2022,8 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 {-# INLINE putSliceUnsafe #-}
 putSliceUnsafe :: MonadIO m => Array a -> Int -> Array a -> Int -> Int -> m ()
 putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
-    assertM(lenBytes <= aBound dst - dstStartBytes)
-    assertM(lenBytes <= aEnd src - srcStartBytes)
+    assertM(lenBytes <= arrBound dst - dstStartBytes)
+    assertM(lenBytes <= arrEnd src - srcStartBytes)
     let !(I# srcStartBytes#) = srcStartBytes
         !(I# dstStartBytes#) = dstStartBytes
         !(I# lenBytes#) = lenBytes
@@ -2040,8 +2040,8 @@ spliceCopy :: forall m a. (MonadIO m, Unboxed a) =>
 spliceCopy arr1 arr2 = liftIO $ do
     let start1 = arrStart arr1
         start2 = arrStart arr2
-        len1 = aEnd arr1 - start1
-        len2 = aEnd arr2 - start2
+        len1 = arrEnd arr1 - start1
+        len2 = arrEnd arr2 - start2
     newArrContents <-
         liftIO
             $ newAlignedArrayContents
@@ -2062,11 +2062,11 @@ spliceUnsafe :: MonadIO m =>
 spliceUnsafe dst src =
     liftIO $ do
          let startSrc = arrStart src
-             srcLen = aEnd src - startSrc
-             endDst = aEnd dst
-         assertM(endDst + srcLen <= aBound dst)
+             srcLen = arrEnd src - startSrc
+             endDst = arrEnd dst
+         assertM(endDst + srcLen <= arrBound dst)
          putSliceUnsafe src startSrc dst endDst srcLen
-         return $ dst {aEnd = endDst + srcLen}
+         return $ dst {arrEnd = endDst + srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
@@ -2085,7 +2085,7 @@ spliceWith sizer dst@(Array _ start end bound) src = do
      in D.fold f (toStreamD src)
 -}
     assert (end <= bound) (return ())
-    let srcBytes = aEnd src - arrStart src
+    let srcBytes = arrEnd src - arrStart src
 
     dst1 <-
         if end + srcBytes >= bound
@@ -2149,14 +2149,14 @@ breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
             ( Array
                 { arrContents = arrContents
                 , arrStart = arrStart
-                , aEnd = arrStart + sepIndex -- exclude the separator
-                , aBound = arrStart + sepIndex
+                , arrEnd = arrStart + sepIndex -- exclude the separator
+                , arrBound = arrStart + sepIndex
                 }
             , Just $ Array
                     { arrContents = arrContents
                     , arrStart = arrStart + (sepIndex + 1)
-                    , aEnd = aEnd
-                    , aBound = aBound
+                    , arrEnd = arrEnd
+                    , arrBound = arrBound
                     }
             )
 
@@ -2177,14 +2177,14 @@ splitAt i arr@Array{..} =
                 in ( Array
                   { arrContents = arrContents
                   , arrStart = arrStart
-                  , aEnd = p
-                  , aBound = p
+                  , arrEnd = p
+                  , arrBound = p
                   }
                 , Array
                   { arrContents = arrContents
                   , arrStart = p
-                  , aEnd = aEnd
-                  , aBound = aBound
+                  , arrEnd = arrEnd
+                  , arrBound = arrBound
                   }
                 )
 
@@ -2327,8 +2327,8 @@ strip :: forall a m. (Unboxed a, MonadIO m) =>
     (a -> Bool) -> Array a -> m (Array a)
 strip eq arr@Array{..} = liftIO $ do
     st <- getStart arrStart
-    end <- getLast aEnd st
-    return arr {arrStart = st, aEnd = end, aBound = end}
+    end <- getLast arrEnd st
+    return arr {arrStart = st, arrEnd = end, arrBound = end}
 
     where
 
@@ -2338,12 +2338,12 @@ strip eq arr@Array{..} = liftIO $ do
         r <- liftIO $ D.head $ D.findIndices (not . eq) $ toStreamD arr
         pure $
             case r of
-                Nothing -> aEnd
+                Nothing -> arrEnd
                 Just i -> PTR_INDEX(arrStart,i,a)
     -}
 
     getStart cur = do
-        if cur < aEnd
+        if cur < arrEnd
         then do
             r <- peekWith arrContents cur
             if eq r

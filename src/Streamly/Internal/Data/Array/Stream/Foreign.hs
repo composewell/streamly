@@ -183,7 +183,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
-                D.Skip (InnerLoop s arrContents arrStart aEnd)
+                D.Skip (InnerLoop s arrContents arrStart arrEnd)
             D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 

@@ -748,7 +748,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         return $
             case r of
                 Yield A.Array {..} s ->
-                     Skip (InnerLoopDecodeInit s arrContents arrStart aEnd)
+                     Skip (InnerLoopDecodeInit s arrContents arrStart arrEnd)
                 Skip s -> Skip (OuterLoop s Nothing)
                 Stop -> Skip D
     step' _ gst (OuterLoop st dst@(Just (ds, cp))) = do
@@ -756,7 +756,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         return $
             case r of
                 Yield A.Array {..} s ->
-                     Skip (InnerLoopDecoding s arrContents arrStart aEnd ds cp)
+                     Skip (InnerLoopDecoding s arrContents arrStart arrEnd ds cp)
                 Skip s -> Skip (OuterLoop s dst)
                 Stop -> Skip inputUnderflow
     step' _ _ (InnerLoopDecodeInit st _ p end)

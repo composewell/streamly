@@ -1125,7 +1125,7 @@ reverse' m = Stream step Nothing
     {-# INLINE_LATE step #-}
     step _ Nothing = do
         arr <- A.fromStreamD m
-        let p = A.aEnd arr `plusPtr` negate (sizeOfElem (undefined :: a))
+        let p = A.arrEnd arr `plusPtr` negate (sizeOfElem (undefined :: a))
         return $ Skip $ Just (A.aStart arr, p)
 
     step _ (Just (start, p)) | p < unsafeForeignPtrToPtr start = return Stop
