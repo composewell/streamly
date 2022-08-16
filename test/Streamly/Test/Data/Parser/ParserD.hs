@@ -1,9 +1,10 @@
 module Main (main) where
 
+import Control.Applicative ((<|>))
 import Control.Exception (SomeException(..), try)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt, equals)
-import Test.Hspec (Spec, hspec, describe)
+import Test.Hspec (Spec, hspec, describe, Expectation, it, shouldReturn)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property,
@@ -586,6 +587,20 @@ sequence =
                             (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
+altEOF1 :: Expectation
+altEOF1 =
+    S.parseD
+        (P.satisfy (> 0) <|> return 66)
+        (S.fromList ([]::[Int]))
+    `shouldReturn` 66
+
+altEOF2 :: Expectation
+altEOF2 =
+    S.parseD
+        ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
+        (S.fromList ([51]::[Int]))
+    `shouldReturn` [51]
+
 monad :: Property
 monad =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
@@ -735,6 +750,8 @@ main =
 
     describe "Instances" $ do
         prop "applicative" applicative
+        it "Alternative: end of input 1" altEOF1
+        it "Alternative: end of input 2" altEOF2
         prop "monad" monad
         prop "sequence" sequence
 
