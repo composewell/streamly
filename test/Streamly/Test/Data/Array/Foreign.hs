@@ -12,11 +12,20 @@ module Streamly.Test.Data.Array.Foreign (main) where
 
 import Data.Char (isLower)
 import Data.List (sort)
+import Data.Foldable (forM_)
 import Data.Word(Word8)
-import Foreign.Storable (peek)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Foreign.Storable (Storable(..))
+import GHC.Ptr (Ptr (..))
+import GHC.Base (addr2Int#, int2Word#)
+import Streamly.Internal.Data.Unboxed
+    ( MutableByteArray(..)
+    , Unbox(..)
+    , Unboxed
+    , castContents
+    )
 import Test.QuickCheck (chooseInt, listOf)
 import GHC.Ptr (plusPtr)
+import GHC.Types (Word(..))
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Unboxed as A
@@ -239,6 +248,46 @@ reallocMA =
                lst1 <- MA.toList arr1
                lst `shouldBe` lst1
 
+newtype TestAlignmentType = TestAlignmentType Word8
+
+testAlignmentTypeAlignment :: Int
+testAlignmentTypeAlignment = 64
+
+instance Storable TestAlignmentType where
+    sizeOf _ = 1
+    alignment _ = testAlignmentTypeAlignment
+    peek = undefined
+    poke = undefined
+
+instance Unbox TestAlignmentType where
+    box marr i = TestAlignmentType <$> box (castContents marr) i
+    unbox marr i (TestAlignmentType a) = unbox (castContents marr) i a
+
+-- If this test passes, the following can be considered true:
+-- 1. Alignment affects the entire chunk of the array and not every element.
+-- 2. Alignemnt only matters in allocation. It is transparent, thereafter.
+testAlignment :: IO ()
+testAlignment = do
+    let n = 5
+        lst = [0 .. (n - 1)]
+        lstTA = TestAlignmentType . fromIntegral <$> lst
+    arr <- S.fold (Fold.foldlM' MA.snoc (MA.newArray n)) (S.fromList lstTA)
+    MA.asPtrUnsafe arr
+        $ \(Ptr a) ->
+              case fromIntegral (W# (int2Word# (addr2Int# a)))
+                       `rem` testAlignmentTypeAlignment of
+                  0 -> return ()
+                  _ -> expectationFailure "Incorrect initial alignment."
+    let mW8Arr = MA.cast arr
+    case mW8Arr of
+        Nothing -> expectationFailure "Couldn't cast."
+        Just w8Arr -> MA.toList w8Arr `shouldReturn` (intToW8 <$> lst)
+
+    where
+
+    intToW8 :: Int -> Word8
+    intToW8 = fromIntegral
+
 main :: IO ()
 main =
     hspec $
@@ -302,3 +351,5 @@ main =
         describe "write" $ do
             it "testWrite abc" (testWrite "abc")
             it "testWrite \\22407" (testWrite "\22407")
+        describe "alignment" $ do
+            it "put . get == id" testAlignment
