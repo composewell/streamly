@@ -338,8 +338,9 @@ library
                      , Streamly.Data.Stream
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
-                     , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Unfold
+                     , Streamly.Data.Array.Unboxed
+                     , Streamly.Data.Array.Unboxed.Mut
 
     if flag(dev)
       exposed-modules:
