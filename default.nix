@@ -5,7 +5,8 @@
 
 {
   nixpkgs ?
-    import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/refs/tags/21.11.tar.gz)
+    import (builtins.fetchTarball
+      https://github.com/NixOS/nixpkgs/archive/refs/tags/22.05.tar.gz)
         {}
 , compiler ? "default"
 , c2nix ? "" # cabal2nix CLI options
@@ -70,14 +71,14 @@ let haskellPackages =
                           sha256 = "1bj9agy3x0yjbscpjgn96gpnj4lvkh39spjvy3jnrr3a42v3ynw7";
                         } {};
 
-                    unicode-data =
-                      super.callHackageDirect
-                        { pkg = "unicode-data";
-                          ver = "0.2.0";
-                          sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
-                        } {};
+                    #unicode-data =
+                    #  super.callHackageDirect
+                    #    { pkg = "unicode-data";
+                    #      ver = "0.2.0";
+                    #      sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
+                    #    } {};
 
-                    tasty-bench = super.tasty-bench_0_3_1;
+                    #tasty-bench = super.tasty-bench_0_3_1;
 
                     #tasty-bench =
                     #  super.callHackageDirect
