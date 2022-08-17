@@ -278,14 +278,14 @@ test-suite Data.Parser
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
   if flag(limit-build-mem)
-    ghc-options: +RTS -M2800M -RTS
+    ghc-options: +RTS -M4000M -RTS
 
 test-suite Data.Parser.ParserD
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser/ParserD.hs
   if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
+    ghc-options: +RTS -M1500M -RTS
 
 test-suite Data.SmallArray
   import: test-options
