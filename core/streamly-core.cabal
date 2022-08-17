@@ -131,6 +131,12 @@ common compile-options
                     -Wno-unsafe
                     -Rghc-timing
 
+    if impl(ghc >= 9.2)
+      ghc-options:
+        -Wno-missing-kind-signatures
+        -Wno-redundant-bang-patterns
+        -Wno-operator-whitespace
+
     if flag(has-llvm)
       ghc-options: -fllvm
 
