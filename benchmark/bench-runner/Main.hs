@@ -74,7 +74,6 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Parser.ParserK/o-n-heap.someAlt" == benchName = "-K4M -M128M"
         | "Data.Parser.ParserK/o-n-heap.sequence" == benchName = "-M64M"
         | "Data.Parser.ParserK/o-n-heap.sequenceA" == benchName = "-M64M"
-        | "Data.SmallArray.o-1-sp" `isPrefixOf` benchName = "-K128K"
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.generation.read" `isSuffixOf` benchName = "-M32M"
         | "Data.Array" `isPrefixOf` benchName

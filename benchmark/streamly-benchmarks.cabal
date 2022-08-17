@@ -450,10 +450,8 @@ benchmark Data.Stream.StreamDK
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: StreamDK.hs
-  if impl(ghcjs)
+  if !flag(dev) || impl(ghcjs)
     buildable: False
-  else
-    buildable: True
 
 executable nano-bench
   import: bench-options
@@ -516,10 +514,10 @@ benchmark Data.SmallArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
+  if flag(dev) && !flag(use-streamly-core)
     buildable: True
+  else
+    buildable: False
 
 benchmark Data.Array.Unboxed
   import: bench-options

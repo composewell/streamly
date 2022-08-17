@@ -253,9 +253,6 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 import System.IO.Unsafe (unsafePerformIO)
 
-#ifdef DEVBUILD
-import qualified Data.Foldable as F
-#endif
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

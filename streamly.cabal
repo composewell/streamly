@@ -430,10 +430,6 @@ library
 
                        Streamly.Internal.Data.IsMap.HashMap
 
-                     -- XXX To be removed or put under dev flag
-                     , Streamly.Internal.Data.SmallArray.Type
-                     , Streamly.Internal.Data.SmallArray
-
                      -- streamly-concurrent
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.SVar.Worker
@@ -551,7 +547,6 @@ library
                      , Streamly.Internal.Data.Fold.Type
                      , Streamly.Internal.Data.Stream.StreamD.Step
                      , Streamly.Internal.Data.Stream.StreamD.Type
-                     , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
@@ -580,7 +575,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD
@@ -632,8 +626,12 @@ library
                      , Streamly.Data.Array.Unboxed
 
     other-modules:
-                       Streamly.Data.Array
-                     , Streamly.Data.SmallArray
+                    Streamly.Data.Array
+
+    if flag(dev)
+        exposed-modules:  Streamly.Data.SmallArray
+                        , Streamly.Internal.Data.SmallArray
+                        , Streamly.Internal.Data.SmallArray.Type
 
     if os(windows)
           exposed-modules: Streamly.Internal.FileSystem.Event.Windows
@@ -675,17 +673,19 @@ library
 
                      -- XXX to be removed
                      , transformers-base >= 0.4   && < 0.5
-                     , primitive         >= 0.5.4 && < 0.8
                      , heaps             >= 0.3     && < 0.5
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
-
+                     
                      , unicode-data      >= 0.1   && < 0.4
 
                     -- Network
                      , network           >= 2.6   && < 3.2
+
+    if flag(dev)
+          build-depends: primitive         >= 0.5.4 && < 0.8
 
     if os(windows)
           build-depends: Win32 >= 2.6 && < 2.13

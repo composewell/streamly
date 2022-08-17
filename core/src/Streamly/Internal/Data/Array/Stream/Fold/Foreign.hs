@@ -98,7 +98,11 @@ newtype ArrayFold m a b = ArrayFold (ParserD.Parser m (Array a) b)
 --
 -- /Pre-release/
 {-# INLINE fromFold #-}
+#ifdef DEVBUILD
+fromFold :: forall m a b. (MonadIO m) =>
+#else
 fromFold :: forall m a b. (MonadIO m, Unboxed a) =>
+#endif
     Fold.Fold m a b -> ArrayFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
     ArrayFold (ParserD.Parser step initial (fmap (Done 0) . fextract))
@@ -136,7 +140,11 @@ fromFold (Fold.Fold fstep finitial fextract) =
 --
 -- /Pre-release/
 {-# INLINE fromParserD #-}
+#ifdef DEVBUILD
+fromParserD :: forall m a b. (MonadIO m) =>
+#else
 fromParserD :: forall m a b. (MonadIO m, Unboxed a) =>
+#endif
     ParserD.Parser m a b -> ArrayFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
     ArrayFold (ParserD.Parser step initial1 extract1)
@@ -178,7 +186,11 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 --
 -- /Pre-release/
 {-# INLINE fromParser #-}
+#ifdef DEVBUILD
+fromParser :: forall m a b. (MonadThrow m, MonadIO m) =>
+#else
 fromParser :: forall m a b. (MonadThrow m, MonadIO m, Unboxed a) =>
+#endif
     Parser.Parser m a b -> ArrayFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 

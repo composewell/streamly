@@ -264,7 +264,6 @@ library
                      , Streamly.Internal.Data.Fold.Type
                      , Streamly.Internal.Data.Stream.StreamD.Step
                      , Streamly.Internal.Data.Stream.StreamD.Type
-                     , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
@@ -292,7 +291,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Common
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
@@ -344,6 +342,11 @@ library
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Unfold
+
+    if flag(dev)
+      exposed-modules:
+                        Streamly.Internal.Data.Stream.StreamDK
+                      , Streamly.Internal.Data.Stream.StreamDK.Type
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max
