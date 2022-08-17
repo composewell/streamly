@@ -54,9 +54,11 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Prelude.WSerial/o-n-space." `isPrefixOf` benchName = "-K4M"
         | "Prelude.Async/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
+        | "Prelude.Ahead/o-1-space.monad-outer-product." `isPrefixOf` benchName =
+            "-K128K -M32M"
+        | "Prelude.Ahead/o-1-space." `isPrefixOf` benchName = "-K128K"
         | "Prelude.Ahead/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
-        | "Prelude.Ahead/o-1-space." `isPrefixOf` benchName = "-K128K"
         | "Prelude.WAsync/o-n-heap.monad-outer-product.toNull3" == benchName =
             "-M64M"
         | "Prelude.WAsync/o-n-space.monad-outer-product." `isPrefixOf` benchName =
@@ -73,6 +75,8 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Parser.ParserK/o-n-heap.sequence" == benchName = "-M64M"
         | "Data.Parser.ParserK/o-n-heap.sequenceA" == benchName = "-M64M"
         | "Data.SmallArray.o-1-sp" `isPrefixOf` benchName = "-K128K"
+        | "Data.Array" `isPrefixOf` benchName
+             && "/o-1-space.generation.read" `isSuffixOf` benchName = "-M32M"
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.generation.show" `isSuffixOf` benchName = "-M32M"
         | "Data.Array/o-1-space.transformationX4.map" == benchName = "-M32M"
