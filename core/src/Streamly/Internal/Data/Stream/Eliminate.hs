@@ -126,6 +126,8 @@ import Prelude hiding (foldr, reverse)
 --         (Just h, t) -> Just (h, t)
 -- :}
 --
+-- /Not fused/
+--
 {-# INLINE uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
 uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
@@ -146,7 +148,7 @@ uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
 --
 -- Example, determine if any element is 'odd' in a stream:
 --
--- >>> s = Stream.unfold Unfold.fromList (2:4:5:undefined)
+-- >>> s = Stream.fromList (2:4:5:undefined)
 -- >>> step x xs = if odd x then return True else xs
 -- >>> Stream.foldrM step (return False) s
 -- True
@@ -164,6 +166,8 @@ foldrM step acc m = D.foldrM step acc $ toStreamD m
 -- to implement a lazy foldr when the monad @m@ is strict. In that case it
 -- would be strict in its accumulator and therefore would necessarily consume
 -- all its input.
+--
+-- >>> foldr f z = Stream.foldrM (\a b -> f a <$> b) (return z)
 --
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
@@ -188,7 +192,7 @@ foldlS f z =
 --
 -- For example, to reverse a stream:
 --
--- >>> input = Stream.unfold Unfold.fromList [1..5] :: Stream IO Int
+-- >>> input = Stream.fromList [1..5] :: Stream IO Int
 -- >>> rev = Stream.fold Fold.toList $ Stream.foldlT (flip Stream.cons) Stream.nil input
 --
 {-# INLINE foldlT #-}
@@ -257,7 +261,7 @@ parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 -- | Returns 'True' if the first stream is the same as or a prefix of the
 -- second. A stream is a prefix of itself.
 --
--- >>> Stream.isPrefixOf (Stream.unfold Unfold.fromList "hello") (Stream.unfold Unfold.fromList "hello" :: Stream IO Char)
+-- >>> Stream.isPrefixOf (Stream.fromList "hello") (Stream.fromList "hello" :: Stream IO Char)
 -- True
 --
 {-# INLINE isPrefixOf #-}
@@ -267,7 +271,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- | Returns 'True' if the first stream is an infix of the second. A stream is
 -- considered an infix of itself.
 --
--- >>> s = Stream.unfold Unfold.fromList "hello" :: Stream IO Char
+-- >>> s = Stream.fromList "hello" :: Stream IO Char
 -- >>> Stream.isInfixOf s s
 -- True
 --
@@ -305,7 +309,7 @@ isInfixOf infx stream = do
 -- | Returns 'True' if the first stream is a suffix of the second. A stream is
 -- considered a suffix of itself.
 --
--- >>> Stream.isSuffixOf (Stream.unfold Unfold.fromList "hello") (Stream.unfold Unfold.fromList "hello" :: Stream IO Char)
+-- >>> Stream.isSuffixOf (Stream.fromList "hello") (Stream.fromList "hello" :: Stream IO Char)
 -- True
 --
 -- Space: @O(n)@, buffers entire input stream and the suffix.
@@ -322,7 +326,7 @@ isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
 -- the second stream. The elements do not have to occur consecutively. A stream
 -- is a subsequence of itself.
 --
--- >>> Stream.isSubsequenceOf (Stream.unfold Unfold.fromList "hlo") (Stream.unfold Unfold.fromList "hello" :: Stream IO Char)
+-- >>> Stream.isSubsequenceOf (Stream.fromList "hlo") (Stream.fromList "hello" :: Stream IO Char)
 -- True
 --
 {-# INLINE isSubsequenceOf #-}

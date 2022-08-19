@@ -150,6 +150,7 @@ import Prelude hiding
 -- $setup
 -- >>> :m
 -- >>> import Control.Concurrent (threadDelay)
+-- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 -- >>> import Control.Monad.Trans (lift)
 -- >>> import Control.Monad.Trans.Identity (runIdentityT)
 -- >>> import Data.Function ((&))
@@ -192,21 +193,21 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- stateful transformations. However, note that the custom map and filter
 -- routines can be much more efficient than this due to better stream fusion.
 --
--- >>> input = Stream.unfold Unfold.fromList [1..5]
+-- >>> input = Stream.fromList [1..5]
 -- >>> Stream.fold Fold.toList $ Stream.foldrS Stream.cons Stream.nil input
 -- [1,2,3,4,5]
 --
 -- Find if any element in the stream is 'True':
 --
 -- >>> step x xs = if odd x then return True else xs
--- >>> input = Stream.unfold Unfold.fromList (2:4:5:undefined) :: Stream IO Int
+-- >>> input = Stream.fromList (2:4:5:undefined) :: Stream IO Int
 -- >>> Stream.fold Fold.toList $ Stream.foldrS step (return False) input
 -- [True]
 --
 -- Map (+2) on odd elements and filter out the even elements:
 --
 -- >>> step x xs = if odd x then (x + 2) `Stream.cons` xs else xs
--- >>> input = Stream.unfold Unfold.fromList [1..5] :: Stream IO Int
+-- >>> input = Stream.fromList [1..5] :: Stream IO Int
 -- >>> Stream.fold Fold.toList $ Stream.foldrS step Stream.nil input
 -- [3,5,7]
 --
@@ -252,7 +253,7 @@ foldrT f z s = D.foldrT f z (toStreamD s)
 -- Apply a monadic function to each element of the stream and replace it with
 -- the output of the resulting action.
 --
--- >>> s = Stream.unfold Unfold.fromList ["a", "b", "c"]
+-- >>> s = Stream.fromList ["a", "b", "c"]
 -- >>> Stream.fold Fold.drain $ Stream.mapM putStr s
 -- abc
 --
@@ -263,12 +264,12 @@ mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f m = fromStreamK $ D.toStreamK $ D.mapM f $ toStreamD m
 
 -- |
--- sequence = Stream.mapM id
+-- >>> sequence = Stream.mapM id
 --
 -- Replace the elements of a stream of monadic actions with the outputs of
 -- those actions.
 --
--- >>> s = Stream.unfold Unfold.fromList [putStr "a", putStr "b", putStrLn "c"]
+-- >>> s = Stream.fromList [putStr "a", putStr "b", putStrLn "c"]
 -- >>> Stream.fold Fold.drain $ Stream.sequence s
 -- abc
 --
@@ -291,7 +292,7 @@ sequence = mapM id
 --
 -- @
 --
--- >>> s = Stream.unfold Unfold.enumerateFromTo (1, 2)
+-- >>> s = Stream.enumerateFromTo 1 2
 -- >>> Stream.fold Fold.drain $ Stream.tap (Fold.drainBy print) s
 -- 1
 -- 2
@@ -305,7 +306,7 @@ tap f xs = fromStreamD $ D.tap f (toStreamD xs)
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.
 --
--- >>> s = Stream.unfold Unfold.enumerateFromTo (1, 2)
+-- >>> s = Stream.enumerateFromTo 1 2
 -- >>> Stream.fold Fold.drain $ Stream.trace print s
 -- 1
 -- 2
@@ -319,7 +320,7 @@ trace f = mapM (\x -> void (f x) >> return x)
 -- | Perform a side effect before yielding each element of the stream and
 -- discard the results.
 --
--- >>> s = Stream.unfold Unfold.enumerateFromTo (1, 2)
+-- >>> s = Stream.enumerateFromTo 1 2
 -- >>> Stream.fold Fold.drain $ Stream.trace_ (print "got here") s
 -- "got here"
 -- "got here"
@@ -348,16 +349,20 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 
 -- | Strict left scan. Scan a stream using the given monadic fold.
 --
--- >>> s = Stream.unfold Unfold.fromList [1..10]
+-- >>> s = Stream.fromList [1..10]
 -- >>> Stream.fold Fold.toList $ Stream.takeWhile (< 10) $ Stream.scan Fold.sum s
 -- [0,1,3,6]
 --
+-- See also: 'usingStateT'
+--
+
+-- EXPLANATION:
 -- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
 --
 -- Like 'map', 'scanl'' too is a one to one transformation,
 -- however it adds an extra element.
 --
--- >>> s = Stream.unfold Unfold.fromList [1,2,3,4]
+-- >>> s = Stream.fromList [1,2,3,4]
 -- >>> Stream.fold Fold.toList $ scanl' (+) 0 s
 -- [0,1,3,6,10]
 --
@@ -386,15 +391,13 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 -- >>> :{
 --   foldl' (\(_, p) (s, x) -> (s, p * x)) (0,1)
 --   $ scanl' (\(s, _) x -> (s + x, x)) (0,1)
---   $ Stream.unfold Unfold.fromList [1,2,3,4]
+--   $ Stream.fromList [1,2,3,4]
 -- :}
 -- (10,24)
 --
 -- IMPORTANT: 'scanl'' evaluates the accumulator to WHNF.  To avoid building
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
---
--- See also: 'usingStateT'
 --
 {-# INLINE scan #-}
 scan :: Monad m => Fold m a b -> Stream m a -> Stream m b
@@ -441,7 +444,7 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 
 -- | Use a filtering fold on a stream.
 --
--- >>> input = Stream.unfold Unfold.fromList [1..10]
+-- >>> input = Stream.fromList [1..10]
 -- >>> Stream.fold Fold.sum $ Stream.foldFilter (Fold.satisfy (> 5)) input
 -- 40
 --
@@ -458,7 +461,7 @@ foldFilter p = fromStreamD . D.foldFilter p . toStreamD
 --
 -- To strip duplicate path separators:
 --
--- >>> input = Stream.unfold Unfold.fromList "//a//b"
+-- >>> input = Stream.fromList "//a//b"
 -- >>> f x y = x == '/' && y == '/'
 -- >>> Stream.fold Fold.toList $ Stream.uniqBy f input
 -- "/a/b"
@@ -539,7 +542,7 @@ nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
 -- | Deletes the first occurrence of the element in the stream that satisfies
 -- the given equality predicate.
 --
--- >>> input = Stream.unfold Unfold.fromList [1,3,3,5]
+-- >>> input = Stream.fromList [1,3,3,5]
 -- >>> Stream.fold Fold.toList $ Stream.deleteBy (==) 3 input
 -- [1,3,5]
 --
@@ -579,7 +582,7 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 --
 -- >>> insertBy cmp x = Stream.mergeBy cmp (Stream.fromPure x)
 --
--- >>> input = Stream.unfold Unfold.fromList [1,3,5]
+-- >>> input = Stream.fromList [1,3,5]
 -- >>> Stream.fold Fold.toList $ Stream.insertBy compare 2 input
 -- [1,2,3,5]
 --
@@ -589,7 +592,7 @@ insertBy cmp x m = fromStreamD $ D.insertBy cmp x (toStreamD m)
 
 -- | Insert a pure value between successive elements of a stream.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.intersperse ',' input
 -- "h,e,l,l,o"
 --
@@ -600,7 +603,7 @@ intersperse a = fromStreamD . D.intersperse a . toStreamD
 -- | Insert a side effect before consuming an element of a stream except the
 -- first one.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') input
 -- h.e.l.l.o
 --
@@ -612,7 +615,7 @@ intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 -- | Intersperse a monadic action into the input stream after every @n@
 -- elements.
 --
--- >> input = Stream.unfold Unfold.fromList "hello"
+-- >> input = Stream.fromList "hello"
 -- >> Stream.fold Fold.toList $ Stream.intersperseBySpan 2 (return ',') input
 -- "he,ll,o"
 --
@@ -624,7 +627,7 @@ intersperseBySpan _n _f _xs = undefined
 
 -- | Insert an effect and its output after consuming an element of a stream.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.trace putChar $ intersperseSuffix (putChar '.' >> return ',') input
 -- h.,e.,l.,l.,o.,"h,e,l,l,o,"
 --
@@ -635,7 +638,7 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 
 -- | Insert a side effect after consuming an element of a stream.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.intersperseSuffix_ (threadDelay 1000000) input
 -- "hello"
 --
@@ -650,7 +653,7 @@ intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 -- | Like 'intersperseSuffix' but intersperses an effectful action into the
 -- input stream after every @n@ elements and after the last element.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.intersperseSuffixBySpan 2 (return ',') input
 -- "he,ll,o,"
 --
@@ -664,7 +667,7 @@ intersperseSuffixBySpan n eff =
 
 -- | Insert a side effect before consuming an element of a stream.
 --
--- >>> input = Stream.unfold Unfold.fromList "hello"
+-- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.interspersePrefix_ (putChar '.' >> return ',') input
 -- .h.e.l.l.o"hello"
 --
@@ -682,11 +685,14 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 
 -- | Introduce a delay of specified seconds between elements of the stream.
 --
--- >>> input = Stream.unfold Unfold.enumerateFromTo (1, 3)
+-- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainBy print) $ Stream.delay 1 input
 -- 1
 -- 2
 -- 3
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delay n = Stream.intersperseM_ $ sleep n
 --
 {-# INLINE delay #-}
 delay :: MonadIO m => Double -> Stream m a -> Stream m a
@@ -695,7 +701,7 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- | Introduce a delay of specified seconds after consuming an element of a
 -- stream.
 --
--- >>> input = Stream.unfold Unfold.enumerateFromTo (1, 3)
+-- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainBy print) $ Stream.delayPost 1 input
 -- 1
 -- 2
@@ -710,7 +716,7 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- | Introduce a delay of specified seconds before consuming an element of a
 -- stream.
 --
--- >>> input = Stream.unfold Unfold.enumerateFromTo (1, 3)
+-- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainBy print) $ Stream.delayPre 1 input
 -- 1
 -- 2
@@ -748,11 +754,11 @@ reassembleBy = undefined
 -- |
 -- >>> f = Fold.foldl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
 -- >>> indexed = Stream.postscan f
--- >>> indexed = Stream.zipWith (,) (Stream.unfold Unfold.enumerateFrom 0)
+-- >>> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
 --
 -- Pair each element in a stream with its index, starting from index 0.
 --
--- >>> Stream.fold Fold.toList $ Stream.indexed $ Stream.unfold Unfold.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.indexed $ Stream.fromList "hello"
 -- [(0,'h'),(1,'e'),(2,'l'),(3,'l'),(4,'o')]
 --
 {-# INLINE indexed #-}
@@ -763,13 +769,13 @@ indexed = fromStreamD . D.indexed . toStreamD
 -- >>> f n = Fold.foldl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
 -- >>> indexedR n = Stream.postscan (f n)
 --
--- >>> s n = Stream.unfold Unfold.enumerateFromThen (n, (n - 1))
+-- >>> s n = Stream.enumerateFromThen n (n - 1)
 -- >>> indexedR n = Stream.zipWith (,) (s n)
 --
 -- Pair each element in a stream with its index, starting from the
 -- given index @n@ and counting down.
 --
--- >>> Stream.fold Fold.toList $ Stream.indexedR 10 $ Stream.unfold Unfold.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.indexedR 10 $ Stream.fromList "hello"
 -- [(10,'h'),(9,'e'),(8,'l'),(7,'l'),(6,'o')]
 --
 {-# INLINE indexedR #-}

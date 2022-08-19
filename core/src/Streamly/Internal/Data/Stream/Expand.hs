@@ -148,15 +148,13 @@ import Prelude hiding (concat, concatMap, zipWith)
 
 infixr 6 `append2`
 
--- | Append the outputs of two streams, yielding all the elements from the
--- first stream and then yielding all the elements from the second stream.
+-- | This is fused version of 'append'. It could be up to 100x faster than
+-- 'append' when combining two fusible streams. However, it slows down
+-- quadratically with the number of streams being appended. Therefore, it is
+-- suitable for ad-hoc append of a few streams, and should not be used with
+-- 'concatMapWith' or 'concatPairsWith'.
 --
--- IMPORTANT NOTE: This could be 100x faster than @serial/<>@ for appending a
--- few (say 100) streams because it can fuse via stream fusion. However, it
--- does not scale for a large number of streams (say 1000s) and becomes
--- qudartically slow. Therefore use this for custom appending of a few streams
--- but use 'concatMap' or 'concatMapWith serial' for appending @n@ streams or
--- infinite containers of streams.
+-- /Fused/
 --
 -- /Pre-release/
 {-# INLINE append2 #-}
@@ -168,12 +166,16 @@ infixr 6 `append`
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
--- >>> s1 = Stream.unfold Unfold.fromList [1,2]
--- >>> s2 = Stream.unfold Unfold.fromList [3,4]
+-- >>> s1 = Stream.fromList [1,2]
+-- >>> s2 = Stream.fromList [3,4]
 -- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
 -- [1,2,3,4]
 --
--- This operation can be used to fold an infinite lazy container of streams.
+-- This has O(n) append performance where @n@ is the number of streams. It can
+-- be used to efficiently fold an infinite lazy container of streams
+-- 'concatMapWith' et. al.
+--
+-- /Not fused/
 --
 -- /Pre-release/
 --
@@ -193,8 +195,8 @@ append = (<>)
 -- If the streams are sorted in ascending order, the resulting stream would
 -- also remain sorted in ascending order.
 --
--- >>> s1 = Stream.unfold Unfold.fromList [1,3,5]
--- >>> s2 = Stream.unfold Unfold.fromList [2,4,6,8]
+-- >>> s1 = Stream.fromList [1,3,5]
+-- >>> s2 = Stream.fromList [2,4,6,8]
 -- >>> Stream.fold Fold.toList $ Stream.mergeBy compare s1 s2
 -- [1,2,3,4,5,6,8]
 --
@@ -218,8 +220,8 @@ mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
 --
 -- >>> :{
 -- do
---  let s1 = Stream.unfold Unfold.fromList [1,1,1,1,1,1]
---      s2 = Stream.unfold Unfold.fromList [2,2,2]
+--  let s1 = Stream.fromList [1,1,1,1,1,1]
+--      s2 = Stream.fromList [2,2,2]
 --  let proportionately m n = do
 --       ref <- newIORef $ cycle $ Prelude.concat [Prelude.replicate m LT, Prelude.replicate n GT]
 --       return $ \_ _ -> do
@@ -347,7 +349,7 @@ gintercalate unf1 str1 unf2 str2 =
 -- >>> intersperse = Stream.intercalate Unfold.identity
 -- >>> unwords = Stream.intercalate Unfold.fromList " "
 --
--- >>> input = Stream.unfold Unfold.fromList ["abc", "def", "ghi"]
+-- >>> input = Stream.fromList ["abc", "def", "ghi"]
 -- >>> Stream.fold Fold.toList $ Stream.intercalate Unfold.fromList " " input
 -- "abc def ghi"
 --
@@ -377,7 +379,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 -- >>> intersperseSuffix = Stream.intercalateSuffix Unfold.identity
 -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
 --
--- >>> input = Stream.unfold Unfold.fromList ["abc", "def", "ghi"]
+-- >>> input = Stream.fromList ["abc", "def", "ghi"]
 -- >>> Stream.fold Fold.toList $ Stream.intercalateSuffix Unfold.fromList "\n" input
 -- "abc\ndef\nghi\n"
 --
@@ -430,7 +432,7 @@ concatSmapMWith combine f initial =
 --
 -- For example, you can sort a stream using merge sort like this:
 --
--- >>> s = Stream.unfold Unfold.fromList [5,1,7,9,2]
+-- >>> s = Stream.fromList [5,1,7,9,2]
 -- >>> generate = Stream.fromPure
 -- >>> combine = Stream.mergeBy compare
 -- >>> Stream.fold Fold.toList $ Stream.concatPairsWith combine generate s

@@ -151,8 +151,13 @@ wSerialK m1 m2 = mkStream $ \st yld sng stp -> do
 -- | Interleaves two streams, yielding one element from each stream
 -- alternately.  When one stream stops the rest of the other stream is used in
 -- the output stream.
+--
+-- This gives exponential priority to earlier streams than the ones joining
+-- later. Because of exponential weighting it can be used with 'concatMapWith'.
+--
+-- /Not fused/
 
--- Scheduling Notes:
+-- NOTE:
 --
 -- Note that evaluation of @a \`wSerial` b \`wSerial` c@ does not interleave
 -- @a@, @b@ and @c@ with equal priority.  This expression is equivalent to @a

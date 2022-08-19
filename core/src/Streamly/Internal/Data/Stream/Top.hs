@@ -68,7 +68,6 @@ import qualified Streamly.Internal.Data.Stream.Expand as Stream
 import qualified Streamly.Internal.Data.Stream.Reduce as Stream
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
-import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
@@ -371,7 +370,7 @@ joinOuter eq s1 s =
         foundArr <-
             Stream.fold
             (MA.writeN len)
-            (Stream.unfold Unfold.fromList (Prelude.replicate len False))
+            (Stream.fromList (Prelude.replicate len False))
         return $ go inputArr foundArr <> leftOver inputArr foundArr
 
     where
@@ -436,7 +435,7 @@ joinOuterMap s1 s2 =
         -- XXX Not sure if toList/fromList would fuse optimally. We may have to
         -- create a fused Map.toStream function.
         let res1 = fmap (joinAB km2)
-                        $ Stream.unfold Unfold.fromList $ Map.toList km1
+                        $ Stream.fromList $ Map.toList km1
                     where
                     joinAB km (k, a) =
                         case k `Map.lookup` km of
@@ -448,7 +447,7 @@ joinOuterMap s1 s2 =
         -- in the second Map, we can flag it in the first pass and not do any
         -- lookup in the second pass if it is flagged.
         let res2 = Stream.mapMaybe (joinAB km1)
-                        $ Stream.unfold Unfold.fromList $ Map.toList km2
+                        $ Stream.fromList $ Map.toList km2
                     where
                     joinAB km (k, b) =
                         case k `Map.lookup` km of
@@ -569,7 +568,7 @@ differenceBy eq s1 s2 =
             -- deleted or not.
             xs <- Stream.fold Fold.toList s1
             let f = Fold.foldl' (flip (List.deleteBy eq)) xs
-            fmap (Stream.unfold Unfold.fromList) $ Stream.fold f s2
+            fmap Stream.fromList $ Stream.fold f s2
 
 -- | Like 'differenceBy' but works only on sorted streams.
 --
@@ -616,7 +615,7 @@ unionBy eq s1 s2 =
                 s3 = Stream.concatM
                         $ do
                             xs1 <- liftIO $ readIORef ref
-                            return $ Stream.unfold Unfold.fromList xs1
+                            return $ Stream.fromList xs1
             return $ Stream.mapM f s1 <> s3
 
 -- | Like 'unionBy' but works only on sorted streams.

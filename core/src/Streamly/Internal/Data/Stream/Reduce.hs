@@ -131,16 +131,19 @@ dropSuffix = error "Not implemented yet!"
 -- To sum every two contiguous elements in a stream:
 --
 -- >>> f = Fold.take 2 Fold.sum
--- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.unfold Unfold.fromList [1..10]
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.fromList [1..10]
 -- [3,7,11,15,19]
 --
 -- On an empty stream the output is empty:
 --
--- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.unfold Unfold.fromList []
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.fromList []
 -- []
 --
 -- Note @Stream.foldMany (Fold.take 0)@ would result in an infinite loop in a
 -- non-empty stream.
+--
+-- Note 'foldMany' on an empty stream results in an empty stream. Therefore,
+-- @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany f@.
 --
 {-# INLINE foldMany #-}
 foldMany
@@ -177,7 +180,7 @@ foldSequence _f _m = undefined
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> f x = return (Fold.take 2 (Fold.sconcat x))
--- >>> s = fmap Sum $ Stream.unfold Unfold.fromList [1..10]
+-- >>> s = fmap Sum $ Stream.fromList [1..10]
 -- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.foldIterateM f (pure 0) s
 -- [3,10,21,36,55,55]
 --
@@ -210,7 +213,7 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 -- This is the streaming equivalent of the 'Streamly.Internal.Data.Parser.many'
 -- parse combinator.
 --
--- >>> s = Stream.unfold Unfold.fromList [1..10]
+-- >>> s = Stream.fromList [1..10]
 -- >>> parser = Parser.takeBetween 0 2 Fold.sum
 -- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
 -- [3,7,11,15,19]
@@ -281,7 +284,7 @@ parseManyTill = undefined
 -- the result is used to generate the next parser and so on.
 --
 -- >>> import Data.Monoid (Sum(..))
--- >>> s = Stream.unfold Unfold.fromList [1..10]
+-- >>> s = Stream.fromList [1..10]
 -- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ fmap Sum s
 -- [3,10,21,36,55,55]
 --

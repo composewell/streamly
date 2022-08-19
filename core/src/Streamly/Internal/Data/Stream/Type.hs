@@ -88,7 +88,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- >>> :{
 -- Stream.fold Fold.toList $ do
---      x <- Stream.unfold Unfold.fromList [1,2] -- foreach x in stream
+--      x <- Stream.fromList [1,2] -- foreach x in stream
 --      return x
 -- :}
 -- [1,2]
@@ -97,8 +97,8 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- >>> :{
 -- Stream.fold Fold.toList $ do
---     x <- Stream.unfold Unfold.fromList [1,2] -- foreach x in stream
---     y <- Stream.unfold Unfold.fromList [3,4] -- foreach y in stream
+--     x <- Stream.fromList [1,2] -- foreach x in stream
+--     y <- Stream.fromList [3,4] -- foreach y in stream
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
@@ -225,18 +225,24 @@ TRAVERSABLE_INSTANCE(Stream)
 
 infixr 5 `cons`
 
--- | Construct a stream by adding a pure value at the head of an existing
--- stream. Same as the following but more efficient:
---
--- For example:
+-- | A right associative prepend operation to add a pure value at the head of
+-- an existing stream::
 --
 -- >>> s = 1 `Stream.cons` 2 `Stream.cons` 3 `Stream.cons` Stream.nil
 -- >>> Stream.fold Fold.toList s
 -- [1,2,3]
 --
+-- It can be used efficiently with 'Prelude.foldr':
+--
+-- >>> fromFoldable = Prelude.foldr Stream.cons Stream.nil
+--
+-- Same as the following but more efficient:
+--
 -- >>> cons x xs = return x `Stream.consM` xs
 --
--- /Pre-release/
+-- /Not fused/
+--
+-- @since 0.9.0
 --
 {-# INLINE_NORMAL cons #-}
 cons ::  a -> Stream m a -> Stream m a
@@ -244,17 +250,25 @@ cons x = fromStreamK . K.cons x . toStreamK
 
 infixr 5 `consM`
 
--- | Constructs a stream by adding a monadic action at the head of an
--- existing stream. For example:
+-- | A right associative prepend operation to add an effectful value at the
+-- head of an existing stream::
 --
 -- >>> s = putStrLn "hello" `consM` putStrLn "world" `consM` Stream.nil
 -- >>> Stream.fold Fold.drain s
 -- hello
 -- world
 --
+-- It can be used efficiently with 'Prelude.foldr':
+--
+-- >>> fromFoldableM = Prelude.foldr Stream.consM Stream.nil
+--
+-- Same as the following but more efficient:
+--
 -- >>> consM x xs = Stream.fromEffect x `Stream.append` xs
 --
--- /Pre-release/
+-- /Not fused/
+--
+-- @since 0.9.0
 --
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
