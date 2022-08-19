@@ -9,10 +9,10 @@ import qualified GHC.Exts as GHC
 
 #ifdef USE_STREAMLY_LIST
 import Data.Functor.Identity
-import Streamly.Internal.Data.List (List(..), pattern Cons, pattern Nil, ZipList(..),
-                     fromZipList, toZipList)
-import Streamly.Prelude (SerialT)
-import qualified Streamly.Prelude as S
+import Streamly.Internal.Data.List
+    (List(..), pattern Cons, pattern Nil, ZipList(..), fromZipList, toZipList)
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as S
 #else
 import Prelude -- to suppress compiler warning
 
@@ -39,37 +39,37 @@ main :: IO ()
 main = hspec $
   describe moduleName $ do
 #ifdef USE_STREAMLY_LIST
-    describe "OverloadedLists for 'SerialT Identity' type" $ do
+    describe "OverloadedLists for 'Stream Identity' type" $ do
         it "Overloaded lists" $ do
-            ([1..3] :: SerialT Identity Int) `shouldBe` S.fromList [1..3]
-            GHC.toList ([1..3] :: SerialT Identity Int) `shouldBe` [1..3]
+            ([1..3] :: Stream Identity Int) `shouldBe` S.fromList [1..3]
+            GHC.toList ([1..3] :: Stream Identity Int) `shouldBe` [1..3]
 
         it "Show instance" $ do
-            show (S.fromList [1..3] :: SerialT Identity Int)
+            show (S.fromList [1..3] :: Stream Identity Int)
                 `shouldBe` "fromList [1,2,3]"
         it "Read instance" $ do
-            (read "fromList [1,2,3]" :: SerialT Identity Int) `shouldBe` [1..3]
+            (read "fromList [1,2,3]" :: Stream Identity Int) `shouldBe` [1..3]
 
         it "Eq instance" $ do
-            ([1,2,3] :: SerialT Identity Int) == [1,2,3] `shouldBe` True
+            ([1,2,3] :: Stream Identity Int) == [1,2,3] `shouldBe` True
 
         it "Ord instance" $ do
-            ([1,2,3] :: SerialT Identity Int) > [1,2,1] `shouldBe` True
+            ([1,2,3] :: Stream Identity Int) > [1,2,1] `shouldBe` True
 
         it "Monad comprehension" $ do
             [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
-                ([(1,1), (1,2), (2,1), (2,2)] :: SerialT Identity (Int, Int))
+                ([(1,1), (1,2), (2,1), (2,2)] :: Stream Identity (Int, Int))
 
-        it "Foldable (sum)" $ sum ([1..3] :: SerialT Identity Int)
+        it "Foldable (sum)" $ sum ([1..3] :: Stream Identity Int)
             `shouldBe` 6
 
         it "Traversable (mapM)" $
-            mapM return ([1..10] :: SerialT Identity Int)
+            mapM return ([1..10] :: Stream Identity Int)
                 `shouldReturn` [1..10]
 
-    describe "OverloadedStrings for 'SerialT Identity' type" $ do
+    describe "OverloadedStrings for 'Stream Identity' type" $ do
         it "overloaded strings" $ do
-            ("hello" :: SerialT Identity Char) `shouldBe` S.fromList "hello"
+            ("hello" :: Stream Identity Char) `shouldBe` S.fromList "hello"
 #endif
 
     describe "OverloadedLists for List type" $ do

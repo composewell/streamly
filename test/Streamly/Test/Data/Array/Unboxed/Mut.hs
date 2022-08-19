@@ -9,7 +9,7 @@ import Test.QuickCheck (forAll, Property)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
 maxTestCount :: Int

@@ -23,11 +23,9 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Data.Map
 import qualified Prelude
-import qualified Streamly.Internal.Data.Fold as F
-
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Data.Fold as FL
 
 import Prelude hiding
     (maximum, minimum, elem, notElem, null, product, sum, head, last, take)
@@ -63,30 +61,30 @@ rollingHashFirstN =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec ->
                 monadicIO $ do
                 a <- run
-                    $ Stream.fold F.rollingHash
+                    $ Stream.fold Fold.rollingHash
                     $ Stream.take n
                     $ Stream.fromList  vec
                 b <- run
-                    $ Stream.fold (F.rollingHashFirstN n)
+                    $ Stream.fold (Fold.rollingHashFirstN n)
                     $ Stream.fromList  vec
                 assert $ a == b
 
 head :: [Int] -> Expectation
-head ls = Stream.fold FL.head (Stream.fromList  ls) `shouldReturn` headl ls
+head ls = Stream.fold Fold.head (Stream.fromList  ls) `shouldReturn` headl ls
 
 headl :: [a] -> Maybe a
 headl [] = Nothing
 headl (x:_) = Just x
 
 length :: [Int] -> Expectation
-length ls = Stream.fold FL.length (Stream.fromList  ls) `shouldReturn` Prelude.length ls
+length ls = Stream.fold Fold.length (Stream.fromList  ls) `shouldReturn` Prelude.length ls
 
 sum :: [Int] -> Expectation
-sum ls = Stream.fold FL.sum (Stream.fromList  ls) `shouldReturn` Prelude.sum ls
+sum ls = Stream.fold Fold.sum (Stream.fromList  ls) `shouldReturn` Prelude.sum ls
 
 product :: [Int] -> Expectation
 product ls =
-    Stream.fold FL.product (Stream.fromList  ls) `shouldReturn` Prelude.product ls
+    Stream.fold Fold.product (Stream.fromList  ls) `shouldReturn` Prelude.product ls
 
 lesser :: (a -> a -> Ordering) -> a -> a -> a
 lesser f x y = if f x y == LT then x else y
@@ -102,29 +100,29 @@ foldMaybe f acc ls =
 
 maximumBy :: (Ord a, Show a) => a -> (a -> a -> Ordering) -> [a] -> Expectation
 maximumBy genmin f ls =
-    Stream.fold (FL.maximumBy f) (Stream.fromList  ls)
+    Stream.fold (Fold.maximumBy f) (Stream.fromList  ls)
         `shouldReturn` foldMaybe (greater f) genmin ls
 
 maximum :: (Show a, Ord a) => a -> [a] -> Expectation
 maximum genmin ls =
-    Stream.fold FL.maximum (Stream.fromList  ls)
+    Stream.fold Fold.maximum (Stream.fromList  ls)
         `shouldReturn` foldMaybe (greater compare) genmin ls
 
 minimumBy :: (Ord a, Show a) => a -> (a -> a -> Ordering) -> [a] -> Expectation
 minimumBy genmax f ls =
-    Stream.fold (FL.minimumBy f) (Stream.fromList  ls)
+    Stream.fold (Fold.minimumBy f) (Stream.fromList  ls)
         `shouldReturn` foldMaybe (lesser f) genmax ls
 
 minimum :: (Show a, Ord a) => a -> [a] -> Expectation
 minimum genmax ls =
-    Stream.fold FL.minimum (Stream.fromList  ls)
+    Stream.fold Fold.minimum (Stream.fromList  ls)
         `shouldReturn` foldMaybe (lesser compare) genmax ls
 
 toList :: [Int] -> Expectation
-toList ls = Stream.fold FL.toList (Stream.fromList  ls) `shouldReturn` ls
+toList ls = Stream.fold Fold.toList (Stream.fromList  ls) `shouldReturn` ls
 
 toListRev :: [Int] -> Expectation
-toListRev ls = Stream.fold FL.toListRev (Stream.fromList  ls) `shouldReturn` reverse ls
+toListRev ls = Stream.fold Fold.toListRev (Stream.fromList  ls) `shouldReturn` reverse ls
 
 safeLast :: [a] -> Maybe a
 safeLast [] = Nothing
@@ -132,7 +130,7 @@ safeLast (x:[]) = Just x
 safeLast (_:xs) = safeLast xs
 
 last :: [String] -> Expectation
-last ls = Stream.fold FL.last (Stream.fromList  ls) `shouldReturn` safeLast ls
+last ls = Stream.fold Fold.last (Stream.fromList  ls) `shouldReturn` safeLast ls
 
 mapMaybe :: [Int] -> Expectation
 mapMaybe ls =
@@ -140,7 +138,7 @@ mapMaybe ls =
             if even x
             then Just x
             else Nothing
-        f = FL.mapMaybe maybeEven FL.toList
+        f = Fold.mapMaybe maybeEven Fold.toList
      in Stream.fold f (Stream.fromList  ls) `shouldReturn` filter even ls
 
 nth :: Int -> [a] -> Maybe a
@@ -152,18 +150,18 @@ nth _ [] = Nothing
 
 index :: Int -> [String] -> Expectation
 index idx ls =
-    let x = Stream.fold (FL.index idx) (Stream.fromList  ls)
+    let x = Stream.fold (Fold.index idx) (Stream.fromList  ls)
     in x `shouldReturn` nth idx ls
 
 find :: (Show a, Eq a) => (a -> Bool) -> [a] -> Expectation
 find f ls = do
-    y <- Stream.fold (FL.findIndex f) (Stream.fromList  ls)
+    y <- Stream.fold (Fold.findIndex f) (Stream.fromList  ls)
     case y of
         Nothing ->
-            let fld = Stream.fold (FL.find f) (Stream.fromList  ls)
+            let fld = Stream.fold (Fold.find f) (Stream.fromList  ls)
             in fld `shouldReturn` Nothing
         Just idx ->
-            let fld = Stream.fold (FL.any f) (Stream.fromList  $ Prelude.take idx ls)
+            let fld = Stream.fold (Fold.any f) (Stream.fromList  $ Prelude.take idx ls)
             in fld `shouldReturn` False
 
 neg :: (a -> Bool) -> a -> Bool
@@ -171,17 +169,17 @@ neg f x = not (f x)
 
 findIndex :: (a -> Bool) -> [a] -> Expectation
 findIndex f ls = do
-    y <- Stream.fold (FL.findIndex f) (Stream.fromList  ls)
+    y <- Stream.fold (Fold.findIndex f) (Stream.fromList  ls)
     case y of
         Nothing  ->
-            let fld = Stream.fold (FL.all $ neg f) (Stream.fromList  ls)
+            let fld = Stream.fold (Fold.all $ neg f) (Stream.fromList  ls)
             in fld `shouldReturn` True
         Just idx ->
             if idx == 0
             then
-                Stream.fold (FL.all f) (Stream.fromList  []) `shouldReturn` True
+                Stream.fold (Fold.all f) (Stream.fromList  []) `shouldReturn` True
             else
-                Stream.fold (FL.all f) (Stream.fromList  $ Prelude.take idx ls)
+                Stream.fold (Fold.all f) (Stream.fromList  $ Prelude.take idx ls)
                     `shouldReturn` False
 
 predicate :: Int -> Bool
@@ -189,21 +187,21 @@ predicate x = x * x < 100
 
 elemIndex :: Int -> [Int] -> Expectation
 elemIndex elm ls = do
-    y <- Stream.fold (FL.elemIndex elm) (Stream.fromList  ls)
+    y <- Stream.fold (Fold.elemIndex elm) (Stream.fromList  ls)
     case y of
         Nothing ->
-            let fld = Stream.fold (FL.any (== elm)) (Stream.fromList  ls)
+            let fld = Stream.fold (Fold.any (== elm)) (Stream.fromList  ls)
             in fld `shouldReturn` False
         Just idx ->
             let fld =
                     Stream.fold
-                        (FL.any (== elm))
+                        (Fold.any (== elm))
                         (Stream.fromList  $ Prelude.take idx ls)
             in fld `shouldReturn` False
 
 null :: [Int] -> Expectation
 null ls =
-    Stream.fold FL.null (Stream.fromList  ls)
+    Stream.fold Fold.null (Stream.fromList  ls)
         `shouldReturn`
             case ls of
                 [] -> True
@@ -211,40 +209,40 @@ null ls =
 
 elem :: Int -> [Int] -> Expectation
 elem elm ls = do
-    y <- Stream.fold (FL.elem elm) (Stream.fromList  ls)
-    let fld = Stream.fold (FL.any (== elm)) (Stream.fromList  ls)
+    y <- Stream.fold (Fold.elem elm) (Stream.fromList  ls)
+    let fld = Stream.fold (Fold.any (== elm)) (Stream.fromList  ls)
     fld `shouldReturn` y
 
 notElem :: Int -> [Int] -> Expectation
 notElem elm ls = do
-    y <- Stream.fold (FL.notElem elm) (Stream.fromList  ls)
-    let fld = Stream.fold (FL.any (== elm)) (Stream.fromList  ls)
+    y <- Stream.fold (Fold.notElem elm) (Stream.fromList  ls)
+    let fld = Stream.fold (Fold.any (== elm)) (Stream.fromList  ls)
     fld `shouldReturn` not y
 
 all :: (a -> Bool) -> [a] -> Expectation
 all f ls =
-    Stream.fold (FL.all f) (Stream.fromList  ls) `shouldReturn` Prelude.all f ls
+    Stream.fold (Fold.all f) (Stream.fromList  ls) `shouldReturn` Prelude.all f ls
 
 any :: (a -> Bool) -> [a] -> Expectation
-any f ls = Stream.fold (FL.any f) (Stream.fromList  ls) `shouldReturn` Prelude.any f ls
+any f ls = Stream.fold (Fold.any f) (Stream.fromList  ls) `shouldReturn` Prelude.any f ls
 
 and :: [Bool] -> Expectation
-and ls = Stream.fold FL.and (Stream.fromList  ls) `shouldReturn` Prelude.and ls
+and ls = Stream.fold Fold.and (Stream.fromList  ls) `shouldReturn` Prelude.and ls
 
 or :: [Bool] -> Expectation
-or ls = Stream.fold FL.or (Stream.fromList  ls) `shouldReturn` Prelude.or ls
+or ls = Stream.fold Fold.or (Stream.fromList  ls) `shouldReturn` Prelude.or ls
 
 take :: [Int] -> Property
 take ls =
     forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
-            Stream.fold (FL.take n FL.toList) (Stream.fromList  ls)
+            Stream.fold (Fold.take n Fold.toList) (Stream.fromList  ls)
                 `shouldReturn` Prelude.take n ls
 
 takeEndBy_ :: Property
 takeEndBy_ =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let p = (== 1)
-            f = FL.takeEndBy_ p FL.toList
+            f = Fold.takeEndBy_ p Fold.toList
             ys = Prelude.takeWhile (not . p) ls
          in case Stream.fold f (Stream.fromList  ls) of
             Right xs -> checkListEqual xs ys
@@ -255,7 +253,7 @@ takeEndByOrMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
             let p = (== 1)
-                f = FL.takeEndBy_ p (FL.take n FL.toList)
+                f = Fold.takeEndBy_ p (Fold.take n Fold.toList)
                 ys = Prelude.take n (Prelude.takeWhile (not . p) ls)
              in case Stream.fold f (Stream.fromList  ls) of
                     Right xs -> checkListEqual xs ys
@@ -265,10 +263,10 @@ chooseFloat :: (Float, Float) -> Gen Float
 chooseFloat = choose
 
 drain :: [Int] -> Expectation
-drain ls = Stream.fold FL.drain (Stream.fromList  ls) `shouldReturn` ()
+drain ls = Stream.fold Fold.drain (Stream.fromList  ls) `shouldReturn` ()
 
 drainBy :: [Int] -> Expectation
-drainBy ls = Stream.fold (FL.drainBy return) (Stream.fromList  ls) `shouldReturn` ()
+drainBy ls = Stream.fold (Fold.drainBy return) (Stream.fromList  ls) `shouldReturn` ()
 
 mean :: Property
 mean =
@@ -278,7 +276,7 @@ mean =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold FL.mean (Stream.fromList  ls)
+        v1 <- run $ Stream.fold Fold.mean (Stream.fromList  ls)
         let v2 = Prelude.sum ls / fromIntegral (Prelude.length ls)
         assert (abs (v1 - v2) < 0.0001)
 
@@ -290,7 +288,7 @@ stdDev =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold FL.stdDev (Stream.fromList  ls)
+        v1 <- run $ Stream.fold Fold.stdDev (Stream.fromList  ls)
         let avg = Prelude.sum ls / fromIntegral (Prelude.length ls)
             se = Prelude.sum (fmap (\x -> (x - avg) * (x - avg)) ls)
             sd = sqrt $ se / fromIntegral (Prelude.length ls)
@@ -304,7 +302,7 @@ variance =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold FL.variance (Stream.fromList  ls)
+        v1 <- run $ Stream.fold Fold.variance (Stream.fromList  ls)
         let avg = Prelude.sum ls / fromIntegral (Prelude.length ls)
             se = Prelude.sum (fmap (\x -> (x - avg) * (x - avg)) ls)
             vr = se / fromIntegral (Prelude.length ls)
@@ -318,7 +316,7 @@ mconcat =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold FL.mconcat (fmap Sum $ Stream.fromList  ls)
+        v1 <- run $ Stream.fold Fold.mconcat (fmap Sum $ Stream.fromList  ls)
         let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
@@ -330,7 +328,7 @@ foldMap =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold (FL.foldMap Sum) $ Stream.fromList  ls
+        v1 <- run $ Stream.fold (Fold.foldMap Sum) $ Stream.fromList  ls
         let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
@@ -342,7 +340,7 @@ foldMapM =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold (FL.foldMapM (return . Sum)) $ Stream.fromList  ls
+        v1 <- run $ Stream.fold (Fold.foldMapM (return . Sum)) $ Stream.fromList  ls
         let v2 = Prelude.sum ls
         assert (getSum v1 == v2)
 
@@ -359,7 +357,7 @@ lookup =
                  , (8, "fifth+third"), (9, "fifth+fourth")
                  , (10, "fifth+fifth")
                  ]
-        v1 <- run $ Stream.fold (FL.lookup key) $ Stream.fromList  ls
+        v1 <- run $ Stream.fold (Fold.lookup key) $ Stream.fromList  ls
         let v2 = Prelude.lookup key ls
         assert (v1 == v2)
 
@@ -372,7 +370,7 @@ rmapM =
 
     action ls = do
         let addLen x = return $ x + Prelude.length ls
-            fld = FL.rmapM addLen FL.sum
+            fld = Fold.rmapM addLen Fold.sum
             v2 = foldl (+) (Prelude.length ls) ls
         v1 <- run $ Stream.fold fld $ Stream.fromList  ls
         assert (v1 == v2)
@@ -385,7 +383,7 @@ teeWithLength =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold (FL.tee FL.sum FL.length) $ Stream.fromList  ls
+        v1 <- run $ Stream.fold (Fold.tee Fold.sum Fold.length) $ Stream.fromList  ls
         let v2 = Prelude.sum ls
             v3 = Prelude.length ls
         assert (v1 == (v2, v3))
@@ -400,7 +398,7 @@ teeWithFstLength =
     action ls = do
         v1 <-
             run
-                $ Stream.fold (F.teeWithFst (,) (FL.take 5 FL.sum) FL.length)
+                $ Stream.fold (Fold.teeWithFst (,) (Fold.take 5 Fold.sum) Fold.length)
                 $ Stream.fromList  ls
         let v2 = Prelude.sum (Prelude.take 5 ls)
             v3 = Prelude.length (Prelude.take 5 ls)
@@ -417,7 +415,7 @@ partitionByM =
         let f = \x -> if odd x then return (Left x) else return (Right x)
         v1 <-
             run
-                $ Stream.fold (F.partitionByM f FL.length FL.length)
+                $ Stream.fold (Fold.partitionByM f Fold.length Fold.length)
                 $ Stream.fromList  ls
         let v2 = foldl (\b a -> if odd a then b+1 else b) 0 ls
             v3 = foldl (\b a -> if even a then b+1 else b) 0 ls
@@ -435,7 +433,7 @@ partitionByFstM =
         v1 <-
             run
                 $ Stream.fold
-                      (F.partitionByFstM f (FL.take 25 FL.length) FL.length)
+                      (Fold.partitionByFstM f (Fold.take 25 Fold.length) Fold.length)
                       (Stream.fromList  ([1 .. 100] :: [Int]))
         let v2 = foldl (\b a -> if odd a then b+1 else b) 0 ([1..49] :: [Int])
             v3 = foldl (\b a -> if even a then b+1 else b) 0 ([1..49] :: [Int])
@@ -453,7 +451,7 @@ partitionByMinM1 =
         v1 <-
             run
                 $ Stream.fold
-                      (F.partitionByMinM f FL.length (FL.take 25 FL.length))
+                      (Fold.partitionByMinM f Fold.length (Fold.take 25 Fold.length))
                       (Stream.fromList  ([1 .. 100] :: [Int]))
         let v2 = foldl (\b a -> if odd a then b+1 else b) 0 ([1..50] :: [Int])
             v3 = foldl (\b a -> if even a then b+1 else b) 0 ([1..50] :: [Int])
@@ -471,7 +469,7 @@ partitionByMinM2 =
         v1 <-
             run
                 $ Stream.fold
-                      (F.partitionByMinM f (FL.take 25 FL.length) FL.length)
+                      (Fold.partitionByMinM f (Fold.take 25 Fold.length) Fold.length)
                       (Stream.fromList  ([1 .. 100] :: [Int]))
         let v2 = foldl (\b a -> if odd a then b+1 else b) 0 ([1..49] :: [Int])
             v3 = foldl (\b a -> if even a then b+1 else b) 0 ([1..49] :: [Int])
@@ -487,7 +485,7 @@ teeWithMinLength1 =
     action ls = do
         v1 <-
             run
-                $ Stream.fold (F.teeWithMin (,) (FL.take 5 FL.sum) FL.length)
+                $ Stream.fold (Fold.teeWithMin (,) (Fold.take 5 Fold.sum) Fold.length)
                 $ Stream.fromList  ls
         let v2 = Prelude.sum (Prelude.take 5 ls)
             v3 = Prelude.length (Prelude.take 5 ls)
@@ -504,7 +502,7 @@ teeWithMinLength2 =
     action ls = do
         v1 <-
             run
-                $ Stream.fold (F.teeWithMin (,) FL.sum (FL.take 5 FL.length))
+                $ Stream.fold (Fold.teeWithMin (,) Fold.sum (Fold.take 5 Fold.length))
                 $ Stream.fromList  ls
         let v2 = Prelude.sum (Prelude.take 5 ls)
             v3 = Prelude.length (Prelude.take 5 ls)
@@ -518,7 +516,7 @@ teeWithMax =
     where
 
     action ls = do
-        v1 <- run $ Stream.fold (FL.tee FL.sum FL.maximum) $ Stream.fromList  ls
+        v1 <- run $ Stream.fold (Fold.tee Fold.sum Fold.maximum) $ Stream.fromList  ls
         let v2 = Prelude.sum ls
             v3 = foldMaybe (greater compare) intMin ls
         assert (v1 == (v2, v3))
@@ -532,7 +530,7 @@ distribute =
 
     action ls = do
         v1 <-
-            run $ Stream.fold (FL.distribute [FL.sum, FL.length]) $ Stream.fromList  ls
+            run $ Stream.fold (Fold.distribute [Fold.sum, Fold.length]) $ Stream.fromList  ls
         let v2 = Prelude.sum ls
             v3 = Prelude.length ls
         assert (v1 == [v2, v3])
@@ -542,7 +540,7 @@ partition =
     monadicIO $ do
         v1 :: (Int, [String]) <-
             run
-                $ Stream.fold (FL.partition FL.sum FL.toList)
+                $ Stream.fold (Fold.partition Fold.sum Fold.toList)
                 $ Stream.fromList
                     [Left 1, Right "abc", Left 3, Right "xy", Right "pp2"]
         let v2 = (4,["abc","xy","pp2"])
@@ -553,7 +551,7 @@ unzip =
     monadicIO $ do
     v1 :: (Int, [String]) <-
         run
-            $ Stream.fold (FL.unzip FL.sum FL.toList)
+            $ Stream.fold (Fold.unzip Fold.sum Fold.toList)
             $ Stream.fromList  [(1, "aa"), (2, "bb"), (3, "cc")]
     let v2 = (6, ["aa", "bb", "cc"])
     assert (v1 == v2)
@@ -563,7 +561,7 @@ postscan = forAll (listOf (chooseInt (intMin, intMax))) $ \ls ->
     monadicIO $ do
     v1 :: [Int] <-
         run
-            $ Stream.fold (F.postscan FL.sum FL.toList)
+            $ Stream.fold (Fold.postscan Fold.sum Fold.toList)
             $ Stream.fromList  ls
     let v2 = scanl1 (+) ls
     assert (v1 == v2)
@@ -574,18 +572,18 @@ many =
     forAll (chooseInt (1, 100)) $ \i ->
         monadicIO $ do
             let strm = Stream.fromList  lst
-            r1 <- Stream.fold (FL.many (split i) FL.toList) strm
-            r2 <- Stream.fold FL.toList $ Stream.foldMany (split i) strm
+            r1 <- Stream.fold (Fold.many (split i) Fold.toList) strm
+            r2 <- Stream.fold Fold.toList $ Stream.foldMany (split i) strm
             assert $ r1 == r2
 
     where
 
-    split i = FL.take i FL.toList
+    split i = Fold.take i Fold.toList
 
 foldBreak :: [Int] -> Property
 foldBreak ls = monadicIO $ do
-    (mbh, rest) <- run $ Stream.foldBreak FL.head (Stream.fromList  ls)
-    rests <- run $ Stream.fold FL.toList rest
+    (mbh, rest) <- run $ Stream.foldBreak Fold.head (Stream.fromList  ls)
+    rests <- run $ Stream.fold Fold.toList rest
     assert (mbh == headl ls)
     listEquals (==) rests (taill ls)
 
@@ -597,9 +595,9 @@ foldBreak ls = monadicIO $ do
 
 demux :: Expectation
 demux =
-    let table "SUM" = return FL.sum
-        table "PRODUCT" = return FL.product
-        table _ = return FL.length
+    let table "SUM" = return Fold.sum
+        table "PRODUCT" = return Fold.product
+        table _ = return Fold.length
         input = Stream.fromList  (
                 [ ("SUM", 1)
                 , ("abc", 1)
@@ -612,7 +610,7 @@ demux =
                 , ("abc", 2)
                 ] :: [(String, Int)])
     in Stream.fold
-        (F.demux table)
+        (Fold.demux table)
         input
         `shouldReturn`
         Data.Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
@@ -623,13 +621,13 @@ demuxWith =
     let getKey x | even x = "SUM"
                  | otherwise = "PRODUCT"
 
-        getFold "SUM" = return FL.sum
-        getFold "PRODUCT" = return FL.product
+        getFold "SUM" = return Fold.sum
+        getFold "PRODUCT" = return Fold.product
         getFold _ = error "demuxWith: bug"
 
         input = Stream.fromList  [1, 2, 3, 4 :: Int]
     in Stream.fold
-        (F.demuxWith getKey (getFold . getKey))
+        (Fold.demuxWith getKey (getFold . getKey))
         input
         `shouldReturn`
         Data.Map.fromList  [("PRODUCT",3),("SUM",6)]
@@ -638,7 +636,7 @@ classifyWith :: Expectation
 classifyWith =
     let input = Stream.fromList  [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
     in Stream.fold
-        (F.classifyWith fst (FL.lmap snd FL.toList))
+        (Fold.classifyWith fst (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
         Data.Map.fromList
@@ -655,7 +653,7 @@ classify =
             , ("TWO",(2, 2.2))
             ]
     in Stream.fold
-        (F.classify (FL.lmap snd FL.toList))
+        (Fold.classify (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
         Data.Map.fromList
@@ -664,7 +662,7 @@ classify =
 splitAt :: Expectation
 splitAt =
     Stream.fold
-    (F.splitAt 6 FL.toList FL.toList)
+    (Fold.splitAt 6 Fold.toList Fold.toList)
     (Stream.fromList  "Hello World!")
     `shouldReturn`
     ("Hello ","World!")
@@ -674,7 +672,7 @@ scan = forAll (listOf (chooseInt (0, 100))) $ \lst ->
     monadicIO $ do
     v1 :: [Int] <-
         run
-            $ Stream.fold (F.scan FL.sum FL.toList)
+            $ Stream.fold (Fold.scan Fold.sum Fold.toList)
             $ Stream.fromList  lst
     let v2 = scanl (+) 0 lst
     assert (v1 == v2)
@@ -691,10 +689,10 @@ topBy isTop = forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
             n <- liftIO $ generate $ chooseInt (-2, n0 + 2)
             if isTop
             then do
-                lst <- Stream.fold (F.top n) (Stream.fromList  ls) >>= MA.toList
+                lst <- Stream.fold (Fold.top n) (Stream.fromList  ls) >>= MArray.toList
                 assert ((Prelude.take n . Prelude.reverse . sort) ls ==  lst)
             else do
-                lst <- Stream.fold (F.bottom n) (Stream.fromList  ls) >>= MA.toList
+                lst <- Stream.fold (Fold.bottom n) (Stream.fromList  ls) >>= MArray.toList
                 assert ((Prelude.take n . sort) ls ==  lst)
 
 top :: Property
@@ -705,9 +703,9 @@ bottom = topBy False
 
 nub :: Property
 nub = monadicIO $ do
-    vals <- Stream.fold FL.toList
+    vals <- Stream.fold Fold.toList
             $ Stream.catMaybes
-            $ Stream.postscan F.nub
+            $ Stream.postscan Fold.nub
             $ Stream.fromList  [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
     assert (vals == [1, 2, 3, 4, 5, 7])
 

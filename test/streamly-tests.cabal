@@ -44,6 +44,7 @@ flag test-core
   description: Test only core package
   manual: True
   default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -218,38 +219,34 @@ test-suite Data.List
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
   cpp-options:  -DUSE_STREAMLY_LIST
-  if flag(test-core)
-    buildable: False
-  else
-    buildable: True
 
 test-suite Data.List.Base
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
-  if flag(test-core)
-    buildable: False
-  else
-    buildable: True
 
 test-suite Data.Array
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
+  if flag(test-core)
+    buildable: False
 
 test-suite Data.Array.Unboxed
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Unboxed.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.main
+  if flag(test-core)
+    buildable: False
 
 test-suite Data.Array.Unboxed.Mut
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Unboxed/Mut.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.Mut.main
-  
+
 test-suite Data.Ring.Unboxed
   import: test-options
   type: exitcode-stdio-1.0
@@ -257,8 +254,6 @@ test-suite Data.Ring.Unboxed
   ghc-options: -main-is Streamly.Test.Data.Ring.Unboxed.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Data.Array.Stream.Foreign
   import: test-options
@@ -266,8 +261,6 @@ test-suite Data.Array.Stream.Foreign
   main-is: Streamly/Test/Data/Array/Stream/Foreign.hs
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Data.Fold
   import: test-options
@@ -301,8 +294,6 @@ test-suite Data.SmallArray
   ghc-options: -main-is Streamly.Test.Data.SmallArray.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Data.Unfold
   import: test-options
@@ -317,8 +308,6 @@ test-suite FileSystem.Event
   other-modules: Streamly.Test.FileSystem.Event.Common
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite FileSystem.Event.Darwin
   import: test-options
@@ -328,6 +317,8 @@ test-suite FileSystem.Event.Darwin
   cpp-options: -DFILESYSTEM_EVENT_DARWIN
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Darwin
   if !os(darwin)
+    buildable: False
+  if flag(test-core)
     buildable: False
 
 test-suite FileSystem.Event.Linux
@@ -341,8 +332,6 @@ test-suite FileSystem.Event.Linux
     buildable: False
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite FileSystem.Event.Windows
   import: test-options
@@ -353,6 +342,8 @@ test-suite FileSystem.Event.Windows
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Windows
   if !os(windows)
     buildable: False
+  if flag(test-core)
+    buildable: False
 
 test-suite FileSystem.Handle
   import: test-options
@@ -361,8 +352,6 @@ test-suite FileSystem.Handle
   ghc-options: -main-is Streamly.Test.FileSystem.Handle.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Network.Inet.TCP
   import: test-options
@@ -370,8 +359,6 @@ test-suite Network.Inet.TCP
   main-is: Streamly/Test/Network/Inet/TCP.hs
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Network.Socket
   import: test-options
@@ -379,8 +366,6 @@ test-suite Network.Socket
   main-is: Streamly/Test/Network/Socket.hs
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude
   import: test-options
@@ -389,8 +374,6 @@ test-suite Prelude
   ghc-options: -main-is Streamly.Test.Prelude.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Ahead
   import: test-options
@@ -399,8 +382,6 @@ test-suite Prelude.Ahead
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Async
   import: test-options
@@ -409,8 +390,6 @@ test-suite Prelude.Async
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Concurrent
   import: test-options
@@ -421,8 +400,6 @@ test-suite Prelude.Concurrent
     ghc-options: +RTS -M2000M -RTS
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Fold
   import: test-options
@@ -431,8 +408,6 @@ test-suite Prelude.Fold
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Parallel
   import: test-options
@@ -441,8 +416,6 @@ test-suite Prelude.Parallel
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Rate
   import:always-optimized
@@ -455,8 +428,6 @@ test-suite Prelude.Rate
     buildable: False
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Serial
   import: test-options
@@ -467,8 +438,6 @@ test-suite Prelude.Serial
     ghc-options: +RTS -M1500M -RTS
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.Top
   import: test-options
@@ -476,8 +445,6 @@ test-suite Prelude.Top
   main-is: Streamly/Test/Prelude/Top.hs
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.WAsync
   import: test-options
@@ -486,8 +453,6 @@ test-suite Prelude.WAsync
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.WSerial
   import: test-options
@@ -496,8 +461,6 @@ test-suite Prelude.WSerial
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.ZipAsync
   import: test-options
@@ -508,8 +471,6 @@ test-suite Prelude.ZipAsync
     ghc-options: +RTS -M750M -RTS
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Prelude.ZipSerial
   import: test-options
@@ -518,8 +479,6 @@ test-suite Prelude.ZipSerial
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Unicode.Stream
   import: test-options
@@ -528,17 +487,13 @@ test-suite Unicode.Stream
   ghc-options: -main-is Streamly.Test.Unicode.Stream.main
   if flag(test-core)
     buildable: False
-  else
-    buildable: True
 
 test-suite Unicode.Char
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Char.hs
   ghc-options: -main-is Streamly.Test.Unicode.Char.main
-  if flag(dev)
-    buildable: True
-  else
+  if flag(test-core) || !flag(dev)
     buildable: False
 
 test-suite version-bounds

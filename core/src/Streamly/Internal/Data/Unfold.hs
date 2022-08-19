@@ -588,8 +588,10 @@ fromStreamK = Unfold step pure
             Just (x, xs) -> Yield x xs
             Nothing -> Stop) <$> K.uncons stream
 
+{-# INLINE fromStream #-}
 fromStream :: Applicative m => Unfold m (Stream.Stream m a) a
 fromStream = lmap Stream.toStreamK fromStreamK
+
 -------------------------------------------------------------------------------
 -- Unfolds
 -------------------------------------------------------------------------------
