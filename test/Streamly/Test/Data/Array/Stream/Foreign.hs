@@ -4,7 +4,7 @@ import Data.Word (Word8)
 import Streamly.Test.Common (listEquals, chooseInt)
 import Test.Hspec (hspec, describe, shouldBe)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, Property, vectorOf, Gen)
+import Test.QuickCheck (forAll, Property, vectorOf, Gen, Arbitrary (arbitrary))
 import Test.QuickCheck.Monadic (monadicIO, run)
 
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
@@ -71,6 +71,18 @@ splitOnSuffix sep inp out = do
 moduleName :: String
 moduleName = "Data.Array.Stream.Foreign"
 
+-- Instead of hard coding 10000 here we can have maxStreamLength for operations
+-- that use stream of arrays.
+
+concatArrayW8 :: Property
+concatArrayW8 =
+    forAll (vectorOf 10000 (arbitrary :: Gen Word8))
+        $ \w8List -> do
+              let w8ArrList = Array.fromList . (: []) <$> w8List
+              f2 <- Stream.toList $ ArrayStream.concat $ Stream.fromList w8ArrList
+              w8List `shouldBe` f2
+
+
 main :: IO ()
 main =
     hspec $
@@ -79,6 +91,7 @@ main =
         describe moduleName $ do
             describe "Stream parsing" $ do
                 prop "parseBreak" parseBreak
+                prop "concatArrayW8" concatArrayW8
             describe "splifOnSuffix" $ do
                 Hspec.it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]"
                        $ splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]

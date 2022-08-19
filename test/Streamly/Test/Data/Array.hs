@@ -11,6 +11,8 @@ module Streamly.Test.Data.Array (main) where
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Fold as Fold
+
 type Array = A.Array
 
 moduleName :: String
@@ -30,7 +32,7 @@ testFromList =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromList list
-                    xs <- run $ S.toList $ (S.unfold A.read) arr
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.read arr
                     assert (xs == list)
 
 testLengthFromStream :: Property

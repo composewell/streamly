@@ -18,7 +18,7 @@ import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Test.Hspec as H
 
 #if MIN_VERSION_QuickCheck(2,14,0)
@@ -35,7 +35,6 @@ chooseAny :: Random a => Gen a
 chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
 
 #endif
-
 
 maxTestCount :: Int
 maxTestCount = 100
@@ -482,7 +481,7 @@ parseManyWordQuotedBy =
                   spc _ = False
 
                   parser = P.wordQuotedBy kQ esc lQ rQ fromLQ spc FL.toList
-              result <- H.runIO $ S.toList $ S.parseMany parser inpStrm
+              result <- H.runIO $ S.fold FL.toList $ S.parseMany parser inpStrm
               H.it (showCase c) $ result `H.shouldBe` expected
 
     where
@@ -727,7 +726,7 @@ parseMany =
                 outs <- do
                     let p = P.fromFold $ FL.take len FL.toList
                     run
-                        $ S.toList
+                        $ S.fold FL.toList
                         $ S.parseMany p (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
@@ -781,7 +780,7 @@ parseMany2Events =
     monadicIO $ do
         xs <-
             ( run
-            $ S.toList
+            $ S.fold FL.toList
             $ S.parseMany readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )
@@ -801,7 +800,7 @@ manyEqParseMany =
         monadicIO $ do
             let strm = S.fromList lst
             r1 <- run $ S.parse (P.many (split i) FL.toList) strm
-            r2 <- run $ S.toList $ S.parseMany (split i) strm
+            r2 <- run $ S.fold FL.toList $ S.parseMany (split i) strm
             assert $ r1 == r2
 
     where
@@ -829,6 +828,11 @@ takeEndBy1 =
                 else [x]
             takeWhileAndFirstFail _ [] = []
 
+splitWithSuffix
+    :: Monad m
+    => (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitWithSuffix predicate f =  S.foldMany (FL.takeEndBy predicate f)
+
 takeEndBy2 :: Property
 takeEndBy2 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -838,7 +842,7 @@ takeEndBy2 =
             predicate = (==0)
 
             eitherParsedList =
-                S.toList $
+                S.fold FL.toList $
                     S.parseMany (P.takeEndBy predicate prsr) strm
 
                     where
@@ -850,12 +854,12 @@ takeEndBy2 =
                     [] -> return []
                     _ ->
                         if last ls == 0
-                        then S.toList $ S.append strm1 (S.fromList [])
-                        else S.toList strm1
+                        then S.fold FL.toList $ S.append strm1 (S.fromList [])
+                        else S.fold FL.toList strm1
 
                         where
 
-                        strm1 = S.splitWithSuffix predicate FL.toList strm
+                        strm1 = splitWithSuffix predicate FL.toList strm
         in
             case eitherParsedList of
                 Left _ -> property False

@@ -18,11 +18,10 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.QuickCheck (chooseInt, listOf)
 import GHC.Ptr (plusPtr)
 
-import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Fold as Fold
 
 type Array = A.Array
 
@@ -43,12 +42,11 @@ testFromList =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromList list
-                    xs <- run $ S.toList $ S.unfold A.read arr
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.read arr
                     assert (xs == list)
 
 testLengthFromStream :: Property
 testLengthFromStream = genericTestFrom (const A.fromStream)
-
 
 unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
 unsafeWriteIndex xs i x = do
@@ -121,37 +119,11 @@ testStripNull = do
     x <- MA.toList dt'
     return $ x == ""
 
--- Instead of hard coding 10000 here we can have maxStreamLength for operations
--- that use stream of arrays.
-concatArrayW8 :: Property
-concatArrayW8 =
-    forAll (vectorOf 10000 (arbitrary :: Gen Word8))
-        $ \w8List -> do
-              let w8ArrList = A.fromList . (: []) <$> w8List
-              f2 <- S.toList $ AS.concat $ S.fromList w8ArrList
-              w8List `shouldBe` f2
-
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
     let lst = take n $ drop i list
         arr = A.toList $ A.getSliceUnsafe i n $ A.fromList list
      in arr == lst
-
-{-
-testAppend ::  Property
-testAppend =
-   forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
-        monadicIO $ action ls0
-
-        where
-
-        action ls = do
-            x <- S.fold
-                    (MA.append (MA.newArray 0))
-                    (S.fromList (ls::[Int]))
-            lst <- MA.toList x
-            assert (ls == lst)
--}
 
 testBubbleWith :: Bool -> Property
 testBubbleWith asc =
@@ -257,7 +229,6 @@ main =
             prop "fromList" testFromList
             prop "foldMany with writeNUnsafe concats to original"
                 (foldManyWith (\n -> Fold.take n (A.writeNUnsafe n)))
-            prop "AS.concat . (A.fromList . (:[]) <$>) === id" concatArrayW8
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]

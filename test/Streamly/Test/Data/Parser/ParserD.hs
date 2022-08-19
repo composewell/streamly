@@ -17,7 +17,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
@@ -27,6 +27,7 @@ import Prelude hiding (sequence)
 #if MIN_VERSION_QuickCheck(2,14,0)
 
 import Test.QuickCheck (chooseAny)
+
 
 #else
 
@@ -53,6 +54,9 @@ max_value = 10000
 
 max_length :: Int
 max_length = 1000
+
+toList :: Monad m => S.Stream m a -> m [a]
+toList = S.fold FL.toList
 
 -- Accumulator Tests
 
@@ -602,7 +606,7 @@ parseMany =
             monadicIO $ do
                 outs <-
                     ( run
-                    $ S.toList
+                    $ toList
                     $ S.parseManyD
                         (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
                     )
@@ -621,7 +625,7 @@ parseUnfold = do
             <*> chooseInt (1, len)
             <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
-            arrays <- S.toList $ S.arraysOf clen (S.fromList ls)
+            arrays <- toList $ S.arraysOf clen (S.fromList ls)
             let src = Source.source (Just (Producer.OuterLoop arrays))
             let parser = P.fromFold (FL.take tlen FL.toList)
             let readSrc =
@@ -630,7 +634,7 @@ parseUnfold = do
             let streamParser =
                     Producer.simplify (Source.parseManyD parser readSrc)
             xs <- run
-                $ S.toList
+                $ toList
                 $ S.unfoldMany Unfold.fromList
                 $ S.unfold streamParser src
 
@@ -697,7 +701,7 @@ parseMany2Events =
     monadicIO $ do
         xs <-
             ( run
-            $ S.toList
+            $ toList
             $ S.parseManyD readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )
