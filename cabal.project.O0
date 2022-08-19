@@ -9,16 +9,16 @@ packages:
 
 package streamly
   flags: -opt
-  ghc-options: -O0 -Werror
+  ghc-options: -O0
 
 package streamly-core
   flags: -opt
-  ghc-options: -O0 -Werror
+  ghc-options: -O0
 
 package streamly-tests
   flags: -opt
-  ghc-options: -O0 -Werror
+  ghc-options: -O0
 
 package streamly-benchmarks
   flags: -opt
-  ghc-options: -O0 -Werror
+  ghc-options: -O0
