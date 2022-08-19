@@ -160,7 +160,7 @@ module Streamly.Data.Unfold
 
     -- * Unfolds
     -- One to one correspondence with
-    -- "Streamly.Internal.Data.Stream.IsStream.Generate"
+    -- "Streamly.Internal.Data.Stream.Generate"
 
     -- ** Basic Constructors
     , unfoldrM
@@ -177,6 +177,7 @@ module Streamly.Data.Unfold
     -- ** From Containers
     , fromList
     , fromListM
+    , fromStream
 
     -- * Combinators
     -- ** Mapping on Input

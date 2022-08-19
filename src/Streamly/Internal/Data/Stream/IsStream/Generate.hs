@@ -77,7 +77,6 @@ module Streamly.Internal.Data.Stream.IsStream.Generate
     , fromFoldableM
     , fromCallback
     , fromPrimIORef
-    , readStream
 
     -- * Deprecated
     , yield
@@ -114,7 +113,6 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified System.IO as IO
 
 import Prelude hiding (iterate, replicate, repeat)
@@ -658,17 +656,3 @@ fromCallback setCallback = concatM $ do
 {-# INLINE fromPrimIORef #-}
 fromPrimIORef :: (IsStream t, MonadIO m, Unboxed a) => Unboxed.IORef a -> t m a
 fromPrimIORef = fromStreamD . Unboxed.toStreamD
-
--- XXX Using Unfold.fromStreamD seems to be faster (using cross product test
--- case) than using fromStream even if it is implemented using fromStreamD.
--- Check if StreamK to StreamD rewrite rules are working correctly when
--- implementing fromStream using fromStreamD.
-
--- | Convert a stream into an 'Unfold'. Note that a stream converted to an
--- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
---
--- /Since: 0.9.0/
---
-{-# INLINE_NORMAL readStream #-}
-readStream :: (IsStream t, Applicative m) => Unfold m (t m a) a
-readStream = Unfold.lmap IsStream.toStream Unfold.fromStreamK

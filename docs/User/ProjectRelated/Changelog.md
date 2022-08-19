@@ -14,8 +14,7 @@
     writeWithBufferOf -> writeWith
     writeChunksWithBufferOf -> writeChunksWith
 
-* Following API has been moved from Streamly.data.Unfold module:
-    Streamly.data.Unfold.fromStream -> Streamly.Internal.Data.Stream.IsStream.readStream
+* Signature changed: Streamly.Data.Unfold.fromStream
 
 ### Deprecations
 
