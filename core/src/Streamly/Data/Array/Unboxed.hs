@@ -100,5 +100,5 @@ import Streamly.Internal.Data.Array.Unboxed as A
 -- >>> :set -package streamly
 -- >>> import Streamly.Internal.Data.Stream (Stream)
 -- >>> import Streamly.Data.Array.Unboxed (Array)
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array

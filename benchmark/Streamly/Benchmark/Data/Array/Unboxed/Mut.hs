@@ -20,7 +20,6 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor ((<&>))
-import Streamly.Prelude (MonadAsync)
 import System.Random (randomRIO)
 import Prelude
     ( IO
@@ -36,6 +35,7 @@ import Prelude
     , (||)
     , concat
     , const
+    , fmap
     , id
     , undefined
     )
@@ -43,8 +43,8 @@ import Prelude
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Prelude as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Prelude as IsStream (scanl1')
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
@@ -80,6 +80,7 @@ benchIOSrc name src = benchIO name src id
 
 drain :: Monad m => Stream.Stream m a -> m ()
 drain = Stream.fold Fold.drain
+
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
@@ -116,7 +117,7 @@ sourceIntFromToFromStream value n =
     Stream.fold MArray.write $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: MonadAsync m => Int -> Int -> Stream.Stream m Int
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream.Stream m Int
 sourceUnfoldrM value n = Stream.unfoldrM step n
     where
     step cnt =
@@ -141,15 +142,15 @@ composeN n f x =
 
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl' value n = composeN n $ onArray value $ Stream.scanl' (+) 0
+scanl' value n = composeN n $ onArray value $ Stream.scan (Fold.foldl' (+) 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
+scanl1' value n = composeN n $ onArray value $ IsStream.scanl1' (+)
 
 {-# INLINE map #-}
 map :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-map value n = composeN n $ onArray value $ Stream.map (+ 1)
+map value n = composeN n $ onArray value $ fmap (+ 1)
 
 {-# INLINE onArray #-}
 onArray
@@ -182,7 +183,7 @@ toStreamDDrain = drain . Stream.fromStreamD . MArray.toStreamD
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int
-unfoldFold = Stream.foldl' (+) 0 . Stream.unfold MArray.read
+unfoldFold = Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.read
 
 -------------------------------------------------------------------------------
 -- Bench groups

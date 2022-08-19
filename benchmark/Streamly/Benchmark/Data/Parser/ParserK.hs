@@ -16,6 +16,7 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (asum)
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
@@ -25,8 +26,7 @@ import qualified Data.Traversable as TR
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -38,8 +38,8 @@ import Streamly.Benchmark.Common
 -- XXX these can be moved to the common module
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: Monad m => Int -> Int -> S.Stream m Int
-sourceUnfoldrM value n = S.unfoldrM step n
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
+sourceUnfoldrM value n = Stream.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -50,7 +50,7 @@ sourceUnfoldrM value n = S.unfoldrM step n
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: NFData b
-    => Int -> String -> (S.Stream IO Int -> IO b) -> Benchmark
+    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
 
@@ -59,9 +59,9 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 #ifdef FROM_PARSERK
-#define PARSE_OP (IP.parseD . PRD.fromParserK)
+#define PARSE_OP (Stream.parseD . PRD.fromParserK)
 #else
-#define PARSE_OP IP.parseK
+#define PARSE_OP Stream.parseK
 #endif
 
 {-# INLINE satisfy #-}
@@ -73,17 +73,17 @@ takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
 takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: MonadCatch m => Int -> S.Stream m Int -> m ()
+takeWhileK :: MonadCatch m => Int -> Stream m Int -> m ()
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
 splitApp :: MonadCatch m
-    => Int -> S.Stream m Int -> m ((), ())
+    => Int -> Stream m Int -> m ((), ())
 splitApp value =
     PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadCatch m => Int -> S.Stream m Int -> m Int
+sequenceA :: MonadCatch m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -91,14 +91,14 @@ sequenceA value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadCatch m => Int -> S.Stream m Int -> m ()
+sequenceA_ :: MonadCatch m => Int -> Stream m Int -> m ()
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: MonadCatch m => Int -> S.Stream m Int -> m Int
+sequence :: MonadCatch m => Int -> Stream m Int -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -106,19 +106,19 @@ sequence value xs = do
     return $ Prelude.length x
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadCatch m => S.Stream m Int -> m Int
+manyAlt :: MonadCatch m => Stream m Int -> m Int
 manyAlt xs = do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: MonadCatch m => S.Stream m Int -> m Int
+someAlt :: MonadCatch m => Stream m Int -> m Int
 someAlt xs = do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: MonadCatch m => Int -> S.Stream m Int -> m Int
+choice :: MonadCatch m => Int -> Stream m Int -> m Int
 choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
