@@ -18,8 +18,8 @@ CABAL_BUILD_OPTIONS="--flag limit-build-mem"
 #------------------------------------------------------------------------------
 
 # XXX take these from command line
-GHC_PRIME_NIX="ghc8107"
-GHC_PRIME_VER="8.10"
+GHC_PRIME_NIX="ghc922"
+GHC_PRIME_VER="9.2.2"
 JOBS=1
 
 # Without cabal project file, it will not run any tests
@@ -150,22 +150,10 @@ ghc_prime_dev_perf () {
         \"--jobs=$JOBS --flag dev $PERF_FLAGS\" --quick --raw"
 }
 
-ghc_prime_c_malloc () {
-  nix-shell \
-    --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag use-c-malloc\""
-}
-
 ghc_prime_debug () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
     --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag debug\""
-}
-
-ghc_prime_streamk () {
-  nix-shell \
-    --argstr compiler "$GHC_PRIME_NIX" \
-    --run "bin/test-runner --cabal-build-options \"--jobs=$JOBS --flag streamk\""
 }
 
 #------------------------------------------------------------------------------
@@ -237,9 +225,7 @@ ghc_prime_O0 \
 ghc_prime_Werror \
 ghc_prime_doctests \
 ghc_prime_coverage \
-ghc_prime_c_malloc \
 ghc_prime_debug \
-ghc_prime_streamk \
 ghc901 \
 ghc884 \
 ghcjs \
