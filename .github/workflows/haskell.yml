@@ -207,7 +207,7 @@ jobs:
           rm -f cabal-docspec.xz
           chmod a+x $HOME/.cabal/bin/cabal-docspec
           cabal update
-          cabal build all
+          cabal build --project-file cabal.project.doctest all
           $HOME/.cabal/bin/cabal-docspec --version
           $HOME/.cabal/bin/cabal-docspec --timeout 60 --check-properties --property-variables xs
         elif test -z "$COVERAGE"

@@ -1,6 +1,8 @@
 packages:   streamly.cabal
           , core/streamly-core.cabal
           , docs/streamly-docs.cabal
+          -- for QuickCheck in property doctests
+          , test/streamly-tests.cabal
 
 -- Keep the flags same as cabal.project.O0 because we utilize the same build
 -- for doctest in CI.
@@ -14,5 +16,9 @@ package streamly-core
   ghc-options: -O0 -Werror
 
 package streamly-docs
+  flags: -opt
+  ghc-options: -O0 -Werror
+
+package streamly-tests
   flags: -opt
   ghc-options: -O0 -Werror
