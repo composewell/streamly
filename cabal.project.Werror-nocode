@@ -4,14 +4,18 @@ packages:
   test
   core
 
-package streamly
-  ghc-options: -Werror -fno-code
-
 package streamly-core
+  flags: -opt
+  ghc-options: -Werror -O0
+
+package streamly
+  flags: -opt
   ghc-options: -Werror -fno-code
 
 package streamly-benchmarks
+  flags: -opt
   ghc-options: -Werror -fno-code
 
 package streamly-tests
+  flags: -opt
   ghc-options: -Werror -fno-code
