@@ -166,6 +166,7 @@
 
 module Streamly.Internal.Data.Parser.ParserD.Type
     (
+    {-
     -- * Types
       Initial (..)
     , Step (..)
@@ -202,6 +203,7 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     , noErrorUnsafeSplitWith
     , noErrorUnsafeSplit_
     , noErrorUnsafeConcatMap
+    -}
     )
 where
 
@@ -234,60 +236,8 @@ import Prelude hiding (concatMap, filter)
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
--- XXX The only differences between Initial and Step types are:
---
--- * There are no backtracking counts in Initial
--- * Continue and Partial are the same. Ideally Partial should mean that an
--- empty result is valid and can be extracted; and Continue should mean that
--- empty would result in an error on extraction. We can possibly distinguish
--- the two cases.
---
--- If we ignore the backtracking counts we can represent the Initial type using
--- Step itself. That will also simplify the implementation of various parsers
--- where the processing in intiial is just a sepcial case of step, see
--- takeBetween for example.
---
--- | The type of a 'Parser''s initial action.
---
--- /Internal/
---
-{-# ANN type Initial Fuse #-}
-data Initial s b
-    = IPartial !s   -- ^ Wait for step function to be called with state @s@.
-    | IDone !b      -- ^ Return a result right away without an input.
-    | IError !String -- ^ Return an error right away without an input.
-
--- | @first@ maps on 'IPartial' and @second@ maps on 'IDone'.
---
--- /Internal/
---
-instance Bifunctor Initial where
-    {-# INLINE bimap #-}
-    bimap f _ (IPartial a) = IPartial (f a)
-    bimap _ g (IDone b) = IDone (g b)
-    bimap _ _ (IError err) = IError err
-
--- | Maps a function over the result held by 'IDone'.
---
--- >>> fmap = second
---
--- /Internal/
---
-instance Functor (Initial s) where
-    {-# INLINE fmap #-}
-    fmap = second
-
--- We can simplify the Step type as follows:
---
--- Partial Int (Either s (s, b)) -- Left continue, right partial result
--- Done Int (Either String b)
---
--- In this case Error may also have a "leftover" return. This means that after
--- several successful partial results the last segment parsing failed and we
--- are returning the leftover of that. The driver may choose to restart from
--- the last segment where this parser failed or from the beginning.
---
--- Folds can only return the right values. Parsers can also return lefts.
+-- XXX Need a way to statically detect that no "initial" function has
+-- backtracking and no extract function has Partial or Continue 0.
 
 -- | The return type of a 'Parser' step.
 --
@@ -423,7 +373,7 @@ data Parser m a b =
         (s -> a -> m (Step s b))
         -- Initial cannot return "Partial/Done n" or "Continue". Continue 0 is
         -- same as Partial 0. In other words it cannot backtrack.
-        (m (Initial s b))
+        (m (Step s b))
         -- Extract can only return Partial or Continue n. In other words it can
         -- only backtrack or return partial result/error. But we do not return
         -- result in Partial, therefore, we have to use Done instead of Partial.
@@ -469,7 +419,7 @@ instance Functor m => Functor (Parser m a) where
 parseDToK
     :: Monad m
     => (s -> a -> m (Step s b))
-    -> m (Initial s b)
+    -> m (Step s b)
     -> (s -> m (Step s b))
     -> Int
     -> (Int, Int)
@@ -479,10 +429,15 @@ parseDToK
 -- Non 'Alternative' case.
 parseDToK pstep initial extract leftover (0, _) cont = do
     res <- initial
+    -- XXX Handling of initial/step/extract can be deduplicated
     case res of
-        IPartial r -> return $ K.Continue leftover (parseCont (return r))
-        IDone b -> cont state (K.Success 0 b)
-        IError err -> cont state (K.Failure err)
+        Done n b -> cont state (K.Success (leftover + n) b)
+        Error err -> cont state (K.Failure err)
+        -- XXX K.Partial or K.Continue?
+        Partial n pst1 ->
+            return $ K.Continue (leftover + n) (parseCont (return pst1))
+        Continue n pst1 ->
+            return $ K.Continue (leftover + n) (parseCont (return pst1))
 
     where
 
@@ -508,17 +463,27 @@ parseDToK pstep initial extract leftover (0, _) cont = do
         case r of
             Done n b -> cont state (K.Success n b)
             Error err -> cont state (K.Failure err)
+            -- XXX We can use Partial to indicate that the parser did not
+            -- terminate but the input ended. And Done to indicate that the
+            -- parser terminated.
             Partial _ _ -> error "Bug: parseDToK Partial unreachable"
             Continue n pst1 -> return $ K.Continue n (parseCont (return pst1))
 
+-- XXX For noFailure parsers we do not need this case.
+
 -- 'Alternative' case. Used count needs to be maintained when inside an
 -- Alternative.
-parseDToK pstep initial extract leftover (level, count) cont = do
+parseDToK pstep initial extract leftover st@(level, count) cont = do
     res <- initial
     case res of
-        IPartial r -> return $ K.Continue leftover (parseCont count (return r))
-        IDone b -> cont (level,count) (K.Success 0 b)
-        IError err -> cont (level,count) (K.Failure err)
+        Partial n r ->
+            return $ K.Continue (leftover + n) (parseCont count (return r))
+        Continue n r ->
+            return $ K.Continue (leftover + n) (parseCont count (return r))
+        Done n b ->
+            -- XXX do we need to add leftover here?
+            cont st (K.Success (leftover + n) b)
+        Error err -> cont st (K.Failure err)
 
     where
 
@@ -538,6 +503,7 @@ parseDToK pstep initial extract leftover (level, count) cont = do
             Continue n pst1 -> do
                 assertM(n <= cnt1)
                 return $ K.Continue n (parseCont (cnt1 - n) (return pst1))
+
     parseCont cnt acc Nothing = do
         pst <- acc
         r <- extract pst
@@ -574,21 +540,6 @@ parserDone st (K.Success _ _) =
     error $ "Bug: fromParserK: inside alternative: " ++ show st
 parserDone _ (K.Failure e) = return $ K.Error e
 
--- | When there is no more input to feed, extract the result from the Parser.
---
--- /Pre-release/
---
-extractParse :: Monad m => (Maybe a -> m (K.Step m a b)) -> m (Step s b)
-extractParse cont = do
-    r <- cont Nothing
-    case r of
-        K.Done n b -> return (Done n b)
-        K.Partial _ _ -> error "Bug: extractParse got Partial"
-        K.Continue _ cont1 -> extractParse cont1
-        K.Error e -> return $ Error e
-
-data FromParserK b c = FPKDone !Int !b | FPKCont c
-
 -- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
 --
 -- "initial" returns a continuation which can be called one input at a time
@@ -604,29 +555,28 @@ fromParserK parser = Parser step initial extract
 
     initial = do
         r <- K.runParser parser 0 (0,0) parserDone
+        -- XXX Just use a fromStepK to dedup this in initial/step/extract
         return $ case r of
-            K.Done n b -> IPartial $ FPKDone n b
-            K.Error e -> IError e
-            K.Partial _ cont -> IPartial $ FPKCont cont -- XXX can we get this?
-            K.Continue _ cont -> IPartial $ FPKCont cont
+            K.Done n b -> Done n b
+            K.Error e -> Error e
+            K.Partial n cont -> Partial n cont -- XXX can we get this?
+            K.Continue n cont -> Continue n cont
 
-    -- Note, we can only reach FPKDone and FPKError from "initial". FPKCont
-    -- always transitions to only FPKCont.  The input remains unconsumed in
-    -- this case so we use "n + 1".
-    step (FPKDone n b) _ = do
-        assertM(n == 0)
-        return $ Done (n + 1) b
-    step (FPKCont cont) a = do
+    step cont a = do
         r <- cont (Just a)
         return $ case r of
             K.Done n b -> Done n b
             K.Error e -> Error e
-            K.Partial n cont1 -> Partial n (FPKCont cont1)
-            K.Continue n cont1 -> Continue n (FPKCont cont1)
+            K.Partial n cont1 -> Partial n cont1
+            K.Continue n cont1 -> Continue n cont1
 
-    -- Note, we can only reach FPKDone and FPKError from "initial".
-    extract (FPKDone n b) = return (Done n b)
-    extract (FPKCont cont) = extractParse cont
+    extract cont = do
+        r <- cont Nothing
+        return $ case r of
+            K.Done n b -> Done n b
+            K.Error e -> Error e
+            K.Partial _ _ -> error "Bug: extract got Partial"
+            K.Continue n cont1 -> Continue n cont1
 
 #ifndef DISABLE_FUSION
 {-# RULES "fromParserK/toParserK fusion" [2]
@@ -644,19 +594,13 @@ fromParserK parser = Parser step initial extract
 -- /Pre-release/
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Parser m a b -> Parser m a c
-rmapM f (Parser step initial extract) =
-    Parser step1 initial1 (extract >=> mapMStep f)
+rmapM f (Parser step initial extract) = Parser step1 initial1 extract1
 
     where
 
-    initial1 = do
-        res <- initial
-        -- this is mapM f over result
-        case res of
-            IPartial x -> return $ IPartial x
-            IDone a -> IDone <$> f a
-            IError err -> return $ IError err
+    initial1 = initial >>= mapMStep f
     step1 s a = step s a >>= mapMStep f
+    extract1 = extract >=> mapMStep f
 
 -- | See 'Streamly.Internal.Data.Parser.fromPure'.
 --
@@ -664,7 +608,7 @@ rmapM f (Parser step initial extract) =
 --
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: Monad m => b -> Parser m a b
-fromPure b = Parser undefined (pure $ IDone b) undefined
+fromPure b = Parser undefined (pure $ Done 0 b) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
@@ -672,7 +616,7 @@ fromPure b = Parser undefined (pure $ IDone b) undefined
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser m a b
-fromEffect b = Parser undefined (IDone <$> b) undefined
+fromEffect b = Parser undefined (Done 0 <$> b) undefined
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -681,6 +625,7 @@ fromEffect b = Parser undefined (IDone <$> b) undefined
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
+{-
 -- | See 'Streamly.Internal.Data.Parser.serialWith'.
 --
 -- Note: this implementation of serialWith is fast because of stream fusion but
@@ -1539,3 +1484,4 @@ filter f (Parser step initial extract) = Parser step1 initial extract
     where
 
     step1 x a = if f a then step x a else return $ Partial 0 x
+    -}

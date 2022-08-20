@@ -235,6 +235,9 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- Downgrade a parser to a Fold
 -------------------------------------------------------------------------------
 
+-- XXX Statically detect that these constructors are not present in a toFold
+-- argument.
+
 -- | See 'Streamly.Internal.Data.Parser.toFold'.
 --
 -- /Internal/
