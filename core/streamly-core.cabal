@@ -237,7 +237,6 @@ library
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
                      , Streamly.Internal.Data.Cont
-                     , Streamly.Internal.Foreign.Malloc
                      , Streamly.Internal.System.IO
                      , Streamly.Internal.Data.IsMap
 

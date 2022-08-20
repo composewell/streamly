@@ -287,11 +287,6 @@ flag has-llvm
   manual: True
   default: False
 
-flag use-c-malloc
-  description: Use C malloc instead of GHC malloc
-  manual: True
-  default: False
-
 flag opt
   description: off=GHC default, on=-O2
   manual: True
@@ -323,9 +318,6 @@ common compile-options
 
     if flag(inspection)
       cpp-options:    -DINSPECTION
-
-    if flag(use-c-malloc)
-      cpp-options:    -DUSE_C_MALLOC
 
     ghc-options:    -Weverything
                     -Wno-implicit-prelude
@@ -534,7 +526,6 @@ library
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
                      , Streamly.Internal.Data.Cont
-                     , Streamly.Internal.Foreign.Malloc
                      , Streamly.Internal.System.IO
 
                      -- streamly-strict-data
