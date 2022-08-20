@@ -203,7 +203,7 @@ where
 
 import Control.Exception (Exception)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -2163,7 +2163,7 @@ data ManyTillState fs sr sl
 -- /Pre-release/
 --
 {-# INLINE manyTill #-}
-manyTill :: MonadCatch m
+manyTill :: MonadThrow m
     => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 manyTill (Fold fstep finitial fextract)
          (Parser stepL initialL extractL)
