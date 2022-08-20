@@ -408,7 +408,7 @@ next = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE either #-}
-either :: MonadThrow m => (a -> Either String b) -> Parser m a b
+either :: Monad m => (a -> Either String b) -> Parser m a b
 either f = Parser step initial extract
 
     where
@@ -430,7 +430,7 @@ either f = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE maybe #-}
-maybe :: MonadThrow m => (a -> Maybe b) -> Parser m a b
+maybe :: Monad m => (a -> Maybe b) -> Parser m a b
 -- maybe f = either (Maybe.maybe (Left "maybe: predicate failed") Right . f)
 maybe parserF = Parser step initial extract
 
@@ -453,7 +453,7 @@ maybe parserF = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE satisfy #-}
-satisfy :: MonadThrow m => (a -> Bool) -> Parser m a a
+satisfy :: Monad m => (a -> Bool) -> Parser m a a
 -- satisfy predicate = maybe (\a -> if predicate a then Just a else Nothing)
 satisfy predicate = Parser step initial extract
 
@@ -1567,7 +1567,7 @@ postscan :: -- Monad m =>
 postscan = undefined
 
 {-# INLINE zipWithM #-}
-zipWithM :: MonadThrow m =>
+zipWithM :: Monad m =>
     (a -> b -> m c) -> D.Stream m a -> Fold m c x -> Parser m b x
 zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
     Parser step initial extract
@@ -1623,14 +1623,14 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE zip #-}
-zip :: MonadThrow m => D.Stream m a -> Fold m (a, b) x -> Parser m b x
+zip :: Monad m => D.Stream m a -> Fold m (a, b) x -> Parser m b x
 zip = zipWithM (curry return)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
 -- /Pre-release/
 {-# INLINE indexed #-}
-indexed :: forall m a b. MonadThrow m => Fold m (Int, a) b -> Parser m a b
+indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Parser m a b
 indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
 
 -- | @makeIndexFilter indexer filter predicate@ generates a fold filtering
@@ -1659,7 +1659,7 @@ makeIndexFilter f comb g = f . comb g . FL.lmap snd
 --
 -- /Pre-release/
 {-# INLINE sampleFromthen #-}
-sampleFromthen :: MonadThrow m => Int -> Int -> Fold m a b -> Parser m a b
+sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Parser m a b
 sampleFromthen offset size =
     makeIndexFilter indexed FL.filter (\(i, _) -> (i + offset) `mod` size == 0)
 
@@ -2163,7 +2163,7 @@ data ManyTillState fs sr sl
 -- /Pre-release/
 --
 {-# INLINE manyTill #-}
-manyTill :: MonadThrow m
+manyTill :: Monad m
     => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
 manyTill (Fold fstep finitial fextract)
          (Parser stepL initialL extractL)
