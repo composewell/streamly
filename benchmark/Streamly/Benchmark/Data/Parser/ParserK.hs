@@ -14,7 +14,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadThrow)
 import Data.Foldable (asum)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -65,25 +65,25 @@ benchIOSink value name f =
 #endif
 
 {-# INLINE satisfy #-}
-satisfy :: MonadCatch m => (a -> Bool) -> PR.Parser m a a
+satisfy :: Monad m => (a -> Bool) -> PR.Parser m a a
 satisfy = PRD.toParserK . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: MonadCatch m => (a -> Bool) -> PR.Parser m a ()
+takeWhile :: Monad m => (a -> Bool) -> PR.Parser m a ()
 takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: MonadCatch m => Int -> Stream m Int -> m ()
+takeWhileK :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
-splitApp :: MonadCatch m
+splitApp :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
 splitApp value =
     PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadCatch m => Int -> Stream m Int -> m Int
+sequenceA :: MonadThrow m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -91,14 +91,14 @@ sequenceA value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadCatch m => Int -> Stream m Int -> m ()
+sequenceA_ :: MonadThrow m => Int -> Stream m Int -> m ()
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: MonadCatch m => Int -> Stream m Int -> m Int
+sequence :: MonadThrow m => Int -> Stream m Int -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -106,19 +106,19 @@ sequence value xs = do
     return $ Prelude.length x
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadCatch m => Stream m Int -> m Int
+manyAlt :: MonadThrow m => Stream m Int -> m Int
 manyAlt xs = do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: MonadCatch m => Stream m Int -> m Int
+someAlt :: MonadThrow m => Stream m Int -> m Int
 someAlt xs = do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: MonadCatch m => Int -> Stream m Int -> m Int
+choice :: MonadThrow m => Int -> Stream m Int -> m Int
 choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
