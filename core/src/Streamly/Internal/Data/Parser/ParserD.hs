@@ -201,9 +201,7 @@ where
 
 #include "assert.hs"
 
-import Control.Exception (Exception)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -237,22 +235,12 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- Downgrade a parser to a Fold
 -------------------------------------------------------------------------------
 
-data ParserToFoldError =
-      InitialError String
-    | PartialError Int
-    | ContinueError Int
-    | DoneError Int
-    | ErrorError String
-    deriving Show
-
-instance Exception ParserToFoldError
-
 -- | See 'Streamly.Internal.Data.Parser.toFold'.
 --
 -- /Internal/
 --
 {-# INLINE toFold #-}
-toFold :: MonadThrow m => Parser m a b -> Fold m a b
+toFold :: Monad m => Parser m a b -> Fold m a b
 toFold (Parser pstep pinitial pextract) = Fold step initial extract
 
     where
@@ -262,7 +250,13 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract
         case r of
             IPartial s -> return $ FL.Partial s
             IDone b -> return $ FL.Done b
-            IError err -> throwM $ InitialError err
+            IError err ->
+                error $ "toFold: parser throws error in initial" ++ err
+
+    perror n = error $ "toFold: parser backtracks in Partial: " ++ show n
+    cerror n = error $ "toFold: parser backtracks in Continue: " ++ show n
+    derror n = error $ "toFold: parser backtracks in Done: " ++ show n
+    eerror err = error $ "toFold: parser throws error: " ++ err
 
     step st a = do
         r <- pstep st a
@@ -270,19 +264,19 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract
             Partial 0 s -> return $ FL.Partial s
             Continue 0 s -> return $ FL.Partial s
             Done 0 b -> return $ FL.Done b
-            Partial n _ -> throwM $ PartialError n
-            Continue n _ -> throwM $ ContinueError n
-            Done n _ -> throwM $ DoneError n
-            Error err -> throwM $ ErrorError err
+            Partial n _ -> perror n
+            Continue n _ -> cerror n
+            Done n _ -> derror n
+            Error err -> eerror err
 
     extract st = do
         r <- pextract st
         case r of
             Done 0 b -> return b
-            Partial n _ -> throwM $ PartialError n
-            Continue n _ -> throwM $ ContinueError n
-            Done n _ -> throwM $ DoneError n
-            Error err -> throwM $ ErrorError err
+            Partial n _ -> perror n
+            Continue n _ -> cerror n
+            Done n _ -> derror n
+            Error err -> eerror err
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses

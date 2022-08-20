@@ -244,7 +244,6 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Control.Monad.Catch (MonadThrow)
 import Data.Functor (($>))
 import Prelude hiding
     ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
@@ -286,7 +285,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- /Pre-release/
 --
 {-# INLINE toFold #-}
-toFold :: MonadThrow m => Parser m a b -> Fold m a b
+toFold :: Monad m => Parser m a b -> Fold m a b
 toFold p = D.toFold $ D.fromParserK p
 
 -------------------------------------------------------------------------------
