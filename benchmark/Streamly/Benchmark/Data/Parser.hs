@@ -15,7 +15,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadCatch, try, SomeException)
+import Control.Monad.Catch (MonadCatch, MonadThrow, try, SomeException)
 import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
@@ -112,7 +112,7 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 {-# INLINE one #-}
-one :: MonadCatch m => Int -> Stream m Int -> m (Maybe Int)
+one :: MonadThrow m => Int -> Stream m Int -> m (Maybe Int)
 one value = Stream.parse p
 
     where
@@ -124,25 +124,25 @@ one value = Stream.parse p
           Nothing -> pure Nothing
 
 {-# INLINE takeBetween #-}
-takeBetween :: MonadCatch m => Int -> Stream m a -> m ()
+takeBetween :: MonadThrow m => Int -> Stream m a -> m ()
 takeBetween value =  Stream.parse (PR.takeBetween 0 value Fold.drain)
 
 {-# INLINE takeEQ #-}
-takeEQ :: MonadCatch m => Int -> Stream m a -> m ()
+takeEQ :: MonadThrow m => Int -> Stream m a -> m ()
 takeEQ value = Stream.parse (PR.takeEQ value Fold.drain)
 
 {-# INLINE dropWhile #-}
-dropWhile :: MonadCatch m => Int -> Stream m Int -> m ()
+dropWhile :: MonadThrow m => Int -> Stream m Int -> m ()
 dropWhile value = Stream.parse (PR.dropWhile (<= value))
 
 {-# INLINE takeStartBy #-}
-takeStartBy :: MonadCatch m => Int -> Stream m Int -> m ()
+takeStartBy :: MonadThrow m => Int -> Stream m Int -> m ()
 takeStartBy value stream = do
     stream1 <- return . fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
     let stream2 = value `Stream.cons` stream1
     Stream.parse (PR.takeStartBy (== value) Fold.drain) stream2
 
-takeFramedByEsc_ :: MonadCatch m => Int -> Stream m Char -> m ()
+takeFramedByEsc_ :: MonadThrow m => Int -> Stream m Char -> m ()
 takeFramedByEsc_ _ = Stream.parse parser
 
     where
@@ -154,37 +154,37 @@ takeFramedByEsc_ _ = Stream.parse parser
     parser = PR.takeFramedByEsc_ isEsc isBegin isEnd Fold.drain
 
 {-# INLINE takeWhile #-}
-takeWhile :: MonadCatch m => Int -> Stream m Int -> m ()
+takeWhile :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhile value = Stream.parse (PR.takeWhile (<= value) Fold.drain)
 
-takeWhileP :: MonadCatch m => Int -> Stream m Int -> m ()
+takeWhileP :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhileP value =
     Stream.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) Fold.drain))
 
 {-# INLINE takeP #-}
-takeP :: MonadCatch m => Int -> Stream m a -> m ()
+takeP :: MonadThrow m => Int -> Stream m a -> m ()
 takeP value = Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
 
 {-# INLINE groupBy #-}
-groupBy :: MonadCatch m => Stream m Int -> m ()
+groupBy :: MonadThrow m => Stream m Int -> m ()
 groupBy = Stream.parse (PR.groupBy (<=) Fold.drain)
 
 {-# INLINE groupByRolling #-}
-groupByRolling :: MonadCatch m => Stream m Int -> m ()
+groupByRolling :: MonadThrow m => Stream m Int -> m ()
 groupByRolling = Stream.parse (PR.groupByRolling (<=) Fold.drain)
 
 {-# INLINE wordBy #-}
-wordBy :: MonadCatch m => Int -> Stream m Int -> m ()
+wordBy :: MonadThrow m => Int -> Stream m Int -> m ()
 wordBy value = Stream.parse (PR.wordBy (>= value) Fold.drain)
 
 {-# INLINE sepByWords #-}
-sepByWords :: MonadCatch m => Int -> Stream m Int -> m ()
+sepByWords :: MonadThrow m => Int -> Stream m Int -> m ()
 sepByWords _ = Stream.parse (wrds even Fold.drain)
     where
     wrds p f = PR.sepBy f (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
 {-# INLINE deintercalate #-}
-deintercalate :: MonadCatch m => Int -> Stream m Int -> m ()
+deintercalate :: MonadThrow m => Int -> Stream m Int -> m ()
 deintercalate _ = Stream.parse (partition even)
 
     where
@@ -194,36 +194,36 @@ deintercalate _ = Stream.parse (partition even)
             Fold.drain (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum)
 
 {-# INLINE manyWordByEven #-}
-manyWordByEven :: MonadCatch m => Stream m Int -> m ()
+manyWordByEven :: MonadThrow m => Stream m Int -> m ()
 manyWordByEven = Stream.parse (PR.many (PR.wordBy even Fold.drain) Fold.drain)
 
 {-# INLINE many #-}
-many :: MonadCatch m => Stream m Int -> m Int
+many :: MonadThrow m => Stream m Int -> m Int
 many = Stream.parse (PR.many (PR.satisfy (> 0)) Fold.length)
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadCatch m => Stream m Int -> m Int
+manyAlt :: MonadThrow m => Stream m Int -> m Int
 manyAlt xs = do
     x <- Stream.parse (AP.many (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE some #-}
-some :: MonadCatch m => Stream m Int -> m Int
+some :: MonadThrow m => Stream m Int -> m Int
 some = Stream.parse (PR.some (PR.satisfy (> 0)) Fold.length)
 
 {-# INLINE someAlt #-}
-someAlt :: MonadCatch m => Stream m Int -> m Int
+someAlt :: MonadThrow m => Stream m Int -> m Int
 someAlt xs = do
     x <- Stream.parse (AP.some (PR.satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE manyTill #-}
-manyTill :: MonadCatch m => Int -> Stream m Int -> m Int
+manyTill :: MonadThrow m => Int -> Stream m Int -> m Int
 manyTill value =
     Stream.parse (PR.manyTill (PR.satisfy (> 0)) (PR.satisfy (== value)) Fold.length)
 
 {-# INLINE splitAp #-}
-splitAp :: MonadCatch m
+splitAp :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
 splitAp value =
     Stream.parse
@@ -233,7 +233,7 @@ splitAp value =
         )
 
 {-# INLINE splitApBefore #-}
-splitApBefore :: MonadCatch m
+splitApBefore :: MonadThrow m
     => Int -> Stream m Int -> m ()
 splitApBefore value =
     Stream.parse
@@ -242,7 +242,7 @@ splitApBefore value =
         )
 
 {-# INLINE splitApAfter #-}
-splitApAfter :: MonadCatch m
+splitApAfter :: MonadThrow m
     => Int -> Stream m Int -> m ()
 splitApAfter value =
     Stream.parse
@@ -251,7 +251,7 @@ splitApAfter value =
         )
 
 {-# INLINE serialWith #-}
-serialWith :: MonadCatch m
+serialWith :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
 serialWith value =
     Stream.parse
@@ -261,7 +261,7 @@ serialWith value =
         )
 
 {-# INLINE split_ #-}
-split_ :: MonadCatch m
+split_ :: MonadThrow m
     => Int -> Stream m Int -> m ()
 split_ value =
     Stream.parse
@@ -271,13 +271,13 @@ split_ value =
         )
 
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: MonadCatch m
+takeEndBy_ :: MonadThrow m
     => Int -> Stream m Int -> m()
 takeEndBy_ value = Stream.parse (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
 
 {-
 {-# INLINE teeAllAny #-}
-teeAllAny :: MonadCatch m
+teeAllAny :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
 teeAllAny value =
     Stream.parse
@@ -287,7 +287,7 @@ teeAllAny value =
         )
 
 {-# INLINE teeFstAllAny #-}
-teeFstAllAny :: MonadCatch m
+teeFstAllAny :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
 teeFstAllAny value =
     Stream.parse
@@ -297,7 +297,7 @@ teeFstAllAny value =
         )
 
 {-# INLINE shortestAllAny #-}
-shortestAllAny :: MonadCatch m
+shortestAllAny :: MonadThrow m
     => Int -> Stream m Int -> m ()
 shortestAllAny value =
     Stream.parse
@@ -307,7 +307,7 @@ shortestAllAny value =
         )
 
 {-# INLINE longestAllAny #-}
-longestAllAny :: MonadCatch m
+longestAllAny :: MonadThrow m
     => Int -> Stream m Int -> m ()
 longestAllAny value =
     Stream.parse
@@ -349,41 +349,41 @@ parseManyUnfoldArrays count arrays = do
 -- not have to rely on it.
 --
 {-# INLINE lookAhead #-}
-lookAhead :: MonadCatch m => Int -> Stream m Int -> m ()
+lookAhead :: MonadThrow m => Int -> Stream m Int -> m ()
 lookAhead value =
     Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadCatch m => Int -> Stream m Int -> m Int
+sequenceA :: MonadThrow m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     x <- Stream.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadCatch m => Int -> Stream m Int -> m ()
+sequenceA_ :: MonadThrow m => Int -> Stream m Int -> m ()
 sequenceA_ value =
     Stream.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
 
 {-# INLINE sequence #-}
-sequence :: MonadCatch m => Int -> Stream m Int -> m Int
+sequence :: MonadThrow m => Int -> Stream m Int -> m Int
 sequence value xs = do
     x <- Stream.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: MonadCatch m => Int -> Stream m Int -> m ()
+sequence_ :: MonadThrow m => Int -> Stream m Int -> m ()
 sequence_ value =
     Stream.parse (F.sequence_ $ replicate value (PR.satisfy (> 0)))
 
 {-# INLINE choiceAsum #-}
-choiceAsum :: MonadCatch m => Int -> Stream m Int -> m Int
+choiceAsum :: MonadThrow m => Int -> Stream m Int -> m Int
 choiceAsum value =
     Stream.parse (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
 
 {-
 {-# INLINE choice #-}
-choice :: MonadCatch m => Int -> Stream m Int -> m Int
+choice :: MonadThrow m => Int -> Stream m Int -> m Int
 choice value =
     Stream.parse
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
@@ -394,7 +394,7 @@ choice value =
 -------------------------------------------------------------------------------
 
 {-# INLINE parseMany #-}
-parseMany :: MonadCatch m => Int -> Stream m Int -> m ()
+parseMany :: MonadThrow m => Int -> Stream m Int -> m ()
 parseMany n =
       Stream.fold Fold.drain
     . fmap getSum
@@ -402,7 +402,7 @@ parseMany n =
     . fmap Sum
 
 {-# INLINE parseIterate #-}
-parseIterate :: MonadCatch m => Int -> Stream m Int -> m ()
+parseIterate :: MonadThrow m => Int -> Stream m Int -> m ()
 parseIterate n =
       Stream.fold Fold.drain
     . fmap getSum
@@ -418,7 +418,7 @@ parseBreak s = do
         Right (_, s1) -> parseBreak s1
 
 {-# INLINE concatSequence #-}
-concatSequence :: MonadCatch m => Stream m Int -> m ()
+concatSequence :: MonadThrow m => Stream m Int -> m ()
 concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
 
 -------------------------------------------------------------------------------
