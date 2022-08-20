@@ -310,6 +310,18 @@ instance Bifunctor Step where
             Done n b -> Done n (g b)
             Error err -> Error err
 
+-- XXX It should be bimapAddCount, we should not be discarding the counts from
+-- initial. There could be cases where backtracking from initial may be useful.
+--
+-- However, it may not make sense at all to backtrack in initial because the
+-- previous parser would have called Done which would have dropped the buffer.
+-- But in applicatives we keep the buffer.
+--
+-- If we have special drivers where we do not drop the buffer even on Partial
+-- or Done i.e. fully backtracking parsers, then we can use backtracking in
+-- initial as well. This could be another class of parsers that works on
+-- buffered data.
+
 -- | Bimap discarding the count, and using the supplied count instead.
 bimapOverrideCount :: Int -> (s -> s1) -> (b -> b1) -> Step s b -> Step s1 b1
 bimapOverrideCount n f g step =
@@ -599,7 +611,9 @@ rmapM f (Parser step initial extract) = Parser step1 initial1 extract1
     where
 
     initial1 = initial >>= mapMStep f
+
     step1 s a = step s a >>= mapMStep f
+
     extract1 = extract >=> mapMStep f
 
 -- | See 'Streamly.Internal.Data.Parser.fromPure'.
@@ -625,7 +639,6 @@ fromEffect b = Parser undefined (Done 0 <$> b) undefined
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
-{-
 -- | See 'Streamly.Internal.Data.Parser.serialWith'.
 --
 -- Note: this implementation of serialWith is fast because of stream fusion but
@@ -647,18 +660,14 @@ serialWith func (Parser stepL initialL extractL)
     where
 
     initial = do
-        -- XXX We can use bimap here if we make this a Step type
         resL <- initialL
         case resL of
-            IPartial sl -> return $ IPartial $ SeqParseL sl
-            IDone bl -> do
-                resR <- initialR
-                -- XXX We can use bimap here if we make this a Step type
-                return $ case resR of
-                    IPartial sr -> IPartial $ SeqParseR (func bl) sr
-                    IDone br -> IDone (func bl br)
-                    IError err -> IError err
-            IError err -> return $ IError err
+            Partial n sl -> return $ Partial n $ SeqParseL sl
+            Continue n sl -> return $ Continue n $ SeqParseL sl
+            Done n bl ->
+                let f = bimapOverrideCount n (SeqParseR (func bl)) (func bl)
+                 in f <$> initialR
+            Error err -> return $ Error err
 
     -- Note: For the composed parse to terminate, the left parser has to be
     -- a terminating parser returning a Done at some point.
@@ -666,7 +675,6 @@ serialWith func (Parser stepL initialL extractL)
         -- Important: Please do not use Applicative here. See
         -- https://github.com/composewell/streamly/issues/1033 and the problem
         -- defined in split_ for more info.
-        -- XXX Use bimap
         resL <- stepL st a
         case resL of
             -- Note: We need to buffer the input for a possible Alternative
@@ -675,37 +683,33 @@ serialWith func (Parser stepL initialL extractL)
             -- buffered until we know that the applicative cannot fail.
             Partial n s -> return $ Continue n (SeqParseL s)
             Continue n s -> return $ Continue n (SeqParseL s)
-            Done n b -> do
-                -- XXX Use bimap if we make this a Step type
-                -- fmap (bimap (SeqParseR (func b)) (func b)) initialR
-                initR <- initialR
-                return $ case initR of
-                   IPartial sr -> Continue n $ SeqParseR (func b) sr
-                   IDone br -> Done n (func b br)
-                   IError err -> Error err
+            Done n bl ->
+                let f = bimapOverrideCount n (SeqParseR (func bl)) (func bl)
+                 in f <$> initialR
             Error err -> return $ Error err
 
-    step (SeqParseR f st) a = fmap (bimap (SeqParseR f) f) (stepR st a)
+    step (SeqParseR f st) a = bimap (SeqParseR f) f <$> stepR st a
 
-    extract (SeqParseR f sR) = fmap (bimap (SeqParseR f) f) (extractR sR)
+    extract (SeqParseR f sR) = bimap (SeqParseR f) f <$> extractR sR
     extract (SeqParseL sL) = do
-        -- XXX Use bimap here
         rL <- extractL sL
         case rL of
-            Done n bL -> do
-                -- XXX Use bimap here if we use Step type in Initial
-                iR <- initialR
-                case iR of
-                    IPartial sR -> do
-                        fmap
-                            (bimap (SeqParseR (func bL)) (func bL))
-                            (extractR sR)
-                    IDone bR -> return $ Done n $ func bL bR
-                    IError err -> return $ Error err
-            Error err -> return $ Error err
             Partial _ _ -> error "Bug: serialWith extract 'Partial'"
             Continue n s -> return $ Continue n (SeqParseL s)
+            Done n bL -> do
+                iR <- initialR
+                case iR of
+                    Partial _ sR ->
+                        -- XXX Need to add the previous n
+                        bimap (SeqParseR (func bL)) (func bL) <$> extractR sR
+                    Continue _ sR ->
+                        -- XXX Need to add the previous n
+                        bimap (SeqParseR (func bL)) (func bL) <$> extractR sR
+                    Done _ bR -> return $ Done n $ func bL bR
+                    Error err -> return $ Error err
+            Error err -> return $ Error err
 
+{-
 -------------------------------------------------------------------------------
 -- Sequential applicative for backtracking folds
 -------------------------------------------------------------------------------
