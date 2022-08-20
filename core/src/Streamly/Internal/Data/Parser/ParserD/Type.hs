@@ -574,21 +574,6 @@ parserDone st (K.Success _ _) =
     error $ "Bug: fromParserK: inside alternative: " ++ show st
 parserDone _ (K.Failure e) = return $ K.Error e
 
--- | When there is no more input to feed, extract the result from the Parser.
---
--- /Pre-release/
---
-extractParse :: Monad m => (Maybe a -> m (K.Step m a b)) -> m (Step s b)
-extractParse cont = do
-    r <- cont Nothing
-    case r of
-        K.Done n b -> return (Done n b)
-        K.Partial _ _ -> error "Bug: extractParse got Partial"
-        K.Continue _ cont1 -> extractParse cont1
-        K.Error e -> return $ Error e
-
-data FromParserK b c = FPKDone !Int !b | FPKCont c
-
 -- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
 --
 -- "initial" returns a continuation which can be called one input at a time
@@ -605,28 +590,26 @@ fromParserK parser = Parser step initial extract
     initial = do
         r <- K.runParser parser 0 (0,0) parserDone
         return $ case r of
-            K.Done n b -> IPartial $ FPKDone n b
+            K.Done n b -> assert (n == 0) (IDone b)
             K.Error e -> IError e
-            K.Partial _ cont -> IPartial $ FPKCont cont -- XXX can we get this?
-            K.Continue _ cont -> IPartial $ FPKCont cont
+            K.Partial _ cont -> assert False (IPartial cont)
+            K.Continue n cont -> assert (n == 0) (IPartial cont)
 
-    -- Note, we can only reach FPKDone and FPKError from "initial". FPKCont
-    -- always transitions to only FPKCont.  The input remains unconsumed in
-    -- this case so we use "n + 1".
-    step (FPKDone n b) _ = do
-        assertM(n == 0)
-        return $ Done (n + 1) b
-    step (FPKCont cont) a = do
+    step cont a = do
         r <- cont (Just a)
         return $ case r of
             K.Done n b -> Done n b
             K.Error e -> Error e
-            K.Partial n cont1 -> Partial n (FPKCont cont1)
-            K.Continue n cont1 -> Continue n (FPKCont cont1)
+            K.Partial n cont1 -> Partial n cont1
+            K.Continue n cont1 -> Continue n cont1
 
-    -- Note, we can only reach FPKDone and FPKError from "initial".
-    extract (FPKDone n b) = return (Done n b)
-    extract (FPKCont cont) = extractParse cont
+    extract cont = do
+        r <- cont Nothing
+        return $ case r of
+            K.Done n b -> Done n b
+            K.Error e -> Error e
+            K.Partial _ _ -> error "Bug: extract got Partial"
+            K.Continue n cont1 -> Continue n cont1
 
 #ifndef DISABLE_FUSION
 {-# RULES "fromParserK/toParserK fusion" [2]
