@@ -14,6 +14,8 @@
     writeWithBufferOf -> writeWith
     writeChunksWithBufferOf -> writeChunksWith
 
+* Signature changed: Streamly.Data.Unfold.fromStream
+
 ### Deprecations
 
 * In `Streamly.Data.Fold`:

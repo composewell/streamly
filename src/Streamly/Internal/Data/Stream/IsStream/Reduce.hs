@@ -1289,10 +1289,6 @@ ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
                 assert (IsMap.mapNull mp) (return ())
                 return (hp, mp, out, cnt)
 
-{-# INLINE readSerial #-}
-readSerial :: Applicative m => Unfold.Unfold m (IsStream.SerialT m a) a
-readSerial = Unfold.fromStream
-
 -- XXX Use mutable IORef in accumulator
 {-# INLINE classifySessionsByGeneric #-}
 classifySessionsByGeneric
@@ -1307,7 +1303,7 @@ classifySessionsByGeneric
     -> t m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract) input =
-    Expand.unfoldMany (Unfold.lmap sessionOutputStream readSerial)
+    Expand.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
         $ scanlMAfter' sstep (return szero) (flush extract)
         $ interjectSuffix tick (return Nothing)
         $ map Just input
